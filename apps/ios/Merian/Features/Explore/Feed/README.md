@@ -44,6 +44,22 @@ client-side defense even though `get_explore_post_detail` also excludes the
 backing scan's `image_storage_urls`, allowing backend and app changes to roll
 out independently.
 
+## Post-detail presentation ownership
+
+Auto-opening an owned Insight after a routed detail mounts is part of the
+detail's lifecycle-owned load task; cancellation on unmount prevents its short
+settling delay from targeting another post. Field Chat preparation is keyed to
+the pending post ID with `.task(id:)` and revalidates both cancellation and the
+current post before presenting. Its notes-draft binding is the sole dismissal
+owner; cancel does not also call an independent `DismissAction`.
+Delayed comment focus and follow-up scroll work is stored, replaced on a newer
+request, and cancelled on detail disappearance so a timer cannot retain an old
+`ScrollViewProxy` or focus a replacement post.
+
+When a parent supplies the owned-Insight callback, post detail reports the scan
+ID only. The Explore shell decides whether and when its own presentation should
+dismiss; the leaf never tears down a parent-owned sheet.
+
 ## Video Playback
 
 `ExplorePublicMediaView` is the shared media host for feed cards, post detail,
@@ -67,7 +83,7 @@ media keeps its existing local playback controls.
 
 Video recovery is coordinated through `ExploreVideoPlaybackCoordinator` in
 `Feed/Models`. `ExploreView` owns one coordinator and injects it into the
-Explore environment. Sheet hosts use `.exploreVideoOverlayLifecycle(...)`
+Explore environment. Sheet hosts use `.exploreVideoPresentedOverlayLifecycle(...)`
 instead of ad-hoc `NotificationCenter` events or paired manual pause/resume
 calls. The coordinator tracks overlay tokens, nested overlay depth,
 `pauseGeneration`, and `resumeGeneration`, so playback resumes only after the
@@ -170,8 +186,10 @@ inside feed/detail views.
 Any new sheet or UIKit share surface launched from Explore feed/detail that can
 cover a playing video must participate in the coordinator:
 
-- SwiftUI sheets should derive a stable `isPresented` boolean and apply
-  `.exploreVideoOverlayLifecycle(isPresented:reason:)` on the host view.
+- SwiftUI sheets apply `.exploreVideoPresentedOverlayLifecycle(reason:)` to the
+  presented content. The token is acquired when that content mounts and released
+  only from its `onDisappear`, after UIKit teardown; the source binding may turn
+  false earlier and is not dismissal authority.
 - UIKit presenters such as `UIActivityViewController` should call
   `beginOverlay(reason:)` before presentation and end the returned token in the
   completion callback.

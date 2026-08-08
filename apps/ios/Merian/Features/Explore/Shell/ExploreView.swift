@@ -40,6 +40,19 @@ private enum ExploreDiscoveryMode: Hashable {
     case map
 }
 
+private enum ExploreNotificationDismissalDestination {
+    case scansLibrary
+    case communityRequest(String)
+    case fieldTripPublication(String)
+    case post(
+        postId: String,
+        focusCommentComposer: Bool,
+        targetCommentId: String?,
+        targetReplyParentCommentId: String?,
+        replyThreadTarget: ExploreNotificationReplyThreadTarget?
+    )
+}
+
 struct ExploreView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -51,12 +64,16 @@ struct ExploreView: View {
     @State private var mapViewModel = ExploreMapViewModel()
     @State private var navigationPath = NavigationPath()
     @State private var selectedInsightRoute: ScanInsightRoute?
+    @State private var pendingInsightCommunityRequestId: String?
     @State private var activeTab: ExploreTab = .feed
     @State private var activeDiscoveryMode: ExploreDiscoveryMode = .feed
     @State private var activeIdentifyMode: ExploreIdentifyMode = .requests
     @State private var activeFieldTripsSection: FieldTripsSection = .fieldTrips
     @State private var dictionaryUserRegionIdentifier = Self.defaultDictionaryUserRegionIdentifier()
     @State private var playbackCoordinator = ExploreVideoPlaybackCoordinator()
+    @State private var pendingNotificationDestination:
+        ExploreNotificationDismissalDestination?
+    @State private var notificationOpenToken: UUID?
 
     private let allowsInsightPresentation: Bool
     private let onOpenOwnedPostInsight: ((String) -> Bool)?
@@ -68,12 +85,6 @@ struct ExploreView: View {
     private var ownedPostInsightHandler: ((String) -> Bool)? {
         guard onOpenOwnedPostInsight != nil else { return nil }
         return { scanId in openOwnedPostInsightFromParent(scanId) }
-    }
-
-    private var hasPresentedRootOverlay: Bool {
-        viewModel.isCommentsSheetPresented ||
-            viewModel.isNotificationsSheetPresented ||
-            selectedInsightRoute != nil
     }
 
     private var activeTabBinding: Binding<ExploreTab> {
@@ -366,10 +377,6 @@ struct ExploreView: View {
             }
             .toolbar { exploreToolbar }
         }
-        .exploreVideoOverlayLifecycle(
-            isPresented: hasPresentedRootOverlay,
-            reason: "explore-root-sheet"
-        )
         .environment(playbackCoordinator)
         .task {
             viewModel.bindSettings(appSettings)
@@ -415,9 +422,12 @@ struct ExploreView: View {
             ),
             onDismiss: {}
         ) {
-            if let post = viewModel.activeCommentsPost {
-                ExploreCommentsSheet(viewModel: viewModel, post: post)
+            Group {
+                if let post = viewModel.activeCommentsPost {
+                    ExploreCommentsSheet(viewModel: viewModel, post: post)
+                }
             }
+            .exploreVideoPresentedOverlayLifecycle(reason: "explore-root-comments-sheet")
         }
         .sheet(
             isPresented: Binding(
@@ -425,6 +435,8 @@ struct ExploreView: View {
                 set: { if !$0 { viewModel.dismissNotifications() } }
             ),
             onDismiss: {
+                notificationOpenToken = nil
+                resumePendingNotificationDestination()
                 Task { await viewModel.refreshUnreadNotificationCount(force: true) }
             }
         ) {
@@ -437,11 +449,13 @@ struct ExploreView: View {
                     await openNotification(notification)
                 }
             )
+            .exploreVideoPresentedOverlayLifecycle(reason: "explore-root-notifications-sheet")
         }
         .sheet(
             item: $selectedInsightRoute,
             onDismiss: {
                 viewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
+                resumePendingInsightCommunityRequest()
             }
         ) { route in
             InsightSheetView(
@@ -453,10 +467,11 @@ struct ExploreView: View {
                 inferenceEngine: inferenceEngine,
                 allowsExplorePresentation: false,
                 onOpenCommunityIdentificationRequest: { requestId in
+                    pendingInsightCommunityRequestId = requestId
                     selectedInsightRoute = nil
-                    openCommunityIdentificationRequest(requestId)
                 }
             )
+            .exploreVideoPresentedOverlayLifecycle(reason: "explore-root-insight-sheet")
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
@@ -476,7 +491,7 @@ struct ExploreView: View {
             }
         }
         .merianSystemFeedback(
-            toastMessage: Binding(
+            toast: Binding(
                 get: { viewModel.toastMessage },
                 set: { viewModel.toastMessage = $0 }
             ),
@@ -679,6 +694,12 @@ struct ExploreView: View {
         navigationPath = requestPath
     }
 
+    private func resumePendingInsightCommunityRequest() {
+        guard let requestId = pendingInsightCommunityRequestId else { return }
+        pendingInsightCommunityRequestId = nil
+        openCommunityIdentificationRequest(requestId)
+    }
+
     private func selectExploreTab(_ tab: ExploreTab) {
         HapticManager.shared.triggerSelectionPulse()
         activeTab = tab
@@ -692,7 +713,7 @@ struct ExploreView: View {
                 HapticManager.shared.triggerSelectionPulse()
             } else {
                 HapticManager.shared.triggerErrorThump()
-                viewModel.toastMessage = "This scan is not available on this device."
+                viewModel.toastMessage = .warning("This scan is not available on this device.")
             }
             return
         }
@@ -706,7 +727,7 @@ struct ExploreView: View {
 
         guard let record = try? modelContext.fetch(descriptor).first else {
             HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = "This scan is not available on this device."
+            viewModel.toastMessage = .warning("This scan is not available on this device.")
             return
         }
 
@@ -722,7 +743,7 @@ struct ExploreView: View {
 
         guard let record = try? modelContext.fetch(descriptor).first else {
             HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = "This scan is not available on this device."
+            viewModel.toastMessage = .warning("This scan is not available on this device.")
             return
         }
 
@@ -793,28 +814,25 @@ struct ExploreView: View {
     }
 
     private func openNotification(_ notification: ExploreNotification) async {
+        guard viewModel.isNotificationsSheetPresented else { return }
+        let openToken = UUID()
+        notificationOpenToken = openToken
+
         if notification.type == .mediaMissing {
-            viewModel.dismissNotifications()
-            AppDIContainer.shared.appRouteCoordinator.request(
-                .scansLibrary,
-                source: .internalUserAction
-            )
+            stageNotificationDestination(.scansLibrary)
             return
         }
 
         if notification.type.isCommunityNotification,
            let requestId = notification.communityRequestId {
-            viewModel.dismissNotifications()
-            openCommunityIdentificationRequest(requestId)
+            stageNotificationDestination(.communityRequest(requestId))
             return
         }
 
         if notification.type.isFieldTripNotification,
            let publicationId = notification.fieldTripPublicationId {
             guard FeatureFlags.isEnabled(.fieldTrips) else { return }
-            viewModel.dismissNotifications()
-            activeTab = .fieldTrips
-            navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+            stageNotificationDestination(.fieldTripPublication(publicationId))
             return
         }
 
@@ -822,7 +840,8 @@ struct ExploreView: View {
 
         do {
             let post = try await viewModel.preparePostForNavigation(postId: postId)
-            viewModel.dismissNotifications()
+            guard notificationOpenToken == openToken,
+                  viewModel.isNotificationsSheetPresented else { return }
             let targetReplyParentCommentId = notification.parentCommentId
                 ?? (notification.type == .commentReply ? notification.commentId : nil)
             let targetCommentId = targetReplyParentCommentId == notification.commentId
@@ -831,40 +850,97 @@ struct ExploreView: View {
 
             if notification.type == .commentReply,
                let targetReplyId = notification.commentId {
-                openPostDetail(
-                    for: post,
-                    notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget(
-                        parentCommentId: notification.parentCommentId,
-                        targetReplyId: targetReplyId,
-                        fallbackReply: ExploreNotificationReplyFallback(
-                            commentId: targetReplyId,
-                            body: notification.commentBody,
-                            authorUserId: notification.triggeringUserId,
-                            authorName: notification.triggeringUserName,
-                            createdAt: notification.createdAt
+                stageNotificationDestination(
+                    .post(
+                        postId: post.id,
+                        focusCommentComposer: false,
+                        targetCommentId: nil,
+                        targetReplyParentCommentId: nil,
+                        replyThreadTarget: ExploreNotificationReplyThreadTarget(
+                            parentCommentId: notification.parentCommentId,
+                            targetReplyId: targetReplyId,
+                            fallbackReply: ExploreNotificationReplyFallback(
+                                commentId: targetReplyId,
+                                body: notification.commentBody,
+                                authorUserId: notification.triggeringUserId,
+                                authorName: notification.triggeringUserName,
+                                createdAt: notification.createdAt
+                            )
                         )
                     )
                 )
                 return
             }
 
-            if targetReplyParentCommentId != nil {
-                viewModel.prepareToExpandReplyThread(parentCommentId: targetReplyParentCommentId)
-            }
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            openPostDetail(
-                for: post,
-                focusCommentComposer: notification.type == .comment && targetCommentId == nil,
-                targetCommentId: targetCommentId ?? targetReplyParentCommentId,
-                targetReplyParentCommentId: targetReplyParentCommentId
+            stageNotificationDestination(
+                .post(
+                    postId: post.id,
+                    focusCommentComposer: notification.type == .comment && targetCommentId == nil,
+                    targetCommentId: targetCommentId ?? targetReplyParentCommentId,
+                    targetReplyParentCommentId: targetReplyParentCommentId,
+                    replyThreadTarget: nil
+                )
             )
         } catch {
+            guard notificationOpenToken == openToken,
+                  viewModel.isNotificationsSheetPresented else { return }
             MerianLog.network.error(
                 "Failed to open Explore notification \(notification.id, privacy: .private): \(error.localizedDescription, privacy: .private)"
             )
             AppTelemetry.trackExploreNotificationOpenFailed(type: notification.type.rawValue)
             HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            viewModel.dismissNotifications()
+        }
+    }
+
+    private func stageNotificationDestination(
+        _ destination: ExploreNotificationDismissalDestination
+    ) {
+        guard viewModel.isNotificationsSheetPresented else { return }
+        pendingNotificationDestination = destination
+        viewModel.dismissNotifications()
+    }
+
+    private func resumePendingNotificationDestination() {
+        guard let destination = pendingNotificationDestination else { return }
+        pendingNotificationDestination = nil
+
+        switch destination {
+        case .scansLibrary:
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .scansLibrary,
+                source: .internalUserAction
+            )
+        case .communityRequest(let requestId):
+            openCommunityIdentificationRequest(requestId)
+        case .fieldTripPublication(let publicationId):
+            activeTab = .fieldTrips
+            navigationPath.append(FieldTripPublicationRoute(publicationId: publicationId))
+        case let .post(
+            postId,
+            focusCommentComposer,
+            targetCommentId,
+            targetReplyParentCommentId,
+            replyThreadTarget
+        ):
+            guard let post = viewModel.post(id: postId) else {
+                HapticManager.shared.triggerErrorThump()
+                viewModel.toastMessage = .error("This Explore post is no longer available.")
+                return
+            }
+            if let targetReplyParentCommentId {
+                viewModel.prepareToExpandReplyThread(
+                    parentCommentId: targetReplyParentCommentId
+                )
+            }
+            openPostDetail(
+                for: post,
+                focusCommentComposer: focusCommentComposer,
+                targetCommentId: targetCommentId,
+                targetReplyParentCommentId: targetReplyParentCommentId,
+                notificationReplyThreadTarget: replyThreadTarget
+            )
         }
     }
 
@@ -913,10 +989,6 @@ private struct ExploreFeedTabContent: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
-        .exploreVideoOverlayLifecycle(
-            isPresented: editingPost != nil || isShowingFilterSheet,
-            reason: "explore-feed-overlay"
-        )
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
             Button("Settings") {
@@ -929,6 +1001,7 @@ private struct ExploreFeedTabContent: View {
         }
         .sheet(isPresented: $isShowingFilterSheet) {
             feedFilterSheet
+                .exploreVideoPresentedOverlayLifecycle(reason: "explore-feed-filter-sheet")
         }
         .sheet(item: $editingPost, onDismiss: {
             clearPostEditor()
@@ -951,6 +1024,7 @@ private struct ExploreFeedTabContent: View {
                     Task { await saveEditedPost(draft, for: post) }
                 }
             )
+            .exploreVideoPresentedOverlayLifecycle(reason: "explore-feed-edit-post-sheet")
         }
     }
 
@@ -1127,7 +1201,7 @@ private struct ExploreFeedTabContent: View {
         } catch {
             editingPostDetail = nil
             editingPostMediaItems = ExplorePostComposerMediaDraft.existingPostItems(from: post.mediaItems ?? [])
-            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
             return
         }
 
@@ -1159,14 +1233,10 @@ private struct ExploreFeedTabContent: View {
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.toastMessage = "Explore post updated"
-            }
+            viewModel.toastMessage = .success("Explore post updated")
         } catch {
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
-            }
+            viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -1242,9 +1312,11 @@ private struct ExploreFeedTabContent: View {
         case .denied:
             isLocationSettingsAlertPresented = true
         case .restricted:
-            viewModel.toastMessage = "Location access is restricted on this device."
+            viewModel.toastMessage = .warning("Location access is restricted on this device.")
         default:
-            viewModel.toastMessage = "We couldn’t determine your location right now. Try again in a moment."
+            viewModel.toastMessage = .error(
+                "We couldn’t determine your location right now. Try again in a moment."
+            )
         }
     }
 
@@ -1802,7 +1874,7 @@ struct ExploreHashtagPostsView: View {
             if posts.isEmpty {
                 errorMessage = ExploreErrorFormatter.message(for: error)
             } else {
-                viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+                viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
             }
         }
     }

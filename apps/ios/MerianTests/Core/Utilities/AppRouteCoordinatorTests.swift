@@ -349,6 +349,98 @@ struct AppRouteCoordinatorTests {
         #expect(coordinator.recentOutcomes.last?.outcome == .dismissed(presentationID: presentationID))
     }
 
+    @Test func deferredResumeCannotExceedThePendingQueueBound() throws {
+        let coordinator = AppRouteCoordinator(maximumPendingCount: 2)
+        let deferredID = UUID()
+        coordinator.request(.fieldTrips, source: .genericLaunch, id: deferredID, now: now)
+        let deferred = try #require(coordinator.claimNext(now: now))
+        coordinator.resolve(
+            deferred.id,
+            outcome: .deferred(reason: .presentationOccupied),
+            now: now
+        )
+
+        coordinator.request(.scansLibrary, source: .internalUserAction, id: UUID(), now: now)
+        coordinator.request(
+            .processExternalImageImports,
+            source: .durableExternalImport,
+            id: UUID(),
+            now: now
+        )
+        coordinator.resumeDeferredRequest(deferredID)
+
+        #expect(coordinator.pendingRequests.count == 2)
+        #expect(!coordinator.pendingRequests.contains { $0.id == deferredID })
+        #expect(coordinator.recentOutcomes.contains {
+            $0.requestID == deferredID && $0.outcome == .rejected(reason: .overflow)
+        })
+    }
+
+    @Test func strongerDeferredResumeEvictsOneEligiblePendingRoute() throws {
+        let coordinator = AppRouteCoordinator(maximumPendingCount: 2)
+        let deferredID = UUID()
+        let oldestLowID = UUID()
+        coordinator.request(
+            .processExternalImageImports,
+            source: .durableExternalImport,
+            id: deferredID,
+            now: now
+        )
+        let deferred = try #require(coordinator.claimNext(now: now))
+        coordinator.resolve(
+            deferred.id,
+            outcome: .deferred(reason: .dependenciesUnavailable),
+            now: now
+        )
+
+        coordinator.request(.fieldTrips, source: .genericLaunch, id: oldestLowID, now: now)
+        coordinator.request(
+            .nonBiologicalScans,
+            source: .internalUserAction,
+            id: UUID(),
+            now: now.addingTimeInterval(1)
+        )
+        coordinator.resumeDeferredRequest(deferredID)
+
+        #expect(coordinator.pendingRequests.count == 2)
+        #expect(coordinator.pendingRequests.first?.id == deferredID)
+        #expect(coordinator.recentOutcomes.contains {
+            $0.requestID == oldestLowID && $0.outcome == .rejected(reason: .overflow)
+        })
+    }
+
+    @Test func expiredDeferredResumeDoesNotEvictAValidPendingRoute() throws {
+        let coordinator = AppRouteCoordinator(maximumPendingCount: 1)
+        let expiredID = UUID()
+        let durableID = UUID()
+        let expiredCreationDate = Date().addingTimeInterval(-60)
+        coordinator.request(
+            .fieldTrips,
+            source: .internalUserAction,
+            id: expiredID,
+            now: expiredCreationDate
+        )
+        let deferred = try #require(coordinator.claimNext(now: expiredCreationDate))
+        coordinator.resolve(
+            deferred.id,
+            outcome: .deferred(reason: .presentationOccupied),
+            now: expiredCreationDate
+        )
+        coordinator.request(
+            .processExternalImageImports,
+            source: .durableExternalImport,
+            id: durableID,
+            now: Date()
+        )
+
+        coordinator.resumeDeferredRequest(expiredID)
+
+        #expect(coordinator.pendingRequests.map(\.id) == [durableID])
+        #expect(coordinator.recentOutcomes.contains {
+            $0.requestID == expiredID && $0.outcome == .rejected(reason: .expired)
+        })
+    }
+
     @Test func duplicateAppliedCallbackCannotReplacePresentationIdentity() throws {
         let coordinator = AppRouteCoordinator()
         let requestID = UUID()

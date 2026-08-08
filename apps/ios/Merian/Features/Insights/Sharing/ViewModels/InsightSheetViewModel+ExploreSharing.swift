@@ -103,24 +103,21 @@ extension InsightSheetViewModel {
             state.sharedExploreLocationSharing = response.locationSharing ?? locationSharing
             state.exploreFieldNotesArePublic = notesForPost != nil
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Shared to Explore"
-                toastActionTitle = "View"
-                toastAction = explorePresentationAction(
-                    target: .post,
-                    scanId: scanId,
-                    generation: generation
-                )
-            }
+            state.toastMessage = .success("Shared to Explore", action: .viewExplorePost)
+            toastAction = explorePresentationAction(
+                target: .post,
+                scanId: scanId,
+                generation: generation
+            )
         } catch {
             guard isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ) else { return }
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
-            }
+            state.toastMessage = .error(
+                ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
+            )
         }
     }
 
@@ -174,15 +171,12 @@ extension InsightSheetViewModel {
             state.exploreFieldNotesArePublic = draft.publicFieldNotes != nil
             syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Shared to Explore"
-                toastActionTitle = "View"
-                toastAction = explorePresentationAction(
-                    target: .post,
-                    scanId: scanId,
-                    generation: generation
-                )
-            }
+            state.toastMessage = .success("Shared to Explore", action: .viewExplorePost)
+            toastAction = explorePresentationAction(
+                target: .post,
+                scanId: scanId,
+                generation: generation
+            )
             return true
         } catch {
             guard isPresentingLocalRecord(
@@ -190,9 +184,9 @@ extension InsightSheetViewModel {
                 generation: generation
             ) else { return false }
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
-            }
+            state.toastMessage = .error(
+                ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
+            )
             return false
         }
     }
@@ -361,9 +355,7 @@ extension InsightSheetViewModel {
             syncComposerFieldNotes(draft.fieldNotes, modelContext: modelContext)
 
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Explore post updated"
-            }
+            state.toastMessage = .success("Explore post updated")
         } catch {
             guard isPresentingLocalRecord(
                 scanId: scanId,
@@ -374,9 +366,9 @@ extension InsightSheetViewModel {
                 return
             }
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update Explore post", for: error)
-            }
+            state.toastMessage = .error(
+                ExploreErrorFormatter.titledMessage("Couldn’t update Explore post", for: error)
+            )
         }
     }
 
@@ -430,24 +422,24 @@ extension InsightSheetViewModel {
             state.communityRequestPresentationGeneration = nil
             state.communityRequestPresentationRequestId = nil
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Asked the community"
-                toastActionTitle = "View"
-                toastAction = explorePresentationAction(
-                    target: .communityRequest,
-                    scanId: scanId,
-                    generation: generation
-                )
-            }
+            state.toastMessage = .success(
+                "Asked the community",
+                action: .viewCommunityRequest
+            )
+            toastAction = explorePresentationAction(
+                target: .communityRequest,
+                scanId: scanId,
+                generation: generation
+            )
         } catch {
             guard isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
             ) else { return }
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t ask the community", for: error)
-            }
+            state.toastMessage = .error(
+                ExploreErrorFormatter.titledMessage("Couldn’t ask the community", for: error)
+            )
         }
     }
 
@@ -492,15 +484,15 @@ extension InsightSheetViewModel {
             state.communityRequestPresentationGeneration = nil
             state.communityRequestPresentationRequestId = nil
             HapticManager.shared.triggerSuccessPulse()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Request updated"
-                toastActionTitle = "View"
-                toastAction = explorePresentationAction(
-                    target: .communityRequest,
-                    scanId: scanId,
-                    generation: generation
-                )
-            }
+            state.toastMessage = .success(
+                "Request updated",
+                action: .viewCommunityRequest
+            )
+            toastAction = explorePresentationAction(
+                target: .communityRequest,
+                scanId: scanId,
+                generation: generation
+            )
         } catch {
             guard isPresentingLocalRecord(
                 scanId: scanId,
@@ -511,9 +503,9 @@ extension InsightSheetViewModel {
                 return
             }
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = ExploreErrorFormatter.titledMessage("Couldn’t update request", for: error)
-            }
+            state.toastMessage = .error(
+                ExploreErrorFormatter.titledMessage("Couldn’t update request", for: error)
+            )
         }
     }
 

@@ -69,6 +69,15 @@ failure toasts, paywall routing, unavailable-state dismissal, explicit close,
 and chat-provided toast callbacks. A callback owned by an older sheet therefore
 cannot close, toast over, or reroute a newer observation's Field Chat.
 
+Chat-to-alternatives, chat-to-reanalysis, and Pro-paywall follow-ups are typed
+`InsightChatDismissalAction` values. `InsightSheetView` records the action,
+closes Field Chat, and resumes it only from the chat sheet's exact `onDismiss`.
+The captured scan ID and presentation generation are checked again before the
+candidate modal, refinement route, or paywall can mount. Field-note confirmation
+and copy acknowledgement timers are identity-keyed SwiftUI `.task` work, so
+unmounting the chat cancels them; the passive confirmation toast cannot block
+underlying controls.
+
 The preflight:
 
 1. polls `/check-scan-status` using the stable scan UUID;

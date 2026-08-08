@@ -120,6 +120,15 @@ actual display pass; `speciesData` assignment, `onAppear`, or a SwiftUI task
 yield is not an acceptable substitute. This keeps the release target of
 response-to-first-render p95 at or below 300 ms tied to user-visible output.
 
+The one-time Explore onboarding recommendation is delayed by a stored,
+cancellable main-actor task keyed to the exact scan ID and presentation
+generation. Re-evaluating the same result does not restart its three-second
+clock. Reset, record replacement, non-biological/error resolution, or task
+cancellation clears ownership; the task revalidates share eligibility and the
+one-time setting before mounting the sheet. It assigns presentation state
+directly so a producer-level animation transaction cannot redraw the Insight
+hierarchy.
+
 `SpeciesData.isNewDiscovery` remains the local "new to this user" signal for
 stats, persona, firefly progress, and achievement calculations. It no longer
 drives a user-facing Insight celebration. `SpeciesData.isNewToMerianDictionary`
@@ -307,8 +316,8 @@ asynchronous publication, post-edit, Community, and field-note callbacks. Sheet
 reset advances rather than zeroes the Explore request/revision clocks, so an A →
 B → A cycle cannot make an older response token numerically current.
 Record-bound collection, reanalysis, identification review, and deletion actions
-independently carry or recheck their expected scan ID; delayed candidate actions
-additionally capture the engine presentation generation. The Explore and
+independently carry or recheck their expected scan ID; candidate dismissal
+requests additionally capture the engine presentation generation. The Explore and
 Community editors, Field Notes editor, New Collection alert, and delayed Explore
 onboarding prompt capture both the scan ID and presentation generation. Nested
 Share receives that parent generation and compares it directly on every
@@ -492,7 +501,10 @@ parent `queuedScan` replacement calls `bindQueuedPresentation` so A's action
 generation and scan-bound state are invalidated before B's snapshot and media
 are installed. An accepted same-scan refresh replaces both queue state and the
 cached media snapshot. Manual Retry tracks `retryingScanId`, so A's delayed
-completion cannot release B's indicator. Queued Field Notes remain editable:
+completion cannot release B's indicator. Its 350 ms follow-up refresh is an
+identity-keyed SwiftUI task rather than a fire-and-forget callback, so view
+teardown cancels it before it can retain or mutate a replaced queued
+presentation. Queued Field Notes remain editable:
 their sheet captures the queued scan ID and presentation generation, writes
 through `FieldNotesRepository`, and rejects any callback after the queue
 presentation changes.
@@ -1145,7 +1157,8 @@ would close the parent `InsightSheetView` instead of only the modal.
 `IdentificationReview/Candidates/Models` owns `originalCandidates`,
 `remainingCandidates`, `confirmedCandidate`, and `isExhausted`, plus the
 skip/reject/confirm/restart decisions. `CandidateSwipeModal` keeps animation,
-drag offsets, dismissal timing, paywall routing, and sheet wiring in SwiftUI.
+drag offsets, the structured success-acknowledgement task, paywall presentation,
+and typed dismissal-request wiring in SwiftUI. It does not mutate the engine.
 
 **Card stack**: The top card is draggable (Tinder-style). Dragging ≥ 200 pt
 right confirms the candidate through the session; left rejects it. The card
@@ -1168,40 +1181,43 @@ been swiped away. Displays the original scan thumbnail and up to three action
 controls stacked vertically:
 
 1. `SlideToConfirm(label: "Reanalyze species", color: .orange)` — shown when a
-   persisted scan record supplies `onRefineScan`; Pro users dismiss the
-   candidate modal first, then start reanalysis on `@MainActor` after the 300 ms
-   sheet transition, while free users see the paywall
+   persisted scan record allows refinement; Pro users stage `.refineScan`,
+   dismiss the candidate modal, and let the owner resume from `onDismiss`, while
+   free users see the modal-owned paywall
 2. `SlideToConfirm(label: "Ask the community", color: .blue)` — only shown when
-   `onAskCommunity != nil`; dismisses the modal first, then opens the Community
-   request sheet on `@MainActor` after 300 ms
-3. `SlideToConfirm(label: confirmButtonTitle)` — always shown; confirms the
-   original identification and dismisses
+   the owner allows it; stages `.askCommunity`, dismisses, and opens the
+   Community request only from the source sheet's real `onDismiss`
+3. `SlideToConfirm(label: confirmButtonTitle)` — always shown; stages
+   `.confirmOriginal` and dismisses before the owner mutates the result
 
-**`onRefineScan` wiring**: `BiologicalView` resolves the persisted
+**Refinement wiring**: `BiologicalView` resolves the persisted
 `LocalScanRecord`, requests
 `AppRoute.refinement(scanId:initialDescription:entryPoint:)` through
 `AppRouteCoordinator`, and dismisses the Insight presentation. The action
-threads through `BiologicalView` → `CandidatesCard(onRefineScan:)` →
-`CandidateSwipeModal(onRefineScan:)`. `ConfidenceExplanationSheet` independently
-fetches the same persisted record and passes its equivalent action to the modal.
+threads through `BiologicalView` → `CandidatesCard` → the typed
+`CandidateSwipeDismissalRequest`. `ConfidenceExplanationSheet` independently
+fetches the same persisted record and stages an equivalent typed action.
 Availability follows the toolbar's persisted-record rule; cloud-backed and
 multi-image scans are supported because refinement staging resolves remote media
 and selects the first usable historical item.
 
 **Confirmed state**: After a stack or grid confirm, `session.confirmedCandidate`
 is set, showing a green `checkmark.circle.fill` success screen for 1.5 s before
-the sheet auto-dismisses. `applyIdentificationOverride` is deferred a further
-300 ms after dismissal to prevent SwiftUI from destroying the host sheet anchor
-during the structural `speciesData` mutation.
+the sheet auto-dismisses. That acknowledgement is an identity-keyed SwiftUI
+`.task`; unmounting the modal cancels it. The owner receives
+`.applyOverride(scientificName:)` before dismissal and invokes
+`applyIdentificationOverride` only from the exact `onDismiss`, after rechecking
+the captured scan and presentation generation.
 
 **`onDisappear` guard**: If `session.isExhausted && !isDismissing` and the
 original scan ID plus engine presentation generation still own the sheet,
 `inferenceEngine.markAlternativesExhausted(expectedScanId:)` is called. This
 sets the `alternativesExhausted` flag that surfaces `AllCandidatesReviewedView`
-in `ConfidenceExplanationSheet` on next open. Delayed candidate confirmation,
-Community handoff, and reanalysis callbacks use the same two-part ownership
-check. The direct card controls wrap confirm, review, dismiss, Community, and
-refine actions in that ownership check too.
+in `ConfidenceExplanationSheet` on next open. Candidate confirmation, Community
+handoff, and reanalysis requests all carry the same two-part ownership identity;
+the owning `CandidatesCard`, `InsightContentView`, or nested confidence sheet
+revalidates it after actual dismissal. The direct card controls wrap confirm,
+review, dismiss, Community, and refine actions in that ownership check too.
 
 **Nested sheet `Menu` incompatibility**: SwiftUI `Menu` uses
 `UIContextMenuInteraction` which fails to attach in nested sheet contexts — the
@@ -1409,6 +1425,14 @@ alternatives-exhausted Review again path and
 `CandidateReviewVisibilityPolicy.visibleCandidates(for:)` for normal candidate
 display. Review-state cards rendered at the top of the sheet (mutually
 exclusive, evaluated in order):
+
+Actions that leave Confidence explanation are
+`ConfidenceExplanationDismissalAction` values. Nested candidate mutations may
+complete after the candidate modal's own `onDismiss` while the explanation
+remains visible; Community and refinement actions are staged through the outer
+sheet and executed by `ConfidenceBadge` only after its `onDismiss` and a fresh
+engine scan/generation check. No sibling presentation is mounted during UIKit
+teardown.
 
 | Priority | Condition                             | View                        | Action                                                                                                                 |
 | -------- | ------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |

@@ -157,9 +157,9 @@ LocalScanRecord[] (SwiftData)
         → calculateAwardsProjection()
         → AchievementsCalculator.calculate(from:)
             → [AwardPayload]
-    → GamificationManager.evaluateAchievementsForNotifications(awards:enqueueToasts:)
-        → default callers enqueue immediately
-        → ScanMilestoneCoordinator collects without early presentation
+    → GamificationManager.evaluateAchievementsForNotifications(awards:)
+        → returns typed presentation-eligible awards without invoking UI
+        → ScanMilestoneCoordinator batches them after Field trip progress
 ```
 
 `ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task` modifier. `calculateAll()` is the primary profile render entry point: it loads one `ProfileStatsProjection`, derives species count, streak, heatmap, and awards from that projection, then dispatches the flat `Sendable` result back to `@MainActor` in a single `MainActor.run` block.
@@ -295,13 +295,40 @@ Seasonal Challenge IDs to the public achievement payload.
 
 `recordNewSpeciesDiscovered()` is called by `InferenceEngine` when `isNewDiscovery == true`. It increments `unlockedSpeciesCount`, persists it, and checks the firefly badge threshold.
 
-`evaluateAchievementsForNotifications(awards:enqueueToasts:)` is called after `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any award's type is newly absent from `unlockedAchievements` but now `isCompleted`, adds it to the set, persists the set, returns the toast-eligible awards, and queues a native local push notification via `PushNotificationManager.shared.sendAchievementUnlockedNotification` if the `isAchievementNotificationsEnabled` `UserDefaults` flag is set. `enqueueToasts` defaults to `true` for existing non-scan callers. The scan milestone coordinator passes `false` so achievements can be placed after Field trip progress without delaying persistence or push behavior.
+`evaluateAchievementsForNotifications(awards:)` is called after `calculateAwards()` completes. It iterates `[AwardPayload]`, checks if any award's type is newly absent from `unlockedAchievements` but now `isCompleted`, adds it to the set, persists the set, returns the presentation-eligible awards, and queues a native local push notification via `PushNotificationManager.shared.sendAchievementUnlockedNotification` if the `isAchievementNotificationsEnabled` `UserDefaults` flag is set. The domain manager never invokes an in-app presenter. `ScanMilestoneCoordinator` owns the visual handoff and places the returned awards after Field trip progress without delaying persistence or push behavior.
 
 Achievements introduced after users already have local scan history can define a notification cutoff in `GamificationManager`. The domestic cat and dog achievements use the July 4, 2026 rollout cutoff so qualifying legacy scans are persisted as unlocked without showing a retroactive toast, while fresh qualifying scans still notify normally.
 
 ## Milestone Toasts
 
-`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. The process-local visual queue is capped at 32 items; overflow may omit ephemeral feedback but cannot lose the already-durable progress or achievement. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. Retryable Field trip failures do not finalize that deduplication key or discard the selected goal; they use bounded retries while an independent milestone-delivery key prevents ordinary achievements and dictionary feedback from replaying after recovery. The presenter controls visual presentation, haptics, the cancellable 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, and queue transitions. Banner taps request typed `AppRoute.achievement` or `AppRoute.captureGoal` values; achievement detail then uses the single root sheet host. The milestone overlay and ordinary system toast do not mount concurrently, and only the visible banner receives hit testing. The presenter does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
+`AppDIContainer` owns the production `MilestoneToastPresenter`,
+`ScanMilestoneCoordinator`, injectable clock, and foreground-host registry used
+by Field trip progress, achievement unlocks, and the `New to Naturebook`
+dictionary-contribution banner. There is no separate presenter or coordinator
+singleton. The process-local visual queue is capped at 32 lightweight items;
+overflow may omit ephemeral feedback but cannot lose already-durable progress
+or achievement state, while equivalent typed payloads coalesce onto a stable
+item ID. `ScanMilestoneCoordinator` owns the per-scan business ordering:
+standard outings in server order, Seasonal Challenges in server order,
+achievements in their existing order, then the dictionary milestone. Foreground
+and background completion paths share the coordinator and are deduplicated by
+final saved scan ID. Retryable Field trip failures do not finalize that key or
+discard the selected goal; they use bounded retries while an independent
+milestone-delivery key prevents ordinary achievements and dictionary feedback
+from replaying after recovery. Runtime auth changes and foreground session
+timeouts clear queued visual items and fence late async callbacks with captured
+generation tokens.
+
+The latest mounted feedback host renders exclusively and restores its parent
+when it disappears. Presentation start time, haptics, and VoiceOver are claimed
+once by the presenter, so moving the same active item between hosts preserves
+its remaining 3.5-second lifetime without repeating effects. Banner taps
+request typed `AppRoute.achievement` or `AppRoute.captureGoal` values;
+achievement detail then uses the single root sheet host. The milestone overlay
+and ordinary typed `ToastPayload` do not mount concurrently, and only the
+visible front banner receives hit testing. The presenter does not mutate
+achievement progress, Field trip progress, analytics, scan data, dictionary
+state, or native iOS notification authorization.
 
 `ProfileTabView` keys its statistics task by both the ordinary refresh token and
 the current authentication/account identity. On cold launch it can render local

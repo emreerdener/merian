@@ -169,7 +169,7 @@ extension CaptureWorkspaceViewModel {
             diContainer.offlineQueueManager.isOnline ? UUID() : nil
         pendingAnalyzeScanId = scanId
         if let capturedPreferredGoal {
-            ScanMilestoneCoordinator.shared.registerPreferredGoal(
+            diContainer.scanMilestoneCoordinator.registerPreferredGoal(
                 capturedPreferredGoal,
                 for: scanId
             )
@@ -238,7 +238,7 @@ extension CaptureWorkspaceViewModel {
                 guard didQueue else {
                     self.pendingAnalyzeScanId = nil
                     self.activeSheet = nil
-                    self.offlineToastMessage = "Unable to save capture. Please try again."
+                    self.offlineToastMessage = .error("Unable to save capture. Please try again.")
                     self.discardLocalMediaFiles(at: capturedMediaFilePaths)
                     return
                 }
@@ -261,7 +261,7 @@ extension CaptureWorkspaceViewModel {
                             )
                     }
                     self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage = "No network connection. Queued for upload."
+                    self.offlineToastMessage = .warning("No network connection. Queued for upload.")
                     return
                 }
 
@@ -279,8 +279,7 @@ extension CaptureWorkspaceViewModel {
                             reason: "foreground_owner_unavailable"
                         )
                     self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage =
-                        "Capture queued for upload."
+                    self.offlineToastMessage = .information("Capture queued for upload.")
                     return
                 }
 
@@ -347,8 +346,7 @@ extension CaptureWorkspaceViewModel {
                                         foregroundInferenceGeneration
                                 ) else {
                             self.pendingAnalyzeScanId = nil
-                            self.offlineToastMessage =
-                                "Capture queued for upload."
+                            self.offlineToastMessage = .information("Capture queued for upload.")
                             return
                         }
                         self.diContainer.inferenceEngine.analyze(

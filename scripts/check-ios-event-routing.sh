@@ -68,6 +68,13 @@ assert_tree_has_no_match \
   'AppEventPublisher\s*\.\s*shared\b' \
   'AppEventPublisher.shared is forbidden; obtain the scoped bus from AppDIContainer.'
 
+feedback_modifier="$source_root/Core/UI/Modifiers/MerianSystemFeedbackModifier.swift"
+if [[ -f "$feedback_modifier" ]] && file_matches \
+  'AppDIContainer\s*\.\s*shared\s*\.\s*appRouteCoordinator\b' \
+  "$feedback_modifier"; then
+  fail "The shared feedback host must route through its environment-injected AppRouteCoordinator."
+fi
+
 canonical_bus="$source_root/Core/Utilities/AppEventPublisher.swift"
 [[ -f "$canonical_bus" ]] || fail "Missing canonical event bus: ${canonical_bus#"$source_root"/}"
 

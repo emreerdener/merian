@@ -417,6 +417,12 @@ private struct DescribePromptHeader: View {
     @Bindable var promptManager: DescribePromptManager
     let appendTag: (GuidedQuestion.Tag) -> Void
     let advanceQuestion: () -> Void
+    @State private var pendingAutoAdvance: PendingAutoAdvance?
+
+    private struct PendingAutoAdvance: Equatable {
+        let id = UUID()
+        let questionIndex: Int
+    }
     
     private var sortedTags: [GuidedQuestion.Tag] {
         guard promptManager.activeQuestionIndex >= 0 && promptManager.activeQuestionIndex < promptManager.activeQuestions.count else { return [] }
@@ -460,14 +466,9 @@ private struct DescribePromptHeader: View {
                         
                         if !promptManager.interactedQuestionIndices.contains(indexBeforeAppend) {
                             promptManager.interactedQuestionIndices.insert(indexBeforeAppend)
-                            
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 350_000_000)
-                                guard !Task.isCancelled else { return }
-                                if promptManager.activeQuestionIndex == indexBeforeAppend {
-                                    advanceQuestion()
-                                }
-                            }
+                            pendingAutoAdvance = PendingAutoAdvance(
+                                questionIndex: indexBeforeAppend
+                            )
                         }
                     }) {
                         if let imageName = tag.imageName {
@@ -501,5 +502,20 @@ private struct DescribePromptHeader: View {
         }
         .contentMargins(.horizontal, 20, for: .scrollContent)
         .padding(.bottom, 16)
+        .task(id: pendingAutoAdvance?.id) {
+            guard let request = pendingAutoAdvance else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  pendingAutoAdvance?.id == request.id,
+                  promptManager.activeQuestionIndex == request.questionIndex else {
+                return
+            }
+            pendingAutoAdvance = nil
+            advanceQuestion()
+        }
     }
 }

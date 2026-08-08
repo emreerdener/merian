@@ -178,6 +178,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
+    @ObservationIgnored private weak var milestoneToastSessionController: (any MilestoneToastSessionControlling)?
     private var lastPublicAuthorIdentityRefreshUserId: String?
     @ObservationIgnored private(set) var isSigningOut = false
 
@@ -218,6 +219,17 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
     func bindAppRouteSessionController(_ controller: any AppRouteSessionControlling) {
         appRouteSessionController = controller
+        controller.beginAccountSession(
+            accountID: currentUser?.id.uuidString,
+            origin: .initialRestoration,
+            now: Date()
+        )
+    }
+
+    func bindMilestoneToastSessionController(
+        _ controller: any MilestoneToastSessionControlling
+    ) {
+        milestoneToastSessionController = controller
         controller.beginAccountSession(
             accountID: currentUser?.id.uuidString,
             origin: .initialRestoration,
@@ -335,6 +347,11 @@ enum SupabaseAuthTransitionError: LocalizedError {
                         origin: accountSessionOrigin,
                         now: Date()
                     )
+                    milestoneToastSessionController?.beginAccountSession(
+                        accountID: session.user.id.uuidString,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
                     ConsentManager.shared.observeSession(userId: session.user.id)
                     await EntitlementManager.shared.beginSession(
                         userID: session.user.id,
@@ -379,6 +396,11 @@ enum SupabaseAuthTransitionError: LocalizedError {
                         origin: accountSessionOrigin,
                         now: Date()
                     )
+                    milestoneToastSessionController?.beginAccountSession(
+                        accountID: userId.uuidString,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
                     ConsentManager.shared.observeSession(userId: userId)
                     MerianLog.auth.debug(
                         "Cached auth session is awaiting refresh; consent restoration remains pending."
@@ -387,6 +409,11 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     self.currentUser = nil
                     self.isAuthenticated = false
                     appRouteSessionController?.beginAccountSession(
+                        accountID: nil,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
+                    milestoneToastSessionController?.beginAccountSession(
                         accountID: nil,
                         origin: accountSessionOrigin,
                         now: Date()

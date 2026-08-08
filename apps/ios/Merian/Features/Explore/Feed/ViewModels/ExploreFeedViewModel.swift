@@ -215,7 +215,7 @@ final class ExploreFeedViewModel {
     var isLoadingInitialFeed = false
     var isLoadingMore = false
     var errorMessage: String?
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
     var unreadNotificationCount = 0
     var preferredSpeciesNamesByScientificName: [String: String] = [:]
     var fieldTripPublications: [FieldTripRecentPublication] = []
@@ -281,7 +281,6 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
     @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
     @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
-    @ObservationIgnored var toastDismissTask: Task<Void, Never>?
     @ObservationIgnored var activeFeedRequestId = UUID()
     @ObservationIgnored var currentInitialFeedRequestId: UUID?
     @ObservationIgnored var currentLoadMoreRequestId: UUID?
@@ -391,19 +390,4 @@ final class ExploreFeedViewModel {
         nearbyLocationSnapshot?.longitude
     }
 
-    func autoDismissToast(matching message: String, after seconds: UInt64 = 3) {
-        toastDismissTask?.cancel()
-        toastDismissTask = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(seconds))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            guard self?.toastMessage == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                self?.toastMessage = nil
-            }
-        }
-    }
 }

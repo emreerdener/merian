@@ -42,21 +42,34 @@ struct SNRGaugeView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: showInitialTooltip)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: snrLevel)
+        .allowsHitTesting(false)
         .onAppear {
             if showInitialTooltip {
                 schedulePromptDismissal()
             }
+        }
+        .onDisappear {
+            promptTask?.cancel()
+            promptTask = nil
         }
     }
 
     private func schedulePromptDismissal() {
         SNRGaugeView.hasShownInitialTooltipThisSession = true
         promptTask?.cancel()
-        promptTask = Task {
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
+        promptTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(3.5))
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
             withAnimation { showInitialTooltip = false }
-            try? await Task.sleep(nanoseconds: 350_000_000)
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
             hintsAllowed = true
         }

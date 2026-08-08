@@ -15,7 +15,7 @@ struct InsightChatSheet: View {
     var publicScientificName: String? = nil
     var publicAlternativeNames: [String] = []
     var allowsOwnerActions = true
-    let onToast: (String) -> Void
+    let onToast: (ToastPayload) -> Void
     let onAppendToFieldNotes: (String, InsightChatFieldNotesAppendKind) -> Void
     let onReviewAlternatives: (() -> Void)?
     let onReanalyzeSpecies: (() -> Void)?
@@ -128,7 +128,7 @@ struct InsightChatSheet: View {
                 Task {
                     await viewModel.deleteCurrentConversation(scanId: scanId)
                     if viewModel.errorMessage == nil {
-                        onToast("Field chat deleted")
+                        onToast(.success("Field chat deleted"))
                     }
                 }
             }
@@ -199,7 +199,7 @@ struct InsightChatSheet: View {
                             trackAction("summarize_to_field_notes", message: nil)
                             Task {
                                 if await viewModel.summarizeForFieldNotes(scanId: scanId) {
-                                    onToast("Summary ready to review")
+                                    onToast(.success("Summary ready to review"))
                                 }
                             }
                         } label: {
@@ -272,7 +272,7 @@ struct InsightChatSheet: View {
                                                     rating: .helpful
                                                 )
                                                 if didSubmit {
-                                                    onToast("Marked helpful")
+                                                    onToast(.success("Marked helpful"))
                                                 }
                                             }
                                         },
@@ -502,7 +502,7 @@ struct InsightChatSheet: View {
         switch action {
         case .copyAnswer:
             UIPasteboard.general.string = message.text
-            onToast("Copied answer")
+            onToast(.information("Copied answer"))
         }
     }
 
@@ -547,7 +547,7 @@ struct InsightChatSheet: View {
                 rating: rating
             )
             if didSubmit {
-                onToast("Feedback sent")
+                onToast(.success("Feedback sent"))
             }
         }
     }
@@ -573,7 +573,7 @@ struct InsightChatSheet: View {
                 note: note
             )
             if didSubmit {
-                onToast("Feedback sent")
+                onToast(.success("Feedback sent"))
             }
         }
     }
@@ -816,6 +816,21 @@ private struct InsightChatAnswerControls: View {
             .padding(.horizontal, 16)
         }
         .padding(.horizontal, -16)
+        .task(id: copyConfirmationToken) {
+            guard let copyConfirmationToken else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1_400))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  self.copyConfirmationToken == copyConfirmationToken else {
+                return
+            }
+            withAnimation(.easeOut(duration: 0.18)) {
+                self.copyConfirmationToken = nil
+            }
+        }
     }
 
     private var copyControl: some View {
@@ -866,17 +881,8 @@ private struct InsightChatAnswerControls: View {
     }
 
     private func showCopyConfirmation() {
-        let token = UUID()
         withAnimation(.easeOut(duration: 0.16)) {
-            copyConfirmationToken = token
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_400_000_000)
-            guard copyConfirmationToken == token else { return }
-            withAnimation(.easeOut(duration: 0.18)) {
-                copyConfirmationToken = nil
-            }
+            copyConfirmationToken = UUID()
         }
     }
 }
@@ -993,9 +999,8 @@ private struct InsightChatFeatureFeedbackSheet: View {
 }
 
 private struct InsightChatNotesDraftSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var draftText: String
-    @State private var confirmationMessage: String?
+    @State private var confirmationToast: ToastPayload?
     @State private var isCompletingAppend = false
     let onCancel: () -> Void
     let onAppend: (String) -> Void
@@ -1016,7 +1021,6 @@ private struct InsightChatNotesDraftSheet: View {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {
                             onCancel()
-                            dismiss()
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 16, weight: .bold))
@@ -1041,17 +1045,31 @@ private struct InsightChatNotesDraftSheet: View {
                 }
         }
         .overlay(alignment: .bottom) {
-            if let confirmationMessage {
-                ToastBanner(onDismiss: nil) {
-                    Label(confirmationMessage, systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
+            if let confirmationToast {
+                ToastPayloadBanner(payload: confirmationToast, onDismiss: nil)
                 .padding(.bottom, 104)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                .allowsHitTesting(false)
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: confirmationMessage)
+        .animation(
+            .spring(response: 0.35, dampingFraction: 0.85),
+            value: confirmationToast?.id
+        )
+        .task(id: confirmationToast?.id) {
+            guard let confirmationToast else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1_200))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  isCompletingAppend,
+                  self.confirmationToast?.id == confirmationToast.id else {
+                return
+            }
+            onCancel()
+        }
     }
 
     private func appendAndConfirm() {
@@ -1061,19 +1079,7 @@ private struct InsightChatNotesDraftSheet: View {
 
         isCompletingAppend = true
         onAppend(draftText)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            confirmationMessage = "Added to field notes"
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            withAnimation(.easeOut(duration: 0.18)) {
-                confirmationMessage = nil
-            }
-            try? await Task.sleep(nanoseconds: 180_000_000)
-            onCancel()
-            dismiss()
-        }
+        confirmationToast = .success("Added to field notes")
     }
 }
 

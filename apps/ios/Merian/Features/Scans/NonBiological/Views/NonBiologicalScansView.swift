@@ -29,7 +29,7 @@ struct NonBiologicalScansView: View {
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
     @State private var isClearingAll = false
-    @State private var toastMessage: String?
+    @State private var toastMessage: ToastPayload?
     
     // MARK: - View Layout
     
@@ -88,35 +88,10 @@ struct NonBiologicalScansView: View {
                     .allowsHitTesting(false)
             }
         }
-        .overlay(alignment: .bottom) {
-            if let message = toastMessage {
-                ToastBanner(onDismiss: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        toastMessage = nil
-                    }
-                }) {
-                    Text(message)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                }
-                .padding(.bottom, 60)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
-            }
-        }
-        .task(id: toastMessage) {
-            guard let message = toastMessage else { return }
-            do {
-                try await Task.sleep(for: .seconds(3))
-            } catch {
-                return
-            }
-            guard toastMessage == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                toastMessage = nil
-            }
-        }
+        .merianSystemFeedback(
+            toast: $toastMessage,
+            showsAchievementToasts: false
+        )
         .task {
             await purgeExpiredNonBiologicalScans()
         }
@@ -161,7 +136,7 @@ struct NonBiologicalScansView: View {
             modelContext: modelContext
         ) {
             scanToDelete = nil
-            withAnimation { toastMessage = "Scan deleted" }
+            toastMessage = .success("Scan deleted")
         }
         .alert(
             "Delete \(nonBioRecords.count) non-biological scans?",
@@ -207,14 +182,14 @@ struct NonBiologicalScansView: View {
                     isClearingAll = false
                     AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
                     HapticManager.shared.triggerSuccessPulse()
-                    withAnimation { toastMessage = "Scans cleared" }
+                    toastMessage = .success("Scans cleared")
                     Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
                 }
             } catch {
                 await MainActor.run {
                     isClearingAll = false
                     HapticManager.shared.triggerErrorThump()
-                    withAnimation { toastMessage = "Couldn't clear scans" }
+                    toastMessage = .error("Couldn't clear scans")
                 }
             }
         }
@@ -226,6 +201,6 @@ struct NonBiologicalScansView: View {
             source: .internalUserAction
         )
         HapticManager.shared.triggerSelectionPulse()
-        withAnimation { toastMessage = "Reanalysis started" }
+        toastMessage = .information("Reanalysis started")
     }
 }

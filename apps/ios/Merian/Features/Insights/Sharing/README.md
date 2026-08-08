@@ -51,6 +51,19 @@ model's exact scan ID and presentation generation. This closes both ordinary A �
 B switches and A → B → A callbacks where the UUID happens to match again but the
 original presentation no longer owns the UI.
 
+The delayed onboarding prompt is one explicitly retained main-actor task, not
+an unstructured fire-and-forget timer. Repeated completion evaluation for the
+same scan/generation leaves the original deadline intact. Reset, scan-bound
+state invalidation, or an ineligible result cancels and releases it; the wake
+path revalidates identity, current share recommendation, and the persisted
+one-time flag before changing presentation state.
+
+When an Insight-hosted Explore sheet opens the current user's published post,
+the post detail reports only the scan ID. The Explore shell owns its dismissal,
+and the enclosing Insight stages and applies that scan only from Explore's real
+`onDismiss`. A leaf view must not call `dismiss()` for a presentation owned by
+its parent.
+
 The same boundary covers callbacks outside the nested Share component. Toolbar
 collection/export/Field Chat/identification/review/reanalysis/delete actions,
 media and audio controls, local-gallery and Wikipedia/Safari sheets, common-name

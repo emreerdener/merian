@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationsDir = new URL("../../migrations/", import.meta.url);
 const fieldTripsFunctionDir = new URL("../field-trips/", import.meta.url);
@@ -691,6 +691,41 @@ Deno.test("Initial Field trip capture context is focused, ordered, and service-r
       `Capture context must not return private evidence: ${privateEvidence}`,
     );
   }
+});
+
+Deno.test("Capture context entitlement dependency remains invoker-safe and service-only", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260808215410_restore_field_trip_capture_entitlement_helper_access.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "public.get_field_trip_capture_context(uuid)",
+      "internal.user_has_effective_pro(uuid)",
+      "field_trip_capture_entitlement_dependency_missing",
+      "field_trip_capture_entitlement_dependency_drift",
+      "field_trip_capture_entitlement_helper_acl_unsafe",
+      "REVOKE ALL ON FUNCTION internal.user_has_effective_pro(UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT EXECUTE ON FUNCTION internal.user_has_effective_pro(UUID) TO service_role",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_capture_context",
+    ),
+    "The ACL repair must not convert or redefine the invoker capture projection",
+  );
+  assertEquals(
+    (sql.match(
+      /GRANT EXECUTE ON FUNCTION internal[.]user_has_effective_pro[(]UUID[)] TO service_role/g,
+    ) ?? []).length,
+    1,
+  );
 });
 
 Deno.test("Capture context keeps a standard field trip after Seasonal Challenge join", async () => {

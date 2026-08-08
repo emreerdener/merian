@@ -302,11 +302,38 @@ owns two deliberately different `@MainActor` services:
   16 lightweight envelopes with priority, semantic coalescing, expiry,
   account/session fences, and explicit outcomes.
 
+The capacity check applies both at initial request ingress and when a deferred
+in-flight envelope resumes after presentation teardown. An expired deferred
+envelope is rejected before eviction, and a live resumed envelope can displace
+only eligible equal-or-lower-priority work. This keeps the hard 16-envelope
+bound intact even when producers refill the queue while a sheet is occupied.
+
 Reference-type Combine consumers store their cancellables and capture
 themselves weakly; SwiftUI `.onReceive` remains view-lifecycle-owned. Framework
 publishers cross through `sinkOnMainActor`; the app bus is already main-actor
 isolated and remains synchronous. Full contracts and matrices live in
 [Event and Presentation Routing](10-event-and-presentation-routing.md).
+
+Transient UI feedback follows the same typed boundary. Feature state stores a
+small `ToastPayload`—presentation UUID, title/body, `ToastSeverity`, and an
+optional typed action descriptor—instead of a `String?` whose wording must be
+parsed to recover severity or behavior. `MerianSystemFeedbackModifier` owns one
+identity-keyed structured dismissal task. Passive banners disable hit testing,
+omit interactive controls, and action banners occupy only their intrinsic card
+bounds. Toast and milestone animation transactions are scoped inside their
+overlay builders rather than around the feature root; neither path introduces
+a full-screen invalidation, animation transaction, or gesture layer. Producers
+assign the payload and view-owned action without `withAnimation`; the modifier
+alone owns insertion and removal animation. Ordinary toast animation identity
+also includes milestone suppression, allowing the same payload to transition
+out and back in during serialized feedback ownership.
+The DI-owned milestone presenter holds at most 32 lightweight items and its host
+registry at most eight UUIDs. `ScanMilestoneCoordinator` holds at most 16
+sleeping automatic-retry tasks across all scans (in addition to the three-attempt
+per-scan budget); oldest overflow is cancelled and its process-local captures
+are released because the SwiftData goal hint remains the durable recovery outbox.
+Account/session transitions cancel every retained retry task and clear its
+preferred-goal/model-container captures.
 
 ### SwiftUI 17 Environment Macros (`HapticManager`)
 
@@ -332,6 +359,27 @@ video, description, question, and feedback presentations report the same UIKit
 slot as occupied; global routes wait for their exact `onDismiss` before being
 reclaimed. The feedback survey is also mounted from dismissal callbacks rather
 than a guessed 1.2-second teardown delay.
+
+Feature-local nested sheets use the same lifecycle rule. Candidate review,
+confidence review, Insight Chat follow-ups, and Explore activity navigation
+store typed pending actions with scan/presentation identity where applicable,
+dismiss their current owner, and resume only from that owner's `onDismiss`.
+They never mutate the backing identification or mount a sibling destination
+while UIKit is tearing the source sheet down. This removes short-lived duplicate
+view graphs and prevents a delayed callback from targeting a replacement scan.
+Explore notification navigation stores only a post ID across dismissal and
+re-resolves the bounded feed-store value afterward; a latest-wins token rejects
+late async preparation after a newer tap or manual dismissal. For an owned post
+inside Insight-hosted Explore, the leaf reports a scan ID, the Explore shell
+owns its dismissal, and Insight applies the staged scan only from the shell's
+real `onDismiss`.
+
+Transient visual delays are lifecycle-owned as well. Zoom labels, viewfinder
+and SNR prompts, focus indicators, back-swipe rearming, Field Chat preparation,
+and delayed Explore onboarding use structured or explicitly stored cancellable
+tasks with identity checks. Unmount/reset cancels retained tasks, and passive
+surfaces disable hit testing so neither timers nor invisible layout layers keep
+obsolete UI graphs alive or block interaction.
 
 ### Capture Startup AttributeGraph Isolation
 
@@ -1207,14 +1255,16 @@ view contexts, creating subtle ordering hazards:
   used `DispatchQueue.main.async`; replaced with `Task { @MainActor in }` for
   the same reason.
 
-**Rule:** Never use `DispatchQueue.main.async` or
-Avoid adding `DispatchQueue.main.asyncAfter` as lifecycle or presentation
-coordination. Use `Task { @MainActor in }` for one-shot hops from nonisolated
+**Rule:** Avoid adding `DispatchQueue.main.async` for actor hopping or
+`DispatchQueue.main.asyncAfter` for lifecycle/presentation coordination. Use
+`Task { @MainActor in }` for one-shot hops from nonisolated
 callbacks, and `.task` modifiers or `await MainActor.run { }` for structured
 async contexts. `sinkOnMainActor` deliberately retains
 `receive(on: DispatchQueue.main)` at unknown-executor framework boundaries;
-small UIKit/animation compatibility shims elsewhere are not evidence that the
-app event bus should become asynchronously scheduled.
+view-owned `NotificationCenter` publishers apply the same explicit main-queue
+delivery before SwiftUI `.onReceive`. Small UIKit/animation compatibility shims
+elsewhere are not evidence that the app event bus should become asynchronously
+scheduled.
 
 Where lifecycle work has a structured-concurrency owner, keep the hop inside
 that task tree so cancellation, ordering, and priority inheritance remain
@@ -1226,11 +1276,13 @@ token/cancellable ownership instead.
 When generating delays such as toast/banner teardown, swallowing
 `CancellationError` and then continuing can let an old task clear replacement
 state. Auto-dismiss tasks use `do/try/catch`, return from cancellation, and
-compare the message or item identity before mutation. The shared system-toast
-and milestone overlays also occupy distinct presentation states so only one
-bottom feedback layer mounts at a time. Feature animation sleeps that perform
-no teardown may still use cancellation-tolerant behavior where explicitly
-appropriate.
+compare the payload or item identity before mutation. Candidate acknowledgement,
+Field Chat copy confirmation, and note-confirmation delays are structured
+`.task(id:)` work, so unmounting their view cancels the timer instead of
+retaining its SwiftUI state box. The shared system-toast and milestone overlays
+also occupy distinct presentation states so only one bottom feedback layer
+mounts at a time. Feature animation sleeps that perform no teardown may still
+use cancellation-tolerant behavior where explicitly appropriate.
 
 ### Owner-Scoped Media Observation
 
@@ -1245,10 +1297,21 @@ UI state. This bounds observer memory and prevents stale end/interruption events
 from redrawing a newly mounted page.
 
 System and milestone feedback overlays keep their layout footprint to the
-visible banner. The Scans export state uses a compact pass-through progress
-capsule instead of a dim full-screen overlay, while conflicting mutation
-controls remain disabled. These boundaries avoid retaining or invalidating a
-full heavy view tree for ephemeral feedback.
+visible banner. `AppDIContainer` owns the sole production milestone presenter,
+clock, host registry, and scan coordinator. Its process-local queue is capped at
+32 lightweight items, duplicate payloads coalesce to stable identities, and the
+stack materializes one payload subtree plus at most two decorative backplates.
+The outer overlay animates only visibility, active-item replacement is owned by
+the stack, and backing-depth changes are owned by the surface; FIFO mutations
+therefore neither allocate a full queued-ID animation key nor drive overlapping
+card transitions. A nested feedback host becomes the sole renderer while
+mounted; removing it restores the previous host without restarting the active
+lifetime or repeating haptic/VoiceOver effects. Account or foreground-timeout
+generation changes clear the queue and reject stale async callbacks. The Scans
+export state uses a compact pass-through progress capsule
+instead of a dim full-screen overlay, while conflicting mutation controls
+remain disabled. These boundaries avoid retaining or invalidating a full heavy
+view tree for ephemeral feedback.
 
 ### Incomplete Gamification UI Animation Thrashing (`AwardCard`)
 

@@ -8,6 +8,21 @@ struct InsightFieldTripContributionLoadKey: Equatable {
     let accountId: String?
 }
 
+private enum InsightChatDismissalAction: Equatable {
+    case reviewAlternatives(scanId: String, generation: UInt64)
+    case reanalyze(scanId: String, generation: UInt64)
+    case showPaywall(scanId: String, generation: UInt64)
+
+    var context: (scanId: String, generation: UInt64) {
+        switch self {
+        case .reviewAlternatives(let scanId, let generation),
+             .reanalyze(let scanId, let generation),
+             .showPaywall(let scanId, let generation):
+            (scanId, generation)
+        }
+    }
+}
+
 /// The master state orchestrator routing biological inference metadata and hardware logic 
 /// safely down into the decoupled visual tree via the `InsightSheetViewModel`.
 struct InsightSheetView: View {
@@ -37,6 +52,7 @@ struct InsightSheetView: View {
     @State var presentedScanId: String?
     @State var selectedInsightChatScanId: String?
     @State var selectedInsightChatGeneration: UInt64?
+    @State private var pendingInsightChatDismissalAction: InsightChatDismissalAction?
     @State var pendingDeletionScanId: String?
     @State var pendingDeletionGeneration: UInt64?
     @State var pendingNewCollectionScanId: String?
@@ -45,6 +61,7 @@ struct InsightSheetView: View {
     @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
     @State private var selectedFieldTripChallengeEntryRoute: FieldTripChallengeEntryRoute?
     @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
+    @State private var pendingOwnedPostInsightScanId: String?
 
     // Seed queued scans and persisted records at @State initialization time so the
     // first render reflects the correct content path before onAppear finishes rebinding.
@@ -281,6 +298,7 @@ struct InsightSheetView: View {
             presentedScanId = initialScanId
             selectedInsightChatScanId = nil
             selectedInsightChatGeneration = nil
+            pendingInsightChatDismissalAction = nil
             pendingDeletionScanId = nil
             pendingDeletionGeneration = nil
             pendingNewCollectionScanId = nil
@@ -365,9 +383,9 @@ struct InsightSheetView: View {
                 ) else {
                     return
                 }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.state.toastMessage = "Created \(collection.name) and added scan"
-                }
+                viewModel.state.toastMessage = .success(
+                    "Created \(collection.name) and added scan"
+                )
             }
         )
         .sheet(isPresented: $viewModel.state.showPaywall) {
@@ -379,73 +397,77 @@ struct InsightSheetView: View {
                 route: route
             )
         }
-        .sheet(isPresented: insightChatPresentedBinding) {
+        .sheet(
+            isPresented: insightChatPresentedBinding,
+            onDismiss: resumePendingInsightChatDismissalAction
+        ) {
             if let scanId = selectedInsightChatScanId,
                let chatGeneration = selectedInsightChatGeneration,
                chatGeneration == viewModel.scanBoundActionGeneration,
                let speciesData = inferenceEngine.speciesData,
                speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
-	                InsightChatSheet(
-	                    viewModel: chatViewModel,
-	                    scanId: scanId,
-	                    speciesData: speciesData,
-	                    displayName: viewModel.resolvedHeaderTitle,
-	                    timestamp: viewModel.activeRecordTimestamp,
-	                    onToast: { message in
-                            guard viewModel.isPresentingLocalRecord(
-                                scanId: scanId,
-                                generation: chatGeneration
-                            ) else {
-                                return
-                            }
-	                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-	                            viewModel.state.toastMessage = message
-	                        }
-	                    },
-	                    onAppendToFieldNotes: { text, kind in
-	                        appendInsightChatTextToFieldNotes(
-                                text,
-                                kind: kind,
-                                expectedScanId: scanId,
-                                expectedGeneration: chatGeneration
-                            )
-	                    },
-                        onReviewAlternatives: viewModel.canReviewIdentificationConcernCandidates ? {
-                            openIdentificationConcernCandidatesFromChat(
-                                expectedScanId: scanId,
-                                expectedGeneration: chatGeneration
-                            )
-                        } : nil,
-                        onReanalyzeSpecies: viewModel.canReanalyze ? {
-                            startReanalysisFromInsightChat(
-                                expectedScanId: scanId,
-                                expectedGeneration: chatGeneration
-                            )
-                        } : nil,
-	                    onClose: {
-                            guard viewModel.isPresentingLocalRecord(
-                                scanId: scanId,
-                                generation: chatGeneration
-                            ) else {
-                                return
-                            }
-	                        viewModel.state.isInsightChatSheetPresented = false
-	                    }
-	                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-	                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
+                InsightChatSheet(
+                    viewModel: chatViewModel,
+                    scanId: scanId,
+                    speciesData: speciesData,
+                    displayName: viewModel.resolvedHeaderTitle,
+                    timestamp: viewModel.activeRecordTimestamp,
+                    onToast: { message in
                         guard viewModel.isPresentingLocalRecord(
                             scanId: scanId,
                             generation: chatGeneration
                         ) else {
                             return
                         }
-	                    if errorMessage == "Naturebook Pro is required." {
-	                        viewModel.state.isInsightChatSheetPresented = false
-	                        viewModel.state.showPaywall = true
-	                        chatViewModel.errorMessage = nil
-	                    }
+                        viewModel.state.toastMessage = message
+                    },
+                    onAppendToFieldNotes: { text, kind in
+                        appendInsightChatTextToFieldNotes(
+                            text,
+                            kind: kind,
+                            expectedScanId: scanId,
+                            expectedGeneration: chatGeneration
+                        )
+                    },
+                    onReviewAlternatives: viewModel.canReviewIdentificationConcernCandidates ? {
+                        openIdentificationConcernCandidatesFromChat(
+                            expectedScanId: scanId,
+                            expectedGeneration: chatGeneration
+                        )
+                    } : nil,
+                    onReanalyzeSpecies: viewModel.canReanalyze ? {
+                        startReanalysisFromInsightChat(
+                            expectedScanId: scanId,
+                            expectedGeneration: chatGeneration
+                        )
+                    } : nil,
+                    onClose: {
+                        guard viewModel.isPresentingLocalRecord(
+                            scanId: scanId,
+                            generation: chatGeneration
+                        ) else {
+                            return
+                        }
+                        viewModel.state.isInsightChatSheetPresented = false
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+                .onChange(of: chatViewModel.errorMessage) { _, errorMessage in
+                    guard viewModel.isPresentingLocalRecord(
+                        scanId: scanId,
+                        generation: chatGeneration
+                    ) else {
+                        return
+                    }
+                    if errorMessage == "Naturebook Pro is required." {
+                        pendingInsightChatDismissalAction = .showPaywall(
+                            scanId: scanId,
+                            generation: chatGeneration
+                        )
+                        viewModel.state.isInsightChatSheetPresented = false
+                        chatViewModel.errorMessage = nil
+                    }
                 }
                 .onChange(of: chatViewModel.unavailableScanId) { _, unavailableScanId in
                     guard unavailableScanId?
@@ -457,12 +479,12 @@ struct InsightSheetView: View {
                         return
                     }
                     viewModel.state.isInsightChatSheetPresented = false
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        viewModel.state.toastMessage = chatViewModel.errorMessage
+                    viewModel.state.toastMessage = .error(
+                        chatViewModel.errorMessage
                             ?? "Field chat isn't available for this scan."
-                    }
+                    )
                 }
-	            }
+            }
         }
         .sheet(isPresented: exploreOnboardingPresentedBinding) {
             if let scanId =
@@ -512,6 +534,20 @@ struct InsightSheetView: View {
         }
         .sheet(isPresented: explorePresentedBinding, onDismiss: {
             guard !viewModel.state.showExploreSheet else { return }
+            if let pendingScanId = pendingOwnedPostInsightScanId {
+                pendingOwnedPostInsightScanId = nil
+                if viewModel.bindPresentedScan(
+                    scanId: pendingScanId,
+                    modelContext: modelContext,
+                    inferenceEngine: inferenceEngine
+                ) {
+                    presentedScanId = pendingScanId
+                }
+                viewModel.state.explorePresentationTarget = .automatic
+                viewModel.state.explorePresentationScanId = nil
+                viewModel.state.explorePresentationGeneration = nil
+                return
+            }
             if let scanId = viewModel.state.explorePresentationScanId,
                let generation = viewModel.state.explorePresentationGeneration,
                viewModel.isPresentingLocalRecord(
@@ -536,15 +572,7 @@ struct InsightSheetView: View {
                 initialCommunityRequestId: exploreSheetInitialCommunityRequestId,
                 allowsInsightPresentation: false,
                 onOpenOwnedPostInsight: { scanId in
-                    let didBind = viewModel.bindPresentedScan(
-                        scanId: scanId,
-                        modelContext: modelContext,
-                        inferenceEngine: inferenceEngine
-                    )
-                    if didBind {
-                        presentedScanId = scanId
-                    }
-                    return didBind
+                    stageOwnedPostInsightAfterExploreDismissal(scanId: scanId)
                 }
             )
         }
@@ -552,6 +580,16 @@ struct InsightSheetView: View {
 }
 
 private extension InsightSheetView {
+    func stageOwnedPostInsightAfterExploreDismissal(scanId: String) -> Bool {
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard (try? modelContext.fetch(descriptor).first) != nil else { return false }
+        pendingOwnedPostInsightScanId = scanId
+        return true
+    }
+
     @MainActor
     func dismissExploreOnboarding(
         expectedScanId: String,
@@ -633,23 +671,11 @@ private extension InsightSheetView {
         ) else {
             return
         }
+        pendingInsightChatDismissalAction = .reviewAlternatives(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        )
         viewModel.state.isInsightChatSheetPresented = false
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            guard viewModel.isPresentingLocalRecord(
-                scanId: expectedScanId,
-                generation: expectedGeneration
-            ),
-                  viewModel.canReviewIdentificationConcernCandidates else {
-                return
-            }
-            viewModel.presentCandidateSwipe(
-                source: .identificationConcern,
-                expectedScanId: expectedScanId,
-                expectedGeneration: expectedGeneration
-            )
-        }
     }
 
     func startReanalysisFromInsightChat(
@@ -663,30 +689,56 @@ private extension InsightSheetView {
             return
         }
         guard RevenueCatManager.shared.isProActive else {
+            pendingInsightChatDismissalAction = .showPaywall(
+                scanId: expectedScanId,
+                generation: expectedGeneration
+            )
             viewModel.state.isInsightChatSheetPresented = false
-            viewModel.state.showPaywall = true
             return
         }
 
+        pendingInsightChatDismissalAction = .reanalyze(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        )
         viewModel.state.isInsightChatSheetPresented = false
+    }
 
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard viewModel.isPresentingLocalRecord(
-                scanId: expectedScanId,
-                generation: expectedGeneration
-            ) else {
-                return
-            }
+    func resumePendingInsightChatDismissalAction() {
+        let action = pendingInsightChatDismissalAction
+        pendingInsightChatDismissalAction = nil
+        selectedInsightChatScanId = nil
+        selectedInsightChatGeneration = nil
+
+        guard let action else { return }
+        let context = action.context
+        guard viewModel.isPresentingLocalRecord(
+            scanId: context.scanId,
+            generation: context.generation
+        ) else {
+            return
+        }
+
+        switch action {
+        case .reviewAlternatives:
+            guard viewModel.canReviewIdentificationConcernCandidates else { return }
+            viewModel.presentCandidateSwipe(
+                source: .identificationConcern,
+                expectedScanId: context.scanId,
+                expectedGeneration: context.generation
+            )
+        case .reanalyze:
             HapticManager.shared.triggerSelectionPulse()
             AppDIContainer.shared.appRouteCoordinator.request(
                 .refinement(
-                    scanId: expectedScanId,
+                    scanId: context.scanId,
                     initialDescription: viewModel.shareableFieldNotes,
                     entryPoint: .standard
                 ),
                 source: .internalUserAction
             )
+        case .showPaywall:
+            viewModel.state.showPaywall = true
         }
     }
 }
@@ -963,16 +1015,6 @@ private extension InsightSheetView {
                 }
                 await viewModel.refreshSharedExploreStateFromServer(modelContext: modelContext)
             }
-            .task(id: viewModel.state.toastMessage) {
-                if viewModel.state.toastMessage != nil {
-                    do {
-                        try await Task.sleep(nanoseconds: 2_500_000_000)
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.state.toastMessage = nil
-                        }
-                    } catch { } // absorb CancellationError elegantly
-                }
-            }
     }
 
     private func dismissEmbeddedInsight() {
@@ -988,8 +1030,7 @@ private extension InsightSheetView {
             onOpenFieldTripOverview: openFieldTripOverview
         )
             .merianSystemFeedback(
-                toastMessage: $viewModel.state.toastMessage,
-                toastActionTitle: $viewModel.toastActionTitle,
+                toast: $viewModel.state.toastMessage,
                 toastAction: toastActionBinding
             )
             .ignoresSafeArea(edges: .top)
@@ -1041,9 +1082,9 @@ private extension InsightSheetView {
             inferenceEngine: inferenceEngine
         ) else {
             HapticManager.shared.triggerErrorThump()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.state.toastMessage = "This scan is not available on this device."
-            }
+            viewModel.state.toastMessage = .warning(
+                "This scan is not available on this device."
+            )
             return
         }
 
@@ -1078,8 +1119,7 @@ private extension InsightSheetView {
             get: {
                 guard let action = viewModel.toastAction else { return nil }
                 guard !allowsExplorePresentation,
-                      viewModel.state.toastMessage == "Asked the community",
-                      viewModel.toastActionTitle == "View",
+                      viewModel.state.toastMessage?.action?.id == .viewCommunityRequest,
                       let requestId = viewModel.state.sharedCommunityIdentificationRequestId,
                       let scanId = viewModel.presentedLocalRecordScanId
                 else {

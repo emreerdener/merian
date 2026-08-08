@@ -156,6 +156,14 @@ another suspension between the ownership snapshot and terminal commit. A
 cooperatively cancelled or replaced task therefore exits silently instead of
 overwriting the replacement attempt.
 
+Required-consent failure is handled before the generic transport branch in
+both visual and nonvisual live inference. It publishes the temporary
+**Approval needed / Scan saved** recovery state while the root returns the
+account to Ready, and it never records a `CircuitBreakerManager` failure.
+Repeated policy rejections therefore cannot impose the 15-minute network
+cooldown after the user completes fresh approval. The durable queue remains the
+owner of the original scan and media throughout this transition.
+
 Live persistence and background retry/finalization share
 `ScanInferencePersistenceCoordinator`. The live save validates both the
 in-memory foreground generation, durable job generation, and provider result

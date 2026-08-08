@@ -53,8 +53,15 @@ as their permanent engineering identity.
   Capture serializes all routed destinations through one item-based sheet host
   and defers behind feature-local covers until their real dismissal callback.
   Apple framework notifications remain in seven exact allowlisted files, and
-  AVPlayer observer ownership is generation-fenced. CI rejects the deprecated
-  application-defined NotificationCenter and bus-singleton patterns. See the
+  AVPlayer observer ownership is generation-fenced. Ordinary feedback now uses
+  typed `ToastPayload` values; the DI-owned milestone queue is bounded,
+  payload-deduplicated, host-serialized, clock-injected, and account/session
+  fenced. Candidate, Confidence, Insight Chat, Explore activity,
+  Insight-to-Community, and patch-gallery handoffs resume from exact `onDismiss`
+  callbacks rather than delay guesses. Explore sheets hold video-overlay tokens
+  through presented-content disappearance, not merely binding changes. CI rejects
+  the deprecated application-defined NotificationCenter and bus-singleton
+  patterns. See the
   [canonical event and presentation contract](./system-architecture/10-event-and-presentation-routing.md).
 - **Supabase candidate assurance**: Relevant pull requests, manual candidate
   refs, and the production deployment workflow use **Supabase Candidate
@@ -323,6 +330,10 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-08-first-scan-auth-refresh-gap.md`](./incidents/2026-08-first-scan-auth-refresh-gap.md)**
+  — Sanitized Edge-origin Auth evidence, the `invalid_session_token`
+  refresh-classification gap, refresh-first account preservation, and
+  exact-session closure gates for first-scan recovery.
 - **[`/incidents/2026-08-first-scan-consent-policy-retry-loop.md`](./incidents/2026-08-first-scan-consent-policy-retry-loop.md)**
   — Sanitized first-user evidence, consent-versus-quota classification, stale
   cloud-proof root cause, durable account-scoped disclosure recovery, and

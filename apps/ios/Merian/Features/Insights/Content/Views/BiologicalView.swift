@@ -187,7 +187,7 @@ struct BiologicalView: View {
                                   ) else {
                                 return
                             }
-                            viewModel.state.toastMessage = "Match confirmed"
+                            viewModel.state.toastMessage = .success("Match confirmed")
                         },
                         onRefineScan: refinementAction(
                             scanId: biologicalScanId,

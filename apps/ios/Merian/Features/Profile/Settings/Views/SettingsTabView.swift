@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SettingsTabView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     var supabase: SupabaseManager
     @Bindable var viewModel: ProfileViewModel
 
@@ -22,9 +21,7 @@ struct SettingsTabView: View {
     @State private var showTestExploreOnboarding = false
     @State private var showPaywall = false
     @State private var showFeedbackSurvey = false
-    @State private var toastMessage: String?
-    @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
-    @State private var selectedAchievementToastAward: AwardPayload?
+    @State private var toastMessage: ToastPayload?
 
     var body: some View {
         ZStack {
@@ -46,10 +43,9 @@ struct SettingsTabView: View {
                         isExporting: $isExporting,
                         exportUrl: $exportUrl,
                         onExportRequested: {
-                            withAnimation { toastMessage = "Export requested. Check your email shortly." }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                                withAnimation { toastMessage = nil }
-                            }
+                            toastMessage = .success(
+                                "Export requested. Check your email shortly."
+                            )
                         }
                     )
                 }
@@ -66,14 +62,9 @@ struct SettingsTabView: View {
                     showDeleteConfirmation: $showDeleteConfirmation,
                     onCacheCleared: { success in
                         if success {
-                            toastMessage = "Local cache cleared"
+                            toastMessage = .success("Local cache cleared")
                         } else {
-                            toastMessage = "Error clearing some files"
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                            withAnimation {
-                                toastMessage = nil
-                            }
+                            toastMessage = .error("Error clearing some files")
                         }
                     }
                 )
@@ -122,47 +113,9 @@ struct SettingsTabView: View {
                 )
             }
         }
-        .overlay(alignment: .bottom) {
-            if let message = toastMessage {
-                ToastBanner(onDismiss: {
-                    withAnimation {
-                        toastMessage = nil
-                    }
-                }) {
-                    Text(message)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                }
-                .padding(.bottom, 60)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(100)
-            }
-        }
-        .overlay(alignment: .top) {
-            if !milestoneToastPresenter.presentedItems.isEmpty {
-                MilestoneToastStack(
-                    items: milestoneToastPresenter.presentedItems,
-                    onDismiss: { id in
-                        milestoneToastPresenter.dismissActiveItem(id: id)
-                    },
-                    onOpenAchievement: { award in
-                        selectedAchievementToastAward = award
-                    },
-                    onOpenFieldTrip: { destination in
-                        AppDIContainer.shared.appRouteCoordinator.request(
-                            .captureGoal(destination),
-                            source: .internalUserAction
-                        )
-                    }
-                )
-                .padding(.top, 16)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .zIndex(110)
-            }
-        }
-        .sheet(item: $selectedAchievementToastAward) { award in
-            AchievementDetailSheet(award: award, modelContainer: modelContext.container)
-        }
+        .merianSystemFeedback(
+            toast: $toastMessage,
+            milestoneAlignment: .top
+        )
     }
 }

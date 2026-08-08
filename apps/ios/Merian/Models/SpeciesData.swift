@@ -258,6 +258,7 @@ extension SpeciesData {
         return normalizedCommonName == "network timeout"
             || normalizedCommonName == "analysis failed"
             || normalizedCommonName == "restoring scan"
+            || normalizedCommonName == "approval needed"
     }
 
     var isClassifiedNonBiological: Bool {

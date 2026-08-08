@@ -144,6 +144,7 @@ struct EarnedFieldTripPatchCarousel: View {
     let onOpenFieldTrip: (String) -> Void
 
     @State private var selectedPatch: EarnedFieldTripPatch?
+    @State private var pendingFieldTripTemplateId: String?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -164,7 +165,10 @@ struct EarnedFieldTripPatchCarousel: View {
             .padding(.horizontal, 12)
         }
         .padding(.horizontal, -12)
-        .fullScreenCover(item: $selectedPatch) { patch in
+        .fullScreenCover(
+            item: $selectedPatch,
+            onDismiss: resumePendingFieldTrip
+        ) { patch in
             FieldTripLevelArtworkExpandedView(
                 items: patches.map(\.galleryItem),
                 initialItemID: patch.id,
@@ -172,10 +176,16 @@ struct EarnedFieldTripPatchCarousel: View {
                     guard let selectedPatch = patches.first(where: { $0.id == item.id }) else {
                         return
                     }
-                    onOpenFieldTrip(selectedPatch.templateId)
+                    pendingFieldTripTemplateId = selectedPatch.templateId
                 }
             )
         }
+    }
+
+    private func resumePendingFieldTrip() {
+        guard let templateId = pendingFieldTripTemplateId else { return }
+        pendingFieldTripTemplateId = nil
+        onOpenFieldTrip(templateId)
     }
 }
 

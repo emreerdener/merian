@@ -87,9 +87,7 @@ extension InsightSheetViewModel {
             return
         }
 
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            state.toastMessage = actionMessage
-        }
+        state.toastMessage = .success(actionMessage)
         activeLocalRecord = record
         toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
         OfflineQueueManager.shared.enqueueCollectionSync()
@@ -109,9 +107,7 @@ extension InsightSheetViewModel {
             modelContext.rollback()
             MerianLog.data.error("InsightSheetViewModel: failed to save \(logContext, privacy: .public): \(error, privacy: .private)")
             if let failureMessage {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    state.toastMessage = failureMessage
-                }
+                state.toastMessage = .error(failureMessage)
             }
             return false
         }
@@ -278,6 +274,7 @@ extension InsightSheetViewModel {
     }
 
     private func invalidateScanBoundPresentationState() {
+        cancelDelayedExploreOnboardingPresentation()
         scanBoundActionGeneration &+= 1
         sharedExploreStateRequestToken &+= 1
         sharedExploreStateRevision &+= 1
@@ -340,7 +337,6 @@ extension InsightSheetViewModel {
         state.explorePresentationScanId = nil
         state.explorePresentationGeneration = nil
         state.toastMessage = nil
-        toastActionTitle = nil
         toastAction = nil
     }
 

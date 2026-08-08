@@ -16,8 +16,8 @@ the Profile username editor.
 - A pasted leading `@` is accepted and stripped.
 - Spaces and punctuation normalize to underscores.
 - The current user's own username is treated as available.
-- Authentication is resolved by `withEdgeHandler`; the body cannot choose a
-  user ID.
+- Authentication is resolved by `withEdgeHandler`; the body cannot choose a user
+  ID.
 
 ## Response
 

@@ -65,6 +65,9 @@ struct MilestoneToastBanner: View {
     let item: MilestoneToastItem
     var pendingItemCount = 0
     var isActive = true
+    let clock: any MilestoneToastClock
+    let onClaimPresentationEffects: (UUID, Date) -> Bool
+    let automaticDismissInterval: (UUID, Date) -> TimeInterval?
     let onDismiss: () -> Void
     var onOpenAchievement: ((AwardPayload) -> Void)?
     var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
@@ -82,7 +85,7 @@ struct MilestoneToastBanner: View {
     var body: some View {
         ToastBanner(
             onDismiss: dismissManually,
-            pendingItemCount: 0
+            pendingItemCount: pendingItemCount
         ) {
             HStack(spacing: 14) {
                 milestoneIcon
@@ -159,12 +162,15 @@ struct MilestoneToastBanner: View {
             )
         ) {
             guard isActive, !isInteracting else { return }
+            guard let interval = automaticDismissInterval(item.id, clock.now()) else {
+                return
+            }
             do {
-                try await Task.sleep(for: .milliseconds(3_500))
+                try await clock.sleep(for: interval)
             } catch {
                 return
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, isActive, !isInteracting else { return }
             dismissAutomatically()
         }
     }
@@ -270,6 +276,7 @@ struct MilestoneToastBanner: View {
         guard isActive, !hasFiredPresentationEffects else { return }
 
         hasFiredPresentationEffects = true
+        guard onClaimPresentationEffects(item.id, clock.now()) else { return }
         HapticManager.shared.triggerSuccessPulse()
 
         if UIAccessibility.isVoiceOverRunning {
@@ -284,9 +291,9 @@ struct MilestoneToastBanner: View {
     }
 
     private func dismissAutomatically() {
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-            onDismiss()
-        }
+        guard isActive, !isDismissing else { return }
+        isDismissing = true
+        onDismiss()
     }
 
     private func dismissManually() {
@@ -391,7 +398,7 @@ struct MilestoneToastBanner: View {
     }
 
     private func open() {
-        guard isActive else { return }
+        guard isActive, !isDismissing else { return }
 
         HapticManager.shared.triggerSelectionPulse()
 
@@ -435,54 +442,57 @@ struct MilestoneToastBanner: View {
 
 struct MilestoneToastStack: View {
     let items: [MilestoneToastItem]
+    let clock: any MilestoneToastClock
+    let onClaimPresentationEffects: (UUID, Date) -> Bool
+    let automaticDismissInterval: (UUID, Date) -> TimeInterval?
     let onDismiss: (UUID) -> Void
     var onOpenAchievement: ((AwardPayload) -> Void)?
     var onOpenFieldTrip: ((CaptureGoalDestination) -> Void)?
 
     var body: some View {
         ZStack(alignment: .top) {
-            ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
+            // Keep queued payload subtrees unmounted. ToastBanner already draws
+            // up to two lightweight decorative backplates from pendingItemCount;
+            // mounting queued cards as well would duplicate material layers and
+            // allow their text/control planes to collide behind the active card.
+            if let presentation = MilestoneToastStackPresentation.resolve(items) {
                 MilestoneToastBanner(
-                    item: item,
-                    pendingItemCount: index == 0 ? max(items.count - 1, 0) : 0,
-                    isActive: index == 0,
+                    item: presentation.activeItem,
+                    pendingItemCount: presentation.pendingItemCount,
+                    isActive: true,
+                    clock: clock,
+                    onClaimPresentationEffects: onClaimPresentationEffects,
+                    automaticDismissInterval: automaticDismissInterval,
                     onDismiss: {
-                        onDismiss(item.id)
+                        onDismiss(presentation.activeItem.id)
                     },
                     onOpenAchievement: onOpenAchievement,
                     onOpenFieldTrip: onOpenFieldTrip
                 )
-                .scaleEffect(
-                    x: horizontalScale(for: index),
-                    y: 1,
-                    anchor: .center
-                )
-                .offset(y: verticalOffset(for: index))
-                .opacity(opacity(for: index))
-                .zIndex(Double(visibleItems.count - index))
-                .transition(.opacity)
+                .id(presentation.activeItem.id)
+                .transition(.opacity.combined(with: .offset(y: -6)))
             }
         }
         .animation(
             .spring(response: 0.36, dampingFraction: 0.86),
-            value: visibleItems.map(\.id)
+            value: items.first?.id
         )
     }
+}
 
-    private var visibleItems: [MilestoneToastItem] {
-        Array(items.prefix(ToastStackPresentation.maximumVisibleBackingLayers + 1))
-    }
+struct MilestoneToastStackPresentation: Equatable {
+    let activeItem: MilestoneToastItem
+    let pendingItemCount: Int
 
-    private func horizontalScale(for index: Int) -> CGFloat {
-        index == 0 ? 1 : ToastStackPresentation.horizontalScale(for: index)
-    }
-
-    private func verticalOffset(for index: Int) -> CGFloat {
-        index == 0 ? 0 : ToastStackPresentation.verticalOffset(for: index)
-    }
-
-    private func opacity(for index: Int) -> Double {
-        index == 0 ? 1 : ToastStackPresentation.opacity(for: index)
+    static func resolve(_ items: [MilestoneToastItem]) -> MilestoneToastStackPresentation? {
+        guard let activeItem = items.first else { return nil }
+        return MilestoneToastStackPresentation(
+            activeItem: activeItem,
+            pendingItemCount: max(
+                items.count - ToastStackPresentation.maximumMountedPayloadCount,
+                0
+            )
+        )
     }
 }
 

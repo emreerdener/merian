@@ -364,6 +364,9 @@ highlights it. A future goal without guide content falls back to the
 highlighted Goals tile. The destination is converted at the Explore
 boundary into `FieldTripTemplateRoute`, whose focused checklist-item identifier
 remains optional for ordinary outing navigation.
+Guide, objective, and Event highlight timers are stored per detail view,
+cancelled when replaced, and released on disappearance. Their delayed fade
+cannot retain a dismissed scroll proxy or clear a newer highlight.
 
 ## Challenge Flow
 
@@ -1014,14 +1017,20 @@ objective artwork instead of another progress ring.
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
 for both `InferenceEngine` foreground completion and
 `OfflineQueueManager` background completion. It is main-actor isolated and
-keys in-flight/recently resolved work by the final saved scan ID so live and
-background races cannot enqueue the same batch twice. Progress resolution has
+derives a trimmed, lowercase key from the final saved scan ID, then keys
+in-flight/recently resolved work by that value while preserving the trimmed
+caller ID for network and durable-store calls. Live and background races
+cannot enqueue the same batch twice even if a framework or server bridge changes
+UUID casing. Capture queues generate lowercase UUIDs while preserving an
+explicit caller-supplied stable ID.
+Progress resolution has
 three explicit outcomes: success, retryable failure, and terminal ingestion
 failure. Only success or a terminal failure finalizes Field trip processing and
 discards the preferred Capture goal. A retryable persistence timeout, network
 failure, or cancellation preserves that goal, remains eligible for a later
 foreground/background callback, and schedules bounded automatic retries after
-2, 5, and 15 seconds. The SwiftData hint also acts as a durable progress outbox:
+2, 5, and 15 seconds. At most 16 retry sleepers exist across scans; oldest
+overflow is cancelled because the SwiftData hint remains the durable progress outbox:
 queue finalization preserves it, startup/network recovery replays orphaned
 hints whose scan queue row is already gone, and only server acknowledgement or
 a terminal outcome deletes it. Ordinary achievement and dictionary milestones have a
@@ -1029,10 +1038,24 @@ separate per-scan delivery guard, so they can appear during an outage without
 being duplicated when Field trip progress later succeeds. The coordinator
 waits through the existing remote-persistence polling window on every attempt,
 then collects achievement unlock payloads with
-`enqueueToasts: false`, evaluates the dictionary-contribution flag, and makes
-one synchronous presenter enqueue pass. An unrelated banner already on screen
+the domain-only `GamificationManager` return value, evaluates the
+dictionary-contribution flag, and makes one synchronous presenter enqueue
+pass. An unrelated banner already on screen
 is not preempted; strict ordering applies only within milestones from the same
-scan.
+scan. The container-owned presenter coalesces equivalent queued payloads,
+enforces a 32-item visual bound, and rejects callbacks whose captured
+account/session token is stale. Its foreground-host registry and injected clock
+preserve remaining lifetime and one-time haptic/VoiceOver effects when nested
+Explore, Insight, Scans, or Settings surfaces mount and unmount.
+Authentication and five-minute session transitions also cancel coordinator
+retry tasks and release their captured model container/preferred-goal context
+plus bounded in-flight state. Account changes also clear recent-scan history,
+while a same-account session transition retains completed/released
+deduplication. In-flight ownership includes the
+captured account/session generation, so old deferred cleanup cannot remove or
+block a current session's same-scan work;
+every suspended progress or achievement result is re-fenced before it may
+schedule work or enqueue feedback.
 
 `FieldTripMilestonePayload` stores the outing title, the first newly completed
 item's label, lightweight objective artwork, and a typed destination. Standard destinations

@@ -3,11 +3,17 @@ import Foundation
 import Testing
 
 @MainActor
+private var systemPresenter: MilestoneToastPresenter {
+    AppDIContainer.shared.milestoneToastPresenter
+}
+
+@MainActor
+@Suite(.serialized)
 struct AchievementToastPresenterTests {
     private let unlockedAchievementsKey = "Merian_UnlockedAchievements"
 
     init() {
-        AchievementToastPresenter.shared.resetForTesting()
+        systemPresenter.resetForTesting()
         GamificationManager.shared.unlockedAchievements = []
         UserDefaults.standard.removeObject(forKey: unlockedAchievementsKey)
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.hasPushNotificationAuthorization)
@@ -17,86 +23,195 @@ struct AchievementToastPresenterTests {
     @Test func previewAchievementUnlockPresentsWithoutPersistingUnlock() {
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
 
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
+        systemPresenter.previewAchievementUnlock(completedAward(.domesticCat))
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
-        #expect(MilestoneToastPresenter.shared.activeItem?.source == .preview)
+        #expect(systemPresenter.activeItem?.award?.type == .domesticCat)
+        #expect(systemPresenter.activeItem?.source == .preview)
         #expect(GamificationManager.shared.unlockedAchievements.isEmpty)
         #expect(UserDefaults.standard.stringArray(forKey: unlockedAchievementsKey) == nil)
     }
 
     @Test func queuedAchievementUnlocksPresentFIFO() {
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticDog))
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.nocturnal))
+        systemPresenter.previewAchievementUnlock(completedAward(.domesticCat))
+        systemPresenter.previewAchievementUnlock(completedAward(.domesticDog))
+        systemPresenter.previewAchievementUnlock(completedAward(.nocturnal))
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 2)
-        let presentedIDs = MilestoneToastPresenter.shared.presentedItems.map(\.id)
+        #expect(systemPresenter.activeItem?.award?.type == .domesticCat)
+        #expect(systemPresenter.queuedItemCount == 2)
+        let presentedIDs = systemPresenter.presentedItems.map(\.id)
         #expect(presentedIDs.count == 3)
 
-        let firstID = MilestoneToastPresenter.shared.activeItem?.id
-        MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
+        let firstID = systemPresenter.activeItem?.id
+        systemPresenter.dismissActiveItem(id: firstID)
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 1)
+        #expect(systemPresenter.activeItem?.award?.type == .domesticDog)
+        #expect(systemPresenter.queuedItemCount == 1)
         #expect(
-            MilestoneToastPresenter.shared.presentedItems.map(\.id)
+            systemPresenter.presentedItems.map(\.id)
                 == Array(presentedIDs.dropFirst())
         )
 
-        let secondID = MilestoneToastPresenter.shared.activeItem?.id
-        MilestoneToastPresenter.shared.dismissActiveItem(id: secondID)
+        let secondID = systemPresenter.activeItem?.id
+        systemPresenter.dismissActiveItem(id: secondID)
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .nocturnal)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 0)
+        #expect(systemPresenter.activeItem?.award?.type == .nocturnal)
+        #expect(systemPresenter.queuedItemCount == 0)
 
-        let thirdID = MilestoneToastPresenter.shared.activeItem?.id
-        MilestoneToastPresenter.shared.dismissActiveItem(id: thirdID)
+        let thirdID = systemPresenter.activeItem?.id
+        systemPresenter.dismissActiveItem(id: thirdID)
 
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(systemPresenter.activeItem == nil)
     }
 
     @Test func visualMilestoneQueueIsBoundedWhileHostIsUnavailable() {
         let presenter = MilestoneToastPresenter(maximumPresentedItemCount: 2)
 
-        presenter.enqueueAchievementUnlock(completedAward(.domesticCat))
-        presenter.enqueueAchievementUnlock(completedAward(.domesticDog))
-        presenter.enqueueAchievementUnlock(completedAward(.nocturnal))
+        let first = presenter.enqueueAchievementUnlock(completedAward(.domesticCat))
+        let second = presenter.enqueueAchievementUnlock(completedAward(.domesticDog))
+        let overflow = presenter.enqueueAchievementUnlock(completedAward(.nocturnal))
 
+        guard case .enqueued = first, case .enqueued = second else {
+            Issue.record("Expected the queue to accept items below its bound")
+            return
+        }
+        #expect(overflow == .droppedOverflow)
         #expect(presenter.presentedItems.count == 2)
         #expect(presenter.activeItem?.award?.type == .domesticCat)
         presenter.dismissActiveItem(id: presenter.activeItem?.id)
         #expect(presenter.activeItem?.award?.type == .domesticDog)
     }
 
+    @Test func duplicateMilestonesCoalesceOntoStablePresentedIdentity() {
+        let presenter = MilestoneToastPresenter()
+        let award = completedAward(.domesticCat)
+
+        let first = presenter.enqueueAchievementUnlock(award)
+        guard case .enqueued(let firstID) = first else {
+            Issue.record("Expected the first milestone to enqueue")
+            return
+        }
+
+        let duplicate = presenter.enqueueAchievementUnlock(award)
+
+        #expect(duplicate == .coalesced(into: firstID))
+        #expect(presenter.presentedItems.map(\.id) == [firstID])
+    }
+
+    @Test func accountAndSessionTransitionsFenceStaleMilestoneCallbacks() {
+        let presenter = MilestoneToastPresenter()
+        let now = Date(timeIntervalSince1970: 100)
+        presenter.beginAccountSession(
+            accountID: "account-a",
+            origin: .initialRestoration,
+            now: now
+        )
+        let accountAToken = presenter.sessionToken
+        presenter.enqueueAchievementUnlock(completedAward(.domesticCat))
+
+        presenter.beginAccountSession(
+            accountID: "account-b",
+            origin: .runtimeTransition,
+            now: now.addingTimeInterval(1)
+        )
+
+        #expect(presenter.presentedItems.isEmpty)
+        #expect(
+            presenter.enqueueAchievementUnlock(
+                completedAward(.domesticDog),
+                expectedSession: accountAToken
+            ) == .rejectedStaleSession
+        )
+
+        let accountBToken = presenter.sessionToken
+        presenter.enqueueAchievementUnlock(completedAward(.domesticDog))
+        presenter.advanceSession(now: now.addingTimeInterval(2))
+
+        #expect(presenter.presentedItems.isEmpty)
+        #expect(
+            presenter.enqueueAchievementUnlock(
+                completedAward(.nocturnal),
+                expectedSession: accountBToken
+            ) == .rejectedStaleSession
+        )
+    }
+
+    @Test func presentationEffectsAndLifetimeAreClaimedOnceAcrossHostRemounts() {
+        let presenter = MilestoneToastPresenter(automaticDismissInterval: 3.5)
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+        guard case .enqueued(let itemID) = presenter.enqueueAchievementUnlock(
+            completedAward(.domesticCat)
+        ) else {
+            Issue.record("Expected milestone to enqueue")
+            return
+        }
+
+        #expect(presenter.claimPresentationEffects(id: itemID, now: startedAt))
+        #expect(!presenter.claimPresentationEffects(id: itemID, now: startedAt))
+        let remaining = presenter.remainingAutomaticDismissInterval(
+            id: itemID,
+            now: startedAt.addingTimeInterval(2)
+        )
+        #expect(abs((remaining ?? 0) - 1.5) < 0.001)
+    }
+
+    @Test func nestedMilestoneHostsRestoreThePreviousOwnerOnUnmount() {
+        let registry = MilestoneToastHostRegistry()
+        let rootHost = UUID()
+        let nestedHost = UUID()
+
+        registry.register(rootHost)
+        registry.register(nestedHost)
+        #expect(registry.activeHostID == nestedHost)
+
+        registry.unregister(nestedHost)
+        #expect(registry.activeHostID == rootHost)
+
+        registry.unregister(rootHost)
+        #expect(registry.activeHostID == nil)
+    }
+
+    @Test func staleMilestoneHostsCannotGrowTheRegistryWithoutBound() {
+        let registry = MilestoneToastHostRegistry(maximumHostCount: 2)
+        let expiredHost = UUID()
+        let previousHost = UUID()
+        let activeHost = UUID()
+
+        registry.register(expiredHost)
+        registry.register(previousHost)
+        registry.register(activeHost)
+
+        #expect(registry.hostIDs == [previousHost, activeHost])
+        registry.unregister(activeHost)
+        #expect(registry.activeHostID == previousHost)
+    }
+
     @Test func mixedMilestoneQueuePresentsFIFO() {
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
-        MilestoneToastPresenter.shared.previewNewToMerianMilestone()
-        MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticDog))
+        systemPresenter.previewAchievementUnlock(completedAward(.domesticCat))
+        systemPresenter.previewNewToMerianMilestone()
+        systemPresenter.previewAchievementUnlock(completedAward(.domesticDog))
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticCat)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 2)
+        #expect(systemPresenter.activeItem?.award?.type == .domesticCat)
+        #expect(systemPresenter.queuedItemCount == 2)
 
-        let firstID = MilestoneToastPresenter.shared.activeItem?.id
-        MilestoneToastPresenter.shared.dismissActiveItem(id: firstID)
+        let firstID = systemPresenter.activeItem?.id
+        systemPresenter.dismissActiveItem(id: firstID)
 
-        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
+        guard case .dictionary(let milestone) = systemPresenter.activeItem?.payload else {
             Issue.record("Expected New to Naturebook milestone to present second")
             return
         }
 
         #expect(milestone == .newToMerian)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 1)
+        #expect(systemPresenter.queuedItemCount == 1)
 
-        let secondID = MilestoneToastPresenter.shared.activeItem?.id
-        MilestoneToastPresenter.shared.dismissActiveItem(id: secondID)
+        let secondID = systemPresenter.activeItem?.id
+        systemPresenter.dismissActiveItem(id: secondID)
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
+        #expect(systemPresenter.activeItem?.award?.type == .domesticDog)
     }
 
     @Test func previewMilestoneStackIsDeterministicAndFIFO() {
-        let presenter = MilestoneToastPresenter.shared
+        let presenter = systemPresenter
 
         presenter.previewMilestoneStack()
 
@@ -119,11 +234,32 @@ struct AchievementToastPresenterTests {
     }
 
     @Test func visibleToastBackingLayersAreClamped() {
+        #expect(ToastStackPresentation.maximumMountedPayloadCount == 1)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: -1) == 0)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 0) == 0)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 1) == 1)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 2) == 2)
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 5) == 2)
+    }
+
+    @Test func milestoneStackPresentationKeepsOnlyTheActivePayloadAndReportsQueueDepth() {
+        let presenter = systemPresenter
+        presenter.previewMilestoneStack()
+
+        guard let presentation = MilestoneToastStackPresentation.resolve(
+            presenter.presentedItems
+        ) else {
+            Issue.record("Expected a milestone stack presentation")
+            return
+        }
+
+        #expect(presentation.activeItem.id == presenter.presentedItems.first?.id)
+        #expect(presentation.pendingItemCount == 2)
+        #expect(
+            ToastStackPresentation.visibleBackingLayerCount(
+                for: presentation.pendingItemCount
+            ) == 2
+        )
     }
 
     @Test func milestoneToastDragCommitsInEveryDirection() {
@@ -194,37 +330,40 @@ struct AchievementToastPresenterTests {
             - MilestoneToastDismissalGesture.offscreenDistance) < 0.001)
     }
 
-    @Test func completedAchievementUnlockEnqueuesToastWhenAchievementNotificationsAreEnabled() {
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [completedAward(.domesticDog)])
+    @Test func completedAchievementUnlockReturnsTypedPresentationPayloadWhenEnabled() {
+        let eligible = GamificationManager.shared.evaluateAchievementsForNotifications(
+            awards: [completedAward(.domesticDog)]
+        )
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
-        #expect(MilestoneToastPresenter.shared.activeItem?.source == .unlock)
+        #expect(eligible.map(\.type) == [.domesticDog])
+        #expect(systemPresenter.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
     }
 
     @Test func legacyDomesticPetAchievementCompletionIsPersistedWithoutToast() {
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+        let eligible = GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
             completedAward(.domesticCat, lastInteractionDate: legacyDomesticPetScanDate)
         ])
 
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(eligible.isEmpty)
+        #expect(systemPresenter.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
     }
 
-    @Test func legacyCatAndFreshDogOnlyToastFreshDog() {
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+    @Test func legacyCatAndFreshDogOnlyReturnsFreshDog() {
+        let eligible = GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
             completedAward(.domesticCat, lastInteractionDate: legacyDomesticPetScanDate),
             completedAward(.domesticDog, lastInteractionDate: freshDomesticPetScanDate)
         ])
 
-        #expect(MilestoneToastPresenter.shared.activeItem?.award?.type == .domesticDog)
-        #expect(MilestoneToastPresenter.shared.queuedItemCount == 0)
+        #expect(eligible.map(\.type) == [.domesticDog])
+        #expect(systemPresenter.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
     }
 
     @Test func legacyUnlockWithFreshRepeatScanIsPersistedWithoutToast() {
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
+        let eligible = GamificationManager.shared.evaluateAchievementsForNotifications(awards: [
             completedAward(
                 .domesticDog,
                 lastInteractionDate: freshDomesticPetScanDate,
@@ -232,31 +371,35 @@ struct AchievementToastPresenterTests {
             )
         ])
 
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(eligible.isEmpty)
+        #expect(systemPresenter.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticDog))
     }
 
-    @Test func completedAchievementUnlockDoesNotEnqueueToastWhenAchievementNotificationsAreDisabled() {
+    @Test func completedAchievementUnlockIsNotPresentationEligibleWhenNotificationsAreDisabled() {
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
 
-        GamificationManager.shared.evaluateAchievementsForNotifications(awards: [completedAward(.domesticCat)])
+        let eligible = GamificationManager.shared.evaluateAchievementsForNotifications(
+            awards: [completedAward(.domesticCat)]
+        )
 
-        #expect(MilestoneToastPresenter.shared.activeItem == nil)
+        #expect(eligible.isEmpty)
+        #expect(systemPresenter.activeItem == nil)
         #expect(GamificationManager.shared.unlockedAchievements.contains(.domesticCat))
     }
 
     @Test func previewNewToMerianMilestonePresentsWithoutPersistingUnlock() {
         UserDefaults.standard.set(false, forKey: UserDefaultsKeys.isAchievementNotificationsEnabled)
 
-        MilestoneToastPresenter.shared.previewNewToMerianMilestone()
+        systemPresenter.previewNewToMerianMilestone()
 
-        guard case .dictionary(let milestone) = MilestoneToastPresenter.shared.activeItem?.payload else {
+        guard case .dictionary(let milestone) = systemPresenter.activeItem?.payload else {
             Issue.record("Expected New to Naturebook milestone")
             return
         }
 
         #expect(milestone == .newToMerian)
-        #expect(MilestoneToastPresenter.shared.activeItem?.source == .preview)
+        #expect(systemPresenter.activeItem?.source == .preview)
         #expect(GamificationManager.shared.unlockedAchievements.isEmpty)
         #expect(UserDefaults.standard.stringArray(forKey: unlockedAchievementsKey) == nil)
     }
@@ -404,6 +547,152 @@ struct AchievementToastPresenterTests {
             Issue.record("Expected Field trip progress after the automatic retry")
             return
         }
+    }
+
+    @Test func accountTransitionPreventsAStaleResolverFromSchedulingRetryWork() async {
+        let presenter = MilestoneToastPresenter()
+        var resolverCalls = 0
+        var progressContinuation: CheckedContinuation<
+            ScanMilestoneCoordinator.ProgressResolution,
+            Never
+        >?
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in
+                resolverCalls += 1
+                return await withCheckedContinuation { continuation in
+                    progressContinuation = continuation
+                }
+            },
+            achievementResolver: { _ in [] },
+            retryDelays: [.milliseconds(1)],
+            presenter: presenter
+        )
+
+        let processingTask = Task {
+            await coordinator.processCompletedScan(
+                scanId: "stale-session-retry-scan",
+                speciesData: nil,
+                modelContainer: nil
+            )
+        }
+        while progressContinuation == nil {
+            await Task.yield()
+        }
+
+        coordinator.beginAccountSession(
+            accountID: "replacement-account",
+            origin: .runtimeTransition,
+            now: Date()
+        )
+        progressContinuation?.resume(returning: .retryableFailure)
+        await processingTask.value
+        try? await Task.sleep(for: .milliseconds(25))
+
+        #expect(resolverCalls == 1)
+        #expect(presenter.presentedItems.isEmpty)
+    }
+
+    @Test func accountTransitionAllowsCurrentSessionToProcessTheSameScanKey() async {
+        let presenter = MilestoneToastPresenter()
+        var resolverCalls = 0
+        var firstContinuation: CheckedContinuation<
+            ScanMilestoneCoordinator.ProgressResolution,
+            Never
+        >?
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in
+                resolverCalls += 1
+                if resolverCalls == 1 {
+                    return await withCheckedContinuation { continuation in
+                        firstContinuation = continuation
+                    }
+                }
+                return .terminalFailure
+            },
+            achievementResolver: { _ in [] },
+            retryDelays: [],
+            presenter: presenter
+        )
+
+        let staleTask = Task {
+            await coordinator.processCompletedScan(
+                scanId: "SESSION-SCAN",
+                speciesData: nil,
+                modelContainer: nil
+            )
+        }
+        while firstContinuation == nil {
+            await Task.yield()
+        }
+
+        coordinator.beginAccountSession(
+            accountID: "replacement-account",
+            origin: .runtimeTransition,
+            now: Date()
+        )
+        await coordinator.processCompletedScan(
+            scanId: "session-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+
+        firstContinuation?.resume(returning: .terminalFailure)
+        await staleTask.value
+
+        #expect(resolverCalls == 2)
+        #expect(presenter.presentedItems.isEmpty)
+    }
+
+    @Test func sessionAdvanceRetainsCompletedScanDeduplication() async {
+        let presenter = MilestoneToastPresenter()
+        var resolverCalls = 0
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in
+                resolverCalls += 1
+                return .terminalFailure
+            },
+            achievementResolver: { _ in [] },
+            retryDelays: [],
+            presenter: presenter
+        )
+
+        await coordinator.processCompletedScan(
+            scanId: "SESSION-DEDUP-SCAN",
+            speciesData: nil,
+            modelContainer: nil
+        )
+        coordinator.advanceSession(now: Date())
+        await coordinator.processCompletedScan(
+            scanId: "session-dedup-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+
+        #expect(resolverCalls == 1)
+    }
+
+    @Test func progressRetryTasksStayGloballyBounded() async {
+        let presenter = MilestoneToastPresenter()
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in .retryableFailure },
+            achievementResolver: { _ in [] },
+            retryDelays: [.seconds(60)],
+            maximumRetryTaskCount: 2,
+            presenter: presenter
+        )
+
+        for scanIndex in 1...3 {
+            await coordinator.processCompletedScan(
+                scanId: "retry-scan-\(scanIndex)",
+                speciesData: nil,
+                modelContainer: nil
+            )
+        }
+
+        #expect(coordinator.pendingRetryTaskCountForTesting == 2)
+
+        coordinator.advanceSession(now: Date())
+        #expect(coordinator.pendingRetryTaskCountForTesting == 0)
     }
 
     @Test func terminalProgressFailureFinalizesWithoutRetrying() async {
@@ -566,12 +855,10 @@ struct AchievementToastPresenterTests {
         }
 
         let first = GamificationManager.shared.evaluateAchievementsForNotifications(
-            awards: [award],
-            enqueueToasts: false
+            awards: [award]
         )
         let duplicate = GamificationManager.shared.evaluateAchievementsForNotifications(
-            awards: [award],
-            enqueueToasts: false
+            awards: [award]
         )
 
         #expect(first.map(\.type) == [.firstFieldTrip])
@@ -581,10 +868,12 @@ struct AchievementToastPresenterTests {
     @Test func liveAndBackgroundCompletionRaceProcessesScanOnce() async {
         let presenter = MilestoneToastPresenter()
         var resolverCalls = 0
+        var resolvedScanIds: [String] = []
         var progressContinuation: CheckedContinuation<ScanMilestoneCoordinator.ProgressResolution, Never>?
         let coordinator = ScanMilestoneCoordinator(
-            progressResolver: { _, _ in
+            progressResolver: { scanId, _ in
                 resolverCalls += 1
+                resolvedScanIds.append(scanId)
                 return await withCheckedContinuation { continuation in
                     progressContinuation = continuation
                 }
@@ -596,7 +885,7 @@ struct AchievementToastPresenterTests {
 
         let liveTask = Task {
             await coordinator.processCompletedScan(
-                scanId: "race-scan",
+                scanId: "RACE-SCAN",
                 speciesData: nil,
                 modelContainer: nil
             )
@@ -617,6 +906,7 @@ struct AchievementToastPresenterTests {
         await liveTask.value
 
         #expect(resolverCalls == 1)
+        #expect(resolvedScanIds == ["RACE-SCAN"])
     }
 
     @Test func progressMappingKeepsStandardBeforeChallengeAndUsesGoalPrompt() {

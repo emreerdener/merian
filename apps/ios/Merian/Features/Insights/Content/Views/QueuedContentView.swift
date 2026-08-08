@@ -100,6 +100,13 @@ struct QueuedContentView: View {
     @State private var phaseIndex = 0
     @State private var retryingScanId: String?
     @State private var retryReferenceDate = Date()
+    @State private var retryRefreshRequest: RetryRefreshRequest?
+
+    private struct RetryRefreshRequest: Equatable {
+        let id = UUID()
+        let scanId: String
+        let generation: UInt64
+    }
 
     private struct PhaseRotationID: Hashable {
         let scanId: String
@@ -335,6 +342,35 @@ struct QueuedContentView: View {
                 }
             }
         }
+        .task(id: retryRefreshRequest?.id) {
+            guard let request = retryRefreshRequest else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  retryRefreshRequest?.id == request.id else {
+                return
+            }
+            guard viewModel.isPresentingScan(
+                scanId: request.scanId,
+                generation: request.generation
+            ) else {
+                retryRefreshRequest = nil
+                if retryingScanId?
+                    .caseInsensitiveCompare(request.scanId) == .orderedSame {
+                    retryingScanId = nil
+                }
+                return
+            }
+            refreshQueuedContext(scanId: request.scanId)
+            if retryingScanId?
+                .caseInsensitiveCompare(request.scanId) == .orderedSame {
+                retryingScanId = nil
+            }
+            retryRefreshRequest = nil
+        }
     }
 }
 
@@ -356,9 +392,7 @@ private extension QueuedContentView {
                 scanId: scanId,
                 generation: expectedGeneration
             ) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.state.toastMessage = "Retry could not start"
-                }
+                viewModel.state.toastMessage = .error("Retry could not start")
             }
             if retryingScanId?
                 .caseInsensitiveCompare(scanId) == .orderedSame {
@@ -373,29 +407,13 @@ private extension QueuedContentView {
             scanId: scanId,
             generation: expectedGeneration
         ) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                viewModel.state.toastMessage = "Retry queued"
-            }
+            viewModel.state.toastMessage = .success("Retry queued")
         }
 
-        Task { @MainActor in
-            do {
-                try await Task.sleep(nanoseconds: 350_000_000)
-            } catch {
-                return
-            }
-            guard viewModel.isPresentingScan(
-                scanId: scanId,
-                generation: expectedGeneration
-            ) else {
-                return
-            }
-            refreshQueuedContext(scanId: scanId)
-            if retryingScanId?
-                .caseInsensitiveCompare(scanId) == .orderedSame {
-                retryingScanId = nil
-            }
-        }
+        retryRefreshRequest = RetryRefreshRequest(
+            scanId: scanId,
+            generation: expectedGeneration
+        )
     }
 
     @MainActor

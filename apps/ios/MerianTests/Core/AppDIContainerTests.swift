@@ -42,6 +42,13 @@ struct AppDIContainerTests {
         // Mock init creates independent containers manually each time to prevent preview artifacts from permanently locking memory
         let isIdentical = previewA === previewB
         #expect(isIdentical == false, "AppDIContainer.preview shouldn't leak singletons to parallel SwiftUI macro previews")
+
+        #expect(previewA.appEventPublisher !== previewB.appEventPublisher)
+        #expect(previewA.appRouteCoordinator !== previewB.appRouteCoordinator)
+        #expect(previewA.milestoneToastPresenter !== previewB.milestoneToastPresenter)
+        #expect(previewA.milestoneToastHostRegistry !== previewB.milestoneToastHostRegistry)
+        #expect(previewA.appRouteCoordinator !== AppDIContainer.shared.appRouteCoordinator)
+        #expect(previewA.milestoneToastPresenter !== AppDIContainer.shared.milestoneToastPresenter)
         
         // Assert it constructs valid structural bindings
         #expect(previewA.hardwareOrchestrator === HardwareOrchestrator.shared)

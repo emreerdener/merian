@@ -188,7 +188,7 @@ struct FieldTripsView: View {
             }
         }
         .merianSystemFeedback(
-            toastMessage: Binding(
+            toast: Binding(
                 get: { viewModel.toastMessage },
                 set: { viewModel.toastMessage = $0 }
             ),
@@ -561,13 +561,15 @@ struct FieldTripTemplateDetailView: View {
     @State private var isLoadingCommunityPreview = false
     @State private var errorMessage: String?
     @State private var publishingTemplate: FieldTripTemplate?
-    @State private var toastMessage: String?
+    @State private var toastMessage: ToastPayload?
     @State private var selectedDetailSection: FieldTripDetailSection = .objectives
     @State private var expandedGuideItemId: String?
     @State private var pendingGuideItemId: String?
     @State private var highlightedGuideItemId: String?
     @State private var pendingObjectiveItemId: String?
     @State private var highlightedObjectiveItemId: String?
+    @State private var guideHighlightTask: Task<Void, Never>?
+    @State private var objectiveHighlightTask: Task<Void, Never>?
     @State private var didApplyInitialFocus = false
     @State private var lifecycleConfirmation: FieldTripLifecycleConfirmation?
     @State private var unavailableFeaturedMediaSourceIdentifiers: Set<String> = []
@@ -666,6 +668,12 @@ struct FieldTripTemplateDetailView: View {
             .task {
                 await load(force: false)
             }
+            .onDisappear {
+                guideHighlightTask?.cancel()
+                guideHighlightTask = nil
+                objectiveHighlightTask?.cancel()
+                objectiveHighlightTask = nil
+            }
             .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
                 guard case .fieldTripProgressInvalidated(let templateIds) = event,
                       let resolvedTemplateId = template?.templateId,
@@ -698,7 +706,7 @@ struct FieldTripTemplateDetailView: View {
                 lifecycleAlert(for: confirmation)
             }
             .merianSystemFeedback(
-                toastMessage: Binding(
+                toast: Binding(
                     get: { toastMessage },
                     set: { toastMessage = $0 }
                 ),
@@ -872,16 +880,23 @@ struct FieldTripTemplateDetailView: View {
         pendingGuideItemId = nil
         highlightedGuideItemId = itemId
 
-        Task { @MainActor in
+        guideHighlightTask?.cancel()
+        guideHighlightTask = Task { @MainActor in
             await Task.yield()
+            guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
                 scrollProxy.scrollTo(itemId, anchor: .top)
             }
-            try? await Task.sleep(for: .seconds(1.2))
-            guard highlightedGuideItemId == itemId else { return }
+            do {
+                try await Task.sleep(for: .seconds(1.2))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeOut(duration: 0.25)) {
                 highlightedGuideItemId = nil
             }
+            guideHighlightTask = nil
         }
     }
 
@@ -890,16 +905,23 @@ struct FieldTripTemplateDetailView: View {
         pendingObjectiveItemId = nil
         highlightedObjectiveItemId = itemId
 
-        Task { @MainActor in
+        objectiveHighlightTask?.cancel()
+        objectiveHighlightTask = Task { @MainActor in
             await Task.yield()
+            guard !Task.isCancelled, highlightedObjectiveItemId == itemId else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
                 scrollProxy.scrollTo(itemId, anchor: .center)
             }
-            try? await Task.sleep(for: .seconds(1.2))
-            guard highlightedObjectiveItemId == itemId else { return }
+            do {
+                try await Task.sleep(for: .seconds(1.2))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, highlightedObjectiveItemId == itemId else { return }
             withAnimation(.easeOut(duration: 0.25)) {
                 highlightedObjectiveItemId = nil
             }
+            objectiveHighlightTask = nil
         }
     }
 
@@ -1110,12 +1132,12 @@ struct FieldTripTemplateDetailView: View {
             self.template = try await MerianNetworkClient.shared.startFieldTrip(templateId: template.templateId)
             HapticManager.shared.triggerSuccessPulse()
             if wasStopped {
-                toastMessage = "Field trip resumed."
+                toastMessage = .success("Field trip resumed.")
             }
             AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -1131,11 +1153,11 @@ struct FieldTripTemplateDetailView: View {
                 userFieldTripId: progress.userFieldTripId
             )
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Field trip stopped. Your progress is saved."
+            toastMessage = .success("Field trip stopped. Your progress is saved.")
             AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -1152,11 +1174,11 @@ struct FieldTripTemplateDetailView: View {
                 userFieldTripId: progress.userFieldTripId
             )
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Field trip reset."
+            toastMessage = .success("Field trip reset.")
             AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -1184,6 +1206,7 @@ struct FieldTripChallengeDetailView: View {
     @State private var expandedGuideItemId: String?
     @State private var pendingGuideItemId: String?
     @State private var highlightedGuideItemId: String?
+    @State private var guideHighlightTask: Task<Void, Never>?
 
     init(
         challengeId: String,
@@ -1233,6 +1256,10 @@ struct FieldTripChallengeDetailView: View {
             .task {
                 await viewModel.load()
             }
+            .onDisappear {
+                guideHighlightTask?.cancel()
+                guideHighlightTask = nil
+            }
             .refreshable {
                 await viewModel.refresh()
             }
@@ -1251,7 +1278,7 @@ struct FieldTripChallengeDetailView: View {
                 }
             }
             .merianSystemFeedback(
-                toastMessage: Binding(
+                toast: Binding(
                     get: { viewModel.toastMessage },
                     set: { viewModel.toastMessage = $0 }
                 ),
@@ -1320,16 +1347,23 @@ struct FieldTripChallengeDetailView: View {
         pendingGuideItemId = nil
         highlightedGuideItemId = itemId
 
-        Task { @MainActor in
+        guideHighlightTask?.cancel()
+        guideHighlightTask = Task { @MainActor in
             await Task.yield()
+            guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
                 scrollProxy.scrollTo(itemId, anchor: .top)
             }
-            try? await Task.sleep(for: .seconds(1.2))
-            guard highlightedGuideItemId == itemId else { return }
+            do {
+                try await Task.sleep(for: .seconds(1.2))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeOut(duration: 0.25)) {
                 highlightedGuideItemId = nil
             }
+            guideHighlightTask = nil
         }
     }
 
@@ -3252,8 +3286,8 @@ struct FieldTripLevelArtworkExpandedView: View {
     private func openSelectedFieldTrip() {
         guard let selectedItem, let onOpenFieldTrip else { return }
         HapticManager.shared.triggerSelectionPulse()
-        dismiss()
         onOpenFieldTrip(selectedItem)
+        dismiss()
     }
 
     private var selectedPageNumber: Int {

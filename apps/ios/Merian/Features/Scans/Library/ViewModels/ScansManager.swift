@@ -176,7 +176,6 @@ struct ScanLibraryFilters: Equatable, Sendable {
     let maxBatchSelectionLimit = 20
 
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
-    @ObservationIgnored private var toastDismissTask: Task<Void, Never>?
     @ObservationIgnored private var appSettings: AppSettings
     @ObservationIgnored private var sharedPostIDProvider: (String) -> String?
 
@@ -864,7 +863,7 @@ struct ScanLibraryFilters: Equatable, Sendable {
     
     // MARK: - Batch Operations (Async)
     var isDownloading = false
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
     
     func batchShare(scans: [LocalScanRecord]) async {
         guard !isDownloading, !scans.isEmpty else { return }
@@ -890,10 +889,10 @@ struct ScanLibraryFilters: Equatable, Sendable {
         exitSelectionMode()
         if result.totalSaved > 0 {
             HapticManager.shared.triggerSuccessPulse()
-            showToast(message: result.successMessage)
+            showToast(.success(result.successMessage))
         } else {
             HapticManager.shared.triggerErrorThump()
-            showToast(message: "No photos or videos could be saved")
+            showToast(.error("No photos or videos could be saved"))
         }
     }
 
@@ -905,13 +904,13 @@ struct ScanLibraryFilters: Equatable, Sendable {
 
         guard let scan = try? modelContext.fetch(descriptor).first else {
             HapticManager.shared.triggerErrorThump()
-            showToast(message: "This scan is no longer available.")
+            showToast(.warning("This scan is no longer available."))
             return
         }
 
         guard scan.isExploreShareEligible else {
             HapticManager.shared.triggerErrorThump()
-            showToast(message: "Reanalyze this scan before sharing to Explore.")
+            showToast(.warning("Reanalyze this scan before sharing to Explore."))
             return
         }
 
@@ -920,25 +919,17 @@ struct ScanLibraryFilters: Equatable, Sendable {
             ExploreShareStateStore.setSharedPostId(response.postId, for: scanId)
             AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: scanId, postId: response.postId))
             HapticManager.shared.triggerSuccessPulse()
-            showToast(message: "Shared to Explore")
+            showToast(.success("Shared to Explore"))
         } catch {
             HapticManager.shared.triggerErrorThump()
-            showToast(message: ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error))
+            showToast(
+                .error(ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error))
+            )
         }
     }
     
-    private func showToast(message: String) {
-        withAnimation(.spring()) { toastMessage = message }
-        toastDismissTask?.cancel()
-        toastDismissTask = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(3))
-            } catch {
-                return
-            }
-            guard let self, self.toastMessage == message else { return }
-            withAnimation(.easeInOut) { self.toastMessage = nil }
-        }
+    private func showToast(_ toast: ToastPayload) {
+        toastMessage = toast
     }
 }
 

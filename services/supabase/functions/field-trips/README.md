@@ -27,6 +27,7 @@ The backing SQL lives in this ordered migration chain:
 20. `20260730023042_gate_field_trip_progress_by_confidence.sql`
 21. `20260802053044_simplify_backyard_and_pollinator_levels.sql`
 22. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
+23. `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`
 
 Deploy the migrations, updated scan-ingestion functions, and then this function
 before the iOS client begins sending preferred-goal hints or requesting
@@ -115,6 +116,14 @@ authoritative for start, join, hosting, and other gated mutations. After the
 atomic cutover, no current resolver emits `pro_trial`, though historical rows
 remain readable. See
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+
+The capture-context projection remains `SECURITY INVOKER`. Because its
+functional-Pro gate calls `internal.user_has_effective_pro(uuid)` under the
+invoking role, the private helper grants only `EXECUTE` to `service_role` while
+remaining denied to `PUBLIC`, `anon`, and `authenticated`. Forward migration
+`20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`
+restores that transitive dependency after the entitlement rewrite; see the
+[capture-context permission incident](../../../../docs/incidents/2026-08-capture-context-entitlement-helper-permission.md).
 
 ## Actions
 
@@ -596,14 +605,15 @@ ingestion retry remains authoritative.
 20. Apply `20260730023042_gate_field_trip_progress_by_confidence.sql`.
 21. Apply `20260802053044_simplify_backyard_and_pollinator_levels.sql`.
 22. Apply `20260803015025_auto_enroll_backyard_safari_level_one.sql`.
-23. Deploy the scan-ingestion functions.
-24. Deploy this function.
-25. Deploy `get-explore-author-profile` so profile responses include
+23. Apply `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`.
+24. Deploy the scan-ingestion functions.
+25. Deploy this function.
+26. Deploy `get-explore-author-profile` so profile responses include
     `field_trips`.
-26. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
+27. Deploy `get-explore-notifications`, `get-explore-unread-notification-count`,
     and `mark-explore-notifications-read` so Field trip activity appears in the
     in-app activity sheet and bell.
-27. Ship the iOS client.
+28. Ship the iOS client.
 
 If enrollment must be disabled, create a new forward migration that drops
 `auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
@@ -660,7 +670,9 @@ The capture-context test covers trigger-driven Backyard Safari Level 1
 enrollment and exactly one initial open activity period. The static migration
 contract covers the preflight, insert-only backfill, no-resume conflict path,
 trigger registration, empty search path, and denied execution for every API
-role. The lifecycle test covers saved stopped progress, Capture/profile
+role. It also invokes the capture projection under `SET LOCAL ROLE service_role`
+and verifies that only that role can execute its private functional-entitlement
+dependency. The lifecycle test covers saved stopped progress, Capture/profile
 exclusion, late approval, stopped-gap exclusion, repeated periods, Reset
 preservation of Seasonal Challenge data, the post-reset scan boundary, and
 explicit restart.

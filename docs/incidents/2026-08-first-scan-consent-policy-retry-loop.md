@@ -138,6 +138,12 @@ the same policy transition:
 - preserve the queued observation and its media in needs-attention; and
 - return without automatic inference backoff or redispatch.
 
+The foreground engine also classifies this policy transition before its generic
+transport fallback. It uses **Approval needed / Scan saved** if the Insight
+sheet remains visible during root routing and does not increment the shared
+network circuit breaker. Repeated consent rejection therefore cannot impose a
+15-minute connectivity cooldown after fresh approval.
+
 The process-local gate remains closed even when the durable fence write fails.
 
 ### Fresh reapproval
@@ -174,6 +180,8 @@ Repository regressions cover:
 
 - foreground pre-dispatch refusal when required consent is absent;
 - foreground mapping of exact handler-owned `403 ai_consent_required`;
+- visual and nonvisual foreground policy failures staying out of the network
+  circuit breaker while publishing saved-scan recovery copy;
 - background classification of the exact code as `.consentRequired` while a
   different `403` remains `.needsAttention`;
 - durable relaunch routing back to Ready;

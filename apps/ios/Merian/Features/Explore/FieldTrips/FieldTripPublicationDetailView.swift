@@ -37,7 +37,7 @@ struct FieldTripPublicationDetailView: View {
             await viewModel.load()
         }
         .merianSystemFeedback(
-            toastMessage: Binding(
+            toast: Binding(
                 get: { viewModel.toastMessage },
                 set: { viewModel.toastMessage = $0 }
             ),
@@ -239,7 +239,7 @@ struct FieldTripChallengeEntryDetailView: View {
             await viewModel.load()
         }
         .merianSystemFeedback(
-            toastMessage: Binding(
+            toast: Binding(
                 get: { viewModel.toastMessage },
                 set: { viewModel.toastMessage = $0 }
             ),

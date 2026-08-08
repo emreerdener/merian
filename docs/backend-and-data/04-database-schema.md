@@ -3367,7 +3367,12 @@ coordinates to the client contract.
   evidence. Execute is revoked from `PUBLIC`, `anon`, and `authenticated` and
   granted only to `service_role`; the authenticated `/field-trips` Edge action
   supplies the verified user ID. The function uses an empty search path with
-  fully qualified objects. The final behavior is defined by
+  fully qualified objects. Its functional-Pro gate is the private
+  `internal.user_has_effective_pro(uuid)` definer. Because the public projection
+  remains `SECURITY INVOKER`, migration
+  `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`
+  grants that one transitive helper only to `service_role`; `PUBLIC`, `anon`,
+  and `authenticated` remain denied. The response behavior is defined by
   `20260717213641_preserve_standard_outings_in_capture_context.sql`.
   `20260717224544_retire_forest_edges_outing.sql` deactivates the placeholder
   Forest Edges template, so this read model and other active-template RPCs omit

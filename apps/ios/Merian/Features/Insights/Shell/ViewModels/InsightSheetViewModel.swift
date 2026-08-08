@@ -45,18 +45,17 @@ final class InsightSheetViewModel {
         self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
     }
 
-    var toastActionTitle: String?
     var toastAction: (() -> Void)?
 
     /// Wipes all memory-retained states that persist across SwiftUI sheet presentations since `activeSheet == .insight` evaluates to identical IDs natively.
     func reset() {
+        cancelDelayedExploreOnboardingPresentation()
         scanBoundActionGeneration &+= 1
         sharedExploreStateRevision &+= 1
         sharedExploreStateRequestToken &+= 1
         fieldTripContributionRequestToken &+= 1
         boundFieldNotesScanId = nil
         state = UIState()
-        toastActionTitle = nil
         toastAction = nil
         activeLocalRecord = nil
         activeLocalRecordId = nil
@@ -77,6 +76,10 @@ final class InsightSheetViewModel {
     @ObservationIgnored var sharedExploreStateRequestToken: UInt64 = 0
     @ObservationIgnored var boundFieldNotesScanId: String?
     @ObservationIgnored var fieldTripContributionRequestToken: UInt64 = 0
+    @ObservationIgnored var exploreOnboardingPresentationTask: Task<Void, Never>?
+    @ObservationIgnored var exploreOnboardingPresentationTaskID: UUID?
+    @ObservationIgnored var exploreOnboardingPresentationScanID: String?
+    @ObservationIgnored var exploreOnboardingPresentationGeneration: UInt64?
     @ObservationIgnored var appSettings: AppSettings
     @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
     @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
@@ -102,7 +105,7 @@ final class InsightSheetViewModel {
         var candidateSwipePresentationGeneration: UInt64?
         var candidateSwipeEnginePresentationGeneration: UInt64?
         var showPaywall = false
-        var toastMessage: String?
+        var toastMessage: ToastPayload?
         var newCollectionName = ""
         var preferredCommonName: String?
         var isNamePickerPresented = false

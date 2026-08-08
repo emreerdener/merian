@@ -51,6 +51,25 @@ community requests. Runtime request notifications follow the same policy in
 `openCommunityIdentificationRequest(_:)`. Preserve this selection-before-push
 order when adding entry points.
 
+An Insight shown from Explore must not change this navigation path while its
+sheet is tearing down. `ExploreView` and `ExplorePostDetailView` retain a pending
+Community request ID, dismiss their owned Insight route, and call
+`openCommunityIdentificationRequest(_:)` only from the exact sheet `onDismiss`.
+Do not replace this handoff with a fixed delay or an immediate path reset.
+
+The inverse owned-post handoff has one dismissal owner too. When Explore is
+itself hosted by Insight, post detail reports the local scan ID to `ExploreView`;
+the shell invokes the parent callback and dismisses itself exactly once. The
+enclosing Insight applies the staged scan from Explore's `onDismiss`. Post
+detail must not dismiss the shell, and the parent must not replace Insight while
+Explore is still tearing down.
+
+Recent-activity navigation keeps only a typed destination across the
+notifications-sheet boundary. Post destinations retain a lightweight post ID,
+not an `ExplorePost`, and re-resolve from `ExploreFeedViewModel` after
+`onDismiss`. Async post preparation is guarded by a latest-wins token so a
+newer tap or manual dismissal invalidates late completion.
+
 The taxonomy Tree/galaxy map remains implemented behind the default-off
 `.speciesDictionaryTree` flag but is disconnected from root MVP navigation.
 
@@ -99,7 +118,9 @@ diverge in ownership, loading, or failure behavior.
 Explore presentation and injects it through the SwiftUI environment. The shell
 is responsible for marking root-level overlays such as comments, notifications,
 Insight sheets, and author profile sheets with
-`.exploreVideoOverlayLifecycle(isPresented:reason:)`.
+`.exploreVideoPresentedOverlayLifecycle(reason:)` on the presented content.
+That content owns the token through `onDisappear`; a sheet binding becoming
+false only starts teardown and must not resume video underneath the animation.
 
 Keep this ownership centralized. Feed/detail subviews may add lifecycle tokens
 for their own nested sheets, and UIKit presenters may hold explicit tokens, but

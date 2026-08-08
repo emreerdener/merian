@@ -56,8 +56,7 @@ struct GridSwipeableCell: View {
         let targetX: CGFloat = direction == .right ? 700 : -700
         withAnimation(.easeInOut(duration: 0.3)) {
             offset = CGSize(width: targetX, height: 60)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+        } completion: {
             switch direction {
             case .right: onConfirm()
             case .left: onReject()

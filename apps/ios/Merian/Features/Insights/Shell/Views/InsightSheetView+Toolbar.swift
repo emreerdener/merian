@@ -525,8 +525,6 @@ extension InsightSheetView {
             return
         }
         HapticManager.shared.triggerErrorThump()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            viewModel.state.toastMessage = message
-        }
+        viewModel.state.toastMessage = .error(message)
     }
 }

@@ -27,8 +27,9 @@ Scans shell must not layer another sheet over its library.
 Batch save progress is a compact bottom capsule that permits hit testing to
 pass through outside the capsule. Share, download, delete, and selection
 mutations are disabled while the batch snapshot is being exported. Success and
-failure toasts use identity-checked cancellable teardown so a stale timer cannot
-clear replacement feedback.
+failure feedback uses typed `ToastPayload` values through the shared modifier.
+Its identity-keyed structured teardown prevents a stale timer from clearing
+replacement feedback, and passive banners do not intercept library gestures.
 
 `ScansSheetView` owns the bounded queued-row refresh task. Its identity contains
 both durable row state and live path policy, and it starts only when at least

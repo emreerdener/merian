@@ -397,7 +397,8 @@ detail, inspect `ExploreFeedMediaInteractionPolicy`, the playback overlay
 
 If a video freezes after a sheet closes, first check that every covering
 Explore-hosted sheet owns exactly one
-`.exploreVideoOverlayLifecycle(isPresented:reason:)` token, or that a UIKit
+`.exploreVideoPresentedOverlayLifecycle(reason:)` token on its presented
+content through `onDisappear`, or that a UIKit
 presenter ends the token returned by `beginOverlay(reason:)`. Do not reintroduce
 unowned global playback observers. `MediaPlaybackObservation` may bridge
 framework-owned AVPlayer notifications only with exact player/item teardown and

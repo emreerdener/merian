@@ -24,6 +24,10 @@ import SwiftUI
     var environmentContextManager = EnvironmentContextManager.shared
     let appEventPublisher = AppEventPublisher()
     let appRouteCoordinator = AppRouteCoordinator()
+    let milestoneToastClock: any MilestoneToastClock
+    let milestoneToastPresenter: MilestoneToastPresenter
+    let milestoneToastHostRegistry: MilestoneToastHostRegistry
+    let scanMilestoneCoordinator: ScanMilestoneCoordinator
     var appSettings = AppSettings.shared
 
     // MARK: - Dependencies (Data & Sync)
@@ -52,8 +56,18 @@ import SwiftUI
 
     // MARK: - Initialization Engine
     private init(bindGlobalManagers: Bool) {
+        let milestoneToastClock = ContinuousMilestoneToastClock()
+        let milestoneToastPresenter = MilestoneToastPresenter()
+        self.milestoneToastClock = milestoneToastClock
+        self.milestoneToastPresenter = milestoneToastPresenter
+        self.milestoneToastHostRegistry = MilestoneToastHostRegistry()
+        self.scanMilestoneCoordinator = ScanMilestoneCoordinator(
+            presenter: milestoneToastPresenter
+        )
+
         if bindGlobalManagers {
             supabaseManager.bindAppRouteSessionController(appRouteCoordinator)
+            supabaseManager.bindMilestoneToastSessionController(scanMilestoneCoordinator)
         }
     }
     
@@ -101,6 +115,20 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.audioCaptureManager)
             .environment(container.activeCaptureGoalStore)
             .environment(container.appRouteCoordinator)
+            .environment(container.milestoneToastPresenter)
+            .environment(container.milestoneToastHostRegistry)
+            .environment(\.milestoneToastClock, container.milestoneToastClock)
+    }
+}
+
+private struct MilestoneToastClockEnvironmentKey: EnvironmentKey {
+    static let defaultValue: any MilestoneToastClock = ContinuousMilestoneToastClock()
+}
+
+extension EnvironmentValues {
+    var milestoneToastClock: any MilestoneToastClock {
+        get { self[MilestoneToastClockEnvironmentKey.self] }
+        set { self[MilestoneToastClockEnvironmentKey.self] = newValue }
     }
 }
 

@@ -51,7 +51,7 @@ extension InsightSheetViewModel {
                 self.state.showMediaSaveAlert = true
             } else {
                 HapticManager.shared.triggerErrorThump()
-                self.state.toastMessage = "No photos or videos could be saved"
+                self.state.toastMessage = .error("No photos or videos could be saved")
             }
         }
     }

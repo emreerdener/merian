@@ -169,6 +169,7 @@ struct ExploreMapView: View {
                     .padding(18)
                     .background(.regularMaterial)
                     .clipShape(Circle())
+                    .allowsHitTesting(false)
             }
         }
     }

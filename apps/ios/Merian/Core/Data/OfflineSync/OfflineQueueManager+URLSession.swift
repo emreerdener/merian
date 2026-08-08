@@ -1341,7 +1341,7 @@ extension OfflineQueueManager {
                     PushNotificationManager.shared.sendInferenceCompleteNotification(speciesName: speciesName, scanId: dbScanId)
                 }
                 Task {
-                    await ScanMilestoneCoordinator.shared.processCompletedScan(
+                    await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
                         scanId: dbScanId,
                         speciesData: processingResult.speciesData,
                         modelContainer: capturedContainer,
@@ -2153,7 +2153,7 @@ extension OfflineQueueManager {
             )
             return false
         }
-        await ScanMilestoneCoordinator.shared.processCompletedScan(
+        await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
             scanId: scanId,
             speciesData: nil,
             modelContainer: modelContext?.container,

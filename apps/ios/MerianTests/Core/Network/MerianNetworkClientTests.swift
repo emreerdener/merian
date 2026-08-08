@@ -231,6 +231,7 @@ struct MerianNetworkClientTests {
         // Inject so MerianNetworkClient hooks this instead of hitting live internet
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
         MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
+        MerianNetworkClient.shared.overridingAuthSessionRefresh = nil
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
     }
 
@@ -4706,10 +4707,43 @@ struct MerianNetworkClientTests {
         try await MerianNetworkClient.shared.blockUser(targetUserId: "bad_actor_999")
     }
 
-    /// Due to how heavily the 401 error handler interacts with `SupabaseManager` globally (purging auth state
-    /// and regenerating ghost tokens in the Keychain), we omit the direct unit test here to avoid corrupting
-    /// active simulator keychain states for developers.
-    @Test func testEdgeFunctionSelfHealingHandles401() async throws { return }
+    @Test func testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry() async throws {
+        let requestProbe = NetworkRequestProbe()
+        let refreshProbe = SendableCallbackProbe()
+        MockURLProtocol.mockEndpoints["/register-push-device"] = { request in
+            let attempt = requestProbe.record(idempotencyKey: nil)
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: attempt == 1 ? 401 : 200,
+                httpVersion: nil,
+                headerFields: ["X-Merian-Handler": "1"]
+            )!
+            let data = attempt == 1
+                ? Data(
+                    #"{"code":"invalid_session_token","error":"Unauthorized: Invalid or expired session token."}"#.utf8
+                )
+                : Data("{}".utf8)
+            return (response, data)
+        }
+        MerianNetworkClient.shared.overridingAuthSessionRefresh = {
+            refreshProbe.mark()
+            return true
+        }
+        defer {
+            MerianNetworkClient.shared.overridingAuthSessionRefresh = nil
+        }
+
+        try await MerianNetworkClient.shared.registerPushDevice(
+            deviceToken: "abc123",
+            environment: "sandbox",
+            exploreEnabled: true,
+            commentMentionsEnabled: false,
+            communityIdentificationsEnabled: true
+        )
+
+        #expect(refreshProbe.wasMarked)
+        #expect(requestProbe.count == 2)
+    }
 
     // MARK: - Endpoint URL structure
 

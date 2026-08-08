@@ -162,11 +162,10 @@ extension ExploreFeedViewModel {
             updateCommentCount(postId: comment.postId, commentCount: response.commentCount)
             HapticManager.shared.triggerSelectionPulse()
             let successMessage = comment.removalSuccessMessage
-            toastMessage = successMessage
-            autoDismissToast(matching: successMessage)
+            toastMessage = .success(successMessage)
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -174,10 +173,10 @@ extension ExploreFeedViewModel {
         do {
             try await MerianNetworkClient.shared.reportExploreComment(commentId: comment.id)
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Report submitted. Thanks!"
+            toastMessage = .success("Report submitted. Thanks!")
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

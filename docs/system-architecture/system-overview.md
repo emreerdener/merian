@@ -7,7 +7,8 @@ Naturebook is built around a "Zero-OOM" (Out Of Memory) design philosophy target
 ## High-Level Pipeline
 
 When the user captures an image or imports one from Photos, the architecture
-triggers a coordinated sequence of singletons. A shared Photos image first
+triggers a coordinated sequence of container-owned services and scoped legacy
+singletons. A shared Photos image first
 passes through `MerianApp.onOpenURL` and `ExternalImageImportStore`, which owns a
 durable app-sandbox copy before Capture begins this pipeline:
 
@@ -116,6 +117,11 @@ The Merian app module does not use `@EnvironmentObject` for its core architectur
 Everything is wired in `AppDIContainer.swift`:
 
 - A global singleton providing protocol-free dependency injection.
+- Owns the typed `AppEventPublisher` and bounded `AppRouteCoordinator`, plus the
+  production `MilestoneToastPresenter`, host registry, clock, and
+  `ScanMilestoneCoordinator`. Ordinary feedback remains a view-owned
+  `ToastPayload`; application code never uses `NotificationCenter` as an event
+  bus or creates a second root sheet.
 - Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` lifecycle handlers to manage hardware state, historical sync, non-biological cleanup, and queue recovery. It also manages the background inference race: `CaptureWorkspaceViewModel` observes the inactive phase to reset view state but does not nil out active ML payloads — that is reserved for `handleBackgroundPhase()`. When the app backgrounds mid-inference, Pro users have their capture enqueued to `OfflineQueueManager` (resuming via background URLSession) and the live request is cancelled. Free users have their in-flight request left running within iOS's ~30-second background window; on completion, `InferenceEngine.analyze()` dispatches a push notification.
 - App backgrounding also releases any process-local live-upload suppression so
   the already-durable queue row becomes eligible for background recovery. App
@@ -134,6 +140,9 @@ A structured schema built on native SwiftData migrations:
   then batches standard outings, Seasonal Challenges, achievements, and
   **New to Naturebook** in that order. This prevents the live inference task and
   background URLSession completion from presenting duplicate notifications.
+  The container-owned visual queue is capped and payload-deduplicated; auth and
+  foreground-timeout generations reject stale callbacks, while the active host
+  registry preserves timeout/effect ownership across nested screens.
 - *Starter Field Trip Enrollment*: inserting any signed-in or ghost
   `public.users` profile invokes a database-only, deny-by-default trigger that
   creates Backyard Safari Level 1 and one open activity period. The rollout

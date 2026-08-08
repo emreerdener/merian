@@ -50,13 +50,12 @@ import os
         }
     }
 
-    /// Checks `awards` for newly completed achievements and triggers notifications if enabled.
-    /// Returns the unlocks eligible for an in-app toast so scan completion can batch them
-    /// behind any Field trip progress notifications.
+    /// Checks `awards` for newly completed achievements and triggers native
+    /// notifications if enabled. Returns typed unlocks eligible for in-app
+    /// presentation; this domain service never reaches into a visual presenter.
     @discardableResult
     func evaluateAchievementsForNotifications(
-        awards: [AwardPayload],
-        enqueueToasts: Bool = true
+        awards: [AwardPayload]
     ) -> [AwardPayload] {
         var toastEligibleAwards: [AwardPayload] = []
 
@@ -72,10 +71,6 @@ import os
 
             if achievementsEnabled && shouldNotifyUnlock(for: award) {
                 toastEligibleAwards.append(award)
-
-                if enqueueToasts {
-                    AchievementToastPresenter.shared.enqueueAchievementUnlock(award)
-                }
 
                 if systemPushEnabled {
                     PushNotificationManager.shared.sendAchievementUnlockedNotification(achievementTitle: award.title)

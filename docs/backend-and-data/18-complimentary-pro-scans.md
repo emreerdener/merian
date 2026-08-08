@@ -358,6 +358,10 @@ rows remain until account deletion.
   `authenticated`.
 - Service RPCs use an empty search path, schema-qualified objects, explicit
   `service_role` grants, and an in-body `internal.require_service_role()` check.
+- `internal.user_has_effective_pro(uuid)` is also executable by `service_role`
+  as the narrow transitive dependency of `SECURITY INVOKER` server projections,
+  including Field trip capture context. It remains denied to `PUBLIC`, `anon`,
+  and `authenticated`; `internal` is not a Data API exposed schema.
 - Admin summary access uses the existing admin authorization boundary: Google
   identity, TOTP AAL2, active internal session, role check, and audit event.
 - Function grants and RLS are independent controls. Every privileged signature

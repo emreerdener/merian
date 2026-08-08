@@ -30,7 +30,7 @@ struct LibraryView: View {
     var onQueuedInsight: ((QueuedScanContext) -> Void)?
 
     // MARK: - Component State
-    @State private var toastMessage: String?
+    @State private var toastMessage: ToastPayload?
     @State private var isShowingFilterSheet = false
 
     // MARK: - Visual Layout
@@ -73,7 +73,7 @@ struct LibraryView: View {
                                         Task {
                                             await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
                                             await MainActor.run {
-                                                withAnimation { toastMessage = "Scan cancelled & deleted" }
+                                                toastMessage = .success("Scan cancelled & deleted")
                                             }
                                         }
                                     },
@@ -144,38 +144,15 @@ struct LibraryView: View {
                 }
                 .scrollClipDisabled()
 
-                if let message = toastMessage {
-                    ToastBanner(onDismiss: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            toastMessage = nil
-                        }
-                    }) {
-                        Text(message)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                    }
-                    .padding(.bottom, 60)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(100)
-                }
             }
         }
-        .task(id: toastMessage) {
-            guard let message = toastMessage else { return }
-            do {
-                try await Task.sleep(for: .milliseconds(2_500))
-            } catch {
-                return
-            }
-            guard toastMessage == message else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
-                toastMessage = nil
-            }
-        }
+        .merianSystemFeedback(
+            toast: $toastMessage,
+            showsAchievementToasts: false
+        )
         .onChange(of: offlineQueueManager.isOnline) { _, isOnline in
             if isOnline && !visibleQueuedScans.isEmpty {
-                withAnimation { toastMessage = "Back online, uploading scans..." }
+                toastMessage = .information("Back online, uploading scans...")
             }
         }
         .containerRelativeFrame(.horizontal)

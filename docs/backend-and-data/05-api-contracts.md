@@ -50,6 +50,16 @@ Parser failures use stable public codes:
 |  413 | `payload_too_large`                                                |
 |  415 | `unsupported_media_type`                                           |
 
+Authenticated routes use the shared handler's two stable `401` codes:
+`auth_session_missing` when no live Auth session backs the credential and
+`invalid_session_token` for other invalid or expired user credentials. The
+first-party iOS client attempts one SDK session refresh for either code and
+rebuilds the original request with the rotated access token before considering
+account-specific recovery. It must not replace an anonymous identity merely
+because an expired access JWT was rejected while its refresh token remains
+valid. The rejected handler request has not crossed the endpoint's domain
+mutation boundary, so the one refresh replay is safe.
+
 Provider-backed routes additionally return HTTP `403` with code
 `ai_consent_required` when the authenticated account lacks the current 18+
 self-attestation, lacks the current Terms receipt, lacks the current Google
@@ -502,7 +512,11 @@ Privacy and authorization are deliberately stricter than the catalog contract:
 - `public.get_field_trip_capture_context(uuid)` is `SECURITY INVOKER`, with an
   empty search path and fully qualified database objects. Execute access is
   revoked from `PUBLIC`, `anon`, and `authenticated`, then granted only to
-  `service_role`.
+  `service_role`. Its functional-entitlement predicate is the private
+  `internal.user_has_effective_pro(uuid)` definer. The invoker therefore needs
+  `EXECUTE` on that exact helper; migration
+  `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`
+  grants it only to `service_role` and keeps both direct client roles denied.
 - The response contains no scan ID, media URL, location, field note, completed
   common/scientific name, or other evidence.
 

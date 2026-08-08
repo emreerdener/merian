@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+private struct InsightCandidateSwipeDismissalRequest: Equatable {
+    let request: CandidateSwipeDismissalRequest
+    let localPresentationGeneration: UInt64
+}
+
 struct InsightContentView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
@@ -22,6 +27,8 @@ struct InsightContentView: View {
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
     @State private var fullscreenGalleryPresentationScanId: String?
     @State private var fullscreenGalleryPresentationGeneration: UInt64?
+    @State private var pendingCandidateSwipeDismissalRequest:
+        InsightCandidateSwipeDismissalRequest?
     private var presentationQueuedScan: QueuedScanContext? {
         viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
     }
@@ -149,7 +156,7 @@ struct InsightContentView: View {
         .sheet(isPresented: $viewModel.state.isFlagIssuePresented) {
             if let scanId = inferenceEngine.speciesData?.scanId {
                 ReportInsightView(scanId: scanId) {
-                    withAnimation { viewModel.state.toastMessage = "Report submitted. Thanks!" }
+                    viewModel.state.toastMessage = .success("Report submitted. Thanks!")
                 }
             }
         }
@@ -184,7 +191,7 @@ struct InsightContentView: View {
                         ) else {
                             return
                         }
-                        viewModel.state.toastMessage = message
+                        viewModel.state.toastMessage = .error(message)
                     },
                     onSubmit: { note, locationSharing in
                         guard isCommunityRequestPresentationCurrent(
@@ -219,7 +226,10 @@ struct InsightContentView: View {
         .sheet(isPresented: explorePostComposerPresentedBinding) {
             explorePostComposerSheet
         }
-        .sheet(isPresented: candidateSwipePresentedBinding) {
+        .sheet(
+            isPresented: candidateSwipePresentedBinding,
+            onDismiss: resumePendingCandidateSwipeDismissalRequest
+        ) {
             let candidates = viewModel.candidateSwipeCandidates
             if let scanId = viewModel.state.candidateSwipePresentationScanId,
                let candidateGeneration =
@@ -240,52 +250,15 @@ struct InsightContentView: View {
                     scanId: scanId,
                     presentationGeneration: candidateEngineGeneration,
                     candidates: candidates,
-                    aiScientificName: speciesData.scientificName,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
-                    onConfirmOriginal: {
-                        guard viewModel.isPresentingLocalRecord(
-                            scanId: scanId,
-                            generation: candidateGeneration
-                        ) else {
-                            return
-                        }
-                        Task { @MainActor in
-                            guard viewModel.isPresentingLocalRecord(
-                                scanId: scanId,
-                                generation: candidateGeneration
-                            ) else {
-                                return
-                            }
-                            await inferenceEngine.confirmAIIdentification(
-                                expectedScanId: scanId,
-                                modelContext: modelContext
+                    allowsAskCommunity: viewModel.canRequestCommunityIdentification,
+                    allowsRefinement: true,
+                    onRequestDismissalAction: { request in
+                        pendingCandidateSwipeDismissalRequest =
+                            InsightCandidateSwipeDismissalRequest(
+                                request: request,
+                                localPresentationGeneration: candidateGeneration
                             )
-                        }
-                    },
-                    onAskCommunity: {
-                        if viewModel.canRequestCommunityIdentification {
-                            viewModel.presentCommunityIdentificationRequest(
-                                expectedScanId: scanId,
-                                expectedGeneration: candidateGeneration
-                            )
-                        }
-                    },
-                    onRefineScan: {
-                        guard viewModel.isPresentingLocalRecord(
-                            scanId: scanId,
-                            generation: candidateGeneration
-                        ) else {
-                            return
-                        }
-                        HapticManager.shared.triggerSelectionPulse()
-                        AppDIContainer.shared.appRouteCoordinator.request(
-                            .refinement(
-                                scanId: scanId,
-                                initialDescription: viewModel.shareableFieldNotes,
-                                entryPoint: .standard
-                            ),
-                            source: .internalUserAction
-                        )
                     }
                 )
             }
@@ -530,6 +503,70 @@ private extension InsightContentView {
                 viewModel.state.candidateSwipeEnginePresentationGeneration = nil
             }
         )
+    }
+
+    func resumePendingCandidateSwipeDismissalRequest() {
+        guard let pending = pendingCandidateSwipeDismissalRequest else { return }
+        pendingCandidateSwipeDismissalRequest = nil
+
+        let request = pending.request
+        guard viewModel.isPresentingLocalRecord(
+            scanId: request.scanId,
+            generation: pending.localPresentationGeneration
+        ),
+        inferenceEngine.scanPresentationGeneration == request.presentationGeneration,
+        inferenceEngine.speciesData?.scanId?
+            .caseInsensitiveCompare(request.scanId) == .orderedSame else {
+            return
+        }
+
+        switch request.action {
+        case .applyOverride(let scientificName):
+            Task { @MainActor in
+                guard viewModel.isPresentingLocalRecord(
+                    scanId: request.scanId,
+                    generation: pending.localPresentationGeneration
+                ),
+                inferenceEngine.scanPresentationGeneration ==
+                    request.presentationGeneration else {
+                    return
+                }
+                await inferenceEngine.applyIdentificationOverride(
+                    scientificName: scientificName,
+                    expectedScanId: request.scanId,
+                    modelContext: modelContext
+                )
+            }
+        case .confirmOriginal:
+            Task { @MainActor in
+                guard viewModel.isPresentingLocalRecord(
+                    scanId: request.scanId,
+                    generation: pending.localPresentationGeneration
+                ) else {
+                    return
+                }
+                await inferenceEngine.confirmAIIdentification(
+                    expectedScanId: request.scanId,
+                    modelContext: modelContext
+                )
+            }
+        case .askCommunity:
+            guard viewModel.canRequestCommunityIdentification else { return }
+            viewModel.presentCommunityIdentificationRequest(
+                expectedScanId: request.scanId,
+                expectedGeneration: pending.localPresentationGeneration
+            )
+        case .refineScan:
+            HapticManager.shared.triggerSelectionPulse()
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .refinement(
+                    scanId: request.scanId,
+                    initialDescription: viewModel.shareableFieldNotes,
+                    entryPoint: .standard
+                ),
+                source: .internalUserAction
+            )
+        }
     }
 
     var communityRequestPresentedBinding: Binding<Bool> {

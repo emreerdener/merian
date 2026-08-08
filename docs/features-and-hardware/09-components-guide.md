@@ -290,7 +290,7 @@ A pill-shaped drag-to-confirm control that replicates the iPhone unlock gesture,
 
 - **Drag mechanics**: A circle thumb slides from the left edge to the right within a capsule-shaped track. At ≥88% travel, `onConfirm` fires automatically. The track fills progressively behind the thumb as drag progresses. The label fades out as the thumb advances (opacity multiplier `1.0 - progress * 2.5`).
 - **Snap-back**: Releasing before the 88% threshold springs the thumb back via `.spring(response: 0.45, dampingFraction: 0.72)` with a `triggerLightImpact()` haptic.
-- **Completion state**: On trigger, the thumb snaps to full width with `.spring(response: 0.28, dampingFraction: 0.82)`, chevrons are replaced by a checkmark, and `onConfirm` is called after a 380 ms delay so the user sees the completed state before the view transitions.
+- **Completion state**: On trigger, the thumb snaps to full width with `.spring(response: 0.28, dampingFraction: 0.82)`, chevrons are replaced by a checkmark, and `onConfirm` is called by an identity-keyed `.task` after 380 ms so the user sees the completed state before the view transitions. Unmounting the control cancels the callback instead of retaining its view state past teardown.
 - **Haptics**: `triggerSuccessPulse()` on threshold reached; `triggerLightImpact()` on snap-back.
 - **Label**: Accepts dynamically injected strings (e.g. `"Confirm \(viewModel.resolvedHeaderTitle)"`). To handle long scientific names without breaking the UI pill geometry on single lines, the `<Text>` label aggressively shrinks typography via `.minimumScaleFactor(0.6)` before resorting to truncation.
 - **Disabled**: Once `isCompleted = true`, the component ignores further drag input.
@@ -319,20 +319,42 @@ engineering/API documentation rather than additional empty-state disclaimers.
 
 **Location**: `Core/UI/Feedback/`
 
-`ToastBanner` owns only compact visual chrome and its close affordance. Callers
-own lightweight message/action state and mount it through an alignment-scoped
-overlay, so no transparent full-screen hit region covers the underlying UI.
-Auto-dismiss tasks are cancellable and compare message identity before clearing
-state; a timer from an old message cannot remove its replacement.
+`ToastBanner` owns only compact visual chrome and an optional close affordance.
+Ordinary feedback uses a typed, lightweight `ToastPayload`; executable actions
+remain view-owned. Callers mount it through an alignment-scoped overlay, so no
+transparent full-screen hit region covers the underlying UI. Passive payloads
+render no controls and disable hit testing. Action payloads intercept only the
+intrinsic card. Auto-dismiss tasks are cancellable and compare message identity
+before clearing state; a timer from an old message cannot remove its
+replacement. Manual close and action callbacks perform the same UUID check, and
+replacement cards receive a new SwiftUI identity so their transition and timer
+restart together. Entry and exit animation transactions are scoped to the overlay,
+not the surrounding feature root. Feature producers assign payload/action state
+directly and must not wrap those assignments in `withAnimation`; the shared
+modifier is the sole owner of toast insertion and removal motion.
 
 `MilestoneToastBanner` is the active surface for the bounded FIFO
-`MilestoneToastPresenter`. Only the front item starts the 3.5-second timer,
+`MilestoneToastPresenter` owned by `AppDIContainer`. The stacked
+`MilestoneToastHostRegistry` retains at most eight host UUIDs, gives the most
+recently mounted eligible host sole presentation ownership, and restores the
+prior host on unmount. Only the front item starts the 3.5-second timer,
 haptic, and VoiceOver announcement or receives hit testing. Up to two queued
-items render as decorative backplates. Field trip items show objective artwork,
+items render as decorative backplates; their payload subtrees stay unmounted,
+avoiding duplicate material/text layers and queued-card redraws. Field trip items show objective artwork,
 a goal-complete title, and outing name; banner taps request typed `AppRoute`
-destinations rather than presenting a sibling sheet. The ordinary system toast
-unmounts while the milestone stack is visible, preventing bottom Z-plane
-collisions.
+destinations through the host's environment-injected coordinator rather than
+presenting a sibling sheet or reaching into the production DI singleton. The
+ordinary system toast unmounts only when it shares the milestone stack's
+alignment, preventing a single Z-plane collision without hiding independent
+top/bottom feedback.
+Account and app-session generations clear the visual queue and reject stale
+async enqueues. Presentation effects are claimed once per item, and a remounted
+host receives only the remaining lifetime rather than replaying haptics,
+announcements, or a fresh timer. Automatic dequeue mutates presenter state
+directly. The outer feedback overlay animates only empty/non-empty visibility;
+`MilestoneToastStack` alone animates active-item UUID replacement, and the toast
+surface alone animates its clamped decorative-layer count. Do not key an outer
+animation to every queued UUID or wrap presenter mutations in `withAnimation`.
 
 Progress for Scans batch export and non-biological bulk deletion uses a compact
 pass-through badge, not `ToastBanner` as domain state. The affected mutation

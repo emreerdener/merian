@@ -2,23 +2,33 @@ import SwiftUI
 
 // MARK: - Candidate Swipe Modal
 
+enum CandidateSwipeDismissalAction: Sendable, Equatable {
+    case applyOverride(scientificName: String)
+    case confirmOriginal
+    case askCommunity
+    case refineScan
+}
+
+struct CandidateSwipeDismissalRequest: Sendable, Equatable {
+    let action: CandidateSwipeDismissalAction
+    let scanId: String
+    let presentationGeneration: UInt64
+}
+
 struct CandidateSwipeModal: View {
     
     // MARK: - Properties
     
     let scanId: String
     let presentationGeneration: UInt64
-    let originalCandidates: [IdentificationCandidate]
-    let aiScientificName: String
     let confirmButtonTitle: String
-    let onConfirmOriginal: () -> Void
-    var onAskCommunity: (() -> Void)?
-    var onRefineScan: (() -> Void)?
+    let allowsAskCommunity: Bool
+    let allowsRefinement: Bool
+    let onRequestDismissalAction: (CandidateSwipeDismissalRequest) -> Void
 
     // MARK: - Environment
     
     @Environment(InferenceEngine.self) private var inferenceEngine
-    @Environment(\.modelContext) private var modelContext
 
     // Explicit binding instead of @Environment(\.dismiss) — the dismiss environment value
     // leaks up through nested sheets in SwiftUI and can erroneously close the outer
@@ -33,6 +43,7 @@ struct CandidateSwipeModal: View {
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
     @State private var showPaywall = false
+    @State private var delayedDismissalAction: CandidateSwipeDismissalAction?
 
     // MARK: - Constants
     
@@ -45,21 +56,18 @@ struct CandidateSwipeModal: View {
         scanId: String,
         presentationGeneration: UInt64,
         candidates: [IdentificationCandidate],
-        aiScientificName: String,
         confirmButtonTitle: String,
-        onConfirmOriginal: @escaping () -> Void,
-        onAskCommunity: (() -> Void)?,
-        onRefineScan: (() -> Void)? = nil
+        allowsAskCommunity: Bool,
+        allowsRefinement: Bool,
+        onRequestDismissalAction: @escaping (CandidateSwipeDismissalRequest) -> Void
     ) {
         self._isPresented = isPresented
         self.scanId = scanId
         self.presentationGeneration = presentationGeneration
-        self.originalCandidates = candidates
-        self.aiScientificName = aiScientificName
         self.confirmButtonTitle = confirmButtonTitle
-        self.onConfirmOriginal = onConfirmOriginal
-        self.onAskCommunity = onAskCommunity
-        self.onRefineScan = onRefineScan
+        self.allowsAskCommunity = allowsAskCommunity
+        self.allowsRefinement = allowsRefinement
+        self.onRequestDismissalAction = onRequestDismissalAction
         self._session = State(initialValue: CandidateSwipeSession(candidates: candidates))
     }
 
@@ -143,6 +151,19 @@ struct CandidateSwipeModal: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .task(id: delayedDismissalAction) {
+            guard let delayedDismissalAction else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1_500))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled,
+                  self.delayedDismissalAction == delayedDismissalAction else {
+                return
+            }
+            requestDismissal(action: delayedDismissalAction)
         }
     }
 }
@@ -237,25 +258,9 @@ extension CandidateSwipeModal {
                         withAnimation(.spring(response: 0.3)) {
                             session.confirm(candidate)
                         }
-                        Task {
-                            // 1. Pause to show the success state natively
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            
-                            // 2. Trigger native dismissal
-                            await MainActor.run {
-                                isDismissing = true
-                                isPresented = false
-                            }
-                            
-                            // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            guard isSubjectPresentationCurrent else { return }
-                            await inferenceEngine.applyIdentificationOverride(
-                                scientificName: candidate.scientificName,
-                                expectedScanId: scanId,
-                                modelContext: modelContext
-                            )
-                        }
+                        delayedDismissalAction = .applyOverride(
+                            scientificName: candidate.scientificName
+                        )
                     },
                     onReject: {
                         HapticManager.shared.triggerLightImpact()
@@ -289,22 +294,12 @@ extension CandidateSwipeModal {
             .padding(.horizontal, 32)
             
             VStack(spacing: 12) {
-                if let onRefineScan = onRefineScan {
+                if allowsRefinement {
                     SlideToConfirm(
                         label: "Reanalyze species",
                         onConfirm: {
                             if RevenueCatManager.shared.isProActive {
-                                isDismissing = true
-                                isPresented = false
-                                Task {
-                                    // Let the candidate sheet finish dismissing before the
-                                    // refinement event closes the insight and changes capture mode.
-                                    try? await Task.sleep(nanoseconds: 300_000_000)
-                                    guard isSubjectPresentationCurrent else {
-                                        return
-                                    }
-                                    onRefineScan()
-                                }
+                                requestDismissal(action: .refineScan)
                             } else {
                                 showPaywall = true
                             }
@@ -313,25 +308,14 @@ extension CandidateSwipeModal {
                     )
                 }
 
-                if onAskCommunity != nil {
+                if allowsAskCommunity {
                     SlideToConfirm(label: "Ask the community", onConfirm: {
-                        isDismissing = true
-                        isPresented = false
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            guard isSubjectPresentationCurrent else {
-                                return
-                            }
-                            onAskCommunity?()
-                        }
+                        requestDismissal(action: .askCommunity)
                     }, color: .blue)
                 }
 
                 SlideToConfirm(label: confirmButtonTitle, onConfirm: {
-                    guard isSubjectPresentationCurrent else { return }
-                    isDismissing = true
-                    onConfirmOriginal()
-                    isPresented = false
+                    requestDismissal(action: .confirmOriginal)
                 })
             }
             .padding(.horizontal, 24)
@@ -453,8 +437,7 @@ extension CandidateSwipeModal {
         HapticManager.shared.triggerMediumPulse()
         withAnimation(.easeInOut(duration: 0.3)) {
             topCardOffset = CGSize(width: targetX, height: 60)
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+        } completion: {
             switch direction {
             case .right: confirmTopCard()
             case .left:  rejectTopCard()
@@ -470,25 +453,7 @@ extension CandidateSwipeModal {
             topCardOffset = .zero
             topCardIsDragging = false
         }
-        Task {
-            // 1. Pause to show the success state natively
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            
-            // 2. Trigger native dismissal
-            await MainActor.run {
-                isDismissing = true
-                isPresented = false
-            }
-            
-            // 3. Defer structural data mutation to prevent SwiftUI destroying the host sheet anchor
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            guard isSubjectPresentationCurrent else { return }
-            await inferenceEngine.applyIdentificationOverride(
-                scientificName: name,
-                expectedScanId: scanId,
-                modelContext: modelContext
-            )
-        }
+        delayedDismissalAction = .applyOverride(scientificName: name)
     }
 
     private func rejectTopCard() {
@@ -505,11 +470,21 @@ extension CandidateSwipeModal {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             topCardOffset = .zero
             topCardIsDragging = false
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+        } completion: {
             withAnimation(.spring(response: 0.35)) {
                 session.skipTopCandidate()
             }
         }
+    }
+
+    private func requestDismissal(action: CandidateSwipeDismissalAction) {
+        guard !isDismissing, isSubjectPresentationCurrent else { return }
+        isDismissing = true
+        onRequestDismissalAction(CandidateSwipeDismissalRequest(
+            action: action,
+            scanId: scanId,
+            presentationGeneration: presentationGeneration
+        ))
+        isPresented = false
     }
 }

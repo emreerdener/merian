@@ -84,13 +84,13 @@ private extension FieldTripProgressCompletedItem {
     }
 }
 
-enum MilestoneToastPayload: Sendable {
+enum MilestoneToastPayload: Sendable, Equatable {
     case fieldTrip(FieldTripMilestonePayload)
     case achievement(AwardPayload)
     case dictionary(DictionaryMilestonePayload)
 }
 
-struct MilestoneToastItem: Identifiable, Sendable {
+struct MilestoneToastItem: Identifiable, Sendable, Equatable {
     let id: UUID
     let payload: MilestoneToastPayload
     let source: MilestoneToastSource
@@ -101,12 +101,90 @@ struct MilestoneToastItem: Identifiable, Sendable {
     }
 }
 
-@MainActor
-@Observable final class MilestoneToastPresenter {
-    static let shared = MilestoneToastPresenter()
+enum MilestoneToastDeduplicationKey: Sendable, Equatable {
+    case fieldTrip(destination: CaptureGoalDestination, goalLabel: String)
+    case achievement(AchievementType)
+    case dictionary(title: String)
+}
 
+enum MilestoneToastEnqueueOutcome: Sendable, Equatable {
+    case enqueued(UUID)
+    case coalesced(into: UUID)
+    case droppedOverflow
+    case rejectedStaleSession
+}
+
+struct MilestoneToastSessionToken: Sendable, Equatable {
+    let accountGeneration: UInt64
+    let sessionGeneration: UInt64
+}
+
+protocol MilestoneToastClock: Sendable {
+    func now() -> Date
+    func sleep(for interval: TimeInterval) async throws
+}
+
+struct ContinuousMilestoneToastClock: MilestoneToastClock {
+    func now() -> Date {
+        Date()
+    }
+
+    func sleep(for interval: TimeInterval) async throws {
+        let nanoseconds = UInt64(max(interval, 0) * 1_000_000_000)
+        try await Task.sleep(nanoseconds: nanoseconds)
+    }
+}
+
+@MainActor
+protocol MilestoneToastSessionControlling: AnyObject {
+    func beginAccountSession(
+        accountID: String?,
+        origin: AppRouteAccountSessionOrigin,
+        now: Date
+    )
+    func advanceSession(now: Date)
+}
+
+/// Tracks nested visual hosts without retaining views. The most recently
+/// mounted host owns presentation; removing it restores the previous host.
+@MainActor
+@Observable final class MilestoneToastHostRegistry {
+    private(set) var hostIDs: [UUID] = []
+    @ObservationIgnored private let maximumHostCount: Int
+
+    init(maximumHostCount: Int = 8) {
+        self.maximumHostCount = max(1, maximumHostCount)
+    }
+
+    var activeHostID: UUID? {
+        hostIDs.last
+    }
+
+    func register(_ hostID: UUID) {
+        guard activeHostID != hostID else { return }
+        hostIDs.removeAll(where: { $0 == hostID })
+        hostIDs.append(hostID)
+        if hostIDs.count > maximumHostCount {
+            hostIDs.removeFirst(hostIDs.count - maximumHostCount)
+        }
+    }
+
+    func unregister(_ hostID: UUID) {
+        hostIDs.removeAll(where: { $0 == hostID })
+    }
+}
+
+@MainActor
+@Observable final class MilestoneToastPresenter: MilestoneToastSessionControlling {
     private(set) var presentedItems: [MilestoneToastItem] = []
+    private(set) var accountGeneration: UInt64 = 0
+    private(set) var sessionGeneration: UInt64 = 0
+    private(set) var currentAccountID: String?
+
     @ObservationIgnored private let maximumPresentedItemCount: Int
+    @ObservationIgnored private let automaticDismissInterval: TimeInterval
+    @ObservationIgnored private var presentationEffectsClaimed: Set<UUID> = []
+    @ObservationIgnored private var presentationStartedAtByID: [UUID: Date] = [:]
 
     var activeItem: MilestoneToastItem? {
         presentedItems.first
@@ -124,47 +202,87 @@ struct MilestoneToastItem: Identifiable, Sendable {
         queuedItemCount
     }
 
-    init(maximumPresentedItemCount: Int = 32) {
+    init(
+        maximumPresentedItemCount: Int = 32,
+        automaticDismissInterval: TimeInterval = 3.5
+    ) {
         self.maximumPresentedItemCount = max(1, maximumPresentedItemCount)
+        self.automaticDismissInterval = max(0, automaticDismissInterval)
     }
 
-    func enqueueAchievementUnlock(_ award: AwardPayload) {
-        enqueue(.achievement(award), source: .unlock)
+    var sessionToken: MilestoneToastSessionToken {
+        MilestoneToastSessionToken(
+            accountGeneration: accountGeneration,
+            sessionGeneration: sessionGeneration
+        )
     }
 
-    func enqueueFieldTripProgress(_ progress: FieldTripMilestonePayload) {
-        enqueue(.fieldTrip(progress), source: .unlock)
+    @discardableResult
+    func enqueueAchievementUnlock(
+        _ award: AwardPayload,
+        expectedSession: MilestoneToastSessionToken? = nil
+    ) -> MilestoneToastEnqueueOutcome {
+        enqueue(
+            .achievement(award),
+            source: .unlock,
+            expectedSession: expectedSession
+        )
     }
 
-    func enqueueNewToMerianMilestone() {
-        enqueue(.dictionary(.newToMerian), source: .unlock)
+    @discardableResult
+    func enqueueFieldTripProgress(
+        _ progress: FieldTripMilestonePayload,
+        expectedSession: MilestoneToastSessionToken? = nil
+    ) -> MilestoneToastEnqueueOutcome {
+        enqueue(
+            .fieldTrip(progress),
+            source: .unlock,
+            expectedSession: expectedSession
+        )
     }
 
+    @discardableResult
+    func enqueueNewToMerianMilestone(
+        expectedSession: MilestoneToastSessionToken? = nil
+    ) -> MilestoneToastEnqueueOutcome {
+        enqueue(
+            .dictionary(.newToMerian),
+            source: .unlock,
+            expectedSession: expectedSession
+        )
+    }
+
+    @discardableResult
     func enqueueScanMilestoneBatch(
         fieldTrips: [FieldTripMilestonePayload],
         achievements: [AwardPayload],
-        includesNewToMerian: Bool
-    ) {
+        includesNewToMerian: Bool,
+        expectedSession: MilestoneToastSessionToken? = nil
+    ) -> [MilestoneToastEnqueueOutcome] {
         let payloads = fieldTrips.map(MilestoneToastPayload.fieldTrip)
             + achievements.map(MilestoneToastPayload.achievement)
             + (includesNewToMerian ? [.dictionary(.newToMerian)] : [])
 
-        for payload in payloads {
-            enqueue(payload, source: .unlock)
+        return payloads.map { payload in
+            enqueue(
+                payload,
+                source: .unlock,
+                expectedSession: expectedSession
+            )
         }
     }
 
     #if DEBUG
     func previewAchievementUnlock(_ award: AwardPayload) {
-        enqueue(.achievement(award), source: .preview)
+        enqueue(.achievement(award), source: .preview, expectedSession: nil)
     }
 
     func previewNewToMerianMilestone() {
-        enqueue(.dictionary(.newToMerian), source: .preview)
+        enqueue(.dictionary(.newToMerian), source: .preview, expectedSession: nil)
     }
 
     func previewFieldTripProgress() {
-        enqueue(.fieldTrip(.preview), source: .preview)
+        enqueue(.fieldTrip(.preview), source: .preview, expectedSession: nil)
     }
 
     func previewMilestoneStack() {
@@ -175,14 +293,17 @@ struct MilestoneToastItem: Identifiable, Sendable {
             lastInteractionDate: Date()
         )
 
-        presentedItems.removeAll()
-        enqueue(.fieldTrip(.preview), source: .preview)
-        enqueue(.achievement(achievement), source: .preview)
-        enqueue(.dictionary(.newToMerian), source: .preview)
+        clearPresentedItems()
+        enqueue(.fieldTrip(.preview), source: .preview, expectedSession: nil)
+        enqueue(.achievement(achievement), source: .preview, expectedSession: nil)
+        enqueue(.dictionary(.newToMerian), source: .preview, expectedSession: nil)
     }
 
     func resetForTesting() {
-        presentedItems.removeAll()
+        clearPresentedItems()
+        accountGeneration = 0
+        sessionGeneration = 0
+        currentAccountID = nil
     }
     #endif
 
@@ -190,20 +311,106 @@ struct MilestoneToastItem: Identifiable, Sendable {
         guard let activeItem else { return }
         if let id, activeItem.id != id { return }
 
-        presentedItems.removeFirst()
+        let removed = presentedItems.removeFirst()
+        clearPresentationMetadata(for: removed.id)
     }
 
     func dismissActiveUnlock(id: UUID? = nil) {
         dismissActiveItem(id: id)
     }
 
-    private func enqueue(_ payload: MilestoneToastPayload, source: MilestoneToastSource) {
+    func claimPresentationEffects(id: UUID, now: Date) -> Bool {
+        guard activeItem?.id == id,
+              presentationEffectsClaimed.insert(id).inserted else { return false }
+        if presentationStartedAtByID[id] == nil {
+            presentationStartedAtByID[id] = now
+        }
+        return true
+    }
+
+    func remainingAutomaticDismissInterval(id: UUID, now: Date) -> TimeInterval? {
+        guard activeItem?.id == id else { return nil }
+        let startedAt = presentationStartedAtByID[id] ?? now
+        presentationStartedAtByID[id] = startedAt
+        return max(automaticDismissInterval - now.timeIntervalSince(startedAt), 0)
+    }
+
+    func beginAccountSession(
+        accountID: String?,
+        origin: AppRouteAccountSessionOrigin,
+        now _: Date = Date()
+    ) {
+        let trimmedAccountID = accountID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmedAccountID.flatMap { $0.isEmpty ? nil : $0.lowercased() }
+        guard normalized != currentAccountID else { return }
+
+        if origin == .initialRestoration,
+           currentAccountID == nil,
+           accountGeneration == 0 {
+            currentAccountID = normalized
+            return
+        }
+
+        currentAccountID = normalized
+        accountGeneration &+= 1
+        clearPresentedItems()
+    }
+
+    func advanceSession(now _: Date = Date()) {
+        sessionGeneration &+= 1
+        clearPresentedItems()
+    }
+
+    @discardableResult
+    private func enqueue(
+        _ payload: MilestoneToastPayload,
+        source: MilestoneToastSource,
+        expectedSession: MilestoneToastSessionToken?
+    ) -> MilestoneToastEnqueueOutcome {
+        if let expectedSession, expectedSession != sessionToken {
+            return .rejectedStaleSession
+        }
+
+        let newDeduplicationKey = deduplicationKey(for: payload)
+        if let existing = presentedItems.first(where: {
+            deduplicationKey(for: $0.payload) == newDeduplicationKey
+        }) {
+            return .coalesced(into: existing.id)
+        }
+
         // Milestones are visual feedback over already-durable domain state. A
         // suspended/backgrounded host must never let this process-local queue
         // grow without bound while completion callbacks continue to arrive.
-        guard presentedItems.count < maximumPresentedItemCount else { return }
+        guard presentedItems.count < maximumPresentedItemCount else {
+            return .droppedOverflow
+        }
         let item = MilestoneToastItem(id: UUID(), payload: payload, source: source)
         presentedItems.append(item)
+        return .enqueued(item.id)
+    }
+
+    private func deduplicationKey(
+        for payload: MilestoneToastPayload
+    ) -> MilestoneToastDeduplicationKey {
+        switch payload {
+        case .fieldTrip(let progress):
+            .fieldTrip(destination: progress.destination, goalLabel: progress.goalLabel)
+        case .achievement(let award):
+            .achievement(award.type)
+        case .dictionary(let milestone):
+            .dictionary(title: milestone.title)
+        }
+    }
+
+    private func clearPresentedItems() {
+        presentedItems.removeAll(keepingCapacity: false)
+        presentationEffectsClaimed.removeAll(keepingCapacity: false)
+        presentationStartedAtByID.removeAll(keepingCapacity: false)
+    }
+
+    private func clearPresentationMetadata(for id: UUID) {
+        presentationEffectsClaimed.remove(id)
+        presentationStartedAtByID.removeValue(forKey: id)
     }
 }
 
@@ -211,7 +418,7 @@ typealias AchievementToastPresenter = MilestoneToastPresenter
 typealias AchievementToastItem = MilestoneToastItem
 
 @MainActor
-final class ScanMilestoneCoordinator {
+final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
     enum ProgressResolution: Equatable {
         case success(FieldTripProgressResult)
         case retryableFailure
@@ -222,13 +429,23 @@ final class ScanMilestoneCoordinator {
     typealias AchievementResolver = (ModelContainer?) async -> [AwardPayload]
     typealias FieldTripsAvailabilityResolver = @MainActor () -> Bool
 
-    static let shared = ScanMilestoneCoordinator()
+    private struct SessionScanKey: Hashable {
+        let accountGeneration: UInt64
+        let sessionGeneration: UInt64
+        let scanKey: String
+
+        init(session: MilestoneToastSessionToken, scanKey: String) {
+            accountGeneration = session.accountGeneration
+            sessionGeneration = session.sessionGeneration
+            self.scanKey = scanKey
+        }
+    }
 
     private let progressResolver: ProgressResolver
     private let achievementResolver: AchievementResolver
     private let fieldTripsAvailabilityResolver: FieldTripsAvailabilityResolver
     private let presenter: MilestoneToastPresenter
-    private var inFlightScanIds: Set<String> = []
+    private var inFlightScanIds: Set<SessionScanKey> = []
     private var completedScanIds: Set<String> = []
     private var completedScanOrder: [String] = []
     private var releasedMilestoneScanIds: Set<String> = []
@@ -237,13 +454,16 @@ final class ScanMilestoneCoordinator {
     private var preferredGoalOrder: [String] = []
     private var retryAttemptsByScanId: [String: Int] = [:]
     private var retryTasksByScanId: [String: Task<Void, Never>] = [:]
+    private var retryTaskOrder: [String] = []
     private let retryDelays: [Duration]
+    private let maximumRetryTaskCount: Int
     private let completedScanLimit = 100
 
     func registerPreferredGoal(_ preferredGoal: FieldTripPreferredGoal, for scanId: String) {
-        preferredGoalsByScanId[scanId] = preferredGoal
-        preferredGoalOrder.removeAll(where: { $0 == scanId })
-        preferredGoalOrder.append(scanId)
+        guard let scanKey = Self.scanIdentity(scanId)?.key else { return }
+        preferredGoalsByScanId[scanKey] = preferredGoal
+        preferredGoalOrder.removeAll(where: { $0 == scanKey })
+        preferredGoalOrder.append(scanKey)
         if preferredGoalOrder.count > completedScanLimit {
             preferredGoalsByScanId.removeValue(forKey: preferredGoalOrder.removeFirst())
         }
@@ -256,13 +476,31 @@ final class ScanMilestoneCoordinator {
             FeatureFlags.isEnabled(.fieldTrips)
         },
         retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15)],
-        presenter: MilestoneToastPresenter? = nil
+        maximumRetryTaskCount: Int = 16,
+        presenter: MilestoneToastPresenter
     ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
         self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
         self.retryDelays = retryDelays
-        self.presenter = presenter ?? .shared
+        self.maximumRetryTaskCount = max(1, maximumRetryTaskCount)
+        self.presenter = presenter
+    }
+
+    func beginAccountSession(
+        accountID: String?,
+        origin: AppRouteAccountSessionOrigin,
+        now: Date
+    ) {
+        let previousSession = presenter.sessionToken
+        presenter.beginAccountSession(accountID: accountID, origin: origin, now: now)
+        guard presenter.sessionToken != previousSession else { return }
+        cancelSessionBoundWork(resetsScanHistory: true)
+    }
+
+    func advanceSession(now: Date) {
+        presenter.advanceSession(now: now)
+        cancelSessionBoundWork(resetsScanHistory: false)
     }
 
     func processCompletedScan(
@@ -271,50 +509,62 @@ final class ScanMilestoneCoordinator {
         modelContainer: ModelContainer?,
         preferredGoal: FieldTripPreferredGoal? = nil
     ) async {
+        guard let identity = Self.scanIdentity(scanId) else { return }
+        let expectedSession = presenter.sessionToken
         await processCompletedScanAttempt(
-            scanId: scanId,
+            scanId: identity.value,
+            scanKey: identity.key,
             speciesData: speciesData,
             modelContainer: modelContainer,
             preferredGoal: preferredGoal,
-            cancelsScheduledRetry: true
+            cancelsScheduledRetry: true,
+            expectedSession: expectedSession
         )
     }
 
     private func processCompletedScanAttempt(
         scanId: String,
+        scanKey: String,
         speciesData: SpeciesData?,
         modelContainer: ModelContainer?,
         preferredGoal: FieldTripPreferredGoal?,
-        cancelsScheduledRetry: Bool
+        cancelsScheduledRetry: Bool,
+        expectedSession: MilestoneToastSessionToken
     ) async {
-        if completedScanIds.contains(scanId) {
+        guard expectedSession == presenter.sessionToken else { return }
+        let sessionScanKey = SessionScanKey(session: expectedSession, scanKey: scanKey)
+        if completedScanIds.contains(scanKey) {
             // A prior acknowledgement may have completed while SwiftData was
             // temporarily unavailable. A durable replay can safely finish
             // deleting its outbox hint without re-running milestones.
             OfflineQueueManager.shared.acknowledgeFieldTripProgress(scanId: scanId)
             return
         }
-        guard !inFlightScanIds.contains(scanId) else {
+        guard !inFlightScanIds.contains(sessionScanKey) else {
             return
         }
 
         if cancelsScheduledRetry {
-            retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
+            retryTasksByScanId.removeValue(forKey: scanKey)?.cancel()
+            retryTaskOrder.removeAll(where: { $0 == scanKey })
         }
 
-        inFlightScanIds.insert(scanId)
-        defer { inFlightScanIds.remove(scanId) }
+        inFlightScanIds.insert(sessionScanKey)
+        defer { inFlightScanIds.remove(sessionScanKey) }
 
         let resolvesFieldTrips = fieldTripsAvailabilityResolver()
         let accountId = resolvesFieldTrips
             ? SupabaseManager.shared.currentUser?.id.uuidString
             : nil
-        let resolvedPreferredGoal = preferredGoal ?? preferredGoalsByScanId[scanId]
+        let resolvedPreferredGoal = preferredGoal ?? preferredGoalsByScanId[scanKey]
         let progress: FieldTripProgressResult?
         let finalizesFieldTripResolution: Bool
 
         if resolvesFieldTrips {
-            switch await progressResolver(scanId, resolvedPreferredGoal) {
+            let resolution = await progressResolver(scanId, resolvedPreferredGoal)
+            guard expectedSession == presenter.sessionToken else { return }
+
+            switch resolution {
             case .success(let resolvedProgress):
                 progress = resolvedProgress
                 finalizesFieldTripResolution = true
@@ -331,9 +581,11 @@ final class ScanMilestoneCoordinator {
                 }
                 scheduleProgressRetry(
                     scanId: scanId,
+                    scanKey: scanKey,
                     speciesData: speciesData,
                     modelContainer: modelContainer,
-                    preferredGoal: resolvedPreferredGoal
+                    preferredGoal: resolvedPreferredGoal,
+                    expectedSession: expectedSession
                 )
             case .terminalFailure:
                 progress = nil
@@ -344,10 +596,15 @@ final class ScanMilestoneCoordinator {
             finalizesFieldTripResolution = true
         }
 
-        let shouldReleaseOrdinaryMilestones = !releasedMilestoneScanIds.contains(scanId)
-        let achievements = (shouldReleaseOrdinaryMilestones
-            ? await achievementResolver(modelContainer)
-            : []) + newlyUnlockedFirstFieldTripAwards(from: progress)
+        let shouldReleaseOrdinaryMilestones = !releasedMilestoneScanIds.contains(scanKey)
+        let ordinaryAchievements: [AwardPayload]
+        if shouldReleaseOrdinaryMilestones {
+            ordinaryAchievements = await achievementResolver(modelContainer)
+            guard expectedSession == presenter.sessionToken else { return }
+        } else {
+            ordinaryAchievements = []
+        }
+        let achievements = ordinaryAchievements + newlyUnlockedFirstFieldTripAwards(from: progress)
         let fieldTrips = Self.milestones(from: progress)
         let includesNewToMerian = shouldReleaseOrdinaryMilestones
             && (speciesData.map(Self.isValidNewToMerianMilestone) ?? false)
@@ -355,34 +612,44 @@ final class ScanMilestoneCoordinator {
         presenter.enqueueScanMilestoneBatch(
             fieldTrips: fieldTrips,
             achievements: achievements,
-            includesNewToMerian: includesNewToMerian
+            includesNewToMerian: includesNewToMerian,
+            expectedSession: expectedSession
         )
         if shouldReleaseOrdinaryMilestones {
-            rememberReleasedMilestones(scanId)
+            rememberReleasedMilestones(scanKey)
         }
         if finalizesFieldTripResolution {
-            finishFieldTripResolution(scanId: scanId)
+            finishFieldTripResolution(scanId: scanId, scanKey: scanKey)
         }
     }
 
     /// Re-applies progress after a user changes a saved scan's identification.
     /// These updates are not part of the original scan-completion milestone batch.
     func processIdentificationUpdate(scanId: String) async {
+        guard let scanId = Self.scanIdentity(scanId)?.value else { return }
+        let expectedSession = presenter.sessionToken
         guard fieldTripsAvailabilityResolver() else { return }
         let accountId = SupabaseManager.shared.currentUser?.id.uuidString
         guard case .success(let resolvedProgress) = await progressResolver(scanId, nil) else {
             return
         }
+        guard expectedSession == presenter.sessionToken else { return }
         let progress = resolvedProgress
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
         AppDIContainer.shared.appEventPublisher.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
 
         for milestone in Self.milestones(from: progress) {
-            presenter.enqueueFieldTripProgress(milestone)
+            presenter.enqueueFieldTripProgress(
+                milestone,
+                expectedSession: expectedSession
+            )
         }
         for award in newlyUnlockedFirstFieldTripAwards(from: progress) {
-            presenter.enqueueAchievementUnlock(award)
+            presenter.enqueueAchievementUnlock(
+                award,
+                expectedSession: expectedSession
+            )
         }
     }
 
@@ -416,6 +683,11 @@ final class ScanMilestoneCoordinator {
         preferredGoalOrder.removeAll()
         retryAttemptsByScanId.removeAll()
         retryTasksByScanId.removeAll()
+        retryTaskOrder.removeAll()
+    }
+
+    var pendingRetryTaskCountForTesting: Int {
+        retryTasksByScanId.count
     }
     #endif
 
@@ -454,8 +726,7 @@ final class ScanMilestoneCoordinator {
         guard result?.firstFieldTripAchievementNewlyUnlocked == true,
               let award = result?.firstFieldTripAchievement?.awardPayload else { return [] }
         return GamificationManager.shared.evaluateAchievementsForNotifications(
-            awards: [award],
-            enqueueToasts: false
+            awards: [award]
         )
     }
 
@@ -479,54 +750,102 @@ final class ScanMilestoneCoordinator {
         }
     }
 
-    private func finishFieldTripResolution(scanId: String) {
-        retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
-        retryAttemptsByScanId.removeValue(forKey: scanId)
-        preferredGoalsByScanId.removeValue(forKey: scanId)
-        preferredGoalOrder.removeAll(where: { $0 == scanId })
+    private func finishFieldTripResolution(scanId: String, scanKey: String) {
+        retryTasksByScanId.removeValue(forKey: scanKey)?.cancel()
+        retryTaskOrder.removeAll(where: { $0 == scanKey })
+        retryAttemptsByScanId.removeValue(forKey: scanKey)
+        preferredGoalsByScanId.removeValue(forKey: scanKey)
+        preferredGoalOrder.removeAll(where: { $0 == scanKey })
         OfflineQueueManager.shared.acknowledgeFieldTripProgress(scanId: scanId)
-        rememberCompletedScan(scanId)
+        rememberCompletedScan(scanKey)
     }
 
     private func scheduleProgressRetry(
         scanId: String,
+        scanKey: String,
         speciesData: SpeciesData?,
         modelContainer: ModelContainer?,
-        preferredGoal: FieldTripPreferredGoal?
+        preferredGoal: FieldTripPreferredGoal?,
+        expectedSession: MilestoneToastSessionToken
     ) {
-        let attempt = retryAttemptsByScanId[scanId, default: 0]
+        guard expectedSession == presenter.sessionToken else { return }
+        let attempt = retryAttemptsByScanId[scanKey, default: 0]
         guard attempt < retryDelays.count else {
-            retryAttemptsByScanId.removeValue(forKey: scanId)
+            retryAttemptsByScanId.removeValue(forKey: scanKey)
             MerianLog.general.debug(
                 "Field trip progress automatic retries exhausted; a later completion callback can retry."
             )
             return
         }
 
-        retryAttemptsByScanId[scanId] = attempt + 1
-        retryTasksByScanId.removeValue(forKey: scanId)?.cancel()
+        retryAttemptsByScanId[scanKey] = attempt + 1
+        retryTasksByScanId.removeValue(forKey: scanKey)?.cancel()
+        retryTaskOrder.removeAll(where: { $0 == scanKey })
+        makeRetryTaskCapacity()
         let delay = retryDelays[attempt]
-        retryTasksByScanId[scanId] = Task { [weak self] in
+        retryTaskOrder.append(scanKey)
+        retryTasksByScanId[scanKey] = Task { [weak self] in
             do {
                 try await Task.sleep(for: delay)
             } catch {
                 return
             }
-            guard let self, !Task.isCancelled else { return }
+            guard let self,
+                  !Task.isCancelled,
+                  expectedSession == self.presenter.sessionToken else { return }
 
-            while self.inFlightScanIds.contains(scanId) {
+            let sessionScanKey = SessionScanKey(session: expectedSession, scanKey: scanKey)
+            while self.inFlightScanIds.contains(sessionScanKey) {
                 try? await Task.sleep(for: .milliseconds(50))
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled,
+                      expectedSession == self.presenter.sessionToken else { return }
             }
-            self.retryTasksByScanId.removeValue(forKey: scanId)
+            self.retryTasksByScanId.removeValue(forKey: scanKey)
+            self.retryTaskOrder.removeAll(where: { $0 == scanKey })
             await self.processCompletedScanAttempt(
                 scanId: scanId,
+                scanKey: scanKey,
                 speciesData: speciesData,
                 modelContainer: modelContainer,
                 preferredGoal: preferredGoal,
-                cancelsScheduledRetry: false
+                cancelsScheduledRetry: false,
+                expectedSession: expectedSession
             )
         }
+    }
+
+    private func makeRetryTaskCapacity() {
+        while retryTasksByScanId.count >= maximumRetryTaskCount,
+              let evictedScanKey = retryTaskOrder.first {
+            retryTaskOrder.removeFirst()
+            retryTasksByScanId.removeValue(forKey: evictedScanKey)?.cancel()
+            retryAttemptsByScanId.removeValue(forKey: evictedScanKey)
+            preferredGoalsByScanId.removeValue(forKey: evictedScanKey)
+            preferredGoalOrder.removeAll(where: { $0 == evictedScanKey })
+        }
+    }
+
+    private func cancelSessionBoundWork(resetsScanHistory: Bool) {
+        for task in retryTasksByScanId.values {
+            task.cancel()
+        }
+        retryTasksByScanId.removeAll(keepingCapacity: false)
+        retryTaskOrder.removeAll(keepingCapacity: false)
+        retryAttemptsByScanId.removeAll(keepingCapacity: false)
+        preferredGoalsByScanId.removeAll(keepingCapacity: false)
+        preferredGoalOrder.removeAll(keepingCapacity: false)
+        inFlightScanIds.removeAll(keepingCapacity: false)
+        guard resetsScanHistory else { return }
+        completedScanIds.removeAll(keepingCapacity: false)
+        completedScanOrder.removeAll(keepingCapacity: false)
+        releasedMilestoneScanIds.removeAll(keepingCapacity: false)
+        releasedMilestoneScanOrder.removeAll(keepingCapacity: false)
+    }
+
+    private static func scanIdentity(_ scanId: String) -> (value: String, key: String)? {
+        let value = scanId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return nil }
+        return (value, value.lowercased())
     }
 
     private static func resolveProgress(
@@ -575,8 +894,7 @@ final class ScanMilestoneCoordinator {
         let profileActor = OfflineQueueManager.shared.resolvedProfileDbActor(container: modelContainer)
         let updatedAwards = await profileActor.calculateAwards()
         return GamificationManager.shared.evaluateAchievementsForNotifications(
-            awards: updatedAwards,
-            enqueueToasts: false
+            awards: updatedAwards
         )
     }
 }

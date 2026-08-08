@@ -7,6 +7,7 @@ struct Preferences: View {
     @Environment(SupabaseManager.self) private var supabase
     @Environment(AppSettings.self) private var appSettings
     @Environment(RevenueCatManager.self) private var revenueCatManager
+    @Environment(MilestoneToastPresenter.self) private var milestoneToastPresenter
 
     @Binding var defaultGeoprivacy: String
     @Binding var managePlanActive: Bool
@@ -247,21 +248,21 @@ struct Preferences: View {
             }
 
             Button {
-                MilestoneToastPresenter.shared.previewNewToMerianMilestone()
+                milestoneToastPresenter.previewNewToMerianMilestone()
             } label: {
                 Label("Preview New to Naturebook notification", systemImage: "sparkles")
             }
             .accessibilityIdentifier("Settings_PreviewNewToMerianNotification")
 
             Button {
-                MilestoneToastPresenter.shared.previewFieldTripProgress()
+                milestoneToastPresenter.previewFieldTripProgress()
             } label: {
                 Label("Preview Field trip progress toast", systemImage: "map.fill")
             }
             .accessibilityIdentifier("Settings_PreviewFieldTripProgressToast")
 
             Button {
-                MilestoneToastPresenter.shared.previewMilestoneStack()
+                milestoneToastPresenter.previewMilestoneStack()
             } label: {
                 Label("Preview notification stack", systemImage: "square.3.layers.3d")
             }
@@ -287,7 +288,7 @@ struct Preferences: View {
 
 #if DEBUG
     private func previewAchievementToast(_ type: AchievementType) {
-        AchievementToastPresenter.shared.previewAchievementUnlock(
+        milestoneToastPresenter.previewAchievementUnlock(
             AwardPayload(
                 type: type,
                 currentCount: type.definition.targetCount,

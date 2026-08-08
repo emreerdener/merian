@@ -36,9 +36,7 @@ extension InsightSheetViewModel {
             modelContext: modelContext
         )
         guard didSave else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Could not save preferred name"
-            }
+            state.toastMessage = .error("Could not save preferred name")
             HapticManager.shared.triggerErrorThump()
             return
         }
@@ -47,9 +45,7 @@ extension InsightSheetViewModel {
             for: scientificName,
             modelContext: modelContext
         )
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            state.toastMessage = "Preferred name set to \"\(name)\""
-        }
+        state.toastMessage = .success("Preferred name set to \"\(name)\"")
         HapticManager.shared.triggerSelectionPulse()
     }
 
@@ -73,17 +69,13 @@ extension InsightSheetViewModel {
             modelContext: modelContext
         )
         guard didClear else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                state.toastMessage = "Could not clear preferred name"
-            }
+            state.toastMessage = .error("Could not clear preferred name")
             HapticManager.shared.triggerErrorThump()
             return
         }
 
         state.preferredCommonName = nil
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            state.toastMessage = "Reverted to default name"
-        }
+        state.toastMessage = .success("Reverted to default name")
         HapticManager.shared.triggerSelectionPulse()
     }
 }

@@ -338,24 +338,9 @@ extension AppRouteSessionControlling {
         )
         nextInsertionSequence &+= 1
 
-        if pendingRequests.count >= maximumPendingCount {
-            let evictionIndex = pendingRequests.indices
-                .filter { pendingRequests[$0].priority <= envelope.priority }
-                .min { lhs, rhs in
-                    let left = pendingRequests[lhs]
-                    let right = pendingRequests[rhs]
-                    if left.priority != right.priority { return left.priority < right.priority }
-                    if left.createdAt != right.createdAt { return left.createdAt < right.createdAt }
-                    return left.insertionSequence < right.insertionSequence
-                }
-
-            guard let evictionIndex else {
-                record(requestID: id, outcome: .rejected(reason: .overflow), now: now)
-                return id
-            }
-
-            let evicted = pendingRequests.remove(at: evictionIndex)
-            record(requestID: evicted.id, outcome: .rejected(reason: .overflow), now: now)
+        guard makePendingCapacity(for: envelope, now: now) else {
+            record(requestID: id, outcome: .rejected(reason: .overflow), now: now)
+            return id
         }
 
         pendingRequests.append(envelope)
@@ -417,6 +402,15 @@ extension AppRouteSessionControlling {
               case .deferred = inFlightOutcome else { return }
         inFlightRequest = nil
         inFlightOutcome = nil
+        let now = Date()
+        if request.expiresAt.map({ $0 <= now }) ?? false {
+            record(requestID: request.id, outcome: .rejected(reason: .expired), now: now)
+            return
+        }
+        guard makePendingCapacity(for: request, now: now) else {
+            record(requestID: request.id, outcome: .rejected(reason: .overflow), now: now)
+            return
+        }
         pendingRequests.append(request)
         sortPendingRequests()
     }
@@ -526,6 +520,28 @@ extension AppRouteSessionControlling {
             if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
             return lhs.insertionSequence < rhs.insertionSequence
         }
+    }
+
+    private func makePendingCapacity(
+        for envelope: AppRouteEnvelope,
+        now: Date
+    ) -> Bool {
+        while pendingRequests.count >= maximumPendingCount {
+            let evictionIndex = pendingRequests.indices
+                .filter { pendingRequests[$0].priority <= envelope.priority }
+                .min { lhs, rhs in
+                    let left = pendingRequests[lhs]
+                    let right = pendingRequests[rhs]
+                    if left.priority != right.priority { return left.priority < right.priority }
+                    if left.createdAt != right.createdAt { return left.createdAt < right.createdAt }
+                    return left.insertionSequence < right.insertionSequence
+                }
+
+            guard let evictionIndex else { return false }
+            let evicted = pendingRequests.remove(at: evictionIndex)
+            record(requestID: evicted.id, outcome: .rejected(reason: .overflow), now: now)
+        }
+        return true
     }
 
     private func shouldPromote(

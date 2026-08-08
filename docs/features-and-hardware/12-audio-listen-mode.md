@@ -459,16 +459,18 @@ thumbnails.
 
 **File**: `apps/ios/Merian/Features/Capture/Record/Views/SNRGaugeView.swift`
 
-Rounded pill showing SNR level with a color-coded background and SF Symbol icon.
-Triggers a keyframe shake animation on `.clipping` events using sequential
-`DispatchQueue.main.asyncAfter` calls.
+Passive material capsule for recording guidance. It shows **Record 15 seconds**
+once per process session for 3.5 seconds, then exposes the current non-clear SNR
+label when audio hints are enabled. The stored prompt task is cancelled on
+unmount, the surface disables hit testing, and no delayed dispatch chain or
+keyframe shake survives view teardown.
 
 | `SNRLevel`  | Color       | Label           |
 | ----------- | ----------- | --------------- |
 | `.clear`    | Green       | "Clear"         |
 | `.caution`  | Yellow      | "Some noise"    |
 | `.warning`  | Orange      | "Shield mic"    |
-| `.clipping` | Red (shake) | "Move mic away" |
+| `.clipping` | Material capsule | "Move mic away" |
 
 ---
 

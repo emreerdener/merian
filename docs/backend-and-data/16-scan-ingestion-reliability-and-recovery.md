@@ -908,6 +908,15 @@ for exact request and response shapes.
 | `409 account_deletion_in_progress`              | Destructive lifecycle owns identity                                                                                                                                | Stop submission; do not recreate profile                                                  |
 | `408/409/425/429` transient handler state       | Generation or capacity is temporarily unavailable                                                                                                                  | Retain and back off using bounded `Retry-After`                                           |
 | `503 scan_persistence_failed`                   | Operational durability, strict finalization, or unknown-commit failure                                                                                             | Retain local row; poll same UUID; fresh-upload only when exact status says scanless retry |
+
+For a foreground handler-owned `401 auth_session_missing` or
+`401 invalid_session_token`, iOS first refreshes the existing Supabase session
+and retries once with rebuilt headers. It does not replace an anonymous account
+before that refresh attempt, because the stable scan UUID, consent evidence,
+funding reservation, and any existing server ownership all belong to that
+account. Background `401` remains a durable retry with local media retained; a
+later foreground or lifecycle pass performs the same Auth recovery before
+dispatch.
 | `503 scan_media_restore_unavailable`            | Explore restore may have committed                                                                                                                                 | Preserve local and promoted media; retry same owner scan                                  |
 | `503 scan_image_repair_persistence_unknown`     | Image repair may have committed                                                                                                                                    | Preserve replacement and retry inspection                                                 |
 | platform `404 NOT_FOUND` without handler marker | Edge route did not execute                                                                                                                                         | Retain state and use bounded route-propagation retry                                      |

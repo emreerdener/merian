@@ -43,8 +43,10 @@ orphaned object does not reconstruct its relational context.
 - Merian uses `AppDIContainer` as the application dependency graph instead of
   constructing managers throughout SwiftUI. The production graph is available
   through `AppDIContainer.shared`; preview containers create isolated
-  `AppEventPublisher` and `AppRouteCoordinator` instances and do not bind the
-  process-global authentication manager to their route state.
+  `AppEventPublisher`, `AppRouteCoordinator`, `MilestoneToastPresenter`,
+  `MilestoneToastHostRegistry`, clock, and scan-milestone coordinator instances
+  and do not bind the process-global authentication manager to their route or
+  milestone state.
 - The container injects observable managers through SwiftUI `@Environment` for
   render state and is initializer-injected into business-owning view models.
   This keeps dependency access explicit without turning the entire container
@@ -76,11 +78,17 @@ orphaned object does not reconstruct its relational context.
   enforced by the iOS event-routing guard. AVPlayer KVO, notifications, and
   periodic time callbacks are owned by `MediaPlaybackObservation`, which removes
   exact old-player tokens and rejects late callbacks with a generation fence.
+- Ordinary visual feedback is a typed, lightweight `ToastPayload` rendered by
+  an alignment-scoped pass-through modifier. Milestone feedback is a DI-owned,
+  bounded and deduplicated queue with one foreground host, an injectable clock,
+  one-time haptic/accessibility claims, and account/session fences. Nested
+  Candidate, Confidence, Insight Chat, and Explore activity transitions stage
+  typed actions and resume them from exact `onDismiss` callbacks.
 - See
   [Event and Presentation Routing](./10-event-and-presentation-routing.md) for
   the exhaustive event/route matrices, priority and expiry rules, presentation
   state machine, framework-boundary inventory, visual-feedback contract, tests,
-  and intentionally deferred consolidation work.
+  and maintenance rules.
 
 ### 3. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
@@ -424,6 +432,8 @@ single-responsibility functions under `/services/supabase/functions/`.
 
 - Tracks device-native state (`UserDefaults`), tying species identifications to
   profile persona progression and achievement milestones.
+- Returns typed presentation-eligible awards to `ScanMilestoneCoordinator`;
+  the domain manager never reaches into the in-app feedback presenter.
 - Binds global haptics to success triggers and interactions.
 
 ### 7. Private Analytics (`AppTelemetry`, `PostHog`)

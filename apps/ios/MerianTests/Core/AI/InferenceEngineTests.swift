@@ -1302,6 +1302,62 @@ struct InferenceEngineTests {
         )
     }
 
+    @Test func consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {
+        let client = MerianNetworkClient.shared
+        let circuitBreaker = CircuitBreakerManager.shared
+        client.overridingInferenceConsentCheck = {
+            throw MerianError.aiConsentRequired
+        }
+        circuitBreaker.recordSuccess()
+        defer {
+            client.overridingInferenceConsentCheck = {}
+            circuitBreaker.recordSuccess()
+        }
+
+        let engine = InferenceEngine()
+        let inferenceImage = Data([0xFF, 0xD8, 0xFF, 0xD9])
+
+        for _ in 0..<3 {
+            engine.prepareForNewScan()
+            engine.analyze(
+                imageDatas: [inferenceImage],
+                telemetry: makeTelemetry()
+            )
+            if let task = engine.inferenceTask {
+                _ = try? await task.value
+            }
+
+            #expect(!circuitBreaker.isCircuitTripped)
+            #expect(engine.speciesData?.commonName == "Approval needed")
+            #expect(engine.speciesData?.scientificName == "Scan saved")
+            #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+            #expect(
+                engine.speciesData?.insightData.aiReasoning
+                    .contains("retry it from Scans") == true
+            )
+        }
+
+        circuitBreaker.recordSuccess()
+        for _ in 0..<3 {
+            engine.analyzeNonVisual(
+                scanId: nil,
+                observationContexts: [
+                    ObservationContext(freeText: "Small orange butterfly")
+                ],
+                telemetry: makeTelemetry(),
+                modelContext: nil
+            )
+            if let task = engine.inferenceTask {
+                _ = try? await task.value
+            }
+
+            #expect(!circuitBreaker.isCircuitTripped)
+            #expect(engine.speciesData?.commonName == "Approval needed")
+            #expect(engine.speciesData?.scientificName == "Scan saved")
+            #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+        }
+    }
+
     /// Win condition: the live-inference success path calls `flushOfflineQueuedScan`
     /// synchronously on the main context before the completion notification fires.
     ///

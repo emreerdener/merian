@@ -918,6 +918,10 @@ final class MerianNetworkClient {
     /// Keeps request-construction tests independent from Supabase while still
     /// allowing dedicated tests to prove that consent failures stop dispatch.
     var overridingInferenceConsentCheck: (@Sendable () async throws -> Void)?
+
+    /// Lets the 401 recovery regression exercise the real request replay branch
+    /// without refreshing or replacing a developer's persisted simulator session.
+    var overridingAuthSessionRefresh: (@Sendable () async -> Bool)?
     #endif
 
     private var activeSession: URLSession {
@@ -935,6 +939,15 @@ final class MerianNetworkClient {
         }
         #endif
         try await ConsentManager.shared.ensureCloudConsentForInference()
+    }
+
+    private func refreshActiveSessionForRetry() async -> Bool {
+        #if DEBUG
+        if let overridingAuthSessionRefresh {
+            return await overridingAuthSessionRefresh()
+        }
+        #endif
+        return await SupabaseManager.shared.refreshActiveSessionForRetry()
     }
 
     /// Dedicated session with sensible timeouts, connection limits, and TLS pinning.
@@ -1262,18 +1275,24 @@ final class MerianNetworkClient {
         return response
     }
 
-    private static func isMissingAuthSessionError(responseData: Data, fallbackMessage: String) -> Bool {
+    private static func isRefreshableAuthSessionError(
+        responseData: Data,
+        fallbackMessage: String
+    ) -> Bool {
         if let payload = try? JSONDecoder().decode(EdgeErrorPayload.self, from: responseData) {
-            if payload.code == "auth_session_missing" {
+            if payload.code == "auth_session_missing" ||
+                payload.code == "invalid_session_token" {
                 return true
             }
 
-            if payload.error?.localizedCaseInsensitiveContains("Auth session missing") == true {
+            if payload.error?.localizedCaseInsensitiveContains("Auth session missing") == true ||
+                payload.error?.localizedCaseInsensitiveContains("Invalid or expired session token") == true {
                 return true
             }
         }
 
-        return fallbackMessage.localizedCaseInsensitiveContains("Auth session missing")
+        return fallbackMessage.localizedCaseInsensitiveContains("Auth session missing") ||
+            fallbackMessage.localizedCaseInsensitiveContains("Invalid or expired session token")
     }
 
     static func isPlatformFunctionRouteUnavailable(
@@ -1611,8 +1630,15 @@ final class MerianNetworkClient {
             }
 
             if httpResponse.statusCode == 401 && !isRetry {
-                if Self.isMissingAuthSessionError(responseData: data, fallbackMessage: errString) {
-                    if await SupabaseManager.shared.refreshActiveSessionForRetry() {
+                if Self.isRefreshableAuthSessionError(
+                    responseData: data,
+                    fallbackMessage: errString
+                ) {
+                    // Both stable shared-auth failures can be caused by a stale
+                    // access token while the refresh token and account remain
+                    // valid. Refresh first so an anonymous user's durable scan,
+                    // consent evidence, and server ownership stay on one UUID.
+                    if await refreshActiveSessionForRetry() {
                         return try await performAuthenticatedRequest(
                             url: url,
                             method: method,
@@ -1648,7 +1674,7 @@ final class MerianNetworkClient {
 
                         await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
                     } else {
-                        MerianLog.network.debug("Missing auth session detected for authenticated user; preserving local session.")
+                        MerianLog.network.debug("Auth session recovery failed for authenticated user; preserving local session.")
                     }
 
                     throw MerianError.invalidResponse
@@ -1656,7 +1682,7 @@ final class MerianNetworkClient {
 
                 let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                 if hasAuthenticatedOAuth {
-                    // OAuth user whose token expired — surface the 401 so the UI can prompt re-auth.
+                    // An unclassified OAuth 401 must not replace the signed-in account.
                     throw MerianError.invalidResponse
                 }
 

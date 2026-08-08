@@ -21,6 +21,7 @@ struct CandidatesCard: View {
     @State private var isSwipeModalPresented = false
     @State private var swipeModalScanId: String?
     @State private var swipeModalGeneration: UInt64?
+    @State private var pendingSwipeDismissalRequest: CandidateSwipeDismissalRequest?
     @State private var dismissedScanId: String?
 
     private var displayCommonName: String {
@@ -170,7 +171,10 @@ struct CandidatesCard: View {
                 )
             }
         }
-        .sheet(isPresented: swipeModalPresentedBinding) {
+        .sheet(
+            isPresented: swipeModalPresentedBinding,
+            onDismiss: resumePendingSwipeDismissalRequest
+        ) {
             if let swipeModalScanId,
                let swipeModalGeneration,
                isSubjectPresentationCurrent(
@@ -182,24 +186,12 @@ struct CandidatesCard: View {
                     scanId: swipeModalScanId,
                     presentationGeneration: swipeModalGeneration,
                     candidates: candidates,
-                    aiScientificName: aiScientificName,
                     confirmButtonTitle: confirmButtonTitle,
-                    onConfirmOriginal: {
-                        confirmOriginal(
-                            scanId: swipeModalScanId,
-                            generation: swipeModalGeneration
-                        )
-                    },
-                    onAskCommunity: guardedAction(
-                        onAskCommunity,
-                        scanId: swipeModalScanId,
-                        generation: swipeModalGeneration
-                    ),
-                    onRefineScan: guardedAction(
-                        onRefineScan,
-                        scanId: swipeModalScanId,
-                        generation: swipeModalGeneration
-                    )
+                    allowsAskCommunity: onAskCommunity != nil,
+                    allowsRefinement: onRefineScan != nil,
+                    onRequestDismissalAction: { request in
+                        pendingSwipeDismissalRequest = request
+                    }
                 )
             }
         }
@@ -207,11 +199,13 @@ struct CandidatesCard: View {
             isSwipeModalPresented = false
             swipeModalScanId = nil
             swipeModalGeneration = nil
+            pendingSwipeDismissalRequest = nil
         }
         .onChange(of: inferenceEngine.scanPresentationGeneration) {
             isSwipeModalPresented = false
             swipeModalScanId = nil
             swipeModalGeneration = nil
+            pendingSwipeDismissalRequest = nil
         }
     }
 
@@ -247,6 +241,44 @@ struct CandidatesCard: View {
                 swipeModalGeneration = nil
             }
         )
+    }
+
+    private func resumePendingSwipeDismissalRequest() {
+        guard let request = pendingSwipeDismissalRequest else { return }
+        pendingSwipeDismissalRequest = nil
+
+        guard isSubjectPresentationCurrent(
+            scanId: request.scanId,
+            generation: request.presentationGeneration
+        ) else {
+            return
+        }
+
+        switch request.action {
+        case .applyOverride(let scientificName):
+            Task { @MainActor in
+                guard isSubjectPresentationCurrent(
+                    scanId: request.scanId,
+                    generation: request.presentationGeneration
+                ) else {
+                    return
+                }
+                await inferenceEngine.applyIdentificationOverride(
+                    scientificName: scientificName,
+                    expectedScanId: request.scanId,
+                    modelContext: modelContext
+                )
+            }
+        case .confirmOriginal:
+            confirmOriginal(
+                scanId: request.scanId,
+                generation: request.presentationGeneration
+            )
+        case .askCommunity:
+            onAskCommunity?()
+        case .refineScan:
+            onRefineScan?()
+        }
     }
 }
 

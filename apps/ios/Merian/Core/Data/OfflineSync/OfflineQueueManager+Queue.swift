@@ -191,7 +191,7 @@ extension OfflineQueueManager {
         }
 
         for (scanId, preferredGoal) in hints {
-            await ScanMilestoneCoordinator.shared.processCompletedScan(
+            await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
                 scanId: scanId,
                 speciesData: nil,
                 modelContainer: context.container,
@@ -1173,7 +1173,7 @@ extension OfflineQueueManager {
         startSyncImmediately: Bool = true,
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
-        let resolvedScanId = scanId ?? UUID().uuidString
+        let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let documentsDirectory = URL.documentsDirectory
         let resolvedDisplayImageDatas = displayImageDatas ?? imageDatas
         MerianLog.data.debug(

@@ -39,6 +39,7 @@ final class AppLifecycleManager {
         if lastBackgrounded > 0 {
             let elapsed = Date().timeIntervalSince1970 - lastBackgrounded
             if elapsed > 300 { // 5 minutes
+                container.scanMilestoneCoordinator.advanceSession(now: Date())
                 container.appEventPublisher.send(.appDidResumeAfterTimeout)
             }
             UserDefaults.standard.set(0.0, forKey: UserDefaultsKeys.lastBackgroundedDate)

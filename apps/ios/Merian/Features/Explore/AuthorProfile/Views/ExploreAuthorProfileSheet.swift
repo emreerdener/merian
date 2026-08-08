@@ -214,7 +214,7 @@ struct ExploreAuthorProfileContent: View {
         .sheet(isPresented: $isReportUserPresented) {
             if let profile {
                 ExploreReportUserSheet(profile: profile) {
-                    viewModel.toastMessage = "Report submitted for review."
+                    viewModel.toastMessage = .success("Report submitted for review.")
                 }
             }
         }
@@ -776,7 +776,7 @@ struct ExploreAuthorProfileContent: View {
             guard !Task.isCancelled else { return }
             profile = currentProfile
             HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -895,7 +895,7 @@ struct ExploreAuthorProfileContent: View {
         } catch {
             guard !Task.isCancelled else { return }
             HapticManager.shared.triggerErrorThump()
-            viewModel.toastMessage = ExploreErrorFormatter.message(for: error)
+            viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

@@ -59,10 +59,10 @@ bypass the policy by omitting Edge validation.
 
 Migration `20260808144244_expand_reserved_public_username_policy.sql` repairs
 existing profiles whose handles are reserved under the expanded policy with
-deterministic neutral aliases. It does
-not rewrite `explore_comment_mentions.mention_username`, because that column is
-the historical token embedded in immutable plain-text comment bodies. The
-complete policy groups and snapshot rationale are documented in
+deterministic neutral aliases. It does not rewrite
+`explore_comment_mentions.mention_username`, because that column is the
+historical token embedded in immutable plain-text comment bodies. The complete
+policy groups and snapshot rationale are documented in
 [`21-public-usernames.md`](../../../../docs/features-and-hardware/21-public-usernames.md).
 
 ## Display Side Effect

@@ -1,182 +1,224 @@
 import SwiftUI
 
+enum SystemFeedbackOverlayPolicy {
+    static func suppressesToast(
+        showsAchievementToasts: Bool,
+        toastAlignment: SwiftUI.Alignment,
+        milestoneAlignment: SwiftUI.Alignment,
+        hasPresentedMilestone: Bool
+    ) -> Bool {
+        showsAchievementToasts
+            && toastAlignment == milestoneAlignment
+            && hasPresentedMilestone
+    }
+}
+
 struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
-    @Binding var toastMessage: String?
-    @Binding var toastActionTitle: String?
+    @Binding var toast: ToastPayload?
     @Binding var toastAction: (() -> Void)?
     var toastAlignment: SwiftUI.Alignment
+    var milestoneAlignment: SwiftUI.Alignment
     var showsAchievementToasts: Bool
 
-    @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
+    @Environment(MilestoneToastPresenter.self) private var milestoneToastPresenter:
+        MilestoneToastPresenter?
+    @Environment(MilestoneToastHostRegistry.self) private var milestoneToastHostRegistry:
+        MilestoneToastHostRegistry?
+    @Environment(AppRouteCoordinator.self) private var appRouteCoordinator:
+        AppRouteCoordinator?
+    @Environment(\.milestoneToastClock) private var milestoneToastClock
+
+    @State private var milestoneHostID = UUID()
 
     func body(content: Content) -> some SwiftUI.View {
         content
             .overlay(alignment: toastAlignment) {
-                if let message = toastMessage,
-                   !showsAchievementToasts || milestoneToastPresenter.presentedItems.isEmpty {
-                    let display = SystemToastDisplay(message: message)
-
-                    ToastBanner(onDismiss: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            toastMessage = nil
-                            toastActionTitle = nil
-                            toastAction = nil
-                        }
-                    }) {
-                        HStack(alignment: .center, spacing: 12) {
-                            if display.isError {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .frame(width: 22, height: 22)
-                                    .accessibilityHidden(true)
-                            }
-
-                            VStack(alignment: .leading, spacing: display.body == nil ? 0 : 3) {
-                                Text(display.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.primary)
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
-
-                                if let body = display.body {
-                                    Text(body)
-                                        .font(.caption)
-                                        .fontWeight(.medium)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-
-                            if let actionTitle = toastActionTitle, let action = toastAction {
-                                Spacer(minLength: 0)
-
-                                Button(action: {
-                                    action()
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        toastMessage = nil
-                                        toastActionTitle = nil
-                                        toastAction = nil
-                                    }
-                                }) {
-                                    Text(actionTitle)
-                                        .font(.subheadline)
-                                        .fontWeight(.bold)
-                                        .foregroundStyle(.blue)
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(
-                        toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom,
-                        toastAlignment == .top ? 16 : 60
-                    )
-                    .transition(
-                        .move(edge: toastAlignment == .top ? Edge.top : Edge.bottom)
-                            .combined(with: .opacity)
-                    )
-                    .zIndex(100)
-                    .task(id: message) {
-                        do {
-                            try await Task.sleep(for: .seconds(3))
-                        } catch {
-                            return
-                        }
-                        guard !Task.isCancelled, toastMessage == message else { return }
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            toastMessage = nil
-                            toastActionTitle = nil
-                            toastAction = nil
-                        }
-                    }
-                }
+                toastOverlay
             }
-            .animation(.easeInOut(duration: 0.2), value: toastMessage)
-            .animation(
-                .easeInOut(duration: 0.2),
-                value: milestoneToastPresenter.presentedItems.map(\.id)
+            .overlay(alignment: milestoneAlignment) {
+                milestoneOverlay
+            }
+            .onAppear {
+                updateMilestoneHostRegistration()
+            }
+            .onChange(of: showsAchievementToasts) { _, _ in
+                updateMilestoneHostRegistration()
+            }
+            .onDisappear {
+                milestoneToastHostRegistry?.unregister(milestoneHostID)
+            }
+    }
+
+    private var toastOverlay: some View {
+        Group {
+            if let toast, !isToastSuppressedByMilestone {
+                toastBanner(for: toast)
+            }
+        }
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: ToastOverlayAnimationContext(
+                toastID: toast?.id,
+                isSuppressedByMilestone: isToastSuppressedByMilestone
             )
-            .overlay(alignment: .bottom) {
-                if showsAchievementToasts, !milestoneToastPresenter.presentedItems.isEmpty {
-                    MilestoneToastStack(
-                        items: milestoneToastPresenter.presentedItems,
-                        onDismiss: { id in
-                            milestoneToastPresenter.dismissActiveItem(id: id)
-                        },
-                        onOpenAchievement: { award in
-                            AppDIContainer.shared.appRouteCoordinator.request(
-                                .achievement(award),
-                                source: .internalUserAction
-                            )
-                        },
-                        onOpenFieldTrip: { destination in
-                            AppDIContainer.shared.appRouteCoordinator.request(
-                                .captureGoal(destination),
-                                source: .internalUserAction
-                            )
-                        }
-                    )
-                    .padding(.bottom, 24)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(110)
-                }
+        )
+    }
+
+    private var isToastSuppressedByMilestone: Bool {
+        SystemFeedbackOverlayPolicy.suppressesToast(
+            showsAchievementToasts: showsAchievementToasts,
+            toastAlignment: toastAlignment,
+            milestoneAlignment: milestoneAlignment,
+            hasPresentedMilestone: milestoneToastPresenter?.presentedItems.isEmpty == false
+        )
+    }
+
+    private func toastBanner(for toast: ToastPayload) -> some View {
+        let hasInteractiveControls = toast.action != nil && toastAction != nil
+        let onDismiss: (() -> Void)?
+        let onAction: (() -> Void)?
+
+        if hasInteractiveControls {
+            onDismiss = { dismissToast(ifMatching: toast.id) }
+            onAction = {
+                let action = toastAction
+                action?()
+                dismissToast(ifMatching: toast.id)
             }
+        } else {
+            onDismiss = nil
+            onAction = nil
+        }
+
+        return ToastPayloadBanner(
+            payload: toast,
+            onDismiss: onDismiss,
+            onAction: onAction
+        )
+        .id(toast.id)
+        .padding(
+            toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom,
+            toastAlignment == .top ? 16 : 60
+        )
+        .transition(
+            .move(edge: toastAlignment == .top ? Edge.top : Edge.bottom)
+                .combined(with: .opacity)
+        )
+        .zIndex(100)
+        .allowsHitTesting(hasInteractiveControls)
+        .task(id: toast.id) {
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, self.toast?.id == toast.id else { return }
+            dismissToast(ifMatching: toast.id)
+        }
+    }
+
+    private var milestoneOverlay: some View {
+        Group {
+            if let milestoneToastPresenter,
+               let milestoneToastHostRegistry,
+               showsAchievementToasts,
+               milestoneToastHostRegistry.activeHostID == milestoneHostID,
+               !milestoneToastPresenter.presentedItems.isEmpty {
+                MilestoneToastStack(
+                    items: milestoneToastPresenter.presentedItems,
+                    clock: milestoneToastClock,
+                    onClaimPresentationEffects: { id, now in
+                        milestoneToastPresenter.claimPresentationEffects(id: id, now: now)
+                    },
+                    automaticDismissInterval: { id, now in
+                        milestoneToastPresenter.remainingAutomaticDismissInterval(
+                            id: id,
+                            now: now
+                        )
+                    },
+                    onDismiss: { id in
+                        milestoneToastPresenter.dismissActiveItem(id: id)
+                    },
+                    onOpenAchievement: { award in
+                        appRouteCoordinator?.request(
+                            .achievement(award),
+                            source: .internalUserAction
+                        )
+                    },
+                    onOpenFieldTrip: { destination in
+                        appRouteCoordinator?.request(
+                            .captureGoal(destination),
+                            source: .internalUserAction
+                        )
+                    }
+                )
+                .padding(
+                    milestoneAlignment == .top ? Edge.Set.top : Edge.Set.bottom,
+                    milestoneAlignment == .top ? 16 : 24
+                )
+                .transition(
+                    .move(edge: milestoneAlignment == .top ? .top : .bottom)
+                        .combined(with: .opacity)
+                )
+                .zIndex(110)
+            }
+        }
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: isMilestoneOverlayVisible
+        )
+    }
+
+    /// The outer overlay owns only host-level insertion and removal. Active
+    /// item replacement is animated by `MilestoneToastStack`, while decorative
+    /// backing-layer changes are animated by the toast surface. Keying this
+    /// transaction to the full queue would allocate an ID array and apply a
+    /// second animation to every FIFO mutation.
+    private var isMilestoneOverlayVisible: Bool {
+        guard let milestoneToastPresenter,
+              let milestoneToastHostRegistry,
+              showsAchievementToasts,
+              milestoneToastHostRegistry.activeHostID == milestoneHostID else {
+            return false
+        }
+        return !milestoneToastPresenter.presentedItems.isEmpty
+    }
+
+    private func updateMilestoneHostRegistration() {
+        guard let milestoneToastHostRegistry else { return }
+        if showsAchievementToasts {
+            milestoneToastHostRegistry.register(milestoneHostID)
+        } else {
+            milestoneToastHostRegistry.unregister(milestoneHostID)
+        }
+    }
+
+    private func dismissToast(ifMatching toastID: UUID) {
+        guard toast?.id == toastID else { return }
+        toast = nil
+        toastAction = nil
+    }
+
+    private struct ToastOverlayAnimationContext: Equatable {
+        let toastID: UUID?
+        let isSuppressedByMilestone: Bool
     }
 }
 
 extension View {
     func merianSystemFeedback(
-        toastMessage: Binding<String?>,
-        toastActionTitle: Binding<String?> = .constant(nil),
+        toast: Binding<ToastPayload?>,
         toastAction: Binding<(() -> Void)?> = .constant(nil),
         toastAlignment: Alignment = .bottom,
+        milestoneAlignment: Alignment = .bottom,
         showsAchievementToasts: Bool = true
     ) -> some View {
         self.modifier(MerianSystemFeedbackModifier(
-            toastMessage: toastMessage,
-            toastActionTitle: toastActionTitle,
+            toast: toast,
             toastAction: toastAction,
             toastAlignment: toastAlignment,
+            milestoneAlignment: milestoneAlignment,
             showsAchievementToasts: showsAchievementToasts
         ))
-    }
-}
-
-private struct SystemToastDisplay {
-    let title: String
-    let body: String?
-    let isError: Bool
-
-    init(message: String) {
-        let parts = message
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if let first = parts.first, parts.count > 1 {
-            title = first
-            body = parts.dropFirst().joined(separator: " ")
-        } else {
-            title = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            body = nil
-        }
-
-        isError = Self.isErrorTitle(title) || body?.localizedCaseInsensitiveContains("try again") == true
-    }
-
-    private static func isErrorTitle(_ title: String) -> Bool {
-        let lowercasedTitle = title.lowercased()
-        return lowercasedTitle.hasPrefix("couldn't")
-            || lowercasedTitle.hasPrefix("couldn’t")
-            || lowercasedTitle.hasPrefix("could not")
-            || lowercasedTitle.hasPrefix("can't")
-            || lowercasedTitle.hasPrefix("can’t")
-            || lowercasedTitle.hasPrefix("unable")
-            || lowercasedTitle.hasPrefix("error")
-            || lowercasedTitle.hasPrefix("we couldn't")
-            || lowercasedTitle.hasPrefix("we couldn’t")
     }
 }

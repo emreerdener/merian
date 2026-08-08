@@ -291,6 +291,10 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         ],
       );
 
+      // Exercise the same SECURITY INVOKER role chain used by the Field trips
+      // Edge Function. Calling as the fixture owner would hide a missing
+      // transitive helper grant because owners retain implicit execution.
+      await client.queryArray("SET LOCAL ROLE service_role");
       const result = await client.queryObject<{ data: CaptureOuting[] }>(
         `SELECT public.get_field_trip_capture_context($1)::jsonb AS data`,
         [viewerId],
@@ -331,6 +335,7 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         emptyResult.rows[0].data[0].target_count,
         currentItems.rows.length,
       );
+      await client.queryArray("RESET ROLE");
 
       const privileges = await client.queryObject<{
         anonymous: boolean;
@@ -345,6 +350,24 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
         `,
       );
       assertEquals(privileges.rows[0], {
+        anonymous: false,
+        authenticated: false,
+        service_role: true,
+      });
+
+      const entitlementHelperPrivileges = await client.queryObject<{
+        anonymous: boolean;
+        authenticated: boolean;
+        service_role: boolean;
+      }>(
+        `
+        SELECT
+          has_function_privilege('anon', 'internal.user_has_effective_pro(uuid)', 'EXECUTE') AS anonymous,
+          has_function_privilege('authenticated', 'internal.user_has_effective_pro(uuid)', 'EXECUTE') AS authenticated,
+          has_function_privilege('service_role', 'internal.user_has_effective_pro(uuid)', 'EXECUTE') AS service_role
+        `,
+      );
+      assertEquals(entitlementHelperPrivileges.rows[0], {
         anonymous: false,
         authenticated: false,
         service_role: true,

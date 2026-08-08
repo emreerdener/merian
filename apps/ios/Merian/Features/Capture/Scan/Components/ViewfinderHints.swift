@@ -47,6 +47,7 @@ struct ViewfinderHints: View {
         .animation(.easeInOut(duration: 0.3), value: showInitialPrompt)
         .animation(.easeInOut(duration: 0.3), value: isVideoRecording)
         .animation(.easeInOut(duration: 0.3), value: vui.isOptimal)
+        .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("ViewfinderHint")
         .onAppear {
@@ -61,16 +62,28 @@ struct ViewfinderHints: View {
             withAnimation { showInitialPrompt = true }
             schedulePromptDismissal()
         }
+        .onDisappear {
+            promptTask?.cancel()
+            promptTask = nil
+        }
     }
 
     private func schedulePromptDismissal() {
         guard !ProcessInfo.processInfo.arguments.contains("-keepViewfinderHintVisible") else { return }
         promptTask?.cancel()
-        promptTask = Task {
-            try? await Task.sleep(nanoseconds: 3_500_000_000) // 3.5 s
+        promptTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(3.5))
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
             withAnimation { showInitialPrompt = false }
-            try? await Task.sleep(nanoseconds: 350_000_000) // 0.35 s
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
             vuiHintsAllowed = true
         }

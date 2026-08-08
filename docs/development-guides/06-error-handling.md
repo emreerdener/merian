@@ -19,6 +19,7 @@ public enum MerianError: LocalizedError, Equatable {
     case decodingFailed
     case httpError(statusCode: Int, message: String)
     case networkTimeout
+    case aiConsentRequired
     case proRequiredForOfflineTracking
     case hardwareUnavailable
 }
@@ -31,6 +32,7 @@ public enum MerianError: LocalizedError, Equatable {
 | `invalidResponse`               | Missing/non-HTTP, malformed-success, or unresolved auth response. | Never infer a remote mutation from this error. Preserve durable retry state and surface the appropriate UI error. |
 | `decodingFailed`                | `JSONDecoder` failed on a network response.                       | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.    |
 | `networkTimeout`                | The network request timed out aggressively.                       | Surface a "Network timeout" retry placeholder + scan queued silently                                              |
+| `aiConsentRequired`             | Required adult, Terms, or Gemini cloud evidence is absent or rejected. | Preserve the saved scan, return the account to Ready, and never increment the network circuit breaker.         |
 | `proRequiredForOfflineTracking` | Legacy compatibility signal; current scan submissions are queue-backed before inference | Do not use it to delete or reject an already-durable ordinary Flash queue item. Pro-only mode selection is gated before submission. |
 | `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot.          | Show UI alert explaining hardware constraints.                                                                    |
 
@@ -119,7 +121,13 @@ The complete evidence and release closure test are in the
    `speciesData` to an "Analysis Failed" placeholder
    (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Show
    InsightSheet with degraded result.
-3. **All other errors (network failure, timeout, etc.)** — Record circuit
+3. **`MerianError.aiConsentRequired`** — Keep the saved observation and media,
+   publish **Approval needed / Scan saved** only as a temporary fallback while
+   root presentation returns the account to Ready, and stop. Do not record a
+   circuit-breaker failure: a policy rejection is not evidence that transport
+   is unhealthy, and repeated rejections must not create a 15-minute cooldown
+   after fresh approval.
+4. **All other errors (network failure, timeout, etc.)** — Record circuit
    failure via `CircuitBreakerManager.shared.recordFailure()`. Set `speciesData`
    to a "Network timeout" placeholder with automatic-retry recovery copy. Do not
    refund and do not re-enqueue — the scan is already in the offline queue and
@@ -482,17 +490,22 @@ The complete error and recovery ordering contract is
 
 `MerianNetworkClient.performAuthenticatedRequest` intercepts 401 responses:
 
-1. Checks
-   `KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)`.
-   - **Authenticated OAuth user** (`hasAuthenticatedOAuth == true`): throws
-     `MerianError.invalidResponse` immediately — the expired JWT must be
-     re-authenticated. No Ghost session overwrite is attempted.
-   - **Ghost/anonymous session** (`hasAuthenticatedOAuth == false`): detects a
-     zombie session, calls `SupabaseManager.shared.signOut()` followed by
-     `initializeGhostSession()`, waits 1.5 seconds for the Kong API Gateway to
-     sync the new ES256 signature, then retries the request once with
-     `isRetry: true`.
-2. If the retry also fails, throws `MerianError.invalidResponse`.
+1. A shared-auth stable code of `auth_session_missing` or
+   `invalid_session_token` first calls the pinned Supabase Swift SDK's
+   `refreshSession()`. The SDK coalesces concurrent refreshes, rotates the
+   access/refresh pair, and the client reconstructs the original request once
+   with the fresh access token. A handler auth rejection happens before the
+   endpoint's domain mutation, so this one replay is safe even for a POST.
+2. If refresh fails, account recovery remains identity-sensitive:
+   - an authenticated OAuth account is preserved and the unresolved response
+     becomes `MerianError.invalidResponse`; and
+   - an anonymous account may enter the existing Ghost replacement path, wait
+     1.5 seconds for gateway propagation, and retry once. Its durable local scan
+     and media remain queued throughout.
+3. An unclassified OAuth 401 never replaces the signed-in account. A second 401
+   after the single retry becomes `MerianError.invalidResponse`.
 
 This logic is centralized in `performAuthenticatedRequest` — callers never need
-to handle JWT refresh themselves.
+to handle JWT refresh themselves. In particular, `invalid_session_token` must
+not skip directly to anonymous identity replacement: an expired access JWT can
+coexist with a valid refresh token and account-owned first-scan state.

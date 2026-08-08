@@ -13,17 +13,29 @@ struct EmbeddedInsightBackSwipeModifier: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if isEnabled {
-            content
-                .simultaneousGesture(edgeSwipeGesture)
-                .overlay(alignment: .leading) {
-                    Color.clear
-                        .frame(width: edgeActivationWidth)
-                        .contentShape(Rectangle())
-                        .gesture(edgeSwipeGesture)
-                }
-        } else {
-            content
+        Group {
+            if isEnabled {
+                content
+                    .simultaneousGesture(edgeSwipeGesture)
+                    .overlay(alignment: .leading) {
+                        Color.clear
+                            .frame(width: edgeActivationWidth)
+                            .contentShape(Rectangle())
+                            .gesture(edgeSwipeGesture)
+                    }
+            } else {
+                content
+            }
+        }
+        .task(id: didTriggerBack) {
+            guard didTriggerBack else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(450))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            didTriggerBack = false
         }
     }
 
@@ -34,10 +46,6 @@ struct EmbeddedInsightBackSwipeModifier: ViewModifier {
 
                 didTriggerBack = true
                 onBack()
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                    didTriggerBack = false
-                }
             }
     }
 

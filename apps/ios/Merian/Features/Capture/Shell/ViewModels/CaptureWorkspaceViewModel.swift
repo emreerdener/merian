@@ -205,7 +205,7 @@ final class CaptureWorkspaceViewModel {
     var pendingScansShowsNonBiologicalCollection = false
     var pendingAchievementAward: AwardPayload?
     var explorePresentationIdentity = UUID()
-    var offlineToastMessage: String?
+    var offlineToastMessage: ToastPayload?
     var imageToCrop: IdentifiableImage?
     var editingCropIndex: Int?
     @ObservationIgnored private var requiredGalleryCropImageIds: [UUID] = []
@@ -742,7 +742,7 @@ final class CaptureWorkspaceViewModel {
                 if hasTerminalFailure || hasPendingImport {
                     let didDismissSheet = self.prepareForExternalImageImportPresentation()
                     if hasTerminalFailure {
-                        self.offlineToastMessage = "Naturebook couldn’t import that photo."
+                        self.offlineToastMessage = .error("Naturebook couldn’t import that photo.")
                     }
                     if hasPendingImport {
                         if didDismissSheet {
@@ -829,7 +829,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func presentExternalImageImportFailure() {
-        offlineToastMessage = "Naturebook couldn’t import that photo."
+        offlineToastMessage = .error("Naturebook couldn’t import that photo.")
         Task { [externalImageImportStore] in
             _ = await externalImageImportStore.consumeTerminalFailure()
         }
@@ -920,7 +920,7 @@ final class CaptureWorkspaceViewModel {
     private func presentExternalImportSlotBlock(for pendingImport: PendingExternalImageImport) {
         if slotBlockedExternalImportIds.insert(pendingImport.id).inserted {
             AppTelemetry.trackExternalImageImport(outcome: "blocked_staging_capacity")
-            offlineToastMessage = "Finish your current capture to import the shared photo."
+            offlineToastMessage = .warning("Finish your current capture to import the shared photo.")
         }
     }
 
@@ -940,7 +940,7 @@ final class CaptureWorkspaceViewModel {
         paywallPresentedExternalImportIds.remove(pendingImport.id)
         AppTelemetry.trackExternalImageImport(outcome: outcome)
         HapticManager.shared.triggerErrorThump()
-        offlineToastMessage = "Naturebook couldn’t import that photo."
+        offlineToastMessage = .error("Naturebook couldn’t import that photo.")
     }
 
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {

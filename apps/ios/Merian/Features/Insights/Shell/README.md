@@ -46,3 +46,18 @@ the final saved scan ID and `SpeciesData` to the shared
 standard outings, Seasonal Challenges, achievements, then the dictionary
 milestone. Keeping this outside `.onAppear` prevents repeated Insight
 presentations from duplicating scan-completion notifications.
+
+## Feedback and nested presentation ownership
+
+Insight binds compiler-checked `ToastPayload` values into
+`merianSystemFeedback`; message strings are display copy and do not determine
+severity or navigation. Optional action closures remain owned by the current
+scan-bound view model and are cleared with the matching payload. Passive banners
+are pass-through, and ordinary feedback waits while the milestone stack owns
+the same alignment.
+
+Candidate review, Confidence explanation, and Field Chat follow-up actions are
+typed values resumed from the source sheet's real `onDismiss`. Every mutation
+or route rechecks the stable scan ID plus the applicable engine/local
+presentation generation. The shell must not mount a sibling sheet or use a
+fixed teardown sleep to bridge these workflows.

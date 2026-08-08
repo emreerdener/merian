@@ -75,6 +75,18 @@ BEGIN
         'authenticated',
         'public.reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)',
         'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'anon',
+        'internal.user_has_effective_pro(uuid)',
+        'EXECUTE'
+    ) OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'authenticated',
+        'internal.user_has_effective_pro(uuid)',
+        'EXECUTE'
+    ) OR NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
+        'service_role',
+        'internal.user_has_effective_pro(uuid)',
+        'EXECUTE'
     ) THEN
         RAISE EXCEPTION 'complimentary entitlement routines have unsafe ACLs';
     END IF;

@@ -297,10 +297,11 @@ The Scans tab is the user's primary offline biological journal.
   (`isDeleted == true`) are filtered out of both `CollectionsView` and the
   `InsightSheetView` add-to-collection menu, so a collection pending remote
   deletion cannot still be selected from another surface.
-- **Collection State Toasts**: A `.task(id:)` auto-dismissing `toastOverlay`
-  modifier anchored to the `InsightSheetView` hierarchy provides haptic
-  synchronization and glassmorphic `.ultraThinMaterial` pill notifications when
-  scans are pushed to or removed from `ScanCollection` relations.
+- **Collection State Toasts**: Collection mutations publish a typed
+  `ToastPayload` through the shared `merianSystemFeedback` modifier anchored to
+  `InsightSheetView`. The modifier owns identity-keyed cancellation, typed
+  severity, and pass-through banner hit testing; collection code does not add a
+  second overlay timer or infer style from message text.
 - **Collection Management & OOM-Safety (`Rename` & `Delete`)**:
   `CollectionsView` integrates `.contextMenu` bounds into the custom
   `ScanCollection` grid, allowing users to rename or delete albums without
@@ -417,7 +418,9 @@ The Scans tab is the user's primary offline biological journal.
   to muted whenever the feed is entered or uncovered, feed-to-detail navigation
   inherits the current choice, and detail-to-feed navigation resets to muted
   before autoplay resumes. Playback recovers from sheet interruptions through
-  the scoped `ExploreVideoPlaybackCoordinator`. Detail media enables the
+  the scoped `ExploreVideoPlaybackCoordinator`. Each SwiftUI sheet's presented
+  content owns its pause token until `onDisappear`, so a source binding cannot
+  resume playback underneath UIKit's dismissal animation. Detail media enables the
   transient zoom wrapper by default; the wrapper can be disabled for
   deterministic layout rendering tests without changing production behavior.
   Maps, widgets, profile grids, and compact previews remain thumbnail-first;
@@ -638,7 +641,14 @@ The Scans tab is the user's primary offline biological journal.
   single-post fetch path so older or paged-out posts still open correctly in
   `ExplorePostDetailView`; Field trip activity routes to
   `FieldTripPublicationDetailView`; follow activity is informational and does
-  not navigate because it has no `postId`. Remote Explore activity pushes are
+  not navigate because it has no `postId`. Every in-app selection is staged as
+  a typed destination and applied from `ExploreNotificationsSheet.onDismiss`,
+  including reply-thread focus; it never sleeps for an assumed sheet animation
+  or pushes while the notifications sheet still owns the presentation slot.
+  The same teardown contract applies when an Explore-owned Insight opens an
+  existing Community request: the root or post-detail owner stages the request
+  ID and changes navigation only from the Insight sheet's actual `onDismiss`.
+  Remote Explore activity pushes are
   opt-in from `NotificationSettingsView` and deep-link back into `ExploreView`
   through `AppRouteCoordinator` plus `CaptureWorkspaceViewModel`, but follow
   notifications and Field trip activity rows are in-app only and do not fan out
@@ -871,7 +881,12 @@ an Edge API response or opened offline via the Scans library.
   standard goal or challenge detail. All milestone types share haptics, a
   3.5-second timeout, close or horizontal/vertical swipe dismissal, queue
   transitions, and VoiceOver announcements. Achievement taps open achievement detail;
-  `New to Naturebook` taps dismiss.
+  `New to Naturebook` taps dismiss. `AppDIContainer` owns the production
+  presenter, coordinator, deterministic clock seam, and foreground-host
+  registry. The latest mounted host renders exclusively and restores its parent
+  on unmount; stable payload deduplication, a 32-item queue cap, account/session
+  generation fences, and one-time presentation-effect claims prevent duplicate
+  redraws or celebrations across nested sheets.
 - **Scans Contextual Imagery**: When opened from the Scans library, the system
   forces the user's locally captured photograph to dominate the Hero Carousel
   rather than defaulting to Wikipedia/GBIF reference imagery.
@@ -1354,7 +1369,14 @@ on gesture-driven layout abstractions.
   `ToxicityBanner` and `ThermalWarningView`) apply `.allowsHitTesting(false)`
   universally, while interactive milestone banners keep their hit target
   constrained to the banner itself so users can scroll and tap underlying UI
-  outside the notification bounds.
+  outside the notification bounds. Ordinary feature feedback uses
+  `ToastPayload` through `MerianSystemFeedbackModifier`; passive toasts are
+  fully pass-through, action toasts intercept only their compact banner, and
+  the modifier serializes ordinary and milestone layers only when they target
+  the same alignment, so they cannot collide in one Z-plane while independent
+  top/bottom feedback can coexist. Candidate/confidence review, Insight Chat follow-ups, and
+  Explore activity routing store typed pending actions and resume them from the
+  source sheet's exact `onDismiss`, never from an elapsed teardown delay.
 - **Shared Circular Control Chrome**: Compact circular `.ultraThinMaterial` icon
   controls now route through `Core/UI/Modifiers/IconButtonModifiers.swift` via
   `.circularMaterialControl(...)` when their visual contract is identical. This

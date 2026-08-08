@@ -44,7 +44,7 @@ extension ExploreFeedViewModel {
                 viewerHasLiked: previousLikedState
             )
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -58,11 +58,11 @@ extension ExploreFeedViewModel {
             AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: post.scanId, postId: nil))
             removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Removed from Explore"
+            toastMessage = .success("Removed from Explore")
             return true
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
             return false
         }
     }
@@ -73,11 +73,11 @@ extension ExploreFeedViewModel {
             try await MerianNetworkClient.shared.reportExplorePost(postId: post.id)
             removePost(id: post.id)
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Report submitted. Thanks!"
+            toastMessage = .success("Report submitted. Thanks!")
             return true
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
             return false
         }
     }
@@ -89,10 +89,10 @@ extension ExploreFeedViewModel {
 
         if SocialGuardManager.shared.blockedUserIds.contains(targetUserId) {
             removePosts(byAuthorUserId: targetUserId)
-            toastMessage = "User blocked"
+            toastMessage = .success("User blocked")
             return true
         } else {
-            toastMessage = "Could not block this user right now."
+            toastMessage = .error("Could not block this user right now.")
             return false
         }
     }
@@ -128,7 +128,7 @@ extension ExploreFeedViewModel {
             let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
             upsertPost(refreshedPost)
         } catch {
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

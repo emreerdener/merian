@@ -162,7 +162,7 @@ struct CaptureControlBar: View {
                                         // Expected when the user leaves audio mode during startup.
                                     } catch {
                                         await MainActor.run {
-                                            viewModel.offlineToastMessage = error.localizedDescription
+                                            viewModel.offlineToastMessage = .error(error.localizedDescription)
                                         }
                                     }
                                 }

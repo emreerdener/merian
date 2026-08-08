@@ -18,6 +18,8 @@ struct ConfidenceBadge: View {
     @State private var isShowingExplanation = false
     @State private var explanationScanId: String?
     @State private var explanationGeneration: UInt64?
+    @State private var pendingExplanationDismissalAction:
+        ConfidenceExplanationDismissalAction?
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     @State private var iconRotation: Double = 0.0
@@ -197,7 +199,10 @@ struct ConfidenceBadge: View {
                     }
                 }
             }
-            .sheet(isPresented: explanationPresentedBinding) {
+            .sheet(
+                isPresented: explanationPresentedBinding,
+                onDismiss: resumePendingExplanationDismissalAction
+            ) {
                 if let explanationScanId,
                    let explanationGeneration {
                     ConfidenceExplanationSheet(
@@ -209,7 +214,10 @@ struct ConfidenceBadge: View {
                         userConfirmedIdentification: userConfirmedIdentification,
                         isFlagged: isFlagged,
                         aiScientificName: aiScientificName,
-                        onAskCommunity: onAskCommunity
+                        onAskCommunity: onAskCommunity,
+                        onRequestDismissalAction: { action in
+                            pendingExplanationDismissalAction = action
+                        }
                     )
                     .presentationDetents(allowedDetents, selection: $activeDetent)
                         .presentationCornerRadius(32)
@@ -258,6 +266,33 @@ struct ConfidenceBadge: View {
                 explanationGeneration = nil
             }
         )
+    }
+
+    private func resumePendingExplanationDismissalAction() {
+        guard let action = pendingExplanationDismissalAction else { return }
+        pendingExplanationDismissalAction = nil
+
+        let context = action.context
+        guard inferenceEngine.scanPresentationGeneration == context.presentationGeneration,
+              inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(context.scanId) == .orderedSame else {
+            return
+        }
+
+        switch action {
+        case .askCommunity:
+            onAskCommunity?()
+        case .refineScan(_, let initialDescription):
+            HapticManager.shared.triggerSelectionPulse()
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .refinement(
+                    scanId: context.scanId,
+                    initialDescription: initialDescription,
+                    entryPoint: .standard
+                ),
+                source: .internalUserAction
+            )
+        }
     }
 }
 

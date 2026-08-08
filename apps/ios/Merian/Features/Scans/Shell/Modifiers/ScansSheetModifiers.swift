@@ -15,7 +15,7 @@ struct ScansSheetModifiers: ViewModifier {
     @Binding var showBatchDeleteConfirmation: Bool
     @Binding var showSelectionLimitAlert: Bool
     
-    @Binding var toastMessage: String?
+    @Binding var toastMessage: ToastPayload?
     @Binding var isDownloading: Bool
     
     let dismiss: DismissAction
@@ -81,25 +81,6 @@ struct ScansSheetModifiers: ViewModifier {
                 Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
             }
             .overlay(alignment: .bottom) {
-                if let message = toastMessage {
-                    Text(message)
-                        .font(.footnote)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .adaptiveToastSurface(
-                            in: Capsule(),
-                            shadowRadius: 10,
-                            shadowY: 5
-                        )
-                        .padding(.bottom, 60)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(100)
-                        .allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .bottom) {
                 if isDownloading {
                     HStack(spacing: 10) {
                         ProgressView()
@@ -117,6 +98,10 @@ struct ScansSheetModifiers: ViewModifier {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: isDownloading)
+            .merianSystemFeedback(
+                toast: $toastMessage,
+                showsAchievementToasts: false
+            )
     }
 }
 

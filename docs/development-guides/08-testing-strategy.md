@@ -990,7 +990,9 @@ MerianTests/
   and delayed-toolbar presentation targets—is invalidated. Queued presentation
   regressions prove a delayed scan-A poll cannot replace scan B's context and
   completion promotion requires the exact queued subject before releasing queued
-  routing. Field Notes tests cover the same ID-plus-generation boundary while
+  routing. The delayed Explore-onboarding regression proves the retained timer
+  is bound to scan ID plus presentation generation and is cancelled by reset.
+  Field Notes tests cover the same ID-plus-generation boundary while
   preserving editing for queued/offline scans.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
@@ -1053,13 +1055,42 @@ MerianTests/
   versus runtime sign-in fencing, session generations, defer/resume, exact
   presentation dismissal, duplicate/stale callback rejection, external-route
   timeout suppression, and missing-target rejection. A rejected route must
-  release the in-flight slot so later work cannot stall. Capture workspace tests
+  release the in-flight slot so later work cannot stall. Deferred-resume
+  regressions additionally prove that resume cannot exceed the pending bound,
+  a stronger live resume evicts exactly one eligible route, and an expired
+  resume cannot evict valid queued work. Capture workspace tests
   separately prove a route remains deferred during root interactive teardown
   and across a feature-local presentation until its exact `onDismiss` callback.
 - **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
   delivery, cancellation behavior, main-actor ordering for framework publisher
   bridges, and generation-fenced media observation after player replacement and
   detach.
+- **`AppDIContainerTests.swift`**: Proves preview graphs receive independent
+  event publishers, route coordinators, milestone presenters, and host
+  registries. The event-routing source guard separately rejects any shared
+  feedback host that bypasses this isolation through `AppDIContainer.shared`.
+- **`ToastPayloadTests.swift`**: Locks typed title/body splitting, severity and
+  action identity, plus a fresh presentation UUID when equivalent copy replaces
+  an existing toast. It also proves milestone suppression applies only when the
+  ordinary and milestone surfaces share an alignment, leaving independent
+  top/bottom feedback visible.
+- **`AchievementToastPresenterTests.swift`**: Runs serialized because legacy
+  gamification notification assertions share process UserDefaults. In addition
+  to scan ordering, it locks the 32-item architecture through injectable bounds,
+  stable duplicate coalescing, case-insensitive foreground/background scan-ID
+  race deduplication without rewriting the resolver's caller-supplied ID,
+  account/session stale-callback rejection,
+  one-time haptic/accessibility claims with remaining lifetime across remounts,
+  nested-host restoration, bounded stale-host retention, and stack projection
+  that mounts the first payload only while forwarding the remaining queue depth
+  to the two-layer decorative-backplate clamp. It also covers the race where an
+  account transition occurs while a retryable progress resolver is suspended.
+  That race must not create a replacement retry after session cleanup. A paired
+  test proves the new session can immediately process the same canonical scan
+  key while the stale resolver remains suspended. Another locks completed-scan
+  deduplication across a same-account session advance. Retry tests also inject a
+  two-task global bound, schedule three scan keys, and require overflow plus
+  session cleanup to retain no more than the configured number of sleepers.
 - **Source guardrails**: `make validate-ios-event-routing` scans production
   sources; `make test-ios-event-routing` exercises multiline, alias,
   application-name/post, duplicate-subject, singleton, allowlist, and
@@ -2660,8 +2691,10 @@ during rollout. The progress-response tests cover both the legacy shape and an
 extended level- advancement shape where current counts are `0/N` but credited
 counts are the completed full level. `AchievementToastPresenterTests` covers
 delayed strict ordering, multiple standard/challenge destinations, common-name
-fallback, progress failure, empty matches, completed-level rings, and
-foreground/background scan-ID deduplication. The Field Trips Deno
+fallback, progress failure, empty matches, completed-level rings,
+foreground/background scan-ID deduplication, bounded overflow, typed payload
+coalescing, session fencing, and foreground-host lifetime/effect ownership. The
+Field Trips Deno
 `referenceMedia_test.ts` suite locks all 20 current goal-to-illustrative-species
 mappings, target extraction, one-per-source Naturebook/Wikipedia/GBIF ordering,
 and item-scoped payload attachment; `db_test.ts` also executes the bounded
@@ -2824,6 +2857,21 @@ credited goal, challenge taps open challenge detail, and progress refresh events
 do not create a duplicate plain banner. Re-identify an older scan after level
 advancement and confirm only rows inserted by that attempt supply destinations,
 newly completed items, and credited rings.
+
+Presentation-handoff QA must also exercise interactive and programmatic
+dismissal for Candidate review, Confidence explanation, Insight Chat, and the
+Explore activity sheet. Select a candidate, ask the community, start
+reanalysis, trigger a Pro paywall, and open a reply-thread notification while
+rapidly changing or dismissing the source sheet. The destination must mount only
+after the source's real `onDismiss`; a stale scan/generation must produce no
+mutation, route, toast, or sibling sheet. Replace an ordinary toast during its
+three-second lifetime and mount/unmount a nested milestone host; the replacement
+must survive the old timer, and the milestone must not repeat haptics or
+VoiceOver or reset its remaining lifetime.
+While dismissing every Explore-owned comments, activity, Insight, profile,
+filter, editor, reply-thread, Field Notes, Field Chat, and paywall sheet, verify
+video remains paused until the presented content disappears. Nested sheets must
+not increment `resumeGeneration` until the final overlay token is released.
 
 Manual completion-evidence QA must use a non-leading checklist item to catch
 count-based slot inference, cover photo and video-poster thumbnails, verify the

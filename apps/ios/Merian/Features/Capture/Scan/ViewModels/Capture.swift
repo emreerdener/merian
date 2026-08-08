@@ -893,7 +893,7 @@ extension CaptureWorkspaceViewModel {
                 }
                 MerianLog.hardware.error("Video shutter failure: \(error, privacy: .private)")
                 await MainActor.run {
-                    self.offlineToastMessage = Self.videoStagingFailureMessage
+                    self.offlineToastMessage = .error(Self.videoStagingFailureMessage)
                     AppDIContainer.shared.hapticManager.triggerErrorThump()
                 }
             }

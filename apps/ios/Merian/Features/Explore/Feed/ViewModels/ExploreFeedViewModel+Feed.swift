@@ -132,7 +132,7 @@ extension ExploreFeedViewModel {
             if posts.isEmpty {
                 errorMessage = ExploreErrorFormatter.message(for: error)
             } else {
-                toastMessage = ExploreErrorFormatter.message(for: error)
+                toastMessage = .error(ExploreErrorFormatter.message(for: error))
             }
         }
     }
@@ -183,7 +183,7 @@ extension ExploreFeedViewModel {
             // Absorb
         } catch {
             guard activeFeedRequestId == requestId else { return }
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

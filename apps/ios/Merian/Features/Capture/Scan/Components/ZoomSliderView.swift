@@ -46,11 +46,14 @@ struct ZoomSliderView: View {
             }
         }
         .animation(.easeOut(duration: 0.4), value: camera.isZoomSupported && camera.isSessionRunning && appSettings.zoomSliderVisible)
-        .onAppear {
-            Task {
-                try? await Task.sleep(for: .seconds(2))
-                await MainActor.run { showInitialLabel = false }
+        .task {
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return
             }
+            guard !Task.isCancelled else { return }
+            showInitialLabel = false
         }
         .onChange(of: camera.zoomFactor) { _, newValue in
             isActivelyZooming = true
@@ -69,6 +72,10 @@ struct ZoomSliderView: View {
         .onChange(of: isActivelyZooming) { _, isActive in
             guard !isActive else { return }
             withAnimation(.easeOut(duration: 0.5)) { zoomActivityStrength = 0.0 }
+        }
+        .onDisappear {
+            zoomIdleTask?.cancel()
+            zoomIdleTask = nil
         }
     }
 

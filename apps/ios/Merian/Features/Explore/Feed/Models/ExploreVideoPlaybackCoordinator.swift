@@ -83,8 +83,7 @@ final class ExploreVideoPlaybackCoordinator {
     }
 }
 
-private struct ExploreVideoOverlayLifecycleModifier: ViewModifier {
-    let isPresented: Bool
+private struct ExploreVideoPresentedOverlayLifecycleModifier: ViewModifier {
     let reason: String
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var coordinator: ExploreVideoPlaybackCoordinator?
@@ -92,20 +91,12 @@ private struct ExploreVideoOverlayLifecycleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .onChange(of: isPresented, initial: true) { _, newValue in
-                reconcileOverlayState(isPresented: newValue)
+            .onAppear {
+                beginOverlayIfNeeded()
             }
             .onDisappear {
                 endOverlayIfNeeded()
             }
-    }
-
-    private func reconcileOverlayState(isPresented: Bool) {
-        if isPresented {
-            beginOverlayIfNeeded()
-        } else {
-            endOverlayIfNeeded()
-        }
     }
 
     private func beginOverlayIfNeeded() {
@@ -124,7 +115,9 @@ private struct ExploreVideoOverlayLifecycleModifier: ViewModifier {
 }
 
 extension View {
-    func exploreVideoOverlayLifecycle(isPresented: Bool, reason: String) -> some View {
-        modifier(ExploreVideoOverlayLifecycleModifier(isPresented: isPresented, reason: reason))
+    /// Owns an overlay token for the exact lifetime of presented sheet content.
+    /// Unlike a source binding, this remains mounted throughout UIKit teardown.
+    func exploreVideoPresentedOverlayLifecycle(reason: String) -> some View {
+        modifier(ExploreVideoPresentedOverlayLifecycleModifier(reason: reason))
     }
 }

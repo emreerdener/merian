@@ -19,5 +19,6 @@ from accessibility, and the destructive toolbar action is disabled until the
 snapshot completes; unrelated presentation chrome remains available.
 
 Completion sends the loss-tolerant `AppEvent.scanLibraryChanged` invalidation
-only after durable mutation. The identity-checked, cancellable result toast is
-ephemeral feedback and never acts as deletion authority.
+only after durable mutation. The result is a typed `ToastPayload` rendered by
+`merianSystemFeedback`; its identity-checked structured task is ephemeral
+feedback and never acts as deletion authority.

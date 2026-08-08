@@ -128,6 +128,16 @@ assert_fails_with \
   "$singleton_fixture" \
   "$tmp_dir/singleton/allowlist.txt"
 
+feedback_route_fixture="$(make_fixture feedback-route-singleton)"
+mkdir -p "$feedback_route_fixture/Core/UI/Modifiers"
+printf '%s\n' \
+  'let routeCoordinator = AppDIContainer.shared.appRouteCoordinator' \
+  > "$feedback_route_fixture/Core/UI/Modifiers/MerianSystemFeedbackModifier.swift"
+assert_fails_with \
+  'shared feedback host must route through its environment-injected AppRouteCoordinator' \
+  "$feedback_route_fixture" \
+  "$tmp_dir/feedback-route-singleton/allowlist.txt"
+
 subject_fixture="$(make_fixture duplicate-subject)"
 printf '%s\n' \
   'import Combine' \

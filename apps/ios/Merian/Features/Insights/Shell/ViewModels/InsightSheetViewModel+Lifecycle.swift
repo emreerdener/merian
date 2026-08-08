@@ -45,34 +45,24 @@ extension InsightSheetViewModel {
         evaluateVoiceOverAndCelebration(inferenceEngine: inferenceEngine)
         if let data = inferenceEngine.speciesData {
             if data.isBiological && !appSettings.hasSeenExploreOnboarding {
-                guard let scanId = presentedLocalRecordScanId else { return }
-                let generation = scanBoundActionGeneration
-                Task {
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    guard !Task.isCancelled,
-                          self.isPresentingLocalRecord(
-                              scanId: scanId,
-                              generation: generation
-                          ) else {
-                        return
-                    }
-                    if self.canShareToExplore,
-                       self.shareRecommendation == .publishToExplore,
-                       !self.appSettings.hasSeenExploreOnboarding {
-                        self.appSettings.hasSeenExploreOnboarding = true
-                        self.state.exploreOnboardingPresentationScanId = scanId
-                        self.state.exploreOnboardingPresentationGeneration = generation
-                        withAnimation {
-                            self.state.showExploreOnboarding = true
-                        }
-                    }
+                guard let scanId = presentedLocalRecordScanId else {
+                    cancelDelayedExploreOnboardingPresentation()
+                    return
                 }
-            } else if data.isClassifiedNonBiological {
-                let scanId = presentedLocalRecordScanId
                 let generation = scanBoundActionGeneration
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    self.state.toastMessage = "Scan succeeded. Added to non-biological collection."
-                    self.toastActionTitle = "View"
+                scheduleDelayedExploreOnboardingPresentation(
+                    scanId: scanId,
+                    generation: generation
+                )
+            } else {
+                cancelDelayedExploreOnboardingPresentation()
+                if data.isClassifiedNonBiological {
+                    let scanId = presentedLocalRecordScanId
+                    let generation = scanBoundActionGeneration
+                    self.state.toastMessage = .success(
+                        "Scan succeeded. Added to non-biological collection.",
+                        action: .viewNonBiologicalScans
+                    )
                     self.toastAction = { [weak self] in
                         guard let self,
                               let scanId,
@@ -92,4 +82,58 @@ extension InsightSheetViewModel {
         }
     }
 
+    private func scheduleDelayedExploreOnboardingPresentation(
+        scanId: String,
+        generation: UInt64
+    ) {
+        if exploreOnboardingPresentationTask != nil,
+           exploreOnboardingPresentationScanID?.caseInsensitiveCompare(scanId) == .orderedSame,
+           exploreOnboardingPresentationGeneration == generation {
+            return
+        }
+
+        cancelDelayedExploreOnboardingPresentation()
+        let taskID = UUID()
+        exploreOnboardingPresentationTaskID = taskID
+        exploreOnboardingPresentationScanID = scanId
+        exploreOnboardingPresentationGeneration = generation
+        exploreOnboardingPresentationTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            guard let self else { return }
+            defer {
+                if self.exploreOnboardingPresentationTaskID == taskID {
+                    self.exploreOnboardingPresentationTask = nil
+                    self.exploreOnboardingPresentationTaskID = nil
+                    self.exploreOnboardingPresentationScanID = nil
+                    self.exploreOnboardingPresentationGeneration = nil
+                }
+            }
+            guard self.exploreOnboardingPresentationTaskID == taskID,
+                  !Task.isCancelled,
+                  self.isPresentingLocalRecord(
+                              scanId: scanId,
+                              generation: generation
+                  ),
+                  self.canShareToExplore,
+                  self.shareRecommendation == .publishToExplore,
+                  !self.appSettings.hasSeenExploreOnboarding else { return }
+
+            self.appSettings.hasSeenExploreOnboarding = true
+            self.state.exploreOnboardingPresentationScanId = scanId
+            self.state.exploreOnboardingPresentationGeneration = generation
+            self.state.showExploreOnboarding = true
+        }
+    }
+
+    func cancelDelayedExploreOnboardingPresentation() {
+        exploreOnboardingPresentationTask?.cancel()
+        exploreOnboardingPresentationTask = nil
+        exploreOnboardingPresentationTaskID = nil
+        exploreOnboardingPresentationScanID = nil
+        exploreOnboardingPresentationGeneration = nil
+    }
 }

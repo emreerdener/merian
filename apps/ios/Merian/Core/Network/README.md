@@ -78,6 +78,13 @@ restoration and mount the Ready approval screen before refresh completes.
   disclosure transition—not quota exhaustion or generic authorization—and
   foreground callers must preserve the queued scan while the account returns
   to Ready. `402 pro_required` and the `429` quota/rate codes remain separate.
+- Treats shared-auth `401 auth_session_missing` and
+  `401 invalid_session_token` as refresh-first transitions. The pinned Supabase
+  SDK refreshes the current session through its single-flight session manager,
+  then the client rebuilds and retries the request once with the new access
+  token. Anonymous identity replacement is considered only after that refresh
+  fails, so an ordinary expired JWT cannot detach a first scan, consent ledger,
+  or entitlement reservation from its existing account UUID.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
 - Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response

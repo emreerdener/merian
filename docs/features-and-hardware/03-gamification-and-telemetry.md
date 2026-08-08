@@ -23,18 +23,37 @@ Tracks device-local discovery milestones and achievement notification state.
   biological scan adds a species that was not already in Naturebook's shared
   `species_dictionary`. Non-biological results, including processed-material
   demotions such as wool rugs or leather goods, cannot set this flag.
-- Drives the shared `MilestoneToastPresenter` for in-app milestone UX.
-  `ScanMilestoneCoordinator` waits for the scan's Field trip progress attempt,
+- Routes newly eligible awards through the `AppDIContainer`-owned,
+  account/session-fenced `MilestoneToastPresenter` for in-app milestone UX.
+  The DI-owned `ScanMilestoneCoordinator` waits for the scan's Field trip progress attempt,
   asks `GamificationManager.evaluateAchievementsForNotifications` for newly
-  eligible awards without presenting them early, evaluates
+  eligible awards; the domain manager never invokes an in-app presenter.
+  The coordinator then evaluates
   `SpeciesData.isNewToMerianDictionary`, and batches standard outing progress,
   Seasonal Challenge progress, achievements, then `New to Naturebook`.
   Foreground and background scan completion use this boundary and deduplicate
-  by final scan ID. The old local `CelebrationBanner` confetti overlay has been
+  by a trimmed, lowercase coordination key while preserving the caller's ID for
+  network/store operations; queue-generated UUIDs use lowercase casing and
+  caller-supplied queue IDs retain their stable value. The old
+  local `CelebrationBanner` confetti overlay has been
   removed. A scan may enqueue progress for several eligible experiences, with
   at most one credited goal in each. The persistent Insight contribution card
   reloads from server-backed completion rows and does not enqueue another
   milestone, haptic, or celebration.
+  Presentation is bounded to 32 lightweight items, coalesces stable milestone
+  identities, and renders only the front item plus two decorative layers.
+  Authentication changes and five-minute app-session resets clear queued visual
+  feedback, cancel session-bound milestone retry tasks, and release bounded
+  in-flight keys. Account changes clear recent-scan history; a same-account
+  session reset retains completed/released deduplication. In-flight keys include the account/session
+  generation, so stale work cannot block the same scan key after transition. Resolver results
+  revalidate their captured session token after suspension instead of retaining
+  prior-account work or appearing for another account/session.
+  Automatic Field-trip retries are capped at 16 sleeping tasks across scans;
+  oldest overflow is cancelled because the SwiftData hint is the durable outbox.
+  Opening a Field trip from the earned-patch gallery is staged until the
+  full-screen artwork cover's real `onDismiss`, preventing a navigation push
+  during cover teardown.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - The profile `Terrarium` presents bundled asset-catalog artwork selected by

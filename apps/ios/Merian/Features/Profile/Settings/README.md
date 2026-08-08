@@ -211,3 +211,15 @@ Reduced Motion, to verify wrapping, artwork readability, timeout, manual
 dismissal, haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
 achievement persistence, dictionary mutation, analytics, and local push
 delivery.
+
+The presenter is obtained from the `AppDIContainer` environment; Settings does
+not construct or overlay a second milestone singleton. Its ordinary cache and
+preference results are typed `ToastPayload` values rendered by
+`merianSystemFeedback`. While Settings is the foremost mounted feedback host it
+renders the shared milestone stack; dismissing Settings restores the prior host
+without repeating haptics/VoiceOver or restarting the active timeout. Settings
+places ordinary feedback at the bottom and milestone previews at the top, so
+the shared modifier keeps both visible; same-alignment surfaces remain mutually
+exclusive to prevent Z-plane collisions. Preview taps use the preview
+container's environment-injected route coordinator and cannot enqueue a route
+in the production container.

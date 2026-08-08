@@ -392,6 +392,11 @@ triggering excessive SwiftUI view rebuilds.
   polls `/check-scan-status` before retrieving the server-applied Field trip
   progress receipt, then calculates awards and batches standard outings,
   Seasonal Challenges, achievements, and **New to Naturebook**.
+  The coordinator derives a lowercase coordination key at ingress but preserves
+  the caller's trimmed ID for network and durable-store operations. The queue
+  generates lowercase UUIDs but preserves caller-supplied stable IDs. This
+  prevents server/client casing from splitting milestone ownership without
+  changing a caller's queue identity contract.
   Tools requiring server persistence stay disabled until the existing ingestion
   ledger confirms the final scan ID. The progress call may carry the durable
   camera-only selected-goal hint, and its completion publishes a scan-specific
@@ -1381,13 +1386,20 @@ and `KeychainManager` migration logic. Do not inline
   defer and resume through `onDismiss`, not an assumed animation delay. Capture
   crop/video/description/question/survey presentations report the same UIKit
   slot as occupied and resume deferred routes from their own exact callbacks.
+- Candidate and confidence review, Insight Chat follow-ups, and Explore
+  activity navigation use small typed pending-action values at their feature
+  owner. They dismiss the source and execute from its exact `onDismiss` after
+  revalidating scan/presentation identity; elapsed animation delays are not a
+  routing primitive.
 - `SupabaseManager` distinguishes the SDK's explicit `initialSession` restore
   from runtime sign-in. Only the former may adopt a cold-launch private route;
   runtime account transitions advance the account generation and reject it.
 - `NotificationCenter` remains only at reviewed Apple-framework boundaries.
   The production allowlist and CI guard reject application-defined notification
   names/posts, bus singleton access, duplicate AppEvent subjects, and route-like
-  AppEvent cases.
+  AppEvent cases. Framework publishers with unknown originating executors use
+  `sinkOnMainActor`; lifecycle-owned SwiftUI `.onReceive` subscriptions apply
+  explicit main-queue delivery before mutating view state.
 - The complete event/route matrices, delivery guarantees, source priorities,
   expiry policy, and presentation contract are in
   [Event and Presentation Routing](../system-architecture/10-event-and-presentation-routing.md).
@@ -1517,15 +1529,15 @@ and `KeychainManager` migration logic. Do not inline
   discovery milestone and triggers a selection haptic when first unlocked.
 - `unlockedAchievements: Set<String>` — type keys of all completed awards,
   persisted across sessions.
-- `evaluateAchievementsForNotifications(awards:enqueueToasts:)` — called after
+- `evaluateAchievementsForNotifications(awards:)` — called after
   `ProfileDatabaseActor.calculateAwards()` completes after every inference.
   Checks for newly completed awards, persists `unlockedAchievements`, returns
   toast-eligible awards, and queues native local push notifications via
   `PushNotificationManager` when the achievement notification setting allows it.
-  `enqueueToasts` defaults to `true` for existing callers; scan completion
-  passes `false` so the coordinator can batch the returned awards after Field
-  trip progress. Cat and dog achievements use a July 4, 2026 notification cutoff
-  so historical qualifying scans are seeded silently instead of showing
+  It never imports or invokes the in-app visual presenter;
+  `ScanMilestoneCoordinator` batches the returned typed awards after Field trip
+  progress. Cat and dog achievements use a July 4, 2026 notification cutoff so
+  historical qualifying scans are seeded silently instead of showing
   retroactive unlock banners.
 - **The Field Naturalist** is the server-authoritative exception to the local
   scan calculator. `ScanMilestoneCoordinator` merges the typed earliest
@@ -1539,16 +1551,19 @@ and `KeychainManager` migration logic. Do not inline
 ### `MilestoneToastPresenter`
 
 - Lives at `Core/UI/Feedback/AchievementToastPresenter.swift` and is kept under
-  the legacy filename for Xcode/project continuity. It is an
-  `@MainActor @Observable` singleton that owns a FIFO bottom in-app milestone
-  queue.
+  the legacy filename for Xcode/project continuity. It is an `@MainActor
+  @Observable` DI-owned FIFO in-app milestone queue. `AppDIContainer` constructs
+  the one production presenter, `MilestoneToastHostRegistry`, injectable
+  `MilestoneToastClock`, and `ScanMilestoneCoordinator`; previews/tests receive
+  isolated graphs, and none of these types exposes a production `.shared`.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
   Challenge progress.
 - `ScanMilestoneCoordinator` is the production scan-completion boundary shared
   by foreground `InferenceEngine` and background `OfflineQueueManager` paths. It
-  deduplicates by final scan ID, awaits the existing persistence/progress
+  deduplicates by a trimmed, lowercase coordination key while preserving the
+  caller's transport/store ID, awaits the existing persistence/progress
   attempt, gathers achievements without presenting them immediately, evaluates
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
   Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
@@ -1560,7 +1575,9 @@ and `KeychainManager` migration logic. Do not inline
   registry; availability injection remains as a test seam and future emergency
   client-build control. Retryable failures keep the selected-goal SwiftData row as a
   durable outbox, release ordinary milestones through a separate once-per-scan
-  guard, and use bounded in-process retries. `OfflineJobScheduler` replays
+  guard, and use the 2/5/15-second per-scan budget plus a global cap of 16
+  sleeping in-process retries. Oldest overflow releases process-local captures;
+  `OfflineJobScheduler` replays
   leftover hints after relaunch; only success, terminal ingestion failure, or
   disabled Field trips acknowledges and removes the hint.
 - The presenter controls only in-app banner presentation. It does not mutate
@@ -1569,17 +1586,59 @@ and `KeychainManager` migration logic. Do not inline
   representative achievement, dictionary, and Field trip payloads through the
   same queue while bypassing persistence and OS notifications.
 - The process-local queue retains at most 32 lightweight items. Overflow drops
-  only ephemeral feedback after durable progress has already committed. The
-  visible `MilestoneToastBanner` owns the cancellable 3.5-second timer, haptic,
-  accessibility announcement, tap, and swipe lifecycle; queued backing layers
-  do not start those effects or receive hit testing.
-- DI ownership plus a formal foreground-host registry, injected clock/sleeper,
-  stable payload deduplication, and account-session fencing remain follow-on
-  work. Until that migration, do not add another global milestone presenter or
-  let a feature treat this visual queue as domain authority.
+  only ephemeral feedback after durable progress has already committed.
+  Duplicate typed payloads coalesce onto the first stable item ID and enqueue
+  calls report explicit accepted/coalesced/overflow/stale-session outcomes.
+  Rendering is capped at one active payload subtree plus two decorative
+  backplates. Outer overlay visibility, active-item identity, and clamped
+  backing-depth changes each have one distinct animation owner; the full queued
+  UUID array is never used as an animation key.
+- The foreground-host registry retains at most eight UUIDs, gives the latest
+  mounted feedback surface exclusive presentation ownership, and restores the
+  prior host on unmount.
+  The presenter—not a remounted banner—owns presentation start time plus the
+  one-time haptic and VoiceOver claim, so host changes preserve the remaining
+  3.5-second lifetime and cannot repeat effects. Only the front banner accepts
+  hit testing.
+- The feedback modifier obtains `AppRouteCoordinator` from the SwiftUI
+  environment for achievement and Field-trip taps. It must not route through
+  `AppDIContainer.shared`; preview and test containers own isolated route queues
+  as well as isolated milestone presenters.
+- `SupabaseManager` binds `ScanMilestoneCoordinator` as the account-session
+  controller. Runtime sign-in/sign-out/account replacement advances its account
+  generation; a five-minute foreground timeout advances its session generation.
+  The coordinator forwards the transition to the presenter, cancels retained
+  retry tasks and preferred-goal retry state, scopes in-flight ownership by
+  account/session generation, and checks the captured token after every resolver
+  suspension. Account replacement clears recent-scan history; a same-account
+  timeout retains completed/released deduplication. Late callbacks cannot block
+  current work, schedule a new retry, or enqueue visual items for another session.
+- Do not add another global milestone presenter or let this visual queue become
+  domain authority.
 - Completed Field Naturalist cards and unlock toasts carry a typed
   `CaptureGoalDestination` and open the outing or Seasonal Challenge that earned
   the award. Its locked card continues to open the requirement sheet.
+
+### `ToastPayload` and `MerianSystemFeedbackModifier`
+
+- `ToastPayload` lives at `Core/UI/Feedback/ToastPayload.swift`. It is a small
+  value containing a unique presentation ID, title, optional body,
+  `ToastSeverity`, and optional typed `ToastActionDescriptor`. It never stores
+  images, models, scan arrays, or executable closures.
+- Feature view models bind `ToastPayload?` into
+  `MerianSystemFeedbackModifier`. The modifier owns one identity-keyed,
+  cancellable three-second task and clears a separately view-owned action
+  closure with the matching payload. Replacing a payload cancels the prior
+  task, so an old timer cannot remove a newer message.
+- Passive banners render no controls, and passive banners plus visual backing
+  layers disable hit testing. Action toasts receive input only inside the
+  compact banner. Feedback animations are scoped to the overlay rather than
+  the host screen. Ordinary feedback waits while the milestone stack owns the
+  same alignment, preventing Z-index overlap; different top/bottom alignments
+  remain independently visible and interactive.
+- Message text is display copy, not an event or action protocol. Never infer
+  severity, navigation, or retry behavior from substrings; add a typed case or
+  descriptor instead.
 
 ### `ConsentManager` required-consent restoration
 

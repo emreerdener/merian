@@ -1412,7 +1412,7 @@ struct ExploreCommunityIdentificationDetailView: View {
     @State private var isSubmitting = false
     @State private var isUpdatingRequest = false
     @State private var isReporting = false
-    @State private var toastMessage: String?
+    @State private var toastMessage: ToastPayload?
 
     var body: some View {
         Group {
@@ -1467,7 +1467,7 @@ struct ExploreCommunityIdentificationDetailView: View {
             }
         }
         .merianSystemFeedback(
-            toastMessage: $toastMessage,
+            toast: $toastMessage,
             toastAlignment: .top
         )
         .task {
@@ -1484,7 +1484,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                     shouldLoadExistingRequestDetail: false,
                     isSubmitting: isUpdatingRequest,
                     onLoadFailed: { message in
-                        toastMessage = message
+                        toastMessage = .success(message)
                     },
                     onSubmit: { note, locationSharing in
                         Task {
@@ -1629,10 +1629,10 @@ struct ExploreCommunityIdentificationDetailView: View {
             try await saveRequestEdits(note: note, locationSharing: locationSharing)
             isEditPresented = false
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Request updated"
+            toastMessage = .success("Request updated")
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -1662,10 +1662,10 @@ struct ExploreCommunityIdentificationDetailView: View {
                 userId: userId
             )
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Report submitted. Thanks!"
+            toastMessage = .success("Report submitted. Thanks!")
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

@@ -1022,7 +1022,11 @@ struct ExplorePublicMediaView: View {
                 break
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: AVAudioSession.interruptionNotification)
+                .receive(on: DispatchQueue.main)
+        ) { notification in
             handleAudioSessionInterruption(notification)
         }
     }

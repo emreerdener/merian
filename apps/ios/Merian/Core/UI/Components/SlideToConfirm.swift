@@ -112,6 +112,16 @@ struct SlideToConfirm: View {
             Capsule()
                 .strokeBorder(color.opacity(0.2), lineWidth: 0.5)
         )
+        .task(id: isCompleted) {
+            guard isCompleted else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(380))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, isCompleted else { return }
+            onConfirm()
+        }
     }
 
     private func fire(maxOffset: CGFloat) {
@@ -119,10 +129,6 @@ struct SlideToConfirm: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
             dragOffset = maxOffset
             isCompleted = true
-        }
-        // Brief pause so the user sees the completed state before the view transitions.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
-            onConfirm()
         }
     }
 }

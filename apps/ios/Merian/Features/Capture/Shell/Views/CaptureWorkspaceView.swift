@@ -1,5 +1,6 @@
 import AVFoundation
 import AVKit
+import Combine
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -215,7 +216,7 @@ struct CaptureWorkspaceView: View {
         )
     }
 
-    private var offlineToastMessageBinding: Binding<String?> {
+    private var offlineToastMessageBinding: Binding<ToastPayload?> {
         Binding(
             get: { viewModel.offlineToastMessage },
             set: { viewModel.offlineToastMessage = $0 }
@@ -468,7 +469,7 @@ struct CaptureWorkspaceView: View {
         workspaceContent
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .merianSystemFeedback(
-            toastMessage: offlineToastMessageBinding,
+            toast: offlineToastMessageBinding,
             toastAlignment: .top
         )
         .environment(\.composingCenter, viewModel.composingZoneVerticalCenter)
@@ -534,7 +535,7 @@ struct CaptureWorkspaceView: View {
                     observationContext.freeText = ""
                     describePromptManager.resetFunnel()
                     describePromptManager.activeQuestionIndex = 0
-                    viewModel.offlineToastMessage = "Draft discarded"
+                    viewModel.offlineToastMessage = .information("Draft discarded")
                 }
             )
         }
@@ -609,7 +610,11 @@ struct CaptureWorkspaceView: View {
             audioCaptureManager.reset()
             AppDIContainer.shared.environmentContextManager.stopLiveLocationTracking()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: UIResponder.keyboardWillShowNotification)
+                .receive(on: DispatchQueue.main)
+        ) { notification in
             guard captureMode == .describe else {
                 restoreBottomChrome(animated: false)
                 return
@@ -620,7 +625,11 @@ struct CaptureWorkspaceView: View {
             }
             withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = true }
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+        .onReceive(
+            NotificationCenter.default
+                .publisher(for: UIResponder.keyboardWillHideNotification)
+                .receive(on: DispatchQueue.main)
+        ) { _ in
             withAnimation(.easeOut(duration: 0.25)) { isKeyboardVisible = false }
         }
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in

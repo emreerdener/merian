@@ -56,6 +56,13 @@ the feature presentation's exact `onDismiss`. Routed-sheet interactive teardown
 is fenced separately by `dismissingPresentation`. Do not substitute an elapsed
 sleep for either callback.
 
+The workspace is also the base visual-feedback host. It binds typed
+`ToastPayload` state to `merianSystemFeedback`; passive toasts do not block the
+viewfinder, and the modifier serializes ordinary feedback with the shared
+milestone stack. Nested Explore, Insight, Scans, or Settings hosts temporarily
+take exclusive milestone rendering ownership and restore this workspace host
+on dismissal without restarting the item lifetime or effects.
+
 ## Active capture goal
 
 `CaptureWorkspaceView` owns the compact active-outing target indicator because

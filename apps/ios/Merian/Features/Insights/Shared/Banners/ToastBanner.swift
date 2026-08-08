@@ -12,6 +12,9 @@ private extension EnvironmentValues {
 }
 
 enum ToastStackPresentation {
+    /// Queue payloads stay data-only until they become active. Decorative
+    /// backplates communicate depth without mounting additional card trees.
+    static let maximumMountedPayloadCount = 1
     static let maximumVisibleBackingLayers = 2
 
     static func visibleBackingLayerCount(for pendingItemCount: Int) -> Int {
@@ -150,14 +153,16 @@ extension View {
 ///
 /// Example:
 /// ```swift
-/// if showToast {
-///     ToastBanner(onDismiss: { showToast = false }) {
-///         MyContent()
+/// hostContent
+///     .overlay(alignment: .bottom) {
+///         if showToast {
+///             ToastBanner(onDismiss: { showToast = false }) {
+///                 MyContent()
+///             }
+///             .padding(.bottom, 60)
+///             .transition(.move(edge: .bottom).combined(with: .opacity))
+///         }
 ///     }
-///     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-///     .padding(.bottom, 60)
-///     .transition(.move(edge: .bottom).combined(with: .opacity))
-/// }
 /// ```
 struct ToastBanner<Content: View>: View {
     var onDismiss: (() -> Void)?
@@ -190,6 +195,79 @@ struct ToastBanner<Content: View>: View {
             pendingItemCount: pendingItemCount
         )
         .padding(.horizontal, 16)
+    }
+}
+
+struct ToastPayloadBanner: View {
+    let payload: ToastPayload
+    var onDismiss: (() -> Void)?
+    var onAction: (() -> Void)?
+
+    var body: some View {
+        ToastBanner(onDismiss: onDismiss) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 22, height: 22)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: payload.body == nil ? 0 : 3) {
+                    Text(payload.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let body = payload.body {
+                        Text(body)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if let action = payload.action, let onAction {
+                    Spacer(minLength: 0)
+
+                    Button(action.title, action: onAction)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.blue)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityIdentifier("ToastPayloadBanner_\(payload.severity.accessibilityIdentifier)")
+    }
+
+    private var iconName: String {
+        switch payload.severity {
+        case .information: "info.circle.fill"
+        case .success: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .error: "exclamationmark.octagon.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        switch payload.severity {
+        case .information: .blue
+        case .success: .green
+        case .warning: .orange
+        case .error: .red
+        }
+    }
+}
+
+private extension ToastSeverity {
+    var accessibilityIdentifier: String {
+        switch self {
+        case .information: "Information"
+        case .success: "Success"
+        case .warning: "Warning"
+        case .error: "Error"
+        }
     }
 }
 
@@ -236,6 +314,9 @@ private struct ToastSurfacePreviewCanvas: View {
                 MilestoneToastBanner(
                     item: .toastSurfacePreview,
                     pendingItemCount: 3,
+                    clock: ContinuousMilestoneToastClock(),
+                    onClaimPresentationEffects: { _, _ in false },
+                    automaticDismissInterval: { _, _ in nil },
                     onDismiss: {}
                 )
             }

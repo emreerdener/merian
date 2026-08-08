@@ -2210,7 +2210,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The open destination must complete direct promotion before it emits `ScanLibraryEvents` for parent-library refresh",
+    "The open destination must complete direct promotion before it sends `.scanLibraryChanged` for parent-library refresh",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2766,7 +2766,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "late-write SwiftData visibility boundary",
       "container's main context after the queued Insight had bound its environment `ModelContext`",
       "immediately invokes the existing production `promoteQueuedScanIfLocalRecordExists` handoff",
-      "library event remains for parent-library refresh",
+      "typed library invalidation remains for parent-library refresh",
       "cannot connect to CoreSimulator",
       "`838533e98589f4fca89643e966864a7d59adca05`",
       "Hosted Build/Test Run 102 on that exact SHA stopped before the queued UI smoke",

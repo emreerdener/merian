@@ -114,6 +114,7 @@ struct ActiveScanToolbar: View {
             if showTooltip {
                 ActiveScanTooltipOverlay()
                     .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
+                    .allowsHitTesting(false)
             }
         }
         .padding(.bottom, 24)

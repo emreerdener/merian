@@ -307,11 +307,11 @@ struct InsightSheetViewModelTests {
         
         viewModel.toggleScanInCollection(collection, modelContext: ctx)
         #expect(record.collections?.contains(where: { $0.id == collection.id }) == true)
-        #expect(viewModel.state.toastMessage?.contains("Added to Favorites") == true)
+        #expect(viewModel.state.toastMessage?.title.contains("Added to Favorites") == true)
         
         viewModel.toggleScanInCollection(collection, modelContext: ctx)
         #expect(record.collections?.contains(where: { $0.id == collection.id }) == false)
-        #expect(viewModel.state.toastMessage?.contains("Removed from Favorites") == true)
+        #expect(viewModel.state.toastMessage?.title.contains("Removed from Favorites") == true)
     }
 
     @Test func testComputedHeaderProperties() async throws {
@@ -570,6 +570,47 @@ struct InsightSheetViewModelTests {
 
         #expect(HapticManager.shared.lastAttempt?.event == "heavyImpact")
         #expect(HapticManager.shared.lastAttempt?.source == "insight.analysis.completed")
+    }
+
+    @Test func delayedExploreOnboardingTaskIsIdentityBoundAndCancelledByReset() throws {
+        let context = try createIsolatedContext()
+        let record = LocalScanRecord(
+            speciesId: "onboarding_task_species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch"
+        )
+        context.insert(record)
+        try context.save()
+
+        let settings = AppSettings.preview
+        settings.hasSeenExploreOnboarding = false
+        let engine = biologicalEngine(scanId: record.id)
+        let viewModel = InsightSheetViewModel(
+            inferenceEngine: engine,
+            appSettings: settings
+        )
+        #expect(viewModel.fetchLocalRecord(for: record.id, modelContext: context))
+
+        viewModel.evaluateProcessingCompletion(
+            isStillProcessing: false,
+            inferenceEngine: engine,
+            modelContext: context
+        )
+        let scheduledTaskID = try #require(viewModel.exploreOnboardingPresentationTaskID)
+        #expect(viewModel.exploreOnboardingPresentationTask != nil)
+
+        viewModel.evaluateProcessingCompletion(
+            isStillProcessing: false,
+            inferenceEngine: engine,
+            modelContext: context
+        )
+        #expect(viewModel.exploreOnboardingPresentationTaskID == scheduledTaskID)
+
+        viewModel.reset()
+        #expect(viewModel.exploreOnboardingPresentationTask == nil)
+        #expect(viewModel.exploreOnboardingPresentationTaskID == nil)
+        #expect(viewModel.exploreOnboardingPresentationScanID == nil)
+        #expect(viewModel.exploreOnboardingPresentationGeneration == nil)
     }
 
     @Test func inferenceErrorCompletionDoesNotEmitResultHaptic() throws {
@@ -898,7 +939,10 @@ struct InsightSheetViewModelTests {
         viewModel.state.isExploreFeedVisible = true
         viewModel.state.sharedExploreHashtags = ["stale"]
         viewModel.state.fieldNotesText = "Old observation"
-        viewModel.toastActionTitle = "View"
+        viewModel.state.toastMessage = .information(
+            "Shared to Explore",
+            action: .viewExplorePost
+        )
         viewModel.toastAction = {}
 
         let newScanId = UUID().uuidString.lowercased()
@@ -914,7 +958,7 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.isExploreFeedVisible == false)
         #expect(viewModel.state.sharedExploreHashtags.isEmpty)
         #expect(viewModel.state.fieldNotesText.isEmpty)
-        #expect(viewModel.toastActionTitle == nil)
+        #expect(viewModel.state.toastMessage?.action == nil)
         #expect(viewModel.toastAction == nil)
         #expect(viewModel.presentedSpeciesScanId == newScanId)
     }
@@ -1532,7 +1576,7 @@ struct InsightSheetViewModelTests {
         viewModel.state.fieldNotesPresentationScanId = first.id
         viewModel.state.fieldNotesPresentationGeneration = firstGeneration
         viewModel.state.showDeleteConfirmation = true
-        viewModel.state.toastMessage = "First queued toast"
+        viewModel.state.toastMessage = .information("First queued toast")
 
         viewModel.bindQueuedPresentation(second)
 

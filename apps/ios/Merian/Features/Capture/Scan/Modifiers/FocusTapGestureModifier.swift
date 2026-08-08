@@ -37,5 +37,9 @@ struct FocusTapGestureModifier: ViewModifier {
                     focusLocation: focusLocation
                 )
             }
+            .onDisappear {
+                focusTask?.cancel()
+                focusTask = nil
+            }
     }
 }

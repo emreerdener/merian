@@ -2099,13 +2099,18 @@ or missing migration must remain a retryable `503` without provider dispatch.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through
-`20260803015025_auto_enroll_backyard_safari_level_one.sql` before deploying
-`field-trips`, then smoke-test the authenticated `capture_context` action before
-releasing the iOS client. A new signed-in account and ghost account must each
-receive exactly one Backyard Safari Level 1 row and one open period. Direct API
-roles cannot execute the capture RPC or internal enrollment function; only the
-verified Edge action invokes the RPC with `service_role`. The long-term
-client/source boundary and extension rules are recorded in
+`20260803015025_auto_enroll_backyard_safari_level_one.sql`, followed by
+`20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`,
+before deploying `field-trips`. The latter preserves the capture projection as
+`SECURITY INVOKER` and grants `service_role` only the private
+`user_has_effective_pro(uuid)` execute dependency introduced by the functional
+entitlement rewrite; `anon` and `authenticated` remain denied. Smoke-test the
+authenticated `capture_context` action before releasing the iOS client. A new
+signed-in account and ghost account must each receive exactly one Backyard
+Safari Level 1 row and one open period. Direct API roles cannot execute the
+capture RPC or internal enrollment function; only the verified Edge action
+invokes the RPC with `service_role`. The long-term client/source boundary and
+extension rules are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
 
 To disable future enrollment, ship a new forward migration that drops

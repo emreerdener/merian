@@ -2,6 +2,26 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 
+struct ConfidenceExplanationActionContext: Sendable, Equatable {
+    let scanId: String
+    let presentationGeneration: UInt64
+}
+
+enum ConfidenceExplanationDismissalAction: Sendable, Equatable {
+    case askCommunity(ConfidenceExplanationActionContext)
+    case refineScan(
+        ConfidenceExplanationActionContext,
+        initialDescription: String?
+    )
+
+    var context: ConfidenceExplanationActionContext {
+        switch self {
+        case .askCommunity(let context), .refineScan(let context, _):
+            context
+        }
+    }
+}
+
 struct ConfidenceExplanationSheet: View {
     let scanId: String
     let presentationGeneration: UInt64
@@ -12,6 +32,7 @@ struct ConfidenceExplanationSheet: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    let onRequestDismissalAction: (ConfidenceExplanationDismissalAction) -> Void
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -22,6 +43,7 @@ struct ConfidenceExplanationSheet: View {
     @State private var isSwipeModalPresented = false
     @State private var showPaywall = false
     @State private var localRefinementRecord: LocalScanRecord?
+    @State private var pendingSwipeDismissalRequest: CandidateSwipeDismissalRequest?
 
     private var showLocationPrompt: Bool {
         let status = environmentContext.locationAuthorizationStatus
@@ -37,16 +59,12 @@ struct ConfidenceExplanationSheet: View {
                 return
             }
             if revenueCatManager.isProActive {
-                HapticManager.shared.triggerSelectionPulse()
-                AppDIContainer.shared.appRouteCoordinator.request(
-                    .refinement(
-                        scanId: record.id,
-                        initialDescription: record.fieldNotes,
-                        entryPoint: .standard
-                    ),
-                    source: .internalUserAction
+                requestDismissalAction(
+                    .refineScan(
+                        actionContext,
+                        initialDescription: record.fieldNotes
+                    )
                 )
-                dismiss()
             } else {
                 showPaywall = true
             }
@@ -97,15 +115,17 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var communityRequestAction: (() -> Void)? {
-        onAskCommunity.map { action in
-            {
-                openCommunityRequestAfterDismiss(
-                    action,
-                    expectedScanId: scanId,
-                    expectedGeneration: presentationGeneration
-                )
-            }
+        guard onAskCommunity != nil else { return nil }
+        return {
+            requestDismissalAction(.askCommunity(actionContext))
         }
+    }
+
+    private var actionContext: ConfidenceExplanationActionContext {
+        ConfidenceExplanationActionContext(
+            scanId: scanId,
+            presentationGeneration: presentationGeneration
+        )
     }
 
     var body: some View {
@@ -215,26 +235,21 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
-        .sheet(isPresented: swipeModalPresentedBinding) {
+        .sheet(
+            isPresented: swipeModalPresentedBinding,
+            onDismiss: resumePendingSwipeDismissalRequest
+        ) {
             CandidateSwipeModal(
                 isPresented: swipeModalPresentedBinding,
                 scanId: scanId,
                 presentationGeneration: presentationGeneration,
                 candidates: swipeModalCandidates,
-                aiScientificName: aiScientificName ?? "Unknown",
                 confirmButtonTitle: confirmButtonTitle,
-                onConfirmOriginal: {
-                    guard isSubjectPresentationCurrent else { return }
-                    Task { @MainActor in
-                        guard isSubjectPresentationCurrent else { return }
-                        await inferenceEngine.confirmAIIdentification(
-                            expectedScanId: scanId,
-                            modelContext: modelContext
-                        )
-                    }
-                },
-                onAskCommunity: communityRequestAction,
-                onRefineScan: refinementAction
+                allowsAskCommunity: communityRequestAction != nil,
+                allowsRefinement: refinementAction != nil,
+                onRequestDismissalAction: { request in
+                    pendingSwipeDismissalRequest = request
+                }
             )
         }
         .sheet(isPresented: $showPaywall) {
@@ -245,6 +260,7 @@ struct ConfidenceExplanationSheet: View {
             isSwipeModalPresented = false
             showPaywall = false
             localRefinementRecord = nil
+            pendingSwipeDismissalRequest = nil
         }
         .task(id: presentationGeneration) {
             guard isSubjectPresentationCurrent else {
@@ -264,25 +280,47 @@ struct ConfidenceExplanationSheet: View {
         }
     }
 
-    private func openCommunityRequestAfterDismiss(
-        _ action: @escaping () -> Void,
-        expectedScanId: String,
-        expectedGeneration: UInt64
+    private func requestDismissalAction(
+        _ action: ConfidenceExplanationDismissalAction
     ) {
-        guard expectedGeneration == presentationGeneration,
-              expectedScanId.caseInsensitiveCompare(scanId) == .orderedSame,
+        guard action.context == actionContext, isSubjectPresentationCurrent else {
+            return
+        }
+        onRequestDismissalAction(action)
+        dismiss()
+    }
+
+    private func resumePendingSwipeDismissalRequest() {
+        guard let request = pendingSwipeDismissalRequest else { return }
+        pendingSwipeDismissalRequest = nil
+        guard request.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
+              request.presentationGeneration == presentationGeneration,
               isSubjectPresentationCurrent else {
             return
         }
-        dismiss()
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            guard expectedGeneration == presentationGeneration,
-                  expectedScanId.caseInsensitiveCompare(scanId) == .orderedSame,
-                  isSubjectPresentationCurrent else {
-                return
+
+        switch request.action {
+        case .applyOverride(let scientificName):
+            Task { @MainActor in
+                guard isSubjectPresentationCurrent else { return }
+                await inferenceEngine.applyIdentificationOverride(
+                    scientificName: scientificName,
+                    expectedScanId: scanId,
+                    modelContext: modelContext
+                )
             }
-            action()
+        case .confirmOriginal:
+            Task { @MainActor in
+                guard isSubjectPresentationCurrent else { return }
+                await inferenceEngine.confirmAIIdentification(
+                    expectedScanId: scanId,
+                    modelContext: modelContext
+                )
+            }
+        case .askCommunity:
+            communityRequestAction?()
+        case .refineScan:
+            refinementAction?()
         }
     }
 

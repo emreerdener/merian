@@ -1477,7 +1477,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         )
                         Task { [mappedData] in
                             guard let scanId = mappedData.scanId else { return }
-                            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                            await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
                                 scanId: scanId,
                                 speciesData: mappedData,
                                 modelContainer: modelContext?.container
@@ -1528,6 +1528,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 if publishRecoverableInferenceConflictIfNeeded(
                     error,
                     scanId: resolvedClientScanId,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
+
+                if publishConsentRequiredIfNeeded(
+                    error,
                     telemetry: telemetry
                 ) {
                     return
@@ -1822,7 +1829,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                        stillOwnsPresentation {
                         Task { [mappedData] in
                             guard let scanId = mappedData.scanId else { return }
-                            await ScanMilestoneCoordinator.shared.processCompletedScan(
+                            await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
                                 scanId: scanId,
                                 speciesData: mappedData,
                                 modelContainer: modelContext?.container
@@ -1875,6 +1882,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 ) {
                     return
                 }
+                if publishConsentRequiredIfNeeded(
+                    error,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
                 AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
@@ -1897,9 +1910,39 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         "Naturebook saved this scan and will retry automatically when your connection is back. " +
         "You can leave this screen and check Scans later, or try again after reconnecting."
 
+    private static let consentRequiredRecoveryReason =
+        "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
+        "consent step, then retry it from Scans."
+
     private static let savedScanRecoveryReason =
         "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
         "and it will appear here or in Scans automatically."
+
+    @discardableResult
+    private func publishConsentRequiredIfNeeded(
+        _ error: Error,
+        telemetry: CaptureTelemetry
+    ) -> Bool {
+        guard (error as? MerianError) == .aiConsentRequired else {
+            return false
+        }
+
+        // Missing or rejected consent is a policy transition, not evidence of
+        // network instability. In particular, it must not advance the shared
+        // circuit breaker and strand the user after fresh approval succeeds.
+        AppTelemetry.trackError("InferenceConsentRequired")
+        MerianLog.general.debug(
+            "Inference paused until required consent is authoritative; the queued scan remains saved."
+        )
+        HapticManager.shared.triggerErrorThump()
+        speciesData = makeErrorSpeciesData(
+            title: "Approval needed",
+            subtitle: "Scan saved",
+            reasoning: Self.consentRequiredRecoveryReason,
+            telemetry: telemetry
+        )
+        return true
+    }
 
     @discardableResult
     private func publishRecoverableInferenceConflictIfNeeded(
@@ -2931,7 +2974,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
                 AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postId))
             }
-            await ScanMilestoneCoordinator.shared.processIdentificationUpdate(scanId: scanId)
+            await AppDIContainer.shared.scanMilestoneCoordinator.processIdentificationUpdate(scanId: scanId)
         } catch {
             MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
         }

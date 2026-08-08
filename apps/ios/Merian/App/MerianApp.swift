@@ -542,6 +542,11 @@ struct StartupRecoveryNoticeView: View {
                 .stroke(Color.orange.opacity(0.25), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.08), radius: 12, y: 4)
+        .allowsHitTesting(hasInteractiveDiagnostics)
+    }
+
+    private var hasInteractiveDiagnostics: Bool {
+        notice.diagnosticText != nil && Self.shouldShowDiagnostics
     }
 
     private static var shouldShowDiagnostics: Bool {

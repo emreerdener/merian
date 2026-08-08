@@ -74,6 +74,10 @@ struct VisualCaptureView: View {
                 showsViewfinderHints: viewModel.shouldShowViewfinderHints
             )
         }
+        .onDisappear {
+            focusHideTask?.cancel()
+            focusHideTask = nil
+        }
     }
 }
 

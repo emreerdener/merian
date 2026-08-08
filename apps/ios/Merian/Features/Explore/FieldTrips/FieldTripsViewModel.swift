@@ -111,7 +111,7 @@ final class FieldTripsViewModel {
     var isLoading = false
     var errorMessage: String?
     var challengeErrorMessage: String?
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
 
     private var didLoad = false
 
@@ -178,7 +178,7 @@ final class FieldTripChallengeDetailViewModel {
     var isJoining = false
     var isLoadingMoreEntries = false
     var errorMessage: String?
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
     var hasMoreEntries = true
 
     private let challengeId: String
@@ -223,11 +223,11 @@ final class FieldTripChallengeDetailViewModel {
             entries = loaded.entries
             hasMoreEntries = loaded.entries.count >= entriesPageSize
             HapticManager.shared.triggerSuccessPulse()
-            toastMessage = "Challenge joined."
+            toastMessage = .success("Challenge joined.")
             AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -251,7 +251,7 @@ final class FieldTripChallengeDetailViewModel {
             entries.append(contentsOf: page)
             hasMoreEntries = page.count >= entriesPageSize
         } catch {
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 }
@@ -268,7 +268,7 @@ final class FieldTripPublicationViewModel {
     var isUpdatingLike = false
     var errorMessage: String?
     var commentErrorMessage: String?
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
 
     private let publicationId: String
 
@@ -328,7 +328,7 @@ final class FieldTripPublicationViewModel {
             current.likeCount = max(0, current.likeCount + (targetLiked ? -1 : 1))
             detail = current
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 
@@ -372,7 +372,7 @@ final class FieldTripChallengeEntryViewModel {
     var isUpdatingLike = false
     var errorMessage: String?
     var commentErrorMessage: String?
-    var toastMessage: String?
+    var toastMessage: ToastPayload?
 
     private let entryId: String
 
@@ -432,7 +432,7 @@ final class FieldTripChallengeEntryViewModel {
             current.likeCount = max(0, current.likeCount + (targetLiked ? -1 : 1))
             detail = current
             HapticManager.shared.triggerErrorThump()
-            toastMessage = ExploreErrorFormatter.message(for: error)
+            toastMessage = .error(ExploreErrorFormatter.message(for: error))
         }
     }
 

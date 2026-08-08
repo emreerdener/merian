@@ -768,7 +768,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.importPendingExternalImageIfPossible()
         try await waitUntil {
-            viewModel.offlineToastMessage == "Finish your current capture to import the shared photo."
+            viewModel.offlineToastMessage?.title ==
+                "Finish your current capture to import the shared photo."
         }
         let blockedImports = await store.pendingImports()
         XCTAssertEqual(blockedImports.count, 1)
@@ -803,7 +804,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.importPendingExternalImageIfPossible()
         try await waitUntil {
-            viewModel.offlineToastMessage == "Naturebook couldn’t import that photo."
+            viewModel.offlineToastMessage?.title == "Naturebook couldn’t import that photo."
         }
 
         XCTAssertTrue(viewModel.stagedCapture.images.isEmpty)
@@ -1226,7 +1227,10 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.submitStagedCapture(modelContext: modelContext)
 
-        try await waitUntil { viewModel.offlineToastMessage == "No network connection. Queued for upload." }
+        try await waitUntil {
+            viewModel.offlineToastMessage?.title ==
+                "No network connection. Queued for upload."
+        }
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)
     }
@@ -1281,7 +1285,10 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         viewModel.submitStagedCapture(modelContext: modelContext)
 
-        try await waitUntil { viewModel.offlineToastMessage == "Unable to save capture. Please try again." }
+        try await waitUntil {
+            viewModel.offlineToastMessage?.title ==
+                "Unable to save capture. Please try again."
+        }
         try await waitUntil {
             !FileManager.default.fileExists(atPath: videoURL.path)
                 && !FileManager.default.fileExists(atPath: audioURL.path)
@@ -1324,7 +1331,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         )
 
         XCTAssertEqual(
-            viewModel.offlineToastMessage,
+            viewModel.offlineToastMessage?.title,
             "No network connection. Queued for analysis."
         )
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)

@@ -73,12 +73,11 @@ struct ExplorePostDetailCommentsSection: View {
                             .id(composerId)
                     }
                 }
-                .exploreVideoOverlayLifecycle(
-                    isPresented: selectedAuthorProfileRoute != nil,
-                    reason: "explore-detail-comments-author-profile"
-                )
                 .sheet(item: $selectedAuthorProfileRoute) { route in
                     ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+                        .exploreVideoPresentedOverlayLifecycle(
+                            reason: "explore-detail-comments-author-profile"
+                        )
                 }
             }
         }

@@ -91,7 +91,7 @@ extension CaptureWorkspaceViewModel {
         guard enqueued else {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
-            offlineToastMessage = "Unable to save capture. Please try again."
+            offlineToastMessage = .error("Unable to save capture. Please try again.")
             return
         }
         if let userPerceivedStart {
@@ -103,7 +103,7 @@ extension CaptureWorkspaceViewModel {
         guard let foregroundInferenceGeneration else {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
-            offlineToastMessage = "No network connection. Queued for analysis."
+            offlineToastMessage = .warning("No network connection. Queued for analysis.")
             return
         }
         guard diContainer.offlineQueueManager.isOnline else {
@@ -115,7 +115,7 @@ extension CaptureWorkspaceViewModel {
                 resumeBackground: true,
                 reason: "live_nonvisual_offline_before_start"
             )
-            offlineToastMessage = "No network connection. Queued for analysis."
+            offlineToastMessage = .warning("No network connection. Queued for analysis.")
             return
         }
 
@@ -155,7 +155,7 @@ extension CaptureWorkspaceViewModel {
                     resumeBackground: true,
                     reason: "live_nonvisual_offline_during_context_grace"
                 )
-                self.offlineToastMessage = "No network connection. Queued for analysis."
+                self.offlineToastMessage = .warning("No network connection. Queued for analysis.")
                 return
             }
             guard self.pendingAnalyzeScanId == scanId else {
@@ -174,7 +174,7 @@ extension CaptureWorkspaceViewModel {
             ) else {
                 contextTask.cancel()
                 self.pendingAnalyzeScanId = nil
-                self.offlineToastMessage = "Capture queued for analysis."
+                self.offlineToastMessage = .information("Capture queued for analysis.")
                 return
             }
 
