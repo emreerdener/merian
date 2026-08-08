@@ -2591,7 +2591,10 @@ projection: completed photo/video-poster and legacy-cover resolution,
 exclusion of missing, archived, incomplete, nonvisual, posterless-video, and
 reference-only records, duplicate scan defense, quality/recency/tie ordering,
 level-balanced selection and its six-item cap, failed-page reserve refill,
-stable selection, and photo/video full-screen presentation order.
+stable-ID index reconciliation across reorder/removal, and photo/video
+full-screen presentation order. The focused Insight suite remains paired with
+this suite when the shared native pager or pagination treatment changes, so
+reuse cannot regress Insight's mixed-media handoff behavior.
 `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
 goal hint while successful scan finalization preserves it until explicit
 progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case

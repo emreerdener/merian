@@ -1003,7 +1003,12 @@ struct ImagesCarousel: View {
                         // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
                         .id(scanId ?? "null")
                         .ignoresSafeArea(.all, edges: .top)
-                        .overlay(alignment: .bottom) { paginationDots }
+                        .overlay(alignment: .bottom) {
+                            MediaCarouselPaginationDots(
+                                pageCount: carouselPages.count,
+                                selectedIndex: selectedIndex
+                            )
+                        }
                         .overlay(alignment: .bottomTrailing) { referenceAttributionTag }
                         .overlay(alignment: .top) {
                             LinearGradient(
@@ -1656,31 +1661,4 @@ private extension ImagesCarousel {
         }
     }
 
-    @ViewBuilder
-    var paginationDots: some View {
-        let pageCount = carouselPages.count
-        ZStack {
-            if pageCount > 1 {
-                HStack(spacing: 8) {
-                    ForEach(0..<pageCount, id: \.self) { index in
-                        Circle()
-                            .fill(index == selectedIndex ? Color.white : Color.white.opacity(0.4))
-                            .frame(width: 6, height: 6)
-                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(0.2))
-                .background(.ultraThinMaterial, in: Capsule())
-                .padding(.bottom, 40)
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedIndex)
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .move(edge: .bottom)),
-                    removal: .opacity
-                ))
-            }
-        }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: pageCount)
-    }
 }

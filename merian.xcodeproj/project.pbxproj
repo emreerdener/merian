@@ -369,6 +369,7 @@
 		BA29DD18B10689C6317D266A /* AppDIContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33FD2D0B0B8D49842926B1FC /* AppDIContainer.swift */; };
 		BA5F42E28A2CCE151E666D42 /* BackgroundTaskWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E8C444C1F1F812B77872FD /* BackgroundTaskWrapper.swift */; };
 		BA78C2C67BF6607B3B020F2B /* PostHogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490F6B0A61D227C143DAF028 /* PostHogManager.swift */; };
+		BAC5F166A0ADE5163611D5CA /* MediaCarouselPaginationDots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A95EE1FF7045668B1F1EA0C /* MediaCarouselPaginationDots.swift */; };
 		BAF2A6E4555141F5C8FA4BD4 /* ScansSheetModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF730C7B49DF58F8099D9468 /* ScansSheetModifiers.swift */; };
 		BAF85B4C11E09D46CC596A55 /* Community.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B27B57846EBB7A64DCDBFF0 /* Community.swift */; };
 		BB4BEB1A33617A8707AF6A8C /* PublicBrandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1DC4F9F90E0B04BDBCCB95 /* PublicBrandTests.swift */; };
@@ -670,6 +671,7 @@
 		28C02B69FDE44C27D8D00179 /* ExploreBadgePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreBadgePolicyTests.swift; sourceTree = "<group>"; };
 		29970E8D61AA5E64E0B76148 /* SafariView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariView.swift; sourceTree = "<group>"; };
 		2A7B531531AA9689CB42FF0F /* ReportInsightViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportInsightViewModel.swift; sourceTree = "<group>"; };
+		2A95EE1FF7045668B1F1EA0C /* MediaCarouselPaginationDots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCarouselPaginationDots.swift; sourceTree = "<group>"; };
 		2AB49E93E8EA458AF4C17404 /* ExploreObservationContextCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreObservationContextCard.swift; sourceTree = "<group>"; };
 		2B35D4F79B59F204EA2FD07E /* UserReviewState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserReviewState.swift; sourceTree = "<group>"; };
 		2BD48662AAB5A806E3F287AB /* ConfidenceBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceBadge.swift; sourceTree = "<group>"; };
@@ -2261,6 +2263,7 @@
 			children = (
 				2342617B9724807515D7C897 /* ImagesCarousel.swift */,
 				3B58AC4ADF0850D999C71A53 /* InsightFullscreenImageCarousel.swift */,
+				2A95EE1FF7045668B1F1EA0C /* MediaCarouselPaginationDots.swift */,
 				D5F1D128DB406441CAF60378 /* NativePageCarousel.swift */,
 				7B4383AF53352621AB9247AF /* NativePageCarousel+Coordinator.swift */,
 				9F89ECC260AB3B624AD9BC1B /* ZoomableHostingController.swift */,
@@ -4315,6 +4318,7 @@
 				23942A1AF25D6D0A77A299F4 /* MainOverlayView.swift in Sources */,
 				CA672046EEC1120C9EF87041 /* MainTabBar.swift in Sources */,
 				11EE2183530CF061E6797190 /* ManagePlanView.swift in Sources */,
+				BAC5F166A0ADE5163611D5CA /* MediaCarouselPaginationDots.swift in Sources */,
 				1D8449AD338E41E34FC89154 /* MediaModeToggle.swift in Sources */,
 				C53B90FC4E2456A9C152F89E /* MediaPreparationActor.swift in Sources */,
 				D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */,

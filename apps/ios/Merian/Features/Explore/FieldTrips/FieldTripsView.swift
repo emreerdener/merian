@@ -690,6 +690,7 @@ struct FieldTripTemplateDetailView: View {
                                 )
                         }
                     )
+                    .containerRelativeFrame(.horizontal)
                 }
 
                 VStack(alignment: .leading, spacing: 24) {

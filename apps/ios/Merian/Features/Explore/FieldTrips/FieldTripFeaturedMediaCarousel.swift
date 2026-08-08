@@ -210,14 +210,17 @@ enum FieldTripFeaturedMediaSelection {
 }
 
 enum FieldTripFeaturedMediaPresentation {
-    static func selectedItemId(
+    static func selectedIndex(
         preserving selectedItemId: String?,
+        previousSelectedIndex: Int,
         in items: [FieldTripFeaturedMediaItem]
-    ) -> String? {
-        if let selectedItemId, items.contains(where: { $0.id == selectedItemId }) {
-            return selectedItemId
+    ) -> Int {
+        guard !items.isEmpty else { return 0 }
+        if let selectedItemId,
+           let preservedIndex = items.firstIndex(where: { $0.id == selectedItemId }) {
+            return preservedIndex
         }
-        return items.first?.id
+        return max(0, min(previousSelectedIndex, items.count - 1))
     }
 
     static func galleryPresentation(
@@ -239,38 +242,49 @@ struct FieldTripFeaturedMediaCarousel: View {
     let onMediaLoadFailed: (String) -> Void
     let onOpenViewer: (String) -> Void
 
+    @State private var selectedIndex = 0
     @State private var selectedItemId: String?
 
-    private var resolvedSelectedItemId: String? {
-        FieldTripFeaturedMediaPresentation.selectedItemId(
-            preserving: selectedItemId,
-            in: items
-        )
+    private var carouselPages: [CarouselPageItem] {
+        items.map { item in
+            CarouselPageItem(
+                id: item.id,
+                mediaKind: .visual,
+                view: AnyView(page(for: item)),
+                imageIdentifier: item.source.posterPath,
+                imageOrigin: .user,
+                galleryItem: item.galleryItem
+            )
+        }
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 0) {
-                    ForEach(items) { item in
-                        page(for: item)
-                            .frame(width: geometry.size.width, height: geometry.size.height)
-                            .id(item.id)
-                    }
+        GeometryReader { _ in
+            NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                .clipped()
+                .overlay(alignment: .bottom) {
+                    MediaCarouselPaginationDots(
+                        pageCount: items.count,
+                        selectedIndex: selectedIndex,
+                        bottomPadding: 14,
+                        accessibilityNoun: "Featured image"
+                    )
                 }
-                .scrollTargetLayout()
-            }
-            .scrollTargetBehavior(.paging)
-            .scrollPosition(id: Binding(
-                get: { resolvedSelectedItemId },
-                set: { selectedItemId = $0 }
-            ))
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipped()
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    SpatialTapGesture().onEnded { _ in
+                        openSelectedPage()
+                    }
+                )
         }
+        .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
-        .overlay(alignment: .bottom) { paginationDots }
         .onAppear(perform: reconcileSelection)
+        .onChange(of: selectedIndex) { _, newValue in
+            guard let item = items[safe: newValue] else { return }
+            selectedItemId = item.id
+        }
         .onChange(of: items.map(\.id)) { _, _ in
             reconcileSelection()
         }
@@ -300,52 +314,29 @@ struct FieldTripFeaturedMediaCarousel: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            onOpenViewer(item.id)
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(item.accessibilityLabel)
         .accessibilityHint("Opens the full-screen media viewer")
         .accessibilityIdentifier("FieldTripFeaturedMediaPage_\(item.scanId)")
-    }
-
-    @ViewBuilder
-    private var paginationDots: some View {
-        if items.count > 1 {
-            HStack(spacing: 8) {
-                ForEach(items) { item in
-                    Circle()
-                        .fill(
-                            item.id == resolvedSelectedItemId
-                                ? Color.white
-                                : Color.white.opacity(0.4)
-                        )
-                        .frame(width: 6, height: 6)
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.black.opacity(0.2))
-            .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 14)
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Featured image \(selectedPageNumber) of \(items.count)")
+        .accessibilityAction {
+            onOpenViewer(item.id)
         }
     }
 
-    private var selectedPageNumber: Int {
-        guard let resolvedSelectedItemId,
-              let index = items.firstIndex(where: { $0.id == resolvedSelectedItemId }) else {
-            return items.isEmpty ? 0 : 1
-        }
-        return index + 1
+    private func openSelectedPage() {
+        guard let item = items[safe: selectedIndex] else { return }
+        onOpenViewer(item.id)
     }
 
     private func reconcileSelection() {
-        selectedItemId = resolvedSelectedItemId
+        let nextIndex = FieldTripFeaturedMediaPresentation.selectedIndex(
+            preserving: selectedItemId,
+            previousSelectedIndex: selectedIndex,
+            in: items
+        )
+        selectedIndex = nextIndex
+        selectedItemId = items[safe: nextIndex]?.id
     }
 }
 

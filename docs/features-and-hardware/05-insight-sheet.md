@@ -816,8 +816,11 @@ selection to the first page and restores muted video playback.
 
 ### NativePageCarousel & Per-Page Zoom Architecture
 
-`ImagesCarousel` renders pages via `NativePageCarousel` — a
-`UIViewControllerRepresentable` wrapping `UIPageViewController`.
+`ImagesCarousel` and the private Field-trip Goals hero render pages via the
+shared `NativePageCarousel` — a `UIViewControllerRepresentable` wrapping
+`UIPageViewController`. Both surfaces also use `MediaCarouselPaginationDots`
+for the same single-page hiding, selection animation, material capsule, and
+accessibility count treatment.
 `TabView(.page)` was evaluated and rejected for two reasons: it lazily
 instantiates pages (so `AsyncLocalImageView.task` only fires when the user
 swipes to a page, causing image loads during the swipe transition), and its

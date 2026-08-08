@@ -187,14 +187,6 @@ struct FieldTripFeaturedMediaTests {
             )
         )
 
-        #expect(FieldTripFeaturedMediaPresentation.selectedItemId(
-            preserving: video.id,
-            in: items
-        ) == video.id)
-        #expect(FieldTripFeaturedMediaPresentation.selectedItemId(
-            preserving: "removed",
-            in: items
-        ) == photo.id)
         #expect(presentation.items.map(\.id) == [photo.id, video.id])
         #expect(presentation.items.map(\.source) == [
             .imagePath("photo.webp"),
@@ -210,6 +202,32 @@ struct FieldTripFeaturedMediaTests {
             for: [],
             selectedItemId: nil
         ) == nil)
+    }
+
+    @Test func selectedIndexPreservesStableIDAcrossReorderAndClampsAfterRemoval() {
+        let photo = makeFeaturedItem(id: "photo", level: 1, quality: 80, timestamp: 10)
+        let video = makeFeaturedItem(id: "video", level: 2, quality: 90, timestamp: 20)
+
+        #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
+            preserving: video.id,
+            previousSelectedIndex: 1,
+            in: [video, photo]
+        ) == 0)
+        #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
+            preserving: "removed",
+            previousSelectedIndex: 1,
+            in: [photo]
+        ) == 0)
+        #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
+            preserving: nil,
+            previousSelectedIndex: 1,
+            in: [photo, video]
+        ) == 1)
+        #expect(FieldTripFeaturedMediaPresentation.selectedIndex(
+            preserving: video.id,
+            previousSelectedIndex: 1,
+            in: []
+        ) == 0)
     }
 
     private func makeTemplate(levels: [FieldTripLevel]) -> FieldTripTemplate {

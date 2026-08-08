@@ -205,7 +205,16 @@ The full-width image carousel at the top of the Insight Sheet, combining live ca
 | `activeMedia` | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — queued scans seed this from `QueuedScanContext.capturedMediaSnapshot`, while completed scans hydrate it from `record.capturedMediaSnapshot`; `displayMedia(_:)` applies reference suppression and current-scan deduplication before returning it |
 | `totalImages` | `Int` | `viewModel.totalImages`, derived from the same filtered `ActiveScanMedia` used by inline and fullscreen galleries |
 | `isProcessing` | `Bool` | `viewModel.isProcessing` |
-- **`NativePageCarousel`**: A private `UIViewControllerRepresentable` wrapping `UIPageViewController`. `Coordinator.controllers: [ZoomPageViewController]` is populated eagerly so `AsyncLocalImageView.task` fires for all pages immediately — images load in the background before the user swipes to them. `UIPageViewController`'s internal `UIScrollView` defers to the sheet's pan gesture without manual workarounds (unlike `TabView(.page)`).
+- **`NativePageCarousel`**: A shared `UIViewControllerRepresentable` used by both
+  Insight and the private Field-trip Goals hero. It wraps
+  `UIPageViewController`; `Coordinator.controllers: [ZoomPageViewController]`
+  is populated eagerly so `AsyncLocalImageView.task` fires for all pages
+  immediately, before the user swipes to them. `UIPageViewController`'s
+  internal `UIScrollView` defers to the sheet's pan gesture without manual
+  workarounds (unlike `TabView(.page)`).
+- **`MediaCarouselPaginationDots`**: The shared bottom material capsule used by
+  Insight and Field trips. It hides for a single page, clamps transient index
+  changes safely, animates selection, and announces the current page count.
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying into the inner `UIHostingController`, so `updateUIViewController`'s existing `controller.rootView = pages[i]` state-push pattern works without modification.
 - **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`, `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to suppress its `panGestureRecognizer` when `zoomScale ≤ minimumZoomScale + 0.01`. This is the **only safe interception point** — replacing `panGestureRecognizer.delegate` directly throws `NSInvalidArgumentException` at runtime because UIKit requires the scroll view to remain its own pan delegate. At 1× UIPageViewController's swipe wins; above 1× the inner scroll view handles panning.
 - **Snap-back**: `scrollViewDidEndZooming` (pinch release) and `scrollViewDidEndDragging` (drag release while zoomed) both call `snapBackToIdentity`: pending deceleration is cancelled first, then `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and `contentOffset → .zero` simultaneously.

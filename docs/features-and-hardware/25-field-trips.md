@@ -928,8 +928,15 @@ level, sorts each group by `imageQualityScore`, capture date, checklist order,
 and stable ID, then takes one item per level per round up to six. Failed page
 IDs are excluded and reserve candidates refill the selection; reconnecting
 clears transient failures so remote user media can retry. The selected page is
-preserved by stable ID, and the full-screen presentation contains exactly the
-currently featured order with video muted initially.
+preserved by stable ID. Rendering reuses Insight's `NativePageCarousel`,
+`CarouselPageItem`, `ZoomPageViewController`, and shared pagination treatment,
+and the hero takes the full scroll-container width without horizontal content
+insets. All selected posters begin resolving immediately, horizontal paging
+cooperates with sheet dismissal, controller identity survives progress-driven
+updates, and photo pages inherit the same pinch-and-snap-back behavior. The
+inline carousel remains poster-only for video; tapping any page opens a
+full-screen presentation containing exactly the currently featured order with
+video muted initially.
 
 `GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
 the active standard-outing level header and scan-progress milestone banner. The
