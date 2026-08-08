@@ -67,7 +67,7 @@ Primary files:
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
+- `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
@@ -169,8 +169,9 @@ New shares emit the canonical UUID-first HTTPS form with a lowercase ASCII slug
 derived from the common name, or the scientific name and then `species` when a
 readable common-name slug is unavailable. The slug is presentation-only. The
 parser accepts the canonical form, UUID-only compatibility form, and legacy
-host/scheme forms, ignores the optional slug for identity, and publishes only
-the normalized UUID through `AppEventPublisher`. `CaptureWorkspaceViewModel`
+host/scheme forms, ignores the optional slug for identity, and requests
+`AppRoute.speciesDictionary` with only the normalized UUID.
+`CaptureWorkspaceViewModel`
 clears conflicting launch routes, protects the destination from the immediate
 foreground timeout reset, opens Explore, selects Identify/Index, and pushes a
 `SpeciesDictionaryRoute(entryPoint: .deepLink)`.

@@ -6,6 +6,18 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### More Reliable Links, Notifications, and Sheets
+
+- Shared links, notification taps, Siri actions, Field trip destinations, and
+  Photos imports now wait for the workspace and current sheet to be ready
+  instead of competing with launch, sign-in, or another presentation.
+- Rapid sheet handoffs now follow the actual dismissal animation, reducing
+  overlapping-sheet warnings, unexpected closures, and routes that appeared
+  behind an editor or full-screen review.
+- In-app progress and error feedback remains lightweight and leaves unrelated
+  screen controls available. Replaced video and audio players now detach their
+  old observers so late playback callbacks cannot change the current item.
+
 ### Sign in with Apple Account Deletion — Release-Gated
 
 - New Apple sign-ins now require the authorization code as well as the identity
@@ -1855,6 +1867,13 @@ TestFlight, App Store, support, and QA.
 
 - Added an Edit profile picture action to the Profile identity menu so the
   avatar picker is available alongside name and username editing.
+- Protected Naturebook/Merian namespaces, official and system-role handles, and
+  exact product-role combinations such as `naturebook_support` from new public
+  username claims. Ordinary non-prefix community handles remain available, and
+  usernames still grant no special access or verified status.
+- Existing beta profiles using a newly protected handle move to a neutral
+  generated username. Historical Explore comment mentions keep their original
+  tappable `@username` text and continue routing to the same user.
 - Fixed repeat observations moving an achievement's original unlock date
   forward. Repeat scans still update the latest-interaction date, while
   retroactive-notification decisions remain tied to the scan that earned the

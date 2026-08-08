@@ -509,6 +509,14 @@ The current community model includes:
 - Grouped Identify Activity for suggestion bursts, consensus changes, and
   resolution milestones.
 
+Public handles reserve protected Naturebook/Merian namespaces,
+official/system-role names, and exact product-role combinations in both orders.
+Reservation is exact rather than prefix-based, and neither a username nor a
+duplicable display name grants authority or verified status. Comment mentions
+store the original normalized `@username` token alongside the durable mentioned
+user ID, so old comment links survive later handle changes or reservation-policy
+expansion without rewriting user-authored text.
+
 The stale "react-only" description is retired. Conversation and relationship
 features are part of the current codebase.
 

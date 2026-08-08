@@ -3,6 +3,7 @@ import PhotosUI
 import SwiftUI
 
 struct PhotoLibraryButton: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     let latestThumbnail: UIImage?
     var maxSelectionCount: Int = 1
@@ -51,7 +52,8 @@ struct PhotoLibraryButton: View {
             }
             .presentationDetents([.height(350)])
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
             authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         }
     }

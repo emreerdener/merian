@@ -156,7 +156,10 @@ struct Achievements: View {
                     if allowsDetailPresentation {
                         Button {
                             if award.isCompleted, let destination = award.destination {
-                                AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
+                                AppDIContainer.shared.appRouteCoordinator.request(
+                                    .captureGoal(destination),
+                                    source: .internalUserAction
+                                )
                             } else {
                                 selectedAward = award
                             }

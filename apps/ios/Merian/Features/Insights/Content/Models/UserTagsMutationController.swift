@@ -25,7 +25,9 @@ enum UserTagsMutationController {
         record.customTags.append(trimmed)
         guard persistTagMutation(modelContext: modelContext, logContext: "add custom tag") else { return false }
         syncTagsToCloud(record: record)
-        ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
+        AppDIContainer.shared.appEventPublisher.send(
+            .scanSearchIndexInvalidated(scanId: record.id)
+        )
         return true
     }
 
@@ -39,7 +41,9 @@ enum UserTagsMutationController {
         record.customTags.removeAll { $0 == tag }
         guard persistTagMutation(modelContext: modelContext, logContext: "remove custom tag") else { return false }
         syncTagsToCloud(record: record)
-        ScanLibraryEvents.postSearchIndexUpdate(scanId: record.id)
+        AppDIContainer.shared.appEventPublisher.send(
+            .scanSearchIndexInvalidated(scanId: record.id)
+        )
         return true
     }
 

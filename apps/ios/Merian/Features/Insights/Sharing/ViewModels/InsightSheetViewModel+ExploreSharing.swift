@@ -414,7 +414,7 @@ extension InsightSheetViewModel {
                 locationSharing: locationSharing
             )
             ExploreShareStateStore.setSharedPostId(nil, for: scanId)
-            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: nil))
+            AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: scanId, postId: nil))
             guard isPresentingLocalRecord(
                 scanId: scanId,
                 generation: generation
@@ -706,7 +706,7 @@ extension InsightSheetViewModel {
         generation: UInt64
     ) {
         ExploreShareStateStore.setSharedPostId(postId, for: scanId)
-        AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: postId))
+        AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: scanId, postId: postId))
         guard isPresentingLocalRecord(
             scanId: scanId,
             generation: generation

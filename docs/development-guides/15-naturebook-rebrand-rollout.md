@@ -205,6 +205,14 @@ The rebrand migration is forward-only. Do not edit historical migrations.
           public.is_reserved_public_username('naturebookearth');
    ```
 
+   These three assertions cover legacy/current product namespaces for the
+   rebrand only. They are not the complete current username-reservation gate.
+   Migration `20260808144244_expand_reserved_public_username_policy.sql` also
+   protects official/system roles and exact product-role combinations; use the
+   dedicated section in the
+   [Supabase deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#public-username-reservation-policy-rollout)
+   for that release and post-deploy evidence.
+
 6. Run the reference-image refresh as a dry run through its existing technical
    function/worker name. New generated attribution must say Naturebook.
 7. Request a Darwin Core export and inspect `recordedBy`, email branding, and

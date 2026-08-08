@@ -95,10 +95,14 @@ extension InsightSheetView {
                     if let record = viewModel.activeLocalRecord,
                        record.id.caseInsensitiveCompare(scanId) == .orderedSame {
                         HapticManager.shared.triggerSelectionPulse()
-                        AppEventPublisher.shared.send(.triggerRefinement(
-                            scanId: record.id,
-                            initialDescription: viewModel.shareableFieldNotes
-                        ))
+                        AppDIContainer.shared.appRouteCoordinator.request(
+                            .refinement(
+                                scanId: record.id,
+                                initialDescription: viewModel.shareableFieldNotes,
+                                entryPoint: .standard
+                            ),
+                            source: .internalUserAction
+                        )
                     }
                 } else {
                     viewModel.state.showPaywall = true

@@ -67,12 +67,21 @@ unrelated participants elsewhere on the post.
 - `thread`
 - `following`
 
+Suggestions always expose the user's current policy-valid public handle. When a
+comment is saved, the resolver stores that selected handle with the durable user
+ID as a historical snapshot. Later handle changes do not rewrite the plain-text
+comment or its stored snapshot; comment reads continue matching the old token
+while profile taps route by user ID. See
+[`23-explore-comment-mentions.md`](../../../../docs/features-and-hardware/23-explore-comment-mentions.md)
+for the durable rendering contract.
+
 ## Local Verification
 
 ```sh
 deno fmt --check services/supabase/functions/get-explore-mention-suggestions
 deno lint --config services/supabase/functions/deno.json services/supabase/functions/get-explore-mention-suggestions
 deno check --config services/supabase/functions/deno.json services/supabase/functions/get-explore-mention-suggestions/index.ts
+deno test --config services/supabase/functions/deno.json --allow-read=services/supabase,apps/ios services/supabase/functions/_tests/publicUsernamePolicyMigrationContract.test.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMentionsDb.test.ts
 ```
 

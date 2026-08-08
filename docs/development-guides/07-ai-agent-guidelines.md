@@ -400,15 +400,18 @@ dependency audit, tests, type-check, and production build; preserve the required
   // WRONG — silently drops similarSpecies, zoomFactor, etc.
   let schema = Schema(MerianSchemaV9.models)
   ```
-- **Use `AppEventPublisher`, not `NotificationCenter`, for internal events.**
-  `CaptureWorkspaceViewModel` and other components subscribe to
-  `AppEventPublisher.shared.publisher` (a Combine
-  `PassthroughSubject<AppEvent, Never>`). Tests that trigger foreground timeout
-  behavior must use `AppEventPublisher.shared.send(.appDidResumeAfterTimeout)` —
-  posting to `NotificationCenter` with a fabricated name has no effect. Sheet
-  cleanup is timeout-driven from the foreground path, while `.inactive` only
-  pauses hardware so system overlays such as the iOS limited photo library
-  access prompt do not close the insight sheet.
+- **Classify internal signals before sending them.** Loss-tolerant reload and
+  lifecycle hints use the `AppEventPublisher` owned by the test's
+  `AppDIContainer`; delivery-critical navigation uses its
+  `AppRouteCoordinator`. Neither service exposes a separate `.shared`
+  singleton. Application-defined `Notification.Name` values and posts are
+  forbidden. Tests that trigger foreground timeout behavior send
+  `.appDidResumeAfterTimeout` through the container bus. Sheet cleanup remains
+  timeout-driven from the foreground path, while `.inactive` only pauses
+  hardware so system overlays do not close the Insight sheet. Routed sheets and
+  Capture-local editors/covers resume delivery only from exact `onDismiss`
+  callbacks; do not introduce a teardown `Task.sleep`. Follow the
+  [canonical routing contract](../system-architecture/10-event-and-presentation-routing.md).
 - **Do not call private methods via `@testable import`.** Swift allows calling
   internal-level methods from test targets, but `private` members are
   inaccessible. Always test behavior through public/internal interfaces (e.g.,
@@ -432,7 +435,9 @@ dependency audit, tests, type-check, and production build; preserve the required
   reality. Do not wait to be asked. Maintain an accurate, synchronized
   documentation set that matches the codebase.
 - Architecture and stability changes must update the specific domain guide, not
-  just this checklist. For zero-OOM/concurrency work, synchronize
+  just this checklist. Event/presentation work must synchronize
+  `docs/system-architecture/10-event-and-presentation-routing.md`. For
+  zero-OOM/concurrency work, synchronize
   `docs/system-architecture/02-zero-oom-and-concurrency.md`,
   `docs/system-architecture/03-image-pipeline.md`, and the relevant
   feature/backend guide in the same change set.

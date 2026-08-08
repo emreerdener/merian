@@ -272,7 +272,10 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                     MerianLog.hardware.debug(
                         "Community push notification tapped — routing to requestId \(requestId, privacy: .private)"
                     )
-                    AppEventPublisher.shared.send(.openCommunityIdentificationRequest(requestId: requestId))
+                    AppDIContainer.shared.appRouteCoordinator.request(
+                        .communityIdentification(requestId: requestId),
+                        source: .pushNotification
+                    )
                 }
                 return
             }
@@ -284,11 +287,14 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 MerianLog.hardware.debug(
                     "Explore push notification tapped — routing to postId \(postId, privacy: .private)"
                 )
-                AppEventPublisher.shared.send(.appDidEnterActivePhaseWithExplorePost(
-                    postId: postId,
-                    targetCommentId: commentId,
-                    targetReplyParentCommentId: parentCommentId
-                ))
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .explorePost(
+                        postId: postId,
+                        targetCommentId: commentId,
+                        targetReplyParentCommentId: parentCommentId
+                    ),
+                    source: .pushNotification
+                )
             }
             return
         }
@@ -303,7 +309,10 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                     }
                     // For now, route to the scan regardless of which action was tapped
                     // We can handle specific share intent dynamically within the insight sheet later.
-                    AppEventPublisher.shared.send(.appDidEnterActivePhaseWithScan(scanId: scanId))
+                    AppDIContainer.shared.appRouteCoordinator.request(
+                        .scan(scanId: scanId),
+                        source: .pushNotification
+                    )
                 }
             }
         }

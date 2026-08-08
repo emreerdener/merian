@@ -46,6 +46,16 @@ Scans-library routes replace it with their requested destination. External
 routes arm the one-shot foreground-timeout suppression so the timeout reset
 cannot erase the user intent that launched or reactivated the app.
 
+All routed root destinations share `CameraSheetRouter`'s single item-based
+sheet. Feature-local editors still use the presentation style appropriate to
+their workflow: staged description and questions are sheets; staged video and
+crop are covers; the feedback survey is a sheet. Each contributes to one
+`isFeaturePresentationOccupied` fence. A global route claimed during any of
+those workflows records `deferred(.presentationOccupied)` and resumes only from
+the feature presentation's exact `onDismiss`. Routed-sheet interactive teardown
+is fenced separately by `dismissingPresentation`. Do not substitute an elapsed
+sleep for either callback.
+
 ## Active capture goal
 
 `CaptureWorkspaceView` owns the compact active-outing target indicator because
@@ -129,13 +139,14 @@ is absent. Introduction destinations use the existing authenticated
 lives in `docs/features-and-hardware/25-field-trips.md`.
 
 The shared milestone banner reuses the same routing boundary. A Field trip
-progress tap publishes `requestOpenCaptureGoal`; `CaptureWorkspaceViewModel`
-clears conflicting Explore destinations and opens the Explore sheet with the
-typed route. `.fieldTrip(templateId:checklistItemId:)` selects Outings and
-focuses the credited goal, while `.fieldTripChallenge(challengeId:)` selects
-Events and opens Seasonal Challenge detail. The refresh events emitted after
-progress remain data invalidations only and must not create another Capture or
-Explore toast.
+progress tap requests `AppRoute.captureGoal`; `AppRouteCoordinator` serializes
+the request with any active root presentation, and
+`CaptureWorkspaceViewModel` clears conflicting Explore destinations before
+opening the Explore sheet. `.fieldTrip(templateId:checklistItemId:)` selects
+Outings and focuses the credited goal, while
+`.fieldTripChallenge(challengeId:)` selects Events and opens Seasonal Challenge
+detail. The refresh events emitted after progress remain data invalidations
+only and must not create another Capture or Explore toast.
 
 The indicator emits privacy-safe `shown`, `opened`, `next`, `previous`,
 `zero_state_shown`, and `zero_state_opened`
@@ -147,8 +158,8 @@ excluded.
 
 Naturebook's Merian iOS target declares `public.image` as an alternate document
 type so a single photo shared from iOS Photos can open the main app. `MerianApp`
-copies the incoming file into `ExternalImageImportStore` before notifying the
-capture workspace.
+copies the incoming file into `ExternalImageImportStore` before submitting the
+typed `processExternalImageImports` route to the capture workspace.
 The durable, backup-excluded inbox allows the import and terminal intake
 feedback to survive a cold launch or unfinished onboarding without retaining
 access to the Photos-owned URL. Security scope begins before type validation,

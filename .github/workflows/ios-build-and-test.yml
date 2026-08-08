@@ -47,6 +47,9 @@ jobs:
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
+      - name: Enforce typed event and route boundaries
+        run: make validate-ios-event-routing
+
       - name: Determine iOS macOS scope
         id: ios-scope
         run: bash scripts/ci-detect-ios-build-source-changes.sh

@@ -177,6 +177,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
     @ObservationIgnored private var signOutTask: Task<Void, Never>?
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
+    @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
     private var lastPublicAuthorIdentityRefreshUserId: String?
     @ObservationIgnored private(set) var isSigningOut = false
 
@@ -192,7 +193,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
         super.init()
 
-        self.authListenerTask = Task { await self.setupAuthStateListener() }
+        self.setupAuthStateListener()
         self.appleCredentialRevocationObserver = NotificationCenter.default.addObserver(
             forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
             object: nil,
@@ -202,6 +203,26 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 self?.revalidateAppleCredentialAfterRevocationNotification()
             }
         }
+    }
+
+    deinit {
+        authListenerTask?.cancel()
+        ghostSessionTask?.cancel()
+        ghostProfileMergeTask?.cancel()
+        signOutTask?.cancel()
+        publicAuthorIdentityRefreshTask?.cancel()
+        if let appleCredentialRevocationObserver {
+            NotificationCenter.default.removeObserver(appleCredentialRevocationObserver)
+        }
+    }
+
+    func bindAppRouteSessionController(_ controller: any AppRouteSessionControlling) {
+        appRouteSessionController = controller
+        controller.beginAccountSession(
+            accountID: currentUser?.id.uuidString,
+            origin: .initialRestoration,
+            now: Date()
+        )
     }
 
     // MARK: - Auth State
@@ -271,91 +292,116 @@ enum SupabaseAuthTransitionError: LocalizedError {
         return .authenticated(userId: userId)
     }
 
-    private func setupAuthStateListener() async {
-        for await state in client.auth.authStateChanges {
-            do {
-                let pendingHandoffs = try loadPendingGhostProfileMergeQueue()
-                ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
-                    !pendingHandoffs.isEmpty
-                )
-            } catch {
-                // A read or decode failure is uncertainty, not evidence that
-                // the durable handoff is absent. Keep analytics fail-closed.
-                ConsentManager.shared
-                    .setAnalyticsSuppressedForGhostHandoff(true)
-                MerianLog.auth.error(
-                    "Could not read the guest handoff queue; analytics remains suppressed: \(error.localizedDescription, privacy: .private)"
-                )
-            }
-            let sessionAdoption = Self.authSessionAdoption(
-                userId: state.session?.user.id,
-                isExpired: state.session?.isExpired ?? false
-            )
-            switch sessionAdoption {
-            case .authenticated:
-                guard !isSigningOut else {
-                    MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
-                    continue
+    private func setupAuthStateListener() {
+        let authStateChanges = client.auth.authStateChanges
+        authListenerTask = Task { [weak self] in
+            for await state in authStateChanges {
+                // Bind the manager only for one delivered event. The task spends
+                // its next suspension waiting on the stream with no strong owner
+                // reference, so the manager can deinitialize and cancel it.
+                guard let self else { return }
+                do {
+                    let pendingHandoffs = try loadPendingGhostProfileMergeQueue()
+                    ConsentManager.shared.setAnalyticsSuppressedForGhostHandoff(
+                        !pendingHandoffs.isEmpty
+                    )
+                } catch {
+                    // A read or decode failure is uncertainty, not evidence that
+                    // the durable handoff is absent. Keep analytics fail-closed.
+                    ConsentManager.shared
+                        .setAnalyticsSuppressedForGhostHandoff(true)
+                    MerianLog.auth.error(
+                        "Could not read the guest handoff queue; analytics remains suppressed: \(error.localizedDescription, privacy: .private)"
+                    )
                 }
-                guard let session = state.session else { continue }
-                self.currentUser = session.user
-                self.isAuthenticated = true
-                ConsentManager.shared.observeSession(userId: session.user.id)
-                await EntitlementManager.shared.beginSession(
-                    userID: session.user.id,
-                    client: client
+                let sessionAdoption = Self.authSessionAdoption(
+                    userId: state.session?.user.id,
+                    isExpired: state.session?.isExpired ?? false
                 )
-                schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
+                let accountSessionOrigin: AppRouteAccountSessionOrigin = state.event == .initialSession
+                    ? .initialRestoration
+                    : .runtimeTransition
+                switch sessionAdoption {
+                case .authenticated:
+                    guard !isSigningOut else {
+                        MerianLog.auth.debug("Ignored authenticated SDK event while sign-out is in progress.")
+                        continue
+                    }
+                    guard let session = state.session else { continue }
+                    self.currentUser = session.user
+                    self.isAuthenticated = true
+                    appRouteSessionController?.beginAccountSession(
+                        accountID: session.user.id.uuidString,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
+                    ConsentManager.shared.observeSession(userId: session.user.id)
+                    await EntitlementManager.shared.beginSession(
+                        userID: session.user.id,
+                        client: client
+                    )
+                    schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
-                if !TestExecutionCoordinator.isRunningTests,
-                   await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
-                    // Only link telemetry and trigger historical sync when the active user
-                    // identity actually changes. The Supabase SDK fires two auth events on
-                    // cold start (local cache + server validation), both with the same user —
-                    // skipping the duplicate avoids a redundant RevenueCat logIn round-trip,
-                    // a duplicate PostHog identify, and a second concurrent historical sync.
-                    // Sync historical scans on session restore to capture re-installs.
-                    // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
-                    // throttle gate sees this sync and skips its own redundant call — without
-                    // this write both callers fire concurrently on every cold launch.
-                    if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
-                        UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastHistoricalSyncDate)
-                        Task {
-                            await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
-                            await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
+                    if !TestExecutionCoordinator.isRunningTests,
+                       await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
+                        // Only link telemetry and trigger historical sync when the active user
+                        // identity actually changes. The Supabase SDK fires two auth events on
+                        // cold start (local cache + server validation), both with the same user —
+                        // skipping the duplicate avoids a redundant RevenueCat logIn round-trip,
+                        // a duplicate PostHog identify, and a second concurrent historical sync.
+                        // Sync historical scans on session restore to capture re-installs.
+                        // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
+                        // throttle gate sees this sync and skips its own redundant call — without
+                        // this write both callers fire concurrently on every cold launch.
+                        if let context = AppDIContainer.shared.offlineQueueManager.modelContext {
+                            UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastHistoricalSyncDate)
+                            Task {
+                                await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
+                                await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
+                            }
                         }
                     }
-                }
-            case .awaitingRefresh(let userId):
-                guard !isSigningOut else {
-                    MerianLog.auth.debug("Ignored refreshing SDK session while sign-out is in progress.")
-                    continue
+                case .awaitingRefresh(let userId):
+                    guard !isSigningOut else {
+                        MerianLog.auth.debug("Ignored refreshing SDK session while sign-out is in progress.")
+                        continue
+                    }
+
+                    // With emitLocalSessionAsInitialSession enabled, Supabase emits an
+                    // expired cached session before refreshing it. The account identity
+                    // is known even though authenticated requests must remain closed.
+                    // Preserve that identity for consent restoration so the app root
+                    // cannot briefly present approval UI before tokenRefreshed arrives.
+                    self.currentUser = nil
+                    self.isAuthenticated = false
+                    appRouteSessionController?.beginAccountSession(
+                        accountID: userId.uuidString,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
+                    ConsentManager.shared.observeSession(userId: userId)
+                    MerianLog.auth.debug(
+                        "Cached auth session is awaiting refresh; consent restoration remains pending."
+                    )
+                case .signedOut:
+                    self.currentUser = nil
+                    self.isAuthenticated = false
+                    appRouteSessionController?.beginAccountSession(
+                        accountID: nil,
+                        origin: accountSessionOrigin,
+                        now: Date()
+                    )
+                    ConsentManager.shared.observeSession(userId: nil)
+                    EntitlementManager.shared.handleSignOut()
+                    lastLinkedUserId = nil
+                    lastPublicAuthorIdentityRefreshUserId = nil
+                    publicAuthorIdentityRefreshTask?.cancel()
+                    publicAuthorIdentityRefreshTask = nil
+                    cancelGhostProfileMergeTask()
                 }
 
-                // With emitLocalSessionAsInitialSession enabled, Supabase emits an
-                // expired cached session before refreshing it. The account identity
-                // is known even though authenticated requests must remain closed.
-                // Preserve that identity for consent restoration so the app root
-                // cannot briefly present approval UI before tokenRefreshed arrives.
-                self.currentUser = nil
-                self.isAuthenticated = false
-                ConsentManager.shared.observeSession(userId: userId)
-                MerianLog.auth.debug(
-                    "Cached auth session is awaiting refresh; consent restoration remains pending."
-                )
-            case .signedOut:
-                self.currentUser = nil
-                self.isAuthenticated = false
-                ConsentManager.shared.observeSession(userId: nil)
-                EntitlementManager.shared.handleSignOut()
-                lastLinkedUserId = nil
-                lastPublicAuthorIdentityRefreshUserId = nil
-                publicAuthorIdentityRefreshTask?.cancel()
-                publicAuthorIdentityRefreshTask = nil
-                cancelGhostProfileMergeTask()
+                MerianLog.auth.debug("Auth event: \(String(describing: state.event), privacy: .public) | authenticated: \(self.isAuthenticated, privacy: .private)")
             }
-
-            MerianLog.auth.debug("Auth event: \(String(describing: state.event), privacy: .public) | authenticated: \(self.isAuthenticated, privacy: .private)")
         }
     }
 
@@ -1419,7 +1465,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
     }
 
     private func publishPublicAuthorIdentityChanged(previousUserId: String?, currentUserId: String) {
-        AppEventPublisher.shared.send(
+        AppDIContainer.shared.appEventPublisher.send(
             .publicAuthorIdentityChanged(
                 previousUserId: previousUserId?.lowercased(),
                 currentUserId: currentUserId.lowercased()

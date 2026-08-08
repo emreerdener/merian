@@ -314,3 +314,28 @@ When an Explore thread has no messages, the only explanatory copy below the
 question is `This Field chat is private and visible only to you.` Technical
 model-context limitations are enforced by `/explore-post-chat` and belong in
 engineering/API documentation rather than additional empty-state disclaimers.
+
+## 21. Shared Feedback Surfaces: `ToastBanner` and `MilestoneToastBanner`
+
+**Location**: `Core/UI/Feedback/`
+
+`ToastBanner` owns only compact visual chrome and its close affordance. Callers
+own lightweight message/action state and mount it through an alignment-scoped
+overlay, so no transparent full-screen hit region covers the underlying UI.
+Auto-dismiss tasks are cancellable and compare message identity before clearing
+state; a timer from an old message cannot remove its replacement.
+
+`MilestoneToastBanner` is the active surface for the bounded FIFO
+`MilestoneToastPresenter`. Only the front item starts the 3.5-second timer,
+haptic, and VoiceOver announcement or receives hit testing. Up to two queued
+items render as decorative backplates. Field trip items show objective artwork,
+a goal-complete title, and outing name; banner taps request typed `AppRoute`
+destinations rather than presenting a sibling sheet. The ordinary system toast
+unmounts while the milestone stack is visible, preventing bottom Z-plane
+collisions.
+
+Progress for Scans batch export and non-biological bulk deletion uses a compact
+pass-through badge, not `ToastBanner` as domain state. The affected mutation
+controls are disabled for the operation snapshot while scrolling and unrelated
+navigation remain available. See the canonical
+[Event and Presentation Routing contract](../system-architecture/10-event-and-presentation-routing.md).

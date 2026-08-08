@@ -399,8 +399,9 @@ If a video freezes after a sheet closes, first check that every covering
 Explore-hosted sheet owns exactly one
 `.exploreVideoOverlayLifecycle(isPresented:reason:)` token, or that a UIKit
 presenter ends the token returned by `beginOverlay(reason:)`. Do not reintroduce
-global `NotificationCenter` playback notifications; nested sheet depth is what
-keeps dismissal order deterministic.
+unowned global playback observers. `MediaPlaybackObservation` may bridge
+framework-owned AVPlayer notifications only with exact player/item teardown and
+a generation fence; nested sheet depth remains the overlay-order authority.
 
 ---
 

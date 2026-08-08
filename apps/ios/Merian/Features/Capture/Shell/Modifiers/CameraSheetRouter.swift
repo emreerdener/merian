@@ -2,30 +2,38 @@ import SwiftUI
 
 struct CameraSheetRouter: ViewModifier {
     @Bindable var viewModel: CaptureWorkspaceViewModel
-    @State private var showNotificationPrompt = false
+    var onDismiss: () -> Void = {}
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
+    @Environment(\.modelContext) private var modelContext
     
     func body(content: Content) -> some View {
         content
-            .sheet(item: $viewModel.activeSheet, onDismiss: {
+            .sheet(item: Binding(
+                get: { viewModel.activePresentation },
+                set: { newValue in
+                    if newValue == nil {
+                        viewModel.dismissActivePresentation()
+                    } else {
+                        viewModel.activePresentation = newValue
+                    }
+                }
+            ), onDismiss: {
                 viewModel.handleRootSheetDismissed()
-            }) { sheet in
+                onDismiss()
+            }) { presentation in
                 Group {
-                    switch sheet {
+                    switch presentation.destination {
                     case .insight:
                         InsightSheetView(isPresented: Binding(
                             get: { viewModel.activeSheet == .insight },
                             set: { 
                                 if !$0 && viewModel.activeSheet == .insight { 
-                                    viewModel.activeSheet = nil 
                                     if !appSettings.hasPromptedForNotificationsPostIdent {
                                         appSettings.hasPromptedForNotificationsPostIdent = true
-                                        Task { @MainActor in
-                                            try? await Task.sleep(for: .milliseconds(500))
-                                            self.showNotificationPrompt = true
-                                        }
+                                        viewModel.queueNotificationPromptAfterInsightDismissal()
                                     }
+                                    viewModel.dismissActivePresentation()
                                 } 
                             }
                         ), inferenceEngine: inferenceEngine)
@@ -71,23 +79,36 @@ struct CameraSheetRouter: ViewModifier {
                             viewModel.pendingScansRecoveryContext = nil
                             viewModel.pendingScansShowsNonBiologicalCollection = false
                         }
+                    case .achievement:
+                        if let award = viewModel.pendingAchievementAward {
+                            AchievementDetailSheet(
+                                award: award,
+                                modelContainer: modelContext.container
+                            )
+                            .onDisappear {
+                                viewModel.pendingAchievementAward = nil
+                            }
+                        }
+                    case .notificationPrompt:
+                        PostIdentificationNotificationSheetView { granted in
+                            appSettings.isPushNotificationsEnabled = granted
+                            viewModel.dismissActivePresentation()
+                        }
+                        .presentationDetents([.height(320)])
+                        .presentationDragIndicator(.hidden)
                     }
                 }
-                .presentationDragIndicator(.hidden)
-            }
-            .sheet(isPresented: $showNotificationPrompt) {
-                PostIdentificationNotificationSheetView { granted in
-                    appSettings.isPushNotificationsEnabled = granted
-                    showNotificationPrompt = false
-                }
-                .presentationDetents([.height(320)])
+                .id(presentation.id)
                 .presentationDragIndicator(.hidden)
             }
     }
 }
 
 extension View {
-    func cameraSheetRouter(viewModel: CaptureWorkspaceViewModel) -> some View {
-        self.modifier(CameraSheetRouter(viewModel: viewModel))
+    func cameraSheetRouter(
+        viewModel: CaptureWorkspaceViewModel,
+        onDismiss: @escaping () -> Void = {}
+    ) -> some View {
+        self.modifier(CameraSheetRouter(viewModel: viewModel, onDismiss: onDismiss))
     }
 }

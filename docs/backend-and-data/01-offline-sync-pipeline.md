@@ -123,7 +123,7 @@ restarts monitoring without requiring a false offline edge. The observable
 therefore counts automatically runnable work, not every visible queue record.
 It reads through a fresh SwiftData context so a background-actor commit cannot
 remain hidden behind a cached main-context fault. Explicit retry clears the
-attention fence, posts `libraryDidUpdate`, and restarts monitoring through a
+attention fence, sends `.scanLibraryChanged`, and restarts monitoring through a
 state-bearing task identity. The legacy `externalImport` state is non-runnable,
 never offers an ingestion Retry action in either queue surface, and is rejected
 by the retry mutation before durable state can change.
@@ -1215,7 +1215,7 @@ the latch without waiting for a URLSession delegate callback.
 - **UUID Terminality**: `OfflineQueueManager` strictly awaits the resolved
   finalized database UUID from `dbActor.processAndCleanupOfflineScan()` (the
   "Terminal ID"). This effectively terminates the ephemeral offline properties
-  forever. Downstream notifications or `.appDidEnterActivePhaseWithScan` routes
+  forever. Downstream notifications or `AppRoute.scan` requests
   ALWAYS execute traversing the Terminal ID, guaranteeing user interactions bind
   directly to `.biological` persistence blocks instead of ghost records.
 - **Long-lived actors**: `BackgroundDatabaseActor` and `ProfileDatabaseActor`

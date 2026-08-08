@@ -1,4 +1,4 @@
-.PHONY: help xcodegen validate-ios-project validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
+.PHONY: help xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -7,10 +7,12 @@ help:
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
 	@printf "  iOS release: Product > Archive, then Organizer > Distribute App\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
+	@printf "  make validate-ios-event-routing       Enforce typed app events/routes and reviewed framework bridges\n"
 	@printf "  make validate-ios-privacy-manifest    Validate app privacy declarations and required API reasons\n"
 	@printf "  make validate-ios-transport-security  Enforce ATS defaults and HTTPS-only app origins\n"
 	@printf "  make validate-ios-versioning          Check iOS version/build source-of-truth rules\n"
 	@printf "  make test-ios-project-resources       Test adversarial generated-project phase fixtures\n"
+	@printf "  make test-ios-event-routing           Test adversarial event-routing guard fixtures\n"
 	@printf "  make test-ios-privacy-manifest        Test privacy manifest fail-closed validation\n"
 	@printf "  make test-ios-transport-security      Test ATS/HTTPS fail-closed validation\n"
 	@printf "  make test-ios-archive-validation      Test archived-app privacy and ATS enforcement\n"
@@ -36,6 +38,9 @@ xcodegen:
 validate-ios-project:
 	bash scripts/check-ios-project-resources.sh
 
+validate-ios-event-routing:
+	bash scripts/check-ios-event-routing.sh
+
 validate-ios-privacy-manifest:
 	bash scripts/validate-ios-privacy-manifest.sh
 
@@ -49,6 +54,9 @@ validate-ios-versioning:
 
 test-ios-project-resources:
 	bash scripts/test-check-ios-project-resources.sh
+
+test-ios-event-routing:
+	bash scripts/test-check-ios-event-routing.sh
 
 test-ios-privacy-manifest:
 	bash scripts/test-validate-ios-privacy-manifest.sh
@@ -70,6 +78,7 @@ test-ios-xcode-release-workflow:
 
 test-ios-ci-tooling:
 	bash scripts/test-check-ios-project-resources.sh
+	bash scripts/test-check-ios-event-routing.sh
 	bash scripts/test-validate-ios-privacy-manifest.sh
 	bash scripts/test-validate-ios-transport-security.sh
 	bash scripts/test-validate-ios-archive.sh

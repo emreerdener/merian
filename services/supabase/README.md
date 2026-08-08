@@ -1318,6 +1318,18 @@ end with an alphanumeric character, cannot contain `__`, and cannot be reserved.
 Fix a stale fixture rather than weakening the Auth FK or production identity
 constraints.
 
+The current reserved-name groups are mirrored in PostgreSQL, the shared
+`update-public-username/validation.ts` Edge module, and the iOS edit sheet.
+`_tests/publicUsernamePolicyMigrationContract.test.ts` parses all three sources
+and also locks stable profile-repair order and historical mention preservation.
+`tests/public_username_policy_security.sql` verifies the final immutable
+function, validated profile/snapshot constraints, allowed community handles,
+and rejected profile write against a fully migrated catalog. A
+`mention_username` fixture may intentionally contain a now-reserved historical
+token only when the corresponding plain-text comment contains that token; the
+durable `mentioned_user_id` remains the routing identity. Do not make mention
+snapshots policy-aware or rewrite them independently of comment text.
+
 `users.entitlement_version` advances whenever tier, timed expiry, or the
 protected complimentary mutation epoch changes; the rollout mode version is
 folded into returned snapshots so cutover supersedes legacy responses.

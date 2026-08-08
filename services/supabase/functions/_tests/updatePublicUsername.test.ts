@@ -16,6 +16,15 @@ Deno.test("update-public-username - validates username policy", () => {
     "That username is reserved.",
   );
   assertEquals(
+    publicUsernameValidationError("security"),
+    "That username is reserved.",
+  );
+  assertEquals(
+    publicUsernameValidationError("naturebook_support"),
+    "That username is reserved.",
+  );
+  assertEquals(publicUsernameValidationError("naturebook_fan"), null);
+  assertEquals(
     publicUsernameValidationError("72_stone"),
     "Username must start with a letter.",
   );

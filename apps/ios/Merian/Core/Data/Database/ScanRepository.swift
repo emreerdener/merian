@@ -164,7 +164,7 @@ final class ScanRepository {
                 MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
             Task { @MainActor in
-                ScanLibraryEvents.postLibraryDidUpdate()
+                AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             }
 
         } catch {
@@ -202,7 +202,7 @@ final class ScanRepository {
             MerianLog.data.debug(
                 "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
             )
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             return true
         } catch {
             MerianLog.data.error(
@@ -241,7 +241,7 @@ final class ScanRepository {
             guard result.deletedRecordCount > 0 else { return }
 
             await FileIOActor.shared.deleteFiles(at: result.localMediaPaths)
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             await offlineQueue.syncPendingDeletions()
             MerianLog.data.debug(
                 "purgeExpiredNonBiologicalScans: purged \(result.deletedRecordCount, privacy: .public) records and \(result.localMediaPaths.count, privacy: .public) local media paths"
@@ -308,7 +308,7 @@ final class ScanRepository {
             await offlineQueue.syncPendingDeletions()
         }
         
-        ScanLibraryEvents.postLibraryDidUpdate()
+        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
     }
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
@@ -321,7 +321,7 @@ final class ScanRepository {
             try modelContext.delete(model: PendingCloudDeletionTask.self)
             try modelContext.save()
             ExploreShareStateStore.clearAll()
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
         } catch {
             modelContext.rollback()

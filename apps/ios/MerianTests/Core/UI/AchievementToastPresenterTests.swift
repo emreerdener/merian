@@ -57,6 +57,19 @@ struct AchievementToastPresenterTests {
         #expect(MilestoneToastPresenter.shared.activeItem == nil)
     }
 
+    @Test func visualMilestoneQueueIsBoundedWhileHostIsUnavailable() {
+        let presenter = MilestoneToastPresenter(maximumPresentedItemCount: 2)
+
+        presenter.enqueueAchievementUnlock(completedAward(.domesticCat))
+        presenter.enqueueAchievementUnlock(completedAward(.domesticDog))
+        presenter.enqueueAchievementUnlock(completedAward(.nocturnal))
+
+        #expect(presenter.presentedItems.count == 2)
+        #expect(presenter.activeItem?.award?.type == .domesticCat)
+        presenter.dismissActiveItem(id: presenter.activeItem?.id)
+        #expect(presenter.activeItem?.award?.type == .domesticDog)
+    }
+
     @Test func mixedMilestoneQueuePresentsFIFO() {
         MilestoneToastPresenter.shared.previewAchievementUnlock(completedAward(.domesticCat))
         MilestoneToastPresenter.shared.previewNewToMerianMilestone()

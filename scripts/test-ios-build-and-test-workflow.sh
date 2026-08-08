@@ -3,9 +3,12 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workflow="$repo_root/.github/workflows/ios-build-and-test.yml"
+project_guardrails_workflow="$repo_root/.github/workflows/ios-project-guardrails.yml"
 startup_workflow="$repo_root/.github/workflows/ios-startup-safety.yml"
 source_membership_check="$repo_root/scripts/check-ios-project-source-membership.sh"
 source_membership_test="$repo_root/scripts/test-ios-project-source-membership.sh"
+event_routing_check="$repo_root/scripts/check-ios-event-routing.sh"
+event_routing_test="$repo_root/scripts/test-check-ios-event-routing.sh"
 critical_results_check="$repo_root/scripts/validate-ios-critical-test-results.sh"
 focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
@@ -214,11 +217,17 @@ assert_no_runner_context_in_job_env() {
 }
 
 [[ -f "$workflow" ]] || fail "Missing iOS build workflow: $workflow"
+[[ -f "$project_guardrails_workflow" ]] \
+  || fail "Missing iOS project guardrails workflow: $project_guardrails_workflow"
 [[ -f "$startup_workflow" ]] || fail "Missing startup workflow: $startup_workflow"
 [[ -f "$source_membership_check" ]] \
   || fail "Missing generated-project source membership check: $source_membership_check"
 [[ -f "$source_membership_test" ]] \
   || fail "Missing generated-project source membership test: $source_membership_test"
+[[ -f "$event_routing_check" ]] \
+  || fail "Missing event-routing source guardrail: $event_routing_check"
+[[ -f "$event_routing_test" ]] \
+  || fail "Missing event-routing guardrail tests: $event_routing_test"
 [[ -f "$critical_results_check" ]] \
   || fail "Missing critical iOS test-result validator: $critical_results_check"
 [[ -f "$focused_results_check" ]] \
@@ -243,6 +252,27 @@ assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number 
 assert_contains "macos-26"
 assert_contains "/Applications/Xcode_26.6.app/Contents/Developer"
 assert_contains "bash scripts/ci-detect-ios-build-source-changes.sh"
+assert_count 1 "make validate-ios-event-routing"
+assert_file_count \
+  "$project_guardrails_workflow" \
+  1 \
+  "run: make validate-ios-event-routing"
+assert_file_count \
+  "$project_guardrails_workflow" \
+  2 \
+  '"scripts/check-ios-event-routing.sh"'
+assert_file_count \
+  "$project_guardrails_workflow" \
+  2 \
+  '"scripts/test-check-ios-event-routing.sh"'
+assert_file_count \
+  "$project_guardrails_workflow" \
+  2 \
+  '"scripts/config/ios-event-routing-singleton-allowlist.txt"'
+assert_file_before \
+  "$project_guardrails_workflow" \
+  "run: make validate-ios-event-routing" \
+  "run: make test-ios-ci-tooling"
 assert_count 1 "bash scripts/check-ios-project-source-membership.sh"
 assert_count 1 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"
@@ -463,15 +493,15 @@ assert_file_contains \
 assert_file_count \
   "$queued_content_source" \
   1 \
-  "ScanLibraryEvents.postLibraryDidUpdate()"
+  "appEventPublisher.send(.scanLibraryChanged)"
 assert_file_before \
   "$queued_content_source" \
   "let didPromoteQueuedScan = viewModel.promoteQueuedScanIfLocalRecordExists(" \
-  "ScanLibraryEvents.postLibraryDidUpdate()"
+  "appEventPublisher.send(.scanLibraryChanged)"
 assert_file_before \
   "$queued_content_source" \
   "guard didPromoteQueuedScan else {" \
-  "ScanLibraryEvents.postLibraryDidUpdate()"
+  "appEventPublisher.send(.scanLibraryChanged)"
 assert_file_contains \
   "$insight_records_source" \
   "func bindQueuedPresentationPreferringCompletedRecord("

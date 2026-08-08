@@ -122,9 +122,11 @@ ellipsis menus retain the same action. The pill owns its hit-test region above
 feed navigation and detail spectrogram-seeking gestures; the rest of the media
 keeps the existing navigation, seeking, and center-playback behavior.
 `ExploreAudioBoostPreferenceStore` remembers enabled post IDs locally for 180
-days, capped at 500 entries, so each post has an independent setting. An
-in-process preference notification keeps visible feed and detail players
-synchronized. Preferences are device-only and are never written to Supabase.
+days, capped at 500 entries, so each post has an independent setting. The
+loss-tolerant `AppEvent.exploreAudioBoostPreferenceChanged` invalidation keeps
+visible feed and detail players synchronized; each consumer still reads the
+persisted UserDefaults preference as authority. Preferences are device-only and
+are never written to Supabase.
 
 The shared `AudioBoostProcessor` in `Core/Media` creates a bounded temporary
 enhanced WAV using RMS/peak analysis, at most 18 dB of adaptive gain, gentle
@@ -153,6 +155,15 @@ succeeds.
 Analytics use `ExploreAudioBoostChanged` with an action, surface, and optional
 coarse gain band only. Never add post IDs, media URLs, filenames, transcripts,
 or captured audio to these events.
+
+## Player observer ownership
+
+Every `ExplorePublicMediaView` retains one `MediaPlaybackObservation`. Player
+replacement removes KVO, AVPlayerItem notification, and periodic-time tokens
+from the exact old player before the new player is observed. Generation checks
+discard callbacks already queued for a replaced player, and teardown detaches
+the observer explicitly. Do not add a parallel NotificationCenter or KVO array
+inside feed/detail views.
 
 ## Overlay Ownership
 

@@ -46,6 +46,16 @@ as their permanent engineering identity.
   [`iOS transport security contract`](./development-guides/17-ios-transport-security.md),
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#routine-testflight-upload).
+- **Typed iOS event and presentation routing (2026-08-08)**: Cross-module
+  reload hints now use a DI-owned, main-actor `AppEventPublisher`; root
+  navigation uses a bounded `AppRouteCoordinator` with stable identity,
+  priority/FIFO order, expiry, account/session fences, and exact outcomes.
+  Capture serializes all routed destinations through one item-based sheet host
+  and defers behind feature-local covers until their real dismissal callback.
+  Apple framework notifications remain in seven exact allowlisted files, and
+  AVPlayer observer ownership is generation-fenced. CI rejects the deprecated
+  application-defined NotificationCenter and bus-singleton patterns. See the
+  [canonical event and presentation contract](./system-architecture/10-event-and-presentation-routing.md).
 - **Supabase candidate assurance**: Relevant pull requests, manual candidate
   refs, and the production deployment workflow use **Supabase Candidate
   Validation** to verify the exact clean SHA with pinned Deno/Supabase tooling,
@@ -407,6 +417,10 @@ as their permanent engineering identity.
 - **[`/system-architecture/09-ios-release-publisher.md`](./system-architecture/09-ios-release-publisher.md)**
   — Xcode Organizer distribution decision, CI boundary, build-number ownership,
   automatic-signing model, source identity, and promotion invariants.
+- **[`/system-architecture/10-event-and-presentation-routing.md`](./system-architecture/10-event-and-presentation-routing.md)**
+  — Canonical typed event/route matrices, queue and session semantics,
+  framework-notification allowlist, single-sheet host, and nonblocking feedback
+  contract.
 
 ### Backend & Data
 
@@ -582,13 +596,15 @@ as their permanent engineering identity.
   Challenge suggestion boundaries.
 - **[`/features-and-hardware/21-public-usernames.md`](./features-and-hardware/21-public-usernames.md)**
   — Canonical public username handles, edit UX, Explore display-name behavior,
-  Edge update contract, and future mention boundary.
+  protected-name policy, Edge update/check contracts, deterministic repair, and
+  implemented mention boundary.
 - **[`/features-and-hardware/22-geoprivacy.md`](./features-and-hardware/22-geoprivacy.md)**
   — Geoprivacy modes, backend projection triggers, local UI privacy gates,
   public Explore/export boundaries, and verification checklist.
 - **[`/features-and-hardware/23-explore-comment-mentions.md`](./features-and-hardware/23-explore-comment-mentions.md)**
   — Explore comment `@username` mention eligibility, suggestion endpoint,
-  notification behavior, iOS composer/link rendering, and verification.
+  historical token snapshots, notification behavior, iOS composer/link
+  rendering, and verification.
 - **[`/features-and-hardware/24-explore-bottom-menu.md`](./features-and-hardware/24-explore-bottom-menu.md)**
   — Explore launch entry points, exactly-three-item root navigation,
   Observations Feed/Map, Field trips, Identify Requests/Index, filtered request

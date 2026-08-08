@@ -323,11 +323,14 @@ Tracks the global state of the anonymous/authenticated user.
   labels such as `Emre E.`. Added in migration
   `20260425000000_add_explore_posts.sql`.
 - `public_username` (TEXT, NOT NULL): Canonical public handle stored without
-  `@`, unique across users, and intended for profile handles and future comment
-  mentions. Validation requires lowercase ASCII letters, numbers, and
+  `@`, unique across users, and used for profile handles and comment mentions.
+  Validation requires lowercase ASCII letters, numbers, and
   underscores; 3 to 24 characters; a leading letter; a trailing letter or
-  number; no repeated underscores; and no reserved system names. Added in
-  migration `20260526090000_add_public_usernames.sql`.
+  number; no repeated underscores; and no protected brand namespace,
+  official/system role, or exact brand-role combination in either order. The
+  policy is exact rather than prefix-based and carries no authorization
+  semantics. Added in migration `20260526090000_add_public_usernames.sql` and
+  expanded in `20260808144244_expand_reserved_public_username_policy.sql`.
 - `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore
   author label. CHECK-constrained to `alias` | `derived_name` | `display_name`.
   Added in migration `20260425000000_add_explore_posts.sql`.
@@ -396,7 +399,7 @@ pictures sticky across OAuth metadata refreshes:
 `resolve_public_avatar_url(custom_avatar_url, raw_meta)` returns the custom
 avatar first and only then falls back to provider metadata. `public_author_name`
 remains the display label; use `public_username` as the stable handle for
-profile surfaces and future mentions.
+profile surfaces and comment mentions.
 
 `refresh_public_author_identity(uuid)` is an idempotent backend maintenance
 function: once name, source, and avatar are converged, it performs no `UPDATE`.
@@ -2843,6 +2846,43 @@ names, usernames, and avatars are not copied into `explore_post_comments`;
 `get_explore_comments` joins `public.users` at read time and returns
 `public_author_name`, `public_username`, and `public_avatar_url` as
 `author_name`, `author_username`, and `author_avatar_url`.
+
+### `explore_comment_mentions`
+
+Durable identity edges for resolved `@username` tokens in Explore comment and
+reply bodies. Added in migration
+`20260615100000_add_explore_comment_mentions.sql`; the snapshot constraint is
+separated from the current profile policy by
+`20260808144244_expand_reserved_public_username_policy.sql`.
+
+- `comment_id` (UUID FK → `explore_post_comments.id`, CASCADE DELETE): The
+  immutable plain-text body containing the token.
+- `mentioned_user_id` (UUID FK → `users.id`, CASCADE DELETE): Durable profile
+  and notification target.
+- `mention_username` (TEXT): Historical lowercase token copied from the
+  mentioned user's valid current handle when the comment is created. It remains
+  unchanged if that user later renames their handle or the token later becomes
+  reserved.
+- `created_at` (TIMESTAMPTZ): Resolution time.
+- Composite primary key: `(comment_id, mentioned_user_id)` deduplicates repeated
+  tokens for the same user in one comment.
+
+`explore_comment_mentions_username_valid_check` is intentionally structural:
+the token must be 3–24 lowercase ASCII username characters, start with a letter,
+end with an alphanumeric character, and contain no repeated underscore. It does
+not call `is_valid_public_username(...)`, because that function includes the
+current reservation list and PostgreSQL does not rewrite the immutable comment
+body when policy changes. Current profile handles remain policy-aware through
+`users_public_username_valid_check`, so the resolver cannot create a new mention
+for a currently reserved handle.
+
+The table has RLS enabled and its direct SELECT policy is deny-all. Comment
+creation resolves eligible current handles through
+`insert_explore_comment_mentions_from_body(...)`; comment/reply projections
+return `mention_username` for span matching, `mentioned_user_id` for routing,
+and the current public display name/avatar from `users`. A username-policy
+migration must never rewrite only `mention_username`, because that would
+desynchronize tappable metadata from the plain-text `@token` in `body`.
 
 ### `explore_comment_reactions`
 

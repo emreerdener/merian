@@ -169,9 +169,9 @@ struct FieldTripsView: View {
         .onChange(of: selectedSection) { _, _ in
             HapticManager.shared.triggerSelectionPulse()
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             switch event {
-            case .fieldTripProgressUpdated:
+            case .fieldTripProgressInvalidated:
                 Task {
                     await viewModel.refresh(userRegion: userRegion)
                 }
@@ -179,7 +179,7 @@ struct FieldTripsView: View {
                 Task {
                     await viewModel.refresh(userRegion: userRegion)
                 }
-            case .fieldTripChallengeProgressUpdated:
+            case .fieldTripChallengeProgressInvalidated:
                 Task {
                     await viewModel.refresh(userRegion: userRegion)
                 }
@@ -666,10 +666,10 @@ struct FieldTripTemplateDetailView: View {
             .task {
                 await load(force: false)
             }
-            .onReceive(AppEventPublisher.shared.publisher) { event in
-                guard case .fieldTripProgressUpdated(let updates) = event,
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+                guard case .fieldTripProgressInvalidated(let templateIds) = event,
                       let resolvedTemplateId = template?.templateId,
-                      updates.contains(where: { $0.templateId == resolvedTemplateId }) else {
+                      templateIds.contains(resolvedTemplateId) else {
                     return
                 }
                 Task { await load(force: true) }
@@ -989,7 +989,10 @@ struct FieldTripTemplateDetailView: View {
                 systemImage: "lock.fill",
                 isEnabled: !isLifecycleMutating
             ) {
-                AppEventPublisher.shared.send(.triggerPaywall)
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .proAccessRequired,
+                    source: .internalUserAction
+                )
             }
         case .start:
             FieldTripDetailPrimaryActionBar(
@@ -1066,7 +1069,10 @@ struct FieldTripTemplateDetailView: View {
             intensity: 0.45,
             source: "fieldTrips.outing.goScan"
         )
-        AppEventPublisher.shared.send(.requestOpenScanner)
+        AppDIContainer.shared.appRouteCoordinator.request(
+            .openScanner,
+            source: .internalUserAction
+        )
     }
 
     private func load(force: Bool) async {
@@ -1106,7 +1112,7 @@ struct FieldTripTemplateDetailView: View {
             if wasStopped {
                 toastMessage = "Field trip resumed."
             }
-            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+            AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
@@ -1126,7 +1132,7 @@ struct FieldTripTemplateDetailView: View {
             )
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Field trip stopped. Your progress is saved."
-            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+            AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
@@ -1147,7 +1153,7 @@ struct FieldTripTemplateDetailView: View {
             )
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Field trip reset."
-            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+            AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)
@@ -1230,9 +1236,9 @@ struct FieldTripChallengeDetailView: View {
             .refreshable {
                 await viewModel.refresh()
             }
-            .onReceive(AppEventPublisher.shared.publisher) { event in
-                guard case .fieldTripChallengeProgressUpdated(let updates) = event,
-                      updates.contains(where: { $0.challengeId == challengeId }) else {
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+                guard case .fieldTripChallengeProgressInvalidated(let challengeIds) = event,
+                      challengeIds.contains(challengeId) else {
                     return
                 }
                 Task { await viewModel.refresh() }
@@ -1403,7 +1409,10 @@ struct FieldTripChallengeDetailView: View {
                 title: "Unlock with Pro",
                 systemImage: "lock.fill"
             ) {
-                AppEventPublisher.shared.send(.triggerPaywall)
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .proAccessRequired,
+                    source: .internalUserAction
+                )
             }
         } else if let participation = challenge.viewerParticipation, participation.isComplete {
             FieldTripDetailPrimaryActionBar(
@@ -1450,7 +1459,10 @@ struct FieldTripChallengeDetailView: View {
             intensity: 0.45,
             source: "fieldTrips.event.goScan"
         )
-        AppEventPublisher.shared.send(.requestOpenScanner)
+        AppDIContainer.shared.appRouteCoordinator.request(
+            .openScanner,
+            source: .internalUserAction
+        )
     }
 }
 

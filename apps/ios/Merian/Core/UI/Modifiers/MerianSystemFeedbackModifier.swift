@@ -1,8 +1,6 @@
-import SwiftData
 import SwiftUI
 
 struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
-    @Environment(\.modelContext) private var modelContext
     @Binding var toastMessage: String?
     @Binding var toastActionTitle: String?
     @Binding var toastAction: (() -> Void)?
@@ -10,81 +8,84 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     var showsAchievementToasts: Bool
 
     @State private var milestoneToastPresenter = MilestoneToastPresenter.shared
-    @State private var selectedAchievementToastAward: AwardPayload?
 
     func body(content: Content) -> some SwiftUI.View {
         content
-            .overlay {
-                if let message = toastMessage {
+            .overlay(alignment: toastAlignment) {
+                if let message = toastMessage,
+                   !showsAchievementToasts || milestoneToastPresenter.presentedItems.isEmpty {
                     let display = SystemToastDisplay(message: message)
 
-                    VStack {
-                        if toastAlignment == .bottom { Spacer() }
-
-                        ToastBanner(onDismiss: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                toastMessage = nil
-                                toastActionTitle = nil
-                                toastAction = nil
+                    ToastBanner(onDismiss: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            toastMessage = nil
+                            toastActionTitle = nil
+                            toastAction = nil
+                        }
+                    }) {
+                        HStack(alignment: .center, spacing: 12) {
+                            if display.isError {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 22, height: 22)
+                                    .accessibilityHidden(true)
                             }
-                        }) {
-                            HStack(alignment: .center, spacing: 12) {
-                                if display.isError {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(.orange)
-                                        .frame(width: 22, height: 22)
-                                        .accessibilityHidden(true)
-                                }
 
-                                VStack(alignment: .leading, spacing: display.body == nil ? 0 : 3) {
-                                    Text(display.title)
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.primary)
+                            VStack(alignment: .leading, spacing: display.body == nil ? 0 : 3) {
+                                Text(display.title)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                if let body = display.body {
+                                    Text(body)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                         .fixedSize(horizontal: false, vertical: true)
-
-                                    if let body = display.body {
-                                        Text(body)
-                                            .font(.caption)
-                                            .fontWeight(.medium)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(2)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-
-                                if let actionTitle = toastActionTitle, let action = toastAction {
-                                    Spacer(minLength: 0)
-
-                                    Button(action: {
-                                        action()
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            toastMessage = nil
-                                            toastActionTitle = nil
-                                            toastAction = nil
-                                        }
-                                    }) {
-                                        Text(actionTitle)
-                                            .font(.subheadline)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(.blue)
-                                    }
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .padding(toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom, toastAlignment == .top ? 16 : 60)
 
-                        if toastAlignment == .top { Spacer() }
+                            if let actionTitle = toastActionTitle, let action = toastAction {
+                                Spacer(minLength: 0)
+
+                                Button(action: {
+                                    action()
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        toastMessage = nil
+                                        toastActionTitle = nil
+                                        toastAction = nil
+                                    }
+                                }) {
+                                    Text(actionTitle)
+                                        .font(.subheadline)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.move(edge: toastAlignment == .top ? Edge.top : Edge.bottom).combined(with: .opacity))
+                    .padding(
+                        toastAlignment == .top ? Edge.Set.top : Edge.Set.bottom,
+                        toastAlignment == .top ? 16 : 60
+                    )
+                    .transition(
+                        .move(edge: toastAlignment == .top ? Edge.top : Edge.bottom)
+                            .combined(with: .opacity)
+                    )
                     .zIndex(100)
                     .task(id: message) {
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
-                        guard !Task.isCancelled else { return }
+                        do {
+                            try await Task.sleep(for: .seconds(3))
+                        } catch {
+                            return
+                        }
+                        guard !Task.isCancelled, toastMessage == message else { return }
                         withAnimation(.easeInOut(duration: 0.2)) {
                             toastMessage = nil
                             toastActionTitle = nil
@@ -93,6 +94,11 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                     }
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: toastMessage)
+            .animation(
+                .easeInOut(duration: 0.2),
+                value: milestoneToastPresenter.presentedItems.map(\.id)
+            )
             .overlay(alignment: .bottom) {
                 if showsAchievementToasts, !milestoneToastPresenter.presentedItems.isEmpty {
                     MilestoneToastStack(
@@ -101,19 +107,22 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
                             milestoneToastPresenter.dismissActiveItem(id: id)
                         },
                         onOpenAchievement: { award in
-                            selectedAchievementToastAward = award
+                            AppDIContainer.shared.appRouteCoordinator.request(
+                                .achievement(award),
+                                source: .internalUserAction
+                            )
                         },
                         onOpenFieldTrip: { destination in
-                            AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
+                            AppDIContainer.shared.appRouteCoordinator.request(
+                                .captureGoal(destination),
+                                source: .internalUserAction
+                            )
                         }
                     )
                     .padding(.bottom, 24)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(110)
                 }
-            }
-            .sheet(item: $selectedAchievementToastAward) { award in
-                AchievementDetailSheet(award: award, modelContainer: modelContext.container)
             }
     }
 }

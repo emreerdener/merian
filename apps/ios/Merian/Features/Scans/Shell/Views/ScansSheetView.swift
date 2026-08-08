@@ -91,9 +91,6 @@ struct ScansSheetView: View {
     // MARK: - Core View Builder
     var body: some View {
         navigationStack
-        .onReceive(AppEventPublisher.shared.publisher) { event in
-            handleAppEvent(event)
-        }
         .onAppear {
             handleAppear()
         }
@@ -123,7 +120,8 @@ struct ScansSheetView: View {
         .onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
         }
-        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .scanLibraryChanged = event else { return }
             handleLibraryDidUpdate()
         }
         .task(id: queuedRefreshTaskID) { @MainActor in
@@ -256,16 +254,6 @@ struct ScansSheetView: View {
         )
     }
 
-    private func handleAppEvent(_ event: AppEvent) {
-        if case .requestOpenNonBiologicalScansIntent = event {
-            activeTab = .collections
-            // Dispatch async to allow the tab change to render before pushing the navigation.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isNonBiologicalScansPresented = true
-            }
-        }
-    }
-
     private func hideSmartCollection(_ snapshot: SmartCollectionSnapshot) {
         hiddenSmartCollectionIDs = SmartCollectionPreferences.hide(id: snapshot.id)
     }
@@ -343,11 +331,13 @@ struct ScansSheetView: View {
     }
 
     private func shareSelectedScans() {
+        guard !searchManager.isDownloading else { return }
         let selectedScans = selectedLocalRecordsFromStore()
         Task { await searchManager.batchShare(scans: selectedScans) }
     }
 
     private func downloadSelectedScans() {
+        guard !searchManager.isDownloading else { return }
         let selectedScans = selectedLocalRecordsFromStore()
         Task { await searchManager.batchSaveMedia(scans: selectedScans) }
     }
@@ -767,6 +757,7 @@ struct ScansSheetView: View {
     }
 
     private func handleBatchDelete() {
+        guard !searchManager.isDownloading else { return }
         let itemsToDelete = selectedLocalRecordsFromStore()
         for item in itemsToDelete {
             AppDIContainer.shared.scanRepository.eradicateScan(record: item, modelContext: modelContext)
@@ -822,6 +813,7 @@ private struct LibraryTabContent: View {
             isSelected: { scan in searchManager.selectedScans.contains(scan.id) },
             onSelect: { scan in
                 if searchManager.isSelectionMode {
+                    guard !searchManager.isDownloading else { return }
                     let didToggle = searchManager.toggleSelection(for: scan.id)
                     if !didToggle {
                         HapticManager.shared.triggerErrorThump()
@@ -834,10 +826,12 @@ private struct LibraryTabContent: View {
                 }
             },
             onDelete: { scan in
+                guard !searchManager.isDownloading else { return }
                 scanToDelete = scan.id
                 showDeleteConfirmation = true
             },
             onShareToExplore: { scan in
+                guard !searchManager.isDownloading else { return }
                 Task {
                     await searchManager.shareToExplore(
                         scanId: scan.id,
@@ -891,26 +885,28 @@ private struct ScansSheetToolbar: ToolbarContent {
         if searchManager.isSelectionMode {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") { searchManager.exitSelectionMode() }
+                    .disabled(searchManager.isDownloading)
             }
             ToolbarItem(placement: .principal) {
                 Text("\(searchManager.selectedScans.count) Selected").font(.headline)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Select All") { searchManager.selectAll() }
+                    .disabled(searchManager.isDownloading)
             }
             ToolbarItemGroup(placement: .bottomBar) {
                 Button(action: onShare) { Image(systemName: "square.and.arrow.up") }
-                .disabled(searchManager.selectedScans.isEmpty)
+                .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
                 Spacer()
                 Button(action: onDownload) {
                     Image(systemName: "arrow.down.circle")
                     Text("Download").fontWeight(.semibold)
                 }
-                .disabled(searchManager.selectedScans.isEmpty)
+                .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
                 Spacer()
                 Button(role: .destructive, action: onDelete) { Image(systemName: "trash") }
                 .tint(searchManager.selectedScans.isEmpty ? .gray : .red)
-                .disabled(searchManager.selectedScans.isEmpty)
+                .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
             }
         } else {
             ToolbarItem(placement: .topBarLeading) {

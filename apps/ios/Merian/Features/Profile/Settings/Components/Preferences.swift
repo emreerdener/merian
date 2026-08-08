@@ -198,7 +198,10 @@ struct Preferences: View {
             Button {
                 let engine = AppDIContainer.shared.inferenceEngine
                 engine.simulateAnalyzing()
-                NotificationCenter.default.post(name: .devPreviewAnalyzing, object: nil)
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .debugPreviewAnalyzing,
+                    source: .debug
+                )
             } label: {
                 Label("Preview analyzing state", systemImage: "play.circle")
             }
@@ -545,9 +548,6 @@ private struct FeatureFlagDeveloperControls: View {
     }
 }
 
-extension Notification.Name {
-    static let devPreviewAnalyzing = Notification.Name("dev.merian.previewAnalyzing")
-}
 #endif
 
 // MARK: - Pro Settings
@@ -737,6 +737,7 @@ struct SettingsToggleRow: View {
 
 struct CameraSettingsView: View {
     @Environment(AppSettings.self) private var appSettings
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var showPermissionPrompt = false
     @State private var addOnlyAuthStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
@@ -820,7 +821,8 @@ struct CameraSettingsView: View {
             }
             .presentationDetents([.height(350)])
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
             addOnlyAuthStatus = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         }
     }

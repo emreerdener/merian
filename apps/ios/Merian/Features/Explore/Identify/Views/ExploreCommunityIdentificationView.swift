@@ -213,11 +213,8 @@ struct ExploreCommunityIdentificationView: View {
         .onChange(of: requestFilter) { _, _ in
             Task { await reloadDashboard(clearExisting: true) }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { notification in
-            guard let requestId = notification.object as? String else {
-                Task { await reloadDashboard(clearExisting: false) }
-                return
-            }
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case let .communityIdentificationRequestChanged(requestId) = event else { return }
             let isVisible = requestItems.contains { $0.requestId == requestId }
                 || activityItems.contains { $0.requestId == requestId }
             guard isVisible else { return }
@@ -622,11 +619,8 @@ struct ExploreCommunityRequestsFeedView: View {
         .onChange(of: requestFilter) { _, _ in
             Task { await reload() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { notification in
-            guard let requestId = notification.object as? String else {
-                Task { await reload() }
-                return
-            }
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case let .communityIdentificationRequestChanged(requestId) = event else { return }
             guard items.contains(where: { $0.requestId == requestId }) else { return }
             Task { await reload() }
         }
@@ -854,7 +848,8 @@ struct ExploreCommunityActivityFeedView: View {
         .onChange(of: requestFilter) { _, _ in
             Task { await reload() }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .communityIdentificationRequestDidChange)) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .communityIdentificationRequestChanged = event else { return }
             Task { await reload() }
         }
     }
@@ -1759,15 +1754,10 @@ struct ExploreCommunityIdentificationDetailView: View {
     }
 
     private func notifyCommunityIdentificationRequestChanged() {
-        NotificationCenter.default.post(
-            name: .communityIdentificationRequestDidChange,
-            object: requestId
+        AppDIContainer.shared.appEventPublisher.send(
+            .communityIdentificationRequestChanged(requestId: requestId)
         )
     }
-}
-
-private extension Notification.Name {
-    static let communityIdentificationRequestDidChange = Notification.Name("MerianCommunityIdentificationRequestDidChange")
 }
 
 private struct CommunityDetailHero: View {

@@ -1487,12 +1487,12 @@ the already-open queued sheet.
 The remaining failure was a late-write SwiftData visibility boundary inside the
 Debug fixture. The coordinator saved the completed record through the
 container's main context after the queued Insight had bound its environment
-`ModelContext`, then relied on `ScanLibraryEvents` and a later fetch to merge
+`ModelContext`, then relied on `.scanLibraryChanged` and a later fetch to merge
 that insert into the open context. The context-bound follow-up passes the exact
 environment context into the fixture transaction and, after the atomic save,
 immediately invokes the existing production
 `promoteQueuedScanIfLocalRecordExists` handoff with that same context. The
-library event remains for parent-library refresh; it is no longer the
+typed library invalidation remains for parent-library refresh; it is no longer the
 test-control mechanism. Later diagnostics showed that the direct promotion must
 finish before that synchronous event is emitted, and that a persisted same-ID
 completion must outrank a retained queued navigation snapshot on every rebind.

@@ -300,7 +300,7 @@ final class CameraTargetFPSDebouncer {
         // the camera permission dialog before the user reaches the camera screen.
 
         NotificationCenter.default.publisher(for: AVCaptureDevice.subjectAreaDidChangeNotification)
-            .sink { [weak self] _ in self?.resetFocusAndExposure() }
+            .sinkOnMainActor { [weak self] _ in self?.resetFocusAndExposure() }
             .store(in: &cancellables)
 
         // AVCaptureDevice.RotationCoordinator automatically handles physical device rotation dynamically.

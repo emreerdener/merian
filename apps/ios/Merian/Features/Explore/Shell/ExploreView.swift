@@ -41,6 +41,7 @@ private enum ExploreDiscoveryMode: Hashable {
 }
 
 struct ExploreView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
@@ -457,15 +458,14 @@ struct ExploreView: View {
                 }
             )
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
             Task { await viewModel.refreshUnreadNotificationCount() }
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             switch event {
             case .explorePostNeedsRefresh(let postId):
                 Task { await viewModel.refreshPost(postId: postId) }
-            case .openCommunityIdentificationRequest(let requestId):
-                openCommunityIdentificationRequest(requestId)
             case .publicAuthorIdentityChanged:
                 Task {
                     await viewModel.refreshFeed()
@@ -795,7 +795,10 @@ struct ExploreView: View {
     private func openNotification(_ notification: ExploreNotification) async {
         if notification.type == .mediaMissing {
             viewModel.dismissNotifications()
-            AppEventPublisher.shared.send(.requestOpenScansLibraryIntent)
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .scansLibrary,
+                source: .internalUserAction
+            )
             return
         }
 

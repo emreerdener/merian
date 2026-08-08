@@ -1,80 +1,27 @@
 import Combine
 import Foundation
 
-enum RefinementEntryPoint: Sendable, Equatable {
-    case standard
-    case nonBiologicalCorrection
-}
-
-struct ExploreMediaRecoveryRouteContext: Sendable, Equatable {
-    let ownerUserId: String
-}
-
-/// Strongly-typed system events replacing legacy `NotificationCenter` broadcasts.
-enum AppEvent {
-    /// Dispatched when the user exceeds their scan quota and the paywall must be presented.
-    case triggerPaywall
-    
-    /// Dispatched via push notification tap to deep-link the user directly to a newly uploaded model.
-    case appDidEnterActivePhaseWithScan(scanId: String)
-    /// Dispatched via push notification tap to deep-link the user directly to an Explore post.
-    case appDidEnterActivePhaseWithExplorePost(
-        postId: String,
-        targetCommentId: String?,
-        targetReplyParentCommentId: String?
-    )
-    /// Dispatched from a Universal Link or custom-scheme URL to open a public species page.
-    case appDidEnterActivePhaseWithSpeciesDictionary(speciesId: String)
-    
+/// Loss-tolerant, strongly typed invalidations and lifecycle commands.
+///
+/// Events never carry authoritative domain state. Every consumer must recover
+/// from SwiftData, UserDefaults, or its owning service when an event is missed.
+/// Delivery-critical navigation belongs to `AppRouteCoordinator` instead.
+enum AppEvent: Sendable {
     /// Dispatched when the app wakes up after being in the background for longer than the session timeout limit.
     /// Used to snap the UI back to a clean camera state.
     case appDidResumeAfterTimeout
-    /// Dispatched by Siri/OS intents to immediately jump the user to the lens viewfinder.
-    case requestIdentifyNatureIntent
-    /// Dispatched by in-app actions to close presented sheets and return to the visual scanner.
-    case requestOpenScanner
-    /// Dispatched by a progress toast to open its Field trip or seasonal challenge destination.
-    case requestOpenCaptureGoal(CaptureGoalDestination)
-    /// Dispatched by Profile to replace it with Explore on the existing Field trips view.
-    case requestOpenFieldTrips
-    
-    /// Dispatched by Siri/OS intents to immediately open the historical scans insight page.
-    case requestRecallLastFindIntent
-    
-    /// Dispatched to seamlessly jump the user from an ambiguous Insight Sheet back to the Camera,
-    /// carrying the scan ID forward into a supplementary multi-image generation sequence.
-    case triggerRefinement(
-        scanId: String,
-        initialDescription: String? = nil,
-        entryPoint: RefinementEntryPoint = .standard
-    )
 
     /// Dispatched after a current foreground inference durably completes with a biological result.
     case foregroundBiologicalScanCompleted(scanId: String)
-
-    /// Dispatched to open the scans sheet and push the non-biological collection.
-    case requestOpenNonBiologicalScansIntent
-    /// Dispatched from external integrations to open the main scan library sheet.
-    case requestOpenScansLibraryIntent
-    /// Dispatched by a recovery notice to open Scan Library with its
-    /// unavailable-media filter active for the authenticated owner.
-    case requestOpenScansLibraryRecovery(ExploreMediaRecoveryRouteContext)
-
-    /// Dispatched after the app has durably copied an image received through document import.
-    case externalImageImportAvailable(importId: UUID)
-    /// Dispatched when an incoming file cannot be accepted into the document-import inbox.
-    case externalImageImportFailed
 
     /// Dispatched after a scan review changes data that Explore renders through the scan join.
     case explorePostNeedsRefresh(postId: String)
     /// Dispatched after a local scan's Explore publication state changes.
     case exploreShareStateChanged(scanId: String, postId: String?)
-    /// Dispatched after a community identification request should open in Explore.
-    case openCommunityIdentificationRequest(requestId: String)
-    /// Dispatched after a scan completes one or more Field trip checklist items.
-    case fieldTripProgressUpdated([FieldTripProgressUpdate])
-    /// Dispatched after a scan completes one or more seasonal challenge items.
-    case fieldTripChallengeProgressUpdated([FieldTripChallengeProgressUpdate])
+    /// Dispatched after Field trip progress changes. Consumers reload durable progress.
+    case fieldTripProgressInvalidated(templateIds: Set<String>)
+    /// Dispatched after seasonal challenge progress changes. Consumers reload durable progress.
+    case fieldTripChallengeProgressInvalidated(challengeIds: Set<String>)
     /// Dispatched after a scan-specific progress mutation so an open Insight can
     /// refresh persistent contribution rows, including correction removals.
     case fieldTripScanContributionsInvalidated(scanId: String)
@@ -83,20 +30,46 @@ enum AppEvent {
     case captureGoalContextInvalidated(source: CaptureGoalSourceKind)
     /// Dispatched after OAuth sign-in/linking or session restore refreshes the public Explore author identity.
     case publicAuthorIdentityChanged(previousUserId: String?, currentUserId: String)
+
+    /// Dispatched after a scan mutation invalidates the in-memory search document.
+    case scanSearchIndexInvalidated(scanId: String)
+    /// Dispatched after the durable Scan Library changes.
+    case scanLibraryChanged
+    /// Dispatched after a Community identification request changes remotely.
+    case communityIdentificationRequestChanged(requestId: String)
+    /// Dispatched after the persisted Explore audio-boost preference changes.
+    case exploreAudioBoostPreferenceChanged(postId: String, isEnabled: Bool)
+    /// Dispatched after the persisted Explore video-mute preference resets.
+    case exploreVideoMutePreferenceReset
+    /// Dispatched after the durable manual Apple-revocation notice is recorded.
+    case manualAppleRevocationNoticeRequired
 }
 
-/// A centralized, `@MainActor`-bound event bus for system-wide internal message routing.
-/// Prevents memory leaks and ensures UI-modifying events are cleanly delivered to the main thread.
+/// Producer-only capability. Domain services cannot subscribe through it.
 @MainActor
-final class AppEventPublisher {
-    static let shared = AppEventPublisher()
-    
-    let publisher = PassthroughSubject<AppEvent, Never>()
-    
-    private init() {}
-    
-    /// Publishes a strongly-typed event. Listeners should `.sink` onto `AppEventPublisher.shared.publisher`.
+protocol AppEventSending: AnyObject {
+    func send(_ event: AppEvent)
+}
+
+/// Subscriber-only capability. Consumers cannot access the underlying subject.
+@MainActor
+protocol AppEventStreaming: AnyObject {
+    var publisher: AnyPublisher<AppEvent, Never> { get }
+}
+
+/// A synchronous, `@MainActor`-isolated process-local invalidation bus.
+/// The subject is deliberately private so callers cannot bypass actor isolation.
+@MainActor
+final class AppEventPublisher: AppEventSending, AppEventStreaming {
+    private let subject = PassthroughSubject<AppEvent, Never>()
+
+    var publisher: AnyPublisher<AppEvent, Never> {
+        subject.eraseToAnyPublisher()
+    }
+
+    init() {}
+
     func send(_ event: AppEvent) {
-        publisher.send(event)
+        subject.send(event)
     }
 }

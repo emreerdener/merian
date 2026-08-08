@@ -74,6 +74,7 @@ is_ios_build_input() {
     .github/workflows/ios-*.yml | \
     .swiftlint.yml | \
     Config.xcconfig | \
+    Makefile | \
     Signing.xcconfig | \
     project.yml | \
     Merian.xcodeproj/* | \
@@ -81,6 +82,7 @@ is_ios_build_input() {
     apps/ios/* | \
     apps/watch/* | \
     scripts/*ios*.sh | \
+    scripts/config/ios-*.txt | \
     scripts/select-ios-*.sh)
       return 0
       ;;

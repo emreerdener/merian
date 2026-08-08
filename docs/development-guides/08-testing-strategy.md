@@ -492,8 +492,8 @@ HTTP request is dispatched. See the
    fixture transaction must use the exact environment `ModelContext` bound to
    the open Insight sheet and, after saving, directly invoke the existing
    production `promoteQueuedScanIfLocalRecordExists` path with that same
-   context. The open destination must complete direct promotion before it emits
-   `ScanLibraryEvents` for parent-library refresh; publishing the synchronous
+   context. The open destination must complete direct promotion before it sends
+   `.scanLibraryChanged` for parent-library refresh; publishing the synchronous
    event first can rebuild the child from its retained queued route snapshot. A
    cross-context event merge must not control the deterministic handoff. This
    keeps slow hosted accessibility startup or a stale open context from erasing
@@ -846,14 +846,15 @@ MerianTests/
   both `ModelStoreRecoveryCoordinatorTests` and `MigrationPlanTests` so startup
   safe mode and schema-upgrade failures are caught together. The cheap
   `.github/workflows/ios-project-guardrails.yml` lane runs
-  `make validate-ios-project` and `make validate-ios-migration-guardrails`
-  first, so known-bad source shapes fail on Ubuntu before the slower macOS
-  simulator job spends time resolving packages, building, or booting a
-  simulator. Startup Safety remains path-filtered to startup/schema/recovery
-  surfaces, manual dispatch, and the daily drift check; broad iOS changes
-  instead enter the full compiled gate described above. Workflow/tooling-only
-  changes can start the Startup Safety workflow to validate cheap guardrails,
-  but its simulator steps are skipped unless startup runtime files changed.
+  `make validate-ios-project`, `make validate-ios-migration-guardrails`, and
+  `make validate-ios-event-routing` first, so known-bad source shapes fail on
+  Ubuntu before the slower macOS simulator job spends time resolving packages,
+  building, or booting a simulator. Startup Safety remains path-filtered to
+  startup/schema/recovery surfaces, manual dispatch, and the daily drift check;
+  broad iOS changes instead enter the full compiled gate described above.
+  Workflow/tooling-only changes can start the Startup Safety workflow to
+  validate cheap guardrails, but its simulator steps are skipped unless startup
+  runtime files changed.
   - Source-level migration guardrails fail if `SchemaVersions.swift`
     reintroduces `try? context.save()` / `try? modelContext.save()` in custom
     stages, active/global `FetchDescriptor` types inside `MerianMigrationPlan`,
@@ -1029,9 +1030,9 @@ MerianTests/
   or view-finder zoom scopes) away from EXIF bounds.
 - **`ScansManagerTests.swift`**: Validates local string-index mapping (group
   name taxonomies, semantic tags, explicitly added `customTags`, and
-  one-character unigram candidates). Asserts `NotificationCenter` routing
-  dynamically patches specific payloads (`testCustomTag_DynamicHotSwap`)
-  instantly without OOM-burst re-renders. Search and indexing assertions now
+  one-character unigram candidates). Asserts typed, main-actor `AppEvent`
+  invalidation dynamically patches specific payloads
+  (`testCustomTag_DynamicHotSwap`) without OOM-burst re-renders. Search and indexing assertions now
   wait on `ScansManager.SearchDebugEvent` completions instead of fixed
   `Task.sleep` windows, including explicit debounce-cancellation coverage that
   proves a superseded query never emits `searchCompleted`. Also verifies the
@@ -1041,7 +1042,37 @@ MerianTests/
   filter tests wait for `filterIndexingCompleted`, verify cached option
   dimensions refresh after a targeted mutation, confirm selected values are
   normalized without changing matching semantics, and exercise rapid targeted
-  reindexes so a superseded task cannot drop another document.
+  reindexes so a superseded task cannot drop another document. Batch-export
+  coverage also locks the selected-ID set and selection mode while
+  `isDownloading` is true, then proves normal selection teardown resumes after
+  the export fence clears.
+- **`AppRouteCoordinatorTests.swift`**: Locks priority/FIFO ordering, semantic
+  coalescing, latest lightweight pending payload with stable identity,
+  stronger-source promotion, bounded overflow, pending/deferred expiry without
+  expiring an already viewed presentation, explicit initial-session restoration
+  versus runtime sign-in fencing, session generations, defer/resume, exact
+  presentation dismissal, duplicate/stale callback rejection, external-route
+  timeout suppression, and missing-target rejection. A rejected route must
+  release the in-flight slot so later work cannot stall. Capture workspace tests
+  separately prove a route remains deferred during root interactive teardown
+  and across a feature-local presentation until its exact `onDismiss` callback.
+- **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
+  delivery, cancellation behavior, main-actor ordering for framework publisher
+  bridges, and generation-fenced media observation after player replacement and
+  detach.
+- **Source guardrails**: `make validate-ios-event-routing` scans production
+  sources; `make test-ios-event-routing` exercises multiline, alias,
+  application-name/post, duplicate-subject, singleton, allowlist, and
+  test-target-exclusion fixtures. These fixtures are part of
+  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
+  compiled iOS workflow both validate the live repository, and both are
+  path-sensitive to the checker, its exact allowlist, and its fixture script.
+- **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
+  errors quickly. A direct iOS module/test-target type-check can add useful
+  compile evidence when CoreSimulator is unavailable, but neither runs XCTest,
+  links the application, validates resources, or replaces the hosted
+  `xcodebuild build-for-testing` and complete `merianTests` execution. Record an
+  environment failure as such; do not reinterpret it as a passing native build.
 - **`LocalImageLoaderTests.swift`**: Locks concurrent network payload boundaries
   and request coalescing to prevent multi-grid fetch flooding. The async decode
   permit tests prove concurrency remains bounded and a cancelled waiter cannot
@@ -1350,7 +1381,7 @@ actual import, and permission-denial UI require the physical-device checklist in
   normalization of typed hashtag input before publishing.
 - **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
   incremental and coalesced reindexing, sort behavior, and selection limits for
-  the Scans library.
+  the Scans library, including the batch-media export selection-mutation fence.
 - **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
   and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
   returns only the non-Favorites collection's direct, deterministically sorted
@@ -2411,6 +2442,28 @@ the behavior under test. Usernames are currently 3–24 lowercase characters,
 start with a letter, end with an alphanumeric character, contain no `__`, and
 cannot be reserved. Keep fixtures transactional; never drop or weaken the Auth
 FK or another production constraint to accommodate stale test data.
+
+Public-username reservation has explicit cross-layer coverage:
+
+- `update-public-username/validation_test.ts` and
+  `_tests/updatePublicUsername.test.ts` cover normalized Edge decisions,
+  protected roles, exact product-role combinations in both directions, and
+  allowed non-prefix community handles.
+- `_tests/publicUsernamePolicyMigrationContract.test.ts` parses the PostgreSQL,
+  Edge, and iOS policy groups, requires sorted duplicate-free parity, locks the
+  deterministic existing-profile repair, and forbids rewriting historical
+  mention tokens.
+- `_tests/exploreIdentityDb.test.ts` exercises current validator behavior and
+  the historical mention-token/current-profile split on disposable PostgreSQL.
+- `tests/public_username_policy_security.sql` verifies the immutable catalog
+  function, both validated CHECK constraints, representative allowed/denied
+  values, and an actual rejected profile update.
+
+Run the static migration suite and the complete discovered pgTAP catalog; a
+passing TypeScript contract alone does not prove the PostgreSQL migration or
+backfill. Mention snapshots enforce structural username shape but intentionally
+do not inherit later reservation lists, because their token must continue to
+match immutable comment text.
 
 Identification latency has focused contract coverage at each boundary:
 

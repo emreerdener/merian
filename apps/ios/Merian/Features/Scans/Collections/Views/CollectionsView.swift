@@ -249,14 +249,15 @@ struct CollectionsView: View {
         .task(id: hiddenSmartCollectionSignature) {
             refreshCollectionSnapshot()
         }
-        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .scanLibraryChanged = event else { return }
             refreshCollectionSnapshot()
             refreshNonBioCount()
         }
         .onReceive(featuredRefreshTimer) { date in
             featuredReferenceDate = date
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             if case .exploreShareStateChanged = event {
                 refreshCollectionSnapshot()
             }

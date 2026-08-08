@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-import Combine
 import UserNotifications
 @testable import Merian
 
@@ -55,15 +54,12 @@ struct PushNotificationManagerTests {
         #expect(true)
     }
 
-    @Test func testExploreNotificationTapPublishesDeepLinkEvent() async throws {
+    @Test func testExploreNotificationTapQueuesTypedRoute() async throws {
         let manager = PushNotificationManager.shared
-        let publisher = AppEventPublisher.shared.publisher
+        let coordinator = AppDIContainer.shared.appRouteCoordinator
+        coordinator.resetForTesting()
+        defer { coordinator.resetForTesting() }
         let expectedPostId = "explore-post-123"
-        var receivedEvent: AppEvent?
-        let cancellable = publisher.sink { event in
-            receivedEvent = event
-        }
-        defer { cancellable.cancel() }
 
         manager.handleNotificationAction(
             userInfo: [
@@ -74,27 +70,26 @@ struct PushNotificationManagerTests {
         )
 
         let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while receivedEvent == nil && ContinuousClock.now < deadline {
+        while coordinator.nextRequestID == nil && ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(10))
         }
 
-        guard case .appDidEnterActivePhaseWithExplorePost(let postId, _, _)? = receivedEvent else {
-            Issue.record("Expected an Explore deep-link event from the push tap handler.")
+        guard let request = coordinator.claimNext(),
+              case .explorePost(let postId, _, _) = request.route else {
+            Issue.record("Expected an Explore route from the push tap handler.")
             return
         }
 
         #expect(postId == expectedPostId)
+        #expect(request.source == .pushNotification)
     }
 
-    @Test func testCommunityNotificationTapPublishesRequestDeepLinkEvent() async throws {
+    @Test func testCommunityNotificationTapQueuesTypedRoute() async throws {
         let manager = PushNotificationManager.shared
-        let publisher = AppEventPublisher.shared.publisher
+        let coordinator = AppDIContainer.shared.appRouteCoordinator
+        coordinator.resetForTesting()
+        defer { coordinator.resetForTesting() }
         let expectedRequestId = "community-request-123"
-        var receivedEvent: AppEvent?
-        let cancellable = publisher.sink { event in
-            receivedEvent = event
-        }
-        defer { cancellable.cancel() }
 
         manager.handleNotificationAction(
             userInfo: [
@@ -105,15 +100,17 @@ struct PushNotificationManagerTests {
         )
 
         let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while receivedEvent == nil && ContinuousClock.now < deadline {
+        while coordinator.nextRequestID == nil && ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(10))
         }
 
-        guard case .openCommunityIdentificationRequest(let requestId)? = receivedEvent else {
-            Issue.record("Expected a Community request deep-link event from the push tap handler.")
+        guard let request = coordinator.claimNext(),
+              case .communityIdentification(let requestId) = request.route else {
+            Issue.record("Expected a Community request route from the push tap handler.")
             return
         }
 
         #expect(requestId == expectedRequestId)
+        #expect(request.source == .pushNotification)
     }
 }

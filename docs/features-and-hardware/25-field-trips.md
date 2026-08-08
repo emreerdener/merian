@@ -224,7 +224,7 @@ difficulty.
    receipt. A failure rolls back the whole mutation. A later retry for the same
    scan revision returns the receipt, including the original unlock metadata.
 9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
-   publishes refresh events, evaluates newly unlocked achievements without
+   sends typed, ID-bounded `AppEvent` invalidations, evaluates newly unlocked achievements without
    presenting them early, and batches the scan's notifications in strict order:
    standard outings in server order, Seasonal Challenges in server order,
    achievements in their existing order, then **New to Naturebook**. A progress
@@ -233,8 +233,11 @@ difficulty.
 10. iOS shows each qualifying progress toast for 3.5 seconds with the credited
     level's ring. Tapping a standard toast opens its outing focused on the first
     credited goal; tapping a challenge toast opens that challenge detail. The
-    same progress events immediately invalidate affected Field trips data and
-    the standard capture target context without creating a second plain toast.
+    tap requests `AppRoute.captureGoal`; the root coordinator serializes it
+    against any active sheet. The same progress events immediately invalidate
+    affected Field trips data and the standard capture target context without
+    creating a second plain toast. The banner is an alignment-scoped overlay, so
+    interaction outside its visible bounds continues to reach the underlying UI.
 11. Catalog and detail reloads associate each completed checklist item with the
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
@@ -891,6 +894,7 @@ Primary files:
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastBanner.swift`
 - `apps/ios/Merian/Core/Utilities/AppEventPublisher.swift`
+- `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/Core/AI/InferenceEngine.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
@@ -1001,12 +1005,11 @@ The placeholder participates in the same top scroll-edge transition and is
 hidden from assistive technologies. Tips and Event loading states retain their
 normal inset presentation without the featured-media hero.
 
-`GoalProgressRing` is a Core UI primitive shared by the Scan target capsule and
-the active standard-outing level header and scan-progress milestone banner. The
-level header passes the outing's current counts; a progress toast prefers the
-optional credited counts and falls back to current counts while older backend
-responses remain in circulation. Locked and non-active detail levels do not
-display the ring.
+`GoalProgressRing` is a Core UI primitive shared by the Scan target capsule, the
+active standard-outing level header, and persistent Insight contribution rows.
+The level header passes the outing's current counts. Locked and non-active
+detail levels do not display the ring. Ephemeral milestone banners use compact
+objective artwork instead of another progress ring.
 
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
 for both `InferenceEngine` foreground completion and
@@ -1031,15 +1034,17 @@ one synchronous presenter enqueue pass. An unrelated banner already on screen
 is not preempted; strict ordering applies only within milestones from the same
 scan.
 
-`FieldTripMilestonePayload` stores the display title, the first newly completed
-item's label, credited counts, and a typed destination. Standard destinations
+`FieldTripMilestonePayload` stores the outing title, the first newly completed
+item's label, lightweight objective artwork, and a typed destination. Standard destinations
 use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge destinations
 use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner` renders
-**Field trip progress** and `{species} counts toward {trip}` above a compact
-linear progress indicator, preserves the shared 3.5-second timeout, haptics,
-manual dismissal, queue transition, and VoiceOver announcement, and publishes
-`requestOpenCaptureGoal` when tapped. Explore converts the destination into the
-standard focused outing route or Seasonal Challenge detail route.
+**Field trip progress**, `{goal} goal complete`, and the outing title beside the
+objective artwork. It preserves the shared 3.5-second timeout, haptics,
+horizontal/vertical swipe and close-button dismissal, queue transition, and
+VoiceOver announcement, and requests `AppRoute.captureGoal` when tapped. The
+root coordinator serializes the sheet handoff, then Explore converts the typed
+destination into the standard focused outing route or Seasonal Challenge
+detail route.
 
 Completed goal tiles render the captured scan full-bleed with a bottom metadata
 overlay and the ordinary neutral one-point border. Incomplete focused goals may

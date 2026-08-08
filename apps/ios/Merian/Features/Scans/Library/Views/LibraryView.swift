@@ -69,6 +69,7 @@ struct LibraryView: View {
                                         openQueuedScan(snapshot)
                                     },
                                     onQueuedScanDelete: { snapshot in
+                                        guard !searchManager.isDownloading else { return }
                                         Task {
                                             await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
                                             await MainActor.run {
@@ -161,8 +162,13 @@ struct LibraryView: View {
             }
         }
         .task(id: toastMessage) {
-            guard toastMessage != nil else { return }
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard let message = toastMessage else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(2_500))
+            } catch {
+                return
+            }
+            guard toastMessage == message else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 toastMessage = nil
             }

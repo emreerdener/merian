@@ -176,31 +176,26 @@ struct ScanLibraryFilters: Equatable, Sendable {
     let maxBatchSelectionLimit = 20
 
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored private var toastDismissTask: Task<Void, Never>?
     @ObservationIgnored private var appSettings: AppSettings
     @ObservationIgnored private var sharedPostIDProvider: (String) -> String?
 
     init(
         appSettings: AppSettings? = nil,
-        sharedPostIDProvider: @escaping (String) -> String? = { ExploreShareStateStore.sharedPostId(for: $0) }
+        sharedPostIDProvider: @escaping (String) -> String? = { ExploreShareStateStore.sharedPostId(for: $0) },
+        eventStream: (any AppEventStreaming)? = nil
     ) {
         self.appSettings = appSettings ?? AppSettings.shared
         self.sharedPostIDProvider = sharedPostIDProvider
-        ScanLibraryEvents.searchIndexUpdatePublisher()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] notification in
-                guard let scanId = ScanLibraryEvents.scanId(from: notification) else { return }
-                Task { @MainActor [weak self] in
-                    self?.forceReindex(scanId: scanId)
-                }
-            }
-            .store(in: &cancellables)
-
-        AppEventPublisher.shared.publisher
-            .receive(on: RunLoop.main)
+        let eventStream = eventStream ?? AppDIContainer.shared.appEventPublisher
+        eventStream.publisher
             .sink { [weak self] event in
-                guard case let .exploreShareStateChanged(scanId, _) = event else { return }
-                Task { @MainActor [weak self] in
+                switch event {
+                case .scanSearchIndexInvalidated(let scanId),
+                     .exploreShareStateChanged(let scanId, _):
                     self?.forceReindex(scanId: scanId)
+                default:
+                    break
                 }
             }
             .store(in: &cancellables)
@@ -830,6 +825,8 @@ struct ScanLibraryFilters: Equatable, Sendable {
     
     // MARK: - Batch Selection Operations
     func toggleSelection(for scanId: String) -> Bool {
+        guard !isDownloading else { return true }
+
         if selectedScans.contains(scanId) {
             selectedScans.remove(scanId)
             return true
@@ -844,6 +841,8 @@ struct ScanLibraryFilters: Equatable, Sendable {
     }
     
     func selectAll() {
+        guard !isDownloading else { return }
+
         let maximumScans = Array(filteredScans.prefix(maxBatchSelectionLimit))
         if selectedScans.count == maximumScans.count {
             selectedScans.removeAll()
@@ -853,6 +852,8 @@ struct ScanLibraryFilters: Equatable, Sendable {
     }
     
     func exitSelectionMode() {
+        guard !isDownloading else { return }
+
         isSelectionMode = false
         selectedScans.removeAll()
     }
@@ -866,6 +867,7 @@ struct ScanLibraryFilters: Equatable, Sendable {
     var toastMessage: String?
     
     func batchShare(scans: [LocalScanRecord]) async {
+        guard !isDownloading, !scans.isEmpty else { return }
         await withCheckedContinuation { continuation in
             InsightMediaExportManager.shared.batchShareDiscovery(records: scans) { items in
                 ShareSheetUtility.present(items: items)
@@ -875,7 +877,8 @@ struct ScanLibraryFilters: Equatable, Sendable {
     }
     
     func batchSaveMedia(scans: [LocalScanRecord]) async {
-        await MainActor.run { isDownloading = true }
+        guard !isDownloading, !scans.isEmpty else { return }
+        isDownloading = true
         
         let result = await withCheckedContinuation { continuation in
             InsightMediaExportManager.shared.batchSaveUserMedia(records: scans) { result in
@@ -883,16 +886,14 @@ struct ScanLibraryFilters: Equatable, Sendable {
             }
         }
         
-        await MainActor.run {
-            isDownloading = false
-            exitSelectionMode()
-            if result.totalSaved > 0 {
-                HapticManager.shared.triggerSuccessPulse()
-                showToast(message: result.successMessage)
-            } else {
-                HapticManager.shared.triggerErrorThump()
-                showToast(message: "No photos or videos could be saved")
-            }
+        isDownloading = false
+        exitSelectionMode()
+        if result.totalSaved > 0 {
+            HapticManager.shared.triggerSuccessPulse()
+            showToast(message: result.successMessage)
+        } else {
+            HapticManager.shared.triggerErrorThump()
+            showToast(message: "No photos or videos could be saved")
         }
     }
 
@@ -917,7 +918,7 @@ struct ScanLibraryFilters: Equatable, Sendable {
         do {
             let response = try await MerianNetworkClient.shared.shareScanToExplore(scan: scan)
             ExploreShareStateStore.setSharedPostId(response.postId, for: scanId)
-            AppEventPublisher.shared.send(.exploreShareStateChanged(scanId: scanId, postId: response.postId))
+            AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: scanId, postId: response.postId))
             HapticManager.shared.triggerSuccessPulse()
             showToast(message: "Shared to Explore")
         } catch {
@@ -928,11 +929,15 @@ struct ScanLibraryFilters: Equatable, Sendable {
     
     private func showToast(message: String) {
         withAnimation(.spring()) { toastMessage = message }
-        Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            await MainActor.run {
-                withAnimation(.easeInOut) { if toastMessage == message { toastMessage = nil } }
+        toastDismissTask?.cancel()
+        toastDismissTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
             }
+            guard let self, self.toastMessage == message else { return }
+            withAnimation(.easeInOut) { self.toastMessage = nil }
         }
     }
 }

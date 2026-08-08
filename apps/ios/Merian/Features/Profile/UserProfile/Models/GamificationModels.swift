@@ -413,7 +413,7 @@ enum AchievementTintToken: Sendable {
 }
 
 // MARK: - Gamification Payloads
-struct AwardPayload: Sendable, Identifiable {
+struct AwardPayload: Sendable, Identifiable, Equatable {
     let type: AchievementType
     let currentCount: Int
     let lastInteractionDate: Date?

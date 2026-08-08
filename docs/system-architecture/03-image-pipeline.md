@@ -598,6 +598,24 @@ the internal `Reference pending` state.
     defaulted to 1024, producing visibly soft full-screen images on large
     devices.
 
+### Display lifetime and feedback isolation
+
+Image/video carousel state remains owned by the mounted media surface. Inline
+and fullscreen video retain one `MediaPlaybackObservation`, which removes KVO,
+AVPlayerItem notification, and periodic-time tokens from the exact old player
+before a replacement is observed. Its callbacks retain neither SwiftUI views
+nor image payloads and must pass a player/item generation check before changing
+lightweight playback state. A late callback therefore cannot remount or redraw
+the new page with state from its predecessor.
+
+Cross-module `AppEvent` and `AppRoute` envelopes carry only identifiers and
+small scalar metadata; they never retain `UIImage`, decoded frames, scan
+collections, or carousel destinations. Toasts and progress indicators likewise
+mount as alignment-scoped, pass-through overlays. Heavy image state remains in
+the bounded loader/cache or its durable store, preventing ephemeral feedback
+from invalidating a full media tree. See
+[Event and Presentation Routing](10-event-and-presentation-routing.md).
+
 ### 5. RAM Cache (`ImageCache`)
 
 `ImageCache.shared` (`Core/Data/Images/ImageCache.swift`) wraps
@@ -806,6 +824,7 @@ destination is retained as a user-attention failure rather than submitted.
 | `MediaPreparationActor`     | `Core/Data/Images/`                       | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                                                   |
 | `FileIOActor`               | `Core/Data/Database/`                     | Disk reads/writes; isolated from Main and SwiftData actors                                                                                                                |
 | `LocalImageLoader`          | `Core/Data/Images/`                       | Load orchestration; exact external-reference URL policy; scan-media recovery registry/rescue/timestamp matching; RAM cache hits; request coalescing; local/remote routing |
+| `MediaPlaybackObservation`  | `Core/Media/`                              | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                                                         |
 | `CloudScanImageRepairActor` | `Core/Data/Images/LocalImageLoader.swift` | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images                                             |
 | `ImageCache`                | `Core/Data/Images/`                       | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                                                                |
 | `ArchiveManager`            | `Core/Data/Images/`                       | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                                                      |

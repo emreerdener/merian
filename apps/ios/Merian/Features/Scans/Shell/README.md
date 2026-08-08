@@ -2,6 +2,11 @@
 
 The `Shell` directory acts as the root container and routing layer for the entire Scans feature.
 
+Cross-module requests to open this feature arrive as `AppRoute.scansLibrary`,
+`.nonBiologicalScans`, or `.scansLibraryRecovery`. The Capture root owns the
+sole app-level `.sheet(item:)`; this shell pushes Insight destinations inside
+its existing navigation stack and never adds another app-level sheet.
+
 ## Structure
 
 - **Views**: Contains the top-level container views that host the tab bar or navigation stack for the scans area.
@@ -18,6 +23,12 @@ compares and hashes by that ID. This value snapshot lets the destination stay
 open through SwiftData queue deletion and transition in place when the
 completed local record appears. Both routes use native Back behavior; the
 Scans shell must not layer another sheet over its library.
+
+Batch save progress is a compact bottom capsule that permits hit testing to
+pass through outside the capsule. Share, download, delete, and selection
+mutations are disabled while the batch snapshot is being exported. Success and
+failure toasts use identity-checked cancellable teardown so a stale timer cannot
+clear replacement feedback.
 
 `ScansSheetView` owns the bounded queued-row refresh task. Its identity contains
 both durable row state and live path policy, and it starts only when at least

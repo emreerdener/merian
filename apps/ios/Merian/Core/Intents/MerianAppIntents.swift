@@ -5,8 +5,8 @@ import os
 // MARK: - Core OS Integration
 
 // MARK: - Intent Routing Abstraction
-// These Intents proxy into the running SwiftUI hierarchy via the AppEventPublisher
-// ensuring the OS immediately jumps into the requested states without UI locks.
+// These intents submit delivery-critical requests to AppRouteCoordinator. The
+// Capture host applies them only after its active presentation slot is available.
 
 // MARK: - Primary Discovery Intent
 struct IdentifyNatureIntent: AppIntent {
@@ -18,7 +18,7 @@ struct IdentifyNatureIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppEventPublisher.shared.send(.requestIdentifyNatureIntent)
+        AppDIContainer.shared.appRouteCoordinator.request(.identifyNature, source: .appIntent)
         HapticManager.shared.triggerFocusSnap()
         return .result()
     }
@@ -33,7 +33,7 @@ struct RecallLastFindIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        AppEventPublisher.shared.send(.requestRecallLastFindIntent)
+        AppDIContainer.shared.appRouteCoordinator.request(.recallLastFind, source: .appIntent)
         HapticManager.shared.triggerSheetSpring()
         return .result()
     }

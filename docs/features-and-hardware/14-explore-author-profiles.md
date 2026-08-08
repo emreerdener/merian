@@ -214,7 +214,9 @@ Public username extension:
   `public.users.public_username` plus validation and backfill helpers.
 - Explore Edge DTOs include `author_username` beside `author_name`.
 - `author_name` remains the display label; `author_username` is the stable
-  handle for profile secondary text and future mentions.
+  handle for profile secondary text and current comment mentions. Historical
+  comment rows retain the token snapshot that appeared in their plain-text body
+  while routing profile taps by the durable user ID.
 
 Public avatar extension:
 

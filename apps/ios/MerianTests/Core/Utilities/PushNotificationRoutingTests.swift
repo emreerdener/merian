@@ -1,26 +1,19 @@
 import Testing
 import Foundation
-import Combine
 @testable import Merian
 
 @MainActor
 struct PushNotificationRoutingTests {
     
-    @Test("Tapping a push notification correctly publishes a routing event to open the specific scan id")
+    @Test("Tapping a push notification queues a delivery-critical scan route")
     func testNotificationTapRoutesToScan() async {
         // Arrange
         let testScanId = "mock-scan-id-1234"
         let mockUserInfo: [AnyHashable: Any] = ["scanId": testScanId]
         
-        var receivedScanId: String? = nil
-        var cancellable: AnyCancellable?
-        
-        // Listen to the shared event publisher used by the root UI to switch tabs and open the sheet
-        cancellable = AppEventPublisher.shared.publisher.sink { event in
-            if case .appDidEnterActivePhaseWithScan(let scanId) = event {
-                receivedScanId = scanId
-            }
-        }
+        let coordinator = AppDIContainer.shared.appRouteCoordinator
+        coordinator.resetForTesting()
+        defer { coordinator.resetForTesting() }
         
         // Act
         // Simulate a user tapping the system push notification (default action)
@@ -29,14 +22,15 @@ struct PushNotificationRoutingTests {
             actionIdentifier: "com.apple.UNNotificationDefaultActionIdentifier"
         )
         
-        // Yield to allow the inner @MainActor Task inside handleNotificationAction to execute
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while coordinator.nextRequestID == nil && ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
         
         // Assert
-        #expect(receivedScanId == testScanId, "The push notification manager must extract the scanId and broadcast it to the UI router")
-        
-        // Cleanup
-        cancellable?.cancel()
+        let request = coordinator.claimNext()
+        #expect(request?.route == .scan(scanId: testScanId))
+        #expect(request?.source == .pushNotification)
     }
 
     @Test("Unseen scan indicator (blue dot) state cycle is updated correctly in UserDefaults")

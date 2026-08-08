@@ -7,6 +7,7 @@ struct MainTabBar: View {
     @Binding var isScansOpen: Bool
     @Binding var isUserProfileOpen: Bool
     @Environment(AppSettings.self) private var appSettings
+    @Environment(\.scenePhase) private var scenePhase
     @State private var hasUnreadExploreNotifications: Bool = false
     
     // MARK: - Visual Layout
@@ -50,10 +51,9 @@ struct MainTabBar: View {
         .task {
             await refreshExploreBadge()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            Task {
-                await refreshExploreBadge()
-            }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await refreshExploreBadge() }
         }
         .onChange(of: isExploreOpen) { _, newValue in
             if !newValue {

@@ -82,7 +82,10 @@ extension InsightSheetViewModel {
                               ) else {
                             return
                         }
-                        AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
+                        AppDIContainer.shared.appRouteCoordinator.request(
+                            .nonBiologicalScans,
+                            source: .internalUserAction
+                        )
                     }
                 }
             }

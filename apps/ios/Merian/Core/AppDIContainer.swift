@@ -5,7 +5,7 @@ import SwiftUI
 /// Holds all core services and managers to prevent massive `@StateObject` pollution in App entry.
 @MainActor
 @Observable final class AppDIContainer {
-    static let shared = AppDIContainer()
+    static let shared = AppDIContainer(bindGlobalManagers: true)
 
     // MARK: - Dependencies (Environment & Hardware)
     var hardwareOrchestrator = HardwareOrchestrator.shared
@@ -22,7 +22,8 @@ import SwiftUI
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
-    var appEventPublisher = AppEventPublisher.shared
+    let appEventPublisher = AppEventPublisher()
+    let appRouteCoordinator = AppRouteCoordinator()
     var appSettings = AppSettings.shared
 
     // MARK: - Dependencies (Data & Sync)
@@ -50,15 +51,17 @@ import SwiftUI
     var profileViewModel = ProfileViewModel()
 
     // MARK: - Initialization Engine
-    private init() {
-        // Private initialization for singleton
+    private init(bindGlobalManagers: Bool) {
+        if bindGlobalManagers {
+            supabaseManager.bindAppRouteSessionController(appRouteCoordinator)
+        }
     }
     
 #if DEBUG
     // MARK: - Mock Initialization (Previews)
     /// A safe mock container for SwiftUI `#Preview` execution that guarantees live production databases or hardware components are not mutated.
     static var preview: AppDIContainer {
-        let container = AppDIContainer()
+        let container = AppDIContainer(bindGlobalManagers: false)
         container.appSettings = .preview
         // Inject mock instances or disable background observers here as needed.
         return container
@@ -97,6 +100,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.speechManager)
             .environment(container.audioCaptureManager)
             .environment(container.activeCaptureGoalStore)
+            .environment(container.appRouteCoordinator)
     }
 }
 

@@ -61,11 +61,13 @@ The app declares both `naturebook` and legacy `merian` URL schemes in `apps/ios/
 naturebook://explore/post/{postId}
 ```
 
-Accepted URLs publish `AppEvent.appDidEnterActivePhaseWithExplorePost(postId:)`. `CaptureWorkspaceViewModel` handles that event by:
+Accepted URLs enqueue `AppRoute.explorePost` with a `.deepLink` source.
+`CaptureWorkspaceViewModel` claims that request by:
 
 1. Storing the tapped post id in `pendingExplorePostId`.
 2. Refreshing `explorePresentationIdentity` so SwiftUI builds a fresh `ExploreView`.
-3. Setting `activeSheet = .explore`, which presents the sheet through `CameraSheetRouter`.
+3. Applying a `PresentedRoute` for Explore through the single
+   `CameraSheetRouter` sheet host.
 
 `ExploreView(initialPostId:)` then seeds `selectedPostRoute`, pushing `ExplorePostDetailView` inside the sheet.
 

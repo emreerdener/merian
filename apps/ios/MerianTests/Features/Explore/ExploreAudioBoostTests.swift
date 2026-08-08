@@ -1,27 +1,11 @@
 import AVFoundation
+import Combine
 import Foundation
 @testable import Merian
 import Testing
 
 @Suite("Explore Audio Boost Tests")
 struct ExploreAudioBoostTests {
-    private final class ChangeRecorder: @unchecked Sendable {
-        private let lock = NSLock()
-        private var storage: [(String, Bool)] = []
-
-        func append(_ change: (String, Bool)) {
-            lock.lock()
-            storage.append(change)
-            lock.unlock()
-        }
-
-        func snapshot() -> [(String, Bool)] {
-            lock.lock()
-            defer { lock.unlock() }
-            return storage
-        }
-    }
-
     @Test func detailZoomLayoutRejectsUnboundedAndInvalidFrameDimensions() {
         #expect(
             ExploreDetailZoomLayoutPolicy.resolvedSize(width: 320, height: .infinity)
@@ -38,7 +22,7 @@ struct ExploreAudioBoostTests {
         #expect(ExploreDetailZoomLayoutPolicy.resolvedSize(width: -.infinity, height: .nan) == nil)
     }
 
-    @Test func preferencesAreIndependentPerPost() throws {
+    @Test @MainActor func preferencesAreIndependentPerPost() throws {
         let suite = "ExploreAudioBoostTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -52,32 +36,25 @@ struct ExploreAudioBoostTests {
         #expect(!store.isEnabled(for: "cardinal-post"))
     }
 
-    @Test func preferenceChangesNotifyVisibleSurfacesOnce() throws {
+    @Test @MainActor func preferenceChangesPublishTypedEventsOnce() throws {
         let suite = "ExploreAudioBoostNotificationTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = ExploreAudioBoostPreferenceStore(defaults: defaults)
         let targetPostId = "notification-post-\(UUID().uuidString)"
-        let recorder = ChangeRecorder()
-        let observer = NotificationCenter.default.addObserver(
-            forName: ExploreAudioBoostPreferenceStore.didChangeNotification,
-            object: nil,
-            queue: nil
-        ) { notification in
-            guard let postId = notification.userInfo?[ExploreAudioBoostPreferenceStore.postIdUserInfoKey] as? String,
-                  postId == targetPostId,
-                  let enabled = notification.userInfo?[ExploreAudioBoostPreferenceStore.enabledUserInfoKey] as? Bool else {
-                return
-            }
-            recorder.append((postId, enabled))
+        let eventPublisher = AppEventPublisher()
+        var changes: [(String, Bool)] = []
+        let cancellable = eventPublisher.publisher.sink { event in
+            guard case .exploreAudioBoostPreferenceChanged(let postId, let enabled) = event,
+                  postId == targetPostId else { return }
+            changes.append((postId, enabled))
         }
-        defer { NotificationCenter.default.removeObserver(observer) }
+        defer { cancellable.cancel() }
 
-        store.setEnabled(true, for: targetPostId)
-        store.setEnabled(true, for: targetPostId)
-        store.setEnabled(false, for: targetPostId)
+        store.setEnabled(true, for: targetPostId, eventSender: eventPublisher)
+        store.setEnabled(true, for: targetPostId, eventSender: eventPublisher)
+        store.setEnabled(false, for: targetPostId, eventSender: eventPublisher)
 
-        let changes = recorder.snapshot()
         #expect(changes.count == 2)
         #expect(changes.first?.0 == targetPostId)
         #expect(changes.first?.1 == true)
@@ -422,7 +399,7 @@ struct ExploreAudioBoostTests {
         #expect(AudioSpectrogramSeekingPolicy.playmarkerCenterX(progress: 0.5, width: 300) == 150)
     }
 
-    @Test func returningToExploreFeedResetsVideoMutePreference() throws {
+    @Test @MainActor func returningToExploreFeedResetsVideoMutePreference() throws {
         let suite = "ExploreVideoMutePreferenceTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -433,7 +410,7 @@ struct ExploreAudioBoostTests {
         #expect(defaults.bool(forKey: ExploreVideoMutePreference.key))
     }
 
-    @Test func preferencesExpireAfterOneHundredEightyDays() throws {
+    @Test @MainActor func preferencesExpireAfterOneHundredEightyDays() throws {
         let suite = "ExploreAudioBoostExpiryTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -447,7 +424,7 @@ struct ExploreAudioBoostTests {
         #expect(!store.isEnabled(for: "old-post"))
     }
 
-    @Test func preferencesKeepOnlyFiveHundredMostRecentPosts() throws {
+    @Test @MainActor func preferencesKeepOnlyFiveHundredMostRecentPosts() throws {
         let suite = "ExploreAudioBoostLimitTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }

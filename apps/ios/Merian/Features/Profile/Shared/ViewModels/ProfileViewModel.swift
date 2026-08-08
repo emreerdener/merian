@@ -209,7 +209,7 @@ final class ProfileViewModel {
             )
             guard currentUserId == userId else { return false }
             publicAvatarUrl = response.avatarUrl
-            AppEventPublisher.shared.send(
+            AppDIContainer.shared.appEventPublisher.send(
                 .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
             )
             return true
@@ -237,7 +237,7 @@ final class ProfileViewModel {
                 publicAuthorName = response.username
                 publicIdentitySource = "alias"
             }
-            AppEventPublisher.shared.send(
+            AppDIContainer.shared.appEventPublisher.send(
                 .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
             )
             return true
@@ -264,7 +264,7 @@ final class ProfileViewModel {
             publicIdentitySource = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 ? "alias"
                 : "display_name"
-            AppEventPublisher.shared.send(
+            AppDIContainer.shared.appEventPublisher.send(
                 .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: userId)
             )
             return true

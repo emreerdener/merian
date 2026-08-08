@@ -280,7 +280,7 @@ environment, preserving 120Hz refresh rates and reducing thermal loads. All
 `@EnvironmentObject`, `@StateObject`, and `@ObservedObject` injections were
 remapped to modern `@Environment()`, `@State`, and `@Bindable` constraints.
 
-### Centralized AppEventPublisher Routing (`NotificationCenter` Migration)
+### Typed Event and Route Separation (`NotificationCenter` Migration)
 
 Historically, implicit app state changes (e.g., crossing daily usage limits,
 handling active deep link phases) were broadcast globally via string-keyed
@@ -293,14 +293,20 @@ handling active deep link phases) were broadcast globally via string-keyed
    `userInfo["scanId"]`) bypassed Swift compiler checks, and dangling `.sink`
    observer scopes without `[weak self]` caused invisible memory cycles.
 
-**The Refactor**: The architecture deprecates internal string broadcasts
-globally. `AppDIContainer` now mounts a unified
-`@MainActor final class AppEventPublisher` exposing a constrained `AppEvent`
-enum (e.g., `.triggerPaywall`,
-`.appDidEnterActivePhaseWithScan(scanId: String)`). By wrapping these explicitly
-through `diContainer.appEventPublisher.publisher.sink`, the view models enforce
-hard memory constraints, type-checked payload unpacking, and guaranteed
-`@MainActor` thread-safety execution across the app boundary.
+**The refactor:** internal string broadcasts are forbidden. `AppDIContainer`
+owns two deliberately different `@MainActor` services:
+
+- `AppEventPublisher` delivers synchronous, loss-tolerant invalidations. It has
+  no replay buffer and never carries authoritative collections or model objects.
+- `AppRouteCoordinator` owns delivery-critical navigation in a bounded queue of
+  16 lightweight envelopes with priority, semantic coalescing, expiry,
+  account/session fences, and explicit outcomes.
+
+Reference-type Combine consumers store their cancellables and capture
+themselves weakly; SwiftUI `.onReceive` remains view-lifecycle-owned. Framework
+publishers cross through `sinkOnMainActor`; the app bus is already main-actor
+isolated and remains synchronous. Full contracts and matrices live in
+[Event and Presentation Routing](10-event-and-presentation-routing.md).
 
 ### SwiftUI 17 Environment Macros (`HapticManager`)
 
@@ -315,15 +321,17 @@ view bindings, satisfying the `AppDIContainer` expansion boundaries.
 
 ### SwiftUI Presentation Collisions (`CaptureWorkspaceView`)
 
-Apple's iOS 17 rendering engine throws fatal exceptions if the UI attempts to
-present multiple `.sheet` modifiers from concurrent background triggers (e.g.
-`isScansOpen = true` overlapping with `isInsightSheetOpen = true`). Merian
-prevents UI presentation overlaps by abandoning discrete `@Published` boolean
-switches in `CaptureWorkspaceViewModel`. Navigation is mapped against a single
-unified `enum ActiveSheet: Identifiable` property routed through a
-`Group { switch sheet }`. This blocks the UI from issuing parallel presentation
-commands, guaranteeing stable 120Hz view transitions without iOS framework layer
-crashes.
+Concurrent root `.sheet` modifiers can collide when background, push, and user
+actions arrive together. Merian maps root navigation to one `PresentedRoute`
+and one `.sheet(item:)` in `CameraSheetRouter`. `AppRouteCoordinator` permits
+only one in-flight presentation request; an occupied host records a deferral,
+dismisses, and resumes from the real `onDismiss` callback. Achievement detail
+and the notification prompt use that same host. There is no sleep-based sheet
+handoff and no second root presentation anchor. Capture's feature-local crop,
+video, description, question, and feedback presentations report the same UIKit
+slot as occupied; global routes wait for their exact `onDismiss` before being
+reclaimed. The feedback survey is also mounted from dismissal callbacks rather
+than a guessed 1.2-second teardown delay.
 
 ### Capture Startup AttributeGraph Isolation
 
@@ -1200,23 +1208,47 @@ view contexts, creating subtle ordering hazards:
   the same reason.
 
 **Rule:** Never use `DispatchQueue.main.async` or
-`DispatchQueue.main.asyncAfter` in new code. Use `Task { @MainActor in }` for
-one-shot hops from background callbacks, and `.task` modifiers or
-`await MainActor.run { }` for structured async contexts. All existing
-`DispatchQueue.main.*` sites have been migrated.
+Avoid adding `DispatchQueue.main.asyncAfter` as lifecycle or presentation
+coordination. Use `Task { @MainActor in }` for one-shot hops from nonisolated
+callbacks, and `.task` modifiers or `await MainActor.run { }` for structured
+async contexts. `sinkOnMainActor` deliberately retains
+`receive(on: DispatchQueue.main)` at unknown-executor framework boundaries;
+small UIKit/animation compatibility shims elsewhere are not evidence that the
+app event bus should become asynchronously scheduled.
 
-All replacements keep execution within the structured concurrency tree, making
-cancellation, ordering, and priority inheritance predictable.
+Where lifecycle work has a structured-concurrency owner, keep the hop inside
+that task tree so cancellation, ordering, and priority inheritance remain
+predictable. Framework publisher bridges retain Combine ordering and explicit
+token/cancellable ownership instead.
 
 ### SwiftUI Task Cancellation Swallowing
 
-When generating delays (like `toastMessage` banners) using SwiftUI's
-`.task(id:)` modifier, using `try? await Task.sleep()` swallows the native
-`CancellationError`. If the `id` changes rapidly, the swallowed error prevents
-the active task from aborting, creating race conditions where multiple toast
-timers overlap and prematurely clear the UI state. Merian enforces
-`try await Task.sleep()` without the optional coalescing inside `.task(id:)`
-structures, guaranteeing SwiftUI cancels previous suspended timers instantly.
+When generating delays such as toast/banner teardown, swallowing
+`CancellationError` and then continuing can let an old task clear replacement
+state. Auto-dismiss tasks use `do/try/catch`, return from cancellation, and
+compare the message or item identity before mutation. The shared system-toast
+and milestone overlays also occupy distinct presentation states so only one
+bottom feedback layer mounts at a time. Feature animation sleeps that perform
+no teardown may still use cancellation-tolerant behavior where explicitly
+appropriate.
+
+### Owner-Scoped Media Observation
+
+Ad hoc `AVPlayer` notification/KVO/time observers can retain a departed media
+surface or deliver a queued callback into a replacement player. Explore public
+media, Insight video pages, and fullscreen playback use
+`MediaPlaybackObservation`, an `@MainActor @Observable` lifetime owner. It
+stores every KVO cancellable, notification token, and periodic-time token;
+replacing or detaching a player removes tokens from the exact old player/item.
+Callbacks capture owners weakly and verify a generation fence before mutating
+UI state. This bounds observer memory and prevents stale end/interruption events
+from redrawing a newly mounted page.
+
+System and milestone feedback overlays keep their layout footprint to the
+visible banner. The Scans export state uses a compact pass-through progress
+capsule instead of a dim full-screen overlay, while conflicting mutation
+controls remain disabled. These boundaries avoid retaining or invalidating a
+full heavy view tree for ephemeral feedback.
 
 ### Incomplete Gamification UI Animation Thrashing (`AwardCard`)
 
@@ -1396,11 +1428,12 @@ background worker queue, incrementally appending only the new entries onto
 
 - **Hot-Swap Updates (Custom Tags)**: Because `Set`-based ID diffing inherently
   ignores internal property mutations on existing scans, updates to fields like
-  `customTags` are handled via an explicit
-  `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. The `ScansManager`
-  catches this trigger, isolates the singular scan ID, and natively hot-swaps
+  `customTags` emit the typed, loss-tolerant
+  `AppEvent.scanSearchIndexInvalidated(scanId:)`. `ScansManager` receives that
+  main-actor invalidation, isolates the single durable scan ID, and hot-swaps
   only that scan's indexed search payload via the background
-  `SearchDatabaseActor` thread in under 10ms.
+  `SearchDatabaseActor` thread in under 10ms. SwiftData remains authoritative;
+  no application-defined `Notification.Name` is involved.
 - **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in
   `updateSearchableData` previously performed two sequential SwiftData fetches —
   one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to

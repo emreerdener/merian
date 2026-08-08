@@ -268,6 +268,19 @@ the current 3–24-character policy and all other immediate constraints. Fixture
 UUIDs and usernames remain deterministic, catalog-wide unique, and
 transactional.
 
+Changing an `IMMUTABLE` helper referenced by an already validated CHECK does
+not make PostgreSQL rescan existing rows. Migration
+`20260808144244_expand_reserved_public_username_policy.sql` is the reviewed
+username-policy example: it repairs affected profiles in stable user-ID lock
+order, adds and validates a replacement policy-aware profile CHECK, then swaps
+the canonical constraint name. It separately replaces the comment-mention CHECK
+with structural validation only. `explore_comment_mentions.mention_username` is
+the historical token embedded in immutable comment text, so applying the new
+reservation list or rewriting that column alone would break rendered-link
+matching. Policy migrations must classify current state versus historical
+snapshots explicitly; do not assume every column containing the same scalar has
+the same temporal contract.
+
 ### Large or partitioned indexes
 
 Migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`

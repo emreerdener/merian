@@ -202,11 +202,12 @@ authorization:
 - `Preview New to Naturebook notification`
   (`Settings_PreviewNewToMerianNotification`); and
 - `Preview Field trip progress toast`
-  (`Settings_PreviewFieldTripProgressToast`), which shows the contextual copy
-  and credited `GoalProgressRing` used after a saved scan.
+  (`Settings_PreviewFieldTripProgressToast`), which shows the objective artwork,
+  goal-complete title, outing name, and typed tap destination used after a saved
+  scan.
 
 Use the Field trip preview at compact and large widths, with VoiceOver and
-Reduced Motion, to verify wrapping, ring readability, timeout, manual dismissal,
-haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
+Reduced Motion, to verify wrapping, artwork readability, timeout, manual
+dismissal, haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
 achievement persistence, dictionary mutation, analytics, and local push
 delivery.

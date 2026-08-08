@@ -70,7 +70,10 @@ struct ProfileTabView: View {
                         },
                         onOpenCompletedScan: openFieldTripCompletedScan,
                         onViewAll: {
-                            AppEventPublisher.shared.send(.requestOpenFieldTrips)
+                            AppDIContainer.shared.appRouteCoordinator.request(
+                                .fieldTrips,
+                                source: .internalUserAction
+                            )
                         },
                         onEarnedPatchesChange: { patches in
                             earnedFieldTripPatches = patches
@@ -203,14 +206,15 @@ struct ProfileTabView: View {
             .task(id: profileStatsRefreshKey) {
                 await refreshProfileStats()
             }
-            .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+                guard case .scanLibraryChanged = event else { return }
                 profileRefreshToken = UUID()
             }
-            .onReceive(AppEventPublisher.shared.publisher) { event in
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
                 guard FeatureFlags.isEnabled(.fieldTrips) else { return }
                 switch event {
-                case .fieldTripProgressUpdated,
-                     .fieldTripChallengeProgressUpdated,
+                case .fieldTripProgressInvalidated,
+                     .fieldTripChallengeProgressInvalidated,
                      .captureGoalContextInvalidated(.fieldTrip):
                     profileRefreshToken = UUID()
                 default:

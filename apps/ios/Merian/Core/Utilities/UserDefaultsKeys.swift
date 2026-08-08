@@ -136,12 +136,6 @@ enum UserDefaultsKeys {
         "pendingManualAppleRevocationNotice.v1"
 }
 
-enum AccountDeletionEvents {
-    static let manualAppleRevocationNoticeRequired = Notification.Name(
-        "MerianManualAppleRevocationNoticeRequired"
-    )
-}
-
 enum ManualAppleRevocationNoticeStore {
     static func isPending(
         userDefaults: UserDefaults = .standard
@@ -151,18 +145,17 @@ enum ManualAppleRevocationNoticeStore {
         )
     }
 
+    @MainActor
     static func record(
         userDefaults: UserDefaults = .standard,
-        notificationCenter: NotificationCenter = .default
+        eventSender: (any AppEventSending)? = nil
     ) {
+        let eventSender = eventSender ?? AppDIContainer.shared.appEventPublisher
         userDefaults.set(
             true,
             forKey: UserDefaultsKeys.pendingManualAppleRevocationNotice
         )
-        notificationCenter.post(
-            name: AccountDeletionEvents.manualAppleRevocationNoticeRequired,
-            object: nil
-        )
+        eventSender.send(.manualAppleRevocationNoticeRequired)
     }
 
     static func resolve(userDefaults: UserDefaults = .standard) {
@@ -181,44 +174,6 @@ enum KeychainKeys {
     /// Write-ahead journal that keeps analytics fail-closed if the larger
     /// consent ledger cannot persist one or more account-wide withdrawals.
     static let analyticsRevocationIntent = "Merian_AnalyticsRevocationIntent_v1"
-}
-
-enum ScanLibraryEvents {
-    private static let searchIndexUpdateUserInfoKey = "scanId"
-
-    static let searchIndexUpdate = Notification.Name("ScanRequiresSearchIndexUpdate")
-    static let libraryDidUpdate = Notification.Name("MerianLibraryDidUpdate")
-
-    static func postSearchIndexUpdate(
-        scanId: String,
-        center: NotificationCenter = .default
-    ) {
-        center.post(
-            name: searchIndexUpdate,
-            object: nil,
-            userInfo: [searchIndexUpdateUserInfoKey: scanId]
-        )
-    }
-
-    static func scanId(from notification: Notification) -> String? {
-        notification.userInfo?[searchIndexUpdateUserInfoKey] as? String
-    }
-
-    static func searchIndexUpdatePublisher(
-        center: NotificationCenter = .default
-    ) -> NotificationCenter.Publisher {
-        center.publisher(for: searchIndexUpdate)
-    }
-
-    static func postLibraryDidUpdate(center: NotificationCenter = .default) {
-        center.post(name: libraryDidUpdate, object: nil)
-    }
-
-    static func libraryDidUpdatePublisher(
-        center: NotificationCenter = .default
-    ) -> NotificationCenter.Publisher {
-        center.publisher(for: libraryDidUpdate)
-    }
 }
 
 enum ExploreShareStateStore {

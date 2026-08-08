@@ -102,17 +102,23 @@ the
 [canonical Sign in with Apple deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 **Deep links and intents:**
-`MerianApp.handleMerianDeepLink(_:)`, `PushNotificationManager.handleNotificationAction(...)`, and App Intents publish typed `AppEventPublisher` events. `CaptureWorkspaceViewModel` consumes scan, Explore-post, and Species Dictionary events to present the appropriate sheet and stack route. Species events contain only the validated canonical dictionary UUID. `CaptureWorkspaceView` consumes identify/recall intent events that need to modify the pager or reuse current insight state.
+`MerianApp.handleMerianDeepLink(_:)`,
+`PushNotificationManager.handleNotificationAction(...)`, and App Intents enqueue
+typed `AppRoute` values in `AppRouteCoordinator`. `CaptureWorkspaceViewModel`
+claims each route and applies it through the single root presentation host.
+Species routes contain only the validated canonical dictionary UUID. Identify
+and recall intents use the same queue rather than a separate event subscriber.
 
 **Photos document import:**
 `MerianApp.onOpenURL` handles Google Sign-In and Merian deep links before
 classifying file URLs, and leaves remaining URLs for Supabase authentication.
 An accepted image is copied immediately into `ExternalImageImportStore`; only
-then does the app publish `.externalImageImportAvailable`. The durable inbox,
-not the transient `AppEvent`, is authoritative. `CaptureWorkspaceView` checks it
-on appearance and every active transition so cold launch, onboarding, or an
-event sent before the workspace subscribes cannot lose the photo. Capacity and
-quota blocks retain the receipt. See
+then does the app request `AppRoute.processExternalImageImports` with the
+`durableExternalImport` source. The durable inbox, not the process-local route
+envelope, is authoritative. `CaptureWorkspaceView` also checks the inbox on
+appearance and every active transition so cold launch, onboarding, or a request
+sent before the workspace mounts cannot lose the photo. Capacity and quota
+blocks retain the receipt. See
 `docs/features-and-hardware/26-photos-share-import.md`.
 
 **Fresh-launch Explore preference:**
@@ -138,8 +144,18 @@ When adding a new external route, clear any generic launch destination before
 presenting the requested state and protect it from the same foreground timeout
 event that accompanied the launch.
 
-**Internal Cross-Sheet Routing:**
-`AppEventPublisher` is also utilized for decoupled internal routing. For example, toast actions originating from the `InsightSheetViewModel` can dispatch specific intents (e.g., `.requestOpenNonBiologicalScansIntent`) that are captured by the `CaptureWorkspaceViewModel` and `ScansSheetView` to mutate root presentation states and push nested navigation views, completely avoiding tight coupling between sibling modal sheets.
+**Internal cross-sheet routing:**
+Cross-module navigation uses `AppRouteCoordinator`, including Insight actions
+that open refinement, non-biological scans, Scans Library, Field trips, or an
+achievement detail. If a root sheet is occupied, the coordinator records a
+deferral, dismisses that presentation, and resumes the same request from the
+sheet's `onDismiss`; no fixed animation sleep or sibling root sheet is used.
+Feature-local Capture editors and covers also defer the route, but are allowed
+to finish normally; their exact `onDismiss` requeues it. Supabase marks only its
+`initialSession` event as cold restoration, so interactive sign-in cannot adopt
+private launch routes from a prior account generation.
+Loss-tolerant cache invalidations continue to use `AppEventPublisher`. See
+[Event and Presentation Routing](../system-architecture/10-event-and-presentation-routing.md).
 
 **Async tasks:**
 
@@ -241,10 +257,19 @@ The previous architecture called `enqueueCapture` from `handleBackgroundPhase`, 
 **Rules AI agents must follow:**
 - **Never re-introduce rescue logic in `handleBackgroundPhase`.** Scans are enqueued in `submitActiveScan` before any async boundary. Rescue handlers re-added here will be unreliable for the same structural reasons the originals were — see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`.
 - **Never start `AVCaptureSession` without verifying `scenePhase == .active`.** When UI sheets implicitly close during a background transition, they may emit state changes that inadvertently trigger `startSession()`. Firing a hardware start request into AVFoundation while suspended permanently deadlocks the video data queue on foreground return.
-- **Never tie `AVCaptureSession` state to SwiftUI `.onAppear` or `.onDismiss` native sheet closures.** Because SwiftUI processes rapid View generation unpredictably, `.onAppear` closures embedded in sheets can fire out of sync with `.onDismiss` during fast presentation transitions. Always bind hardware interaction exactly 1:1 with the backing `@State` or `@Bindable` variable driving the UI via a deterministic `.onChange(of:)` hook (e.g., `.onChange(of: viewModel.activeSheet)`).
+- **Do not treat a presentation binding becoming `nil` as proof that UIKit has
+  released the camera presentation slot.** Stop the session when observed
+  root/local presentation state becomes occupied. During dismissal,
+  `isRootPresentationDismissing` prevents an early restart; the exact root or
+  feature-local `onDismiss` may restore the session only after rechecking visual
+  Capture mode, `scenePhase == .active`, no remaining presentation, and no
+  in-flight or queued route. Ordinary non-presentation hardware state still
+  follows deterministic `.onChange(of:)` observation.
 - **Never bypass the free user queue cap** in `enqueueCapture`. The cap is the primary defence against free-tier scan hoarding — do not remove or loosen it.
 - **Never trigger the paywall from `InferenceEngine`'s catch block.** The paywall is only shown from the `canPerformScan` gate in `Capture.swift` and `handlePhotoPickerSelection`. Network failures must never surface a paywall.
-- **Never add direct ViewModel references** to `AppLifecycleManager`. Publish typed `AppEventPublisher` events for UI side effects that need to cross from lifecycle/services into SwiftUI.
+- **Never add direct ViewModel references** to `AppLifecycleManager`. Send a
+  loss-tolerant `AppEvent` for lifecycle invalidation, or enqueue an `AppRoute`
+  when delivery changes navigation. Do not encode routes as lifecycle events.
 - `syncHistoricalScansDown` is throttled to once per 15 minutes. Do not add additional call sites without also checking `UserDefaultsKeys.lastHistoricalSyncDate`.
 - **Always let `OfflineJobScheduler.drainRunnableJobs(using:)` own foreground
   queue drain and replay after the required-consent guard.** `NWPathMonitor` only

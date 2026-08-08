@@ -5,11 +5,15 @@ import UIKit
 
 enum ExploreVideoMutePreference {
     static let key = "MerianExplorePublicVideoMuted"
-    static let didResetNotification = Notification.Name("ExploreVideoMutePreferenceDidReset")
 
-    static func resetToMuted(defaults: UserDefaults = .standard) {
+    @MainActor
+    static func resetToMuted(
+        defaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) {
+        let eventSender = eventSender ?? AppDIContainer.shared.appEventPublisher
         defaults.set(true, forKey: key)
-        NotificationCenter.default.post(name: didResetNotification, object: nil)
+        eventSender.send(.exploreVideoMutePreferenceReset)
     }
 }
 
@@ -106,13 +110,9 @@ struct ExplorePostCard: View {
             guard hasStandalonePrimaryAudio else { return }
             ExploreAudioBoostPreferenceStore().setEnabled(enabled, for: post.id)
         }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: ExploreAudioBoostPreferenceStore.didChangeNotification
-            )
-        ) { notification in
-            guard notification.userInfo?[ExploreAudioBoostPreferenceStore.postIdUserInfoKey] as? String == post.id,
-                  let enabled = notification.userInfo?[ExploreAudioBoostPreferenceStore.enabledUserInfoKey] as? Bool,
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case let .exploreAudioBoostPreferenceChanged(postId, enabled) = event,
+                  postId == post.id,
                   enabled != isAudioBoostEnabled else { return }
             isAudioBoostEnabled = enabled
         }
@@ -779,18 +779,16 @@ struct ExplorePublicMediaView: View {
     let onAudioBoostToggleRequested: (() -> Void)?
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var player: AVPlayer?
     @State private var playerId = UUID().uuidString
     @State private var configuredVideoURL: String?
     @State private var videoSurfaceGeneration = 0
     @State private var pendingRecoverySeekTime: CMTime?
-    @State private var playbackObservers: [NSObjectProtocol] = []
-    @State private var playbackTimeObserver: Any?
+    @State private var playbackObservation = MediaPlaybackObservation()
     @State private var audioPlaybackProgress = 0.0
     @State private var audioElapsedSeconds = 0.0
     @State private var audioDurationSeconds = 0.0
-    @State private var playbackStatusObserver: AnyCancellable?
-    @State private var playerItemStatusObserver: AnyCancellable?
     @State private var isPlayerItemReady = false
     @State private var playbackOverlayState = ExploreVideoPlaybackOverlayState()
     @State private var playbackControlFadeTask: Task<Void, Never>?
@@ -951,6 +949,27 @@ struct ExplorePublicMediaView: View {
                 extra: "visible=\(isVisible) playerNil=\(player == nil) rebuild=\(playbackOverlayState.needsPlayerRebuildForRecovery)"
             )
         }
+        .onChange(of: playbackObservation.timeControlStatus) { _, status in
+            handlePlaybackStatusChange(status)
+        }
+        .onChange(of: playbackObservation.itemStatus) { _, status in
+            handlePlaybackItemStatusChange(status)
+        }
+        .onChange(of: playbackObservation.eventSequence) { _, _ in
+            handlePlaybackLifecycleEvent()
+        }
+        .onChange(of: playbackObservation.currentTimeSeconds) { _, seconds in
+            updateAudioPlaybackProgress(
+                elapsedSeconds: seconds,
+                durationSeconds: playbackObservation.durationSeconds
+            )
+        }
+        .onChange(of: playbackObservation.durationSeconds) { _, duration in
+            updateAudioPlaybackProgress(
+                elapsedSeconds: playbackObservation.currentTimeSeconds,
+                durationSeconds: duration
+            )
+        }
         .onChange(of: isMuted) { _, newValue in
             guard mediaItem.kind == .video else { return }
             guard !newValue else {
@@ -967,11 +986,8 @@ struct ExplorePublicMediaView: View {
                 logPlayback("mute-changed", extra: "muted=false")
             }
         }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: ExploreVideoMutePreference.didResetNotification
-            )
-        ) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .exploreVideoMutePreferenceReset = event else { return }
             guard mediaItem.kind == .video else { return }
             isMuted = true
             player?.isMuted = true
@@ -994,11 +1010,17 @@ struct ExplorePublicMediaView: View {
             guard playbackCoordinator?.hasActiveOverlay != true else { return }
             finishOverlayDismissalPaused()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-            pauseForSystemInterruption(shouldResume: playbackOverlayState.isPlaying || player?.timeControlStatus == .playing)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-            resumeAfterInterruptionIfNeeded()
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                resumeAfterInterruptionIfNeeded()
+            case .inactive, .background:
+                pauseForSystemInterruption(
+                    shouldResume: playbackOverlayState.isPlaying || player?.timeControlStatus == .playing
+                )
+            @unknown default:
+                break
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: AVAudioSession.interruptionNotification)) { notification in
             handleAudioSessionInterruption(notification)
@@ -1509,85 +1531,14 @@ struct ExplorePublicMediaView: View {
         let player = AVPlayer(url: url)
         player.isMuted = mediaItem.kind == .video ? isMuted : false
         player.actionAtItemEnd = .none
-        playbackObservers = [
-            NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem,
-                queue: .main
-            ) { [weak player] _ in
-                guard let player else { return }
-                logPlayback("item-ended")
-                if mediaItem.kind == .audio {
-                    audioPlaybackProgress = 0
-                    audioElapsedSeconds = 0
-                    AppTelemetry.trackExploreAudioPlaybackCompleted(surface: surface.rawValue)
-                }
-                player.seek(to: .zero)
-                if playbackOverlayState.isPlaying {
-                    player.play()
-                } else {
-                    reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
-                }
-            },
-            NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemPlaybackStalled,
-                object: player.currentItem,
-                queue: .main
-            ) { _ in
-                logPlayback("item-stalled")
-                pauseForRecoverableInterruption()
-            },
-            NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemFailedToPlayToEndTime,
-                object: player.currentItem,
-                queue: .main
-            ) { _ in
-                logPlayback("item-failed-to-end")
-                if mediaItem.kind == .audio {
-                    AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
-                }
-                pauseForRecoverableInterruption()
-            }
-        ]
-        playbackStatusObserver = player.publisher(for: \.timeControlStatus, options: [.new])
-            .receive(on: DispatchQueue.main)
-            .sink { status in
-                handlePlaybackStatusChange(status)
-            }
-        playerItemStatusObserver = player.currentItem?.publisher(for: \.status, options: [.initial, .new])
-            .receive(on: DispatchQueue.main)
-            .sink { status in
-                isPlayerItemReady = status == .readyToPlay
-                if mediaItem.kind == .audio,
-                   status == .readyToPlay,
-                   let duration = player.currentItem?.duration,
-                   duration.isNumeric,
-                   duration.seconds.isFinite,
-                   duration.seconds > 0 {
-                    audioDurationSeconds = duration.seconds
-                }
-                if status == .failed {
-                    reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
-                    if mediaItem.kind == .audio {
-                        AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
-                    }
-                }
-            }
-        playbackTimeObserver = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
-            queue: .main
-        ) { time in
-            guard mediaItem.kind == .audio,
-                  let duration = player.currentItem?.duration,
-                  duration.isNumeric,
-                  duration.seconds.isFinite,
-                  duration.seconds > 0 else { return }
-            audioPlaybackProgress = max(0, min(1, time.seconds / duration.seconds))
-            audioElapsedSeconds = max(0, time.seconds)
-            audioDurationSeconds = duration.seconds
-        }
         configuredVideoURL = videoURLString
         self.player = player
+        playbackObservation.observe(
+            player,
+            periodicInterval: CMTime(seconds: 0.1, preferredTimescale: 600)
+        )
+        handlePlaybackStatusChange(playbackObservation.timeControlStatus)
+        handlePlaybackItemStatusChange(playbackObservation.itemStatus)
         if let recoverySeekTime {
             logPlayback("seek-recovery", extra: "seconds=\(recoverySeekTime.seconds)")
             player.seek(to: recoverySeekTime, toleranceBefore: .zero, toleranceAfter: .zero)
@@ -1760,22 +1711,11 @@ struct ExplorePublicMediaView: View {
         unexpectedPauseRecoveryTask = nil
         playbackControlFadeTask?.cancel()
         playbackControlFadeTask = nil
-        playbackStatusObserver?.cancel()
-        playbackStatusObserver = nil
-        playerItemStatusObserver?.cancel()
-        playerItemStatusObserver = nil
+        playbackObservation.detach()
         isPlayerItemReady = false
-        if let playbackTimeObserver {
-            player?.removeTimeObserver(playbackTimeObserver)
-            self.playbackTimeObserver = nil
-        }
         audioPlaybackProgress = 0
         audioElapsedSeconds = 0
         audioDurationSeconds = 0
-        for observer in playbackObservers {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        playbackObservers = []
         configuredVideoURL = nil
         player = nil
         deactivateAudioPlaybackSessionIfNeeded()
@@ -2164,6 +2104,67 @@ struct ExplorePublicMediaView: View {
                 reducePlaybackOverlay(.controlFadeCompleted, animation: .easeInOut(duration: 0.26))
             }
         }
+    }
+
+    private func handlePlaybackLifecycleEvent() {
+        guard let player, playbackObservation.isObserving(player) else { return }
+
+        switch playbackObservation.lastEvent {
+        case .didReachEnd:
+            logPlayback("item-ended")
+            if mediaItem.kind == .audio {
+                audioPlaybackProgress = 0
+                audioElapsedSeconds = 0
+                AppTelemetry.trackExploreAudioPlaybackCompleted(surface: surface.rawValue)
+            }
+            player.seek(to: .zero)
+            if playbackOverlayState.isPlaying {
+                player.play()
+            } else {
+                reducePlaybackOverlay(.playbackPaused, animation: .easeInOut(duration: 0.18))
+            }
+        case .playbackStalled:
+            logPlayback("item-stalled")
+            pauseForRecoverableInterruption()
+        case .failedToPlayToEnd:
+            logPlayback("item-failed-to-end")
+            if mediaItem.kind == .audio {
+                AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
+            }
+            pauseForRecoverableInterruption()
+        case nil:
+            break
+        }
+    }
+
+    private func handlePlaybackItemStatusChange(_ status: AVPlayerItem.Status) {
+        guard let player, playbackObservation.isObserving(player) else { return }
+
+        isPlayerItemReady = status == .readyToPlay
+        if mediaItem.kind == .audio, status == .readyToPlay {
+            updateAudioPlaybackProgress(
+                elapsedSeconds: playbackObservation.currentTimeSeconds,
+                durationSeconds: playbackObservation.durationSeconds
+            )
+        }
+        if status == .failed {
+            reducePlaybackOverlay(.playbackUnavailable, animation: .easeInOut(duration: 0.18))
+            if mediaItem.kind == .audio {
+                AppTelemetry.trackExploreAudioPlaybackFailed(surface: surface.rawValue)
+            }
+        }
+    }
+
+    private func updateAudioPlaybackProgress(
+        elapsedSeconds: Double,
+        durationSeconds: Double
+    ) {
+        guard mediaItem.kind == .audio, durationSeconds.isFinite, durationSeconds > 0 else {
+            return
+        }
+        audioPlaybackProgress = max(0, min(1, elapsedSeconds / durationSeconds))
+        audioElapsedSeconds = max(0, elapsedSeconds)
+        audioDurationSeconds = durationSeconds
     }
 
     private func handlePlaybackStatusChange(_ status: AVPlayer.TimeControlStatus) {

@@ -31,7 +31,7 @@ struct ProfilePublicScansPreview: View {
         .onChange(of: viewModel.store.changeVersion) {
             remotePosts.removeAll { viewModel.post(id: $0.id) == nil }
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             handleAppEvent(event)
         }
         .onChange(of: profileViewModel.socialStats) { _, stats in
@@ -220,12 +220,13 @@ struct ProfilePublicScansPreview: View {
     private func reviewRecovery() {
         guard let currentUserId, recoverySummary != nil else { return }
         HapticManager.shared.triggerSelectionPulse()
-        AppEventPublisher.shared.send(
-            .requestOpenScansLibraryRecovery(
+        AppDIContainer.shared.appRouteCoordinator.request(
+            .scansLibraryRecovery(
                 ExploreMediaRecoveryRouteContext(
                     ownerUserId: currentUserId.lowercased()
                 )
-            )
+            ),
+            source: .internalUserAction
         )
     }
 
@@ -384,7 +385,7 @@ private struct ProfilePublishedScansLibraryView: View {
         .task(id: authorUserId) {
             await reloadPosts()
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             guard case .publicAuthorIdentityChanged(let previousUserId, let currentUserId) = event,
                   authorIdentityChangeAffects(
                     authorUserId,
@@ -658,12 +659,13 @@ private struct ProfilePublishedScansLibraryView: View {
     private func reviewRecovery() {
         guard recoverySummary != nil else { return }
         HapticManager.shared.triggerSelectionPulse()
-        AppEventPublisher.shared.send(
-            .requestOpenScansLibraryRecovery(
+        AppDIContainer.shared.appRouteCoordinator.request(
+            .scansLibraryRecovery(
                 ExploreMediaRecoveryRouteContext(
                     ownerUserId: authorUserId.lowercased()
                 )
-            )
+            ),
+            source: .internalUserAction
         )
     }
 

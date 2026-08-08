@@ -270,9 +270,9 @@ struct ActiveFieldTripsProfilePreview: View {
         .task(id: currentUserId) {
             await load()
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             switch event {
-            case .fieldTripProgressUpdated:
+            case .fieldTripProgressInvalidated:
                 Task { await load() }
             case .captureGoalContextInvalidated(let source) where source == .fieldTrip:
                 Task { await load() }

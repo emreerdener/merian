@@ -82,7 +82,10 @@ struct NonBiologicalView: View {
 
                 Button {
                     HapticManager.shared.triggerSelectionPulse()
-                    AppEventPublisher.shared.send(.requestOpenNonBiologicalScansIntent)
+                    AppDIContainer.shared.appRouteCoordinator.request(
+                        .nonBiologicalScans,
+                        source: .internalUserAction
+                    )
                 } label: {
                     HStack(spacing: 4) {
                         Text("Open collection")

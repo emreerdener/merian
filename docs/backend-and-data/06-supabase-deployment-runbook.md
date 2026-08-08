@@ -4999,6 +4999,141 @@ ordering without accepting stale writes. A temporary ungated period is a
 legal/privacy policy decision and requires explicit release and counsel
 authority; never backfill acceptance or fabricate grant events.
 
+## Public Username Reservation Policy Rollout
+
+Migration `20260808144244_expand_reserved_public_username_policy.sql`, the
+shared `update-public-username/validation.ts` policy, both username Edge routes,
+and the iOS profile editor form one compatibility unit. The canonical product
+and historical-mention contract is
+[`21-public-usernames.md`](../features-and-hardware/21-public-usernames.md); this
+section defines release order and evidence only.
+
+The change reserves exact product namespaces, exact official/system roles, and
+exact product-role combinations in both orders. It is intentionally not a broad
+prefix rule. PostgreSQL is authoritative; Edge and iOS are early-feedback
+mirrors, and the static migration contract fails on policy-set drift.
+
+### Compatibility and deployment order
+
+1. From the exact candidate SHA, require the repository-pinned Supabase CLI and
+   run the static, runtime, disposable-catalog, and iOS gates:
+
+   ```bash
+   bash services/supabase/scripts/require_supabase_cli_version.sh
+   make validate-supabase-migrations
+   deno test --frozen --config services/supabase/functions/deno.json \
+     services/supabase/functions/update-public-username/validation_test.ts \
+     services/supabase/functions/_tests/updatePublicUsername.test.ts
+   deno test --frozen --config services/supabase/functions/deno.json \
+     --allow-read=services/supabase,apps/ios \
+     services/supabase/functions/_tests/publicUsernamePolicyMigrationContract.test.ts
+   make test-supabase-privileged-routines
+   (cd services/supabase/functions && deno task test)
+   xcodebuild -scheme Merian -project Merian.xcodeproj \
+     -destination 'generic/platform=iOS Simulator' \
+     CODE_SIGNING_ALLOWED=NO build
+   ```
+
+   The catalog gate must discover and execute
+   `tests/public_username_policy_security.sql`. A static policy-parity test does
+   not prove the migration, function volatility, validated constraints, or
+   rejected database write.
+2. Prefer deploying the shared Edge policy and both
+   `check-public-username`/`update-public-username` routes first as a separately
+   validated compatible phase. They only reject additional handles and do not
+   require the new migration. Confirm the dependency planner selects both
+   routes because they import the same validation module.
+3. Apply the migration through the normal production workflow. It repairs only
+   current profile rows whose handles are reserved under the expanded policy,
+   in stable user-ID lock
+   order, using neutral deterministic collision-safe aliases. It aligns
+   `public_author_name` only for alias-source profiles, rebuilds and validates
+   the profile CHECK, and installs a separately validated structural CHECK for
+   historical mention snapshots.
+4. A combined workflow that applies the migration before the Edge rollout is
+   database-safe: the profile CHECK still rejects an old client's newly
+   reserved write. The old route may temporarily surface a generic database
+   failure instead of the reviewed inline message, so do not call the customer
+   path complete until both Functions are live.
+5. Ship the iOS mirror after the server boundary is live. Older clients remain
+   protected by Edge and PostgreSQL. The iOS list improves immediate feedback;
+   it is never the authorization or integrity boundary.
+
+This migration is forward-only. Do not preserve an official-looking prefix
+such as `admin_...` during repair, rewrite historical mention tokens, relax the
+profile CHECK for an old client, or grant meaning to a username/display label.
+Trusted status requires a separate server-owned role, claim, or badge.
+
+### Post-deploy database evidence
+
+Run the following as bounded read-only catalog/application checks. Do not copy
+profile rows, comment bodies, or user identifiers into release logs.
+
+```sql
+SELECT
+    public.is_reserved_public_username('admin') AS admin_reserved,
+    public.is_reserved_public_username('security') AS security_reserved,
+    public.is_reserved_public_username('naturebook_support') AS brand_role_reserved,
+    public.is_reserved_public_username('support_naturebook') AS role_brand_reserved,
+    NOT public.is_reserved_public_username('naturebook_fan') AS community_handle_allowed,
+    NOT public.is_reserved_public_username('security_researcher') AS researcher_handle_allowed;
+
+SELECT pg_catalog.COUNT(*) AS reserved_current_profiles
+FROM public.users AS app_user
+WHERE public.is_reserved_public_username(app_user.public_username);
+
+SELECT
+    constraint_row.conrelid::pg_catalog.REGCLASS AS relation_name,
+    constraint_row.conname,
+    constraint_row.convalidated,
+    pg_catalog.PG_GET_CONSTRAINTDEF(constraint_row.oid, TRUE) AS definition
+FROM pg_catalog.pg_constraint AS constraint_row
+WHERE constraint_row.conrelid IN (
+        'public.users'::pg_catalog.REGCLASS,
+        'public.explore_comment_mentions'::pg_catalog.REGCLASS
+    )
+  AND constraint_row.conname IN (
+        'users_public_username_valid_check',
+        'explore_comment_mentions_username_valid_check'
+    )
+ORDER BY 1, 2;
+
+SELECT
+    pg_catalog.COUNT(*) FILTER (
+        WHERE public.is_reserved_public_username(mention.mention_username)
+    ) AS historical_reserved_mention_snapshots,
+    pg_catalog.COUNT(*) FILTER (
+        WHERE comment_row.body !~* (
+            '(^|[^A-Za-z0-9_])@'
+            || mention.mention_username
+            || '([^A-Za-z0-9_]|$)'
+        )
+    ) AS body_snapshot_mismatches
+FROM public.explore_comment_mentions AS mention
+JOIN public.explore_post_comments AS comment_row
+  ON comment_row.id = mention.comment_id;
+```
+
+All six policy booleans must be `true`, `reserved_current_profiles` must be
+zero, and both named constraints must exist with `convalidated = true`. The
+profile definition must call `is_valid_public_username`; the mention definition
+must enforce lowercase/length/shape without calling that policy-aware helper.
+`historical_reserved_mention_snapshots` is informational and may be nonzero.
+`body_snapshot_mismatches` must be zero.
+
+Complete an authenticated availability-only smoke through the shipped Profile
+editor or `check-public-username`: `security`, `naturebook_support`, and
+`support_naturebook` must return the reserved error, while a unique ordinary
+community handle must proceed to the uniqueness result. Mutate a real username
+only with an explicitly authorized test account. Confirm an old comment with a
+historical token still renders that exact span as tappable and routes by the
+durable mentioned user ID.
+
+If any post-deploy invariant fails, stop rollout and prepare a reviewed forward
+repair. Do not reverse the migration, edit migration history, update
+`mention_username` without rewriting the immutable body, or bypass the exact
+Supabase CLI pin.
+
 ## Required and Optional GitHub Secrets
 
 This section is the GitHub Actions control-plane contract, not a Vercel

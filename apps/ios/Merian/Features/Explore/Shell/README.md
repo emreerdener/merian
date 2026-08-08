@@ -64,16 +64,19 @@ template, and focuses the credited goal. A
 Seasonal Challenge detail. Do not expose `FieldTripTemplateRoute` or
 `FieldTripChallengeRoute` to Core feedback code.
 
-`fieldTripProgressUpdated` and `fieldTripChallengeProgressUpdated` continue to
-refresh affected lists/details only. They must not produce a local plain toast;
-the global `MilestoneToastPresenter` already owns the user-facing notification.
+`fieldTripProgressInvalidated(templateIds:)` and
+`fieldTripChallengeProgressInvalidated(challengeIds:)` continue to refresh
+affected durable lists/details only. They must not produce a local plain toast;
+the bounded `MilestoneToastPresenter` already owns the ephemeral user-facing
+notification.
 
 The persistent Insight contribution card uses the same destination conversion.
 When an Insight is already pushed inside Explore, its optional open-goal
 callback appends the standard outing or Event destination to this navigation
-stack. A root Insight instead dismisses through the existing
-`requestOpenCaptureGoal` event so `CameraSheetRouter` can present Explore. The
-card must not create a second Explore sheet around an embedded Insight.
+stack. A root Insight instead requests `AppRoute.captureGoal`; the root route
+coordinator dismisses the occupied presentation before `CameraSheetRouter`
+presents Explore. The card must not create a second Explore sheet around an
+embedded Insight.
 
 ## Completed Field-trip Scan Navigation
 

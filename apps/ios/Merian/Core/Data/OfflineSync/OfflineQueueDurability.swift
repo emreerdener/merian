@@ -781,7 +781,7 @@ extension OfflineQueueManager {
         do {
             try context.save()
             updateUnsyncedItemCount()
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
             if scan.queueState == .pending {
                 syncPendingScans()

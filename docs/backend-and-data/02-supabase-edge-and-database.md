@@ -31,7 +31,13 @@ are identified by a persistent Keychain-backed
   scan cascade cleanup, and assistant token telemetry for cost audits.
 - **`users`**: Binds the IDFV (or authenticated UUID) to the product schema,
   tracking usage limits, subscription tier, public Explore display identity,
-  avatar projection, and canonical `public_username` handle.
+  avatar projection, and canonical `public_username` handle. Current handles
+  reject protected product namespaces, official/system roles, and exact
+  product-role combinations through a database-authoritative CHECK.
+- **`explore_comment_mentions`**: Stores the durable mentioned-user edge and the
+  historical normalized username token that still appears in immutable comment
+  text. The snapshot keeps structural username validation but does not inherit
+  later reserved-name expansions.
 - **`user_terms_acceptance_receipts`**: Immutable, account-owned evidence for
   each accepted Terms version, including exact action copy, device action time,
   app version/build, and an authoritative server-recorded time.
@@ -2551,6 +2557,15 @@ Explore reads never mutate author identity or post ownership. Feed, author,
 comment, notification, map, mention, hashtag, species, and post-detail functions
 read the existing public projection only. This keeps read latency predictable
 and prevents a popular profile or feed page from creating database writes.
+
+Current `users.public_username` rows and historical mention snapshots have
+different temporal contracts. Migration
+`20260808144244_expand_reserved_public_username_policy.sql` repairs newly
+reserved current handles with neutral deterministic aliases and revalidates the
+profile CHECK. It leaves `explore_comment_mentions.mention_username` unchanged
+so each snapshot still matches its plain-text `@token`; taps route by
+`mentioned_user_id`. Edge and iOS mirror the reserved groups for early feedback,
+but PostgreSQL remains authoritative and usernames carry no authorization.
 
 `syncPublicAuthorIdentity(...)` remains the shared Edge helper for public write
 paths. It is called when sharing a scan, creating Explore or Field trip

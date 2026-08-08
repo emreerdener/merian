@@ -53,3 +53,10 @@ records. Runtime playback failure performs the same replacement in place with
 the original stable page ID, so selection is preserved, video/mute controls are
 removed, and tapping opens normal fullscreen image zoom. Sampled frames are
 never exposed as a five-page replacement.
+
+Inline and fullscreen video each retain a `MediaPlaybackObservation` for the
+mounted playback surface. Replacing or dismissing a player removes KVO,
+AVPlayerItem notification, and periodic-time tokens from that exact player;
+callbacks carry a generation fence so late events from a prior carousel page
+cannot update the current page. Do not register ad hoc AVPlayer observers in a
+carousel view.

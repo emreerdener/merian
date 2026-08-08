@@ -16,6 +16,17 @@ The `Library` directory handles the primary grid view of all personal biological
 ## Purpose
 This is the core browsing experience for a user's identified biological scans. It includes the semantic search engine that can resolve plain-English queries against taxonomy, as well as handling the presentation of pending queued captures that haven't yet finished inference or upload.
 
+## Batch media export conflict domain
+
+Saving selected media retains a bounded snapshot of at most 20 completed scans
+and shows a compact bottom progress capsule with hit testing disabled. The
+library remains scrollable and unrelated navigation remains available; there is
+no full-screen progress blocker. Until export completes, individual and bulk
+selection changes, Cancel/Select All, share, download, delete, queued-scan
+deletion, and Explore-publication mutations are fenced. This prevents the
+export snapshot and the visible selection/record set from diverging while still
+allowing nonmutating use of the sheet.
+
 ## Explore media incident contract
 
 - Every authenticated Library entry loads the owner's active Explore media
@@ -57,8 +68,8 @@ This is the core browsing experience for a user's identified biological scans. I
   kicks. They are also excluded from `unsyncedItemsCount`, which represents
   automatically runnable work rather than every visible queue row. That count
   uses a fresh SwiftData read context so background-actor transitions cannot
-  be hidden by a cached main-context fault. A successful explicit retry posts
-  `libraryDidUpdate`, changes the state-bearing refresh identity, and
+  be hidden by a cached main-context fault. A successful explicit retry sends
+  `.scanLibraryChanged`, changes the state-bearing refresh identity, and
   re-enables monitoring. The serialized queue actor rechecks the same
   attention fence and persisted retry deadline while claiming upload or
   inference work and excludes attention rows from orphan reset, so a stale
@@ -99,6 +110,6 @@ This is the core browsing experience for a user's identified biological scans. I
 - Targeted reindexes coalesce pending scan IDs. A replacement task carries IDs
   from any superseded task, preventing a rapid A→B update from dropping A from
   the search index.
-- `ScanRequiresSearchIndexUpdate` and `exploreShareStateChanged` both refresh
+- `AppEvent.scanSearchIndexInvalidated` and `exploreShareStateChanged` both refresh
   the cached filter projection and rerun the current query so custom-tag and
   Explore-share filters remain live.

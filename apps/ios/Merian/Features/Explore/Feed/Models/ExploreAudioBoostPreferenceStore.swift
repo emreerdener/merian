@@ -7,10 +7,6 @@ enum ExploreAudioBoostFeedbackPolicy {
 }
 
 struct ExploreAudioBoostPreferenceStore {
-    static let didChangeNotification = Notification.Name("ExploreAudioBoostPreferenceDidChange")
-    static let postIdUserInfoKey = "postId"
-    static let enabledUserInfoKey = "enabled"
-
     private struct Entry: Codable {
         let postId: String
         var lastAccessedAt: Date
@@ -40,7 +36,13 @@ struct ExploreAudioBoostPreferenceStore {
         return true
     }
 
-    func setEnabled(_ enabled: Bool, for postId: String) {
+    @MainActor
+    func setEnabled(
+        _ enabled: Bool,
+        for postId: String,
+        eventSender: (any AppEventSending)? = nil
+    ) {
+        let eventSender = eventSender ?? AppDIContainer.shared.appEventPublisher
         let currentEntries = loadPrunedEntries()
         let wasEnabled = currentEntries.contains { $0.postId == postId }
         var entries = currentEntries.filter { $0.postId != postId }
@@ -49,13 +51,8 @@ struct ExploreAudioBoostPreferenceStore {
         }
         save(Array(entries.sorted { $0.lastAccessedAt > $1.lastAccessedAt }.prefix(maxEntries)))
         guard enabled != wasEnabled else { return }
-        NotificationCenter.default.post(
-            name: Self.didChangeNotification,
-            object: nil,
-            userInfo: [
-                Self.postIdUserInfoKey: postId,
-                Self.enabledUserInfoKey: enabled
-            ]
+        eventSender.send(
+            .exploreAudioBoostPreferenceChanged(postId: postId, isEnabled: enabled)
         )
     }
 

@@ -1,5 +1,4 @@
 import AVFoundation
-import Combine
 import SwiftUI
 
 struct InsightFullscreenImageCarousel: View {
@@ -224,21 +223,15 @@ private struct FullscreenVideoView: View {
     @State private var player: AVPlayer?
     @State private var isPlaying = false
     @State private var availability = InsightVideoPlaybackAvailability.loading
-    @State private var playbackEndObserver: NSObjectProtocol?
-    @State private var playbackFailureObserver: NSObjectProtocol?
+    @State private var playbackObservation = MediaPlaybackObservation()
 
     var body: some View {
         ZStack {
             Color.black
 
-            if let player,
-               let playerItem = player.currentItem,
-               availability != .unavailable {
+            if let player, availability != .unavailable {
                 InsightCoverVideoPlayer(player: player, videoGravity: .resizeAspect)
                     .ignoresSafeArea()
-                    .onReceive(playerItem.publisher(for: \.status).removeDuplicates()) { status in
-                        updateAvailability(for: status, observedPlayer: player)
-                    }
             }
 
             switch availability {
@@ -256,6 +249,25 @@ private struct FullscreenVideoView: View {
         }
         .task(id: path) {
             configurePlayer()
+        }
+        .onChange(of: playbackObservation.timeControlStatus) { _, status in
+            switch status {
+            case .playing:
+                isPlaying = true
+            case .paused:
+                isPlaying = false
+            case .waitingToPlayAtSpecifiedRate:
+                break
+            @unknown default:
+                isPlaying = false
+            }
+        }
+        .onChange(of: playbackObservation.itemStatus) { _, status in
+            guard let player else { return }
+            updateAvailability(for: status, observedPlayer: player)
+        }
+        .onChange(of: playbackObservation.eventSequence) { _, _ in
+            handlePlaybackLifecycleEvent()
         }
         .onChange(of: isMuted) { _, newValue in
             guard !newValue else {
@@ -302,29 +314,31 @@ private struct FullscreenVideoView: View {
         configuredPlayer.isMuted = isMuted
         configuredPlayer.actionAtItemEnd = .pause
         player = configuredPlayer
+        playbackObservation.observe(configuredPlayer)
         updateAvailability(
-            for: configuredPlayer.currentItem?.status ?? .unknown,
+            for: playbackObservation.itemStatus,
             observedPlayer: configuredPlayer
         )
-        playbackEndObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: configuredPlayer.currentItem,
-            queue: .main
-        ) { _ in
-            configuredPlayer.seek(to: .zero)
+    }
+
+    private func handlePlaybackLifecycleEvent() {
+        guard let player, playbackObservation.isObserving(player) else { return }
+
+        switch playbackObservation.lastEvent {
+        case .didReachEnd:
+            player.seek(to: .zero)
             guard isSelected else {
                 isPlaying = false
                 return
             }
             startPlayback(source: "media.insight.fullscreen.loop")
-        }
-        playbackFailureObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
-            object: configuredPlayer.currentItem,
-            queue: .main
-        ) { _ in
-            guard self.player === configuredPlayer else { return }
+        case .failedToPlayToEnd:
             markUnavailable()
+        case .playbackStalled:
+            player.pause()
+            isPlaying = false
+        case nil:
+            break
         }
     }
 
@@ -389,14 +403,7 @@ private struct FullscreenVideoView: View {
     }
 
     private func removePlaybackObservers() {
-        if let playbackEndObserver {
-            NotificationCenter.default.removeObserver(playbackEndObserver)
-            self.playbackEndObserver = nil
-        }
-        if let playbackFailureObserver {
-            NotificationCenter.default.removeObserver(playbackFailureObserver)
-            self.playbackFailureObserver = nil
-        }
+        playbackObservation.detach()
     }
 
     private func resolvedURL(_ rawPath: String) -> URL? {

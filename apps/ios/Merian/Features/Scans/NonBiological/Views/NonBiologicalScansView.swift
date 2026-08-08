@@ -7,8 +7,8 @@ enum NonBiologicalCorrectionReanalysis {
     static let primaryAction = "Reanalyze"
     static let secondaryAction = "Cancel"
 
-    static func refinementEvent(scanId: String) -> AppEvent {
-        .triggerRefinement(
+    static func refinementRoute(scanId: String) -> AppRoute {
+        .refinement(
             scanId: scanId,
             initialDescription: nil,
             entryPoint: .nonBiologicalCorrection
@@ -74,6 +74,8 @@ struct NonBiologicalScansView: View {
                             Label("Reanalyze as biological", systemImage: "leaf.arrow.triangle.circlepath")
                         }
                     }
+                    .allowsHitTesting(!isClearingAll)
+                    .accessibilityHidden(isClearingAll)
                 }
             }
         }
@@ -83,6 +85,7 @@ struct NonBiologicalScansView: View {
                     .padding()
                     .background(.ultraThinMaterial)
                     .cornerRadius(12)
+                    .allowsHitTesting(false)
             }
         }
         .overlay(alignment: .bottom) {
@@ -103,8 +106,13 @@ struct NonBiologicalScansView: View {
             }
         }
         .task(id: toastMessage) {
-            guard toastMessage != nil else { return }
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let message = toastMessage else { return }
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            guard toastMessage == message else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 toastMessage = nil
             }
@@ -127,6 +135,7 @@ struct NonBiologicalScansView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                     .buttonBorderShape(.circle)
+                    .disabled(isClearingAll)
                 }
             }
         }
@@ -175,6 +184,7 @@ struct NonBiologicalScansView: View {
     }
 
     private func clearAllNonBiologicalScans() {
+        guard !isClearingAll else { return }
         isClearingAll = true
         let payloads = nonBioRecords.map { scan in
             let snapshot = scan.capturedMediaSnapshot
@@ -195,7 +205,7 @@ struct NonBiologicalScansView: View {
 
                 await MainActor.run {
                     isClearingAll = false
-                    ScanLibraryEvents.postLibraryDidUpdate()
+                    AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
                     HapticManager.shared.triggerSuccessPulse()
                     withAnimation { toastMessage = "Scans cleared" }
                     Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
@@ -211,7 +221,10 @@ struct NonBiologicalScansView: View {
     }
     
     private func reanalyzeAsBiological(scanId: String) {
-        AppEventPublisher.shared.send(NonBiologicalCorrectionReanalysis.refinementEvent(scanId: scanId))
+        AppDIContainer.shared.appRouteCoordinator.request(
+            NonBiologicalCorrectionReanalysis.refinementRoute(scanId: scanId),
+            source: .internalUserAction
+        )
         HapticManager.shared.triggerSelectionPulse()
         withAnimation { toastMessage = "Reanalysis started" }
     }

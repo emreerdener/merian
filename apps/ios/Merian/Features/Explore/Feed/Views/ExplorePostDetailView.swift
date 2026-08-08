@@ -381,13 +381,9 @@ struct ExplorePostDetailView: View {
                     .onChange(of: isAudioBoostEnabled) { _, enabled in
                         ExploreAudioBoostPreferenceStore().setEnabled(enabled, for: post.id)
                     }
-                    .onReceive(
-                        NotificationCenter.default.publisher(
-                            for: ExploreAudioBoostPreferenceStore.didChangeNotification
-                        )
-                    ) { notification in
-                        guard notification.userInfo?[ExploreAudioBoostPreferenceStore.postIdUserInfoKey] as? String == post.id,
-                              let enabled = notification.userInfo?[ExploreAudioBoostPreferenceStore.enabledUserInfoKey] as? Bool,
+                    .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+                        guard case let .exploreAudioBoostPreferenceChanged(postId, enabled) = event,
+                              postId == post.id,
                               enabled != isAudioBoostEnabled else { return }
                         isAudioBoostEnabled = enabled
                     }
@@ -411,7 +407,7 @@ struct ExplorePostDetailView: View {
                 viewModel.commentDraft = String(newValue.prefix(500))
             }
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             switch event {
             case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
                 Task {

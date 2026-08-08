@@ -90,7 +90,8 @@ struct CollectionDetailView: View {
         .task(id: allScans.count) {
             refreshMemberScans()
         }
-        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .scanLibraryChanged = event else { return }
             refreshMemberScans()
         }
         .scanDeletionDialog(
@@ -167,7 +168,7 @@ struct CollectionDetailView: View {
 
         do {
             try modelContext.save()
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             refreshMemberScans()
             OfflineQueueManager.shared.enqueueCollectionSync()
         } catch {

@@ -33,6 +33,7 @@ Migrations:
 services/supabase/migrations/20260615090000_add_explore_comment_mention_notification_type.sql
 services/supabase/migrations/20260615100000_add_explore_comment_mentions.sql
 services/supabase/migrations/20260615120000_add_explore_comment_mention_push_preference.sql
+services/supabase/migrations/20260808144244_expand_reserved_public_username_policy.sql
 ```
 
 The migrations add:
@@ -48,8 +49,25 @@ The migrations add:
 
 `explore_comment_mentions` has a primary key on
 `(comment_id, mentioned_user_id)` so duplicate tokens cannot create duplicate
-rows. Mention notifications use a partial unique index on
+rows. `mention_username` is a historical rendering snapshot: it remains the
+lowercase, structurally valid token stored in the plain-text comment body even
+if the mentioned user later changes handles or that old handle becomes reserved.
+The durable `mentioned_user_id` continues to route profile taps and
+notifications. Mention notifications use a partial unique index on
 `(user_id, comment_id, type)` for `comment_mention` rows.
+
+The snapshot CHECK intentionally enforces only username shape: lowercase ASCII,
+3 to 24 characters, a leading letter, a trailing alphanumeric character, and no
+repeated underscore. It does not call the current reserved-name policy. Applying
+new reservation rules retroactively to this column would either invalidate old
+rows or require changing immutable comment text, breaking rendered-link lookup.
+
+This historical exception does not permit a new user to claim or be mentioned
+through a newly reserved handle. New mention rows are created only after the
+resolver matches a token to a current `public.users.public_username`; current
+profile rows remain protected by the policy-aware username CHECK. The stored
+snapshot is therefore the handle that was valid when the comment was created,
+while `mentioned_user_id` is the durable identity.
 
 Comment and reply read RPCs return a `mentions` JSON array. The array is
 additive and may be empty:
@@ -64,6 +82,12 @@ additive and may be empty:
   }
 ]
 ```
+
+`username` is the historical token used to locate the matching span in `body`.
+`user_id` remains stable, while `display_name` and `avatar_url` are read from the
+current public profile. Clients must key link rendering by the snapshot
+`username` and route the tap by `user_id`; substituting the user's current
+handle would make an old token stop matching its plain-text body.
 
 ## Suggestion Endpoint
 
@@ -190,11 +214,16 @@ Recommended checks:
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/create-explore-comment/index.ts services/supabase/functions/get-explore-mention-suggestions/index.ts services/supabase/functions/get-explore-comments/index.ts services/supabase/functions/get-explore-comment-replies/index.ts services/supabase/functions/get-explore-notifications/index.ts services/supabase/functions/send-push-notification/index.ts
+deno test --config services/supabase/functions/deno.json --allow-read=services/supabase,apps/ios services/supabase/functions/_tests/publicUsernamePolicyMigrationContract.test.ts
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreMentionsDb.test.ts
-deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreCommentsDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreIdentityDb.test.ts services/supabase/functions/_tests/exploreCommentsDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
+make test-supabase-privileged-routines
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild test -scheme Merian -project Merian.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:merianTests/ExploreCommentMentionTextTests
 ```
 
 The DB-backed Deno tests require a local Supabase Postgres schema at
-`127.0.0.1:54322`.
+`127.0.0.1:54322`. The catalog gate includes
+`services/supabase/tests/public_username_policy_security.sql`, which verifies
+that current profile handles use the reservation-aware constraint while mention
+snapshots retain a separately validated structural constraint.

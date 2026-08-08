@@ -417,9 +417,10 @@ let localStats = await actor.fetchLocalStats(
   "mammal") to augment layperson searchability alongside AI reasoning text.
 
 **When to create**: Created ad-hoc by `ScansManager` inside `Task.detached`
-blocks whenever library models mutate, or when
-`NSNotification.Name("ScanRequiresSearchIndexUpdate")` necessitates a targeted
-index hot-swap.
+blocks whenever library models mutate, or when the typed
+`AppEvent.scanSearchIndexInvalidated(scanId:)` invalidation necessitates a
+targeted index hot-swap. The event carries only the stable ID; the actor reloads
+the authoritative durable scan before rebuilding its payload.
 
 ```swift
 let dbActor = SearchDatabaseActor(modelContainer: container)

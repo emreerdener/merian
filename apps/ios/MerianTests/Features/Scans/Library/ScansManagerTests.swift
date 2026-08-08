@@ -14,15 +14,17 @@ final class ScansManagerTests: XCTestCase {
     var container: ModelContainer!
     var context: ModelContext!
     private var sharedExplorePostLookup: SharedExplorePostLookup!
+    private var eventPublisher: AppEventPublisher!
     
     override func setUp() async throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         container = try ModelContainer(for: LocalScanRecord.self, ScanCollection.self, OfflineQueuedScan.self, configurations: configuration)
         context = ModelContext(container)
         sharedExplorePostLookup = SharedExplorePostLookup()
+        eventPublisher = AppEventPublisher()
         searchManager = ScansManager(sharedPostIDProvider: { [weak sharedExplorePostLookup] scanID in
             sharedExplorePostLookup?.scanIDs.contains(scanID) == true ? "post-\(scanID)" : nil
-        })
+        }, eventStream: eventPublisher)
     }
     
     override func tearDown() async throws {
@@ -30,12 +32,34 @@ final class ScansManagerTests: XCTestCase {
         context = nil
         container = nil
         sharedExplorePostLookup = nil
+        eventPublisher = nil
     }
 
     func testNewManagerStartsIdleSoEmptyLibraryCanShowItsEmptyState() {
         XCTAssertTrue(searchManager.allScans.isEmpty)
         XCTAssertTrue(searchManager.filteredScans.isEmpty)
         XCTAssertFalse(searchManager.isFiltering)
+    }
+
+    func testBatchMediaSaveLocksSelectionMutationsUntilExportCompletes() {
+        searchManager.isSelectionMode = true
+        searchManager.selectedScans = ["scan-a"]
+        searchManager.isDownloading = true
+
+        XCTAssertTrue(searchManager.toggleSelection(for: "scan-a"))
+        XCTAssertTrue(searchManager.toggleSelection(for: "scan-b"))
+        searchManager.selectAll()
+        searchManager.exitSelectionMode()
+
+        XCTAssertEqual(searchManager.selectedScans, Set(["scan-a"]))
+        XCTAssertTrue(searchManager.isSelectionMode)
+
+        searchManager.isDownloading = false
+        XCTAssertTrue(searchManager.toggleSelection(for: "scan-a"))
+        searchManager.exitSelectionMode()
+
+        XCTAssertTrue(searchManager.selectedScans.isEmpty)
+        XCTAssertFalse(searchManager.isSelectionMode)
     }
 
     func testUnavailableMediaFilterCompletesForEmptyLibrary() async {
@@ -211,9 +235,9 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertEqual(NonBiologicalCorrectionReanalysis.secondaryAction, "Cancel")
 
         let scanId = UUID().uuidString
-        let event = NonBiologicalCorrectionReanalysis.refinementEvent(scanId: scanId)
-        guard case let .triggerRefinement(eventScanId, initialDescription, entryPoint) = event else {
-            XCTFail("Correction should emit a refinement event")
+        let route = NonBiologicalCorrectionReanalysis.refinementRoute(scanId: scanId)
+        guard case let .refinement(eventScanId, initialDescription, entryPoint) = route else {
+            XCTFail("Correction should request a refinement route")
             return
         }
 
@@ -836,7 +860,7 @@ final class ScansManagerTests: XCTestCase {
         try context.save()
 
         await waitForFilterIndexing(expectedDocumentCount: 1) {
-            ScanLibraryEvents.postSearchIndexUpdate(scanId: scan.id)
+            eventPublisher.send(.scanSearchIndexInvalidated(scanId: scan.id))
         }
 
         XCTAssertEqual(searchManager.filterOptions.customTags, ["woodland"])
@@ -875,8 +899,8 @@ final class ScansManagerTests: XCTestCase {
         try context.save()
 
         await waitForIndexing(expectedDocumentCount: 2) {
-            ScanLibraryEvents.postSearchIndexUpdate(scanId: first.id)
-            ScanLibraryEvents.postSearchIndexUpdate(scanId: second.id)
+            eventPublisher.send(.scanSearchIndexInvalidated(scanId: first.id))
+            eventPublisher.send(.scanSearchIndexInvalidated(scanId: second.id))
         }
 
         await waitForSearchCompletion(for: "alpha_reindex") {
@@ -965,7 +989,7 @@ final class ScansManagerTests: XCTestCase {
         
         // 3. Emit the hot-swap trigger precisely simulating UserTagsCard behavior
         await waitForIndexing(expectedDocumentCount: 1) {
-            NotificationCenter.default.post(name: NSNotification.Name("ScanRequiresSearchIndexUpdate"), object: nil, userInfo: ["scanId": scan.id])
+            eventPublisher.send(.scanSearchIndexInvalidated(scanId: scan.id))
         }
 
         // Perform search again for backyard

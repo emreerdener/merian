@@ -274,7 +274,7 @@ struct InferenceEngineTests {
 
         let engine = InferenceEngine()
         var completedScanIds: [String] = []
-        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+        let completionCancellable = AppDIContainer.shared.appEventPublisher.publisher.sink { event in
             if case .foregroundBiologicalScanCompleted(let scanId) = event {
                 completedScanIds.append(scanId)
             }
@@ -1444,7 +1444,7 @@ struct InferenceEngineTests {
         let engine = InferenceEngine()
         let scanId = "synchronized-result"
         var completedScanIds: [String] = []
-        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+        let completionCancellable = AppDIContainer.shared.appEventPublisher.publisher.sink { event in
             if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
                 completedScanIds.append(completedScanId)
             }
@@ -1505,7 +1505,7 @@ struct InferenceEngineTests {
         let scanId = "non-biological-result"
         let attemptGeneration = UUID()
         var completedScanIds: [String] = []
-        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+        let completionCancellable = AppDIContainer.shared.appEventPublisher.publisher.sink { event in
             if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
                 completedScanIds.append(completedScanId)
             }
@@ -1544,7 +1544,7 @@ struct InferenceEngineTests {
         let engine = InferenceEngine()
         let currentAttemptGeneration = UUID()
         var completedScanIds: [String] = []
-        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+        let completionCancellable = AppDIContainer.shared.appEventPublisher.publisher.sink { event in
             if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
                 completedScanIds.append(completedScanId)
             }
@@ -1917,7 +1917,7 @@ struct InferenceEngineTests {
             "released-background-presentation-\(UUID().uuidString.lowercased())"
         let releasedGeneration = UUID()
         var completedScanIds: [String] = []
-        let completionCancellable = AppEventPublisher.shared.publisher.sink { event in
+        let completionCancellable = AppDIContainer.shared.appEventPublisher.publisher.sink { event in
             if case .foregroundBiologicalScanCompleted(let completedScanId) = event {
                 completedScanIds.append(completedScanId)
             }

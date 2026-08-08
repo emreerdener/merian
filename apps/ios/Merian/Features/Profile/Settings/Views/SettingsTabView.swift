@@ -150,7 +150,10 @@ struct SettingsTabView: View {
                         selectedAchievementToastAward = award
                     },
                     onOpenFieldTrip: { destination in
-                        AppEventPublisher.shared.send(.requestOpenCaptureGoal(destination))
+                        AppDIContainer.shared.appRouteCoordinator.request(
+                            .captureGoal(destination),
+                            source: .internalUserAction
+                        )
                     }
                 )
                 .padding(.top, 16)

@@ -14,6 +14,31 @@ Public Explore audio uses a separate publication gate. Identification safety and
 public-audio safety are intentionally different decisions: a clip may be valid
 biological evidence while its background speech is unsuitable for a public feed.
 
+## Public Identity and Impersonation Boundary
+
+Naturebook prevents the most authoritative-looking public handle claims without
+treating text as authorization. Current usernames reserve exact product
+namespaces, exact official/system roles such as `admin`, `security`, `support`,
+and `verified`, and every exact product-role combination in both orders. The
+policy is not a broad prefix rule, so ordinary handles such as
+`naturebook_fan` and `security_researcher` remain available.
+
+PostgreSQL's profile CHECK is authoritative. Edge and iOS mirror the policy for
+early feedback, and a static contract rejects cross-layer drift. Existing
+profiles that become reserved receive neutral deterministic aliases. Historical
+comment mentions retain the original token that appears in immutable comment
+text and continue routing through the durable mentioned-user ID.
+
+This control does not make usernames or display names trustworthy credentials.
+Public display names remain duplicable, and no client may infer staff, moderator,
+verified, or support authority from visible identity text. Any future trusted
+badge must be driven by a server-owned role/claim and a separately reviewed
+projection. Remaining profile impersonation is reportable through
+`/report-user` with reason `Impersonation`; reservation does not replace review,
+appeal, or enforcement operations. See
+[Public Usernames](../features-and-hardware/21-public-usernames.md) for the exact
+sets and migration behavior.
+
 ## Exact External Reference Image Suppression
 
 Wikipedia, GBIF, and iNaturalist reference images are third-party educational

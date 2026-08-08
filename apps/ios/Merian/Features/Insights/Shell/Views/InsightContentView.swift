@@ -278,10 +278,14 @@ struct InsightContentView: View {
                             return
                         }
                         HapticManager.shared.triggerSelectionPulse()
-                        AppEventPublisher.shared.send(.triggerRefinement(
-                            scanId: scanId,
-                            initialDescription: viewModel.shareableFieldNotes
-                        ))
+                        AppDIContainer.shared.appRouteCoordinator.request(
+                            .refinement(
+                                scanId: scanId,
+                                initialDescription: viewModel.shareableFieldNotes,
+                                entryPoint: .standard
+                            ),
+                            source: .internalUserAction
+                        )
                     }
                 )
             }

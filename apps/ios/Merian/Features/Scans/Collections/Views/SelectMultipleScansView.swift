@@ -63,7 +63,8 @@ struct SelectMultipleScansView: View {
         .task(id: allRecords.count) {
             refreshCollectionSnapshot()
         }
-        .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+            guard case .scanLibraryChanged = event else { return }
             refreshCollectionSnapshot()
         }
     }
@@ -91,7 +92,7 @@ struct SelectMultipleScansView: View {
             return
         }
 
-        ScanLibraryEvents.postLibraryDidUpdate()
+        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         refreshCollectionSnapshot()
         OfflineQueueManager.shared.enqueueCollectionSync()
     }

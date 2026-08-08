@@ -101,15 +101,22 @@ The Scans tab is the user's primary offline biological journal.
   actions. The bottom bar unhides, mounting `Share`, `Download`, and `Delete`
   actions. "Select All" caps at exactly 20 items to prevent
   `UIActivityViewController` RAM saturation.
-- **Download Overlays & Notifications**: Tapping "Download" freezes the scroll
-  beneath a `ProgressView("Downloading...")` overlay. Selection state is
-  preserved to prevent accidental re-queues during the async batch append to
-  `PHPhotoLibrary`. When the loop completes on the `@MainActor`, the loader
-  dismisses, selections clear, a success haptic pulses, and a
-  `.ultraThinMaterial` capsule notification describing the number of photos and
-  videos saved to the Camera Roll appears.
+- **Nonblocking Download Progress & Notifications**: Tapping "Download" takes a
+  bounded snapshot of the selected records and shows a compact pass-through
+  progress capsule instead of a dim or full-screen blocking overlay. Selection
+  and mutation controls that could conflict with that snapshot are disabled for
+  the operation; unrelated navigation remains interactive. When the async
+  PhotoKit append completes on the main actor, selections clear, a success
+  haptic pulses, and a `.ultraThinMaterial` capsule reports the number of photos
+  and videos saved to the Camera Roll.
   The shared single/batch result and cleanup contract is defined in
   [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
+- **Non-biological bulk deletion conflict domain**: Bulk removal snapshots the
+  selected non-biological IDs, performs the database mutation off the view
+  render path, and disables the grid plus destructive toolbar controls that
+  could invalidate that snapshot. The compact progress badge does not block
+  unrelated navigation, and durable `scanLibraryChanged` recovery refreshes
+  every mounted library projection after commit.
 
 ### Search & Filtering
 
@@ -335,8 +342,8 @@ The Scans tab is the user's primary offline biological journal.
   action opens a local confirmation first (`Reanalyze identification?`)
   explaining that the identification was marked non-biological and that
   reanalysis will look for a biological subject using the original capture.
-  Confirming emits
-  `AppEvent.triggerRefinement(..., entryPoint: .nonBiologicalCorrection)` with
+  Confirming requests
+  `AppRoute.refinement(..., entryPoint: .nonBiologicalCorrection)` with
   no initial description draft, so the explanatory copy is not submitted as
   user-authored observation text. It stages the original media through
   `CaptureWorkspaceViewModel.startRefinementScan`. If the user adds live
@@ -633,7 +640,7 @@ The Scans tab is the user's primary offline biological journal.
   `FieldTripPublicationDetailView`; follow activity is informational and does
   not navigate because it has no `postId`. Remote Explore activity pushes are
   opt-in from `NotificationSettingsView` and deep-link back into `ExploreView`
-  through `AppEventPublisher` plus `CaptureWorkspaceViewModel`, but follow
+  through `AppRouteCoordinator` plus `CaptureWorkspaceViewModel`, but follow
   notifications and Field trip activity rows are in-app only and do not fan out
   to APNs.
 - **Explore Media Availability**: One incident transition creates
@@ -648,7 +655,7 @@ The Scans tab is the user's primary offline biological journal.
   through `ExploreWidgetSnapshotWriter`, and the widget rotates through those
   local JPEGs with timeline entries. Tapping the full-bleed image opens
   `naturebook://explore/post/{postId}`, which `MerianApp` routes through the
-  existing `AppEventPublisher` Explore deep-link path.
+  existing `AppRouteCoordinator` Explore deep-link path.
   `CaptureWorkspaceViewModel` protects fresh widget/deep-link routes from the
   immediate foreground session-timeout reset so the Explore sheet does not open
   and then collapse back to the camera. Public user-to-user shares use
@@ -859,11 +866,11 @@ an Edge API response or opened offline via the Scans library.
   requires the identify response compatibility field
   `is_new_to_merian_dictionary` for a valid biological contribution; local
   `isNewDiscovery` remains limited to stats, persona, and achievements. Progress
-  banners show `Field trip progress`, contextual
-  `{species} counts toward {trip}` copy, and a credited progress ring; taps open
-  the focused standard goal or challenge detail. All milestone types share
-  haptics, a 3.5-second timeout, close/swipe dismissal, queue transitions, and
-  VoiceOver announcements. Achievement taps open achievement detail;
+  banners show `Field trip progress`, a `{goal} goal complete` title, the
+  outing name, and lightweight objective artwork; taps open the focused
+  standard goal or challenge detail. All milestone types share haptics, a
+  3.5-second timeout, close or horizontal/vertical swipe dismissal, queue
+  transitions, and VoiceOver announcements. Achievement taps open achievement detail;
   `New to Naturebook` taps dismiss.
 - **Scans Contextual Imagery**: When opened from the Scans library, the system
   forces the user's locally captured photograph to dominate the Hero Carousel
@@ -1254,8 +1261,8 @@ on gesture-driven layout abstractions.
 - **Photos Share Import**: Naturebook's Merian iOS target is an alternate
   `public.image` document viewer, not a Photos Share Extension. Sharing one
   photo opens the containing app, which copies the security-scoped file into
-  `ExternalImageImportStore` before publishing
-  `AppEvent.externalImageImportAvailable`. The Capture shell recovers pending
+  `ExternalImageImportStore` before requesting
+  `AppRoute.processExternalImageImports`. The Capture shell recovers pending
   receipts on appearance/activation and retries after staging capacity or Pro
   entitlement changes. Shared files use the same `PreparedStagedImageLoader`,
   required crop, confirmation preference, quota, inference, and offline queue as
@@ -1388,8 +1395,9 @@ on gesture-driven layout abstractions.
   for the detailed interaction and verification contracts.
 - `Capture` uses product-area-first folders. `Shell/` owns
   `CaptureWorkspaceView`, the Scan/Record/Describe pager, fixed overlay chrome,
-  sheet routing, physical shutter handling, pending Photos document-import
-  recovery, and the root `CaptureWorkspaceViewModel`; `Scan/` owns camera UI,
+  the single routed root sheet host, feature-local presentation occupancy,
+  physical shutter handling, pending Photos document-import recovery, and the
+  root `CaptureWorkspaceViewModel`; `Scan/` owns camera UI,
   cropper, focus/zoom, flash, Pro video capture, in-app photo-library import,
   and viewfinder hints; `Record/` owns the audio page, spectrogram, SNR gauge,
   and shared `RecordingCountdownBadge`; `Describe/` owns text input, guided
@@ -1397,9 +1405,11 @@ on gesture-driven layout abstractions.
   `StagedCapture`, staged video/audio/image/description editing, and crop sheet
   presentation; `Submission/` owns shared live/offline analysis paths for visual
   and non-visual captures. **Camera Session Pause During Analysis**: When
-  `activeSheet` transitions to `.insight`, `CaptureWorkspaceView` calls
-  `cameraManager.stopSession()` via an `onChange` observer, conserving thermal
-  budget and battery. The session restarts when the sheet is dismissed. **Active
+  routed or feature-local presentation becomes occupied,
+  `CaptureWorkspaceView` stops `cameraManager`, conserving thermal budget and
+  battery. Clearing a binding is not enough to restart it: the exact dismissal
+  callback rechecks visual mode, active scene phase, all presentation occupancy,
+  and pending/in-flight routes before starting the session. **Active
   Scan Dismissal**: Users can manually dismiss the `InsightSheetView` entirely
   while it is still in the `AnalyzingContentView` processing state. This invokes
   `dismissAnalysisToBackground()` in `CaptureWorkspaceViewModel`, which

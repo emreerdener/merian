@@ -1366,11 +1366,8 @@ struct MerianApp: App {
             .onChange(of: appSettings.themeMode) { _, newTheme in
                 applyTheme(newTheme)
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: AccountDeletionEvents.manualAppleRevocationNoticeRequired
-                )
-            ) { _ in
+            .onReceive(diContainer.appEventPublisher.publisher) { event in
+                guard case .manualAppleRevocationNoticeRequired = event else { return }
                 isShowingManualAppleRevocationNotice = true
             }
             .alert(
@@ -1453,10 +1450,11 @@ struct MerianApp: App {
     private func handleExternalImageImportURL(_ url: URL) {
         Task { @MainActor in
             do {
-                let pendingImport = try await diContainer.externalImageImportStore.stageIncomingImage(at: url)
+                _ = try await diContainer.externalImageImportStore.stageIncomingImage(at: url)
                 AppTelemetry.trackExternalImageImport(outcome: "received")
-                diContainer.appEventPublisher.send(
-                    .externalImageImportAvailable(importId: pendingImport.id)
+                diContainer.appRouteCoordinator.request(
+                    .processExternalImageImports,
+                    source: .durableExternalImport
                 )
             } catch {
                 MerianLog.data.error(
@@ -1468,7 +1466,10 @@ struct MerianApp: App {
                 AppTelemetry.trackExternalImageImport(outcome: outcome)
                 await diContainer.externalImageImportStore.recordTerminalFailure()
                 HapticManager.shared.triggerErrorThump()
-                diContainer.appEventPublisher.send(.externalImageImportFailed)
+                diContainer.appRouteCoordinator.request(
+                    .externalImageImportFailed,
+                    source: .durableExternalImport
+                )
             }
         }
     }
@@ -1480,23 +1481,26 @@ struct MerianApp: App {
 
         switch route {
         case .explorePost(let postId):
-            diContainer.appEventPublisher.send(
-                .appDidEnterActivePhaseWithExplorePost(
+            diContainer.appRouteCoordinator.request(
+                .explorePost(
                     postId: postId,
                     targetCommentId: nil,
                     targetReplyParentCommentId: nil
-                )
+                ),
+                source: .deepLink
             )
         case .speciesDictionary(let speciesId):
-            diContainer.appEventPublisher.send(
-                .appDidEnterActivePhaseWithSpeciesDictionary(speciesId: speciesId)
+            diContainer.appRouteCoordinator.request(
+                .speciesDictionary(speciesId: speciesId),
+                source: .deepLink
             )
         case .scan(let scanId):
-            diContainer.appEventPublisher.send(
-                .appDidEnterActivePhaseWithScan(scanId: scanId)
+            diContainer.appRouteCoordinator.request(
+                .scan(scanId: scanId),
+                source: .deepLink
             )
         case .scansLibrary:
-            diContainer.appEventPublisher.send(.requestOpenScansLibraryIntent)
+            diContainer.appRouteCoordinator.request(.scansLibrary, source: .deepLink)
         }
         return true
     }

@@ -98,6 +98,7 @@ struct CaptureWorkspaceView: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(SupabaseManager.self) private var supabaseManager
     @Environment(ActiveCaptureGoalStore.self) private var activeCaptureGoalStore
+    @Environment(AppRouteCoordinator.self) private var appRouteCoordinator
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(
@@ -241,6 +242,16 @@ struct CaptureWorkspaceView: View {
                 }
             }
         )
+    }
+
+    /// Feature-local editors and surveys use their own SwiftUI presentation
+    /// APIs, but share the same UIKit presentation slot as routed sheets.
+    private var isFeaturePresentationOccupied: Bool {
+        stagedDescriptionEditIndex != nil
+            || isDescribeQuestionsSheetPresented
+            || stagedVideoReviewIndex != nil
+            || showFeedbackSurvey
+            || viewModel.imageToCrop != nil
     }
 
     // MARK: - View Hierarchy
@@ -475,9 +486,12 @@ struct CaptureWorkspaceView: View {
             )
         }
         .task(id: feedbackPromptSignature) {
-            await armFeedbackSurveyPromptIfEligible()
+            armFeedbackSurveyPromptIfEligible()
         }
-        .sheet(isPresented: isStagedDescriptionSheetPresented) {
+        .sheet(
+            isPresented: isStagedDescriptionSheetPresented,
+            onDismiss: handleFeaturePresentationDismissed
+        ) {
             let selectedIndex = stagedDescriptionEditIndex ?? 0
             StagedDescriptionSheet(
                 initialText: viewModel.stagedCapture.observationContexts.indices.contains(selectedIndex)
@@ -506,7 +520,10 @@ struct CaptureWorkspaceView: View {
                 }
             )
         }
-        .sheet(isPresented: $isDescribeQuestionsSheetPresented) {
+        .sheet(
+            isPresented: $isDescribeQuestionsSheetPresented,
+            onDismiss: handleFeaturePresentationDismissed
+        ) {
             DescribeQuestionsSheet(
                 promptManager: describePromptManager,
                 hasInputs: !observationContext.freeText
@@ -521,7 +538,10 @@ struct CaptureWorkspaceView: View {
                 }
             )
         }
-        .fullScreenCover(isPresented: isStagedVideoReviewPresented) {
+        .fullScreenCover(
+            isPresented: isStagedVideoReviewPresented,
+            onDismiss: handleFeaturePresentationDismissed
+        ) {
             if let selectedIndex = stagedVideoReviewIndex,
                viewModel.stagedCapture.videos.indices.contains(selectedIndex) {
                 StagedVideoPreviewModal(
@@ -533,12 +553,17 @@ struct CaptureWorkspaceView: View {
                 )
             }
         }
-        .sheet(isPresented: $showFeedbackSurvey, onDismiss: handleFeedbackSurveyDismissal) {
+        .sheet(isPresented: $showFeedbackSurvey, onDismiss: {
+            handleFeedbackSurveyDismissal()
+            handleFeaturePresentationDismissed()
+        }) {
             FeedbackSurveyView()
         }
 
         // MARK: - View Modifiers
-        .cameraSheetRouter(viewModel: viewModel)
+        .cameraSheetRouter(viewModel: viewModel) {
+            handleRootPresentationDismissed()
+        }
         .modifier(CropSheetModifier(
             isPresented: isCropSheetPresented,
             viewModel: viewModel,
@@ -548,7 +573,8 @@ struct CaptureWorkspaceView: View {
                     preferredGoal: preferredFieldTripGoal
                 )
                 cameraManager.resetZoom()
-            }
+            },
+            onDismiss: handleFeaturePresentationDismissed
         ))
     }
 
@@ -681,6 +707,7 @@ struct CaptureWorkspaceView: View {
                 cameraManager.stopSession()
             } else if captureMode == .visual,
                       viewModel.imageToCrop == nil,
+                      !viewModel.isRootPresentationDismissing,
                       scenePhase == .active {
                 // Strictly guard the un-pause with `scenePhase == .active`, ensuring the
                 // startSession() hardware call can never fire indiscriminately during
@@ -688,48 +715,36 @@ struct CaptureWorkspaceView: View {
                 cameraManager.startSession()
             }
 
-            if newSheet == nil {
-                Task { await presentPendingFeedbackSurveyIfReady() }
-            }
         }
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
-        #if DEBUG
-        .onReceive(NotificationCenter.default.publisher(for: .devPreviewAnalyzing)) { _ in
-            viewModel.activeSheet = .insight
+        .onChange(of: isFeaturePresentationOccupied) { _, isOccupied in
+            if isOccupied {
+                cameraManager.stopSession()
+            }
         }
-        #endif
     }
 
     private var workspaceEventContent: some View {
         workspaceStateContent
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .task(id: appRouteCoordinator.nextRequestID) {
+            viewModel.consumeNextAppRoute(
+                isFeaturePresentationOccupied: isFeaturePresentationOccupied
+            )
+        }
+        .onChange(of: appRouteCoordinator.accountGeneration) { _, _ in
+            viewModel.handleRouteAccountGenerationChanged()
+        }
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             switch event {
-            case .requestIdentifyNatureIntent, .requestOpenScanner:
-                // Close the complete sheet stack and restore visual scanning.
-                viewModel.activeSheet = nil
-                captureMode = .visual
-                if FeatureFlags.isEnabled(.fieldTrips) {
-                    Task {
-                        await activeCaptureGoalStore.refresh(
-                            accountId: currentAccountId,
-                            force: true
-                        )
-                    }
-                }
-            case .fieldTripProgressUpdated, .captureGoalContextInvalidated:
+            case .fieldTripProgressInvalidated, .captureGoalContextInvalidated:
                 guard FeatureFlags.isEnabled(.fieldTrips) else { break }
                 Task {
                     await activeCaptureGoalStore.refresh(
                         accountId: currentAccountId,
                         force: true
                     )
-                }
-            case .requestRecallLastFindIntent:
-                // If there's an active or historical cache for a scan, open the modal natively
-                if inferenceEngine.historicHydrationTask != nil || inferenceEngine.speciesData != nil {
-                    viewModel.activeSheet = .insight
                 }
             case .foregroundBiologicalScanCompleted(let scanId):
                 if !hasEvaluatedFeedbackSurveyPrompt {
@@ -790,13 +805,30 @@ struct CaptureWorkspaceView: View {
         }
     }
 
+    private func handleFeaturePresentationDismissed() {
+        viewModel.handleFeaturePresentationDismissed()
+        presentPendingFeedbackSurveyIfReady()
+        restoreCameraAfterPresentationIfPossible()
+    }
+
+    private func handleRootPresentationDismissed() {
+        presentPendingFeedbackSurveyIfReady()
+        restoreCameraAfterPresentationIfPossible()
+    }
+
+    private func restoreCameraAfterPresentationIfPossible() {
+        guard captureMode == .visual,
+              viewModel.activeSheet == nil,
+              !isFeaturePresentationOccupied,
+              appRouteCoordinator.inFlightRequest == nil,
+              appRouteCoordinator.nextRequestID == nil,
+              scenePhase == .active else { return }
+        cameraManager.startSession()
+    }
+
     private func handleCropPresentationChange(isCropPresented: Bool) {
         if isCropPresented {
             cameraManager.stopSession()
-        } else if captureMode == .visual,
-                  viewModel.activeSheet == nil,
-                  scenePhase == .active {
-            cameraManager.startSession()
         }
     }
 
@@ -887,7 +919,7 @@ struct CaptureWorkspaceView: View {
         }
     }
 
-    private func armFeedbackSurveyPromptIfEligible() async {
+    private func armFeedbackSurveyPromptIfEligible() {
         guard !hasEvaluatedFeedbackSurveyPrompt else { return }
         guard feedbackSurveyForegroundCompletionIsReflectedInHistory else {
             return
@@ -907,20 +939,17 @@ struct CaptureWorkspaceView: View {
 
         hasEvaluatedFeedbackSurveyPrompt = true
         feedbackSurveyPromptPending = true
-        await presentPendingFeedbackSurveyIfReady()
+        presentPendingFeedbackSurveyIfReady()
         feedbackSurveyForegroundCompletionScanId = nil
     }
 
-    private func presentPendingFeedbackSurveyIfReady() async {
+    private func presentPendingFeedbackSurveyIfReady() {
         guard feedbackSurveyPromptPending else { return }
         guard viewModel.activeSheet == nil else { return }
         guard !showFeedbackSurvey else { return }
-
-        try? await Task.sleep(nanoseconds: 1_200_000_000)
-        guard !Task.isCancelled else { return }
-        guard feedbackSurveyPromptPending else { return }
-        guard viewModel.activeSheet == nil else { return }
-        guard !showFeedbackSurvey else { return }
+        guard !isFeaturePresentationOccupied else { return }
+        guard appRouteCoordinator.inFlightRequest == nil,
+              appRouteCoordinator.nextRequestID == nil else { return }
 
         feedbackSurveyPromptPending = false
         feedbackSurveyPresentedProactively = true

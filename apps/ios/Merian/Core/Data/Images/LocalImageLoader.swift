@@ -962,7 +962,7 @@ actor CloudScanImageRepairActor {
                 "Cloud scan image repair restored \(result.updatedScanCount, privacy: .public) scan record(s) and \(result.updatedPostMediaCount, privacy: .public) Explore media record(s)."
             )
             await MainActor.run {
-                ScanLibraryEvents.postLibraryDidUpdate()
+                AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             }
         }
     }

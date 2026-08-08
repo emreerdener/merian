@@ -1,21 +1,70 @@
-const RESERVED_USERNAMES = new Set([
-  "admin",
-  "administrator",
-  "api",
+export const RESERVED_PUBLIC_USERNAME_EXACT = [
+  "null",
+  "undefined",
+] as const;
+
+export const RESERVED_PUBLIC_USERNAME_BRANDS = [
   "explore",
-  "help",
   "merian",
   "naturebook",
   "naturebookearth",
+] as const;
+
+export const RESERVED_PUBLIC_USERNAME_ROLES = [
+  "abuse",
+  "account",
+  "accounts",
+  "admin",
+  "administrator",
+  "api",
+  "auth",
+  "billing",
+  "bot",
+  "contact",
+  "customer_service",
+  "customer_support",
+  "developer",
+  "developers",
+  "help",
+  "legal",
+  "moderation",
   "moderator",
-  "null",
+  "notifications",
   "official",
+  "press",
+  "privacy",
   "root",
+  "safety",
+  "security",
   "staff",
+  "status",
   "support",
   "system",
-  "undefined",
-]);
+  "team",
+  "trust",
+  "verified",
+  "verify",
+] as const;
+
+const RESERVED_EXACT_SET = new Set<string>(RESERVED_PUBLIC_USERNAME_EXACT);
+const RESERVED_BRAND_SET = new Set<string>(RESERVED_PUBLIC_USERNAME_BRANDS);
+const RESERVED_ROLE_SET = new Set<string>(RESERVED_PUBLIC_USERNAME_ROLES);
+
+export function isReservedPublicUsername(username: string): boolean {
+  if (
+    RESERVED_EXACT_SET.has(username) ||
+    RESERVED_BRAND_SET.has(username) ||
+    RESERVED_ROLE_SET.has(username)
+  ) {
+    return true;
+  }
+
+  return RESERVED_PUBLIC_USERNAME_BRANDS.some((brand) =>
+    RESERVED_PUBLIC_USERNAME_ROLES.some((role) =>
+      username === `${brand}_${role}` || username === `${role}_${brand}`
+    )
+  );
+}
 
 export function normalizePublicUsername(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -42,7 +91,7 @@ export function publicUsernameValidationError(username: string): string | null {
   if (username.includes("__")) {
     return "Username cannot use repeated underscores.";
   }
-  if (RESERVED_USERNAMES.has(username)) return "That username is reserved.";
+  if (isReservedPublicUsername(username)) return "That username is reserved.";
 
   return null;
 }

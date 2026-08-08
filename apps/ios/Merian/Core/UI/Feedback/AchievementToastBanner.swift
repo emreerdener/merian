@@ -159,11 +159,13 @@ struct MilestoneToastBanner: View {
             )
         ) {
             guard isActive, !isInteracting else { return }
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                dismissAutomatically()
+            do {
+                try await Task.sleep(for: .milliseconds(3_500))
+            } catch {
+                return
             }
+            guard !Task.isCancelled else { return }
+            dismissAutomatically()
         }
     }
 

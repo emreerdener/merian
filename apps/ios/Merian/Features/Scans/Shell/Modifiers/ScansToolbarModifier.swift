@@ -23,6 +23,7 @@ struct ScansToolbarModifier: ViewModifier {
                         Button("Cancel") {
                             searchManager.exitSelectionMode()
                         }
+                        .disabled(searchManager.isDownloading)
                     }
                     ToolbarItem(placement: .principal) {
                         Text("\(searchManager.selectedScans.count) Selected")
@@ -32,12 +33,13 @@ struct ScansToolbarModifier: ViewModifier {
                         Button("Select All") {
                             searchManager.selectAll()
                         }
+                        .disabled(searchManager.isDownloading)
                     }
                     ToolbarItemGroup(placement: .bottomBar) {
                         Button(action: onShare) { 
                             Image(systemName: "square.and.arrow.up")
                         }
-                        .disabled(searchManager.selectedScans.isEmpty)
+                        .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
                         
                         Spacer()
                         
@@ -45,7 +47,7 @@ struct ScansToolbarModifier: ViewModifier {
                             Image(systemName: "arrow.down.circle")
                             Text("Download").fontWeight(.semibold)
                         }
-                        .disabled(searchManager.selectedScans.isEmpty)
+                        .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
                         
                         Spacer()
                         
@@ -53,7 +55,7 @@ struct ScansToolbarModifier: ViewModifier {
                             Image(systemName: "trash")
                         }
                         .tint(searchManager.selectedScans.isEmpty ? .gray : .red)
-                        .disabled(searchManager.selectedScans.isEmpty)
+                        .disabled(searchManager.selectedScans.isEmpty || searchManager.isDownloading)
                     }
                 } else {
                     // 2. Default Navigation State

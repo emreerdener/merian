@@ -265,7 +265,7 @@ struct QueuedContentView: View {
                 // Stabilize the open destination before synchronously refreshing its parent.
                 // The Scans navigation route intentionally retains a queued value snapshot;
                 // publishing first can make a rebuilt destination bind that stale snapshot.
-                ScanLibraryEvents.postLibraryDidUpdate()
+                AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
                 MerianLog.general.info(
                     "QueuedContentView promoted the queued audio handoff before parent refresh."
                 )

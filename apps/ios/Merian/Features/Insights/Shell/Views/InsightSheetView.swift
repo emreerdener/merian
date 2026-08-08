@@ -679,10 +679,14 @@ private extension InsightSheetView {
                 return
             }
             HapticManager.shared.triggerSelectionPulse()
-            AppEventPublisher.shared.send(.triggerRefinement(
-                scanId: expectedScanId,
-                initialDescription: viewModel.shareableFieldNotes
-            ))
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .refinement(
+                    scanId: expectedScanId,
+                    initialDescription: viewModel.shareableFieldNotes,
+                    entryPoint: .standard
+                ),
+                source: .internalUserAction
+            )
         }
     }
 }
@@ -881,7 +885,8 @@ private extension InsightSheetView {
                 guard let scanId = queuedScan?.id else { return }
                 await attemptQueuedCompletionHandoff(scanId: scanId)
             }
-            .onReceive(ScanLibraryEvents.libraryDidUpdatePublisher()) { _ in
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
+                guard case .scanLibraryChanged = event else { return }
                 guard let scanId = viewModel.queuedContext?.id else { return }
                 Task { await attemptQueuedCompletionHandoff(scanId: scanId) }
             }
@@ -899,7 +904,7 @@ private extension InsightSheetView {
                     expectedGeneration: generation
                 )
             }
-            .onReceive(AppEventPublisher.shared.publisher) { event in
+            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
                 guard case .fieldTripScanContributionsInvalidated(let scanId) = event,
                       scanId == viewModel.persistentScanId else { return }
                 let generation = viewModel.scanBoundActionGeneration
@@ -1094,7 +1099,10 @@ private extension InsightSheetView {
                     if let onOpenCommunityIdentificationRequest {
                         onOpenCommunityIdentificationRequest(requestId)
                     } else {
-                        AppEventPublisher.shared.send(.openCommunityIdentificationRequest(requestId: requestId))
+                        AppDIContainer.shared.appRouteCoordinator.request(
+                            .communityIdentification(requestId: requestId),
+                            source: .internalUserAction
+                        )
                     }
                 }
             },

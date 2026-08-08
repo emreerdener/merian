@@ -1,4 +1,9 @@
-import { assertEquals, assertMatch, assertNotMatch } from "@std/assert";
+import {
+  assertEquals,
+  assertMatch,
+  assertNotEquals,
+  assertNotMatch,
+} from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 import {
   insertExplorePost,
@@ -41,6 +46,10 @@ Deno.test("Explore identity DB - public username normalization and validation", 
       normalized: string;
       valid_normalized: boolean;
       reserved_valid: boolean;
+      official_role_valid: boolean;
+      brand_role_valid: boolean;
+      reverse_brand_role_valid: boolean;
+      community_handle_valid: boolean;
       repeated_underscore_valid: boolean;
     }>(
       `
@@ -48,6 +57,10 @@ Deno.test("Explore identity DB - public username normalization and validation", 
           public.normalize_public_username('@Stone Glen 72') AS normalized,
           public.is_valid_public_username(public.normalize_public_username('@Stone Glen 72')) AS valid_normalized,
           public.is_valid_public_username('admin') AS reserved_valid,
+          public.is_valid_public_username('security') AS official_role_valid,
+          public.is_valid_public_username('naturebook_support') AS brand_role_valid,
+          public.is_valid_public_username('support_naturebook') AS reverse_brand_role_valid,
+          public.is_valid_public_username('naturebook_fan') AS community_handle_valid,
           public.is_valid_public_username('stone__glen') AS repeated_underscore_valid
       `,
     );
@@ -56,7 +69,86 @@ Deno.test("Explore identity DB - public username normalization and validation", 
     assertEquals(row?.normalized, "stone_glen_72");
     assertEquals(row?.valid_normalized, true);
     assertEquals(row?.reserved_valid, false);
+    assertEquals(row?.official_role_valid, false);
+    assertEquals(row?.brand_role_valid, false);
+    assertEquals(row?.reverse_brand_role_valid, false);
+    assertEquals(row?.community_handle_valid, true);
     assertEquals(row?.repeated_underscore_valid, false);
+  });
+});
+
+Deno.test("Explore identity DB - historical mention tokens survive later reservation", async () => {
+  await withExploreDbTest("exploreIdentityDb.test", async (client: Client) => {
+    const actorId = "00000000-0000-0000-0000-00000000b810";
+    const mentionedUserId = "00000000-0000-0000-0000-00000000b811";
+    const speciesId = "00000000-0000-0000-0000-00000000b812";
+    const scanId = "00000000-0000-0000-0000-00000000b813";
+    const postId = "00000000-0000-0000-0000-00000000b814";
+    const commentId = "00000000-0000-0000-0000-00000000b815";
+
+    await insertUser(client, actorId, "Mention Actor");
+    await insertUser(client, mentionedUserId, "Mention Target");
+    await insertSpecies(client, speciesId, "Rosa mentionis");
+    await insertScan(client, {
+      id: scanId,
+      userId: actorId,
+      speciesId,
+      latitude: 30.2672,
+      longitude: -97.7431,
+      geoprivacy: "open",
+    });
+    await insertExplorePost(client, {
+      id: postId,
+      userId: actorId,
+      scanId,
+    });
+
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_post_comments (id, post_id, user_id, body)
+        VALUES ($1::uuid, $2::uuid, $3::uuid, 'Historical @security token')
+      `,
+      [commentId, postId, actorId],
+    );
+    await client.queryArray(
+      `
+        INSERT INTO public.explore_comment_mentions (
+          comment_id,
+          mentioned_user_id,
+          mention_username
+        )
+        VALUES ($1::uuid, $2::uuid, 'security')
+      `,
+      [commentId, mentionedUserId],
+    );
+
+    const result = await client.queryObject<{
+      body: string;
+      mention_username: string;
+      current_username: string;
+      current_policy_valid: boolean;
+    }>(
+      `
+        SELECT
+          comment.body,
+          mention.mention_username,
+          mentioned_user.public_username AS current_username,
+          public.is_valid_public_username(mention.mention_username)
+            AS current_policy_valid
+        FROM public.explore_post_comments AS comment
+        JOIN public.explore_comment_mentions AS mention
+          ON mention.comment_id = comment.id
+        JOIN public.users AS mentioned_user
+          ON mentioned_user.id = mention.mentioned_user_id
+        WHERE comment.id = $1::uuid
+      `,
+      [commentId],
+    );
+
+    assertEquals(result.rows[0]?.body, "Historical @security token");
+    assertEquals(result.rows[0]?.mention_username, "security");
+    assertNotEquals(result.rows[0]?.current_username, "security");
+    assertEquals(result.rows[0]?.current_policy_valid, false);
   });
 });
 

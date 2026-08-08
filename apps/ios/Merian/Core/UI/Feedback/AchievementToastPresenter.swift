@@ -106,6 +106,7 @@ struct MilestoneToastItem: Identifiable, Sendable {
     static let shared = MilestoneToastPresenter()
 
     private(set) var presentedItems: [MilestoneToastItem] = []
+    @ObservationIgnored private let maximumPresentedItemCount: Int
 
     var activeItem: MilestoneToastItem? {
         presentedItems.first
@@ -123,7 +124,9 @@ struct MilestoneToastItem: Identifiable, Sendable {
         queuedItemCount
     }
 
-    init() {}
+    init(maximumPresentedItemCount: Int = 32) {
+        self.maximumPresentedItemCount = max(1, maximumPresentedItemCount)
+    }
 
     func enqueueAchievementUnlock(_ award: AwardPayload) {
         enqueue(.achievement(award), source: .unlock)
@@ -195,6 +198,10 @@ struct MilestoneToastItem: Identifiable, Sendable {
     }
 
     private func enqueue(_ payload: MilestoneToastPayload, source: MilestoneToastSource) {
+        // Milestones are visual feedback over already-durable domain state. A
+        // suspended/backgrounded host must never let this process-local queue
+        // grow without bound while completion callbacks continue to arrive.
+        guard presentedItems.count < maximumPresentedItemCount else { return }
         let item = MilestoneToastItem(id: UUID(), payload: payload, source: source)
         presentedItems.append(item)
     }
@@ -313,7 +320,7 @@ final class ScanMilestoneCoordinator {
                 finalizesFieldTripResolution = true
                 cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
                 publishProgressEvents(progress)
-                AppEventPublisher.shared.send(
+                AppDIContainer.shared.appEventPublisher.send(
                     .fieldTripScanContributionsInvalidated(scanId: scanId)
                 )
             case .retryableFailure:
@@ -369,7 +376,7 @@ final class ScanMilestoneCoordinator {
         let progress = resolvedProgress
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
-        AppEventPublisher.shared.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
+        AppDIContainer.shared.appEventPublisher.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
 
         for milestone in Self.milestones(from: progress) {
             presenter.enqueueFieldTripProgress(milestone)
@@ -416,10 +423,18 @@ final class ScanMilestoneCoordinator {
         guard let result else { return }
 
         if !result.fieldTripUpdates.isEmpty {
-            AppEventPublisher.shared.send(.fieldTripProgressUpdated(result.fieldTripUpdates))
+            AppDIContainer.shared.appEventPublisher.send(
+                .fieldTripProgressInvalidated(
+                    templateIds: Set(result.fieldTripUpdates.map(\.templateId))
+                )
+            )
         }
         if !result.challengeUpdates.isEmpty {
-            AppEventPublisher.shared.send(.fieldTripChallengeProgressUpdated(result.challengeUpdates))
+            AppDIContainer.shared.appEventPublisher.send(
+                .fieldTripChallengeProgressInvalidated(
+                    challengeIds: Set(result.challengeUpdates.map(\.challengeId))
+                )
+            )
         }
     }
 

@@ -87,15 +87,19 @@ Heavy data operations (fetching all scan records for stats, computing awards) ar
 
 The Profile account card shows the user's public handle (`@public_username`) in
 place of the private email line. The handle is available to anonymous and
-authenticated sessions and is the future-safe tag/mention identity.
+authenticated sessions and is the canonical comment-mention identity.
 
 The edit sheet accepts pasted values with or without `@`, shows the normalized
-preview inline, and submits through `MerianNetworkClient.updatePublicUsername`.
+preview inline, rejects protected brand namespaces, official/system roles, and
+exact brand-role combinations before submission, then confirms availability
+through the authenticated server boundary. The database CHECK remains
+authoritative even when an older client lacks the current early-feedback list.
+The sheet submits through `MerianNetworkClient.updatePublicUsername`.
 Logged-in Explore posts continue to render `public_author_name` when the user
 has a provider-derived display label; default/ghost identities render
 `@public_username`. See
 [`21-public-usernames.md`](./21-public-usernames.md) for the full backend and
-display contract.
+display contract, exact reservation groups, and historical-mention behavior.
 
 ---
 
@@ -297,7 +301,7 @@ Achievements introduced after users already have local scan history can define a
 
 ## Milestone Toasts
 
-`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. Retryable Field trip failures do not finalize that deduplication key or discard the selected goal; they use bounded retries while an independent milestone-delivery key prevents ordinary achievements and dictionary feedback from replaying after recovery. The presenter controls visual presentation, haptics, the 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, queue transitions, achievement detail routing, and typed Field trip/challenge routing. It does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
+`MilestoneToastPresenter` owns the shared bottom in-app milestone notification queue used by Field trip progress, achievement unlocks, and the `New to Naturebook` dictionary-contribution banner. The process-local visual queue is capped at 32 items; overflow may omit ephemeral feedback but cannot lose the already-durable progress or achievement. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard outings in server order, Seasonal Challenges in server order, achievements in their existing order, then the dictionary milestone. Foreground and background completion paths share the coordinator and are deduplicated by final saved scan ID. Retryable Field trip failures do not finalize that deduplication key or discard the selected goal; they use bounded retries while an independent milestone-delivery key prevents ordinary achievements and dictionary feedback from replaying after recovery. The presenter controls visual presentation, haptics, the cancellable 3.5-second timeout, swipe/close dismissal, VoiceOver announcements, and queue transitions. Banner taps request typed `AppRoute.achievement` or `AppRoute.captureGoal` values; achievement detail then uses the single root sheet host. The milestone overlay and ordinary system toast do not mount concurrently, and only the visible banner receives hit testing. The presenter does not mutate achievement progress, Field trip progress, analytics, scan data, dictionary state, or native iOS notification authorization.
 
 `ProfileTabView` keys its statistics task by both the ordinary refresh token and
 the current authentication/account identity. On cold launch it can render local

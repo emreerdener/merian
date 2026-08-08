@@ -76,11 +76,12 @@ Features/
 @Observable
 @MainActor
 final class CaptureWorkspaceViewModel {
-    // Dependencies — injected via AppDIContainer, not passed through views
-    @ObservationIgnored let diContainer = AppDIContainer.shared
+    // Dependencies are initializer-injected; production may use the shared graph.
+    @ObservationIgnored let diContainer: AppDIContainer
 
-    // UI state only — no business logic in stored properties
-    var activeSheet: ActiveSheet? = nil
+    init(diContainer: AppDIContainer = .shared) {
+        self.diContainer = diContainer
+    }
 }
 ```
 
@@ -105,7 +106,12 @@ The root view for a feature owns the ViewModel via `@State`. Child views receive
 
 ## Dependency Injection
 
-All Core managers are accessed through `AppDIContainer.shared` (singleton, statically bound at app startup).
+`AppDIContainer.shared` is the production dependency graph. View models accept
+the container through initialization so tests and previews can isolate event,
+route, settings, and explicit test-seam state without binding global auth route
+state. Observable render dependencies are also injected individually through
+SwiftUI `@Environment`; the container itself is not installed as one broadly
+observed environment value.
 
 ```swift
 // In a ViewModel method
@@ -117,7 +123,13 @@ func executeCapture() {
 
 **Rules:**
 - Never inject managers via `@EnvironmentObject`. Use `@Environment(ManagerType.self)` only for types provided through `MerianApp.swift`'s `.environment()` chain.
-- Never call `AppDIContainer.shared` from inside a `View` body. All DI access belongs in ViewModels.
+- Do not fetch arbitrary dependencies from `AppDIContainer.shared` inside a
+  reusable component's render expression. Root views read observable state from
+  `@Environment`; business operations belong in an injected view model.
+- Cross-module invalidations and navigation are infrastructure boundaries. Use
+  the container-owned `AppEventPublisher` or environment-injected
+  `AppRouteCoordinator`; never create a feature-local app bus, post an
+  application-defined `Notification.Name`, or add a sibling root sheet.
 - Pass managers from a View to a child Component via closure callbacks, not by passing the DI container.
 
 ### What is injected via `@Environment` vs `AppDIContainer`
@@ -125,7 +137,9 @@ func executeCapture() {
 | Access pattern | Used for |
 |---|---|
 | `@Environment(CameraManager.self)` | Managers that Views read directly for display state (e.g. `cameraManager.session` for the preview layer) |
+| `@Environment(AppRouteCoordinator.self)` | Root observation and typed route requests that must compose with global presentation state |
 | `diContainer.managerName` inside a ViewModel | All business logic calls |
+| `diContainer.appEventPublisher` | Small loss-tolerant invalidations; reference subscribers own cancellables and capture themselves weakly |
 | `@Environment(\.modelContext)` | SwiftData context, passed explicitly to methods that need it |
 
 ---
@@ -137,7 +151,8 @@ func executeCapture() {
 | Feature root view | `<Feature>RootView` | `CaptureWorkspaceView` |
 | Primary ViewModel | `<Feature>ViewModel` | `CaptureWorkspaceViewModel`, `ScansManager` |
 | ViewModel extensions | Verb-noun grouping | `Capture.swift`, `Analysis.swift` |
-| Sheet/modal enum | `ActiveSheet` inside the ViewModel | `CaptureWorkspaceViewModel.ActiveSheet` |
+| Root presentation destination | `ActiveSheet` plus an identified envelope | `CaptureWorkspaceViewModel.PresentedRoute` |
+| Feature-local presentation state | Owner-scoped item or Boolean binding | staged-description editor, crop cover |
 | Reusable components | Descriptive noun | `ShutterButton`, `ScanThumbnail` |
 | View modifiers | Modifier suffix | `CropSheetModifier`, `ScansToolbarModifier` |
 | Local feature models | No suffix | `ImageFileWrapper`, `SearchableScan` |
@@ -167,20 +182,57 @@ Heavy SwiftData work (bulk fetches, ingest, reconciliation) is always delegated 
 
 ## Sheet Routing Pattern
 
-All modals and sheets are driven by a single `activeSheet` enum on the ViewModel.
+Root navigation and feature-local editing are separate presentation domains.
+Do not force every editor, picker, or review cover into a global enum.
+
+Cross-module destinations are requested as typed `AppRoute` values. The root
+coordinator claims one stable envelope at a time, and
+`CaptureWorkspaceViewModel` maps a presenting route to an identified
+`PresentedRoute`:
 
 ```swift
 enum ActiveSheet: String, Identifiable {
-    case insight, paywall, scans, profile
+    case insight, paywall, scans, profile, explore, achievement
     var id: String { rawValue }
+}
+
+struct PresentedRoute: Identifiable {
+    let id: UUID
+    let destination: ActiveSheet
+    let routeRequestID: UUID?
 }
 ```
 
-Complex sheet routing logic (multiple `.sheet`, `.fullScreenCover`, custom modifier stacks) is extracted into a `ViewModifier` and applied as a single `.modifier(...)` call on the root view:
+`CameraSheetRouter` owns the one root `.sheet(item:)` host:
 
 ```swift
 .cameraSheetRouter(viewModel: viewModel)  // defined in CameraSheetRouter.swift
 ```
+
+Feature-local sheets and covers stay with their product owner when they do not
+represent cross-module navigation. Capture's description editor, guided
+questions, video review, cropper, and feedback survey are examples. While any
+of those is mounted or interactively dismissing, the root reports the UIKit
+presentation slot as occupied. A claimed route resolves as deferred and resumes
+from that presentation's exact `onDismiss` callback.
+
+Presentation rules:
+
+- Never mount sibling root sheets for Paywall, Insight, Scans, Profile, Explore,
+  achievement detail, or the notification prompt.
+- Never use `Task.sleep` to guess when UIKit has finished tearing down a sheet
+  or full-screen cover. Use `onDismiss` and match the request/presentation ID.
+  The legacy feature-local compatibility delays inventoried in the canonical
+  routing guide are migration work, not examples for new code.
+- A non-presenting route must resolve terminally; a presentation-backed route
+  remains in flight until that exact presentation dismisses. Invalid or missing
+  targets must reject rather than block the queue.
+- Toasts and progress capsules use alignment-scoped overlays. Only visible
+  controls receive hit testing; do not add an invisible full-screen blocker.
+- See the canonical
+  [event and presentation routing contract](../system-architecture/10-event-and-presentation-routing.md)
+  before adding an event, route, root destination, framework notification, or
+  global feedback host.
 
 ---
 
@@ -189,12 +241,17 @@ Complex sheet routing logic (multiple `.sheet`, `.fullScreenCover`, custom modif
 1. Create `apps/ios/Merian/Features/<FeatureName>/` with the subdirectories above.
 2. Add `<FeatureName>RootView.swift` in `Views/`.
 3. Add `<FeatureName>ViewModel.swift` in `ViewModels/` — `@Observable @MainActor final class`.
-4. Wire DI access via `let diContainer = AppDIContainer.shared` inside the ViewModel.
+4. Initializer-inject `AppDIContainer` into the ViewModel, with `.shared` only
+   as the production default. Tests and previews must pass an isolated
+   container instead of inheriting process-global event or route state.
 5. If the feature needs Core managers exposed to the view layer, register them in `MerianApp.swift`'s `.environment()` chain.
 6. If the feature introduces a new Core manager, add it as a `var` in `AppDIContainer.swift`, add `.environment(container.managerName)` to `DIContainerModifier.body()`, and document it in `docs/development-guides/09-core-managers.md`.
 7. If the feature introduces a hardware/OS resource manager scoped only to that feature, place it in `Managers/` (not `AppDIContainer`).
-8. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [apps/ios/Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
-9. Update `docs/development-guides/07-ai-agent-guidelines.md` Section 2 if the directory structure changes.
+8. Classify cross-module signals before implementation: reload hints use
+   `AppEvent`; navigation uses `AppRoute`; durable work stays in its owning
+   store; Apple callbacks remain at a reviewed framework boundary.
+9. Run `xcodegen generate` after adding any new Swift file or subdirectory — `project.yml` uses a directory wildcard (`sources: [apps/ios/Merian]`) so no `project.yml` edit is required, but the `.xcodeproj` must be regenerated.
+10. Update `docs/development-guides/07-ai-agent-guidelines.md` Section 2 if the directory structure changes. Synchronize the canonical routing guide for any event, route, presentation, feedback-host, or framework-boundary change.
 
 ## Test Mirroring
 

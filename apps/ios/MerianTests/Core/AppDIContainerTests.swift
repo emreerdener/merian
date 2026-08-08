@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 @testable import Merian
 import SwiftData
 import SwiftUI
@@ -160,12 +161,21 @@ struct AppDIContainerTests {
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let eventPublisher = AppEventPublisher()
+        var receivedNotice = false
+        let cancellable = eventPublisher.publisher.sink { event in
+            if case .manualAppleRevocationNoticeRequired = event {
+                receivedNotice = true
+            }
+        }
+        defer { cancellable.cancel() }
 
         ManualAppleRevocationNoticeStore.record(
             userDefaults: defaults,
-            notificationCenter: NotificationCenter()
+            eventSender: eventPublisher
         )
         #expect(ManualAppleRevocationNoticeStore.isPending(userDefaults: defaults))
+        #expect(receivedNotice)
 
         ManualAppleRevocationNoticeStore.resolve(userDefaults: defaults)
         #expect(!ManualAppleRevocationNoticeStore.isPending(userDefaults: defaults))

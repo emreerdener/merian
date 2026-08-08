@@ -13,6 +13,7 @@ struct NotificationSettingsView: View {
     }
 
     @Environment(AppSettings.self) private var appSettings
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var showPermissionPrompt = false
     @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
@@ -139,7 +140,8 @@ struct NotificationSettingsView: View {
             .presentationDetents([.height(320)])
         }
         .onAppear(perform: fetchStatus)
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
             fetchStatus()
         }
     }

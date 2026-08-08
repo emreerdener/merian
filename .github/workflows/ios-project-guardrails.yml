@@ -18,7 +18,10 @@ on:
       - "docs/system-architecture/09-ios-release-publisher.md"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-event-routing.sh"
       - "scripts/test-check-ios-project-resources.sh"
+      - "scripts/test-check-ios-event-routing.sh"
+      - "scripts/config/ios-event-routing-singleton-allowlist.txt"
       - "scripts/check-ios-project-source-membership.sh"
       - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
@@ -74,7 +77,10 @@ on:
       - "docs/system-architecture/09-ios-release-publisher.md"
       - "project.yml"
       - "scripts/check-ios-project-resources.sh"
+      - "scripts/check-ios-event-routing.sh"
       - "scripts/test-check-ios-project-resources.sh"
+      - "scripts/test-check-ios-event-routing.sh"
+      - "scripts/config/ios-event-routing-singleton-allowlist.txt"
       - "scripts/check-ios-project-source-membership.sh"
       - "scripts/check-ios-release-prep.sh"
       - "scripts/check-ios-migration-source-guardrails.sh"
@@ -154,6 +160,9 @@ jobs:
 
       - name: Validate SwiftData migration source guardrails
         run: make validate-ios-migration-guardrails
+
+      - name: Validate typed iOS event and route boundaries
+        run: make validate-ios-event-routing
 
       - name: Validate Identify Edge DTO contract
         run: bash services/supabase/scripts/validate_edge_dto_contract.sh

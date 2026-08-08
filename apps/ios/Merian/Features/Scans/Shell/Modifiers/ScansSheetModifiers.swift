@@ -67,6 +67,7 @@ struct ScansSheetModifiers: ViewModifier {
                 Button("Delete permanently", role: .destructive) {
                     onBatchDelete()
                 }
+                .disabled(isDownloading)
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This permanently removes these discoveries and their visuals. Any published Explore posts, likes, and comments linked to them will also be permanently removed.")
@@ -98,14 +99,24 @@ struct ScansSheetModifiers: ViewModifier {
                         .allowsHitTesting(false)
                 }
             }
-            .overlay {
+            .overlay(alignment: .bottom) {
                 if isDownloading {
-                    Color.black.opacity(0.3).ignoresSafeArea()
-                    ProgressView("Downloading...")
-                        .padding()
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Saving media…")
+                            .font(.footnote.weight(.semibold))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .adaptiveToastSurface(in: Capsule(), shadowRadius: 10, shadowY: 5)
+                    .padding(.bottom, toastMessage == nil ? 60 : 112)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Saving selected media")
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: isDownloading)
     }
 }
 

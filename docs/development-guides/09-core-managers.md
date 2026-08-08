@@ -794,10 +794,10 @@ triggering excessive SwiftUI view rebuilds.
   affected entries rather than rebuilding the full index on every change.
 - **Dynamic Hot-Swapping**: To prevent stale caches when users mutate inner
   properties of existing scans (e.g., adding `customTags`), `ScansManager`
-  listens for `NSNotification.Name("ScanRequiresSearchIndexUpdate")`. This
-  explicitly triggers a targeted isolated re-evaluation via
+  listens for `AppEvent.scanSearchIndexInvalidated(scanId:)`. This typed,
+  main-actor invalidation triggers a targeted isolated re-evaluation via
   `SearchDatabaseActor`, updating the string index in under 10ms without an app
-  reboot.
+  reboot. The scan row—not the event payload—remains authoritative.
 - **Dual-path indexing**: Full rebuilds cooperatively extract `RawScanSnapshot`
   values from the already-resident `allScans` array on `@MainActor` in
   128-record chunks with `Task.yield()` between chunks, then build both
@@ -1359,40 +1359,38 @@ and `KeychainManager` migration logic. Do not inline
 
 ## Events & Circuit Breaking
 
-### `AppEventPublisher`
+### `AppEventPublisher` and `AppRouteCoordinator`
 
-- Lives at `Core/Utilities/AppEventPublisher.swift`. `@MainActor final class`
-  with a `PassthroughSubject<AppEvent, Never>` publisher and a
-  `static let shared` singleton.
-- Replaces `NotificationCenter` broadcasts with strongly-typed `AppEvent` cases:
-  - `.triggerPaywall` — dispatched when the scan quota is exhausted;
-    `CaptureWorkspaceViewModel` listens and sets `activeSheet = .paywall`, which
-    `CameraSheetRouter` presents as `PaywallView`.
-  - `.appDidEnterActivePhaseWithScan(scanId:)` — dispatched from a push
-    notification tap to deep-link to a specific scan's insight sheet.
-  - `.appDidEnterActivePhaseWithExplorePost(postId:)` — dispatched from Explore
-    push taps and widget URLs to open `ExploreView` and route to a post detail.
-  - `.appDidResumeAfterTimeout` — dispatched when
-    `AppLifecycleManager.handleActivePhase()` detects that the app was
-    backgrounded for more than 5 minutes; `CaptureWorkspaceViewModel` clears
-    stale modal state unless a fresh external route has just been opened.
-  - `.requestIdentifyNatureIntent` — dispatched by Siri/OS App Intents to jump
-    to the camera viewfinder.
-  - `.requestRecallLastFindIntent` — dispatched by Siri/OS App Intents to open
-    the last scan's insight sheet.
-  - `.triggerRefinement(record:)` — dispatched from insight views when the user
-    requests re-inference on an existing scan with supplementary images;
-    `CaptureWorkspaceViewModel` listens via
-    `AppEventPublisher.shared.publisher.sink`.
-  - `.explorePostNeedsRefresh(postId:)` and
-    `.exploreShareStateChanged(scanId:postId:)` — dispatched after local scan
-    review or Explore publication state changes so Explore surfaces can refresh
-    without global notification names.
-- Registered in `AppDIContainer` as
-  `var appEventPublisher = AppEventPublisher.shared`. **Not
-  environment-injected** — call sites access it via
-  `AppDIContainer.shared.appEventPublisher` or `AppEventPublisher.shared`
-  directly.
+- `AppDIContainer` owns one instance of each service. Preview containers receive
+  isolated instances; neither type exposes a second static singleton.
+- `AppEventPublisher` is a synchronous `@MainActor` bus for loss-tolerant
+  invalidations and lifecycle commands. Its `PassthroughSubject` is private and
+  exposed as an `AnyPublisher`. Reference-type consumers own their
+  `AnyCancellable` and capture themselves weakly; SwiftUI `.onReceive` is owned
+  by the mounted view. Every consumer reloads authoritative state from
+  SwiftData, UserDefaults, Supabase, or the owning service.
+- `AppRouteCoordinator` is a bounded `@MainActor @Observable` state machine for
+  navigation. It prioritizes and coalesces typed `AppRoute` envelopes, preserves
+  FIFO ordering for equal timestamps, fences account/session changes, and keeps
+  a presentation route in flight until the exact root sheet dismisses. Pending
+  duplicates retain stable request identity but adopt the latest lightweight
+  payload; an applied presentation cannot be rewritten by a duplicate callback.
+- `CaptureWorkspaceViewModel` is the sole root consumer. `CameraSheetRouter`
+  presents Paywall, Insight, Scans, Profile, Explore, achievement detail, and
+  notification prompt through one `.sheet(item:)` host. Occupied presentations
+  defer and resume through `onDismiss`, not an assumed animation delay. Capture
+  crop/video/description/question/survey presentations report the same UIKit
+  slot as occupied and resume deferred routes from their own exact callbacks.
+- `SupabaseManager` distinguishes the SDK's explicit `initialSession` restore
+  from runtime sign-in. Only the former may adopt a cold-launch private route;
+  runtime account transitions advance the account generation and reject it.
+- `NotificationCenter` remains only at reviewed Apple-framework boundaries.
+  The production allowlist and CI guard reject application-defined notification
+  names/posts, bus singleton access, duplicate AppEvent subjects, and route-like
+  AppEvent cases.
+- The complete event/route matrices, delivery guarantees, source priorities,
+  expiry policy, and presentation contract are in
+  [Event and Presentation Routing](../system-architecture/10-event-and-presentation-routing.md).
 
 ### `CircuitBreakerManager`
 
@@ -1570,6 +1568,15 @@ and `KeychainManager` migration logic. Do not inline
   native notification authorization. DEBUG Settings preview entry points enqueue
   representative achievement, dictionary, and Field trip payloads through the
   same queue while bypassing persistence and OS notifications.
+- The process-local queue retains at most 32 lightweight items. Overflow drops
+  only ephemeral feedback after durable progress has already committed. The
+  visible `MilestoneToastBanner` owns the cancellable 3.5-second timer, haptic,
+  accessibility announcement, tap, and swipe lifecycle; queued backing layers
+  do not start those effects or receive hit testing.
+- DI ownership plus a formal foreground-host registry, injected clock/sleeper,
+  stable payload deduplication, and account-session fencing remain follow-on
+  work. Until that migration, do not add another global milestone presenter or
+  let a feature treat this visual queue as domain authority.
 - Completed Field Naturalist cards and unlock toasts carry a typed
   `CaptureGoalDestination` and open the outing or Seasonal Challenge that earned
   the award. Its locked card continues to open the requirement sheet.

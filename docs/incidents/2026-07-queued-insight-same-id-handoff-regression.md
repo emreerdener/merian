@@ -119,7 +119,7 @@ unexercised.
   bound to the open destination.
 - The child directly invokes the production
   `promoteQueuedScanIfLocalRecordExists` path before it emits
-  `ScanLibraryEvents` for parent refresh.
+  typed `.scanLibraryChanged` invalidation for parent refresh.
 - `bindQueuedPresentationPreferringCompletedRecord` treats a persisted same-ID
   completion as authoritative whenever SwiftUI rebinds a retained queued route.
   If that completion is already the exact bound presentation, the bind is an

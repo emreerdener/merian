@@ -87,13 +87,11 @@ extension UIDevice {
 
     private func setupMonitors() {
         NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.evaluateConstraints() }
+            .sinkOnMainActor { [weak self] _ in self?.evaluateConstraints() }
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange)
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.evaluateConstraints() }
+            .sinkOnMainActor { [weak self] _ in self?.evaluateConstraints() }
             .store(in: &cancellables)
     }
 

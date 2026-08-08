@@ -686,7 +686,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             persistedMediaItems: persistedMediaItems
         )
         if speciesData.isBiological, let completedScanId = speciesData.scanId {
-            AppEventPublisher.shared.send(
+            AppDIContainer.shared.appEventPublisher.send(
                 .foregroundBiologicalScanCompleted(scanId: completedScanId)
             )
         }
@@ -2929,7 +2929,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 .execute()
 
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
-                AppEventPublisher.shared.send(.explorePostNeedsRefresh(postId: postId))
+                AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postId))
             }
             await ScanMilestoneCoordinator.shared.processIdentificationUpdate(scanId: scanId)
         } catch {

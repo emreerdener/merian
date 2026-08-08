@@ -38,10 +38,14 @@ struct ConfidenceExplanationSheet: View {
             }
             if revenueCatManager.isProActive {
                 HapticManager.shared.triggerSelectionPulse()
-                AppEventPublisher.shared.send(.triggerRefinement(
-                    scanId: record.id,
-                    initialDescription: record.fieldNotes
-                ))
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .refinement(
+                        scanId: record.id,
+                        initialDescription: record.fieldNotes,
+                        entryPoint: .standard
+                    ),
+                    source: .internalUserAction
+                )
                 dismiss()
             } else {
                 showPaywall = true

@@ -86,17 +86,18 @@ item and does not restore the inbox receipt.
 
 ## Capture Workspace Handoff
 
-After a durable copy succeeds, `MerianApp` publishes
-`AppEvent.externalImageImportAvailable`. `CaptureWorkspaceViewModel` also checks
-the inbox when the workspace appears or the scene becomes active, so a missed
-event during cold launch or onboarding does not lose the import.
+After a durable copy succeeds, `MerianApp` requests
+`AppRoute.processExternalImageImports` with a `.durableExternalImport` source.
+`CaptureWorkspaceViewModel` also checks the inbox when the workspace appears or
+the scene becomes active, so a missed process-local request during cold launch
+or onboarding does not lose the import.
 
 An image handoff is an explicit launch intent. If the default-off **Open Explore
 on launch** preference initialized the workspace with the generic Explore feed,
 the confirmed import dismisses that presentation before staging the image and
 presenting its crop. The handoff arms the same one-shot timeout-reset protection
 used by external deep links so the foreground timeout cannot clear the newly
-staged crop; the durable inbox remains the source of truth if the UI event is
+staged crop; the durable inbox remains the source of truth if the UI request is
 missed.
 
 The retry triggers are:

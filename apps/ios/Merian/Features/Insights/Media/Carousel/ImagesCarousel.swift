@@ -2,6 +2,7 @@ import AVFoundation
 import Combine
 import SwiftUI
 
+@MainActor
 struct CarouselPageBuilder {
     static func buildPages(
         for activeMedia: ActiveScanMedia,
@@ -409,6 +410,7 @@ enum InsightCarouselMediaInteractionPolicy {
     }
 }
 
+@MainActor
 final class InsightCarouselVideoPlaybackCoordinator {
     private let pauseForFullscreenPresentationSubject = PassthroughSubject<Void, Never>()
 
@@ -466,8 +468,7 @@ private struct VideoPlaybackCarouselPage: View {
     @State private var hasAutoplayed = false
     @State private var isPlaying = false
     @State private var availability = InsightVideoPlaybackAvailability.loading
-    @State private var playbackEndObserver: NSObjectProtocol?
-    @State private var playbackFailureObserver: NSObjectProtocol?
+    @State private var playbackObservation = MediaPlaybackObservation()
 
     private var isSelected: Bool {
         selectedIndex == pageIndex
@@ -477,26 +478,9 @@ private struct VideoPlaybackCarouselPage: View {
         ZStack {
             Color.black
 
-            if let player,
-               let playerItem = player.currentItem,
-               availability != .unavailable {
+            if let player, availability != .unavailable {
                 InsightCoverVideoPlayer(player: player)
                     .ignoresSafeArea()
-                    .onReceive(player.publisher(for: \.timeControlStatus).removeDuplicates()) { status in
-                        switch status {
-                        case .playing:
-                            isPlaying = true
-                        case .paused:
-                            isPlaying = false
-                        case .waitingToPlayAtSpecifiedRate:
-                            break
-                        @unknown default:
-                            break
-                        }
-                    }
-                    .onReceive(playerItem.publisher(for: \.status).removeDuplicates()) { status in
-                        updateAvailability(for: status, observedPlayer: player)
-                    }
             }
 
             switch availability {
@@ -514,6 +498,16 @@ private struct VideoPlaybackCarouselPage: View {
         }
         .task(id: path) {
             configurePlayer()
+        }
+        .onChange(of: playbackObservation.timeControlStatus) { _, status in
+            handlePlaybackStatusChange(status)
+        }
+        .onChange(of: playbackObservation.itemStatus) { _, status in
+            guard let player else { return }
+            updateAvailability(for: status, observedPlayer: player)
+        }
+        .onChange(of: playbackObservation.eventSequence) { _, _ in
+            handlePlaybackLifecycleEvent()
         }
         .onChange(of: selectedIndex) { _, _ in
             updatePlaybackForSelection()
@@ -566,8 +560,9 @@ private struct VideoPlaybackCarouselPage: View {
         configuredPlayer.actionAtItemEnd = .pause
         player = configuredPlayer
         installPlaybackObservers(for: configuredPlayer)
+        handlePlaybackStatusChange(playbackObservation.timeControlStatus)
         updateAvailability(
-            for: configuredPlayer.currentItem?.status ?? .unknown,
+            for: playbackObservation.itemStatus,
             observedPlayer: configuredPlayer
         )
         updatePlaybackForSelection()
@@ -614,26 +609,40 @@ private struct VideoPlaybackCarouselPage: View {
     }
 
     private func installPlaybackObservers(for player: AVPlayer) {
-        removePlaybackObservers()
-        playbackEndObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { _ in
+        playbackObservation.observe(player)
+    }
+
+    private func handlePlaybackLifecycleEvent() {
+        guard let player, playbackObservation.isObserving(player) else { return }
+
+        switch playbackObservation.lastEvent {
+        case .didReachEnd:
             player.seek(to: .zero)
             guard isSelected else {
                 isPlaying = false
                 return
             }
             play(player, source: "media.insight.carousel.loop")
-        }
-        playbackFailureObserver = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemFailedToPlayToEndTime,
-            object: player.currentItem,
-            queue: .main
-        ) { _ in
-            guard self.player === player else { return }
+        case .failedToPlayToEnd:
             markUnavailable()
+        case .playbackStalled:
+            player.pause()
+            isPlaying = false
+        case nil:
+            break
+        }
+    }
+
+    private func handlePlaybackStatusChange(_ status: AVPlayer.TimeControlStatus) {
+        switch status {
+        case .playing:
+            isPlaying = true
+        case .paused:
+            isPlaying = false
+        case .waitingToPlayAtSpecifiedRate:
+            break
+        @unknown default:
+            isPlaying = false
         }
     }
 
@@ -682,14 +691,7 @@ private struct VideoPlaybackCarouselPage: View {
     }
 
     private func removePlaybackObservers() {
-        if let playbackEndObserver {
-            NotificationCenter.default.removeObserver(playbackEndObserver)
-            self.playbackEndObserver = nil
-        }
-        if let playbackFailureObserver {
-            NotificationCenter.default.removeObserver(playbackFailureObserver)
-            self.playbackFailureObserver = nil
-        }
+        playbackObservation.detach()
     }
 
     private func resolvedURL(_ rawPath: String) -> URL? {

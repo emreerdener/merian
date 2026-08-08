@@ -394,13 +394,15 @@ final class ExploreFeedViewModel {
     func autoDismissToast(matching message: String, after seconds: UInt64 = 3) {
         toastDismissTask?.cancel()
         toastDismissTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+            do {
+                try await Task.sleep(for: .seconds(seconds))
+            } catch {
+                return
+            }
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                guard self?.toastMessage == message else { return }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    self?.toastMessage = nil
-                }
+            guard self?.toastMessage == message else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                self?.toastMessage = nil
             }
         }
     }

@@ -259,8 +259,9 @@ Rules:
 - Feed and comments should render `public_author_name` for logged-in display
   labels and `@public_username` for default/ghost identities. Feed, map,
   profile, and comment surfaces may optionally render `public_avatar_url`.
-- Future comment mentions should use `public_username`, not
-  `public_author_name`.
+- Comment mentions use `public_username`, not `public_author_name`. Resolved
+  mention rows retain the username token that appears in the immutable comment
+  body and route through the durable mentioned-user ID when a handle changes.
 - Email and raw auth metadata must never be exposed directly in Explore payloads. Public avatar access should happen only through the copied `public.users.public_avatar_url` field.
 
 This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.

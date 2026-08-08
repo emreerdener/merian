@@ -39,10 +39,14 @@ struct BiologicalView: View {
             guard let record = try? modelContext.fetch(descriptor).first else { return }
 
             HapticManager.shared.triggerSelectionPulse()
-            AppEventPublisher.shared.send(.triggerRefinement(
-                scanId: record.id,
-                initialDescription: viewModel.shareableFieldNotes
-            ))
+            AppDIContainer.shared.appRouteCoordinator.request(
+                .refinement(
+                    scanId: record.id,
+                    initialDescription: viewModel.shareableFieldNotes,
+                    entryPoint: .standard
+                ),
+                source: .internalUserAction
+            )
             dismiss()
         }
     }

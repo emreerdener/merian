@@ -218,7 +218,7 @@ struct ExploreAuthorProfileContent: View {
                 }
             }
         }
-        .onReceive(AppEventPublisher.shared.publisher) { event in
+        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             guard case .publicAuthorIdentityChanged(let previousUserId, let currentUserId) = event,
                   authorIdentityChangeAffects(
                     route.authorUserId,

@@ -714,29 +714,73 @@ private struct PublicUsernameEditSheet: View {
         if username.contains("__") {
             return "Username cannot use repeated underscores."
         }
-        if reservedUsernames.contains(username) {
+        if isReservedUsername(username) {
             return "That username is reserved."
         }
         return nil
     }
 
-    private static let reservedUsernames: Set<String> = [
+    private static func isReservedUsername(_ username: String) -> Bool {
+        if reservedExactUsernames.contains(username)
+            || reservedBrandUsernames.contains(username)
+            || reservedRoleUsernames.contains(username)
+        {
+            return true
+        }
+
+        return reservedBrandUsernames.contains { brand in
+            reservedRoleUsernames.contains { role in
+                username == "\(brand)_\(role)" || username == "\(role)_\(brand)"
+            }
+        }
+    }
+
+    private static let reservedExactUsernames: Set<String> = [
+        "null",
+        "undefined"
+    ]
+
+    private static let reservedBrandUsernames: Set<String> = [
+        "explore",
+        "merian",
+        "naturebook",
+        "naturebookearth"
+    ]
+
+    private static let reservedRoleUsernames: Set<String> = [
+        "abuse",
+        "account",
+        "accounts",
         "admin",
         "administrator",
         "api",
-        "explore",
+        "auth",
+        "billing",
+        "bot",
+        "contact",
+        "customer_service",
+        "customer_support",
+        "developer",
+        "developers",
         "help",
-        "merian",
-        "naturebook",
-        "naturebookearth",
+        "legal",
+        "moderation",
         "moderator",
-        "null",
+        "notifications",
         "official",
+        "press",
+        "privacy",
         "root",
+        "safety",
+        "security",
         "staff",
+        "status",
         "support",
         "system",
-        "undefined"
+        "team",
+        "trust",
+        "verified",
+        "verify"
     ]
 }
 

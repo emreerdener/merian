@@ -255,7 +255,7 @@ extension OfflineQueueManager {
         do {
             try context.save()
             updateUnsyncedItemCount()
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             MerianLog.data.debug("flushOfflineQueuedScan: deleted queue scanId=\(scanId, privacy: .public)")
             return true
         } catch {
@@ -729,7 +729,7 @@ extension OfflineQueueManager {
             )
             await FileIOActor.shared.deleteFiles(at: Array(Set(pathsToDelete)))
             updateUnsyncedItemCount()
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             return true
         } catch {
             context.rollback()

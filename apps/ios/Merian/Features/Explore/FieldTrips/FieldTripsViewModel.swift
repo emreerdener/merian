@@ -224,7 +224,7 @@ final class FieldTripChallengeDetailViewModel {
             hasMoreEntries = loaded.entries.count >= entriesPageSize
             HapticManager.shared.triggerSuccessPulse()
             toastMessage = "Challenge joined."
-            AppEventPublisher.shared.send(.captureGoalContextInvalidated(source: .fieldTrip))
+            AppDIContainer.shared.appEventPublisher.send(.captureGoalContextInvalidated(source: .fieldTrip))
         } catch {
             HapticManager.shared.triggerErrorThump()
             toastMessage = ExploreErrorFormatter.message(for: error)

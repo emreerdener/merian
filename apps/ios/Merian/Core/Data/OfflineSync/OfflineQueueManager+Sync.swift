@@ -415,7 +415,7 @@ extension OfflineQueueManager {
                         )
                     }
                     self.updateUnsyncedItemCount()
-                    ScanLibraryEvents.postLibraryDidUpdate()
+                    AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
                 }
             }
             let uploadCandidates = eligibleScanData.filter {

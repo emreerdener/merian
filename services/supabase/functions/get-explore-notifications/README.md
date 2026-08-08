@@ -60,6 +60,11 @@ against existing comment/reply notifications for the same recipient and comment,
 so a post owner or parent commenter does not receive a second activity row when
 they are also mentioned in the body.
 
+The mention row retains the historical username token from the comment body and
+the durable recipient user ID. A later profile rename or newly reserved old
+handle does not rewrite the comment, change notification ownership, or break the
+profile route.
+
 ## Visibility Rules
 
 The SQL RPC filters hidden activity before returning rows:

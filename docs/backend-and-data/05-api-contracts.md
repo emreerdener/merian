@@ -3228,7 +3228,7 @@ handle:
   rows.
 - `author_avatar_url`: optional copied public avatar projection.
 
-`public_author_name` is not a future mention handle. Comment mentions and other
+`public_author_name` is not a mention handle. Comment mentions and other
 handle-based features must use `public_username` / `author_username`. The field
 is additive and optional for rollout tolerance; older clients may ignore it.
 
@@ -4139,7 +4139,11 @@ The client must treat it as optional and fall back to iconography when it is
 
 `mentions` is an additive array of resolved `@username` spans in `body`. The raw
 body remains plain text; the client links only usernames that appear in
-`mentions`. Unresolved `@text` stays normal text.
+`mentions`. Unresolved `@text` stays normal text. Each `mentions[].username` is
+the historical token snapshot that still appears in `body`, not a projection of
+the user's current handle. Clients match the span by that snapshot and navigate
+with the durable `mentions[].user_id`; `display_name` and `avatar_url` may
+reflect the user's current public profile.
 
 The request body supports cursor pagination on
 `(created_at ASC, comment_id ASC)`:
@@ -4474,8 +4478,13 @@ Rules:
 - The stored username must be lowercase ASCII letters, numbers, and underscores;
   3 to 24 characters; start with a letter; end with a letter or number; and
   contain no repeated underscores.
-- Reserved names such as `admin`, `api`, `explore`, `merian`, `support`, and
-  `system` are rejected with `400`.
+- Protected brand namespaces (`explore`, `merian`, `naturebook`, and
+  `naturebookearth`), official/system roles such as `admin`, `security`,
+  `support`, and `verified`, and exact brand-role combinations in either order
+  are rejected with `400`. The policy is not prefix-based, so an ordinary
+  handle such as `naturebook_fan` remains valid. Usernames never grant
+  administrative authorization. The complete current groups are maintained in
+  [Public Usernames](../features-and-hardware/21-public-usernames.md#reserved-name-policy).
 - Duplicate normalized usernames return `409`.
 - Alias-source users also have `public_author_name` updated to the username so
   ghost/default Explore rows render as `@username`. Derived/display-name users
@@ -4657,6 +4666,10 @@ Notification side effects:
   subsequent `/get-explore-comments` read payload.
 - The created comment response includes `mentions`, an array of resolved
   `@username` tokens from the saved body.
+- Each returned mention keeps the exact normalized username snapshot that
+  appears in the immutable body and the durable mentioned user ID. A later
+  profile rename or reservation-policy expansion changes neither field; current
+  display-name/avatar projections may still change.
 - Mention resolution is scoped to the post author, visible participants in the
   relevant thread, and followed users. It does not allow arbitrary public-user
   tagging.

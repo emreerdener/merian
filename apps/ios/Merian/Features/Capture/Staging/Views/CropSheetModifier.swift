@@ -4,9 +4,10 @@ struct CropSheetModifier: ViewModifier {
     @Binding var isPresented: Bool
     @Bindable var viewModel: CaptureWorkspaceViewModel
     var onRequiredCropReadyForSubmit: () -> Void = {}
+    var onDismiss: () -> Void = {}
 
     func body(content: Content) -> some View {
-        content.fullScreenCover(isPresented: $isPresented) {
+        content.fullScreenCover(isPresented: $isPresented, onDismiss: onDismiss) {
             if let identItem = viewModel.imageToCrop {
                 ImageCropperView(
                     image: identItem.image,

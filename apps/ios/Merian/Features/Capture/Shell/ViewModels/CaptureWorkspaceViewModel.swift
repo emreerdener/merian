@@ -129,9 +129,20 @@ typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) asy
 final class CaptureWorkspaceViewModel {
     
     // MARK: - Types
-    enum ActiveSheet: String, Identifiable {
-        case insight, paywall, scans, profile, explore
+    enum ActiveSheet: String, Identifiable, Sendable {
+        case insight, paywall, scans, profile, explore, achievement, notificationPrompt
         var id: String { rawValue }
+    }
+
+    enum PresentationStyle: Sendable, Equatable {
+        case sheet
+    }
+
+    struct PresentedRoute: Identifiable, Equatable {
+        let id: UUID
+        let destination: ActiveSheet
+        let style: PresentationStyle
+        let routeRequestID: UUID?
     }
 
     private struct GalleryImportBudget: Sendable {
@@ -150,9 +161,39 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored private var resumesExternalImageImportAfterSheetDismissal = false
     @ObservationIgnored private var slotBlockedExternalImportIds = Set<UUID>()
     @ObservationIgnored private var paywallPresentedExternalImportIds = Set<UUID>()
+    @ObservationIgnored private var routeRequestIDBeingApplied: UUID?
+    @ObservationIgnored private var dismissingPresentation: PresentedRoute?
+    @ObservationIgnored private var deferredRouteRequestID: UUID?
     
     // MARK: - UI & Navigation State
-    var activeSheet: ActiveSheet?
+    var activePresentation: PresentedRoute?
+    var isRootPresentationDismissing: Bool {
+        dismissingPresentation != nil
+    }
+    var activeSheet: ActiveSheet? {
+        get { activePresentation?.destination }
+        set {
+            guard let newValue else {
+                dismissActivePresentation()
+                return
+            }
+            guard activePresentation?.destination != newValue else { return }
+            if activePresentation != nil || dismissingPresentation != nil {
+                // Local presentation changes are latest-wins, but never mount
+                // during the previous sheet's interactive dismissal window.
+                pendingLocalSheet = newValue
+                dismissActivePresentation()
+                return
+            }
+            activePresentation = PresentedRoute(
+                id: UUID(),
+                destination: newValue,
+                style: .sheet,
+                routeRequestID: routeRequestIDBeingApplied
+            )
+        }
+    }
+    private var pendingLocalSheet: ActiveSheet?
     var pendingExplorePostId: String?
     var pendingSpeciesDictionaryRoute: SpeciesDictionaryRoute?
     var pendingCommunityIdentificationRequestId: String?
@@ -162,6 +203,7 @@ final class CaptureWorkspaceViewModel {
     var pendingExploreShowsFieldTrips = false
     var pendingScansRecoveryContext: ExploreMediaRecoveryRouteContext?
     var pendingScansShowsNonBiologicalCollection = false
+    var pendingAchievementAward: AwardPayload?
     var explorePresentationIdentity = UUID()
     var offlineToastMessage: String?
     var imageToCrop: IdentifiableImage?
@@ -276,7 +318,9 @@ final class CaptureWorkspaceViewModel {
         self.diContainer = diContainer
         self.preparedImageLoader = preparedImageLoader
         self.externalImageImportStore = externalImageImportStore ?? diContainer.externalImageImportStore
-        self.activeSheet = initialActiveSheet
+        self.activePresentation = initialActiveSheet.map {
+            PresentedRoute(id: UUID(), destination: $0, style: .sheet, routeRequestID: nil)
+        }
 
         // Pre-warm both connection pools while the user composes their shot: Supabase Auth
         // owns one session, while live inference uses MerianNetworkClient's pinned session.
@@ -290,55 +334,23 @@ final class CaptureWorkspaceViewModel {
             }
         }
 
-        // Centralized System Event Routing (AppEventPublisher)
+        // The app event bus is synchronous and actor-isolated. Framework
+        // publishers use a separate asynchronous bridge at their boundaries.
         diContainer.appEventPublisher.publisher
-            .receive(on: RunLoop.main)
             .sink { [weak self] event in
-                switch event {
-                case .appDidResumeAfterTimeout:
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        self?.handleSessionTimeoutReset()
-                    }
-                case .triggerPaywall:
-                    self?.activeSheet = .paywall
-                case .appDidEnterActivePhaseWithScan(let scanId):
-                    self?.handleDeepLinkRoute(scanId: scanId)
-                case .appDidEnterActivePhaseWithExplorePost(let postId, let targetCommentId, let targetReplyParentCommentId):
-                    self?.handleExploreDeepLinkRoute(
-                        postId: postId,
-                        targetCommentId: targetCommentId,
-                        targetReplyParentCommentId: targetReplyParentCommentId
+                guard case .appDidResumeAfterTimeout = event, let self else { return }
+                let now = Date()
+                self.diContainer.appRouteCoordinator.advanceSession(now: now)
+                guard !self.diContainer.appRouteCoordinator.shouldSuppressTimeoutReset(now: now) else {
+                    MerianLog.general.debug(
+                        "Skipped session timeout reset because an explicit route is pending or was just applied."
                     )
-                case .appDidEnterActivePhaseWithSpeciesDictionary(let speciesId):
-                    self?.handleSpeciesDictionaryDeepLinkRoute(speciesId: speciesId)
-                case .openCommunityIdentificationRequest(let requestId):
-                    self?.handleCommunityIdentificationRoute(requestId: requestId)
-                case .triggerRefinement(let scanId, let initialDescription, let entryPoint):
-                    self?.startRefinementScan(
-                        scanId: scanId,
-                        initialDescription: initialDescription,
-                        entryPoint: entryPoint
-                    )
-                case .requestOpenNonBiologicalScansIntent:
-                    self?.handleScansLibraryRoute(showsNonBiologicalCollection: true)
-                case .requestOpenScansLibraryIntent:
-                    self?.handleScansLibraryRoute()
-                case .requestOpenScansLibraryRecovery(let context):
-                    self?.handleScansLibraryRoute(recoveryContext: context)
-                case .requestOpenCaptureGoal(let destination):
-                    self?.openCaptureGoal(destination)
-                case .requestOpenFieldTrips:
-                    self?.openFieldTrips()
-                case .externalImageImportAvailable:
-                    self?.protectExternalRouteFromImmediateSessionTimeoutReset()
-                    self?.importPendingExternalImageIfPossible()
-                case .externalImageImportFailed:
-                    self?.prepareForExternalImageImportPresentation()
-                    self?.presentExternalImageImportFailure()
-                default:
-                    break
+                    return
+                }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    self.handleSessionTimeoutReset(now: now)
                 }
             }
             .store(in: &cancellables)
@@ -392,6 +404,7 @@ final class CaptureWorkspaceViewModel {
     private func resetModalsForSessionTimeout() {
         // Clear all sheets and UI modals instantly when the session times out
         activeSheet = nil
+        pendingLocalSheet = nil
         pendingExplorePostId = nil
         pendingSpeciesDictionaryRoute = nil
         pendingCommunityIdentificationRequestId = nil
@@ -410,15 +423,139 @@ final class CaptureWorkspaceViewModel {
             cancelRefinementStaging()
         }
     }
+
+    // MARK: - Delivery-Critical Route Consumption
+
+    func consumeNextAppRoute(
+        now: Date = Date(),
+        isFeaturePresentationOccupied: Bool = false
+    ) {
+        let coordinator = diContainer.appRouteCoordinator
+        guard let request = coordinator.claimNext(now: now) else { return }
+
+        if activePresentation != nil
+            || dismissingPresentation != nil
+            || isFeaturePresentationOccupied {
+            deferredRouteRequestID = request.id
+            coordinator.resolve(
+                request.id,
+                outcome: .deferred(reason: .presentationOccupied),
+                now: now
+            )
+            dismissActivePresentation()
+            return
+        }
+
+        routeRequestIDBeingApplied = request.id
+        let outcome = apply(request.route)
+        routeRequestIDBeingApplied = nil
+        coordinator.resolve(request.id, outcome: outcome, now: now)
+    }
+
+    private func apply(_ route: AppRoute) -> AppRouteOutcome {
+        switch route {
+        case .proAccessRequired:
+            activeSheet = .paywall
+        case .scan(let scanId):
+            guard handleDeepLinkRoute(scanId: scanId) else {
+                return .rejected(reason: .targetUnavailable)
+            }
+        case .explorePost(let postId, let targetCommentId, let targetReplyParentCommentId):
+            guard !postId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return .rejected(reason: .invalidPayload)
+            }
+            handleExploreDeepLinkRoute(
+                postId: postId,
+                targetCommentId: targetCommentId,
+                targetReplyParentCommentId: targetReplyParentCommentId
+            )
+        case .speciesDictionary(let speciesId):
+            guard handleSpeciesDictionaryDeepLinkRoute(speciesId: speciesId) else {
+                return .rejected(reason: .invalidPayload)
+            }
+        case .communityIdentification(let requestId):
+            guard !requestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return .rejected(reason: .invalidPayload)
+            }
+            handleCommunityIdentificationRoute(requestId: requestId)
+        case .identifyNature, .openScanner:
+            activeSheet = nil
+            requestedCaptureMode = .visual
+            if FeatureFlags.isEnabled(.fieldTrips) {
+                let accountID = diContainer.supabaseManager.currentUser?.id.uuidString.lowercased()
+                Task { [activeCaptureGoalStore = diContainer.activeCaptureGoalStore] in
+                    await activeCaptureGoalStore.refresh(accountId: accountID, force: true)
+                }
+            }
+        case .achievement(let award):
+            pendingAchievementAward = award
+            activeSheet = .achievement
+        case .captureGoal(let destination):
+            openCaptureGoal(destination)
+        case .fieldTrips:
+            openFieldTrips()
+        case .recallLastFind:
+            guard diContainer.inferenceEngine.historicHydrationTask != nil
+                    || diContainer.inferenceEngine.speciesData != nil else {
+                return .rejected(reason: .targetUnavailable)
+            }
+            activeSheet = .insight
+        case .refinement(let scanId, let initialDescription, let entryPoint):
+            guard startRefinementScan(
+                scanId: scanId,
+                initialDescription: initialDescription,
+                entryPoint: entryPoint
+            ) else {
+                return .rejected(reason: .targetUnavailable)
+            }
+        case .nonBiologicalScans:
+            handleScansLibraryRoute(showsNonBiologicalCollection: true)
+        case .scansLibrary:
+            handleScansLibraryRoute()
+        case .scansLibraryRecovery(let context):
+            let currentOwner = diContainer.supabaseManager.currentUser?.id.uuidString.lowercased()
+            guard currentOwner == context.ownerUserId.lowercased() else {
+                return .rejected(reason: .staleAccount)
+            }
+            handleScansLibraryRoute(recoveryContext: context)
+        case .processExternalImageImports:
+            protectExternalRouteFromImmediateSessionTimeoutReset()
+            importPendingExternalImageIfPossible()
+        case .externalImageImportFailed:
+            prepareForExternalImageImportPresentation()
+            presentExternalImageImportFailure()
+        #if DEBUG
+        case .debugPreviewAnalyzing:
+            activeSheet = .insight
+        #endif
+        }
+
+        let presentationID = activePresentation?.routeRequestID == routeRequestIDBeingApplied
+            ? activePresentation?.id
+            : nil
+        return .applied(presentationID: presentationID)
+    }
+
+    func handleRouteAccountGenerationChanged() {
+        deferredRouteRequestID = nil
+        pendingLocalSheet = nil
+        clearExplorePresentationRoute()
+        pendingScansRecoveryContext = nil
+        pendingScansShowsNonBiologicalCollection = false
+        pendingAchievementAward = nil
+        if activePresentation?.routeRequestID != nil {
+            dismissActivePresentation()
+        }
+    }
     
     // MARK: - App Linking
     
-    private func handleDeepLinkRoute(scanId: String) {
+    @discardableResult
+    private func handleDeepLinkRoute(scanId: String) -> Bool {
         clearExplorePresentationRoute()
-        activeSheet = nil
 
         // SwiftData Context Access boundary seamlessly leveraging the shared queue context
-        guard let context = diContainer.offlineQueueManager.modelContext else { return }
+        guard let context = diContainer.offlineQueueManager.modelContext else { return false }
 
         do {
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
@@ -426,10 +563,12 @@ final class CaptureWorkspaceViewModel {
                 diContainer.inferenceEngine.load(from: record)
                 protectExternalRouteFromImmediateSessionTimeoutReset()
                 self.activeSheet = .insight
+                return true
             }
         } catch {
             MerianLog.general.error("Failed to route to scanId \(scanId, privacy: .private): \(error, privacy: .private)")
         }
+        return false
     }
 
     func fetchLocalScan(scanId: String) -> LocalScanRecord? {
@@ -458,11 +597,12 @@ final class CaptureWorkspaceViewModel {
         activeSheet = .explore
     }
 
-    private func handleSpeciesDictionaryDeepLinkRoute(speciesId: String) {
+    @discardableResult
+    private func handleSpeciesDictionaryDeepLinkRoute(speciesId: String) -> Bool {
         guard let uuid = UUID(
             uuidString: speciesId.trimmingCharacters(in: .whitespacesAndNewlines)
         ) else {
-            return
+            return false
         }
         let canonicalSpeciesId = uuid.uuidString.lowercased()
 
@@ -480,6 +620,7 @@ final class CaptureWorkspaceViewModel {
         pendingExploreShowsFieldTrips = false
         explorePresentationIdentity = UUID()
         activeSheet = .explore
+        return true
     }
 
     private func handleCommunityIdentificationRoute(requestId: String) {
@@ -616,17 +757,63 @@ final class CaptureWorkspaceViewModel {
         }
     }
 
-    func handleRootSheetDismissed() {
-        guard resumesExternalImageImportAfterSheetDismissal else { return }
-        resumesExternalImageImportAfterSheetDismissal = false
-        importPendingExternalImageIfPossible()
+    func dismissActivePresentation() {
+        guard let activePresentation else { return }
+        dismissingPresentation = activePresentation
+        self.activePresentation = nil
+    }
+
+    func queueNotificationPromptAfterInsightDismissal() {
+        pendingLocalSheet = .notificationPrompt
+    }
+
+    func handleRootSheetDismissed(now: Date = Date()) {
+        if let dismissed = dismissingPresentation {
+            if dismissed.destination == .achievement {
+                pendingAchievementAward = nil
+            }
+            if let requestID = dismissed.routeRequestID {
+                diContainer.appRouteCoordinator.resolve(
+                    requestID,
+                    outcome: .dismissed(presentationID: dismissed.id),
+                    now: now
+                )
+            }
+            dismissingPresentation = nil
+        }
+
+        if let deferredRouteRequestID {
+            self.deferredRouteRequestID = nil
+            diContainer.appRouteCoordinator.resumeDeferredRequest(deferredRouteRequestID)
+        }
+
+        if resumesExternalImageImportAfterSheetDismissal {
+            resumesExternalImageImportAfterSheetDismissal = false
+            importPendingExternalImageIfPossible()
+        }
+
+        if diContainer.appRouteCoordinator.nextRequestID == nil,
+           activePresentation == nil,
+           let pendingLocalSheet {
+            self.pendingLocalSheet = nil
+            activeSheet = pendingLocalSheet
+        }
+    }
+
+    /// Called only by a feature-local sheet/cover's exact `onDismiss` callback.
+    /// A deferred global route is requeued here, after UIKit has released the
+    /// presentation slot, rather than after a guessed teardown delay.
+    func handleFeaturePresentationDismissed() {
+        guard let deferredRouteRequestID else { return }
+        self.deferredRouteRequestID = nil
+        diContainer.appRouteCoordinator.resumeDeferredRequest(deferredRouteRequestID)
     }
 
     @discardableResult
     private func prepareForExternalImageImportPresentation() -> Bool {
         protectExternalRouteFromImmediateSessionTimeoutReset()
         clearExplorePresentationRoute()
-        let didDismissSheet = activeSheet != nil
+        let didDismissSheet = activePresentation != nil || dismissingPresentation != nil
         activeSheet = nil
         return didDismissSheet
     }
@@ -933,34 +1120,41 @@ final class CaptureWorkspaceViewModel {
         }
     }
     
+    @discardableResult
     func startRefinementScan(
         from record: LocalScanRecord,
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
-    ) {
+    ) -> Bool {
         guard diContainer.revenueCatManager.canStartProScan else {
             AppTelemetry.trackPaywallImpression()
             activeSheet = .paywall
-            return
+            return true
         }
         guard canStartRefinement(from: record, entryPoint: entryPoint) else {
             MerianLog.general.debug("Blocked refinement entry point for incompatible scan state.")
-            return
+            return false
         }
 
         startRefinementScan(
             with: RefinementScanContext(record: record, entryPoint: entryPoint),
             initialDescription: initialDescription
         )
+        return true
     }
 
+    @discardableResult
     func startRefinementScan(
         scanId: String,
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
-    ) {
-        guard let record = fetchLocalScan(scanId: scanId) else { return }
-        startRefinementScan(from: record, initialDescription: initialDescription, entryPoint: entryPoint)
+    ) -> Bool {
+        guard let record = fetchLocalScan(scanId: scanId) else { return false }
+        return startRefinementScan(
+            from: record,
+            initialDescription: initialDescription,
+            entryPoint: entryPoint
+        )
     }
 
     private func canStartRefinement(from record: LocalScanRecord, entryPoint: RefinementEntryPoint) -> Bool {

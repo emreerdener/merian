@@ -40,17 +40,49 @@ orphaned object does not reconstruct its relational context.
 
 ### 1. Dependency Injection (`AppDIContainer`)
 
-- To prevent Massive Environment Object pollution and enforce separation of
-  concerns, Merian uses a centralized `AppDIContainer`. This singleton holds and
-  exposes all core orchestration services to view modifiers (like
-  `CameraManager`, `InferenceEngine`, `EnvironmentContextManager`), avoiding
-  scattered initializations across the app. To preserve the "Instant-On"
-  zero-latency launch requirement, all dependencies are declared as `lazy var`.
-  This bypasses eager Main Thread initialization during `MerianApp` boot,
-  ensuring heavy hardware layers (`AVCaptureSession`) only spin up when
-  requested by foreground SwiftUI `.onAppear` lifecycles.
+- Merian uses `AppDIContainer` as the application dependency graph instead of
+  constructing managers throughout SwiftUI. The production graph is available
+  through `AppDIContainer.shared`; preview containers create isolated
+  `AppEventPublisher` and `AppRouteCoordinator` instances and do not bind the
+  process-global authentication manager to their route state.
+- The container injects observable managers through SwiftUI `@Environment` for
+  render state and is initializer-injected into business-owning view models.
+  This keeps dependency access explicit without turning the entire container
+  into one observed environment value that would redraw unrelated views.
+- Stable service references are created with the container. Expensive resource
+  activation remains lifecycle-owned: in particular, `CameraManager` defers
+  `AVCaptureSession` configuration until Capture starts the foreground session.
+  Do not describe container construction itself as lazy initialization.
 
-### 2. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
+### 2. Typed Events, Routes, and Presentation Coordination
+
+- Loss-tolerant reload hints and lifecycle commands use the synchronous,
+  `@MainActor` `AppEventPublisher`. Events carry only IDs and small scalar hints;
+  SwiftData, UserDefaults, Supabase, or the owning service remains authoritative.
+- Delivery-critical navigation uses `AppRouteCoordinator`, a process-local
+  state machine capped at 16 pending requests and 64 recent outcomes. Stable
+  envelopes define source priority, FIFO order, expiry, semantic coalescing,
+  account/session generations, explicit deferral, and terminal rejection.
+  Durable work such as Photos document import remains in its owning store; the
+  route is a bounded wake-up request, not persistence.
+- `CaptureWorkspaceViewModel` is the sole root consumer.
+  `CameraSheetRouter` presents Paywall, Insight, Scans, Profile, Explore,
+  achievement detail, and the notification prompt through one identified
+  `.sheet(item:)`. Capture-local editors and covers advertise the same UIKit
+  presentation slot as occupied. Routes resume only after the exact dismissal
+  callback, never after an assumed animation delay.
+- Framework notifications are allowed only at the seven reviewed Apple boundary
+  files. Application-defined notification names and posts are forbidden and
+  enforced by the iOS event-routing guard. AVPlayer KVO, notifications, and
+  periodic time callbacks are owned by `MediaPlaybackObservation`, which removes
+  exact old-player tokens and rejects late callbacks with a generation fence.
+- See
+  [Event and Presentation Routing](./10-event-and-presentation-routing.md) for
+  the exhaustive event/route matrices, priority and expiry rules, presentation
+  state machine, framework-boundary inventory, visual-feedback contract, tests,
+  and intentionally deferred consolidation work.
+
+### 3. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
 - Direct bindings into `AVCaptureSession`, negotiating
   `isHighResolutionPhotoEnabled` buffers using the ISP (Image Signal Processor)
@@ -79,7 +111,7 @@ orphaned object does not reconstruct its relational context.
 - **Photos Document Import (`ExternalImageImportStore`):** The app advertises
   `public.image` as an alternate viewer. `MerianApp.onOpenURL` copies a shared
   Photos file out of its security-scoped or temporary source into an Application
-  Support inbox before publishing a typed `AppEvent`. This is an app-owned
+  Support inbox before requesting `AppRoute.processExternalImageImports`. This is an app-owned
   document import, not an extension or App Group handoff, and the pending copy
   survives cold launch and onboarding until Capture stages it or rejects it as
   terminally unreadable.
@@ -103,7 +135,7 @@ orphaned object does not reconstruct its relational context.
   ImageIO metadata for Photos document imports prior to inference. Date-only and
   coordinate-only imports preserve only the fields actually present.
 
-### 3. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
+### 4. Ephemeral Offline-First Sync (`OfflineQueueManager`, `OfflineJobScheduler`, `SwiftData`)
 
 - Employs a zero-data-loss queue structure tracking users without cellular data
   using `SwiftData` inside `MerianApp`. The durable unit is a canonical ordered
@@ -134,7 +166,7 @@ orphaned object does not reconstruct its relational context.
   `OfflineQueueEvent`) makes retry state durable across app kills and provides a
   redacted diagnostics export without raw media paths or private media bytes.
 
-### 4. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
+### 5. Serverless Edge Verification (`Supabase Edge Functions`, `Gemini 2.5 Flash / Pro`)
 
 - A Cloud-native workflow decoupling Apple users from raw API logic.
 - The `identify-multimodal` Deno Edge node accepts pre-signed multi-capture iOS
@@ -388,13 +420,13 @@ single-responsibility functions under `/services/supabase/functions/`.
     after a missed delivery. An indexed service-only health RPC plus independent
     scheduled monitor alerts on expired leases and oldest due age.
 
-### 5. Continuous Gamification Ecosystem (`GamificationManager`)
+### 6. Continuous Gamification Ecosystem (`GamificationManager`)
 
 - Tracks device-native state (`UserDefaults`), tying species identifications to
   profile persona progression and achievement milestones.
 - Binds global haptics to success triggers and interactions.
 
-### 6. Private Analytics (`AppTelemetry`, `PostHog`)
+### 7. Private Analytics (`AppTelemetry`, `PostHog`)
 
 - Required architecture: optional pseudonymous app analytics may flow through
   `AppTelemetry` into `PostHog` only after an account-wide grant, preserving
@@ -416,7 +448,7 @@ single-responsibility functions under `/services/supabase/functions/`.
 > keep the candidate blocked. See the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
-### 6. UI Initialization & Memory Operations
+### 8. UI Initialization & Memory Operations
 
 - **Instant Cold Boot:** `AppTelemetry.initialize()` prepares a disabled
   first-party facade in `MerianApp.init()` without starting PostHog. After auth
@@ -457,7 +489,7 @@ single-responsibility functions under `/services/supabase/functions/`.
   bounds-checking 12 MP files without allocating generic `Data` blocks. This
   keeps scrolling locked to 60fps on edge devices.
 
-### 7. watchOS Extension (`MerianWatch`)
+### 9. watchOS Extension (`MerianWatch`)
 
 Merian includes a companion watchOS app for acoustic identification. The watch
 target captures and dispatches audio via WatchConnectivity and does **not**

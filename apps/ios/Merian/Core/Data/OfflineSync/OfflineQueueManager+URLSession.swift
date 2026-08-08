@@ -2117,7 +2117,7 @@ extension OfflineQueueManager {
                   ) else {
                 return false
             }
-            ScanLibraryEvents.postLibraryDidUpdate()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
         }
         guard let recoveredLocalRecord else {
@@ -2171,7 +2171,7 @@ extension OfflineQueueManager {
             return false
         }
         updateUnsyncedItemCount()
-        ScanLibraryEvents.postLibraryDidUpdate()
+        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         let didHydratePresentedResult =
             AppDIContainer.shared.inferenceEngine.commitRecoveredQueuedRecord(
                 recoveredLocalRecord,
