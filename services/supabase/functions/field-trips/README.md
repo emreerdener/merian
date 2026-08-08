@@ -605,7 +605,8 @@ ingestion retry remains authoritative.
 20. Apply `20260730023042_gate_field_trip_progress_by_confidence.sql`.
 21. Apply `20260802053044_simplify_backyard_and_pollinator_levels.sql`.
 22. Apply `20260803015025_auto_enroll_backyard_safari_level_one.sql`.
-23. Apply `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`.
+23. Apply
+    `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`.
 24. Deploy the scan-ingestion functions.
 25. Deploy this function.
 26. Deploy `get-explore-author-profile` so profile responses include
