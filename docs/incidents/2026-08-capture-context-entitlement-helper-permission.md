@@ -21,6 +21,13 @@ only by `service_role`, while the new private predicate revoked execution from
 that same role. PostgreSQL therefore rejected the transitive call before the
 projection could return a capture goal.
 
+Candidate validation run 1668 for source SHA
+`10f14e19be06e0babce6c2f780212305015bf2e2` applied the helper repair and then
+exposed the next missing invoker edge: the database integration test switched
+to `SET LOCAL ROLE service_role` and failed with PostgreSQL `42501 permission
+denied for table field_trip_checklist_items`. The complete disposable-database
+gate stopped. It used no production environment, secrets, or mutations.
+
 Capture remained available because `ActiveCaptureGoalStore` treats this fetch
 as non-blocking enrichment and retains the last successful account-scoped
 snapshot. New accounts had no cached snapshot, however, so they lost the
@@ -67,10 +74,13 @@ projection is intentionally different:
 - the projection now calls `internal.user_has_effective_pro(uuid)` under that
   invoker role.
 
-The migration preserved the outer RPC grant but omitted the private helper's
-transitive `service_role` execute grant. Existing integration coverage called
-the projection as the migration owner, whose implicit function privilege hid
-the missing production role edge.
+The migration preserved the outer RPC grant but omitted both kinds of privilege
+needed by its invoker body: `EXECUTE` on the private helper and `SELECT` on the
+six source relations. Existing integration coverage called the projection as
+the migration owner, whose implicit privileges hid both missing production-role
+edges. Once the first forward migration restored helper execution and the test
+used the deployed role chain, PostgreSQL correctly stopped at the first missing
+source-table read.
 
 ## Resolution
 
@@ -84,19 +94,32 @@ Forward migration
    `service_role`; then
 4. grants only `EXECUTE` back to `service_role`.
 
-The repair does not expose `internal` through the Data API, broaden the public
-RPC, change a response payload, duplicate entitlement logic, or convert the
-outer projection to `SECURITY DEFINER`.
+Forward migration
+`20260808230028_restore_field_trip_capture_context_source_reads.sql`:
+
+1. verifies the projection still exists, remains an invoker, calls the expected
+   entitlement helper, and names the expected source relations;
+2. fails closed if its routine, security mode, source shape, or execute ACL has
+   drifted; and
+3. grants `service_role` only `SELECT` on `users`, `user_field_trips`,
+   `field_trip_templates`, `field_trip_levels`,
+   `user_field_trip_item_completions`, and `field_trip_checklist_items`.
+
+The repairs do not expose `internal` through the Data API, broaden the public
+RPC, add table mutation privileges, change a response payload, duplicate
+entitlement logic, or convert the outer projection to `SECURITY DEFINER`.
 
 ## Regression Coverage
 
-- The static migration contract fixes the exact dependency and ACL shape and
-  rejects a redefinition of the outer projection.
+- The static migration contracts fix the exact helper dependency and six-table
+  read allowlist, reject additional `service_role` grants, and reject a
+  redefinition of the outer projection.
 - The complimentary-entitlement pgTAP fixture requires helper execution for
   `service_role` and denies it to `anon` and `authenticated`.
 - The capture-context database integration test now switches to
-  `SET LOCAL ROLE service_role` before invoking the projection. This reproduces
-  the deployed role chain instead of relying on owner privilege.
+  `SET LOCAL ROLE service_role` before invoking the projection, then verifies
+  all six source reads in the catalog. This reproduces the deployed role chain
+  instead of relying on owner privilege.
 - The existing payload assertions continue to exclude scan IDs, media,
   locations, notes, and completed species evidence.
 
@@ -108,8 +131,9 @@ Do not mark this incident released until one exact candidate proves:
    context database gates pass on disposable PostgreSQL 17;
 2. `anon` and `authenticated` cannot execute either the private helper or the
    public capture projection;
-3. `service_role` can execute the public projection through the real invoker
-   chain for a newly enrolled account;
+3. `service_role` has `SELECT` on all six reviewed source relations and can
+   execute the public projection through the real invoker chain for a newly
+   enrolled account;
 4. the authenticated `field-trips` `capture_context` action returns HTTP 200
    with the fixed handler marker and no private evidence;
 5. a clean-install first scan separately proves authoritative consent upload,

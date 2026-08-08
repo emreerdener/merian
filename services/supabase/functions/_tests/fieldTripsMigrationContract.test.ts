@@ -728,6 +728,46 @@ Deno.test("Capture context entitlement dependency remains invoker-safe and servi
   );
 });
 
+Deno.test("Capture context invoker has an explicit source-read allowlist", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260808230028_restore_field_trip_capture_context_source_reads.sql",
+    ),
+  );
+
+  for (
+    const fragment of [
+      "SET lock_timeout = '10s'",
+      "SET statement_timeout = '2min'",
+      "public.get_field_trip_capture_context(uuid)",
+      "internal.user_has_effective_pro(",
+      "field_trip_capture_context_source_function_missing",
+      "field_trip_capture_context_source_shape_drift",
+      "field_trip_capture_context_source_relation_drift",
+      "field_trip_capture_context_source_acl_unsafe",
+      "GRANT SELECT ON TABLE public.users, public.user_field_trips, public.field_trip_templates, public.field_trip_levels, public.user_field_trip_item_completions, public.field_trip_checklist_items TO service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "CREATE OR REPLACE FUNCTION public.get_field_trip_capture_context",
+    ) && !sql.includes("SECURITY DEFINER"),
+    "The source-read repair must preserve the invoker projection",
+  );
+  assertEquals(
+    sql.match(/GRANT [^;]+ TO service_role/g) ?? [],
+    [
+      "GRANT SELECT ON TABLE public.users, public.user_field_trips, public.field_trip_templates, public.field_trip_levels, public.user_field_trip_item_completions, public.field_trip_checklist_items TO service_role",
+    ],
+    "The source-read repair must contain only the reviewed relation grant",
+  );
+});
+
 Deno.test("Capture context keeps a standard field trip after Seasonal Challenge join", async () => {
   const sql = normalized(
     await migrationSql(

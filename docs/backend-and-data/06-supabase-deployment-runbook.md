@@ -3090,9 +3090,11 @@ before `20260708042713_field_trips_v3_community.sql` before
 `20260722211636_tighten_field_trip_goal_matching.sql` before
 `20260730023042_gate_field_trip_progress_by_confidence.sql` before
 `20260802053044_simplify_backyard_and_pollinator_levels.sql` before
-`20260803015025_auto_enroll_backyard_safari_level_one.sql`, then deploy the
-updated scan-ingestion functions, `field-trips`, and the Explore/profile
-activity bundles together. V1 creates the Field trip tables,
+`20260803015025_auto_enroll_backyard_safari_level_one.sql` before
+`20260808215410_restore_field_trip_capture_entitlement_helper_access.sql` before
+`20260808230028_restore_field_trip_capture_context_source_reads.sql`, then
+deploy the updated scan-ingestion functions, `field-trips`, and the
+Explore/profile activity bundles together. V1 creates the Field trip tables,
 progress/publication/comment storage, profile visibility helpers, and
 publication snapshots. V2 adds guided template detail, explicit starts, Recent
 compatibility pagination, and profile pins. V3 adds the Community publication
@@ -3153,10 +3155,11 @@ after the publication-status migration; its optional fields render Private
 against the older payload. Deploy both credited-progress migrations, in order,
 before the progress-toast iOS client. The client can decode the legacy shape and
 fall back to current counts during a staged rollout. All Field Trip migrations
-through `20260803015025_auto_enroll_backyard_safari_level_one.sql`, updated
-ingestion functions, and updated `field-trips` must precede the Insight-card iOS
-client. The confidence migration applies the tier-specific Possible-match
-boundary (`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak unreviewed credit,
+through `20260808230028_restore_field_trip_capture_context_source_reads.sql`,
+updated ingestion functions, and updated `field-trips` must precede the
+Insight-card iOS client. The confidence migration applies the tier-specific
+Possible-match boundary (`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak
+unreviewed credit,
 and preserves selected-goal hints pending explicit confirmation or correction.
 Confidence, inference tier, confirmation, and the pending hint participate in
 the durable receipt revision. Future evidence downgrades run the same
@@ -3174,6 +3177,14 @@ deny-by-default `public.users` trigger for future signed-in and ghost accounts.
 Its conflict path must remain `DO NOTHING`: never resume completed, stopped, or
 reset state during enrollment. The activity window begins at enrollment, so
 older scans are not eligible for retroactive credit.
+
+The two capture-context ACL follow-ups preserve the projection as
+`SECURITY INVOKER`. The first restores `service_role` execution of the private
+functional-entitlement helper. The second grants that role `SELECT` on exactly
+`users`, `user_field_trips`, `field_trip_templates`, `field_trip_levels`,
+`user_field_trip_item_completions`, and `field_trip_checklist_items`, which are
+the relations read by the projection. Neither migration grants a browser role
+execution or adds a table mutation privilege.
 
 Before applying the auto-enrollment migration, record the complete
 `user_field_trips` row and activity-period counts for one stopped, one reset,
@@ -3250,6 +3261,33 @@ Finally, create one new signed-in profile and one new ghost profile through the
 normal account flows. Each must receive exactly one Level 1 trip and one open
 period, and `capture_context` must return the two unfinished starter goals.
 Confirm an older scan from the existing-account cohort remains uncredited.
+
+The invoker ACL check must return `TRUE` in both columns. This is required in
+addition to a successful owner-context call:
+
+```sql
+SELECT
+  pg_catalog.has_function_privilege(
+    'service_role',
+    'public.get_field_trip_capture_context(uuid)',
+    'EXECUTE'
+  ) AS service_role_can_execute,
+  pg_catalog.BOOL_AND(
+    pg_catalog.has_table_privilege(
+      'service_role',
+      source_relation,
+      'SELECT'
+    )
+  ) AS service_role_can_read_all_sources
+FROM pg_catalog.UNNEST(ARRAY[
+  'public.users',
+  'public.user_field_trips',
+  'public.field_trip_templates',
+  'public.field_trip_levels',
+  'public.user_field_trip_item_completions',
+  'public.field_trip_checklist_items'
+]) AS sources(source_relation);
+```
 
 Disabling enrollment is a forward-fix operation. Generate and deploy a new
 migration containing the following object removal, while preserving every
@@ -5993,7 +6031,10 @@ After deployment:
   and returns no scan IDs, media, locations, field notes, species completion
   data, or other evidence. Confirm `PUBLIC`, `anon`, and `authenticated` cannot
   execute `public.get_field_trip_capture_context(uuid)` while `service_role`
-  can. Verify catalog and template detail return each completed item's exact
+  can. Confirm that invoker can `SELECT` all six reviewed source relations:
+  `users`, `user_field_trips`, `field_trip_templates`, `field_trip_levels`,
+  `user_field_trip_item_completions`, and `field_trip_checklist_items`. Verify
+  catalog and template detail return each completed item's exact
   `user_field_trip_item_completions.scan_id`, return no media URL, and keep
   incomplete items evidence-free. Confirm `PUBLIC`, `anon`, and `authenticated`
   cannot execute `public.get_field_trip_catalog(...)` or

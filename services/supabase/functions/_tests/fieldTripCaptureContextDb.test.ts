@@ -337,6 +337,25 @@ Deno.test("Field trip capture context preserves standard field trips and exclude
       );
       await client.queryArray("RESET ROLE");
 
+      const sourceReadPrivileges = await client.queryObject<{
+        all_source_reads: boolean;
+      }>(
+        `
+        SELECT BOOL_AND(
+          has_table_privilege('service_role', source_relation, 'SELECT')
+        ) AS all_source_reads
+        FROM UNNEST(ARRAY[
+          'public.users',
+          'public.user_field_trips',
+          'public.field_trip_templates',
+          'public.field_trip_levels',
+          'public.user_field_trip_item_completions',
+          'public.field_trip_checklist_items'
+        ]) AS sources(source_relation)
+        `,
+      );
+      assertEquals(sourceReadPrivileges.rows[0].all_source_reads, true);
+
       const privileges = await client.queryObject<{
         anonymous: boolean;
         authenticated: boolean;

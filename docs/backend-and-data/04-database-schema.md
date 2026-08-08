@@ -3372,7 +3372,12 @@ coordinates to the client contract.
   remains `SECURITY INVOKER`, migration
   `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`
   grants that one transitive helper only to `service_role`; `PUBLIC`, `anon`,
-  and `authenticated` remain denied. The response behavior is defined by
+  and `authenticated` remain denied. Migration
+  `20260808230028_restore_field_trip_capture_context_source_reads.sql` grants
+  the same invoker `SELECT` on only its six source relations: `users`,
+  `user_field_trips`, `field_trip_templates`, `field_trip_levels`,
+  `user_field_trip_item_completions`, and `field_trip_checklist_items`. It adds
+  no mutation privilege. The response behavior is defined by
   `20260717213641_preserve_standard_outings_in_capture_context.sql`.
   `20260717224544_retire_forest_edges_outing.sql` deactivates the placeholder
   Forest Edges template, so this read model and other active-template RPCs omit

@@ -2101,10 +2101,16 @@ For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through
 `20260803015025_auto_enroll_backyard_safari_level_one.sql`, followed by
 `20260808215410_restore_field_trip_capture_entitlement_helper_access.sql`,
-before deploying `field-trips`. The latter preserves the capture projection as
+then
+`20260808230028_restore_field_trip_capture_context_source_reads.sql`, before
+deploying `field-trips`. The first repair preserves the capture projection as
 `SECURITY INVOKER` and grants `service_role` only the private
 `user_has_effective_pro(uuid)` execute dependency introduced by the functional
-entitlement rewrite; `anon` and `authenticated` remain denied. Smoke-test the
+entitlement rewrite. The second grants that invoker `SELECT` on only the six
+relations its projection reads: `users`, `user_field_trips`,
+`field_trip_templates`, `field_trip_levels`,
+`user_field_trip_item_completions`, and `field_trip_checklist_items`. It adds no
+mutation privilege; `anon` and `authenticated` remain denied. Smoke-test the
 authenticated `capture_context` action before releasing the iOS client. A new
 signed-in account and ghost account must each receive exactly one Backyard
 Safari Level 1 row and one open period. Direct API roles cannot execute the

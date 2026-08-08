@@ -219,6 +219,16 @@ policy or privileged RPC. An empty REST result is never evidence that grants or
 RLS are safe. The static migration contract and
 `tests/public_schema_security.sql` verify effective catalog behavior.
 
+The service-only `public.get_field_trip_capture_context(uuid)` projection is a
+deliberate `SECURITY INVOKER` example. Migration
+`20260808230028_restore_field_trip_capture_context_source_reads.sql` grants
+`service_role` `SELECT` on only the six relations that projection reads, after
+failing closed on function, security-mode, source-shape, or execute-ACL drift.
+It grants no write operation and does not make the RPC executable by `anon` or
+`authenticated`. Its disposable-database test switches to the real
+`service_role` before invocation; an owner-context result is not valid evidence
+for this boundary.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and
