@@ -94,19 +94,67 @@ Deno.test("every Identify route validates provider and final wire values before 
 
 Deno.test("malformed provider output remains retryable across every scan producer", async () => {
   for (const path of scanProducerRoutes) {
-    const source = (await Deno.readTextFile(new URL(path, import.meta.url)))
-      .replaceAll(/\s+/g, " ");
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    const normalizedSource = source.replaceAll(/\s+/g, " ");
     assert(
       /error: "Processing Error: Malformed AI response[.]",? }?,? 503/.test(
-        source,
+        normalizedSource,
       ),
       `${path} must return HTTP 503 for malformed paid-provider output`,
     );
     assert(
       !/error: "Processing Error: Malformed AI response[.]",? }?,? 422/.test(
-        source,
+        normalizedSource,
       ),
       `${path} must not strand the offline queue with HTTP 422`,
+    );
+
+    if (path === "../identify-multimodal/index.ts") {
+      assert(
+        /updateIngestionJobBestEffort\(\s*"failed_retryable",\s*"ai_response_malformed",\s*\{[\s\S]*?retryAfter:\s*retryAfterIso\(\)/
+          .test(
+            source,
+          ),
+        `${path} must persist malformed provider output as retryable work`,
+      );
+      assert(
+        !/updateIngestionJobBestEffort\(\s*"failed_terminal",\s*"ai_response_malformed"/
+          .test(
+            source,
+          ),
+        `${path} must not terminalize a retryable malformed provider response`,
+      );
+    } else {
+      assert(
+        /compatibilityLedger\.markRetryableFailure\(\s*"ai_response_parse_failed"/
+          .test(
+            source,
+          ),
+        `${path} must persist malformed provider output as retryable work`,
+      );
+      assert(
+        !/compatibilityLedger\.markTerminalFailure\(\s*"ai_response_parse_failed"/
+          .test(
+            source,
+          ),
+        `${path} must not terminalize a retryable malformed provider response`,
+      );
+    }
+  }
+});
+
+Deno.test("provider policy rejection uses one stable terminal response across every scan producer", async () => {
+  for (const path of scanProducerRoutes) {
+    const source = (await Deno.readTextFile(new URL(path, import.meta.url)))
+      .replaceAll(/\s+/g, " ");
+    assertStringIncludes(source, 'finishReason === "SAFETY"');
+    assertStringIncludes(source, 'finishReason === "PROHIBITED_CONTENT"');
+    assert(
+      /if \(isPermanent(?:ContentFailure)?\) \{ return publicErrorResponse\( req, 400, "observation_rejected", "We couldn’t process this observation[.] Please try a different photo or recording[.]", \); \}/
+        .test(
+          source,
+        ),
+      `${path} must expose permanent provider policy rejection as exact 400 observation_rejected`,
     );
   }
 });

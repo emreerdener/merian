@@ -103,6 +103,11 @@ timeouts or advance the device network circuit. The queued observation remains
 the recovery owner, with `402` becoming explicit attention and `429` honoring
 the server retry delay.
 
+Exact `400 observation_rejected` requires different source media. It presents
+**Try another capture / Scan not processed**, does not advance the network
+circuit, and mirrors the background queue's terminal non-actionable state
+instead of retrying the rejected observation as a connectivity failure.
+
 ## Field Trip Goal Preference
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal

@@ -1547,6 +1547,14 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     return
                 }
 
+                if publishTerminalObservationRejectionIfNeeded(
+                    error,
+                    scanId: resolvedClientScanId,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
+
                 if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
                     // No refund: the scan is already durably in the offline queue and will be
@@ -1901,6 +1909,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 ) {
                     return
                 }
+                if publishTerminalObservationRejectionIfNeeded(
+                    error,
+                    scanId: resolvedClientScanId,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
                 AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
@@ -1943,6 +1958,19 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     private static let rateLimitRecoveryReason =
         "Naturebook saved this scan and will retry automatically after the server’s " +
         "short safety pause. You can leave this screen and check Scans later."
+
+    private static let observationRejectedReason =
+        "Naturebook couldn’t process this observation. Try a different photo or " +
+        "recording with the subject clearly visible."
+
+    private static func isTerminalObservationRejection(_ error: Error) -> Bool {
+        guard case let MerianError.httpError(statusCode, _) = error,
+              statusCode == 400 else {
+            return false
+        }
+        return MerianNetworkClient.stableEdgeErrorCode(from: error)
+            == "observation_rejected"
+    }
 
     @discardableResult
     private func publishConsentRequiredIfNeeded(
@@ -2015,6 +2043,42 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             title: title,
             subtitle: "Scan saved",
             reasoning: reasoning,
+            telemetry: telemetry
+        )
+        return true
+    }
+
+    @discardableResult
+    private func publishTerminalObservationRejectionIfNeeded(
+        _ error: Error,
+        scanId: String,
+        telemetry: CaptureTelemetry
+    ) -> Bool {
+        guard Self.isTerminalObservationRejection(error) else {
+            return false
+        }
+
+        // This is a handler-owned moderation/policy outcome. Retrying the same
+        // retained media cannot succeed, and it says nothing about the device's
+        // network health. Mirror the background disposition immediately; if
+        // the durable transition fails, the normal background owner remains
+        // eligible to retry and apply the same terminal response safely.
+        AppTelemetry.trackError("InferenceObservationRejected")
+        MerianLog.general.debug(
+            "Inference observation was rejected by policy; a different capture is required."
+        )
+        _ = OfflineQueueManager.shared.softDeleteQueuedScan(
+            scanId: scanId,
+            reason: Self.observationRejectedReason,
+            errorCode: "observation_rejected",
+            httpStatus: 400,
+            needsAttention: false
+        )
+        HapticManager.shared.triggerErrorThump()
+        speciesData = makeErrorSpeciesData(
+            title: "Try another capture",
+            subtitle: "Scan not processed",
+            reasoning: Self.observationRejectedReason,
             telemetry: telemetry
         )
         return true

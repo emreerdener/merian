@@ -42,6 +42,14 @@ for retryable or ambiguous work. A successful response may include the optional
 versioned entitlement metadata defined by
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
+Provider failure semantics stay aligned with every scan producer. A Gemini
+`SAFETY` or `PROHIBITED_CONTENT` finish returns stable HTTP
+`400 observation_rejected` and records a terminal policy outcome through the
+user-first entitlement boundary. Malformed or structurally invalid provider
+output returns HTTP `503`, records `failed_retryable` with a bounded
+`retry_after`, retains the linked hold, and remains eligible for same-UUID
+retry.
+
 ## Durability
 
 Before provider dispatch, `audio-spec` atomically records a

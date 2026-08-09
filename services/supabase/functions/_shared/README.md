@@ -225,6 +225,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `reconstructed` replay from the exact owner row while canonical repair remains
   retryable, without another provider call. No producer may return success
   without exact-owner insertion.
+- **Provider failure parity**: All four producers return stable
+  `400 observation_rejected` for Gemini `SAFETY` or `PROHIBITED_CONTENT` and
+  terminalize that policy outcome through the entitlement orchestrator.
+  Malformed or structurally invalid provider output remains HTTP `503` and
+  `failed_retryable` with a bounded `retry_after`; it retains the linked hold
+  for same-UUID recovery rather than creating a contradictory terminal ledger.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors (including validated still-image focus regions), staged object

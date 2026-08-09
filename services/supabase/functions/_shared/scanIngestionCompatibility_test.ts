@@ -321,9 +321,9 @@ Deno.test("compatibility terminal settlement failures propagate instead of stran
   await assertRejects(
     () =>
       ledger.markTerminalFailure(
-        "ai_response_parse_failed",
-        "malformed response",
-        "malformed_provider_response",
+        "ai_provider_policy_rejected",
+        "Provider finish reason: SAFETY",
+        "content_policy_rejected",
       ),
     Error,
     "terminal settlement unavailable",

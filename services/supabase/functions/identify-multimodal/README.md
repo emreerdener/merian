@@ -141,6 +141,14 @@ durable video finalization, persistence, or HTTP success. A final mismatch marks
 the ingestion job retryable and returns HTTP `502` with
 `identify_response_invalid`; internal contract detail is logged but not exposed.
 
+Provider failure semantics stay aligned with every scan producer. A Gemini
+`SAFETY` or `PROHIBITED_CONTENT` finish returns stable HTTP
+`400 observation_rejected` and records a terminal policy outcome through the
+user-first entitlement boundary. Malformed or structurally invalid provider
+output returns HTTP `503`, records `failed_retryable` with a bounded
+`retry_after`, retains the linked hold, and remains eligible for same-UUID
+retry.
+
 Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
 intentional response changes. The root Swift fields are generated as optional
 for staggered rollout compatibility, but the server contract remains strict

@@ -716,13 +716,14 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "80" ]] \
+[[ "$protected_case_count" == "81" ]] \
   || fail \
-    "Expected 80 exact protected iOS test cases; found $protected_case_count."
+    "Expected 81 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
+  "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual" \
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry" \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
   "scheduledServerFailureMarkerIsReadFromDurableStore" \

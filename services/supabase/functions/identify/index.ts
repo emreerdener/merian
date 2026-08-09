@@ -603,9 +603,10 @@ Deno.serve((req: Request) =>
 
     // Guard non-STOP finish reasons before attempting JSON extraction.
     // When finishReason is SAFETY/RECITATION/OTHER, result.text is "" and
-    // extractJson throws "no JSON object found". This is a provider failure,
-    // not a customer payload error, so it must remain retryable end to end.
-    // SAFETY / PROHIBITED_CONTENT = permanent content policy failure → 400 (tombstone on iOS).
+    // extractJson throws "no JSON object found". SAFETY / PROHIBITED_CONTENT
+    // is a permanent content-policy failure; every other non-STOP reason is a
+    // retryable provider failure.
+    // SAFETY / PROHIBITED_CONTENT = stable 400 observation_rejected (tombstone on iOS).
     // All other non-STOP reasons (MAX_TOKENS, RECITATION, OTHER) are transient → 503 (retry).
     if (
       finishReason && finishReason !== "STOP" &&
@@ -632,9 +633,17 @@ Deno.serve((req: Request) =>
         response_length: responseText.length,
         permanent: isPermanentContentFailure,
       });
+      if (isPermanentContentFailure) {
+        return publicErrorResponse(
+          req,
+          400,
+          "observation_rejected",
+          "We couldn’t process this observation. Please try a different photo or recording.",
+        );
+      }
       return jsonResponse(
         { error: "AI processing error. Please try again." },
-        isPermanentContentFailure ? 400 : 503,
+        503,
       );
     }
 
@@ -645,10 +654,9 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
-      await compatibilityLedger.markTerminalFailure(
+      await compatibilityLedger.markRetryableFailure(
         "ai_response_parse_failed",
         parseError,
-        "malformed_provider_response",
       );
       // Log enough context to diagnose the root cause without re-reading the code.
       // finish_reason, response_length, and the first 500 chars of responseText cover

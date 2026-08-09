@@ -953,6 +953,14 @@ Deno.test("scan owner-row documentation preserves durable success and guarded re
     assertStringIncludes(source, "scan_persistence_failed");
     assertStringIncludes(source, "observation_rejected");
   }
+  assertStringIncludes(
+    api,
+    "Provider policy or durable media moderation rejected the observation",
+  );
+  assertStringIncludes(
+    api,
+    "its ingestion ledger remains `failed_retryable` with a bounded `retry_after`",
+  );
   assertStringIncludes(api, "Owner read-back");
   assertStringIncludes(api, "authenticated `user_id`");
   assertStringIncludes(identifyReadme, "owner-scoped read-back");
@@ -2146,7 +2154,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 80 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one preserves the current account by refreshing an invalid handler-owned session before replay, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, one keeps required consent out of the network circuit while locking the **Approval needed** / **Scan saved** UX across visual and nonvisual inference, one keeps exact `402`/`429` provider-admission UX out of the network circuit across both live pipelines, four protect account-owned funded consent recovery plus lifecycle-gated onboarding resume, and the media-incident compatibility case exercises the actual network-client boundary",
+    "The current validator protects 81 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one preserves the current account by refreshing an invalid handler-owned session before replay, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, one keeps required consent out of the network circuit while locking the **Approval needed** / **Scan saved** UX across visual and nonvisual inference, one keeps exact `402`/`429` provider-admission UX out of the network circuit across both live pipelines, one keeps exact terminal `400 observation_rejected` UX out of the network circuit across both live pipelines, four protect account-owned funded consent recovery plus lifecycle-gated onboarding resume, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2170,7 +2178,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 80 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 81 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2585,6 +2593,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "`X-Merian-Idempotent-Replay: reconstructed`, performs no second provider call",
       "Compatibility producers (`identify`, `identify-describe`, and `audio-spec`) invoke and await the same finalizer synchronously.",
       "The ledger remains `failed_retryable` for same-UUID canonical reconciliation without another provider call.",
+      "The server ledger records `failed_retryable` with a bounded `retry_after`, retains the linked hold, and permits same-UUID recovery;",
+      "Gemini `SAFETY` and `PROHIBITED_CONTENT` instead return the exact stable `400 observation_rejected` envelope and a terminal policy ledger",
       "A transport retry never creates a replacement UUID for the same user action.",
       "Inline image bytes are authoritative. A current foreground still sends `imageBase64s` and `r2ObjectKeys: []`.",
       "A malformed or partial signing response starts no upload.",
@@ -2953,6 +2963,24 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     compact(multimodalSource),
     "Sampled inference frames may remain in `image_storage_urls` as compatibility/thumbnail inputs but are not required or created as standalone ready images.",
   );
+  for (
+    const source of [
+      multimodalSource,
+      identifyCompatibilitySource,
+      describeCompatibilitySource,
+      audioCompatibilitySource,
+    ]
+  ) {
+    const routeDocumentation = compact(source);
+    assertStringIncludes(
+      routeDocumentation,
+      "`400 observation_rejected` and records a terminal policy outcome through the user-first entitlement boundary.",
+    );
+    assertStringIncludes(
+      routeDocumentation,
+      "Malformed or structurally invalid provider output returns HTTP `503`, records `failed_retryable` with a bounded `retry_after`, retains the linked hold, and remains eligible for same-UUID retry.",
+    );
+  }
   assertStringIncludes(
     compact(identifyCompatibilitySource),
     "If only finalization or bookkeeping fails after that row committed, this compatibility route may return its already validated response while leaving the ledger and hold retryable for same-UUID canonical reconciliation.",

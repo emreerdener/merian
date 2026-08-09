@@ -923,8 +923,13 @@ dispatch.
 | handler-owned `404 scan_not_ready`              | Exact owner scan is not currently usable                                                                                                                           | Run guarded status recovery or show still-syncing state                                   |
 
 Malformed or structurally invalid provider JSON returns retryable HTTP `503`
-from every scan producer. The server ledger remains retryable, so a `4xx` would
-incorrectly strand the offline job in needs-attention.
+from every scan producer. The server ledger records `failed_retryable` with a
+bounded `retry_after`, retains the linked hold, and permits same-UUID recovery;
+a `4xx` or terminal ledger would incorrectly strand the offline job. Gemini
+`SAFETY` and `PROHIBITED_CONTENT` instead return the exact stable
+`400 observation_rejected` envelope and a terminal policy ledger, so foreground
+delivery presents recapture guidance without opening the network circuit and
+background delivery removes only the rejected queue generation.
 
 The consent row above is intentionally not grouped with transient `4xx` or
 quota exhaustion. The `reserve_ai_quota` function name is an implementation

@@ -1257,9 +1257,17 @@ export async function handleIdentifyMultimodalRequest(
         terminalReasonCode: isPermanent ? "provider_policy_rejected" : null,
       },
     );
+    if (isPermanent) {
+      return publicErrorResponse(
+        req,
+        400,
+        "observation_rejected",
+        "We couldn’t process this observation. Please try a different photo or recording.",
+      );
+    }
     return jsonResponse(
       { error: `AI processing error (${finishReason}).` },
-      isPermanent ? 400 : 503,
+      503,
     );
   }
 
@@ -1271,12 +1279,11 @@ export async function handleIdentifyMultimodalRequest(
   } catch {
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
-      "failed_terminal",
+      "failed_retryable",
       "ai_response_malformed",
       {
         lastError: "Malformed AI response.",
-        retryAfter: null,
-        terminalReasonCode: "malformed_provider_response",
+        retryAfter: retryAfterIso(),
       },
     );
     return jsonResponse(

@@ -48,6 +48,14 @@ with `identify_response_invalid`; no malformed payload is saved or delivered.
 Intentional contract changes require `make generate-edge-dto-contract` followed
 by `make validate-edge-dto-contract`.
 
+Provider failure semantics stay aligned with every scan producer. A Gemini
+`SAFETY` or `PROHIBITED_CONTENT` finish returns stable HTTP
+`400 observation_rejected` and records a terminal policy outcome through the
+user-first entitlement boundary. Malformed or structurally invalid provider
+output returns HTTP `503`, records `failed_retryable` with a bounded
+`retry_after`, retains the linked hold, and remains eligible for same-UUID
+retry.
+
 ## Durability
 
 Before provider dispatch, `identify-describe` atomically records a

@@ -95,6 +95,7 @@ write_test_tree() {
               "decodedButUnusableSuccessEnvelopeRemainsRecoverable",
               "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
+              "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual",
               "testConfirmAIIdentificationRejectsChangedPresentationIdentity",
               "testApplyIdentificationOverrideRejectsChangedPresentationIdentity",
               "testBackgroundWriteBacklogHasAHardMemoryBound"
@@ -282,6 +283,7 @@ required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+  "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual"
   "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
   "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
   "testBackgroundWriteBacklogHasAHardMemoryBound"

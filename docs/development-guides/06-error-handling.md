@@ -130,7 +130,15 @@ The complete evidence and release closure test are in the
    circuit-breaker failure: a policy rejection is not evidence that transport
    is unhealthy, and repeated rejections must not create a 15-minute cooldown
    after fresh approval.
-4. **All other errors (network failure, timeout, etc.)** — Record circuit
+4. **Exact provider-admission errors** — Route `402 pro_required`, daily quota,
+   and stable user/IP rate-limit codes to their distinct saved-scan recovery
+   states. These authenticated admission decisions do not record a network
+   circuit failure.
+5. **Exact `400 observation_rejected`** — Publish **Try another capture / Scan
+   not processed**, mirror the background queue's terminal non-actionable
+   disposition, and do not record a network circuit failure or retry the same
+   rejected media as though connectivity had failed.
+6. **All other errors (network failure, timeout, etc.)** — Record circuit
    failure via `CircuitBreakerManager.shared.recordFailure()`. Set `speciesData`
    to a "Network timeout" placeholder with automatic-retry recovery copy. Do not
    refund and do not re-enqueue — the scan is already in the offline queue and

@@ -177,6 +177,14 @@ queue retains the observation: entitlement exhaustion becomes explicit
 attention after the server proof refresh, while rate limits use the server's
 bounded retry delay.
 
+Exact `400 observation_rejected` is terminal policy feedback, not a transport
+failure. Both live pipelines present **Try another capture / Scan not
+processed**, keep the state out of the device network circuit, and immediately
+mirror the background queue's non-actionable failed disposition when durable
+state is available. A failed durable transition leaves the normal background
+owner eligible to apply the same terminal response safely; the rejected media
+is never automatically redispatched as though connectivity had failed.
+
 Live persistence and background retry/finalization share
 `ScanInferencePersistenceCoordinator`. The live save validates both the
 in-memory foreground generation, durable job generation, and provider result

@@ -458,9 +458,17 @@ Deno.serve((req: Request) =>
         finish_reason: finishReason,
         permanent: isPermanentContentFailure,
       });
+      if (isPermanentContentFailure) {
+        return publicErrorResponse(
+          req,
+          400,
+          "observation_rejected",
+          "We couldn’t process this observation. Please try a different photo or recording.",
+        );
+      }
       return jsonResponse(
         { error: "AI processing error. Please try again." },
-        isPermanentContentFailure ? 400 : 503,
+        503,
       );
     }
 
@@ -471,10 +479,9 @@ Deno.serve((req: Request) =>
       );
     } catch (parseError) {
       await quotaLease.fail();
-      await compatibilityLedger.markTerminalFailure(
+      await compatibilityLedger.markRetryableFailure(
         "ai_response_parse_failed",
         parseError,
-        "malformed_provider_response",
       );
       logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,

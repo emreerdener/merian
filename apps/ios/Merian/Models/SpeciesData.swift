@@ -259,6 +259,10 @@ extension SpeciesData {
             || normalizedCommonName == "analysis failed"
             || normalizedCommonName == "restoring scan"
             || normalizedCommonName == "approval needed"
+            || normalizedCommonName == "upgrade needed"
+            || normalizedCommonName == "daily limit reached"
+            || normalizedCommonName == "retrying shortly"
+            || normalizedCommonName == "try another capture"
     }
 
     var isClassifiedNonBiological: Bool {

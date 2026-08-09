@@ -2563,19 +2563,20 @@ back objects whose creation is known to that promotion batch.
 | ------ | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `400`  | `{ "error": "Bad Request: Path traversal detected." }`                                                                            | `r2ObjectKeys` contains a `../` traversal attempt                                            |
 | `400`  | `{ "error": "Forbidden: r2ObjectKey does not belong to the requesting user." }`                                                   | IDOR — key does not belong to the authenticated user                                         |
-| `400`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Permanent content policy failure (`finishReason` is `SAFETY` or `PROHIBITED_CONTENT`)        |
-| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Media was rejected by the durable safety-moderation pass                                     |
+| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Provider policy or durable media moderation rejected the observation                         |
 | `413`  | `{ "error": "Payload Too Large: Combined images exceed 5MB limit." }`                                                             | Combined image payload exceeds 5 MB                                                          |
 | `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }`                                | Final server-enriched payload violated the executable wire contract                          |
 | `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                                                         | Gemini returned malformed or structurally invalid output; offline delivery may retry         |
 | `503`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Transient Gemini failure (API error, rate limit, timeout, non-SAFETY non-STOP finish reason) |
 | `503`  | `{ "error": "We couldn’t finish saving this observation. Please try again.", "code": "scan_persistence_failed" }`                 | Durable moderation pipeline, media promotion, species resolution, or scan insertion failed   |
 
-`400` on a content policy failure is intentional — the iOS `OfflineQueueManager`
-treats `400` as a permanent failure and marks the queued row as needing user
-attention rather than silently deleting media. All other Gemini errors return
-`503` so the offline queue retries with persisted `queueNextRetryAt` /
-`OfflineJobRecord.nextRunAt` metadata. For `scan_persistence_failed`, an
+All producer `SAFETY` / `PROHIBITED_CONTENT` branches and durable moderation
+rejections return the exact `400 observation_rejected` envelope. iOS removes
+only that rejected queue generation, presents the terminal recapture guidance,
+and does not count the outcome against the network circuit. All other Gemini
+errors return `503` so the offline queue retries with persisted
+`queueNextRetryAt` / `OfflineJobRecord.nextRunAt` metadata. For
+`scan_persistence_failed`, an
 owner-row status probe wins first. If a readable exact-owner probe proves no
 scan row exists, the server transitions the committed provider reservation to
 `failed` so the stable request UUID can reserve a fenced metered retry, while
@@ -2584,7 +2585,8 @@ durable local files. If the insert outcome cannot be proved, quota and media
 remain fenced and intact until the next owner-row recovery. A post-insert
 failure retains the committed reservation because owner-row reconstruction is
 the no-provider-call recovery surface. Malformed paid-provider output is 503,
-not 422, so persisted offline delivery remains retryable.
+not 422, and its ingestion ledger remains `failed_retryable` with a bounded
+`retry_after`; the linked hold remains held for same-UUID recovery.
 
 Migration `20260728232000_ensure_scan_user_profile.sql` must precede deployment
 of all four scan-producing Edge bundles. It preserves the mandatory Explore
@@ -5552,7 +5554,7 @@ JWT claims. The `user_id` in the request body is ignored for auth purposes.
 | Status | Body                                                                                               | Meaning                                                                            |
 | ------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `400`  | `{ "error": "At least one media element or description is required" }`                             | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
-| `400`  | `{ "error": "AI processing error. Please try again." }`                                            | Permanent Gemini safety / policy failure                                           |
+| `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Permanent Gemini safety / policy failure                                           |
 | `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                          | Gemini returned malformed or structurally invalid output; delivery may retry       |
 | `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }` | Final server-enriched payload violated the wire contract                           |
 | `503`  | `{ "error": "AI processing error. Please try again." }`                                            | Transient Gemini failure                                                           |

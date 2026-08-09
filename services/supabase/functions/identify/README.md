@@ -108,6 +108,14 @@ A final wire-contract failure is logged internally and returns HTTP `502` with
 the stable public code `identify_response_invalid`. Never bypass this second
 parse to save or return a partially enriched payload.
 
+Provider failure semantics stay aligned with every scan producer. A Gemini
+`SAFETY` or `PROHIBITED_CONTENT` finish returns stable HTTP
+`400 observation_rejected` and records a terminal policy outcome through the
+user-first entitlement boundary. Malformed or structurally invalid provider
+output returns HTTP `503`, records `failed_retryable` with a bounded
+`retry_after`, retains the linked hold, and remains eligible for same-UUID
+retry.
+
 After an intentional shape change:
 
 ```sh
