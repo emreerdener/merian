@@ -686,6 +686,51 @@ extension OfflineQueueManager {
         return max(0, max(scanAttempt, jobAttempt))
     }
 
+    /// Resumes at most one policy-blocked scan after the user explicitly
+    /// reapproves the current disclosure. Durable funding metadata is the
+    /// ownership proof: legacy, released, deferred, or cross-account work must
+    /// remain paused for an explicit review in Scans.
+    @discardableResult
+    func resumeMostRecentConsentBlockedScan(accountId: UUID) -> String? {
+        guard let context = modelContext else { return nil }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                $0.queueNeedsAttention
+                    && $0.queueLastErrorCode == "ai_consent_required"
+            },
+            sortBy: [
+                SortDescriptor(\.queueUpdatedAt, order: .reverse),
+                SortDescriptor(\.timestamp, order: .reverse),
+                SortDescriptor(\.id)
+            ]
+        )
+        descriptor.includePendingChanges = true
+
+        guard let candidates = try? context.fetch(descriptor) else {
+            return nil
+        }
+        for scan in candidates where scan.queueState == .failed {
+            guard let job = fetchScanJob(scanId: scan.id, in: context),
+                  job.kind == .scanIngestion,
+                  job.status == .needsAttention,
+                  job.subjectId?.lowercased() == scan.id.lowercased(),
+                  job.lastErrorCode == "ai_consent_required",
+                  let funding = OfflineScanJobMetadataContract.funding(
+                      in: job.metadataJSON
+                  ),
+                  !OfflineScanJobMetadataContract.fundingWasReleased(
+                      in: job.metadataJSON
+                  ),
+                  funding.allowsDispatch,
+                  funding.accountId == accountId,
+                  funding.scanId == scan.id.lowercased() else {
+                continue
+            }
+            return retryQueuedScanNow(scanId: scan.id) ? scan.id : nil
+        }
+        return nil
+    }
+
     @discardableResult
     func retryQueuedScanNow(scanId: String) -> Bool {
         guard let context = modelContext else { return false }

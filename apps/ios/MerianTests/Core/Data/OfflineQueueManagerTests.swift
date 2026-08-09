@@ -2460,6 +2460,180 @@ struct OfflineQueueManagerTests {
         #expect(!fetched.queueNeedsAttention)
     }
 
+    @Test func consentReapprovalResumesOnlyNewestOwnedFundedScan() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let ctx = try createIsolatedContext()
+        defer {
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+        manager.isOnline = false
+
+        let accountId = UUID()
+        let otherAccountId = UUID()
+        let olderOwnedId = UUID().uuidString.lowercased()
+        let newestOwnedId = UUID().uuidString.lowercased()
+        let newerOtherAccountId = UUID().uuidString.lowercased()
+        let newestUnrelatedId = UUID().uuidString.lowercased()
+
+        let candidates: [(String, UUID, String, Date)] = [
+            (olderOwnedId, accountId, "ai_consent_required", Date(timeIntervalSince1970: 100)),
+            (newestOwnedId, accountId, "ai_consent_required", Date(timeIntervalSince1970: 200)),
+            (newerOtherAccountId, otherAccountId, "ai_consent_required", Date(timeIntervalSince1970: 300)),
+            (newestUnrelatedId, accountId, "upload_http_403", Date(timeIntervalSince1970: 400))
+        ]
+        for (scanId, ownerId, errorCode, updatedAt) in candidates {
+            let scan = OfflineQueuedScan(
+                id: scanId,
+                scanState: .failed,
+                inferenceImagePaths: ["\(scanId).webp"],
+                queueLastErrorCode: errorCode,
+                queueUpdatedAt: updatedAt,
+                queueNeedsAttention: true
+            )
+            let funding = ScanFundingReservation(
+                accountId: ownerId,
+                scanId: scanId,
+                source: .complimentaryPro,
+                createdAt: updatedAt
+            )
+            let job = OfflineJobRecord(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .needsAttention,
+                updatedAt: updatedAt,
+                lastErrorCode: errorCode,
+                metadataJSON: try #require(
+                    OfflineScanJobMetadataContract.json(
+                        generation: nil,
+                        funding: funding
+                    )
+                )
+            )
+            ctx.insert(scan)
+            ctx.insert(job)
+        }
+        try ctx.save()
+
+        let resumedScanId = manager.resumeMostRecentConsentBlockedScan(
+            accountId: accountId
+        )
+
+        let scans = try ctx.fetch(FetchDescriptor<OfflineQueuedScan>())
+        let scansById = Dictionary(uniqueKeysWithValues: scans.map { ($0.id, $0) })
+        #expect(resumedScanId == newestOwnedId)
+        #expect(scansById[newestOwnedId]?.queueState == .pending)
+        #expect(scansById[newestOwnedId]?.queueLastErrorCode == nil)
+        #expect(scansById[newestOwnedId]?.queueNeedsAttention == false)
+        #expect(scansById[olderOwnedId]?.queueState == .failed)
+        #expect(scansById[olderOwnedId]?.queueNeedsAttention == true)
+        #expect(scansById[newerOtherAccountId]?.queueState == .failed)
+        #expect(scansById[newerOtherAccountId]?.queueNeedsAttention == true)
+        #expect(scansById[newestUnrelatedId]?.queueState == .failed)
+        #expect(scansById[newestUnrelatedId]?.queueNeedsAttention == true)
+    }
+
+    @Test func consentReapprovalSkipsUnownedOrUnfundedScans() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let ctx = try createIsolatedContext()
+        defer {
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+        manager.isOnline = false
+
+        let accountId = UUID()
+        let releasedId = UUID().uuidString.lowercased()
+        let missingFundingId = UUID().uuidString.lowercased()
+        let mismatchedId = UUID().uuidString.lowercased()
+        let deferredId = UUID().uuidString.lowercased()
+        let fundedMetadata = try #require(
+            OfflineScanJobMetadataContract.json(
+                generation: nil,
+                funding: ScanFundingReservation(
+                    accountId: accountId,
+                    scanId: releasedId,
+                    source: .complimentaryPro
+                )
+            )
+        )
+        let releasedMetadata = try #require(
+            OfflineScanJobMetadataContract.markingFundingReleased(
+                in: fundedMetadata
+            )
+        )
+        let rows: [(String, String?, Date)] = [
+            (
+                releasedId,
+                releasedMetadata,
+                Date(timeIntervalSince1970: 400)
+            ),
+            (missingFundingId, nil, Date(timeIntervalSince1970: 300)),
+            (
+                mismatchedId,
+                try #require(
+                    OfflineScanJobMetadataContract.json(
+                        generation: nil,
+                        funding: ScanFundingReservation(
+                            accountId: accountId,
+                            scanId: UUID().uuidString,
+                            source: .complimentaryPro
+                        )
+                    )
+                ),
+                Date(timeIntervalSince1970: 200)
+            ),
+            (
+                deferredId,
+                try #require(
+                    OfflineScanJobMetadataContract.json(
+                        generation: nil,
+                        funding: ScanFundingReservation(
+                            accountId: accountId,
+                            scanId: deferredId,
+                            source: .deferredFlash
+                        )
+                    )
+                ),
+                Date(timeIntervalSince1970: 100)
+            )
+        ]
+        for (scanId, metadataJSON, updatedAt) in rows {
+            ctx.insert(OfflineQueuedScan(
+                id: scanId,
+                scanState: .failed,
+                inferenceImagePaths: ["\(scanId).webp"],
+                queueLastErrorCode: "ai_consent_required",
+                queueUpdatedAt: updatedAt,
+                queueNeedsAttention: true
+            ))
+            ctx.insert(OfflineJobRecord(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .needsAttention,
+                updatedAt: updatedAt,
+                lastErrorCode: "ai_consent_required",
+                metadataJSON: metadataJSON
+            ))
+        }
+        try ctx.save()
+
+        let resumedScanId = manager.resumeMostRecentConsentBlockedScan(
+            accountId: accountId
+        )
+
+        let scans = try ctx.fetch(FetchDescriptor<OfflineQueuedScan>())
+        #expect(resumedScanId == nil)
+        #expect(scans.allSatisfy { $0.queueState == .failed })
+        #expect(scans.allSatisfy { $0.queueNeedsAttention })
+    }
+
     @Test func testRetryQueuedScanNowRejectsLegacyExternalImport() throws {
         let ctx = try createIsolatedContext()
         let manager = OfflineQueueManager.shared

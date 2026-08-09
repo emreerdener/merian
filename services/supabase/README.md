@@ -2119,6 +2119,13 @@ invokes the RPC with `service_role`. The long-term client/source boundary and
 extension rules are recorded in
 `docs/rfcs/active-capture-goal-context.md`.
 
+The production workflow runs
+`audit_field_trip_capture_context_acl.ts --enforce` in a read-only transaction
+immediately after migrations. It fails closed on capture/helper execution drift,
+an unsafe security mode or search path, a changed qualified dependency shape,
+or any missing `service_role` read among those six relations, without reading
+user rows.
+
 To disable future enrollment, ship a new forward migration that drops
 `auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
 drops `internal.auto_enroll_backyard_safari_level_one()`. Preserve all existing

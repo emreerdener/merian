@@ -315,14 +315,19 @@ dispatch.
 That stable rejection is a disclosure transition, not a transient inference
 failure. The client durably fences the active account back to `.ready`, leaves
 the queued media intact in a needs-attention state, and does not schedule the
-same request again automatically. The required switches are reset in the UI.
+same request again while consent is invalid. The required switches are reset in
+the UI.
 After the user explicitly approves them and selects **Start scanning**, the
 client records a fresh adult, Terms, and Gemini evidence bundle under the same
 account. The new Gemini grant is causally anchored to the provider stream head
 fetched after the rejection, so it can repair missing evidence without
 overwriting an unseen cross-device revocation. Another authoritative fetch is
-required before the saved observation can be retried. The process-local gate
-remains closed even if the durable fence write fails.
+required before provider dispatch. Once the local lifecycle gate is open, the
+client automatically resumes at most the newest consent-blocked observation
+whose unreleased, dispatchable funding reservation proves both that active
+account and the exact scan ID. Cross-account, released, deferred, mismatched,
+and legacy rows remain paused for explicit review in Scans. The process-local
+gate remains closed even if the durable fence write fails.
 
 The first row in Settings → Resources is the optional Analytics & diagnostics
 control. Settings intentionally provides no Gemini processing opt-out:

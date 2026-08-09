@@ -658,6 +658,17 @@ jobs:
               supabase/scripts/audit_privileged_routine_acl.ts \
               --enforce
 
+      - name: Enforce Field trip capture-context invoker privileges
+        env:
+          SUPABASE_DB_PUSH_URL: ${{ steps.database-url.outputs.url }}
+        run: |
+          MERIAN_DATABASE_URL="$SUPABASE_DB_PUSH_URL" \
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-env \
+              --allow-net \
+              supabase/scripts/audit_field_trip_capture_context_acl.ts \
+              --enforce
+
       - name: Synchronize optional AI quota hashing override
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

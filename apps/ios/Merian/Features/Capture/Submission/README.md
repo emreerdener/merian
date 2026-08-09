@@ -84,13 +84,15 @@ fresh fetch.
 If that proof is absent—or the handler returns exact
 `403 ai_consent_required`—the observation remains durable with all media, but
 automatic inference stops. The affected account returns to Ready for fresh
-head-anchored approval; the original scan ID may be retried only after another
-authoritative fetch. Capture must not show the paywall, daily-limit copy, or an
-unchanged **Retry now** loop for this code. If the insight presentation remains
-visible during the root transition, it shows **Approval needed / Scan saved**
-instead of **Network timeout**. Consent-policy failures never advance the
-network circuit breaker, so fresh approval is not followed by an artificial
-cooldown. The full incident and release test are documented in the
+head-anchored approval. **Start scanning** resumes at most the newest row whose
+unreleased, dispatchable funding reservation matches the current account and
+exact original scan ID; provider dispatch still waits for another authoritative
+fetch. Capture must not show the paywall, daily-limit copy, or an unchanged
+**Retry now** loop for this code. If the insight presentation remains visible
+during the root transition, it shows **Approval needed / Scan saved** instead of
+**Network timeout**. Consent-policy failures never advance the network circuit
+breaker, so fresh approval is not followed by an artificial cooldown. The full
+incident and release test are documented in the
 [first-scan consent-policy incident](../../../../../../docs/incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
 ## Field Trip Goal Preference

@@ -153,7 +153,11 @@ action creates new adult, Terms, and Gemini evidence instead of replaying the
 cached rows. The new Gemini grant names the authoritative provider stream head
 fetched after rejection as its causal parent. A later grant cannot overwrite an
 unseen cross-device revocation, and another authoritative fetch is required
-before the saved observation may retry.
+before provider dispatch. Selecting **Start scanning** then resumes at most the
+newest consent-blocked observation whose unreleased, dispatchable funding
+reservation matches the current account and exact scan ID. It never bulk
+retries, transfers another account's work, or makes a fresh funding claim;
+unproven rows retain their manual Scans recovery.
 
 The durable fence is account-scoped, survives relaunch, decodes safely from
 legacy ledgers that lack the field, and moves with a confirmed ghost-to-
@@ -165,7 +169,7 @@ Use the stable code, not the database function name:
 
 | HTTP / code                          | Meaning                                | Customer path                                      |
 | ------------------------------------ | -------------------------------------- | -------------------------------------------------- |
-| `403 ai_consent_required`            | Required legal/provider evidence absent or revoked | Return to disclosure; preserve media; no automatic retry |
+| `403 ai_consent_required`            | Required legal/provider evidence absent or revoked | Return to disclosure; preserve media; pause until explicit fresh approval, then guarded same-ID resume |
 | `402 pro_required`                   | Requested capability requires Pro     | Present the existing upgrade path                  |
 | `429 ai_quota_daily_exceeded`        | Daily provider allowance exhausted     | Present daily-limit recovery and honor retry delay |
 | `429 ai_user_rate_limit_exceeded`    | Per-user burst protection              | Temporary bounded retry                            |
@@ -186,6 +190,8 @@ Repository regressions cover:
   different `403` remains `.needsAttention`;
 - durable relaunch routing back to Ready;
 - fresh evidence IDs and provider-head causal ancestry;
+- one post-approval resume for only the newest exact-account, exact-scan funded
+  row, with released, deferred, mismatched, and cross-account rows left paused;
 - legacy-ledger decode without an accidental fence;
 - per-account fence isolation; and
 - authoritative proof from freshly fetched adult, Terms, and Gemini stream-head
@@ -211,8 +217,10 @@ all of the following evidence:
 4. The rejected observation remains present with all source media across
    backgrounding and relaunch.
 5. Relaunch routes the same account to Ready. Fresh approval extends the
-   post-rejection authoritative Gemini head, and manual retry of the original
-   scan ID succeeds after another cloud proof.
+   post-rejection authoritative Gemini head, and **Start scanning**
+   automatically resumes exactly one eligible original scan ID. Dispatch
+   succeeds after another cloud proof without a new funding claim; other-account
+   and unproven rows stay paused.
 6. Switching accounts does not transfer either the fence or evidence.
 7. Real entitlement exhaustion continues to use `402 pro_required` or the
    applicable `429` code and its existing upgrade/daily-limit experience; it is

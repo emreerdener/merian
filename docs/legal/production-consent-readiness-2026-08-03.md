@@ -276,7 +276,9 @@ result become canonical only after both hosted gates pass on the same SHA.
    missing required row: require one `403 ai_consent_required`, zero automatic
    redispatch and entitlement/Flash consumption, media retention across
    relaunch, Ready routing, a fresh grant extending the post-rejection head, and
-   successful manual retry under the original scan ID. Exercise actual
+   one successful automatic resume under the eligible original scan ID without
+   a new funding claim. Confirm other-account and unproven queued rows remain
+   paused. Exercise actual
    `402 pro_required` and `429 ai_quota_daily_exceeded` separately and verify
    neither enters consent recovery.
 7. Only then run the owner-only forward strict-cutover script and verify legacy,

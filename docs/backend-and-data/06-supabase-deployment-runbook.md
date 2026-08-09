@@ -3186,6 +3186,14 @@ functional-entitlement helper. The second grants that role `SELECT` on exactly
 the relations read by the projection. Neither migration grants a browser role
 execution or adds a table mutation privilege.
 
+Immediately after the production migration push, the deploy workflow runs
+`audit_field_trip_capture_context_acl.ts --enforce` through a read-only
+transaction. It fails before secret synchronization or Function deployment if
+the capture RPC is no longer a service-only `SECURITY INVOKER`, its private
+entitlement helper loses the exact service-role edge, its qualified dependency
+shape drifts, or any of the six source reads is absent. The aggregate report
+contains catalog names and booleans only; it reads and emits no user rows.
+
 Before applying the auto-enrollment migration, record the complete
 `user_field_trips` row and activity-period counts for one stopped, one reset,
 and one completed Backyard Safari cohort member. Those row fields and period
@@ -5801,6 +5809,11 @@ deno run --frozen \
   --report
 make db-push
 make audit-supabase-privileged-routines
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net \
+  services/supabase/scripts/audit_field_trip_capture_context_acl.ts \
+  --enforce
 ```
 
 Or export the pooler pieces and let the shared script construct the URL:
@@ -5817,6 +5830,11 @@ deno run --frozen \
   --report
 make db-push
 make audit-supabase-privileged-routines
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net \
+  services/supabase/scripts/audit_field_trip_capture_context_acl.ts \
+  --enforce
 ```
 
 Only after the post-push audit passes:

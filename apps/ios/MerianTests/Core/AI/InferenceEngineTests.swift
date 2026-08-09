@@ -1333,7 +1333,7 @@ struct InferenceEngineTests {
             #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
             #expect(
                 engine.speciesData?.insightData.aiReasoning
-                    .contains("retry it from Scans") == true
+                    .contains("resume it automatically") == true
             )
         }
 

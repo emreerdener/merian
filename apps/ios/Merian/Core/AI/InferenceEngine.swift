@@ -1912,7 +1912,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     private static let consentRequiredRecoveryReason =
         "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
-        "consent step, then retry it from Scans."
+        "consent step, and Naturebook will resume it automatically when eligible. " +
+        "If it stays paused, you can retry it from Scans."
 
     private static let savedScanRecoveryReason =
         "Your scan reached Naturebook safely. We’re restoring its saved result now, " +

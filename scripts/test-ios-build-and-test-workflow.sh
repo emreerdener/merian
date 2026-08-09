@@ -716,17 +716,23 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "73" ]] \
+[[ "$protected_case_count" == "79" ]] \
   || fail \
-    "Expected 73 exact protected iOS test cases; found $protected_case_count."
+    "Expected 79 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
+  "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
+  "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry" \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \
   "scheduledServerFailureMarkerIsReadFromDurableStore" \
   "testMarkScanAsStagedPreservesScheduledServerFailureRetry" \
   "testScheduleInferenceRetryUsesMonotonicMirroredAttempt" \
   "testInferenceRetryCannotOverrideCompletedCloudOwnership" \
   "testManualRetryResetsBudgetForDescriptionOnlyScan" \
+  "consentReapprovalResumesOnlyNewestOwnedFundedScan" \
+  "consentReapprovalSkipsUnownedOrUnfundedScans" \
+  "testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount" \
+  "testCompleteOnboardingDoesNotResumeWithoutCurrentAccount" \
   "pausedScansCannotBeClaimedOrReconciled" \
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive" \
   "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork" \

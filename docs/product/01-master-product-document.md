@@ -693,7 +693,9 @@ must not leave it in an active-looking scanning loop with **Retry now**.
 An exact `403 ai_consent_required` from the provider-admission boundary is a
 required-disclosure transition, not quota exhaustion. Naturebook preserves the
 queued media, stops automatic inference retries, durably returns that account
-to Ready, and requires fresh head-anchored evidence before manual retry. A new
+to Ready, and requires fresh head-anchored evidence. Selecting **Start scanning**
+then resumes only the newest same-account, same-scan row with an unreleased,
+dispatchable funding reservation; every unproven row stays paused in Scans. A new
 account's included Pro scans and eligible daily Flash path are evaluated only
 after consent succeeds; their `402`/`429` outcomes retain separate upgrade and
 daily-limit experiences. See the
@@ -1163,7 +1165,8 @@ Each release should exercise at minimum:
    dispatch, identification, and Insight. A forced missing-cloud-consent case
    must instead preserve the same scan/media, issue no automatic redispatch or
    entitlement consumption, route to Ready across relaunch, and succeed under
-   the same scan ID after fresh head-anchored approval.
+   exactly one eligible original scan ID after fresh head-anchored approval and
+   an automatic guarded resume.
 4. Offline submission, relaunch, and later synchronization.
 5. Online complimentary verification, three durable Pro results, fourth-scan
    Flash fallback, third-result persistence, stale-response rejection, and

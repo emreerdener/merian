@@ -483,6 +483,13 @@ Release order is mandatory:
    reopening.
 5. Release the indicator-enabled iOS client.
 
+The normal production workflow runs
+`audit_field_trip_capture_context_acl.ts --enforce` in a read-only transaction
+immediately after migration push. It must pass before Function deployment; this
+locks the service-only capture RPC, its private entitlement-helper edge, and all
+six qualified `service_role` source reads that the `SECURITY INVOKER` projection
+requires.
+
 Existing clients remain compatible because the action and RPC are additive.
 
 For rollback, disable the client surface through the Field trips availability

@@ -26,7 +26,7 @@ enum BackgroundInferenceResponseDisposition: Equatable {
 }
 
 private let requiredConsentAttentionMessage =
-    "Complete the required age, Terms, and Google Gemini consent step, then retry this saved observation."
+    "Complete the required age, Terms, and Google Gemini consent step. Naturebook will automatically resume the eligible saved scan; if it stays paused, you can retry it from Scans."
 
 // MARK: - URLSession Delegate
 

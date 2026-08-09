@@ -93,6 +93,7 @@ write_test_tree() {
             suite("Inference Engine Tests"; [
               "generationFenceTest",
               "decodedButUnusableSuccessEnvelopeRemainsRecoverable",
+              "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "testConfirmAIIdentificationRejectsChangedPresentationIdentity",
               "testApplyIdentificationOverrideRejectsChangedPresentationIdentity",
               "testBackgroundWriteBacklogHasAHardMemoryBound"
@@ -111,9 +112,15 @@ write_test_tree() {
               "testMediaStagingContractRejectsEmptyFilesBeforeUpload",
               "testRetryQueuedScanNowRejectsLegacyExternalImport",
               "testManualRetryResetsBudgetForDescriptionOnlyScan",
+              "consentReapprovalResumesOnlyNewestOwnedFundedScan",
+              "consentReapprovalSkipsUnownedOrUnfundedScans",
               "queueDiagnosticsExportOmitsPrivateAndFreeFormValues",
               "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred",
               "testEnqueueCapture_WithValidData_PersistsQueuedScan"
+            ]),
+            suite("Onboarding Consent Recovery Tests"; [
+              "testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount",
+              "testCompleteOnboardingDoesNotResumeWithoutCurrentAccount"
             ]),
             suite("SyncStateManagerTests"; [
               "generationFenceTest"
@@ -137,6 +144,7 @@ write_test_tree() {
             ]),
             suite("Network Client Tests"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
+              "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry",
               "testDeleteScanRejectsUnconfirmedSuccessResponse",
               "testExploreShareSendsStableAIIdempotencyKey",
               "testExploreShareRejectsContradictorySuccessResponses",
@@ -271,6 +279,7 @@ done
 
 required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
+  "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
   "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
   "testBackgroundWriteBacklogHasAHardMemoryBound"
@@ -285,6 +294,10 @@ required_cases=(
   "testInferenceRetryCannotOverrideCompletedCloudOwnership"
   "testEnqueueCapture_WithValidData_PersistsQueuedScan"
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
+  "consentReapprovalResumesOnlyNewestOwnedFundedScan"
+  "consentReapprovalSkipsUnownedOrUnfundedScans"
+  "testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount"
+  "testCompleteOnboardingDoesNotResumeWithoutCurrentAccount"
   "queueDiagnosticsExportOmitsPrivateAndFreeFormValues"
   "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
   "completedInferenceAndQueueDeletionCommitTogether"
@@ -301,6 +314,7 @@ required_cases=(
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
   "cloudDeletionDrainIsProcessSingleFlight"
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
+  "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry"
   "testDeleteScanRejectsUnconfirmedSuccessResponse"
   "testExploreShareSendsStableAIIdempotencyKey"
   "testExploreShareRejectsContradictorySuccessResponses"

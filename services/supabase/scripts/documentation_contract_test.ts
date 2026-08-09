@@ -2146,7 +2146,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 73 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, and the media-incident compatibility case exercises the actual network-client boundary",
+    "The current validator protects 79 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one preserves the current account by refreshing an invalid handler-owned session before replay, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, one keeps required consent out of the network circuit while locking the **Approval needed** / **Scan saved** UX across visual and nonvisual inference, four protect account-owned funded consent recovery plus lifecycle-gated onboarding resume, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2170,7 +2170,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 73 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 79 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -3593,6 +3593,13 @@ Deno.test("Field Trip documentation preserves the confidence evidence policy", a
     runbook,
     "The confidence migration performs a forward-only data repair.",
   );
+  for (const source of [runbook, rfc]) {
+    assertStringIncludes(
+      source,
+      "audit_field_trip_capture_context_acl.ts --enforce",
+    );
+    assertStringIncludes(source, "read-only transaction");
+  }
   assertStringIncludes(
     schema,
     "`public.field_trip_scan_identification_is_eligible",

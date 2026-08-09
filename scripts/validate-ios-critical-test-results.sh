@@ -139,6 +139,11 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
 assert_suite_has_passed_test_case \
+  "Consent rejection approval UX and circuit isolation" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+assert_suite_has_passed_test_case \
   "Identification confirmation presentation identity" \
   "InferenceEngineTests" \
   "Inference Engine Tests" \
@@ -208,6 +213,26 @@ assert_suite_has_passed_test_case \
   "OfflineQueueManagerTests" \
   "Offline Queue Manager Tests" \
   "testManualRetryResetsBudgetForDescriptionOnlyScan"
+assert_suite_has_passed_test_case \
+  "Consent reapproval newest-owned scan resume" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "consentReapprovalResumesOnlyNewestOwnedFundedScan"
+assert_suite_has_passed_test_case \
+  "Consent reapproval ownership and funding fence" \
+  "OfflineQueueManagerTests" \
+  "Offline Queue Manager Tests" \
+  "consentReapprovalSkipsUnownedOrUnfundedScans"
+assert_suite_has_passed_test_case \
+  "Consent approval lifecycle resume dispatch" \
+  "OnboardingConsentRecoveryTests" \
+  "Onboarding Consent Recovery Tests" \
+  "testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount"
+assert_suite_has_passed_test_case \
+  "Consent approval missing-account fence" \
+  "OnboardingConsentRecoveryTests" \
+  "Onboarding Consent Recovery Tests" \
+  "testCompleteOnboardingDoesNotResumeWithoutCurrentAccount"
 assert_suite_has_passed_test_case \
   "Offline queue diagnostics privacy boundary" \
   "OfflineQueueManagerTests" \
@@ -293,6 +318,11 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
+assert_suite_has_passed_test_case \
+  "Stable auth-session refresh before request replay" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry"
 assert_suite_has_passed_test_case \
   "Explore share idempotency" \
   "MerianNetworkClientTests" \

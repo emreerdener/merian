@@ -290,6 +290,31 @@ Deno.test("database catalog gate discovers every SQL fixture", async () => {
   );
 });
 
+Deno.test("production deploy enforces the Field trip invoker ACL after migrations", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const migrationPush = workflow.indexOf("- name: Push Database Migrations");
+  const captureAudit = workflow.indexOf(
+    "- name: Enforce Field trip capture-context invoker privileges",
+  );
+  const nextMutation = workflow.indexOf(
+    "- name: Synchronize optional AI quota hashing override",
+    captureAudit,
+  );
+
+  assert(
+    migrationPush >= 0 && captureAudit > migrationPush &&
+      nextMutation > captureAudit,
+    "The read-only capture-context ACL audit must run after migration push and before later production mutation.",
+  );
+  const auditStep = workflow.slice(captureAudit, nextMutation);
+  assertMatch(
+    auditStep,
+    /MERIAN_DATABASE_URL="\$SUPABASE_DB_PUSH_URL"[\s\S]*audit_field_trip_capture_context_acl\.ts[\s\S]*--enforce/,
+  );
+  assertMatch(auditStep, /--allow-env/);
+  assertMatch(auditStep, /--allow-net/);
+});
+
 Deno.test("iOS project guardrail runs the DTO contract gate for all app sources", async () => {
   const workflow = await Deno.readTextFile(iosProjectGuardrailPath);
 

@@ -8,15 +8,18 @@ import SwiftUI
     // MARK: - Dependencies
     @ObservationIgnored private let appSettings: AppSettings
     @ObservationIgnored private let consentManager: ConsentManager
+    @ObservationIgnored private let consentBlockedScanResumer: ((UUID) -> String?)?
 
     init(
         appSettings: AppSettings? = nil,
-        consentManager: ConsentManager? = nil
+        consentManager: ConsentManager? = nil,
+        resumeConsentBlockedScan: ((UUID) -> String?)? = nil
     ) {
         let resolvedSettings = appSettings ?? AppSettings.shared
         let resolvedConsentManager = consentManager ?? ConsentManager.shared
         self.appSettings = resolvedSettings
         self.consentManager = resolvedConsentManager
+        self.consentBlockedScanResumer = resumeConsentBlockedScan
         if resolvedSettings.hasCompletedOnboarding,
            !resolvedConsentManager.hasCurrentRequiredConsent {
             currentStep = .ready
@@ -44,5 +47,15 @@ import SwiftUI
         )
         AppTelemetry.trackOnboardingCompleted()
         hasCompletedOnboarding = true
+        guard let accountId = consentManager.currentSessionUserId else {
+            return
+        }
+        if let consentBlockedScanResumer {
+            _ = consentBlockedScanResumer(accountId)
+        } else {
+            _ = OfflineQueueManager.shared.resumeMostRecentConsentBlockedScan(
+                accountId: accountId
+            )
+        }
     }
 }

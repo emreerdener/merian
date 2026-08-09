@@ -350,16 +350,17 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 73 exact
+   contradiction is invalid evidence. The current validator protects 79 exact
    cases; 27 were added by the joined scan-reliability follow-up, five
    menu/Field Notes regressions exposed by the prior failed hosted run are
    individually protected, two require the bounded/redacted offline-queue
    support artifact, one prevents needs-attention and live-path-ineligible rows
    from driving the Scan Library recovery loop while preserving staged and
-   explicit-video-override eligibility, one fences attention rows from
-   serialized claims, actor-owned global status selection, and orphan
-   reconciliation, one proves the pending selector pages beyond delayed, locally
-   blocked, and media-less rows instead of starving ready work or spending
+   explicit-video-override eligibility, one preserves the current account by
+   refreshing an invalid handler-owned session before replay, one fences
+   attention rows from serialized claims, actor-owned global status selection,
+   and orphan reconciliation, one proves the pending selector pages beyond
+   delayed, locally blocked, and media-less rows instead of starving ready work or spending
    runnable capacity on quarantine candidates, one proves empty pending
    quarantine is state/media bound and cannot touch advanced work, one proves
    upload packing scans beyond empty/non-fitting head rows, admits later work
@@ -368,10 +369,15 @@ HTTP request is dispatched. See the
    transport, one proves the unsynced count excludes attention-only and
    non-runnable rows, one rejects empty queued staged media before upload
    signing, one rejects an empty foreground playback video before signing, one
-   rejects manual retry of a legacy non-runnable import, and the media-incident
-   compatibility case exercises the actual network-client boundary:
+   rejects manual retry of a legacy non-runnable import, one keeps required
+   consent out of the network circuit while locking the **Approval needed** /
+   **Scan saved** UX across visual and nonvisual inference, four protect
+   account-owned funded consent recovery plus lifecycle-gated onboarding
+   resume, and the media-incident compatibility case exercises the actual
+   network-client boundary:
 
-   - foreground and background malformed-success rejection, confidence-zero
+   - foreground and background malformed-success rejection, required-consent
+     approval UX and network-circuit isolation, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
      process-single-flight inference replay wake coalescing, exact
      retryable-status dispatch, dual-copy durable retry-latch visibility,
@@ -385,7 +391,9 @@ HTTP request is dispatched. See the
      empty-pending quarantine, bounded upload-packer head-of-line starvation
      prevention with final constrained/expensive transport enforcement,
      runnable-only unsynced counting, empty queued staged-media rejection, empty
-     foreground-video rejection, legacy-import retry rejection, and indefinite
+     foreground-video rejection, legacy-import retry rejection, newest-owned
+     funded consent retry with account/funding fences, lifecycle-gated
+     onboarding resume with a missing-account no-op, and indefinite
      privacy-erasure retry under positive server confirmation;
    - foreground request construction, Explore idempotency and contradictory
      response rejection, existing-scan recovery-payload encoding, rejection of
@@ -458,7 +466,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 73
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 79
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -774,8 +782,10 @@ MerianTests/
   scan with exactly one Identify/provider dispatch. A forced missing-row variant
   must return `403 ai_consent_required`, preserve scan/media across relaunch,
   consume no included-Pro or daily-Flash allowance, schedule no automatic
-  inference retry, and succeed under the original scan ID only after fresh
-  head-anchored approval. Run a real `402 pro_required` and
+  inference retry while consent is invalid, and automatically resume exactly
+  one eligible original scan ID only after fresh head-anchored approval. Prove
+  released, deferred, mismatched, and cross-account rows stay paused. Run a real
+  `402 pro_required` and
   `429 ai_quota_daily_exceeded` case separately to prove neither enters consent
   recovery. Source type-checking or an injected network-unit test cannot replace
   this account/Edge/database/device evidence. See the
@@ -1169,6 +1179,12 @@ MerianTests/
     remains `.needsAttention`. This keeps the policy transition out of automatic
     inference backoff while the queued media remains available for explicit
     recovery.
+  - **Post-approval consent recovery**: After explicit reapproval, assert the
+    queue resumes only its newest needs-attention row with stable
+    `ai_consent_required`, an exact scan-ID match, the current account ID, and an
+    unreleased dispatchable funding reservation. It must resume no more than one
+    row and must skip unrelated, released, missing, deferred, mismatched, and
+    cross-account work.
   - **Description-only manual retry
     (`testManualRetryResetsBudgetForDescriptionOnlyScan`)**: Starting from a
     needs-attention staged observation and scan job at the automatic limit,

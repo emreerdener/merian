@@ -1181,7 +1181,12 @@ the latch without waiting for a URLSession delegate callback.
   integer `Retry-After` raises the persisted delay up to the queue maximum.
   Exact `403 ai_consent_required` preserves local media in
   `queueNeedsAttention`, durably closes the active account's consent gate, and
-  schedules no automatic inference retry. Other handler-owned `4xx` responses
+  schedules no automatic inference retry while consent is invalid. After the
+  user explicitly reapproves, the queue resumes at most its newest matching row
+  only when durable funding metadata proves the current account, exact scan ID,
+  unreleased reservation, and dispatch eligibility. It never bulk retries or
+  claims replacement funding; unproven rows remain paused. Other handler-owned
+  `4xx` responses
   preserve local media in `queueNeedsAttention`, while exact
   `observation_rejected` is terminal.
   Server-ledger terminal failure marks the queue row as needing attention.

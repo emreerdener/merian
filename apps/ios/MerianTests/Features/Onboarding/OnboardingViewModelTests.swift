@@ -1,5 +1,6 @@
 @testable import Merian
 import SwiftUI
+import Testing
 import XCTest
 
 private enum RequiredConsentSynchronizationStubError: Error {
@@ -25,7 +26,8 @@ final class OnboardingViewModelTests: XCTestCase {
         appSettings.hasCompletedOnboarding = false
         viewModel = OnboardingViewModel(
             appSettings: appSettings,
-            consentManager: consentManager
+            consentManager: consentManager,
+            resumeConsentBlockedScan: { _ in nil }
         )
     }
     
@@ -1688,6 +1690,73 @@ final class OnboardingViewModelTests: XCTestCase {
             supersededByEventId: nil,
             supersededByRevision: nil
         )
+    }
+}
+
+@Suite("Onboarding Consent Recovery Tests", .serialized)
+@MainActor
+struct OnboardingConsentRecoveryTests {
+    @Test func testCompleteOnboardingResumesConsentBlockedScanForCurrentAccount() throws {
+        let suiteName = "merian.tests.onboarding.consent-recovery.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let appSettings = AppSettings(
+            userDefaults: userDefaults,
+            observeExternalChanges: false
+        )
+        let consentManager = ConsentManager(userDefaults: userDefaults)
+        appSettings.hasCompletedOnboarding = false
+
+        let accountId = UUID()
+        consentManager.observeSession(userId: accountId)
+        var resumedAccountIds: [UUID] = []
+        var lifecycleGateWasOpen = false
+        let model = OnboardingViewModel(
+            appSettings: appSettings,
+            consentManager: consentManager,
+            resumeConsentBlockedScan: { resumedAccountId in
+                resumedAccountIds.append(resumedAccountId)
+                lifecycleGateWasOpen = appSettings.hasCompletedOnboarding
+                return "saved-scan-id"
+            }
+        )
+
+        try model.completeOnboarding(analyticsEnabled: false)
+
+        #expect(resumedAccountIds == [accountId])
+        #expect(lifecycleGateWasOpen)
+        #expect(model.hasCompletedOnboarding)
+        #expect(consentManager.hasCurrentRequiredConsent)
+    }
+
+    @Test func testCompleteOnboardingDoesNotResumeWithoutCurrentAccount() throws {
+        let suiteName = "merian.tests.onboarding.consent-recovery.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+
+        let appSettings = AppSettings(
+            userDefaults: userDefaults,
+            observeExternalChanges: false
+        )
+        let consentManager = ConsentManager(userDefaults: userDefaults)
+        appSettings.hasCompletedOnboarding = false
+
+        var resumeAttemptCount = 0
+        let model = OnboardingViewModel(
+            appSettings: appSettings,
+            consentManager: consentManager,
+            resumeConsentBlockedScan: { _ in
+                resumeAttemptCount += 1
+                return "unexpected-scan-id"
+            }
+        )
+
+        try model.completeOnboarding(analyticsEnabled: false)
+
+        #expect(resumeAttemptCount == 0)
+        #expect(model.hasCompletedOnboarding)
+        #expect(consentManager.hasCurrentRequiredConsent)
     }
 }
 
