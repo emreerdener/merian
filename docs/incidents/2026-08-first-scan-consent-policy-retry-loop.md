@@ -223,8 +223,10 @@ all of the following evidence:
    and unproven rows stay paused.
 6. Switching accounts does not transfer either the fence or evidence.
 7. Real entitlement exhaustion continues to use `402 pro_required` or the
-   applicable `429` code and its existing upgrade/daily-limit experience; it is
-   never routed through consent disclosure.
+   applicable `429` code and its distinct **Upgrade needed**, **Daily limit
+   reached**, or **Retrying shortly** saved-scan experience. None is labeled as
+   a network timeout, advances the device network circuit, or routes through
+   consent disclosure.
 
 ## Related Contracts
 

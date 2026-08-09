@@ -95,6 +95,14 @@ breaker, so fresh approval is not followed by an artificial cooldown. The full
 incident and release test are documented in the
 [first-scan consent-policy incident](../../../../../../docs/incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
+The adjacent provider-admission codes keep their own recovery UX. Exact
+`402 pro_required` shows **Upgrade needed / Scan saved**; daily allowance
+exhaustion shows **Daily limit reached / Scan saved**; and stable user/IP rate
+limits show **Retrying shortly / Scan saved**. None are labeled as network
+timeouts or advance the device network circuit. The queued observation remains
+the recovery owner, with `402` becoming explicit attention and `429` honoring
+the server retry delay.
+
 ## Field Trip Goal Preference
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal

@@ -350,7 +350,7 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 79 exact
+   contradiction is invalid evidence. The current validator protects 80 exact
    cases; 27 were added by the joined scan-reliability follow-up, five
    menu/Field Notes regressions exposed by the prior failed hosted run are
    individually protected, two require the bounded/redacted offline-queue
@@ -371,13 +371,16 @@ HTTP request is dispatched. See the
    signing, one rejects an empty foreground playback video before signing, one
    rejects manual retry of a legacy non-runnable import, one keeps required
    consent out of the network circuit while locking the **Approval needed** /
-   **Scan saved** UX across visual and nonvisual inference, four protect
+   **Scan saved** UX across visual and nonvisual inference, one keeps exact
+   `402`/`429` provider-admission UX out of the network circuit across both
+   live pipelines, four protect
    account-owned funded consent recovery plus lifecycle-gated onboarding
    resume, and the media-incident compatibility case exercises the actual
    network-client boundary:
 
    - foreground and background malformed-success rejection, required-consent
-     approval UX and network-circuit isolation, confidence-zero
+     approval UX and network-circuit isolation, provider-admission UX and
+     network-circuit isolation, confidence-zero
      source-media durability, retryable background HTTP-success disposition,
      process-single-flight inference replay wake coalescing, exact
      retryable-status dispatch, dual-copy durable retry-latch visibility,
@@ -466,7 +469,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 79
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 80
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding

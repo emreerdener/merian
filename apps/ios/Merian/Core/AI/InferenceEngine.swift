@@ -1540,6 +1540,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     return
                 }
 
+                if publishProviderAdmissionFailureIfNeeded(
+                    error,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
+
                 if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
                     // No refund: the scan is already durably in the offline queue and will be
@@ -1888,6 +1895,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 ) {
                     return
                 }
+                if publishProviderAdmissionFailureIfNeeded(
+                    error,
+                    telemetry: telemetry
+                ) {
+                    return
+                }
                 AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
@@ -1919,6 +1932,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
         "and it will appear here or in Scans automatically."
 
+    private static let proRequiredRecoveryReason =
+        "Naturebook saved this scan. This capture requires Pro access. " +
+        "Upgrade, then retry it from Scans."
+
+    private static let dailyQuotaRecoveryReason =
+        "Naturebook saved this scan and will retry automatically when your daily " +
+        "allowance resets. You can leave this screen and check Scans later."
+
+    private static let rateLimitRecoveryReason =
+        "Naturebook saved this scan and will retry automatically after the server’s " +
+        "short safety pause. You can leave this screen and check Scans later."
+
     @discardableResult
     private func publishConsentRequiredIfNeeded(
         _ error: Error,
@@ -1940,6 +1965,56 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             title: "Approval needed",
             subtitle: "Scan saved",
             reasoning: Self.consentRequiredRecoveryReason,
+            telemetry: telemetry
+        )
+        return true
+    }
+
+    @discardableResult
+    private func publishProviderAdmissionFailureIfNeeded(
+        _ error: Error,
+        telemetry: CaptureTelemetry
+    ) -> Bool {
+        guard let merianError = error as? MerianError,
+              case let .httpError(statusCode, _) = merianError,
+              let code = MerianNetworkClient.stableEdgeErrorCode(from: error) else {
+            return false
+        }
+
+        let title: String
+        let reasoning: String
+        let telemetryEvent: String
+        switch (statusCode, code) {
+        case (402, "pro_required"):
+            title = "Upgrade needed"
+            reasoning = Self.proRequiredRecoveryReason
+            telemetryEvent = "InferenceProRequired"
+        case (429, "ai_quota_daily_exceeded"):
+            title = "Daily limit reached"
+            reasoning = Self.dailyQuotaRecoveryReason
+            telemetryEvent = "InferenceDailyQuotaExceeded"
+        case (429, "ai_user_rate_limit_exceeded"),
+             (429, "ai_ip_rate_limit_exceeded"):
+            title = "Retrying shortly"
+            reasoning = Self.rateLimitRecoveryReason
+            telemetryEvent = "InferenceRateLimited"
+        default:
+            return false
+        }
+
+        // These are authenticated provider-admission decisions, not evidence
+        // that the device network is unhealthy. The durable queue owns the
+        // saved scan: 402 becomes explicit attention after entitlement refresh,
+        // while 429 honors the server retry delay in the background pipeline.
+        AppTelemetry.trackError(telemetryEvent)
+        MerianLog.general.debug(
+            "Inference paused by provider admission policy code=\(code, privacy: .public); the queued scan remains saved."
+        )
+        HapticManager.shared.triggerErrorThump()
+        speciesData = makeErrorSpeciesData(
+            title: title,
+            subtitle: "Scan saved",
+            reasoning: reasoning,
             telemetry: telemetry
         )
         return true

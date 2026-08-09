@@ -1358,6 +1358,73 @@ struct InferenceEngineTests {
         }
     }
 
+    @Test func providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {
+        let client = MerianNetworkClient.shared
+        let circuitBreaker = CircuitBreakerManager.shared
+        let cases: [(statusCode: Int, code: String, title: String, reason: String)] = [
+            (402, "pro_required", "Upgrade needed", "requires Pro access"),
+            (429, "ai_quota_daily_exceeded", "Daily limit reached", "daily allowance resets"),
+            (429, "ai_user_rate_limit_exceeded", "Retrying shortly", "short safety pause"),
+            (429, "ai_ip_rate_limit_exceeded", "Retrying shortly", "short safety pause")
+        ]
+        defer {
+            client.overridingInferenceConsentCheck = {}
+            circuitBreaker.recordSuccess()
+        }
+
+        let engine = InferenceEngine()
+        let inferenceImage = Data([0xFF, 0xD8, 0xFF, 0xD9])
+
+        for policyCase in cases {
+            client.overridingInferenceConsentCheck = {
+                throw MerianError.httpError(
+                    statusCode: policyCase.statusCode,
+                    message: #"{"code":"\#(policyCase.code)"}"#
+                )
+            }
+            circuitBreaker.recordSuccess()
+            for _ in 0..<3 {
+                engine.prepareForNewScan()
+                engine.analyze(
+                    imageDatas: [inferenceImage],
+                    telemetry: makeTelemetry()
+                )
+                if let task = engine.inferenceTask {
+                    _ = try? await task.value
+                }
+
+                #expect(!circuitBreaker.isCircuitTripped)
+                #expect(engine.speciesData?.commonName == policyCase.title)
+                #expect(engine.speciesData?.scientificName == "Scan saved")
+                #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+                #expect(
+                    engine.speciesData?.insightData.aiReasoning
+                        .contains(policyCase.reason) == true
+                )
+            }
+
+            circuitBreaker.recordSuccess()
+            for _ in 0..<3 {
+                engine.analyzeNonVisual(
+                    scanId: nil,
+                    observationContexts: [
+                        ObservationContext(freeText: "Small orange butterfly")
+                    ],
+                    telemetry: makeTelemetry(),
+                    modelContext: nil
+                )
+                if let task = engine.inferenceTask {
+                    _ = try? await task.value
+                }
+
+                #expect(!circuitBreaker.isCircuitTripped)
+                #expect(engine.speciesData?.commonName == policyCase.title)
+                #expect(engine.speciesData?.scientificName == "Scan saved")
+                #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+            }
+        }
+    }
+
     /// Win condition: the live-inference success path calls `flushOfflineQueuedScan`
     /// synchronously on the main context before the completion notification fires.
     ///

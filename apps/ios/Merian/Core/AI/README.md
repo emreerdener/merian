@@ -168,6 +168,15 @@ row whose unreleased, dispatchable funding reservation proves the current
 account and exact scan ID. Rows without that ownership proof remain paused in
 Scans.
 
+Provider admission is also separated from transport health for both live
+pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
+`429 ai_quota_daily_exceeded` presents **Daily limit reached / Scan saved**;
+and stable user/IP rate limits present **Retrying shortly / Scan saved**. These
+handler-owned decisions do not advance the device network circuit. The durable
+queue retains the observation: entitlement exhaustion becomes explicit
+attention after the server proof refresh, while rate limits use the server's
+bounded retry delay.
+
 Live persistence and background retry/finalization share
 `ScanInferencePersistenceCoordinator`. The live save validates both the
 in-memory foreground generation, durable job generation, and provider result

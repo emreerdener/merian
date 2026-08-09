@@ -144,6 +144,11 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
 assert_suite_has_passed_test_case \
+  "Provider-admission UX and circuit isolation" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+assert_suite_has_passed_test_case \
   "Identification confirmation presentation identity" \
   "InferenceEngineTests" \
   "Inference Engine Tests" \

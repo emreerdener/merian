@@ -94,6 +94,7 @@ write_test_tree() {
               "generationFenceTest",
               "decodedButUnusableSuccessEnvelopeRemainsRecoverable",
               "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
+              "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "testConfirmAIIdentificationRejectsChangedPresentationIdentity",
               "testApplyIdentificationOverrideRejectsChangedPresentationIdentity",
               "testBackgroundWriteBacklogHasAHardMemoryBound"
@@ -280,6 +281,7 @@ done
 required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+  "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
   "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
   "testBackgroundWriteBacklogHasAHardMemoryBound"
