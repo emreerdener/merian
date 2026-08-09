@@ -261,7 +261,9 @@ extension CaptureWorkspaceViewModel {
                             )
                     }
                     self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage = .warning("No network connection. Queued for upload.")
+                    self.offlineToastMessage = .warning(
+                        "No network connection. Scan queued for later."
+                    )
                     return
                 }
 
@@ -278,8 +280,20 @@ extension CaptureWorkspaceViewModel {
                                 foregroundInferenceGeneration,
                             reason: "foreground_owner_unavailable"
                         )
+                    if let foregroundInferenceGeneration {
+                        self.diContainer.offlineQueueManager
+                            .retireForegroundInference(
+                                scanId: scanId,
+                                generation:
+                                    foregroundInferenceGeneration,
+                                resumeBackground: true,
+                                reason: "foreground_owner_unavailable"
+                            )
+                    }
                     self.pendingAnalyzeScanId = nil
-                    self.offlineToastMessage = .information("Capture queued for upload.")
+                    self.offlineToastMessage = .information(
+                        "Scan queued for later."
+                    )
                     return
                 }
 
@@ -329,6 +343,14 @@ extension CaptureWorkspaceViewModel {
                     await MainActor.run {
                         guard self.pendingAnalyzeScanId == scanId else {
                             self.diContainer.offlineQueueManager
+                                .releaseDeferredLiveUpload(
+                                    scanId: scanId,
+                                    foregroundInferenceGeneration:
+                                        foregroundInferenceGeneration,
+                                    reason:
+                                        "live_scan_superseded_during_context_wait"
+                                )
+                            self.diContainer.offlineQueueManager
                                 .retireForegroundInference(
                                     scanId: scanId,
                                     generation:
@@ -336,7 +358,35 @@ extension CaptureWorkspaceViewModel {
                                     resumeBackground: true,
                                     reason:
                                         "live_scan_superseded_during_context_wait"
+                            )
+                            return
+                        }
+                        guard self.diContainer.offlineQueueManager.isOnline else {
+                            self.diContainer.offlineQueueManager
+                                .releaseDeferredLiveUpload(
+                                    scanId: scanId,
+                                    foregroundInferenceGeneration:
+                                        foregroundInferenceGeneration,
+                                    reason:
+                                        "offline_during_visual_context_grace"
                                 )
+                            self.diContainer.offlineQueueManager
+                                .retireForegroundInference(
+                                    scanId: scanId,
+                                    generation:
+                                        foregroundInferenceGeneration,
+                                    resumeBackground: true,
+                                    reason:
+                                        "offline_during_visual_context_grace"
+                                )
+                            self.pendingAnalyzeScanId = nil
+                            self.diContainer.inferenceEngine
+                                .transitionToQueuedPresentation(
+                                    scanId: scanId
+                                )
+                            self.offlineToastMessage = .warning(
+                                "Connection lost. Scan queued for later."
+                            )
                             return
                         }
                         guard self.diContainer.offlineQueueManager
@@ -345,8 +395,31 @@ extension CaptureWorkspaceViewModel {
                                     generation:
                                         foregroundInferenceGeneration
                                 ) else {
+                            self.diContainer.offlineQueueManager
+                                .releaseDeferredLiveUpload(
+                                    scanId: scanId,
+                                    foregroundInferenceGeneration:
+                                        foregroundInferenceGeneration,
+                                    reason:
+                                        "foreground_owner_unavailable_after_context_grace"
+                                )
+                            self.diContainer.offlineQueueManager
+                                .retireForegroundInference(
+                                    scanId: scanId,
+                                    generation:
+                                        foregroundInferenceGeneration,
+                                    resumeBackground: true,
+                                    reason:
+                                        "foreground_owner_unavailable_after_context_grace"
+                                )
                             self.pendingAnalyzeScanId = nil
-                            self.offlineToastMessage = .information("Capture queued for upload.")
+                            self.diContainer.inferenceEngine
+                                .transitionToQueuedPresentation(
+                                    scanId: scanId
+                                )
+                            self.offlineToastMessage = .information(
+                                "Scan queued for later."
+                            )
                             return
                         }
                         self.diContainer.inferenceEngine.analyze(

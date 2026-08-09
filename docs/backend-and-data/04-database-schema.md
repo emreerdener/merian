@@ -153,9 +153,11 @@ The completed handler contract must also provide these table-level guarantees:
 
 - `internal.revenuecat_reconciliation_queue` always has a destination row after
   a merge, even when the anonymous source had no row. The destination lookup is
-  its permanent UUID, `next_reconcile_at` is no later than the transaction time,
-  and attempt, lease, and error fields are reset. Provider recovery therefore
-  does not depend on a source queue row or on receiving a webhook.
+  its permanent uppercase UUID from
+  `internal.canonical_revenuecat_app_user_id(...)`, `next_reconcile_at` is no
+  later than the transaction time, and attempt, lease, and error fields are
+  reset. Provider recovery therefore does not depend on a source queue row or
+  on receiving a webhook.
 - RevenueCat reconciliation locks `public.users` before its queue row, matching
   the merge's parent-before-child order. The queue lease is checked again under
   lock before any entitlement or watermark write.
@@ -271,9 +273,9 @@ Tracks the global state of the anonymous/authenticated user.
 
 - `id` (UUID): Maps to the `auth.users` GoTrue unique identifier, automatically
   generated via standard Supabase Ghost Sessions with IDFV fallback. This UUID
-  is the RevenueCat App User ID and the PostHog distinct ID; RevenueCat
-  subscriber attributes also mirror auth email and public identity fields for
-  support lookups.
+  is the PostHog distinct ID and, in uppercase RFC 4122 form, the case-sensitive
+  RevenueCat App User ID; RevenueCat subscriber attributes also mirror auth
+  email and public identity fields for support lookups.
 - `subscription_tier` (ENUM): `'free'` | `'pro'`
 - `subscription_expires_at` (TIMESTAMPTZ, nullable): For recurring RevenueCat
   access, the later of entitlement expiration and grace-period expiration. It is
@@ -3923,7 +3925,11 @@ future or unclaimed rows. Pro users are rescheduled for six hours and free users
 for 24 hours. Only a snapshot newer than `internal.revenuecat_customer_state`
 can change access. Webhook processing schedules affected subjects
 transactionally. Background reconciliation never newly grants a historical
-seven-day pass.
+seven-day pass. Database-generated lookups use
+`internal.canonical_revenuecat_app_user_id(...)`; webhook-provided aliases stay
+byte-for-byte unchanged. Because RevenueCat subscriber GET is get-or-create,
+this case contract prevents a lowercase UUID customer from being manufactured
+beside the uppercase iOS customer.
 
 `public.get_revenuecat_reconciliation_health()` is a service-role-only
 `SECURITY DEFINER` routine with an empty search path and an in-body caller

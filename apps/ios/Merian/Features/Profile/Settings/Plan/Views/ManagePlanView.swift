@@ -1,4 +1,3 @@
-import RevenueCat
 import SwiftUI
 
 struct ManagePlanView: View {
@@ -37,18 +36,20 @@ struct ManagePlanView: View {
                     }
                 }
                 .padding(.vertical, 8)
+                .disabled(!revenueCatManager.isIdentityReady || isRestoring)
             } footer: {
                 Text("If you've already made a purchase on another device, tap to enable it on this device.")
             }
             
             Section {
                 Button {
-                    Purchases.shared.presentCodeRedemptionSheet()
+                    revenueCatManager.presentCodeRedemptionSheet()
                 } label: {
                     Text("Redeem code")
                         .foregroundColor(.primary)
                 }
                 .padding(.vertical, 8)
+                .disabled(!revenueCatManager.isIdentityReady)
                 
                 Link("Terms of service", destination: PublicBrand.websiteURL(path: "terms"))
                     .foregroundColor(.primary)

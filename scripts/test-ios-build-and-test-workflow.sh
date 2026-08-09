@@ -468,6 +468,10 @@ assert_file_contains "$ui_test_source" "badgeFrame=\\(scanningStatusBadgeFrame)"
 assert_file_contains \
   "$scanning_experience_source" \
   ".fixedSize(horizontal: true, vertical: true)"
+assert_file_before \
+  "$scanning_experience_source" \
+  "            supplementalContent" \
+  "            DidYouKnowCard()"
 assert_file_contains "$confidence_badge_source" "private struct BadgeGlareSweep: View"
 assert_file_contains "$confidence_badge_source" "Canvas { context, size in"
 assert_file_count "$confidence_badge_source" 0 "GeometryReader"

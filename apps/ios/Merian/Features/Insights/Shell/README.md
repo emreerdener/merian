@@ -18,6 +18,16 @@ Their private navigation route retains `QueuedScanContext`, a value snapshot
 that remains safe after the backing queue model is deleted, allowing upload,
 analysis, and completed results to transition within one pushed destination.
 
+A live-to-queue transition uses `queuedPresentationScanId` only as an exact-ID
+lookup key. The view model fetches and snapshots that matching durable row; it
+must never bind the first pending scan, retain a live SwiftData model across the
+sheet boundary, or allow scan A's delayed fetch to replace scan B. Durable
+foreground retirement and local presentation ownership are distinct: a
+connectivity callback may release provider ownership while the still-current
+sheet remains authorized to become queued. This joined behavior is currently
+release-gated by the
+[live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 Explore uses the embedded mode when a user taps a completed Field-trip goal in
 either the catalog card or outing detail. This keeps the Insight view inside the
 current Explore sheet and returns to the outing on back. Missing local records

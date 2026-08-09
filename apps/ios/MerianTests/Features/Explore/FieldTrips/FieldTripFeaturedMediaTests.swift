@@ -156,27 +156,30 @@ struct FieldTripFeaturedMediaTests {
         #expect(candidates[1].source.isReference)
     }
 
-    @Test func selectionBalancesLevelsInStableChecklistOrderAndCapsAtSix() {
+    @Test func selectionUsesOnlyTheActiveLevelInStableChecklistOrderAndCapsAtSix() {
         let candidates = [
             makeFeaturedItem(id: "l1-1", level: 1, order: 0),
-            makeFeaturedItem(id: "l1-2", level: 1, order: 1),
-            makeFeaturedItem(id: "l1-3", level: 1, order: 2),
-            makeFeaturedItem(id: "l2-1", level: 2, order: 0),
-            makeFeaturedItem(id: "l2-2", level: 2, order: 1),
             makeFeaturedItem(id: "l2-3", level: 2, order: 2),
+            makeFeaturedItem(id: "l2-1", level: 2, order: 0),
+            makeFeaturedItem(id: "l2-7", level: 2, order: 6),
             makeFeaturedItem(id: "l3-1", level: 3, order: 0),
-            makeFeaturedItem(id: "l3-2", level: 3, order: 1)
+            makeFeaturedItem(id: "l2-2", level: 2, order: 1),
+            makeFeaturedItem(id: "l2-5", level: 2, order: 4),
+            makeFeaturedItem(id: "l2-4", level: 2, order: 3),
+            makeFeaturedItem(id: "l2-6", level: 2, order: 5)
         ]
 
-        let selected = FieldTripFeaturedMediaSelection.items(from: candidates)
+        let selected = FieldTripFeaturedMediaSelection.items(
+            from: candidates,
+            activeLevelId: "level-2"
+        )
 
         #expect(selected.map(\.id) == [
-            "l1-1", "l2-1", "l3-1",
-            "l1-2", "l2-2", "l3-2"
+            "l2-1", "l2-2", "l2-3", "l2-4", "l2-5", "l2-6"
         ])
     }
 
-    @Test func missingGoalSourceLetsTheNextBalancedReserveRefillTheCarousel() {
+    @Test func missingGoalSourceLetsTheNextActiveLevelReserveRefillTheCarousel() {
         let candidates = [
             makeFeaturedItem(id: "l1-primary", level: 1, order: 0),
             makeFeaturedItem(id: "l1-reserve", level: 1, order: 1),
@@ -185,11 +188,15 @@ struct FieldTripFeaturedMediaTests {
 
         let selected = FieldTripFeaturedMediaSelection.items(
             from: candidates.filter { $0.id != "l1-primary" },
+            activeLevelId: "level-1",
             maximumCount: 2
         )
 
-        #expect(selected.map(\.id) == ["l1-reserve", "l2-primary"])
-        #expect(FieldTripFeaturedMediaSelection.items(from: []).isEmpty)
+        #expect(selected.map(\.id) == ["l1-reserve"])
+        #expect(FieldTripFeaturedMediaSelection.items(
+            from: candidates,
+            activeLevelId: nil
+        ).isEmpty)
     }
 
     @Test func presentationPreservesGoalIdentityAndBuildsMixedReferencePhotoVideoGallery() throws {
@@ -264,41 +271,54 @@ struct FieldTripFeaturedMediaTests {
         ) == 1)
     }
 
-    @Test func heroUnderlapsNavigationBarOnlyForGoalsWithFeaturedMedia() {
+    @Test func heroUnderlapsNavigationBarOnlyWhenFeaturedMediaExists() {
         #expect(FieldTripFeaturedMediaLayout.underlapsNavigationBar(
-            isGoalsSelected: true,
             featuredItemCount: 1
         ))
         #expect(!FieldTripFeaturedMediaLayout.underlapsNavigationBar(
-            isGoalsSelected: true,
             featuredItemCount: 0
-        ))
-        #expect(!FieldTripFeaturedMediaLayout.underlapsNavigationBar(
-            isGoalsSelected: false,
-            featuredItemCount: 4
         ))
     }
 
-    @Test func loadingSkeletonUsesTheFeaturedHeroOnlyForStandardGoals() {
+    @Test func inlineAttributionSeparatesNaturebookContributorFromSource() {
+        let naturebook = FieldTripFeaturedMediaSource.reference(
+            referenceImage(source: .merian, authorUsername: "field_author")
+        )
+        let naturebookWithoutUsername = FieldTripFeaturedMediaSource.reference(
+            referenceImage(source: .merian)
+        )
+        let wikipedia = FieldTripFeaturedMediaSource.reference(
+            referenceImage(source: .wikipedia)
+        )
+        let gbif = FieldTripFeaturedMediaSource.reference(
+            referenceImage(source: .gbif)
+        )
+        let userImage = FieldTripFeaturedMediaSource.userImage(path: "user.webp")
+
+        #expect(naturebook.inlineContributorAttributionLabel == "@field_author")
+        #expect(naturebook.inlineAttributionLabel == "Naturebook")
+        #expect(naturebookWithoutUsername.inlineContributorAttributionLabel == nil)
+        #expect(naturebookWithoutUsername.inlineAttributionLabel == "Naturebook")
+        #expect(wikipedia.inlineContributorAttributionLabel == nil)
+        #expect(wikipedia.inlineAttributionLabel == "Wikipedia")
+        #expect(gbif.inlineContributorAttributionLabel == nil)
+        #expect(gbif.inlineAttributionLabel == "GBIF")
+        #expect(userImage.inlineContributorAttributionLabel == nil)
+        #expect(userImage.inlineAttributionLabel == nil)
+    }
+
+    @Test func loadingSkeletonUsesTheFeaturedHeroUntilTemplateContentArrives() {
         #expect(FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
             isLoading: true,
-            hasTemplate: false,
-            isGoalsSelected: true
+            hasTemplate: false
         ))
         #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
             isLoading: true,
-            hasTemplate: false,
-            isGoalsSelected: false
-        ))
-        #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
-            isLoading: true,
-            hasTemplate: true,
-            isGoalsSelected: true
+            hasTemplate: true
         ))
         #expect(!FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
             isLoading: false,
-            hasTemplate: false,
-            isGoalsSelected: true
+            hasTemplate: false
         ))
     }
 
@@ -372,13 +392,15 @@ struct FieldTripFeaturedMediaTests {
     }
 
     private func referenceImage(
-        source: SpeciesDictionaryReferenceImage.Source
+        source: SpeciesDictionaryReferenceImage.Source,
+        authorUsername: String? = nil
     ) -> SpeciesDictionaryReferenceImage {
         SpeciesDictionaryReferenceImage(
             url: referenceURL(source: source),
             source: source,
             license: source == .wikipedia ? "CC BY-SA 4.0" : nil,
             attribution: source == .wikipedia ? "Example Photographer" : nil,
+            authorUsername: authorUsername,
             width: 1200,
             height: 800
         )

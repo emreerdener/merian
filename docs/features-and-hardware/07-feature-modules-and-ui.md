@@ -388,8 +388,9 @@ The Scans tab is the user's primary offline biological journal.
   `true` through `diContainer.appSettings` in
   `CaptureWorkspaceViewModel.handleInferenceProcessingChange` only when a real
   result arrives (`speciesData?.scanId != nil` — error placeholders like
-  "Analysis Failed" or "Network timeout" are excluded because they are not
-  persisted to SwiftData). Background URLSession completions also write through
+  "Analysis Failed", "Network timeout", or "Analysis delayed" are excluded
+  because they are not persisted to SwiftData). Background URLSession
+  completions also write through
   `AppSettings.shared` while on `MainActor`. The flag is cleared to `false` by
   `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView` when the user is
   actively viewing the result or library. Because `AppSettings` persists to

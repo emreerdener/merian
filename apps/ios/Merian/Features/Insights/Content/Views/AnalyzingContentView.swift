@@ -125,10 +125,10 @@ struct ScanningExperienceView<SupplementalContent: View>: View {
             .fixedSize(horizontal: true, vertical: true)
             .accessibilityIdentifier("ScanningStatusBadge")
 
+            supplementalContent
+
             DidYouKnowCard()
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-            supplementalContent
 
             if viewModel.shouldShowFieldNotesCard {
                 FieldNotesCard(

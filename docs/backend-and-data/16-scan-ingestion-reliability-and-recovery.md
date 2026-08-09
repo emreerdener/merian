@@ -1,6 +1,6 @@
 # Scan Ingestion Reliability and Recovery Contract
 
-**Last reviewed:** 2026-07-30\
+**Last reviewed:** 2026-08-09\
 **Scope:** Capture, foreground analysis, offline queue replay, durable scan
 persistence, Field Chat readiness, Explore publication, and owned-media repair\
 **Repository status:** Core runtime remediation committed as
@@ -62,6 +62,11 @@ the
 
 The iOS presentation-specific failure and closure evidence are retained in the
 [queued Insight same-ID handoff incident](../incidents/2026-07-queued-insight-same-id-handoff-regression.md).
+
+The later foreground-connectivity presentation addendum is open in source. Its
+ownership race, inline transport retry, placeholder classification, and exact
+closure gates are tracked separately in the
+[live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 This is the normative joined contract for the app's most important user journey:
 
@@ -234,6 +239,52 @@ explicit user retry resets the bounded automatic count under the same scan UUID
 before the atomic claim path, including for description-only staged scans that
 have no upload-success reset boundary. Known cloud-complete owner-result
 recovery preserves its exact marker instead and cannot dispatch the provider.
+
+## Foreground Connectivity Presentation Boundary
+
+Durable acceptance precedes every foreground provider request, so loss of
+connectivity does not turn a queue-backed observation into a terminal result.
+The joined client contract is:
+
+1. Recheck network eligibility after the bounded environment-context grace and
+   before provider dispatch.
+2. If the path is unavailable before dispatch, retire the unused foreground
+   generation and present the existing durable row as queued.
+3. If the first queue-backed transport attempt fails after dispatch, release
+   the upload hold, retire provider ownership idempotently, and publish the
+   exact queued presentation ID without waiting for a second inline transport
+   attempt.
+4. Bind only the queue row whose ID matches the still-current local
+   presentation. Do not select another pending row or retain a SwiftData model
+   across the sheet boundary.
+5. Show **Queued for later** with saved/automatic-resume copy. Do not synthesize
+   `SpeciesData`, fire an error haptic, or record a device-network circuit
+   failure for the handoff.
+6. Allow a same-ID background or status-recovered completion to replace queued
+   content in place. A newer scan or completed presentation must fence every
+   delayed failure callback.
+
+Local presentation ownership and durable foreground ownership are deliberately
+different. Path monitoring may retire the provider generation immediately so
+the queue can resume, while the exact open sheet remains current long enough to
+acknowledge queue takeover. Local authority never permits a retired task to
+persist a provider result, delete the queue row, emit failure telemetry, or
+overwrite another presentation.
+
+Direct queue-less transport may still present **Network timeout / Please try
+again**. Exhausted handler/provider failure for a saved scan uses **Analysis
+delayed / Scan saved** and must be classified as an inference error placeholder,
+not a non-biological observation. Exact policy/admission codes retain their own
+documented states.
+
+**Acceptance status:** the pre-dispatch recheck and exact-ID presentation
+plumbing exist in the reviewed working tree, but the joined post-dispatch
+contract is not accepted. The engine currently couples queued publication to a
+durable generation that connectivity monitoring may already have retired, the
+network client can replay transient transport once, and **Analysis delayed** is
+missing from the placeholder whitelist. See the
+[live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
+before making any release claim.
 
 ## Stable Identity and Idempotency
 
@@ -908,6 +959,10 @@ for exact request and response shapes.
 | `409 account_deletion_in_progress`              | Destructive lifecycle owns identity                                                                                                                                | Stop submission; do not recreate profile                                                  |
 | `408/409/425/429` transient handler state       | Generation or capacity is temporarily unavailable                                                                                                                  | Retain and back off using bounded `Retry-After`                                           |
 | `503 scan_persistence_failed`                   | Operational durability, strict finalization, or unknown-commit failure                                                                                             | Retain local row; poll same UUID; fresh-upload only when exact status says scanless retry |
+| `503 scan_media_restore_unavailable`            | Explore restore may have committed                                                                                                                                 | Preserve local and promoted media; retry same owner scan                                  |
+| `503 scan_image_repair_persistence_unknown`     | Image repair may have committed                                                                                                                                    | Preserve replacement and retry inspection                                                 |
+| platform `404 NOT_FOUND` without handler marker | Edge route did not execute                                                                                                                                         | Retain state and use bounded route-propagation retry                                      |
+| handler-owned `404 scan_not_ready`              | Exact owner scan is not currently usable                                                                                                                           | Run guarded status recovery or show still-syncing state                                   |
 
 For a foreground handler-owned `401 auth_session_missing` or
 `401 invalid_session_token`, iOS first refreshes the existing Supabase session
@@ -917,10 +972,20 @@ funding reservation, and any existing server ownership all belong to that
 account. Background `401` remains a durable retry with local media retained; a
 later foreground or lifecycle pass performs the same Auth recovery before
 dispatch.
-| `503 scan_media_restore_unavailable`            | Explore restore may have committed                                                                                                                                 | Preserve local and promoted media; retry same owner scan                                  |
-| `503 scan_image_repair_persistence_unknown`     | Image repair may have committed                                                                                                                                    | Preserve replacement and retry inspection                                                 |
-| platform `404 NOT_FOUND` without handler marker | Edge route did not execute                                                                                                                                         | Retain state and use bounded route-propagation retry                                      |
-| handler-owned `404 scan_not_ready`              | Exact owner scan is not currently usable                                                                                                                           | Run guarded status recovery or show still-syncing state                                   |
+
+### Foreground presentation error taxonomy
+
+| Local condition | Required presentation | Durable behavior |
+| --- | --- | --- |
+| Queue-backed connectivity loss | **Queued for later** | Retain exact row; queue owns retry |
+| Queue-less direct connectivity loss | **Network timeout / Please try again** | Caller owns retry |
+| Queue-backed exhausted service failure | **Analysis delayed / Scan saved** placeholder | Retain exact row; queue owns retry |
+| Recoverable exact-ID server conflict | **Restoring scan / Safely saved** placeholder | Poll/hydrate the same UUID |
+| Consent, funding, quota, or policy decision | Stable decision-specific copy | Follow that decision's durable state machine |
+
+No row in this table may be inferred only from generic localized error text.
+Transport, handler code, durable queue ownership, and exact presentation
+identity are separate inputs.
 
 Malformed or structurally invalid provider JSON returns retryable HTTP `503`
 from every scan producer. The server ledger records `failed_retryable` with a
@@ -1276,8 +1341,16 @@ The focused regression inventory includes:
 - `reconcile-scan-media-assets/worker_test.ts`;
 - `OfflineQueueManagerTests`;
 - `OfflineSyncTests`;
-- `BackgroundDatabaseActorTests`; and
-- `InsightChatTests`.
+- `BackgroundDatabaseActorTests`;
+- `InferenceEngineTests`, including visual and nonvisual transport/retirement
+  races;
+- `MerianNetworkClientTests`, including queue-backed no-inline-replay request
+  count and bounded timing;
+- `InsightSheetViewModelTests`, including exact-ID queued binding and
+  **Analysis delayed** placeholder routing;
+- `InsightChatTests`; and
+- the deterministic queued-scan completion UI smoke, followed by the exact-SHA
+  Release archive.
 
 ## Verification Evidence at Review
 

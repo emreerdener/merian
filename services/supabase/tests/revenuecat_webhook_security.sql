@@ -237,6 +237,24 @@ BEGIN
         created_at = EXCLUDED.created_at,
         subscription_tier = EXCLUDED.subscription_tier;
 
+    IF internal.canonical_revenuecat_app_user_id(seed_user_id) <>
+            pg_catalog.UPPER(seed_user_id::TEXT)
+       OR pg_catalog.HAS_FUNCTION_PRIVILEGE(
+            'service_role',
+            'internal.canonical_revenuecat_app_user_id(uuid)',
+            'EXECUTE'
+       )
+       OR NOT EXISTS (
+            SELECT 1
+            FROM internal.revenuecat_reconciliation_queue AS queue
+            WHERE queue.merian_user_id = seed_user_id
+              AND queue.lookup_app_user_id =
+                    pg_catalog.UPPER(seed_user_id::TEXT)
+       ) THEN
+        RAISE EXCEPTION
+            'RevenueCat canonical App User ID contract is not enforced';
+    END IF;
+
     SELECT users.entitlement_version
     INTO STRICT initial_entitlement_version
     FROM public.users AS users
@@ -644,7 +662,10 @@ BEGIN
         pg_catalog.JSONB_BUILD_ARRAY(
             pg_catalog.JSONB_BUILD_OBJECT(
                 'subject_kind', 'customer',
-                'lookup_app_user_id', destination_user_id::TEXT,
+                'lookup_app_user_id',
+                    internal.canonical_revenuecat_app_user_id(
+                        destination_user_id
+                    ),
                 'candidate_user_ids',
                     pg_catalog.JSONB_BUILD_ARRAY(destination_user_id)
             )

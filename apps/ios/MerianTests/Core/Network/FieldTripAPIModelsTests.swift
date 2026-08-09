@@ -2112,9 +2112,37 @@ struct ActiveCaptureGoalStoreTests {
         #expect(FieldTripTemplateRoute(slug: "backyard_safari").reference == .slug("backyard_safari"))
     }
 
-    @Test func focusedTargetUsesTipsWhenAvailableAndObjectivesAsFallback() {
-        #expect(FieldTripFocusedTargetPresentation.resolve(hasGuide: true) == .tips)
-        #expect(FieldTripFocusedTargetPresentation.resolve(hasGuide: false) == .objectives)
+    @Test func inlineTipsAppearOnlyForTheCurrentIncompleteLevel() {
+        #expect(FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: 2,
+            currentLevelNumber: 2,
+            isTripComplete: false,
+            hasGuide: true
+        ))
+        #expect(!FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: 1,
+            currentLevelNumber: 2,
+            isTripComplete: false,
+            hasGuide: true
+        ))
+        #expect(!FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: 3,
+            currentLevelNumber: 2,
+            isTripComplete: false,
+            hasGuide: true
+        ))
+        #expect(!FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: 2,
+            currentLevelNumber: 2,
+            isTripComplete: true,
+            hasGuide: true
+        ))
+        #expect(!FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: 2,
+            currentLevelNumber: 2,
+            isTripComplete: false,
+            hasGuide: false
+        ))
     }
 
     @Test func captureIndicatorPolicyRequiresIdleVisualScanningAndRealData() {

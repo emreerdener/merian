@@ -127,9 +127,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     scan history and loads it into local SwiftData structures.
   - When executing `signOut()`, `SupabaseManager` signs out with Supabase
     `.local` scope so one device or simulator does not revoke every active
-    session for the same account. It then calls `Purchases.shared.logOut()` to
-    drop the previous user's cached RevenueCat entitlements from the current
-    device, preventing premium account sharing.
+    session for the same account. It clears RevenueCat's local entitlement and
+    linked-identity state without calling `Purchases.logOut()`, because SDK
+    logout creates a new `$RCAnonymousID` customer. Purchase-related operations
+    remain closed until the replacement Supabase ghost or authenticated UUID is
+    linked directly with `logIn`.
   - The authenticated-session marker is centralized under
     `KeychainKeys.hasAuthenticatedOAuth`. Do not inline the legacy string key in
     auth or network code.
@@ -137,8 +139,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
-- Initializes via `.configure(withAPIKey:)`, pulling the active iOS
-  `ProcessInfo` values mapped to `.xcconfig` secure layers.
+- Waits for an active Supabase session, then initializes via
+  `.configure(withAPIKey:appUserID:)` using the uppercase RFC 4122 Supabase UUID
+  and the active iOS `ProcessInfo` values mapped to `.xcconfig` secure layers.
+  RevenueCat IDs are case-sensitive; PostgreSQL reconciliation uses the same
+  canonical uppercase function instead of `uuid::text`.
 - Local Debug and unsigned validation builds may use RevenueCat's `test_` Test
   Store key while purchase flows are being exercised. This does not include an
   internal TestFlight build. The store environment does not change Merian's
@@ -146,7 +151,8 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   subscriber attributes mirror the user's auth/public identity for manual
   support lookups. The Xcode Release archive preflight requires a RevenueCat
   iOS SDK key beginning with `appl_` before Organizer distribution.
-- Uses `logIn(currentAppUserID)` to bind the Supabase Auth UUID.
+- Uses `logIn(canonicalAppUserID)` to switch directly between known Supabase
+  accounts. It never configures anonymously and never uses RevenueCat logout.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
   operational error when there is no current offering, the current offering has
@@ -199,6 +205,12 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     value only after cutover.
     RevenueCat/webhook changes advance `users.entitlement_version` in a trigger,
     so no Edge-isolate cache invalidation is required.
+  - RevenueCat project-level Pro billing is an integration plan, not a customer
+    entitlement. Beta access uses an expiring promotional `pro` entitlement.
+    Once its webhook or scheduled reconciliation projects `subscription_tier =
+    pro`, it receives the same server `pro_paid` feature gates—including Field
+    Chat—as store-paid Pro for the grant period. A manual database-only Pro edit
+    is intentionally reverted when RevenueCat has no active entitlement.
 
 ### Prelaunch purchase testing
 
@@ -220,7 +232,7 @@ SDK/UI request for the same unavailable offering; the first success criterion
 is one valid offering, not fewer error lines.
 
 RevenueCat identity and product loading are separate checks. A log such as
-`RevenueCat login succeeded` proves that the Supabase UUID was linked; it does
+`RevenueCat identity linked` proves that the Supabase UUID was linked; it does
 not prove StoreKit returned products. A complete smoke test must:
 
 1. Launch with the intended key/store combination.

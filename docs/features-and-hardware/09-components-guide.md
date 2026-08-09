@@ -257,8 +257,8 @@ Both paths delegate their visible layout to generic
 `ScanningExperienceView<SupplementalContent>`, which renders this stable order:
 
 1. `ConfidenceBadge` with accessibility identifier `ScanningStatusBadge`.
-2. `DidYouKnowCard`.
-3. Optional queue-only actionable status/recovery content.
+2. Optional queue-only actionable status/recovery content.
+3. `DidYouKnowCard`.
 4. `FieldNotesCard`, when enabled for the presented scan.
 5. `ScanInformationCard`.
 
@@ -273,10 +273,10 @@ states remain static. Phrase rotation uses
 
 Queued lifecycle polling, retry scheduling, friendly errors, countdowns, and
 `Retry now` remain in `QueuedContentView`. Only actionable queue content is
-inserted into the shared body. It does not render a separate heading, sync
-explanation, media-kind summary, or approximate file size. Those copied fields
-can remain available for internal routing and diagnostics without becoming
-customer-facing UI.
+inserted into the shared body, where it stays above the educational fact card.
+It does not render a separate heading, sync explanation, media-kind summary, or
+approximate file size. Those copied fields can remain available for internal
+routing and diagnostics without becoming customer-facing UI.
 
 `QueuedScanContext` is copied while the SwiftData row is live, so queue deletion
 and completed-result handoff cannot detach data still needed by the view. The

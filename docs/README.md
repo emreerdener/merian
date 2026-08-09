@@ -205,6 +205,7 @@ as their permanent engineering identity.
   [owner-row incident report](./incidents/2026-07-scan-owner-row-durability-gap.md),
   [inline staging-manifest incident](./incidents/2026-07-inline-scan-staging-manifest-regression.md),
   [queued Insight same-ID handoff incident](./incidents/2026-07-queued-insight-same-id-handoff-regression.md),
+  [live scan connectivity handoff incident](./incidents/2026-08-live-scan-connectivity-handoff-gap.md),
   [video finalization incident](./incidents/2026-07-video-scan-canonical-finalization-regression.md),
   and
   [Identify idempotency incident](./incidents/2026-07-identify-idempotency-conflict.md).
@@ -219,7 +220,11 @@ as their permanent engineering identity.
   success; analytics, group tags, and candidate enrichment remain optional
   background work. `/update-scan-context` applies late owner-scoped context
   without a second AI request. Model IDs and all inference-quality and
-  unit-economics settings remain unchanged.
+  unit-economics settings remain unchanged. The intended first-failure
+  live-to-queue connectivity handoff is not yet release-accepted: durable
+  ownership retirement, generic inline transport replay, placeholder routing,
+  and transport-level regression coverage remain open in the
+  [live scan connectivity handoff incident](./incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
   `ExternalImageImportStore` copies the file into a durable Application Support
@@ -330,6 +335,11 @@ as their permanent engineering identity.
 
 ### Incidents
 
+- **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
+  — Required first-failure **Queued for later** behavior, the durable-owner
+  versus local-presentation race, inline transport-replay latency,
+  **Analysis delayed** placeholder mismatch, transport-boundary test gap, and
+  exact closure gates.
 - **[`/incidents/2026-08-first-scan-auth-refresh-gap.md`](./incidents/2026-08-first-scan-auth-refresh-gap.md)**
   — Sanitized Edge-origin Auth evidence, the `invalid_session_token`
   refresh-classification gap, refresh-first account preservation, and

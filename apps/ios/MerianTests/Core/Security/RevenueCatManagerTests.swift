@@ -1,5 +1,5 @@
-import XCTest
 @testable import Merian
+import XCTest
 
 @MainActor
 final class RevenueCatManagerTests: XCTestCase {
@@ -32,7 +32,7 @@ final class RevenueCatManagerTests: XCTestCase {
         // Asserts that the refactored signature compiles securely mapping telemetry correctly.
         // Because purchases.shared is tightly coupled, we do not fully hit the live backend, 
         // we strictly test the caller logic boundaries directly avoiding signature mismatched crashes natively.
-        let testId = UUID().uuidString
+        let testId = UUID()
         let email = "test@example.com"
         let name = "John Merian Explorer"
         let avatar = "https://example.com/image.jpg"
@@ -50,6 +50,15 @@ final class RevenueCatManagerTests: XCTestCase {
         )
         
         XCTAssertTrue(true, "Attribution Signature compiled properly!")
+    }
+
+    func testRevenueCatAppUserIDPolicyUsesUppercaseRFC4122UUID() {
+        let userID = UUID(uuidString: "4c6c85f8-e1ff-4976-a524-95c012345678")!
+
+        XCTAssertEqual(
+            RevenueCatAppUserIDPolicy.canonicalID(for: userID),
+            "4C6C85F8-E1FF-4976-A524-95C012345678"
+        )
     }
 
     func testRevenueCatIdentityContextAddsDashboardLookupAttributes() {

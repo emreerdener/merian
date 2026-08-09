@@ -2594,6 +2594,36 @@ trigger an error haptic, or publish an error placeholder. The terminal-error
 case must also prove that the valid current owner can snapshot its full
 ownership, register synchronous retirement, and publish its own error without
 reopening the stale-task window.
+
+**Live-to-queue transport handoff regression matrix:** A test that throws
+`URLError` from consent preflight, request construction, or another pre-dispatch
+hook does not cover this boundary. At least one visual and one nonvisual case
+must dispatch through `MockURLProtocol` or an equivalent URLSession-level seam,
+then perform this ordering deliberately:
+
+1. create and persist the exact queued row, job generation, and deferred-upload
+   hold;
+2. observe the first request at the transport boundary through a bounded
+   rendezvous;
+3. simulate `releaseAllForegroundInferenceClaims` while the request is still
+   pending;
+4. release a transient transport failure to the engine; and
+5. allow durable retirement/replay work to settle without directly deleting
+   process-local registries in test cleanup.
+
+The assertions must prove the exact queued presentation ID, retained durable
+row, released upload hold, eventually cleared foreground generation, `.queued`
+Insight mode, no `SpeciesData`, no error haptic/circuit failure, and exactly one
+live transport request. A bounded timing assertion must prove queue-backed
+Identify did not enter the generic two-second replay or another 90-second
+deadline. Separate controls must preserve **Network timeout** for a queue-less
+direct request and classify **Analysis delayed / Scan saved** as an inference
+error placeholder for an exhausted queue-backed server failure. Finally, a
+same-ID background/status completion must replace queued content, while a newer
+scan fences the delayed error. This complete matrix is a release closure gate,
+not merely a compiled test; see the
+[live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the
 same UUID cannot restart between synchronous cancellation and the asynchronous
@@ -2723,19 +2753,23 @@ species/reference hydration projection. `InsightSheetViewModelTests` covers
 contribution loading, scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
-policy. `FieldTripFeaturedMediaTests` covers the Goals hero progression:
+policy. `FieldTripFeaturedMediaTests` covers the standard outing hero progression:
 default illustrative references; exact completed photo, video-poster, and
 legacy-cover replacement; fallback for missing, archived, incomplete,
 nonvisual, posterless-video, reference-only, and repeated-scan records; strict
 Naturebook → Wikipedia → GBIF failure advancement; stable goal identity across
-reference-to-user replacement; level-balanced checklist ordering and its
-six-item cap; source-exhaustion reserve refill; and mixed reference/photo/video
+reference-to-user replacement; active-level-only checklist ordering and its
+six-item cap; same-level source-exhaustion reserve refill; and mixed reference/photo/video
 full-screen order with muted video. It also locks provider/user VoiceOver copy
-and top-edge underlap to Goals with at least one featured item, preventing Tips
-or empty-media detail from moving beneath transparent navigation chrome. The
-focused Insight suite remains paired with this suite when the shared native
-pager, pagination, attribution, or top scroll-edge treatment changes, so reuse
-cannot regress Insight's mixed-media handoff behavior.
+and top-edge underlap whenever at least one featured item exists, plus the
+bottom-leading Naturebook contributor and bottom-trailing provider attribution
+policy, preventing empty-media detail from moving beneath transparent
+navigation chrome. `ActiveCaptureGoalStoreTests` also locks the inline-tip
+policy so completed, locked, guide-free, or fully completed outing states do
+not expose guidance. The focused Insight suite remains paired with this suite
+when the shared native pager, pagination, attribution, or top scroll-edge
+treatment changes, so reuse cannot regress Insight's mixed-media handoff
+behavior.
 `OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
 goal hint while successful scan finalization preserves it until explicit
 progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case

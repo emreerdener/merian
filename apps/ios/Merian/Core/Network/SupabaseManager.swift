@@ -149,11 +149,10 @@ enum SupabaseAuthTransitionError: LocalizedError {
     private var activeAppleAuth: ASAuthorizationController?
 
     // MARK: - Session Deduplication
-    /// Tracks the last user ID for which RevenueCat was linked.
-    /// Guards against the Supabase SDK emitting two auth events on cold start — one for the
-    /// locally cached token and one when the server validates/refreshes it. Without this guard
-    /// both events call linkWithSupabase for the same user.
-    private var lastLinkedUserId: String?
+    /// Tracks the last user ID considered for RevenueCat linkage and history sync.
+    /// Same-user auth events retry RevenueCat only while its identity fence is not ready;
+    /// they never repeat the identity-change-only historical download.
+    private var lastLinkedUserId: UUID?
 
     /// Retained handle for the auth state listener task. Stored so the task can be cancelled
     /// on teardown and is consistent with the @ObservationIgnored task handle pattern used
@@ -361,11 +360,10 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
                     if !TestExecutionCoordinator.isRunningTests,
                        await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
-                        // Only link telemetry and trigger historical sync when the active user
-                        // identity actually changes. The Supabase SDK fires two auth events on
-                        // cold start (local cache + server validation), both with the same user —
-                        // skipping the duplicate avoids a redundant RevenueCat logIn round-trip,
-                        // a duplicate PostHog identify, and a second concurrent historical sync.
+                        // Trigger historical sync only when the active user identity changes.
+                        // The Supabase SDK fires two auth events on cold start (local cache +
+                        // server validation), both with the same user. A same-user event may
+                        // retry a failed RevenueCat link but cannot start a second history sync.
                         // Sync historical scans on session restore to capture re-installs.
                         // Stamp lastHistoricalSyncDate here so AppLifecycleManager's 15-minute
                         // throttle gate sees this sync and skips its own redundant call — without
@@ -433,7 +431,6 @@ enum SupabaseAuthTransitionError: LocalizedError {
     }
 
     private func linkExternalTelemetry(user: User) async {
-        let userId = user.id.uuidString
         let publicIdentity = await fetchRevenueCatPublicIdentity(for: user.id)
         let email = firstNonEmpty(user.email, publicIdentity?.email)
         let fullName = firstNonEmpty(
@@ -448,7 +445,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
         )
 
         await RevenueCatManager.shared.linkWithSupabase(
-            userId: userId,
+            userId: user.id,
             email: email,
             displayName: fullName,
             avatarUrl: avatarUrl,
@@ -486,11 +483,14 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
     @discardableResult
     private func ensureTelemetryLinkedIfNeeded(for user: User) async -> Bool {
-        let userId = user.id.uuidString
-        guard userId != lastLinkedUserId else { return false }
+        let userId = user.id
+        let identityChanged = userId != lastLinkedUserId
+        guard identityChanged || !RevenueCatManager.shared.isIdentityReady else {
+            return false
+        }
         lastLinkedUserId = userId
         await linkExternalTelemetry(user: user)
-        return true
+        return identityChanged
     }
 
     // MARK: - Ghost Session

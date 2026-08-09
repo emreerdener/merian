@@ -276,6 +276,34 @@ uplink capacity. The caller also installs a two-second fail-safe. Connectivity
 loss and app backgrounding release ownership through `OfflineQueueManager`
 directly.
 
+## Queue-backed Identify Retry Ownership
+
+The durable queue, rather than the foreground HTTP helper, must own retry after
+the first transport failure of a queue-backed live Identify request. The client
+needs an explicit per-call retry policy:
+
+- queue-backed `identifyMultiModal` returns the first transient `URLError` to
+  `InferenceEngine`, after the idempotent body-sent callback releases the upload
+  hold;
+- `InferenceEngine` changes the exact still-current Insight to **Queued for
+  later** and retires durable foreground ownership idempotently; and
+- durable replay or exact-ID status recovery decides when another provider
+  attempt is eligible.
+
+This exception is scoped to queue-backed live Identify transport. It does not
+remove reviewed replay from queue-less direct callers, audited read routes,
+handler-owned authentication refresh, or Supabase route-propagation recovery.
+A returned handler/provider `5xx` also remains a service failure rather than
+evidence that the device is offline.
+
+**Current source status (2026-08-09):** `performAuthenticatedRequest` still
+replays selected transient transport failures once after two seconds whenever
+the request has a supported idempotency key. `identifyMultiModal` uses a
+90-second timeout and always has such a key, so a black-holed path can delay the
+handoff for approximately `90 + 2 + 90 = 182` seconds. The explicit retry policy
+and request-count regression are release blockers tracked in the
+[live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 ## Deferred Context
 
 `updateScanContext` sends owner-authenticated late WeatherKit/geocoding data to
@@ -303,6 +331,12 @@ do not have a stable scan registration identity. Structured scan signing with
 `clientScanId` is database-idempotent on owner/scan/object key, but its durable
 retry is owned explicitly by `OfflineQueueManager`; do not turn that guarantee
 into blanket replay for every signer caller.
+
+Queue-backed live Identify is the additional durable-owner exception described
+above: once its first transport attempt fails, immediate UI handoff takes
+priority over generic inline transport replay. Until the per-call policy is
+implemented and validated, the generic helper's current replay remains known
+source behavior rather than the accepted scan UX contract.
 
 Every retry delay is cancellation-propagating. A task canceled while waiting for
 transport, server, route-propagation, or guest-session retry exits with

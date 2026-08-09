@@ -9,6 +9,12 @@
 **Production status:** Open until a matching iOS build satisfies the closure
 gates below
 
+**Scope boundary:** This incident begins after a queued Insight already exists
+and covers its same-ID promotion to a completed result. It does not prove that a
+live foreground transport failure can enter queued presentation. That earlier
+boundary is tracked by the
+[live scan connectivity handoff incident](./2026-08-live-scan-connectivity-handoff-gap.md).
+
 ## User Impact
 
 A scan could finish while its queued Insight destination was open but fail to

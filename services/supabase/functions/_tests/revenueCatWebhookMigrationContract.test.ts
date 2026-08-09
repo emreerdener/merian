@@ -16,6 +16,10 @@ const reconciliationSeedRepairMigrationUrl = new URL(
   "../../migrations/20260802203802_fix_revenuecat_zero_subject_reconciliation_seed.sql",
   import.meta.url,
 );
+const canonicalIdentityMigrationUrl = new URL(
+  "../../migrations/20260809055035_canonicalize_revenuecat_app_user_ids.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -197,5 +201,43 @@ Deno.test("RevenueCat reconciliation seed repair is forward-only and source-guar
       repairSource,
     ),
     "The forward repair must leave transaction ownership to the Supabase CLI.",
+  );
+});
+
+Deno.test("RevenueCat identities are canonical across iOS-facing database paths", async () => {
+  const source = await Deno.readTextFile(canonicalIdentityMigrationUrl);
+  const sql = normalized(source);
+
+  for (
+    const fragment of [
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "CREATE OR REPLACE FUNCTION internal.canonical_revenuecat_app_user_id",
+      "SELECT pg_catalog.UPPER(p_user_id::TEXT)",
+      "REVOKE ALL ON FUNCTION internal.canonical_revenuecat_app_user_id(UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "internal.canonical_revenuecat_app_user_id(NEW.id)",
+      "PG_GET_FUNCTIONDEF",
+      "internal.merge_ghost_revenuecat_state(uuid,uuid)",
+      "target_occurrences <> 1",
+      "revenuecat_ghost_merge_identity_source_drift",
+      "internal.canonical_revenuecat_app_user_id(p_target_user_id)",
+      "UPDATE internal.revenuecat_reconciliation_queue AS queue",
+      "queue.lookup_app_user_id::UUID = queue.merian_user_id",
+      "claim_token = NULL",
+      "claim_expires_at = NULL",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertStringIncludes(
+    source,
+    "Preserve RevenueCat emails, aliases, $RCAnonymousID values",
+  );
+  assert(
+    !/^\s*(?:BEGIN|START\s+TRANSACTION|COMMIT)\s*;/im.test(source),
+    "The forward identity repair must leave transaction ownership to the Supabase CLI.",
   );
 });

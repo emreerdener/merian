@@ -123,6 +123,13 @@ forever. Every identified account therefore has a private durable row in
 `internal.revenuecat_reconciliation_queue`. A webhook also schedules each
 resolved CustomerInfo identity after its event transaction commits.
 
+RevenueCat App User IDs are case-sensitive and its subscriber GET creates a
+customer when one is absent. Merian's canonical custom ID is the uppercase
+Supabase UUID used by iOS configuration and by
+`internal.canonical_revenuecat_app_user_id(...)`. Webhook-supplied aliases are
+preserved exactly; only database-generated same-user UUID lookups are
+canonicalized.
+
 `reconcile-revenuecat-subscribers` runs every 15 minutes. It claims six-customer
 waves under two-minute UUID leases, performs at most three CustomerInfo requests
 concurrently, and continues draining until the queue is empty or its 60-second

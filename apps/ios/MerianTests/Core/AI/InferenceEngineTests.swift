@@ -1302,6 +1302,187 @@ struct InferenceEngineTests {
         )
     }
 
+    private func prepareQueueBackedInferenceAttempt(
+        scanId: String,
+        generation: UUID,
+        modelContext: ModelContext
+    ) throws {
+        let manager = OfflineQueueManager.shared
+        modelContext.insert(
+            OfflineQueuedScan(id: scanId, scanState: .pending)
+        )
+        modelContext.insert(
+            OfflineJobRecord(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .running,
+                metadataJSON:
+                    InferenceGenerationMetadataContract.json(for: generation)
+            )
+        )
+        try modelContext.save()
+        manager.foregroundInferenceGenerations[scanId] = generation
+        manager.deferredLiveUploadScanIds.insert(scanId)
+    }
+
+    private func clearQueueBackedInferenceAttempt(scanId: String) {
+        let manager = OfflineQueueManager.shared
+        manager.foregroundInferenceRetirementTasks.cancel(scanId)
+        manager.startedForegroundInferenceGenerations.removeValue(
+            forKey: scanId
+        )
+        manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
+        manager.deferredLiveUploadScanIds.remove(scanId)
+    }
+
+    @Test func queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual() async throws {
+        enum SubmissionKind {
+            case visual
+            case nonVisual
+        }
+
+        let manager = OfflineQueueManager.shared
+        let client = MerianNetworkClient.shared
+        let circuitBreaker = CircuitBreakerManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createInMemoryContext()
+        manager.modelContext = context
+        manager.isOnline = false
+        circuitBreaker.recordSuccess()
+        defer {
+            client.overridingInferenceConsentCheck = {}
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+            circuitBreaker.recordSuccess()
+        }
+
+        let submissions: [(SubmissionKind, URLError.Code)] = [
+            (.visual, .timedOut),
+            (.nonVisual, .notConnectedToInternet)
+        ]
+        for (kind, connectivityErrorCode) in submissions {
+            let scanId = UUID().uuidString.lowercased()
+            let generation = UUID()
+            client.overridingInferenceConsentCheck = {
+                throw URLError(connectivityErrorCode)
+            }
+            try prepareQueueBackedInferenceAttempt(
+                scanId: scanId,
+                generation: generation,
+                modelContext: context
+            )
+            defer { clearQueueBackedInferenceAttempt(scanId: scanId) }
+
+            let engine = InferenceEngine()
+            switch kind {
+            case .visual:
+                engine.prepareForNewScan()
+                engine.analyze(
+                    scanId: scanId,
+                    foregroundInferenceGeneration: generation,
+                    imageDatas: [Data([0xFF, 0xD8, 0xFF, 0xD9])],
+                    telemetry: makeTelemetry(),
+                    modelContext: context
+                )
+            case .nonVisual:
+                engine.analyzeNonVisual(
+                    scanId: scanId,
+                    foregroundInferenceGeneration: generation,
+                    observationContexts: [
+                        ObservationContext(
+                            freeText: "Small orange butterfly"
+                        )
+                    ],
+                    telemetry: makeTelemetry(),
+                    modelContext: context
+                )
+            }
+            if let task = engine.inferenceTask {
+                _ = try? await task.value
+            }
+
+            #expect(engine.queuedPresentationScanId == scanId)
+            #expect(engine.recoverablePresentationScanId == scanId)
+            #expect(engine.speciesData == nil)
+            #expect(!engine.isProcessing)
+
+            let viewModel = InsightSheetViewModel(
+                inferenceEngine: engine
+            )
+            #expect(
+                viewModel.bindQueuedPresentationIfAvailable(
+                    scanId: scanId,
+                    modelContext: context
+                )
+            )
+            #expect(viewModel.queuedContext?.id == scanId)
+            #expect(viewModel.contentMode == .queued)
+
+            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == scanId }
+            )
+            let queuedScanCount = try context.fetchCount(descriptor)
+            #expect(queuedScanCount == 1)
+            engine.cancelActiveRequest()
+        }
+    }
+
+    @Test func queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss() async throws {
+        let manager = OfflineQueueManager.shared
+        let client = MerianNetworkClient.shared
+        let circuitBreaker = CircuitBreakerManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createInMemoryContext()
+        let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
+        manager.modelContext = context
+        manager.isOnline = false
+        try prepareQueueBackedInferenceAttempt(
+            scanId: scanId,
+            generation: generation,
+            modelContext: context
+        )
+        client.overridingInferenceConsentCheck = {
+            throw MerianError.httpError(
+                statusCode: 503,
+                message: #"{"code":"provider_unavailable"}"#
+            )
+        }
+        circuitBreaker.recordSuccess()
+        defer {
+            clearQueueBackedInferenceAttempt(scanId: scanId)
+            client.overridingInferenceConsentCheck = {}
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+            circuitBreaker.recordSuccess()
+        }
+
+        let engine = InferenceEngine()
+        engine.prepareForNewScan()
+        engine.analyze(
+            scanId: scanId,
+            foregroundInferenceGeneration: generation,
+            imageDatas: [Data([0xFF, 0xD8, 0xFF, 0xD9])],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+        if let task = engine.inferenceTask {
+            _ = try? await task.value
+        }
+
+        #expect(engine.queuedPresentationScanId == nil)
+        #expect(engine.speciesData?.commonName == "Analysis delayed")
+        #expect(engine.speciesData?.scientificName == "Scan saved")
+        #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
+        #expect(
+            engine.speciesData?.insightData.aiReasoning
+                .contains("retry it automatically") == true
+        )
+    }
+
     @Test func consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {
         let client = MerianNetworkClient.shared
         let circuitBreaker = CircuitBreakerManager.shared
@@ -1614,9 +1795,13 @@ struct InferenceEngineTests {
         engine.activeScanId = "stale-scan-id-from-previous-scan"
         engine.recoverablePresentationScanId =
             "stale-recovery-id-from-previous-scan"
+        engine.transitionToQueuedPresentation(
+            scanId: "stale-queued-presentation"
+        )
         engine.prepareForNewScan()
         #expect(engine.activeScanId == nil, "prepareForNewScan must clear activeScanId before the next scan claims the engine")
         #expect(engine.recoverablePresentationScanId == nil)
+        #expect(engine.queuedPresentationScanId == nil)
         // isProcessing == true after prepareForNewScan is intentional: it signals a scan
         // is *about to* be submitted (it will be set by the analyze() call that follows).
         #expect(engine.isProcessing == true)

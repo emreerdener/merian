@@ -140,9 +140,20 @@ for the complete root matrix and UI behavior.
 
 ## RevenueCat contract
 
-`RevenueCatManager` configures Purchases, links the RevenueCat App User ID to the
-current Supabase Auth UUID, mirrors bounded support attributes, refreshes
-customer information, and exposes the current offering to the Settings paywall.
+`RevenueCatManager` remains unconfigured until Supabase has established a
+session, including a ghost session. It then configures Purchases directly with
+the uppercase RFC 4122 form of that Supabase Auth UUID. RevenueCat App User IDs
+are case-sensitive, so iOS and PostgreSQL must both use this one canonical form;
+an unadorned `uuid::text` value is not an equivalent customer ID. The manager
+mirrors bounded support attributes, refreshes customer information, and exposes
+the current offering to the Settings paywall.
+
+Account changes switch directly with `Purchases.logIn(canonicalUUID)`. Merian
+never configures without a custom ID and never calls `Purchases.logOut()`, both
+of which would generate a `$RCAnonymousID` customer. Sign-out clears local paid
+state and the expected/linked identity fence; purchase, restore, offer-code,
+offering, and subscription-management operations remain closed until the next
+Supabase account is linked and the SDK reports that exact non-anonymous ID.
 `RevenueCatOfferingPolicy` requires these App Store product identifiers:
 
 - `pro_week`
@@ -172,6 +183,14 @@ authoritative server-side CustomerInfo, and applies each unique event through a
 per-user monotonic database transaction. Duplicate or delayed deliveries and a
 failed provider lookup therefore cannot roll durable access backward or cause a
 backend tier mutation.
+
+The RevenueCat project's own Pro billing plan enables RevenueCat dashboard and
+integration features; it does not make any Merian customer Pro. A beta customer
+must have an active `pro` entitlement. A promotional `pro` grant is projected by
+the webhook and reconciler to the same `pro_paid` server plan as an active store
+entitlement, including Field Chat, until its explicit expiration. Directly
+editing `public.users.subscription_tier` is not a grant: authoritative
+reconciliation will intentionally restore RevenueCat's state.
 
 ## Complimentary entitlement contract
 
@@ -236,9 +255,11 @@ These invariants must all be demonstrated in a clean compiled test run before
 the strict server cutover or a production submission.
 
 - The Supabase Auth UUID remains the RevenueCat App User ID across anonymous and
-  OAuth-upgraded sessions.
-- Normal sign-out is device-local and clears RevenueCat/PostHog identity without
-  changing the durable account-wide analytics choice on other devices.
+  OAuth-upgraded sessions, always in uppercase RFC 4122 form.
+- Normal sign-out is device-local, clears RevenueCat's local linked-state fence
+  and PostHog identity, and never asks RevenueCat to generate an anonymous App
+  User ID. It does not change the durable account-wide analytics choice on
+  other devices.
 - Client SDK keys are extractable app configuration, never service-role or
   provider secrets.
 - The iOS target must never contain `REVENUECAT_WEBHOOK_SECRET`,

@@ -8361,13 +8361,15 @@ rejected before database access. The request body is capped at 256 KiB.
   and rejects timestamps more than five minutes in the past or future.
 - Missing any of the Authorization, signing, or server API secrets returns `401`
   or `503`; there is no static-secret-only compatibility path.
-- **Customer identity contract**: iOS logs RevenueCat into the Supabase Auth
-  UUID and writes subscriber attributes (`supabase_user_id`, `auth_email`,
+- **Customer identity contract**: iOS configures RevenueCat only after a
+  Supabase session exists, using the uppercase RFC 4122 Auth UUID, and writes
+  subscriber attributes (`supabase_user_id`, `auth_email`,
   `public_username`, `public_author_name`, `public_identity_source`,
-  `account_kind`) before entitlement checks. Manual dashboard adjustments should
-  use the UUID/App User ID first, with subscriber attributes as the
-  human-readable cross-reference. This applies to both RevenueCat Test Store and
-  production keys.
+  `account_kind`) before entitlement checks. Account changes use direct `logIn`;
+  the client never configures without an ID and never calls SDK logout. Manual
+  dashboard adjustments should use the uppercase UUID/App User ID first, with
+  subscriber attributes as the human-readable cross-reference. This applies to
+  both RevenueCat Test Store and production keys.
 - UUID candidates are ordered from `app_user_id`, `original_app_user_id`, then
   `aliases` and deduplicated. A RevenueCat `TRANSFER` creates independent source
   and destination subjects from its two identity arrays; it does not have an
@@ -8462,6 +8464,12 @@ MiB provider boundary as webhook processing. A claim-token-fenced
 `request_date_ms` is newer than the transactional customer watermark. Pro users
 are next due in six hours and free users in 24 hours; transient failures use
 durable database backoff.
+
+RevenueCat App User IDs are case-sensitive and subscriber GET is get-or-create.
+Database-generated queue identities therefore use
+`internal.canonical_revenuecat_app_user_id(...)`, which returns the uppercase
+Supabase UUID used by iOS. Exact webhook aliases remain valid lookup IDs and are
+not case-normalized by the scheduling RPC.
 
 Background reconciliation does not newly grant a historical `pro_week`
 transaction after a free/revoked watermark, preventing refunded pass history

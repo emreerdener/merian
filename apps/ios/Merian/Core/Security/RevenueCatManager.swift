@@ -35,6 +35,25 @@ enum RevenueCatOfferingPolicy {
     }
 }
 
+enum RevenueCatAppUserIDPolicy {
+    /// RevenueCat App User IDs are case-sensitive. Merian uses the uppercase
+    /// RFC 4122 representation emitted by Swift as the single cross-system ID.
+    static func canonicalID(for userID: UUID) -> String {
+        userID.uuidString.uppercased()
+    }
+}
+
+enum RevenueCatManagerError: LocalizedError {
+    case identityNotReady
+
+    var errorDescription: String? {
+        switch self {
+        case .identityNotReady:
+            return "RevenueCat is waiting for the active Merian account. Please try again."
+        }
+    }
+}
+
 struct RevenueCatIdentityContext: Equatable {
     let userId: String
     let email: String?
@@ -94,9 +113,7 @@ struct RevenueCatIdentityContext: Equatable {
 @MainActor
 @Observable final class RevenueCatManager {
     static let shared = RevenueCatManager()
-    private init() {
-        configure()
-    }
+    private init() {}
 
     // MARK: - State
 
@@ -112,54 +129,52 @@ struct RevenueCatIdentityContext: Equatable {
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
 
-    // MARK: - Configuration
+    private(set) var linkedAppUserID: String?
+    private var requestedAppUserID: String?
 
-    /// Configures the RevenueCat SDK and fetches initial customer state.
-    func configure() {
-        guard !TestExecutionCoordinator.isRunningTests else {
-            isProActive = false
-            isSubscribed = false
-            currentOfferings = nil
-            isFetchingOfferings = false
-            return
+    /// Purchase operations are allowed only when RevenueCat and the active
+    /// Supabase session agree on the exact canonical, non-anonymous identity.
+    var isIdentityReady: Bool {
+        guard let linkedAppUserID else { return false }
+        return isCurrentIdentity(linkedAppUserID)
+    }
+
+    private func isCurrentIdentity(_ appUserID: String) -> Bool {
+        guard !TestExecutionCoordinator.isRunningTests,
+              Purchases.isConfigured,
+              requestedAppUserID == appUserID,
+              linkedAppUserID == appUserID else {
+            return false
         }
 
-        Purchases.logLevel = .warn
+        return !Purchases.shared.isAnonymous && Purchases.shared.appUserID == appUserID
+    }
 
+    // MARK: - Configuration
+
+    private func validatedAPIKey() -> String? {
         let apiKey = MerianEnvironment.revenueCatApiKey
         guard !apiKey.isEmpty else {
             MerianLog.general.error("RevenueCat configuration skipped because REVENUECAT_API_KEY is missing.")
-            isProActive = false
-            isSubscribed = false
-            currentOfferings = nil
-            isFetchingOfferings = false
-            return
+            return nil
         }
 
         #if !DEBUG
         if apiKey.hasPrefix("test_") {
             MerianLog.general.error("RevenueCat configuration skipped because Release builds require an appl_ production iOS key, not a Test Store key.")
-            isProActive = false
-            isSubscribed = false
-            currentOfferings = nil
-            isFetchingOfferings = false
-            return
+            return nil
         }
         #endif
 
-        Purchases.configure(withAPIKey: apiKey)
-
-        Task {
-            await refreshCustomerInfo()
-            await fetchOfferings()
-        }
+        return apiKey
     }
 
     // MARK: - Identity
 
-    /// Logs in to RevenueCat with `userId` and syncs optional profile attributes.
+    /// Configures or switches RevenueCat directly to the canonical Supabase UUID.
+    /// Merian intentionally never creates or logs out to a RevenueCat anonymous ID.
     func linkWithSupabase(
-        userId: String,
+        userId: UUID,
         email: String? = nil,
         displayName: String? = nil,
         avatarUrl: String? = nil,
@@ -169,13 +184,19 @@ struct RevenueCatIdentityContext: Equatable {
         accountKind: String? = nil
     ) async {
         guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard Purchases.isConfigured else {
-            MerianLog.general.warning("RevenueCatManager.linkWithSupabase() skipped: Purchases is not configured.")
-            return
+
+        let appUserID = RevenueCatAppUserIDPolicy.canonicalID(for: userId)
+        requestedAppUserID = appUserID
+
+        if linkedAppUserID != appUserID {
+            linkedAppUserID = nil
+            isSubscribed = false
+            currentOfferings = nil
+            synchronizeFunctionalEntitlement()
         }
 
         let identity = RevenueCatIdentityContext(
-            userId: userId,
+            userId: appUserID,
             email: email,
             displayName: displayName,
             avatarUrl: avatarUrl,
@@ -185,9 +206,40 @@ struct RevenueCatIdentityContext: Equatable {
             accountKind: accountKind
         )
 
+        Purchases.logLevel = .warn
+        guard let apiKey = validatedAPIKey() else { return }
+
         do {
-            let (customerInfo, _) = try await Purchases.shared.logIn(userId)
-            updateEntitlements(with: customerInfo)
+            let customerInfo: CustomerInfo?
+            if !Purchases.isConfigured {
+                Purchases.configure(withAPIKey: apiKey, appUserID: appUserID)
+                customerInfo = nil
+            } else if Purchases.shared.appUserID == appUserID {
+                customerInfo = nil
+            } else {
+                let loginResult = try await Purchases.shared.logIn(appUserID)
+                customerInfo = loginResult.customerInfo
+            }
+
+            guard requestedAppUserID == appUserID,
+                  Purchases.shared.appUserID == appUserID,
+                  !Purchases.shared.isAnonymous else {
+                MerianLog.general.warning("RevenueCat identity changed before linking completed; ignoring stale result.")
+                return
+            }
+
+            linkedAppUserID = appUserID
+
+            if let customerInfo {
+                updateEntitlements(with: customerInfo)
+            } else {
+                await refreshCustomerInfo()
+            }
+
+            guard isCurrentIdentity(appUserID) else {
+                MerianLog.general.warning("RevenueCat identity changed before profile sync completed; ignoring stale result.")
+                return
+            }
 
             // Sync optional profile attributes.
             if let email = identity.normalizedEmail {
@@ -198,9 +250,10 @@ struct RevenueCatIdentityContext: Equatable {
             }
             Purchases.shared.attribution.setAttributes(identity.subscriberAttributes)
 
-            MerianLog.general.debug("RevenueCat login succeeded for user \(userId, privacy: .private)")
+            await fetchOfferings()
+            MerianLog.general.debug("RevenueCat identity linked for user \(appUserID, privacy: .private)")
         } catch {
-            MerianLog.general.debug("RevenueCat login failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug("RevenueCat identity link failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -209,9 +262,11 @@ struct RevenueCatIdentityContext: Equatable {
     /// Fetches the current customer info and updates entitlement state.
     func refreshCustomerInfo() async {
         guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard Purchases.isConfigured else { return }
+        guard let appUserID = linkedAppUserID,
+              isCurrentIdentity(appUserID) else { return }
         do {
             let info = try await Purchases.shared.customerInfo()
+            guard isCurrentIdentity(appUserID) else { return }
             updateEntitlements(with: info)
         } catch {
             MerianLog.general.debug("Failed to fetch customer info: \(error.localizedDescription, privacy: .private)")
@@ -249,11 +304,17 @@ struct RevenueCatIdentityContext: Equatable {
             isFetchingOfferings = false
             return
         }
-        guard Purchases.isConfigured else { return }
+        guard let appUserID = linkedAppUserID,
+              isCurrentIdentity(appUserID) else { return }
         isFetchingOfferings = true
-        defer { isFetchingOfferings = false }
+        defer {
+            if requestedAppUserID == appUserID {
+                isFetchingOfferings = false
+            }
+        }
         do {
             let offerings = try await Purchases.shared.offerings()
+            guard isCurrentIdentity(appUserID) else { return }
             currentOfferings = offerings
 
             guard let currentOffering = offerings.current else {
@@ -284,46 +345,55 @@ struct RevenueCatIdentityContext: Equatable {
         }
     }
 
-    /// Clears local entitlement state and logs out the SDK when appropriate.
+    /// Clears local entitlement state without asking RevenueCat to generate an
+    /// anonymous customer. The next Supabase session switches IDs directly.
     func handleSupabaseSignOut() async {
+        requestedAppUserID = nil
+        linkedAppUserID = nil
         isProActive = false
         isSubscribed = false
+        currentOfferings = nil
+        isFetchingOfferings = false
         EntitlementManager.shared.handleSignOut()
-
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard Purchases.isConfigured else { return }
-
-        do {
-            _ = try await Purchases.shared.logOut()
-        } catch {
-            MerianLog.general.debug("RevenueCat logOut failed: \(error.localizedDescription, privacy: .private)")
-        }
     }
 
     // MARK: - Purchases
 
     /// Initiates the purchase flow for `package`.
     func purchase(_ package: Package) async throws {
-        guard Purchases.isConfigured else {
-            throw NSError(domain: "RevenueCatManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Purchases not configured."])
+        guard let appUserID = linkedAppUserID,
+              isCurrentIdentity(appUserID) else {
+            throw RevenueCatManagerError.identityNotReady
         }
         let result = try await Purchases.shared.purchase(package: package)
+        guard isCurrentIdentity(appUserID) else { return }
         updateEntitlements(with: result.customerInfo)
     }
 
     /// Restores previous purchases from Apple.
     func restorePurchases() async throws {
-        guard Purchases.isConfigured else {
-            throw NSError(domain: "RevenueCatManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Purchases not configured."])
+        guard let appUserID = linkedAppUserID,
+              isCurrentIdentity(appUserID) else {
+            throw RevenueCatManagerError.identityNotReady
         }
         let info = try await Purchases.shared.restorePurchases()
+        guard isCurrentIdentity(appUserID) else { return }
         updateEntitlements(with: info)
+    }
+
+    /// Presents Apple's offer-code redemption sheet only for the linked account.
+    func presentCodeRedemptionSheet() {
+        guard isIdentityReady else {
+            MerianLog.general.warning("Code redemption skipped while RevenueCat identity is not ready.")
+            return
+        }
+        Purchases.shared.presentCodeRedemptionSheet()
     }
 
     /// Presents the App Store subscription management UI or opens the subscriptions settings page.
     func showManageSubscriptions() {
         guard !TestExecutionCoordinator.isRunningTests else { return }
-        guard Purchases.isConfigured else { return }
+        guard isIdentityReady else { return }
         Task {
             do {
                 try await Purchases.shared.showManageSubscriptions()

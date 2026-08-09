@@ -52,6 +52,12 @@ durable app-sandbox copy before Capture begins this pipeline:
    their existing behavior. Successful non-biological results count; the scoped
    correction flow bypasses only its Pro UI gate.
 
+   A queue-backed live request must hand presentation to that exact durable row
+   on its first transport failure, showing **Queued for later** while recovery
+   waits for eligible connectivity. This joined ownership/presentation boundary
+   is currently release-gated; see the
+   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 Free inference remains `gemini-2.5-flash` and Pro remains
 `gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
 budgets, image resolution, output limits, or the one-model-call contract.

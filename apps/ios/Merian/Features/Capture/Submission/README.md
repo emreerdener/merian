@@ -30,6 +30,29 @@ coordinates, date/time, distance, and cached telemetry. When the context task
 later finishes it updates both the local queue and `/update-scan-context`; it
 never resubmits images or triggers another Gemini call.
 
+The online check is repeated after that 150 ms grace because the path monitor's
+earlier value is advisory and connectivity may change while context resolves.
+An unavailable exact foreground generation is retired as well, so its durable
+owner cannot suppress queue recovery after no live request starts. Known
+offline state before the Insight opens stays in Capture with a queued toast. If
+connectivity or ownership changes during the grace, Capture changes the open
+sheet to **Queued for later**.
+
+The same customer contract applies after provider dispatch: the first
+queue-backed transport failure must relinquish live ownership and change the
+exact open sheet to **Queued for later**, with no synthetic **Network timeout**
+result or error haptic. A direct request with no durable queue owner may still
+use timeout recovery copy. Server/provider failures use **Analysis delayed /
+Scan saved** and remain distinct from connectivity.
+
+**Current source status (2026-08-09):** the post-grace/pre-dispatch branch has
+the required handoff, but the post-dispatch branch is not yet accepted.
+Connectivity monitoring can retire the durable foreground generation before
+the engine receives URLSession's error, causing the catch path to reject its own
+still-current presentation. The network client can also perform one inline
+transport replay before returning the error. See the release-blocking
+[live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 Gallery images and audio-bearing or video visual submissions retain their
 immediate queue-sync race. Audio/video/Describe submission commits the
 non-visual queue row synchronously before any environment-context await. It then

@@ -17,6 +17,26 @@ TestFlight, App Store, support, and QA.
 - In-app progress and error feedback remains lightweight and leaves unrelated
   screen controls available. Replaced video and audio players now detach their
   old observers so late playback callbacks cannot change the current item.
+- Fresh analysis results now reveal Share and Field chat as soon as their saved
+  scan record reaches the Insight, without requiring the Insight to be closed
+  and reopened.
+- Queued-scan retry details and controls now stay above the rotating fun-fact
+  card, keeping recovery actions ahead of educational content.
+
+### Live Scan Queue Handoff — Release-Gated
+
+- The accepted customer behavior is for a saved, queue-backed scan to change to
+  **Queued for later** on the first connectivity failure and resume under the
+  same scan ID. A direct request without a durable queue owner may still show
+  **Network timeout**; server delays use separate **Analysis delayed** copy.
+- Source currently includes exact-ID queued presentation and the final
+  pre-dispatch connectivity check, but this change is not release-ready. The
+  transport/ownership race, inline transport replay, error-placeholder
+  classification, and transport-boundary regression coverage remain open in
+  the [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+- Do not publish this as a completed TestFlight or App Store improvement until
+  one exact workflow SHA passes the complete unit target, deterministic queued
+  completion UI smoke, Release archive, and physical-device connectivity matrix.
 
 ### Sign in with Apple Account Deletion — Release-Gated
 

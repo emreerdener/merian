@@ -104,6 +104,30 @@ anon and authenticated retain no Community-table writes. Repeat all 27
 rollback-only catalog files before any linked `db push`; source-contract success
 alone is not relational authorization evidence.
 
+## RevenueCat Identity Operations
+
+RevenueCat App User IDs are case-sensitive, and `GET /v1/subscribers/{id}` is a
+get-or-create operation. Merian's only database-generated customer ID is the
+uppercase Supabase UUID returned by
+`internal.canonical_revenuecat_app_user_id(...)`, matching iOS. Never investigate
+customer-count drift by deleting provider customers or by editing
+`public.users.subscription_tier`; the former destroys history and the latter is
+correctly overwritten by authoritative reconciliation.
+
+Use the export-only comparison first:
+
+```bash
+make audit-revenuecat-customers ARGS='--supabase-users-csv /path/users.csv --revenuecat-customers-csv /path/revenuecat.csv.gz --summary-json /tmp/revenuecat-summary.json --review-csv /tmp/revenuecat-review.csv'
+```
+
+The default console and JSON output contain counts only. `--review-csv` is an
+explicit identity-bearing local artifact and must be handled accordingly. For a
+reviewed legacy beta cohort, `make grant-beta-pro` is dry-run-only unless the
+operator provides a finite `--expires-at`, `--apply`,
+`--confirm-beta-pro-grant`, an output ledger, and the server-side
+`REVENUECAT_SECRET_API_KEY`. The full order and recovery rules are in the
+[RevenueCat Webhook Release Gate](../../docs/backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate).
+
 ## Edge Functions
 
 Edge Functions are written in TypeScript and run on Deno. They handle logic like

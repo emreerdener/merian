@@ -15,13 +15,15 @@ only a camera/performance setting.
 - The Field trips surface opens directly to `Outings` for standard outings. The
   page header always includes an `Outings`/`Events` segmented picker, and Events
   lists live and upcoming curated challenges.
-- Standard Field trip and Seasonal Challenge detail pages pin `Goals` and
-  `Tips` in the sheet toolbar. `Goals` is selected by default and owns the
-  trip overview, progress, actions, checklist, and Community content; `Tips`
-  shows only the curated guide.
-- Standard outing detail places a left-aligned status badge above the title:
-  **Private** until an active publication exists and **Published** once
-  the owner has created a public outing snapshot.
+- Standard Field trip and Seasonal Challenge details use one continuous page
+  without a `Goals`/`Tips` toolbar picker or separate guide page. Expandable
+  goal tips appear inside only the current incomplete level card. Completed and
+  locked level cards never expose tips. **About this outing** follows the level
+  and Community/Event-entry content at the bottom of the page.
+- Standard outing detail places a left-aligned status badge above a centered
+  serif title and centered description. The badge reads **Private** until an
+  active publication exists and **Published** once the owner has created a
+  public outing snapshot.
 - Seasonal challenges are curated/admin-created only, live inside Field trips,
   and require an explicit Join.
 - Challenges link to existing Field trip templates but keep separate
@@ -61,15 +63,15 @@ only a camera/performance setting.
   completing scan's device-local photo or video-poster thumbnail in both the
   catalog card and outing detail. They keep the standard neutral tile border;
   blue/accent borders are reserved for an incomplete focused goal.
-- The standard outing's **Goals** page places a square, edge-to-edge featured
+- The standard outing detail places a square, edge-to-edge featured
   media carousel above its status and title whenever at least one curated goal
-  reference or completed user visual is loadable. Up to six stable goal slots
-  are selected in level-balanced checklist order. Each slot begins with one
+  reference or completed user visual is loadable. Only the current active level
+  contributes pages, in checklist order, capped at six. Each slot begins with one
   illustrative species image, trying Naturebook, Wikipedia, then GBIF; the
   exact goal's device-local photo or video poster replaces that reference after
   completion. Tapping opens the shared full-screen zoomable
-  photo/playable-video viewer. **Tips**, Events, and public publication pages
-  do not show this carousel.
+  photo/playable-video viewer. Events and public publication pages do not show
+  this carousel.
 - The active level header uses the shared circular `GoalProgressRing` at its
   trailing edge, showing completed/total outing progress consistently with
   the Scan target capsule.
@@ -99,8 +101,9 @@ only a camera/performance setting.
   experience-only subtitle, and prominent credited-level ring. Its heading
   uses the same icon and headline sizing as other Insight cards. The card keeps
   every credited outing/Event row visible and routes the full row to the
-  experience's Goals overview without a redundant chevron. It intentionally
-  drops the credited checklist focus so a completed row never opens Tips;
+  experience's detail overview without a redundant chevron. It intentionally
+  drops the credited checklist focus so a completed row never auto-expands an
+  inline tip;
   native Back returns to the originating Insight.
 - Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
@@ -142,9 +145,10 @@ migration filenames may still use `objective` or `challenge`:
 - **Outings** is the standard catalog segment; a standard item is an **outing**.
 - **Events** is the seasonal segment. **Challenge** is reserved for seasonal
   challenge data and explanatory copy inside an Event.
-- **Goals** is the default detail tab and the user-facing name for checklist
-  targets. Never label this tab **Objectives**.
-- **Tips** is the curated-guide tab.
+- **Goals** is the user-facing name for checklist targets. Never label them
+  **Objectives**.
+- **Tips** labels the expandable curated guidance inside the current incomplete
+  level card; it is not a page-navigation control.
 - Standard-outing actions are **Start outing**, **Start scanning**,
   **Resume outing**, and **Publish outing**. Never use **Start challenge** or
   **Publish challenge** for a standard outing.
@@ -186,9 +190,10 @@ difficulty.
    loads first, and `Events` separately lists live and upcoming challenges.
 2. `/field-trips` with `action: "catalog"` returns accessible and locked
    templates, their levels, checklist items, and any existing progress.
-3. Opening a catalog card loads `action: "template_detail"` and shows guide
-   sections, levels, curated item tips, and the current start/continue/publish
-   state.
+3. Opening a catalog card loads `action: "template_detail"` and shows one
+   continuous detail page: overview, levels, expandable curated tips inside the
+   current incomplete level, the current start/continue/publish state,
+   Community content, and **About this outing** at the bottom.
 4. Backyard Safari Level 1 is already active from account enrollment. For other
    unstarted outings, tapping **Start outing** calls `action: "start"`. Matching
    scans never auto-start an outing. Standard outings never use Start/Publish
@@ -206,7 +211,7 @@ difficulty.
    `backyard_safari` slug and offers an introduction only when that template is
    accessible and unstarted, such as after Reset.
 6. Swiping an active indicator cycles through all unfinished targets in server
-   order; tapping it opens the owning outing and focuses that goal's guide.
+   order; tapping it opens the owning outing and focuses that goal's inline tip.
    The introduction has no swipe behavior and opens Backyard Safari detail without
    starting it.
 7. An eligible live Capture includes the visibly selected standard goal as an
@@ -241,12 +246,13 @@ difficulty.
 11. Catalog and detail reloads associate each completed checklist item with the
     exact saved scan that completed it. iOS replaces that item's artwork with
     the scan thumbnail; completion order never determines which slot changes.
-    Standard Goals detail keeps one stable featured slot per selected goal.
+    Standard outing detail keeps one stable featured slot per selected goal.
     Before completion it uses that goal's curated illustrative species; after
     completion the exact item-to-scan link replaces the reference with the
-    user's local visual. Selection takes up to six in level-balanced checklist
-    rounds. A failed user source falls back to Naturebook, Wikipedia, then GBIF;
-    a goal with no remaining source is removed and a reserve goal refills it.
+    user's local visual. Selection takes up to six goals from the current active
+    level in checklist order. A failed user source falls back to Naturebook,
+    Wikipedia, then GBIF; a goal with no remaining source is removed and a
+    same-level reserve goal refills it.
 12. Tapping a completed goal whose scan still exists on the device pushes the
    existing Insight view inside Explore. The back arrow and swipe-back gesture
    return to the same outing sheet.
@@ -358,10 +364,10 @@ Refresh behavior:
 - retain cached content without surfacing an error if refresh fails.
 
 Tapping the indicator passes its typed `CaptureGoalDestination` into Explore.
-Explore presents the Field trips tab, opens the owning standard outing, selects
-Tips, expands the matching goal, scrolls it into view, and briefly
-highlights it. A future goal without guide content falls back to the
-highlighted Goals tile. The destination is converted at the Explore
+Explore presents the Field trips tab, opens the owning standard outing, expands
+the matching tip inside the current level card, scrolls it into view, and
+briefly highlights it. A future goal without guide content falls back to its
+highlighted goal tile. The destination is converted at the Explore
 boundary into `FieldTripTemplateRoute`, whose focused checklist-item identifier
 remains optional for ordinary outing navigation.
 Guide, objective, and Event highlight timers are stored per detail view,
@@ -607,7 +613,7 @@ only to find the caller's device-local `LocalScanRecord` and render the same
 the curated artwork remains and the app must not construct a remote or public
 evidence URL. `completed_scan_id` must not appear in public profile summaries,
 publication snapshots, challenge badges or entries, Explore feed/map payloads,
-or the capture-context response. The private Goals carousel uses this same
+or the capture-context response. The private outing-detail carousel uses this same
 local-record boundary for user evidence, but it may also render the goal's
 reusable public species-reference projection. Reference rows contain only an
 illustrative scientific/common name, sanitized URL, source, rights metadata,
@@ -981,32 +987,36 @@ survives reference-to-user replacement. The preferred source is one canonical
 photo, video poster, or legacy captured cover from the exact completed scan; a
 missing, archived, nonvisual, posterless, unloadable, duplicated, or
 reference-only local record falls through to the goal's ordered reference
-candidates. `FieldTripFeaturedMediaSelection` groups candidates by level,
-sorts each group by checklist order and stable ID, then takes one item per level
-per round up to six. Failed source identifiers advance within the same goal
-before a source-exhausted goal is removed and a reserve candidate refills the
+candidates. `FieldTripFeaturedMediaSelection` keeps only candidates belonging
+to the current active level, sorts them by checklist order and stable ID, then
+takes up to six. Completed earlier levels and locked later levels never enter
+the carousel. Failed source identifiers advance within the same goal before a
+source-exhausted goal is removed and a same-level reserve candidate refills the
 selection; reconnecting clears transient failures. Rendering reuses Insight's `NativePageCarousel`,
 `CarouselPageItem`, `ZoomPageViewController`, and shared pagination treatment,
 and the hero takes the full scroll-container width without horizontal content
-insets. On Goals, it also extends to the sheet's top edge beneath transparent
+insets. It also extends to the sheet's top edge beneath transparent
 navigation chrome; the toolbar floats over the image just as it does in
-Insight. Tips and no-media states retain the normal navigation-bar inset and
-background. All selected posters begin resolving immediately, horizontal paging
+Insight. No-media states retain the normal navigation-bar inset and background.
+All selected posters begin resolving immediately, horizontal paging
 cooperates with sheet dismissal, controller identity survives progress-driven
 updates, and photo pages inherit the same pinch-and-snap-back behavior. The
 inline carousel remains poster-only for video; tapping any page opens a
 full-screen presentation containing exactly the currently featured order with
 video muted initially. Reference pages use the shared reference gallery source,
-display their provider badge, and retain license/attribution text in the
-full-screen viewer. VoiceOver distinguishes an illustrative reference and its
-provider from the user's own photo or video.
+display their provider badge against the visible bottom edge, and retain
+license/attribution text in the full-screen viewer. Every source badge uses the
+bottom-trailing corner. A Naturebook reference with a public author username
+also displays `@username` in the bottom-leading corner; the Naturebook source
+badge remains bottom-trailing. VoiceOver distinguishes an illustrative
+reference and its provider from the user's own photo or video.
 
-While standard Goals detail is loading, its skeleton preserves the same visual
+While standard outing detail is loading, its skeleton preserves the same visual
 hierarchy: a square edge-to-edge media placeholder under transparent toolbar
 chrome, pagination treatment, then inset title, description, and level cards.
 The placeholder participates in the same top scroll-edge transition and is
-hidden from assistive technologies. Tips and Event loading states retain their
-normal inset presentation without the featured-media hero.
+hidden from assistive technologies. Event loading states retain their normal
+inset presentation without the featured-media hero.
 
 `GoalProgressRing` is a Core UI primitive shared by the Scan target capsule, the
 active standard-outing level header, and persistent Insight contribution rows.
@@ -1285,7 +1295,7 @@ the headline-sized goal name, enlarged objective art/check badge, an
 experience-only subtitle with no level, and a prominent credited-level ring
 without separators or chevrons. Confirm the heading matches other Insight card
 headers and the card reloads after that scan's progress/evidence invalidation.
-Every standard row must open at the top of Goals with no focused item; every
+Every standard row must open at the top of the outing detail with no focused item; every
 Event row must open challenge overview. Root modal, Scans-embedded,
 Explore-embedded, and modal-from-Explore paths must retain the originating
 Insight beneath the detail so native Back returns to it. Also exercise
@@ -1303,17 +1313,22 @@ and video completions, confirm the captured thumbnail has the standard neutral
 border with no blue completion outline, and tap both surfaces to open the same
 embedded Insight view. Back must return to the current outing. A missing local
 record must leave the placeholder usable and must not show a blank Insight.
-On Goals, confirm an unstarted outing begins with reference pages and one
-loadable goal produces a dot-free square hero. Several levels must produce no
-more than six pages in level-balanced checklist order. Verify each reference
+On standard outing detail, confirm an unstarted outing begins with reference pages and one
+loadable goal produces a dot-free square hero. The carousel must include only
+the current active level's goals, with no completed earlier-level or locked
+later-level pages, and must cap that level at six in checklist order. Advancing
+the outing must replace the carousel contents with the new active level. Verify each reference
 tries Naturebook, Wikipedia, then GBIF; source badges and full-screen rights
 attribution remain legible; completing that exact goal replaces the same stable
 page with the user's visual; video pages show a poster/play badge and open muted
 playable video; and photos open the swipe/zoom viewer. Failed user media must
 fall back to the goal reference, a source-exhausted goal must refill from a
 reserve, and exhausting every user/reference source must collapse the hero
-without affecting the title layout. Switching to Tips must remove the hero.
-Exercise compact and large iPhones, light/dark appearance, Dynamic Type,
+without affecting the title layout. Confirm there is no segmented detail
+picker, expandable tips appear only inside the current incomplete level card,
+completed and locked cards expose no tips, and **About this outing** follows all
+levels and Community/Event-entry content at the bottom. Exercise compact and
+large iPhones, light/dark appearance, Dynamic Type,
 VoiceOver, Reduce Motion, offline-to-online retry, progress refresh, and
 Reset/removal while preserving a still-valid selected goal page. At the
 database boundary, confirm catalog/detail return the completion row's exact

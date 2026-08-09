@@ -162,7 +162,10 @@ orphaned object does not reconstruct its relational context.
   or relaunch also makes it eligible. Late context is merged locally and through
   `/update-scan-context` without another model call. Gallery, audio-bearing, and
   video submissions remain instrumented but retain their prior context wait and
-  upload scheduling behavior.
+  upload scheduling behavior. Queue eligibility is separate from the open
+  Insight's exact-ID presentation handoff; the latter remains release-gated by
+  the
+  [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan
   ingestion, cloud deletion, and collection-sync jobs according to persisted

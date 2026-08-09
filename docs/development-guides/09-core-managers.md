@@ -1270,23 +1270,28 @@ and `KeychainManager` migration logic. Do not inline
   unset, but passes the cached user ID to `ConsentManager` so required-consent
   restoration cannot briefly resolve to Ready. The subsequent
   `tokenRefreshed` or `signedOut` event completes the decision.
-- **`lastLinkedUserId` dedup guard**: `private var lastLinkedUserId: String?` —
-  prevents double RevenueCat login and double PostHog identify on cold start.
+- **`lastLinkedUserId` dedup guard**: `private var lastLinkedUserId: UUID?` —
+  prevents duplicate historical synchronization on cold start while allowing a
+  failed RevenueCat identity link to retry until its exact UUID fence is ready.
   The Supabase SDK emits two auth events per session restore (local cache read +
-  server validation); this guard skips the second event for the same user ID so
-  external identity systems are only notified once per session.
+  server validation); the second event for the same user does not repeat the
+  history download, even if it must retry RevenueCat configuration.
 - **RevenueCat identity attributes**: `linkExternalTelemetry(user:)` performs a
   best-effort read of the user's `public.users` row before calling
   `RevenueCatManager.shared.linkWithSupabase(...)`. The RevenueCat customer
-  keeps the Supabase Auth UUID as the App User ID and also receives subscriber
-  attributes such as `supabase_user_id`, `auth_email`, `public_username`,
-  `public_author_name`, `public_identity_source`, and `account_kind` so Test
-  Store customers can be matched back to Merian accounts. The lookup decodes a
+  keeps the uppercase Supabase Auth UUID as the case-sensitive App User ID and
+  also receives subscriber attributes such as `supabase_user_id`, `auth_email`,
+  `public_username`, `public_author_name`, `public_identity_source`, and
+  `account_kind` so Test Store customers can be matched back to Merian accounts.
+  The lookup decodes a
   bounded array and uses its first row rather than requiring PostgREST
   singular-object semantics. A newly authenticated user may not have a
   `public.users` projection yet; an empty result is a normal best-effort
   fallback, not a `406` auth failure, and telemetry linking continues with Auth
   metadata.
+  RevenueCat remains unconfigured until this UUID exists. Session replacement
+  switches directly with `logIn`; sign-out clears the manager fence without SDK
+  logout, preventing `$RCAnonymousID` customer creation.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
   serializes anonymous session creation across all callers. This closes the

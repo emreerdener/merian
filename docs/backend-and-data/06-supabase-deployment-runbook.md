@@ -2750,7 +2750,8 @@ rule.
 
 Migrations `20260723201500_secure_revenuecat_webhook_delivery.sql` and
 `20260725052338_reconcile_revenuecat_subscribers.sql`, followed by
-`20260726031502_scale_revenuecat_reconciliation.sql`, must land before the
+`20260726031502_scale_revenuecat_reconciliation.sql` and
+`20260809055035_canonicalize_revenuecat_app_user_ids.sql`, must land before the
 hardened `revenuecat-webhook` and `reconcile-revenuecat-subscribers` bundles.
 Populate and configure the credentials before merging the first deployment:
 
@@ -2768,8 +2769,80 @@ Populate and configure the credentials before merging the first deployment:
    `/functions/v1/revenuecat-webhook` route and that the RevenueCat project
    contains the reviewed `pro` or `Naturalist Tier` entitlement plus `pro_week`.
    If the integration filters event types, it must include `TRANSFER` as well as
-   the subscription/purchase lifecycle events; RevenueCat sends no separate
-   expiration/renewal pair for a transfer.
+   the subscription/purchase lifecycle events, including production
+   `NON_RENEWING_PURCHASE` events from promotional grants; RevenueCat sends no
+   separate expiration/renewal pair for a transfer.
+
+### Case-sensitive customer IDs and beta migration
+
+RevenueCat project billing being Pro enables integrations such as webhooks; it
+does not grant Merian Pro to any customer. RevenueCat App User IDs are
+case-sensitive, and `GET /v1/subscribers/{app_user_id}` creates the customer when
+it does not exist. Merian therefore uses the uppercase RFC 4122 Supabase UUID
+everywhere. The forward migration canonicalizes only queue lookups already
+proven to be the same UUID, clears their outstanding claim leases, and preserves
+emails, provider aliases, `$RCAnonymousID` values, and nonmatching identifiers.
+
+Before the migration, export `public.users` from Supabase and use RevenueCat
+Customers → All customers → Export all. The RevenueCat `.csv.gz` export can be
+passed directly to the offline audit:
+
+```bash
+make audit-revenuecat-customers ARGS='--supabase-users-csv /secure/users.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --summary-json /tmp/revenuecat-customer-summary.json --review-csv /secure/revenuecat-review.csv'
+```
+
+The console and summary JSON are aggregate-only. The optional review CSV
+contains App User IDs and must remain in operator-controlled storage. It
+classifies canonical UUIDs, case variants, RevenueCat anonymous IDs, unknown
+UUIDs, and linked/unlinked aliases; purchase or promotional history always
+fails closed to retention. This workflow performs no API requests and never
+deletes a customer.
+
+Do not bulk-delete the extra RevenueCat rows. Deletion permanently removes
+customer history, attributes, aliases, and promotional grants, while the iOS
+SDK or the reconciler's get-or-create call can create a new record later. That
+repopulation is not recovery of the deleted history and may not restore the
+correct purchase identity. Keep all existing records until the canonical-ID
+release has stopped new duplication and a separately approved, purchase-safe
+support process has resolved aliases.
+
+After deploying the database migration, plan the one-time beta grant from the
+pre-migration Supabase snapshot. By default the tool selects only rows that were
+`subscription_tier = pro` with no `subscription_expires_at`; it excludes timed
+passes and checks live RevenueCat state in apply mode so already-active Pro
+customers are not granted again. The supplied 2026-08-09 snapshot has 100 users
+and produces 95 candidates under this permanent-Pro rule. Re-export and review
+the count before any apply:
+
+```bash
+make grant-beta-pro ARGS='--users-csv /secure/users.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-plan.json --results-csv /secure/beta-pro-results.csv'
+```
+
+Dry-run mode performs zero RevenueCat requests. Choose a finite beta end date;
+apply mode rejects a grant shorter than one hour or longer than 366 days. Once
+the plan and cohort are approved, load `REVENUECAT_SECRET_API_KEY` into the
+operator environment without placing it in source or command history, then run:
+
+```bash
+make grant-beta-pro ARGS='--users-csv /secure/users.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-apply.json --results-csv /secure/beta-pro-results.csv --apply --confirm-beta-pro-grant'
+```
+
+The apply path GETs each canonical customer, skips an already-active `pro`, and
+POSTs only missing promotional grants with the fixed expiration. RevenueCat
+emits a production `NON_RENEWING_PURCHASE` webhook; the normal webhook and
+scheduled repair project it to `subscription_tier = pro` / `pro_paid`. This is
+the same functional Pro gate as a store entitlement and includes Field Chat for
+the grant period. A direct database-only Pro edit is not beta authority and is
+intentionally reverted when RevenueCat reports no active entitlement. Retain
+the results ledger, verify zero failures and the reconciliation monitor, and
+never retry with a different end time until the first result is understood.
+
+The production order is: retain both exports, deploy the forward database
+migration, verify queue health, apply the reviewed promotional cohort, then
+release the iOS custom-ID-only build. After the iOS rollout, sign out and enter a
+new ghost session on a clean test device; RevenueCat must switch from one
+uppercase UUID to the next without creating a new `$RCAnonymousID` customer.
+None of these steps authorizes deletion of historical provider customers.
 
 Run the complete preflight:
 
@@ -2785,7 +2858,8 @@ deno test --frozen \
   services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
-  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts
+  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts \
+  services/supabase/scripts/revenuecat_customer_operations_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \
@@ -3786,7 +3860,8 @@ WHERE handoff.status = 'merged'
   AND handoff.merged_at >= pg_catalog.NOW() - INTERVAL '24 hours'
   AND (
     queue.merian_user_id IS NULL
-    OR queue.lookup_app_user_id IS DISTINCT FROM handoff.target_user_id::TEXT
+    OR queue.lookup_app_user_id IS DISTINCT FROM
+       internal.canonical_revenuecat_app_user_id(handoff.target_user_id)
     OR queue.updated_at < handoff.merged_at
   )
 ORDER BY handoff.merged_at;
@@ -5987,7 +6062,10 @@ After deployment:
   anon/authenticated/service-role = `false`/`false`/`true`. Treat elevated `401`
   as credential/signature drift and elevated `502`/`503` as RevenueCat API,
   profile, or database availability; never bypass reconciliation to clear the
-  retry queue.
+  retry queue. Confirm every database-generated UUID lookup equals
+  `internal.canonical_revenuecat_app_user_id(merian_user_id)`, run the offline
+  customer export audit, and verify a sign-out-to-ghost transition creates no
+  new RevenueCat anonymous customer.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,

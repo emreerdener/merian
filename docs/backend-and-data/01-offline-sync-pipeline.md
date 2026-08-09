@@ -1213,10 +1213,21 @@ the latch without waiting for a URLSession delegate callback.
   cancelled live error handler from overwriting the recovered result. A stale
   background completion that finds replacement generation B returns without
   cancelling B. This prevents the old live task from resuming after
-  foregrounding, finding a cold network, and showing "Network timeout" on a scan
-  whose result is already committed to the database. The insight sheet's
-  `InsightContentView` observer (`isProcessing == false && speciesData != nil`)
-  transitions out of "Analyzing..." mode immediately.
+  foregrounding, finding a cold network, and overwriting a scan whose result is
+  already committed to the database. The required queue-backed connectivity
+  path publishes `queuedPresentationScanId`; the open Insight snapshots that
+  durable row and shows **Queued for later** while the background owner resumes,
+  instead of manufacturing a **Network timeout** result. Durable foreground
+  retirement and local presentation authority must be evaluated separately:
+  path monitoring can retire the former before URLSession returns, while the
+  exact still-current sheet still needs to acknowledge queue takeover. The
+  current catch path couples those checks and is release-blocked pending the
+  transport-level race coverage in the
+  [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+  Same-ID background completion continues to use the result observer
+  (`isProcessing == false && speciesData != nil`). Queue takeover instead uses
+  `InsightSheetView`'s task keyed by `queuedPresentationScanId`, with a bounded
+  exact-ID SwiftData fetch before it routes to queued content.
 - **UUID Terminality**: `OfflineQueueManager` strictly awaits the resolved
   finalized database UUID from `dbActor.processAndCleanupOfflineScan()` (the
   "Terminal ID"). This effectively terminates the ephemeral offline properties

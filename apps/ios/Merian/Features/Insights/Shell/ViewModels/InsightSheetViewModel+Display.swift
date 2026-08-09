@@ -7,6 +7,11 @@ enum InsightShareRecommendation: Equatable {
     case communityResolvedNeedsPublish
 }
 
+struct InsightResultToolbarRevealKey: Equatable {
+    let scanId: String?
+    let presentationGeneration: UInt64
+}
+
 extension InsightSheetViewModel {
     var hasUserMedia: Bool {
         activeMedia.hasUserImage
@@ -40,6 +45,16 @@ extension InsightSheetViewModel {
     var isProcessing: Bool {
         if queuedContext != nil { return true }
         return inferenceEngine?.isProcessing ?? false
+    }
+
+    /// Restarts the delayed result-toolbar reveal when a completed scan record
+    /// becomes available after the analysis UI has already been presented.
+    /// The generation keeps same-ID queued-to-result handoffs identity-safe.
+    var resultToolbarRevealKey: InsightResultToolbarRevealKey {
+        InsightResultToolbarRevealKey(
+            scanId: presentedLocalRecordScanId,
+            presentationGeneration: scanBoundActionGeneration
+        )
     }
 
     // MARK: - Carousel Computed Properties

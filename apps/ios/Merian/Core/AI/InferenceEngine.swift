@@ -101,6 +101,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// so a later URLSession or status-recovery winner can replace the local
     /// error placeholder without overwriting a newer scan presentation.
     @ObservationIgnored var recoverablePresentationScanId: String?
+    /// Exact durable scan whose live request relinquished foreground ownership
+    /// and should now use the queue-aware Insight presentation. Unlike
+    /// `recoverablePresentationScanId`, this value is observable because the
+    /// visible sheet uses it to bind the matching `OfflineQueuedScan` snapshot.
+    private(set) var queuedPresentationScanId: String?
     @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
     var scanningPhaseText: String = "Analyzing subject..."
@@ -486,6 +491,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         // Reset scan identity and processing flags.
         self.activeScanId = nil
         self.recoverablePresentationScanId = nil
+        self.queuedPresentationScanId = nil
         self.pendingFirstRenderMetric = nil
         self.isProcessing = true
         self.scanningPhaseText = "Analyzing subject..."
@@ -779,6 +785,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         persistedMediaItems: [MediaItem]? = nil
     ) {
         recoverablePresentationScanId = nil
+        queuedPresentationScanId = nil
         if let persistedMediaItems {
             activeMedia.items = persistedMediaItems
         }
@@ -1555,6 +1562,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     return
                 }
 
+                if publishQueuedConnectivityFailureIfNeeded(
+                    error,
+                    scanId: ownedScanId,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                ) {
+                    return
+                }
+
                 if let apiError = error as? MerianError, apiError == .decodingFailed {
                     AppTelemetry.trackError("APIDecodingFailure")
                     // No refund: the scan is already durably in the offline queue and will be
@@ -1572,17 +1588,32 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     return
                 }
 
-                // Network failure — the scan is already in the offline queue and will be
-                // retried by the background upload path. No refund or re-enqueue needed.
-                AppTelemetry.trackError("InferenceNetworkFailure")
+                // Remaining failures are not assumed to be connectivity loss. A
+                // queue-backed transport failure already returned through the dedicated
+                // queued presentation above; server and client-contract failures keep
+                // distinct copy while the durable background owner continues recovery.
+                let isConnectivityFailure = Self.isConnectivityFailure(error)
+                AppTelemetry.trackError(
+                    isConnectivityFailure
+                        ? "InferenceNetworkFailure"
+                        : "InferenceServiceFailure"
+                )
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Inference failure: \(error.localizedDescription, privacy: .private)")
                 if stillOwnsAttempt {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(
-                        title: "Network timeout",
-                        subtitle: "Offline mode",
-                        reasoning: Self.networkTimeoutRecoveryReason,
+                        title: isConnectivityFailure
+                            ? "Network timeout"
+                            : "Analysis delayed",
+                        subtitle: ownedScanId == nil
+                            ? "Please try again"
+                            : "Scan saved",
+                        reasoning: isConnectivityFailure
+                            ? Self.networkTimeoutRecoveryReason
+                            : (ownedScanId == nil
+                                ? Self.serviceFailureReason
+                                : Self.savedServiceFailureReason),
                         telemetry: telemetry
                     )
                 }
@@ -1916,15 +1947,40 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 ) {
                     return
                 }
-                AppTelemetry.trackError(filteredAudioFilePaths.isEmpty ? "DescribeInferenceFailure" : "InferenceNetworkFailure")
+
+                if publishQueuedConnectivityFailureIfNeeded(
+                    error,
+                    scanId: ownedScanId,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                ) {
+                    return
+                }
+
+                let isConnectivityFailure = Self.isConnectivityFailure(error)
+                AppTelemetry.trackError(
+                    isConnectivityFailure
+                        ? "InferenceNetworkFailure"
+                        : (filteredAudioFilePaths.isEmpty
+                            ? "DescribeInferenceFailure"
+                            : "InferenceServiceFailure")
+                )
                 CircuitBreakerManager.shared.recordFailure()
                 MerianLog.general.debug("Non-visual inference failure: \(error.localizedDescription, privacy: .private)")
                 if stillOwnsAttempt {
                     HapticManager.shared.triggerErrorThump()
                     self.speciesData = makeErrorSpeciesData(
-                        title: "Network timeout",
-                        subtitle: "Please try again",
-                        reasoning: Self.networkTimeoutRecoveryReason,
+                        title: isConnectivityFailure
+                            ? "Network timeout"
+                            : "Analysis delayed",
+                        subtitle: ownedScanId == nil
+                            ? "Please try again"
+                            : "Scan saved",
+                        reasoning: isConnectivityFailure
+                            ? Self.networkTimeoutRecoveryReason
+                            : (ownedScanId == nil
+                                ? Self.serviceFailureReason
+                                : Self.savedServiceFailureReason),
                         telemetry: telemetry
                     )
                 }
@@ -1935,8 +1991,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     // MARK: - Error State Factory
 
     private static let networkTimeoutRecoveryReason =
-        "Naturebook saved this scan and will retry automatically when your connection is back. " +
-        "You can leave this screen and check Scans later, or try again after reconnecting."
+        "Naturebook couldn’t reach the analysis service. Check your connection and try again."
+
+    private static let serviceFailureReason =
+        "Naturebook couldn’t complete this analysis because the service returned an " +
+        "unexpected response. Please try again."
+
+    private static let savedServiceFailureReason =
+        "Naturebook saved this scan and will retry it automatically. You can leave this " +
+        "screen and check Scans later."
 
     private static let consentRequiredRecoveryReason =
         "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
@@ -1962,6 +2025,68 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     private static let observationRejectedReason =
         "Naturebook couldn’t process this observation. Try a different photo or " +
         "recording with the subject clearly visible."
+
+    /// Moves an already-durable scan out of the live-result state and into the
+    /// Insight queue presentation. The queue owns all retry work from this point;
+    /// no synthetic `SpeciesData` or error haptic is appropriate.
+    func transitionToQueuedPresentation(scanId: String) {
+        let normalizedScanId = scanId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedScanId.isEmpty else { return }
+
+        recoverablePresentationScanId = normalizedScanId
+        queuedPresentationScanId = normalizedScanId
+        pendingFirstRenderMetric = nil
+        phaseRotationTask?.cancel()
+        scanningPhaseText = "Queued for later"
+        speciesData = nil
+        isProcessing = false
+    }
+
+    private static func isConnectivityFailure(_ error: Error) -> Bool {
+        if (error as? MerianError) == .networkTimeout {
+            return true
+        }
+        guard let code = (error as? URLError)?.code else {
+            return false
+        }
+        return [
+            .timedOut,
+            .cannotFindHost,
+            .cannotConnectToHost,
+            .networkConnectionLost,
+            .dnsLookupFailed,
+            .notConnectedToInternet,
+            .internationalRoamingOff,
+            .callIsActive,
+            .dataNotAllowed,
+            .secureConnectionFailed
+        ].contains(code)
+    }
+
+    @discardableResult
+    private func publishQueuedConnectivityFailureIfNeeded(
+        _ error: Error,
+        scanId: String?,
+        foregroundInferenceGeneration: UUID?
+    ) -> Bool {
+        guard Self.isConnectivityFailure(error),
+              let scanId,
+              foregroundInferenceGeneration != nil else {
+            return false
+        }
+
+        // Physical captures are already durable before this request starts.
+        // Connectivity loss therefore changes presentation and ownership, not
+        // scan success: background recovery continues from the same scan ID.
+        AppTelemetry.trackError("InferenceQueuedForConnectivity")
+        CircuitBreakerManager.shared.recordFailure()
+        MerianLog.general.debug(
+            "Live inference lost connectivity; presenting durable queue state."
+        )
+        transitionToQueuedPresentation(scanId: scanId)
+        return true
+    }
 
     private static func isTerminalObservationRejection(_ error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, _) = error,
@@ -2106,8 +2231,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         return true
     }
 
-    /// Builds an error-placeholder `SpeciesData` for the two failure paths in `analyze()`.
-    /// Both branches share identical field layout — only the title, subtitle, and reasoning differ.
+    /// Builds an error-placeholder `SpeciesData` for failures that cannot use the
+    /// durable queued presentation. Every branch shares the same field layout.
     private func makeErrorSpeciesData(
         title: String,
         subtitle: String,
@@ -3161,6 +3286,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.isLookalikesLoading = false
         self.speciesData = nil
         self.recoverablePresentationScanId = nil
+        self.queuedPresentationScanId = nil
         self.pendingFirstRenderMetric = nil
         self.activeMedia = ActiveScanMedia()
         activeLatitude = nil
@@ -3229,6 +3355,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         )
         inferenceTask?.cancel()
         recoverablePresentationScanId = nil
+        queuedPresentationScanId = nil
         liveHydrationTask?.cancel()
         self.isProcessing = true
         historicHydrationTask?.cancel()

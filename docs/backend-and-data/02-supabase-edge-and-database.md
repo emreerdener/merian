@@ -1630,6 +1630,10 @@ transactional watermark. Pro users are revisited every six hours and free users
 every 24 hours. Webhook handling also advances affected subjects' due times.
 Historical seven-day purchases are not newly granted by background
 reconciliation, so a refund cannot be resurrected from CustomerInfo history.
+Migration `20260809055035_canonicalize_revenuecat_app_user_ids.sql` aligns the
+queue and ghost-merge repair with iOS's uppercase, case-sensitive App User ID.
+It resets claims only for lookups proven to be the same UUID and leaves
+provider-supplied aliases untouched.
 
 The service-only `get_revenuecat_reconciliation_health()` RPC returns due count,
 expired-claim count, and oldest due age. A separate GitHub monitor checks it
@@ -1642,8 +1646,10 @@ any timed recurring, grace-period, or pass grant reaches
 transition.
 
 RevenueCat customer identity is linked by the iOS client before purchase
-evaluation: `SupabaseManager.linkExternalTelemetry(user:)` logs RevenueCat in
-with the Supabase Auth UUID and sets subscriber attributes such as
+evaluation: `SupabaseManager.linkExternalTelemetry(user:)` configures the SDK
+directly with the uppercase Supabase Auth UUID on first use and switches known
+accounts with `logIn`, without an anonymous configuration or SDK logout. It sets
+subscriber attributes such as
 `supabase_user_id`, `auth_email`, `public_username`, `public_author_name`,
 `public_identity_source`, and `account_kind`. Manual RevenueCat Test Store
 support work should search by the Supabase UUID first, then by those attributes.
@@ -2651,7 +2657,9 @@ these invariants:
   fails closed without applying stale entitlement state.
 - Completion unconditionally inserts or updates the destination's
   `internal.revenuecat_reconciliation_queue` row, sets
-  `lookup_app_user_id = target_user_id::text`, makes it due immediately, and
+  `lookup_app_user_id =
+  internal.canonical_revenuecat_app_user_id(target_user_id)`, makes it due
+  immediately, and
   clears attempt, claim, and error state. This repair cannot depend on a source
   queue row: anonymous sources may have none, and the queue is the durable
   recovery path for a completely missed provider webhook.

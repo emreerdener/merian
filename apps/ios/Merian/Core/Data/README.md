@@ -130,6 +130,16 @@ description-only staged work, which has no successful upload transition to
 reset the counter. A known cloud-complete result is the exception: manual retry
 preserves its owner-result marker and cannot re-enable provider dispatch.
 
+The foreground generation and the open Insight's local presentation generation
+serve different purposes. Connectivity loss may synchronously retire durable
+provider ownership so the queue can recover, but that retirement must not erase
+the exact still-current sheet's authority to acknowledge the handoff as
+**Queued for later**. Conversely, local presentation authority never permits a
+retired task to persist a provider result, delete queue state, record transport
+failure, or overwrite a newer/completed presentation. The current joined-source
+gap and required race tests are tracked in the
+[live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
 Consent-policy rejection is outside that retry-budget state machine. Foreground
 request preparation and background response classification treat only exact
 handler-owned `403 ai_consent_required` as `.consentRequired`. The queue records

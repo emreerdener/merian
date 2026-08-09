@@ -244,6 +244,25 @@ extension InsightSheetViewModel {
         cachedActiveMedia = context.capturedMediaSnapshot.activeScanMedia
     }
 
+    /// Resolves the durable queue row for a live sheet that relinquished its
+    /// foreground request after connectivity changed. Snapshotting immediately
+    /// keeps the presentation safe if background recovery later deletes the row.
+    @discardableResult
+    func bindQueuedPresentationIfAvailable(
+        scanId: String,
+        modelContext: ModelContext
+    ) -> Bool {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = (try? modelContext.fetch(descriptor))?.first else {
+            return false
+        }
+        bindQueuedPresentation(QueuedScanContext(from: scan))
+        return true
+    }
+
     func releaseQueuedPresentation(expectedScanId: String) {
         guard queuedContext?.id
             .caseInsensitiveCompare(expectedScanId) == .orderedSame else {

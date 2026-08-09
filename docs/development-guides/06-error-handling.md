@@ -28,10 +28,11 @@ public enum MerianError: LocalizedError, Equatable {
 | Case                            | Meaning                                                           | Caller contract                                                                                                   |
 | ------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `invalidURL`                    | URL construction failed (programming error)                       | Log and abort. Do not retry.                                                                                      |
-| `uploadFailed`                  | R2 `PUT` returned non-200.                                        | Retain in queue for recoverable codes (429, 5xx). Tombstone for auth failures (401, 403).                         |
+| `uploadFailed`                  | R2 `PUT` returned non-200.                                        | Retain local media; retry transient 429/5xx and use needs-attention for auth/policy. Never infer deletion.        |
 | `invalidResponse`               | Missing/non-HTTP, malformed-success, or unresolved auth response. | Never infer a remote mutation from this error. Preserve durable retry state and surface the appropriate UI error. |
 | `decodingFailed`                | `JSONDecoder` failed on a network response.                       | Surface "Analysis Failed" graceful degradation result in `InsightSheet`; queued retry keeps the consumed scan.    |
-| `networkTimeout`                | The network request timed out aggressively.                       | Surface a "Network timeout" retry placeholder + scan queued silently                                              |
+| `httpError`                     | A handler or service returned non-2xx.                            | Classify by stable handler code and durable ownership; never infer device connectivity from a `5xx`.              |
+| `networkTimeout`                | The request boundary classified connectivity loss.               | Queue-backed work changes to the exact queued presentation; only queue-less direct work shows "Network timeout". |
 | `aiConsentRequired`             | Required adult, Terms, or Gemini cloud evidence is absent or rejected. | Preserve the saved scan, return the account to Ready, and never increment the network circuit breaker.         |
 | `proRequiredForOfflineTracking` | Legacy compatibility signal; current scan submissions are queue-backed before inference | Do not use it to delete or reject an already-durable ordinary Flash queue item. Pro-only mode selection is gated before submission. |
 | `hardwareUnavailable`           | LiDAR or other required physical drivers failed to boot.          | Show UI alert explaining hardware constraints.                                                                    |
@@ -117,13 +118,9 @@ The complete evidence and release closure test are in the
    Authenticated/public transport, `5xx`, route-propagation, and guest-session
    retry sleeps must propagate this cancellation before issuing another request;
    never use `try?` around those sleeps.
-2. **`MerianError.decodingFailed`** — Gemini returned a malformed or unreadable
-   response. Do **not** refund the token — the scan is already in the offline
-   queue and will be retried by the background upload path. Refunding here would
-   give the user a free extra scan against a quota already consumed. Set
-   `speciesData` to an "Analysis Failed" placeholder
-   (`commonName: "Analysis Failed"`, `scientificName: "Data Unreadable"`). Show
-   InsightSheet with degraded result.
+2. **Recoverable exact-ID ingestion conflict** — Publish **Restoring scan /
+   Safely saved**, retain the exact presentation scan ID, and allow background
+   or status recovery to hydrate only that same UUID.
 3. **`MerianError.aiConsentRequired`** — Keep the saved observation and media,
    publish **Approval needed / Scan saved** only as a temporary fallback while
    root presentation returns the account to Ready, and stop. Do not record a
@@ -138,14 +135,33 @@ The complete evidence and release closure test are in the
    not processed**, mirror the background queue's terminal non-actionable
    disposition, and do not record a network circuit failure or retry the same
    rejected media as though connectivity had failed.
-6. **All other errors (network failure, timeout, etc.)** — Record circuit
-   failure via `CircuitBreakerManager.shared.recordFailure()`. Set `speciesData`
-   to a "Network timeout" placeholder with automatic-retry recovery copy. Do not
-   refund and do not re-enqueue — the scan is already in the offline queue and
-   will be retried by the background upload path. This placeholder is not a
-   non-biological model classification even though it suppresses the biological
-   result UI, so it must not show the non-biological badge, collection copy, or
-   retention warning.
+6. **Queue-backed connectivity failure** — Release the upload hold, retire the
+   foreground provider owner idempotently, publish the exact
+   `queuedPresentationScanId`, and stop live processing without `SpeciesData`,
+   error haptic, or network-circuit failure. The open Insight binds only that
+   durable row and shows **Queued for later**. A first transport failure returns
+   directly to this branch; the durable queue owns later retry.
+7. **`MerianError.decodingFailed`** — Gemini returned a malformed or unreadable
+   response. Do **not** refund the token — the scan is already in the offline
+   queue and will be retried by the background upload path. Refunding here would
+   give the user a free extra scan against a quota already consumed. Set
+   `speciesData` to an **Analysis Failed / Data Unreadable** error placeholder.
+8. **Remaining failures** — Classify connectivity separately from service or
+   client-contract failure. Queue-less connectivity may show **Network timeout /
+   Please try again**. A saved service failure uses **Analysis delayed / Scan
+   saved** while the durable queue owns recovery. Both are error-presentation
+   states, never non-biological classifications; placeholder routing must hide
+   collection/retention success treatment.
+
+The queue-backed branch above is the required contract, not current release
+evidence. Connectivity monitoring can retire the durable generation before
+URLSession returns, and the current catch guard can then skip queued
+presentation. The shared network helper can also replay once before returning
+the failure, while **Analysis delayed** is absent from the current placeholder
+whitelist. See the
+[live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
+for the ownership split, no-inline-replay rule, transport-level regression
+matrix, and closure status.
 
 ---
 
@@ -165,7 +181,9 @@ Upload (background URLSession upload task)
     ├── Other transport error → log, retain in queue with persisted retry metadata until retry budget ends
     ├── HTTP 200 → dispatch a generation-tagged background inference download task
     ├── HTTP 429 / 5xx → retain in queue (recoverable)
-    ├── HTTP 401 / 403 → needs attention (auth failure, terminal)
+    ├── HTTP 401 → retain for authenticated durable retry
+    ├── Exact 403 ai_consent_required → needs attention until fresh approval
+    ├── Other HTTP 403 → needs attention (authorization failure)
     └── HTTP 4xx (other) → needs attention (terminal)
 
 Inference (background URLSession download task)
@@ -235,8 +253,11 @@ write.
 | Error scenario                                                                                                                  | UI outcome                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inference decoding failure (`MerianError.decodingFailed`)                                                                       | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                                                                                                                                          |
-| Network timeout (Pro user)                                                                                                      | InsightSheet opens with a "Network timeout" placeholder, explains automatic retry/reconnect behavior, and suppresses non-biological collection/retention copy                                                                                                                                                             |
-| Network timeout (Free user)                                                                                                     | Paywall sheet requested through `AppRoute.proAccessRequired` and serialized by the root route coordinator                                                                                                                                                                                                                |
+| Known offline before queue-backed provider dispatch                                                                             | Keep the exact durable row and show queued confirmation; do not start live provider transport                                                                                                                                                                                                                            |
+| First queue-backed connectivity failure after dispatch                                                                          | Required result is same-ID **Queued for later** with automatic-resume copy, no synthetic result/haptic/circuit failure, and exactly one live request. This path remains release-gated by the live scan connectivity incident.                                                                                              |
+| Queue-less direct connectivity failure                                                                                          | InsightSheet may show **Network timeout / Please try again** as an inference error placeholder; never show non-biological collection/retention copy                                                                                                                                                                       |
+| Exhausted queue-backed handler/provider service failure                                                                         | Show **Analysis delayed / Scan saved** as an inference error placeholder and retain durable retry; never label the device offline or present non-biological success treatment                                                                                                                                             |
+| Exact handler-owned `402 pro_required`                                                                                           | Show **Upgrade needed / Scan saved** for the retained observation; entitlement policy, not connectivity, owns the next action                                                                                                                                                                                            |
 | Exact handler-owned `403 ai_consent_required` or missing authoritative pre-dispatch consent proof                               | Preserve the saved observation and media, pause inference while consent is invalid, durably route only the active account to Ready, and collect fresh head-anchored approval. **Start scanning** resumes at most the newest same-account, same-ID row with an unreleased dispatchable reservation; provider dispatch still requires another authoritative fetch. This is not quota exhaustion and must not show paywall or daily-limit UI. |
 | R2 upload failure (missing source file)                                                                                         | Queued scan remains visible with needs-attention copy plus retry/cancel actions                                                                                                                                                                                                                                           |
 | R2 upload transient failure                                                                                                     | Queued scan remains saved locally with persisted next retry time                                                                                                                                                                                                                                                          |

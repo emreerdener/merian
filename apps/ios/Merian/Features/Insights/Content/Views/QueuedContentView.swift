@@ -125,6 +125,20 @@ struct QueuedContentView: View {
         !queuedContext.capturedMediaSnapshot.videoPaths.isEmpty
     }
 
+    /// True when this queued view replaced the live analyzing sheet after the
+    /// foreground request lost connectivity or relinquished ownership.
+    private var isLiveQueueHandoff: Bool {
+        inferenceEngine.queuedPresentationScanId?
+            .caseInsensitiveCompare(queuedContext.id) == .orderedSame
+    }
+
+    private var liveQueueHandoffMessage: String {
+        if offlineQueueManager.isOnline {
+            return "Saved to Scans. Analysis is continuing automatically."
+        }
+        return "Saved to Scans. Analysis will resume automatically when your connection is back."
+    }
+
     private var phaseRotationID: PhaseRotationID {
         PhaseRotationID(
             scanId: queuedContext.id,
@@ -139,6 +153,11 @@ struct QueuedContentView: View {
     /// Honest queue-aware phases presented through the same rotating badge used
     /// by foreground analysis.
     private var scanningPhasePhrases: [String] {
+        if isLiveQueueHandoff {
+            return offlineQueueManager.isOnline
+                ? ["Queued for later", "Continuing automatically"]
+                : ["Queued for later", "Waiting for connection"]
+        }
         guard offlineQueueManager.isOnline else {
             return ["Waiting for connection"]
         }
@@ -279,8 +298,24 @@ struct QueuedContentView: View {
                 #endif
             }
         ) {
-            if retryDetail != nil || friendlyErrorText != nil || queuedContext.canRetryNow {
+            if isLiveQueueHandoff ||
+                retryDetail != nil ||
+                friendlyErrorText != nil ||
+                queuedContext.canRetryNow {
                 VStack(spacing: 12) {
+                    if isLiveQueueHandoff {
+                        Label(
+                            liveQueueHandoffMessage,
+                            systemImage: "checkmark.icloud"
+                        )
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier(
+                            "QueuedForConnectivityMessage"
+                        )
+                    }
+
                     if let retryDetail {
                         Text(retryDetail)
                             .font(.footnote)

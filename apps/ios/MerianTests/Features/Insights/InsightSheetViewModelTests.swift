@@ -546,6 +546,58 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.isProcessing == false)
     }
 
+    @Test func lateFirstAnalysisRecordBindingRestartsResultToolbarReveal() throws {
+        let context = try createIsolatedContext()
+        let scanId = "late-first-analysis-toolbar"
+        let engine = InferenceEngine()
+        engine.activeScanId = scanId
+        engine.isProcessing = true
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+        let analyzingKey = viewModel.resultToolbarRevealKey
+
+        engine.speciesData = SpeciesData(
+            scanId: scanId,
+            commonName: "Cooper's Hawk",
+            scientificName: "Accipiter cooperii",
+            insightData: InsightData(
+                aiReasoning: "An adult accipiter with a blocky head.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.97,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "wild"
+        )
+        engine.isProcessing = false
+
+        #expect(viewModel.presentedLocalRecordScanId == nil)
+        #expect(viewModel.resultToolbarRevealKey == analyzingKey)
+
+        let record = LocalScanRecord(
+            id: scanId,
+            speciesId: "late-first-analysis-species",
+            scientificName: "Accipiter cooperii",
+            commonName: "Cooper's Hawk"
+        )
+        context.insert(record)
+        try context.save()
+
+        #expect(viewModel.fetchLocalRecord(for: scanId, modelContext: context))
+        let completedKey = viewModel.resultToolbarRevealKey
+        #expect(completedKey != analyzingKey)
+        #expect(completedKey.scanId == scanId)
+        #expect(
+            completedKey.presentationGeneration ==
+                analyzingKey.presentationGeneration
+        )
+        #expect(viewModel.revealBottomBarTools(
+            expectedScanId: scanId,
+            expectedGeneration: completedKey.presentationGeneration
+        ))
+        #expect(viewModel.state.showBottomBarTools)
+    }
+
     @Test func successfulProcessingCompletionUsesSingleResultHapticSource() throws {
         let ctx = try createIsolatedContext()
         let engine = InferenceEngine()

@@ -838,6 +838,15 @@ private extension InsightSheetView {
                             modelContext: modelContext,
                             inferenceEngine: inferenceEngine
                         )
+                } else if let scanId = inferenceEngine.queuedPresentationScanId {
+                    // A transport failure can win before the sheet's first
+                    // onAppear. Bind the durable row synchronously when it is
+                    // already visible in this context; the keyed task below
+                    // retries brief SwiftData propagation misses.
+                    _ = viewModel.bindQueuedPresentationIfAvailable(
+                        scanId: scanId,
+                        modelContext: modelContext
+                    )
                 }
                 queuedCompletionHandoffGeneration &+= 1
                 queuedCompletionHandoffScanId = nil
@@ -868,24 +877,52 @@ private extension InsightSheetView {
             .onDisappear {
                 appSettings.suppressInferenceBanners = false
             }
-            .task(id: viewModel.scanBoundActionGeneration) {
-                // A queued scan and its completed record intentionally share one persistent ID.
-                // Key this task to presentation identity so completion cancels the queued
-                // generation and schedules a fresh toolbar reveal for the result.
-                guard viewModel.queuedContext == nil else { return }
-                let scanId = viewModel.persistentScanId
-                let generation = viewModel.scanBoundActionGeneration
+            .task(id: viewModel.resultToolbarRevealKey) {
+                // A fresh analysis can finish before its LocalScanRecord reaches this
+                // ModelContext. Include completed-record availability in the task key so
+                // that late binding schedules the Share and Field chat reveal without a
+                // close/reopen cycle. The generation also distinguishes same-ID handoffs.
+                let revealKey = viewModel.resultToolbarRevealKey
+                guard viewModel.queuedContext == nil,
+                      let scanId = revealKey.scanId else { return }
                 do {
                     try await Task.sleep(nanoseconds: 350_000_000)
                 } catch {
                     return
                 }
-                guard let scanId else { return }
                 withAnimation(.easeIn(duration: 0.2)) {
                     _ = viewModel.revealBottomBarTools(
                         expectedScanId: scanId,
-                        expectedGeneration: generation
+                        expectedGeneration: revealKey.presentationGeneration
                     )
+                }
+            }
+            .task(id: inferenceEngine.queuedPresentationScanId) {
+                guard let scanId = inferenceEngine.queuedPresentationScanId else {
+                    return
+                }
+
+                // Enqueue happens before the live request, so this normally
+                // succeeds on the first pass. Keep the handoff tolerant of a
+                // short cross-context propagation delay without ever binding a
+                // stale scan after a newer presentation replaces it.
+                for _ in 0..<8 {
+                    guard !Task.isCancelled,
+                          inferenceEngine.queuedPresentationScanId?
+                            .caseInsensitiveCompare(scanId) == .orderedSame else {
+                        return
+                    }
+                    if viewModel.bindQueuedPresentationIfAvailable(
+                        scanId: scanId,
+                        modelContext: modelContext
+                    ) {
+                        return
+                    }
+                    do {
+                        try await Task.sleep(for: .milliseconds(100))
+                    } catch {
+                        return
+                    }
                 }
             }
             .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in

@@ -536,10 +536,9 @@ private enum FieldTripDetailLayout {
 enum FieldTripDetailLoadingPresentation {
     static func showsFeaturedMediaHero(
         isLoading: Bool,
-        hasTemplate: Bool,
-        isGoalsSelected: Bool
+        hasTemplate: Bool
     ) -> Bool {
-        isLoading && !hasTemplate && isGoalsSelected
+        isLoading && !hasTemplate
     }
 }
 
@@ -562,7 +561,6 @@ struct FieldTripTemplateDetailView: View {
     @State private var errorMessage: String?
     @State private var publishingTemplate: FieldTripTemplate?
     @State private var toastMessage: ToastPayload?
-    @State private var selectedDetailSection: FieldTripDetailSection = .objectives
     @State private var expandedGuideItemId: String?
     @State private var pendingGuideItemId: String?
     @State private var highlightedGuideItemId: String?
@@ -644,10 +642,7 @@ struct FieldTripTemplateDetailView: View {
             )
             .contentMargins(.top, 0, for: .scrollContent)
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle(
-                template.map { FieldTripTemplatePresentation.title($0.title, slug: $0.slug) }
-                    ?? (isLoading ? "Loading..." : "Field trip")
-            )
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { detailToolbar }
             .toolbarBackground(
@@ -720,111 +715,109 @@ struct FieldTripTemplateDetailView: View {
         _ template: FieldTripTemplate,
         scrollProxy: ScrollViewProxy
     ) -> some View {
-        switch selectedDetailSection {
-        case .objectives:
-            let featuredMediaItems = featuredMediaItems(for: template)
+        let featuredMediaItems = featuredMediaItems(for: template)
 
-            VStack(alignment: .leading, spacing: 0) {
-                if !featuredMediaItems.isEmpty {
-                    FieldTripFeaturedMediaCarousel(
-                        items: featuredMediaItems,
-                        onMediaLoadFailed: { sourceIdentifier in
-                            unavailableFeaturedMediaSourceIdentifiers.insert(sourceIdentifier)
-                        },
-                        onOpenViewer: { selectedItemId in
-                            featuredMediaGalleryPresentation =
-                                FieldTripFeaturedMediaPresentation.galleryPresentation(
-                                    for: featuredMediaItems,
-                                    selectedItemId: selectedItemId
-                                )
-                        }
-                    )
-                    .containerRelativeFrame(.horizontal)
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onChange(
-                                    of: proxy.frame(
-                                        in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
-                                    ).maxY,
-                                    initial: true
-                                ) { _, newMaxY in
-                                    updateFeaturedHeroScrollEdgeEffect(maxY: newMaxY)
-                                }
-                        }
+        VStack(alignment: .leading, spacing: 0) {
+            if !featuredMediaItems.isEmpty {
+                FieldTripFeaturedMediaCarousel(
+                    items: featuredMediaItems,
+                    onMediaLoadFailed: { sourceIdentifier in
+                        unavailableFeaturedMediaSourceIdentifiers.insert(sourceIdentifier)
+                    },
+                    onOpenViewer: { selectedItemId in
+                        featuredMediaGalleryPresentation =
+                            FieldTripFeaturedMediaPresentation.galleryPresentation(
+                                for: featuredMediaItems,
+                                selectedItemId: selectedItemId
+                            )
                     }
-                    .ignoresSafeArea(.all, edges: .top)
+                )
+                .containerRelativeFrame(.horizontal)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onChange(
+                                of: proxy.frame(
+                                    in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
+                                ).maxY,
+                                initial: true
+                            ) { _, newMaxY in
+                                updateFeaturedHeroScrollEdgeEffect(maxY: newMaxY)
+                            }
+                    }
                 }
-
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if FieldTripSharingAvailability.isEnabled,
-                           let progress = template.viewerProgress {
-                            FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
-                        }
-
-                        Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        if let description = template.description {
-                            Text(description)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
-                    FieldTripLevelsSection(
-                        template: template,
-                        currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
-                        isTripComplete: template.viewerProgress?.isComplete ?? false,
-                        progress: template.viewerProgress.map(FieldTripLevelProgressPresentation.init),
-                        progressPlacement: .headerRing,
-                        highlightedItemId: highlightedObjectiveItemId,
-                        localScansById: localScansById,
-                        onOpenCompletedScan: onOpenCompletedScan,
-                        onOpenGuide: openGuide
-                    )
-                    .onAppear {
-                        consumePendingObjectiveScroll(with: scrollProxy)
-                    }
-
-                    FieldTripCommunityPreviewSection(
-                        publications: communityPreview,
-                        isLoading: isLoadingCommunityPreview,
-                        onOpenPublication: onOpenPublication,
-                        onOpenAuthorProfile: onOpenAuthorProfile
-                    )
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, featuredMediaItems.isEmpty ? 16 : 24)
+                .ignoresSafeArea(.all, edges: .top)
             }
-        case .tips:
-            FieldTripGuideSections(
-                template: template,
-                currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
-                isTripComplete: template.viewerProgress?.isComplete ?? false,
-                expandedItemId: $expandedGuideItemId,
-                highlightedItemId: highlightedGuideItemId
-            )
-            .onAppear {
-                consumePendingGuideScroll(with: scrollProxy)
+
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if FieldTripSharingAvailability.isEnabled,
+                       let progress = template.viewerProgress {
+                        FieldTripPublicationStatusBadge(isPublished: progress.isPublished)
+                    }
+
+                    Text(FieldTripTemplatePresentation.title(template.title, slug: template.slug))
+                        .font(.system(.largeTitle, design: .serif).weight(.bold))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let description = template.description {
+                        Text(description)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                FieldTripLevelsSection(
+                    template: template,
+                    currentLevelNumber: template.viewerProgress?.currentLevelNumber ?? 1,
+                    isTripComplete: template.viewerProgress?.isComplete ?? false,
+                    progress: template.viewerProgress.map(FieldTripLevelProgressPresentation.init),
+                    progressPlacement: .headerRing,
+                    expandedGuideItemId: $expandedGuideItemId,
+                    highlightedGuideItemId: highlightedGuideItemId,
+                    highlightedItemId: highlightedObjectiveItemId,
+                    localScansById: localScansById,
+                    onOpenCompletedScan: onOpenCompletedScan,
+                    onOpenGuide: { item in
+                        openGuide(item, scrollProxy: scrollProxy)
+                    }
+                )
+                .onAppear {
+                    consumePendingObjectiveScroll(with: scrollProxy)
+                    consumePendingGuideScroll(with: scrollProxy)
+                }
+
+                FieldTripCommunityPreviewSection(
+                    publications: communityPreview,
+                    isLoading: isLoadingCommunityPreview,
+                    onOpenPublication: onOpenPublication,
+                    onOpenAuthorProfile: onOpenAuthorProfile
+                )
+
+                FieldTripAboutOutingSection(template: template)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.top, featuredMediaItems.isEmpty ? 16 : 24)
         }
     }
 
-    private func openGuide(_ item: FieldTripChecklistItem) {
+    private func openGuide(
+        _ item: FieldTripChecklistItem,
+        scrollProxy: ScrollViewProxy
+    ) {
         guard item.hasGuide else { return }
         HapticManager.shared.triggerSelectionPulse()
-        expandedGuideItemId = item.id
-        pendingGuideItemId = item.id
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedDetailSection = .tips
+            expandedGuideItemId = item.id
         }
+        pendingGuideItemId = item.id
+        consumePendingGuideScroll(with: scrollProxy)
     }
 
     private var localScansById: [String: LocalScanRecord] {
@@ -839,7 +832,6 @@ struct FieldTripTemplateDetailView: View {
         }
 
         return FieldTripFeaturedMediaLayout.underlapsNavigationBar(
-            isGoalsSelected: selectedDetailSection == .objectives,
             featuredItemCount: template.map { featuredMediaItems(for: $0).count } ?? 0
         )
     }
@@ -847,8 +839,7 @@ struct FieldTripTemplateDetailView: View {
     private var showsFeaturedMediaLoadingSkeleton: Bool {
         FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
             isLoading: isLoading,
-            hasTemplate: template != nil,
-            isGoalsSelected: selectedDetailSection == .objectives
+            hasTemplate: template != nil
         )
     }
 
@@ -860,7 +851,8 @@ struct FieldTripTemplateDetailView: View {
                 for: template,
                 localScansById: localScansById,
                 excluding: unavailableFeaturedMediaSourceIdentifiers
-            )
+            ),
+            activeLevelId: FieldTripTemplatePresentation.currentLevel(for: template)?.id
         )
     }
 
@@ -885,7 +877,10 @@ struct FieldTripTemplateDetailView: View {
             await Task.yield()
             guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
-                scrollProxy.scrollTo(itemId, anchor: .top)
+                scrollProxy.scrollTo(
+                    FieldTripGuideScrollTarget(itemId: itemId),
+                    anchor: .center
+                )
             }
             do {
                 try await Task.sleep(for: .seconds(1.2))
@@ -928,35 +923,34 @@ struct FieldTripTemplateDetailView: View {
     private func applyInitialFocusIfNeeded(to template: FieldTripTemplate) {
         guard !didApplyInitialFocus,
               let focusedChecklistItemId,
-              let item = template.levels
-                .flatMap(\.items)
-                .first(where: { $0.id == focusedChecklistItemId }) else {
+              let level = template.levels.first(where: { level in
+                  level.items.contains(where: { $0.id == focusedChecklistItemId })
+              }),
+              let item = level.items.first(where: { $0.id == focusedChecklistItemId }) else {
             return
         }
         didApplyInitialFocus = true
 
-        switch FieldTripFocusedTargetPresentation.resolve(hasGuide: item.hasGuide) {
-        case .tips:
+        let currentLevelNumber = template.viewerProgress?.currentLevelNumber
+            ?? template.levels.map(\.levelNumber).min()
+            ?? 1
+        let showsInlineTips = FieldTripInlineTipsPresentation.shouldShow(
+            levelNumber: level.levelNumber,
+            currentLevelNumber: currentLevelNumber,
+            isTripComplete: template.viewerProgress?.isComplete ?? false,
+            hasGuide: item.hasGuide
+        )
+
+        if showsInlineTips {
             expandedGuideItemId = item.id
             pendingGuideItemId = item.id
-            selectedDetailSection = .tips
-        case .objectives:
+        } else {
             pendingObjectiveItemId = item.id
-            selectedDetailSection = .objectives
         }
     }
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
-        if template != nil {
-            ToolbarItem(placement: .principal) {
-                FieldTripDetailToolbarPicker(
-                    label: "Field trip details",
-                    selection: $selectedDetailSection
-                )
-            }
-        }
-
         if let template {
             if FieldTripDetailLifecyclePresentation.showsOptionsMenu(template) {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -1202,7 +1196,6 @@ struct FieldTripChallengeDetailView: View {
 
     @State private var viewModel: FieldTripChallengeDetailViewModel
     @State private var publishingChallenge: FieldTripChallenge?
-    @State private var selectedDetailSection: FieldTripDetailSection = .objectives
     @State private var expandedGuideItemId: String?
     @State private var pendingGuideItemId: String?
     @State private var highlightedGuideItemId: String?
@@ -1243,7 +1236,6 @@ struct FieldTripChallengeDetailView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(viewModel.challenge?.title ?? (viewModel.isLoading ? "Loading..." : "Challenge"))
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { detailToolbar }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let challenge = viewModel.challenge {
                     primaryActionBar(challenge)
@@ -1293,36 +1285,28 @@ struct FieldTripChallengeDetailView: View {
         scrollProxy: ScrollViewProxy
     ) -> some View {
         if let template = challenge.template {
-            switch selectedDetailSection {
-            case .objectives:
-                VStack(alignment: .leading, spacing: 24) {
-                    challengeOverview(challenge)
+            VStack(alignment: .leading, spacing: 24) {
+                challengeOverview(challenge)
 
-                    FieldTripLevelsSection(
-                        template: template,
-                        currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
-                        isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
-                        progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init),
-                        progressPlacement: .bar,
-                        highlightedItemId: nil,
-                        localScansById: [:],
-                        onOpenCompletedScan: { _ in },
-                        onOpenGuide: openGuide
-                    )
-
-                    challengeEntriesSection
-                }
-            case .tips:
-                FieldTripGuideSections(
+                FieldTripLevelsSection(
                     template: template,
                     currentLevelNumber: challenge.viewerParticipation?.currentLevelNumber ?? 1,
                     isTripComplete: challenge.viewerParticipation?.isComplete ?? false,
-                    expandedItemId: $expandedGuideItemId,
-                    highlightedItemId: highlightedGuideItemId
+                    progress: challenge.viewerParticipation.map(FieldTripLevelProgressPresentation.init),
+                    progressPlacement: .bar,
+                    expandedGuideItemId: $expandedGuideItemId,
+                    highlightedGuideItemId: highlightedGuideItemId,
+                    highlightedItemId: nil,
+                    localScansById: [:],
+                    onOpenCompletedScan: { _ in },
+                    onOpenGuide: { item in
+                        openGuide(item, scrollProxy: scrollProxy)
+                    }
                 )
-                .onAppear {
-                    consumePendingGuideScroll(with: scrollProxy)
-                }
+
+                challengeEntriesSection
+
+                FieldTripAboutOutingSection(template: template)
             }
         } else {
             VStack(alignment: .leading, spacing: 24) {
@@ -1332,14 +1316,17 @@ struct FieldTripChallengeDetailView: View {
         }
     }
 
-    private func openGuide(_ item: FieldTripChecklistItem) {
+    private func openGuide(
+        _ item: FieldTripChecklistItem,
+        scrollProxy: ScrollViewProxy
+    ) {
         guard item.hasGuide else { return }
         HapticManager.shared.triggerSelectionPulse()
-        expandedGuideItemId = item.id
-        pendingGuideItemId = item.id
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedDetailSection = .tips
+            expandedGuideItemId = item.id
         }
+        pendingGuideItemId = item.id
+        consumePendingGuideScroll(with: scrollProxy)
     }
 
     private func consumePendingGuideScroll(with scrollProxy: ScrollViewProxy) {
@@ -1352,7 +1339,10 @@ struct FieldTripChallengeDetailView: View {
             await Task.yield()
             guard !Task.isCancelled, highlightedGuideItemId == itemId else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
-                scrollProxy.scrollTo(itemId, anchor: .top)
+                scrollProxy.scrollTo(
+                    FieldTripGuideScrollTarget(itemId: itemId),
+                    anchor: .center
+                )
             }
             do {
                 try await Task.sleep(for: .seconds(1.2))
@@ -1421,19 +1411,6 @@ struct FieldTripChallengeDetailView: View {
                 Task { await viewModel.loadMoreEntries() }
             }
         )
-    }
-
-    @ToolbarContentBuilder
-    private var detailToolbar: some ToolbarContent {
-        if viewModel.challenge?.template != nil {
-            ToolbarItem(placement: .principal) {
-                FieldTripDetailToolbarPicker(
-                    label: "Challenge details",
-                    selection: $selectedDetailSection
-                )
-            }
-        }
-
     }
 
     @ViewBuilder
@@ -1566,52 +1543,19 @@ private struct FieldTripDetailPrimaryActionBar: View {
     }
 }
 
-private struct FieldTripDetailToolbarPicker: View {
-    let label: String
-    @Binding var selection: FieldTripDetailSection
-
-    var body: some View {
-        Picker(label, selection: $selection) {
-            ForEach(FieldTripDetailSection.allCases) { section in
-                Text(section.title).tag(section)
-            }
-        }
-        .pickerStyle(.segmented)
-        .padding(.bottom, 1)
-        .background(Capsule().fill(.regularMaterial))
-        .clipShape(Capsule())
-        .frame(width: 200)
-        .onChange(of: selection) { _, _ in
-            HapticManager.shared.triggerSelectionPulse(
-                source: "fieldTrips.detail.section"
-            )
-        }
+enum FieldTripInlineTipsPresentation {
+    static func shouldShow(
+        levelNumber: Int,
+        currentLevelNumber: Int,
+        isTripComplete: Bool,
+        hasGuide: Bool
+    ) -> Bool {
+        hasGuide && !isTripComplete && levelNumber == currentLevelNumber
     }
 }
 
-enum FieldTripFocusedTargetPresentation: Equatable {
-    case tips
-    case objectives
-
-    static func resolve(hasGuide: Bool) -> Self {
-        hasGuide ? .tips : .objectives
-    }
-}
-
-private enum FieldTripDetailSection: String, CaseIterable, Identifiable {
-    case objectives
-    case tips
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .objectives:
-            "Goals"
-        case .tips:
-            "Tips"
-        }
-    }
+private struct FieldTripGuideScrollTarget: Hashable {
+    let itemId: String
 }
 
 enum FieldTripsSection: String, CaseIterable, Identifiable {
@@ -2258,6 +2202,8 @@ private struct FieldTripLevelsSection: View {
     let isTripComplete: Bool
     let progress: FieldTripLevelProgressPresentation?
     let progressPlacement: FieldTripLevelProgressPlacement
+    @Binding var expandedGuideItemId: String?
+    let highlightedGuideItemId: String?
     let highlightedItemId: String?
     let localScansById: [String: LocalScanRecord]
     let onOpenCompletedScan: (String) -> Void
@@ -2276,6 +2222,14 @@ private struct FieldTripLevelsSection: View {
                     ),
                     progress: progress(for: level),
                     progressPlacement: progressPlacement,
+                    showsInlineTips: FieldTripInlineTipsPresentation.shouldShow(
+                        levelNumber: level.levelNumber,
+                        currentLevelNumber: currentLevelNumber,
+                        isTripComplete: isTripComplete,
+                        hasGuide: level.items.contains(where: \.hasGuide)
+                    ),
+                    expandedGuideItemId: $expandedGuideItemId,
+                    highlightedGuideItemId: highlightedGuideItemId,
                     highlightedItemId: highlightedItemId,
                     localScansById: localScansById,
                     onOpenCompletedScan: onOpenCompletedScan,
@@ -2582,140 +2536,87 @@ private struct FieldTripCommunityPreviewSection: View {
     }
 }
 
-private struct FieldTripGuideSections: View {
+private struct FieldTripAboutOutingSection: View {
     let template: FieldTripTemplate
-    let currentLevelNumber: Int
-    let isTripComplete: Bool
-    @Binding var expandedItemId: String?
-    let highlightedItemId: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            if hasAvailableObjectiveGuides {
-                ForEach(template.levels) { level in
-                    if isLevelAvailable(level), !guidedItems(in: level).isEmpty {
-                        objectiveGuideLevel(level)
-                    }
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("About this outing")
+                .font(.title3.weight(.bold))
+
+            FieldTripGuideRow(
+                title: "How scans count",
+                systemImage: "clock.arrow.circlepath",
+                bodyText: """
+                Only scans made once this outing starts count toward its goals. \
+                Older scans—including anything already in your library when it starts—don’t qualify.
+                """
+            )
+
+            if let whereToLook = template.guideWhereToLook {
+                FieldTripGuideRow(
+                    title: "Where to look",
+                    systemImage: "binoculars",
+                    bodyText: whereToLook
+                )
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text("About this outing")
-                    .font(.title3.weight(.bold))
-
+            if let whyItMatters = template.guideWhyItMatters {
                 FieldTripGuideRow(
-                    title: "How scans count",
-                    systemImage: "clock.arrow.circlepath",
-                    bodyText: """
-                    Only scans made once this outing starts count toward its goals. \
-                    Older scans—including anything already in your library when it starts—don’t qualify.
-                    """
+                    title: "Why it matters",
+                    systemImage: "leaf",
+                    bodyText: whyItMatters
                 )
+            }
 
-                if let whereToLook = template.guideWhereToLook {
-                    FieldTripGuideRow(
-                        title: "Where to look",
-                        systemImage: "binoculars",
-                        bodyText: whereToLook
-                    )
-                }
-
-                if let whyItMatters = template.guideWhyItMatters {
-                    FieldTripGuideRow(
-                        title: "Why it matters",
-                        systemImage: "leaf",
-                        bodyText: whyItMatters
-                    )
-                }
-
-                if let safety = template.guideSafetyEthics {
-                    FieldTripGuideRow(
-                        title: "Safety",
-                        systemImage: "hand.raised",
-                        bodyText: safety
-                    )
-                }
+            if let safety = template.guideSafetyEthics {
+                FieldTripGuideRow(
+                    title: "Safety",
+                    systemImage: "hand.raised",
+                    bodyText: safety
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-
-    @ViewBuilder
-    private func objectiveGuideLevel(_ level: FieldTripLevel) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(level.title)
-                    .font(.title3.weight(.bold))
-
-                Spacer(minLength: 12)
-
-                if presentationState(for: level) == .completed {
-                    FieldTripGuideLevelCompletedBadge()
-                }
-            }
-
-            ForEach(Array(level.items.enumerated()), id: \.element.id) { index, item in
-                if item.hasGuide {
-                    FieldTripObjectiveGuideCard(
-                        item: item,
-                        imageName: FieldTripObjectiveArtwork.imageName(
-                            for: item.prompt,
-                            templateSlug: template.slug,
-                            fallbackIndex: index
-                        ),
-                        isExpanded: expandedItemId == item.id,
-                        isHighlighted: highlightedItemId == item.id,
-                        onToggle: {
-                            HapticManager.shared.triggerSelectionPulse()
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                expandedItemId = expandedItemId == item.id ? nil : item.id
-                            }
-                        }
-                    )
-                    .id(item.id)
-                }
-            }
-        }
-    }
-
-    private var hasAvailableObjectiveGuides: Bool {
-        template.levels.contains { level in
-            isLevelAvailable(level) && !guidedItems(in: level).isEmpty
-        }
-    }
-
-    private func guidedItems(in level: FieldTripLevel) -> [FieldTripChecklistItem] {
-        level.items.filter(\.hasGuide)
-    }
-
-    private func isLevelAvailable(_ level: FieldTripLevel) -> Bool {
-        presentationState(for: level) != .locked
-    }
-
-    private func presentationState(for level: FieldTripLevel) -> FieldTripLevelPresentationState {
-        .resolve(
-            levelNumber: level.levelNumber,
-            currentLevelNumber: currentLevelNumber,
-            isTripComplete: isTripComplete
-        )
-    }
 }
 
-private struct FieldTripGuideLevelCompletedBadge: View {
+private struct FieldTripActiveLevelTipsSection: View {
+    let level: FieldTripLevel
+    let templateSlug: String
+    @Binding var expandedItemId: String?
+    let highlightedItemId: String?
+
     var body: some View {
-        Label("Completed", systemImage: "checkmark")
-            .font(.caption.weight(.bold))
-            .foregroundStyle(Color.black.opacity(0.82))
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color(uiColor: .systemGreen))
-            )
-            .fixedSize()
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Completed level")
+        let guidedItems = Array(level.items.enumerated()).filter { $0.element.hasGuide }
+
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+
+            Label("Tips", systemImage: "lightbulb")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.primary)
+
+            ForEach(guidedItems, id: \.element.id) { index, item in
+                FieldTripObjectiveGuideCard(
+                    item: item,
+                    imageName: FieldTripObjectiveArtwork.imageName(
+                        for: item.prompt,
+                        templateSlug: templateSlug,
+                        fallbackIndex: index
+                    ),
+                    isExpanded: expandedItemId == item.id,
+                    isHighlighted: highlightedItemId == item.id,
+                    onToggle: {
+                        HapticManager.shared.triggerSelectionPulse()
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedItemId = expandedItemId == item.id ? nil : item.id
+                        }
+                    }
+                )
+                .id(FieldTripGuideScrollTarget(itemId: item.id))
+            }
+        }
     }
 }
 
@@ -2783,7 +2684,7 @@ private struct FieldTripObjectiveGuideCard: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
         )
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -2948,6 +2849,9 @@ private struct FieldTripLevelSection: View {
     let presentationState: FieldTripLevelPresentationState
     let progress: FieldTripLevelProgressPresentation?
     let progressPlacement: FieldTripLevelProgressPlacement
+    let showsInlineTips: Bool
+    @Binding var expandedGuideItemId: String?
+    let highlightedGuideItemId: String?
     let highlightedItemId: String?
     let localScansById: [String: LocalScanRecord]
     let onOpenCompletedScan: (String) -> Void
@@ -3048,7 +2952,7 @@ private struct FieldTripLevelSection: View {
 
             switch presentationState {
             case .current:
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
                     ForEach(rowStartIndices, id: \.self) { startIndex in
                         FieldTripChecklistGridRow(
                             items: Array(
@@ -3064,6 +2968,15 @@ private struct FieldTripLevelSection: View {
                             onOpenGuide: onOpenGuide
                         )
                     }
+
+                    if showsInlineTips {
+                        FieldTripActiveLevelTipsSection(
+                            level: level,
+                            templateSlug: templateSlug,
+                            expandedItemId: $expandedGuideItemId,
+                            highlightedItemId: highlightedGuideItemId
+                        )
+                    }
                 }
             case .completed, .locked:
                 FieldTripCompactLevelStrip(
@@ -3071,8 +2984,7 @@ private struct FieldTripLevelSection: View {
                     templateSlug: templateSlug,
                     presentationState: presentationState,
                     localScansById: localScansById,
-                    onOpenCompletedScan: onOpenCompletedScan,
-                    onOpenGuide: onOpenGuide
+                    onOpenCompletedScan: onOpenCompletedScan
                 )
             }
         }
@@ -3499,7 +3411,6 @@ private struct FieldTripCompactLevelStrip: View {
     let presentationState: FieldTripLevelPresentationState
     let localScansById: [String: LocalScanRecord]
     let onOpenCompletedScan: (String) -> Void
-    let onOpenGuide: (FieldTripChecklistItem) -> Void
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -3529,17 +3440,6 @@ private struct FieldTripCompactLevelStrip: View {
             .accessibilityLabel(accessibilityLabel(for: item))
             .accessibilityValue(accessibilityValue)
             .accessibilityHint("Open this scan's insight.")
-        } else if presentationState == .completed, item.hasGuide {
-            Button {
-                onOpenGuide(item)
-            } label: {
-                compactTileContent(item: item, index: index)
-            }
-            .buttonStyle(FieldTripObjectiveTipButtonStyle())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityLabel(for: item))
-            .accessibilityValue(accessibilityValue)
-            .accessibilityHint("View tips for this goal.")
         } else {
             compactTileContent(item: item, index: index)
                 .accessibilityElement(children: .ignore)

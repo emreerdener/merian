@@ -17,6 +17,12 @@ is not a browser or iOS API.
 - At most three RevenueCat `GET /v1/subscribers/{app_user_id}` requests run
   concurrently. They use `REVENUECAT_SECRET_API_KEY`, a ten-second deadline, and
   a 2 MiB streamed response ceiling.
+- RevenueCat's GET is a get-or-create operation and App User IDs are
+  case-sensitive. Migration
+  `20260809055035_canonicalize_revenuecat_app_user_ids.sql` makes the uppercase
+  Supabase UUID canonical for new-user enqueue and ghost-merge repair, and
+  normalizes only queue values that are provably the same UUID. Emails,
+  aliases, `$RCAnonymousID` values, and other provider IDs remain unchanged.
 - The invocation budget is 90 seconds. New claim waves stop after 60 seconds,
   reserving 30 seconds for the final bounded provider wave, database writes, and
   queue-health read. The cron dispatch uses a 120-second `pg_net` response
@@ -49,7 +55,10 @@ installs `reconcile_revenuecat_subscribers_every_fifteen_minutes`. Migration
 `20260726031502_scale_revenuecat_reconciliation.sql` adds the claimed-row
 expiration index, deadline-draining cron timeout, and service-only
 `get_revenuecat_reconciliation_health()` RPC. Anonymous accounts are excluded
-until identity upgrade.
+until identity upgrade. Migration
+`20260809055035_canonicalize_revenuecat_app_user_ids.sql` aligns PostgreSQL with
+the case-sensitive iOS customer ID and invalidates any claimed lowercase UUID
+lookup before making it immediately due.
 
 The independent `.github/workflows/revenuecat-reconciliation-health-monitor.yml`
 check runs every 15 minutes. It fails by default when the oldest
@@ -62,6 +71,13 @@ For an alert, inspect the worker's structured `revenuecat_reconciliation_health`
 event and the queue's bounded `last_error_code`/attempt state with the
 owner-only runbook query. Fix provider/database configuration and allow the
 claim-fenced queue to retry; do not grant table access or directly edit tiers.
+
+For beta migration and customer-count investigation, use the offline
+`audit_revenuecat_customers.ts` export comparison and the dry-run-first
+`grant_revenuecat_beta_entitlements.ts` workflow documented in the deployment
+runbook. Never delete RevenueCat customer history as a reconciliation strategy.
+Promotional grants emit production `NON_RENEWING_PURCHASE` webhooks; the normal
+webhook/reconciliation path remains the only tier writer.
 
 Unit coverage lives in `db_test.ts`, `worker_test.ts`, and
 `services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts`. Migration

@@ -156,6 +156,36 @@ another suspension between the ownership snapshot and terminal commit. A
 cooperatively cancelled or replaced task therefore exits silently instead of
 overwriting the replacement attempt.
 
+### Queue-backed connectivity contract
+
+Connectivity failure must be a queue handoff for an exact queue-backed
+foreground generation, not a terminal Insight error. The required path
+publishes the matching `queuedPresentationScanId`, stops live analyzing without
+synthesizing `SpeciesData` or firing an error haptic, and lets the open Insight
+bind a value snapshot of that durable row. Direct requests without a queue owner
+may still show **Network timeout**. Exhausted server and unclassified failures
+use **Analysis delayed / Scan saved** for queued work so an HTTP/provider
+failure is never mislabeled as proof that the device is offline.
+
+Local presentation ownership and durable provider ownership are separate
+authorities. A path-monitor callback may retire the durable foreground
+generation before URLSession reports its failure. The exact still-current sheet
+must remain eligible to publish the queued handoff, while a newer scan,
+background completion, or replaced presentation must still fence every delayed
+mutation. Durable retirement alone is not permission to leave the current sheet
+with no result and no queued context.
+
+**Current source status (2026-08-09): release-blocking gap.** The catch paths
+currently require the full durable generation to remain current before they can
+publish queued presentation. Connectivity-driven retirement can make that check
+false first. `identifyMultiModal` also inherits the generic one-time transient
+transport replay, so a queue-backed request can wait through two 90-second
+deadlines. Finally, **Analysis delayed** is not yet recognized by
+`SpeciesData.isInferenceErrorPlaceholder`. Do not describe this handoff as
+complete until the transport-level ownership tests and closure gates in the
+[live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
+pass.
+
 Required-consent failure is handled before the generic transport branch in
 both visual and nonvisual live inference. It publishes the temporary
 **Approval needed / Scan saved** recovery state while the root returns the
@@ -233,3 +263,11 @@ Focused tests live under `apps/ios/MerianTests/Core/AI/`. Network timing and
 request-upload handoff coverage lives under `MerianTests/Core/Network/`; the
 full server generation invariants are enforced by the Deno tests beside
 `identify-multimodal`.
+
+A queue-handoff regression is not valid when it throws from consent preflight
+or another pre-request seam. It must dispatch through mocked URLSession
+transport, retire the exact durable foreground generation before releasing the
+transport error, and prove the same-ID sheet becomes `.queued` without a second
+request, placeholder, haptic, circuit failure, or manual test cleanup of queue
+ownership. The full matrix and release evidence requirements live in the
+[incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).

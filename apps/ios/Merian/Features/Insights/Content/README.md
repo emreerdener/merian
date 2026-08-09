@@ -28,11 +28,28 @@ trigger celebration effects.
 ## Scanning presentation
 
 Foreground and queued scans share `ScanningExperienceView`, which owns the
-status pill, **Did you know?** card, optional actionable supplemental content,
-Field notes, and scan telemetry in that order. Foreground analysis supplies
-`InferenceEngine.scanningPhaseText`. Queued scans rotate phrases from their
-exact queue/server state and reuse generic engine phrases during active
-inference.
+status pill, optional actionable supplemental content, **Did you know?** card,
+Field notes, and scan telemetry in that order. This keeps queued retry timing,
+errors, and recovery controls ahead of educational content whenever they are
+present. Foreground analysis supplies `InferenceEngine.scanningPhaseText`.
+Queued scans rotate phrases from their exact queue/server state and reuse
+generic engine phrases during active inference.
+
+When a live request loses connectivity after this sheet opens, the required
+contract is for the engine to publish the exact durable scan ID and for the
+sheet to snapshot that queued row. Existing queued content then replaces
+analyzing content with **Queued for later**, plus a saved/automatic-resume
+message. This handoff must not create a synthetic **Network timeout** result or
+an error haptic, and normal same-ID queued completion must still replace it in
+place.
+
+This behavior is release-gated. The current catch path can lose full durable
+ownership before it publishes the still-current local presentation, and the
+transport helper can replay once before returning the failure. In addition,
+**Analysis delayed** must be classified as an inference error placeholder so a
+saved service failure never receives non-biological success treatment. See the
+[live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
+for current status and closure tests.
 
 Queued scans supply snapshot telemetry but do not add a separate title, helper
 paragraph, media-kind summary, or file-size label. Retry timing, errors, and

@@ -192,7 +192,10 @@ export async function inspectGhostMergeHealth(
               COUNT(handoff.id) FILTER (
                 WHERE queue.merian_user_id IS NOT NULL
                   AND queue.lookup_app_user_id
-                    IS DISTINCT FROM handoff.target_user_id::TEXT
+                    IS DISTINCT FROM
+                      internal.canonical_revenuecat_app_user_id(
+                        handoff.target_user_id
+                      )
               )
             )::INTEGER AS misdirected_destination_queue_count,
             (

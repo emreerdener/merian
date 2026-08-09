@@ -94,7 +94,7 @@ completion resets or replaces the lease first, the stale callback fails closed
 instead of applying an obsolete provider snapshot.
 
 Completion must unconditionally upsert a destination reconciliation row. The row
-uses the permanent UUID as `lookup_app_user_id`, is due immediately, resets
+uses the permanent uppercase UUID as `lookup_app_user_id`, is due immediately, resets
 `attempt_count`, clears all claim/error fields, and exists whether or not the
 anonymous source had a queue row. The foreground RevenueCat `logIn` call and
 webhook delivery are accelerators; this destination queue is the durable repair

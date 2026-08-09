@@ -36,6 +36,12 @@ enum FieldTripFeaturedMediaSource: Equatable {
         return image.source.label
     }
 
+    var inlineContributorAttributionLabel: String? {
+        guard case .reference(let image) = self,
+              let username = image.naturebookAuthorUsername else { return nil }
+        return "@\(username)"
+    }
+
     var fullscreenAttributionLabel: String? {
         guard case .reference(let image) = self else { return nil }
         return image.fullscreenAttributionLabel
@@ -236,34 +242,18 @@ enum FieldTripFeaturedMediaSelection {
 
     static func items(
         from candidates: [FieldTripFeaturedMediaItem],
+        activeLevelId: String?,
         maximumCount: Int = maximumItemCount
     ) -> [FieldTripFeaturedMediaItem] {
         let limit = max(0, maximumCount)
-        guard limit > 0 else { return [] }
+        guard limit > 0, let activeLevelId else { return [] }
 
-        let grouped = Dictionary(grouping: candidates, by: \.levelNumber)
-        let levelNumbers = grouped.keys.sorted()
-        let levelBuckets = levelNumbers.map { levelNumber in
-            (grouped[levelNumber] ?? []).sorted(by: candidateSort)
-        }
-        var nextIndices = Array(repeating: 0, count: levelBuckets.count)
-        var selectedItems: [FieldTripFeaturedMediaItem] = []
-
-        while selectedItems.count < limit {
-            var appendedInRound = false
-
-            for bucketIndex in levelBuckets.indices where selectedItems.count < limit {
-                let itemIndex = nextIndices[bucketIndex]
-                guard levelBuckets[bucketIndex].indices.contains(itemIndex) else { continue }
-                selectedItems.append(levelBuckets[bucketIndex][itemIndex])
-                nextIndices[bucketIndex] += 1
-                appendedInRound = true
-            }
-
-            guard appendedInRound else { break }
-        }
-
-        return selectedItems
+        return Array(
+            candidates
+                .filter { $0.levelId == activeLevelId }
+                .sorted(by: candidateSort)
+                .prefix(limit)
+        )
     }
 
     private static func candidateSort(
@@ -307,10 +297,9 @@ enum FieldTripFeaturedMediaPresentation {
 
 enum FieldTripFeaturedMediaLayout {
     static func underlapsNavigationBar(
-        isGoalsSelected: Bool,
         featuredItemCount: Int
     ) -> Bool {
-        isGoalsSelected && featuredItemCount > 0
+        featuredItemCount > 0
     }
 }
 
@@ -349,6 +338,7 @@ struct FieldTripFeaturedMediaCarousel: View {
                         accessibilityNoun: "Featured image"
                     )
                 }
+                .overlay { referenceAttributionTags }
                 .contentShape(Rectangle())
                 .simultaneousGesture(
                     SpatialTapGesture().onEnded { _ in
@@ -391,24 +381,6 @@ struct FieldTripFeaturedMediaCarousel: View {
                     .accessibilityHidden(true)
             }
 
-            if let attributionLabel = item.source.inlineAttributionLabel {
-                Text(attributionLabel)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background {
-                        Capsule(style: .continuous)
-                            .fill(.black.opacity(0.28))
-                    }
-                    .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 40)
-                    .allowsHitTesting(false)
-            }
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
@@ -419,6 +391,54 @@ struct FieldTripFeaturedMediaCarousel: View {
         .accessibilityAction {
             onOpenViewer(item.id)
         }
+    }
+
+    @ViewBuilder
+    private var referenceAttributionTags: some View {
+        if let item = items[safe: selectedIndex] {
+            ZStack {
+                if let contributorLabel = item.source.inlineContributorAttributionLabel {
+                    referenceAttributionTag(contributorLabel)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .bottomLeading
+                        )
+                }
+
+                if let sourceLabel = item.source.inlineAttributionLabel {
+                    referenceAttributionTag(sourceLabel)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: .bottomTrailing
+                        )
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .animation(
+                .spring(response: 0.3, dampingFraction: 0.8),
+                value: selectedItemId
+            )
+        }
+    }
+
+    private func referenceAttributionTag(_ label: String) -> some View {
+        Text(label)
+            .font(.caption)
+            .fontWeight(.semibold)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background {
+                Capsule(style: .continuous)
+                    .fill(.black.opacity(0.28))
+            }
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
     }
 
     private func openSelectedPage() {

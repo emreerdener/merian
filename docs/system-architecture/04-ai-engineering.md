@@ -1067,7 +1067,16 @@ insight sheet display.
   or relaunch keeps recovery durable without creating uplink contention. All
   other online queue-backed live paths may stage recovery media immediately, but
   their exact foreground inference generation prevents replay from starting a
-  competing identification.
+  competing identification. A final online check after the bounded context
+  grace catches path changes before dispatch. After dispatch, the required
+  customer contract retires the live provider generation and binds that same
+  sheet to the durable queued scan on the first transport failure, where
+  **Queued for later** replaces a synthetic network error while background
+  recovery continues. That post-dispatch contract is not yet release-accepted:
+  connectivity retirement can invalidate the engine's full ownership check
+  before URLSession returns, even though the exact local presentation is still
+  current. See the
+  [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **First-result commit before secondary work** (`InferenceEngine.swift`): after
   response parsing and local persistence, saved media and `speciesData` are
   committed immediately. Award calculation and Field trips run asynchronously;
@@ -1083,10 +1092,22 @@ insight sheet display.
   calls was raised from 30s (the shared default) to 90s, matching
   `timeoutIntervalForResource`. `gemini-2.5-pro` responses can reach 25–30s on
   slow connections; the previous 30s idle-timeout margin was too thin.
+- **Queue-backed transport retry ownership**: The generic authenticated helper
+  currently replays selected transient `URLError` values once after two seconds
+  when an idempotency key permits ambiguous replay. Because live Identify uses a
+  90-second timeout and stable scan key, a black-holed path can take about 182
+  seconds to return. The accepted contract requires an explicit per-call policy:
+  queue-backed live Identify returns the first transport failure for immediate
+  exact-ID queue handoff, while reviewed queue-less/read/route-propagation retry
+  behavior remains scoped to its existing callers. This policy and its
+  request-count test are open release blockers.
 - **5xx retry** (`MerianNetworkClient`): A single retry after a 2s pause on HTTP
   5xx responses absorbs transient Edge Function cold-start failures and
-  momentary Deno isolate errors that would otherwise surface to the user as
-  "Network timeout".
+  momentary Deno isolate errors. If both attempts fail, queued work uses
+  **Analysis delayed / Scan saved** rather than misreporting a server failure as
+  device connectivity loss. That fallback is presentation error state, not a
+  non-biological classification; `SpeciesData.isInferenceErrorPlaceholder` must
+  recognize it before release.
 - **Tier-conditional inference resolution**
   (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures
   are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens);
