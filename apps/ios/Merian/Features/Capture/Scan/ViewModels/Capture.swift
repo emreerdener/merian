@@ -688,75 +688,79 @@ extension CaptureWorkspaceViewModel {
               imageToCrop == nil else { return }
               
         isCapturing = true
-              
-        // 2. Authorization Hooks
-        if diContainer.usageManager.canPerformScan(isProActive: diContainer.revenueCatManager.canStartProScan) {
+
+        Task {
+            // 2. Authoritative admission preview. The local meter remains the
+            // offline fallback, while the database preview prevents a stale
+            // device balance from starting camera work that can only paywall.
+            guard await requestScanAdmission(
+                flashFallbackEligible: stagedCapture.isEmpty &&
+                    baseRefinementContext == nil
+            ) else {
+                isCapturing = false
+                return
+            }
+
             if emitHaptic {
                 // Instant tactile UI response mirroring the Apple Camera app.
                 diContainer.hapticManager.triggerHeavyImpact(intensity: 1.0, source: "capture.photo.hardware")
             }
-            
+
             triggerFlash()
-            
-            Task {
-                do {
-                    // 3. Hardware Interfacing
-                    // Securing the optical frame and geographical context precisely at shutter click
-                    async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
-                    let composingCenter = composingZoneVerticalCenter
-                    let captureData = try await diContainer.cameraManager.captureImage()
-                    let resolvedShutterLocation = await shutterLocation
-                    let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
-                    
-                    // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
-                    Task {
-                        await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
-                    }
-                    // 4. Detached Memory Pipeline
-                    // Downsamples the 12MP buffer globally off the UI thread to massively drop the footprint
-                    // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers 
-                    // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
-                    
-                    let preparedCapture = try await Self.prepareCameraCapture(
-                        captureData: captureData,
-                        composingCenter: composingCenter,
-                        isProActive: diContainer.revenueCatManager.canStartProScan
-                    )
 
-                    if let preparedCapture {
-                        // 5. Environmental Pre-Fetching
-                        // Maps historical location caching before pushing to identity pipeline
-                        let task = Task {
-                            return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
-                        }
+            do {
+                // 3. Hardware Interfacing
+                // Securing the optical frame and geographical context precisely at shutter click
+                async let shutterLocation = diContainer.environmentContextManager.requestCurrentLocation()
+                let composingCenter = composingZoneVerticalCenter
+                let captureData = try await diContainer.cameraManager.captureImage()
+                let resolvedShutterLocation = await shutterLocation
+                let instantLocation = resolvedShutterLocation ?? diContainer.environmentContextManager.lastKnownLocation
 
-                        // 6. MainActor Routing
-                        // Injecting the raw safe bytes bounds back strictly on the UI thread
-                        await MainActor.run {
-                            self.preFetchTask = task
-                            let backgroundRawImage = UIImage(cgImage: preparedCapture.previewCGImage.image, scale: 1.0, orientation: .up)
-                            let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
-                            self.stagedCapture.images.append(StagedImage(
-                                compressedData: preparedCapture.inferenceData,
-                                displayData: preparedCapture.displayData,
-                                uiImage: backgroundRawImage,
-                                original: identifiable,
-                                focusRegion: preparedCapture.focusRegion
-                            ))
-                        }
+                // Actively push the original 12MP buffer down natively into the user's Camera Roll securely without blocking UI sweeps natively
+                Task {
+                    await AppDIContainer.shared.photoLibraryManager.saveImageToLibrary(imageData: captureData, location: instantLocation)
+                }
+                // 4. Detached Memory Pipeline
+                // Downsamples the 12MP buffer globally off the UI thread to massively drop the footprint
+                // Instantly executes native `generateAutoCenterCrop` natively isolating UIImage and CGImage pointers
+                // cleanly inside the background securely, exporting solely safe raw `.Data` out bypassing JetSam limits globally
+
+                let preparedCapture = try await Self.prepareCameraCapture(
+                    captureData: captureData,
+                    composingCenter: composingCenter,
+                    isProActive: diContainer.revenueCatManager.canStartProScan
+                )
+
+                if let preparedCapture {
+                    // 5. Environmental Pre-Fetching
+                    // Maps historical location caching before pushing to identity pipeline
+                    let task = Task {
+                        return await AppDIContainer.shared.environmentContextManager.fetchDeferredContext(preLockedLocation: instantLocation)
                     }
-                } catch {
-                    MerianLog.hardware.error("Hardware shutter failure: \(error, privacy: .private)")
+
+                    // 6. MainActor Routing
+                    // Injecting the raw safe bytes bounds back strictly on the UI thread
+                    await MainActor.run {
+                        self.preFetchTask = task
+                        let backgroundRawImage = UIImage(cgImage: preparedCapture.previewCGImage.image, scale: 1.0, orientation: .up)
+                        let identifiable = IdentifiableImage(image: backgroundRawImage, environmentContext: nil, isFromGallery: false)
+                        self.stagedCapture.images.append(StagedImage(
+                            compressedData: preparedCapture.inferenceData,
+                            displayData: preparedCapture.displayData,
+                            uiImage: backgroundRawImage,
+                            original: identifiable,
+                            focusRegion: preparedCapture.focusRegion
+                        ))
+                    }
                 }
-                
-                await MainActor.run {
-                    self.isCapturing = false
-                }
+            } catch {
+                MerianLog.hardware.error("Hardware shutter failure: \(error, privacy: .private)")
             }
-        } else {
-            AppTelemetry.trackPaywallImpression()
-            self.activeSheet = .paywall
-            self.isCapturing = false
+
+            await MainActor.run {
+                self.isCapturing = false
+            }
         }
     }
 
@@ -778,6 +782,12 @@ extension CaptureWorkspaceViewModel {
             var cameraRollSaveTask: Task<Void, Never>?
             defer {
                 self.finishVideoCaptureUI(resetProgress: true)
+            }
+
+            guard await self.requestScanAdmission(
+                flashFallbackEligible: false
+            ) else {
+                return
             }
 
             do {

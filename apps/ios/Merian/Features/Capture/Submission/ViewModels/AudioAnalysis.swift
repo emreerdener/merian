@@ -21,14 +21,17 @@ extension CaptureWorkspaceViewModel {
     ///
     /// Audio always queues durably before live inference so the capture survives interruption
     /// and can be replayed by the offline pipeline if the live task loses the race.
-    func submitAudio(audioFileName: String, modelContext: ModelContext) {
-        guard !audioFileName.isEmpty else { return }
+    @discardableResult
+    func submitAudio(audioFileName: String, modelContext: ModelContext) async -> Bool {
+        guard !audioFileName.isEmpty else { return false }
 
         let now = CFAbsoluteTimeGetCurrent()
-        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return }
+        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else {
+            return false
+        }
         stagedCapture.lastSubmitTime = now
 
-        submitNonVisualCapture(
+        return await submitNonVisualCapture(
             audioFileNames: [audioFileName],
             observationContexts: [],
             mediaTimeline: [.audio(audioFileName)],
@@ -43,6 +46,7 @@ extension CaptureWorkspaceViewModel {
     ///
     /// Every capture is durably queued before live inference. Description-only
     /// jobs contain no media bytes and enter `.staged` directly.
+    @discardableResult
     func submitNonVisualCapture(
         audioFileNames: [String],
         observationContexts: [ObservationContext],
@@ -50,9 +54,31 @@ extension CaptureWorkspaceViewModel {
         mediaTimeline: [CaptureSubmissionMediaItem],
         modelContext: ModelContext,
         targetEradicationScanId: String? = nil,
-        userPerceivedStart: CFAbsoluteTime? = nil
-    ) {
-        guard !mediaTimeline.isEmpty else { return }
+        userPerceivedStart: CFAbsoluteTime? = nil,
+        admissionWasChecked: Bool = false
+    ) async -> Bool {
+        guard !mediaTimeline.isEmpty else { return false }
+
+        let ownsAdmissionCheck = !admissionWasChecked
+        if ownsAdmissionCheck {
+            guard !isCheckingScanAdmission else { return false }
+            isCheckingScanAdmission = true
+        }
+        defer {
+            if ownsAdmissionCheck {
+                isCheckingScanAdmission = false
+            }
+        }
+        if ownsAdmissionCheck {
+            guard await requestScanAdmission(
+                flashFallbackEligible: Self.isFlashFallbackEligible(
+                    mediaTimeline,
+                    targetEradicationScanId: targetEradicationScanId
+                )
+            ) else {
+                return false
+            }
+        }
 
         diContainer.cameraManager.resetZoom()
 
@@ -92,7 +118,7 @@ extension CaptureWorkspaceViewModel {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
             offlineToastMessage = .error("Unable to save capture. Please try again.")
-            return
+            return false
         }
         if let userPerceivedStart {
             MerianLog.general.debug(
@@ -104,7 +130,7 @@ extension CaptureWorkspaceViewModel {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
             offlineToastMessage = .warning("No network connection. Queued for analysis.")
-            return
+            return true
         }
         guard diContainer.offlineQueueManager.isOnline else {
             capturedPreFetchTask?.cancel()
@@ -116,7 +142,7 @@ extension CaptureWorkspaceViewModel {
                 reason: "live_nonvisual_offline_before_start"
             )
             offlineToastMessage = .warning("No network connection. Queued for analysis.")
-            return
+            return true
         }
 
         let contextTask = capturedPreFetchTask ?? Task {
@@ -219,5 +245,6 @@ extension CaptureWorkspaceViewModel {
                 }
             }
         }
+        return true
     }
 }

@@ -270,6 +270,34 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertNil(viewModel.requestedCaptureMode)
     }
 
+    func testDailyQuotaPaywallRequestReplacesInsightSheet() {
+        let diContainer = AppDIContainer.preview
+        let previousPaywallRequest = diContainer.usageManager.showPaywall
+        defer {
+            diContainer.usageManager.showPaywall = previousPaywallRequest
+        }
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .insight
+        )
+        diContainer.usageManager.showPaywall = true
+
+        viewModel.handlePaywallPresentationRequest(
+            isRequested: diContainer.usageManager.showPaywall
+        )
+
+        XCTAssertFalse(diContainer.usageManager.showPaywall)
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertTrue(viewModel.isRootPresentationDismissing)
+
+        viewModel.handleRootSheetDismissed()
+
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertFalse(viewModel.isRootPresentationDismissing)
+    }
+
     func testPersistedMultiCapturePreferenceIsLockedWithoutFunctionalPro() {
         RevenueCatManager.shared.isSubscribed = false
         RevenueCatManager.shared.isProActive = false
@@ -1194,6 +1222,80 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         }
     }
 
+    func testExhaustedQuotaPreviewShowsPaywallBeforeVisualProcessing() async throws {
+        enableUnlimitedFreeScansForTest()
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            ScanAdmissionPreview(
+                decision: .dailyQuotaExhausted,
+                effectivePlan: "free",
+                dailyLimit: 1,
+                dailyRemaining: 0
+            )
+        }
+        defer {
+            ScanAdmissionManager.shared.resetForTesting()
+            restoreFreeScanLimitForTest()
+        }
+
+        let diContainer = AppDIContainer.preview
+        let originalContext = OfflineQueueManager.shared.modelContext
+        let originalOnline = OfflineQueueManager.shared.isOnline
+        let modelContext = try makeModelContext()
+        OfflineQueueManager.shared.modelContext = modelContext
+        OfflineQueueManager.shared.isOnline = true
+        defer {
+            cleanupQueuedScans(in: modelContext)
+            OfflineQueueManager.shared.modelContext = originalContext
+            OfflineQueueManager.shared.isOnline = originalOnline
+        }
+
+        let uiImage = makeUIImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+
+        await viewModel.submitStagedCapture(modelContext: modelContext)
+
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertFalse(viewModel.isCheckingScanAdmission)
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertEqual(
+            try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).count,
+            0
+        )
+    }
+
+    func testScanAdmissionPreviewUsesServerMediaEligibilityShape() {
+        XCTAssertTrue(
+            CaptureWorkspaceViewModel.isFlashFallbackEligible([
+                .image(index: 0)
+            ])
+        )
+        XCTAssertFalse(
+            CaptureWorkspaceViewModel.isFlashFallbackEligible([
+                .image(index: 0),
+                .description(ObservationContext(freeText: "Nearby leaves"))
+            ])
+        )
+        XCTAssertFalse(
+            CaptureWorkspaceViewModel.isFlashFallbackEligible(
+                [.image(index: 0)],
+                targetEradicationScanId: UUID().uuidString.lowercased()
+            )
+        )
+    }
+
     func testOfflineVisualSubmissionDoesNotActivateInferenceProcessing() async throws {
         enableUnlimitedFreeScansForTest()
         defer { restoreFreeScanLimitForTest() }
@@ -1225,7 +1327,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             )
         ]
 
-        viewModel.submitStagedCapture(modelContext: modelContext)
+        await viewModel.submitStagedCapture(modelContext: modelContext)
 
         try await waitUntil {
             viewModel.offlineToastMessage?.title ==
@@ -1283,7 +1385,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             )
         ]
 
-        viewModel.submitStagedCapture(modelContext: modelContext)
+        await viewModel.submitStagedCapture(modelContext: modelContext)
 
         try await waitUntil {
             viewModel.offlineToastMessage?.title ==
@@ -1323,7 +1425,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
             prewarmHeadersOnInit: false
         )
 
-        viewModel.submitNonVisualCapture(
+        await viewModel.submitNonVisualCapture(
             audioFileNames: [audioFilename],
             observationContexts: [],
             mediaTimeline: [.audio(audioFilename)],
@@ -1342,7 +1444,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(queuedScans.first?.queueState, .pending)
     }
 
-    func testMultiCaptureDescribeStagesUntilIdentify() throws {
+    func testMultiCaptureDescribeStagesUntilIdentify() async throws {
         let diContainer = AppDIContainer.preview
         diContainer.appSettings.isMultiCaptureEnabled = true
         diContainer.appSettings.requiresScanConfirmation = false
@@ -1353,21 +1455,23 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         )
         let modelContext = try makeModelContext()
 
-        XCTAssertTrue(
-            viewModel.submitDescribe(
-                observationContext: ObservationContext(freeText: "First staged description"),
-                modelContext: modelContext
-            )
+        let didStageFirstDescription = await viewModel.submitDescribe(
+            observationContext: ObservationContext(
+                freeText: "First staged description"
+            ),
+            modelContext: modelContext
         )
+        XCTAssertTrue(didStageFirstDescription)
 
         viewModel.stagedCapture.lastSubmitTime = nil
 
-        XCTAssertTrue(
-            viewModel.submitDescribe(
-                observationContext: ObservationContext(freeText: "Second staged description"),
-                modelContext: modelContext
-            )
+        let didStageSecondDescription = await viewModel.submitDescribe(
+            observationContext: ObservationContext(
+                freeText: "Second staged description"
+            ),
+            modelContext: modelContext
         )
+        XCTAssertTrue(didStageSecondDescription)
 
         XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 2)
         XCTAssertNil(viewModel.activeSheet)

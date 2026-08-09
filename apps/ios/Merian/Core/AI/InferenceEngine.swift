@@ -2014,10 +2014,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         "Naturebook saved this scan. This capture requires Pro access. " +
         "Upgrade, then retry it from Scans."
 
-    private static let dailyQuotaRecoveryReason =
-        "Naturebook saved this scan and will retry automatically when your daily " +
-        "allowance resets. You can leave this screen and check Scans later."
-
     private static let rateLimitRecoveryReason =
         "Naturebook saved this scan and will retry automatically after the server’s " +
         "short safety pause. You can leave this screen and check Scans later."
@@ -2143,9 +2139,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             reasoning = Self.proRequiredRecoveryReason
             telemetryEvent = "InferenceProRequired"
         case (429, "ai_quota_daily_exceeded"):
-            title = "Daily limit reached"
-            reasoning = Self.dailyQuotaRecoveryReason
-            telemetryEvent = "InferenceDailyQuotaExceeded"
+            // The durable queue still owns retry timing, but quota exhaustion
+            // is an upgrade boundary rather than an Insight result. Request the
+            // root paywall without publishing a synthetic SpeciesData view.
+            AppTelemetry.trackError("InferenceDailyQuotaExceeded")
+            MerianLog.general.debug(
+                "Inference daily quota exhausted; requesting the paywall while the queued scan remains saved."
+            )
+            UsageManager.shared.showPaywall = true
+            return true
         case (429, "ai_user_rate_limit_exceeded"),
              (429, "ai_ip_rate_limit_exceeded"):
             title = "Retrying shortly"
@@ -2158,7 +2160,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         // These are authenticated provider-admission decisions, not evidence
         // that the device network is unhealthy. The durable queue owns the
         // saved scan: 402 becomes explicit attention after entitlement refresh,
-        // while 429 honors the server retry delay in the background pipeline.
+        // while temporary 429s honor the server retry delay in the background.
         AppTelemetry.trackError(telemetryEvent)
         MerianLog.general.debug(
             "Inference paused by provider admission policy code=\(code, privacy: .public); the queued scan remains saved."

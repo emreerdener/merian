@@ -42,6 +42,12 @@ export function parseDelimitedText(
 }
 
 export async function readPossiblyGzippedText(path: string): Promise<string> {
+  return (await readPossiblyGzippedTextArtifact(path)).text;
+}
+
+export async function readPossiblyGzippedTextArtifact(
+  path: string,
+): Promise<{ text: string; sourceBytes: Uint8Array }> {
   const bytes = await Deno.readFile(path);
   const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
   const decodedBytes = isGzip
@@ -55,7 +61,10 @@ export async function readPossiblyGzippedText(path: string): Promise<string> {
     : bytes;
 
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(decodedBytes);
+    return {
+      text: new TextDecoder("utf-8", { fatal: true }).decode(decodedBytes),
+      sourceBytes: bytes,
+    };
   } catch {
     throw new Error(`Delimited input is not valid UTF-8: ${path}`);
   }

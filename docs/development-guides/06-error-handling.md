@@ -534,8 +534,10 @@ The complete error and recovery ordering contract is
    - an anonymous account may enter the existing Ghost replacement path, wait
      1.5 seconds for gateway propagation, and retry once. Its durable local scan
      and media remain queued throughout.
-3. An unclassified OAuth 401 never replaces the signed-in account. A second 401
-   after the single retry becomes `MerianError.invalidResponse`.
+3. An unclassified 401 never replaces either a Ghost or OAuth account. Endpoint
+   policy/configuration rejection is not Auth-deletion evidence, so it becomes
+   `MerianError.invalidResponse` without rotating the Supabase UUID or creating
+   another RevenueCat customer.
 
 This logic is centralized in `performAuthenticatedRequest` — callers never need
 to handle JWT refresh themselves. In particular, `invalid_session_token` must

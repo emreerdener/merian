@@ -55,6 +55,68 @@ final class SupabaseManagerTests: XCTestCase {
         )
     }
 
+    func testAccountPresentationPolicyKeepsOneUserAcrossGhostMode() {
+        let userID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
+
+        XCTAssertTrue(
+            AccountPresentationPolicy.isGhost(
+                userID: userID,
+                authIsAnonymous: true,
+                storedGhostModeUserID: nil
+            )
+        )
+        XCTAssertTrue(
+            AccountPresentationPolicy.isGhost(
+                userID: userID,
+                authIsAnonymous: false,
+                storedGhostModeUserID: userID.uuidString.lowercased()
+            )
+        )
+        XCTAssertFalse(
+            AccountPresentationPolicy.isGhost(
+                userID: userID,
+                authIsAnonymous: false,
+                storedGhostModeUserID: UUID().uuidString
+            )
+        )
+        XCTAssertEqual(
+            AccountPresentationPolicy.persistedGhostModeUserID(
+                userID: userID,
+                authIsAnonymous: false
+            ),
+            userID.uuidString.lowercased()
+        )
+        XCTAssertNil(
+            AccountPresentationPolicy.persistedGhostModeUserID(
+                userID: userID,
+                authIsAnonymous: true
+            )
+        )
+        XCTAssertFalse(
+            AccountPresentationPolicy.canResumeLinkedAccount(
+                userID: userID,
+                authIsAnonymous: true,
+                isUsingGhostMode: true
+            ),
+            "A true anonymous Ghost must see account-linking actions."
+        )
+        XCTAssertTrue(
+            AccountPresentationPolicy.canResumeLinkedAccount(
+                userID: userID,
+                authIsAnonymous: false,
+                isUsingGhostMode: true
+            ),
+            "Only a linked user in Ghost presentation can resume the linked UI."
+        )
+        XCTAssertFalse(
+            AccountPresentationPolicy.canResumeLinkedAccount(
+                userID: userID,
+                authIsAnonymous: false,
+                isUsingGhostMode: false
+            )
+        )
+    }
+
     func testGetValidAuthHeadersUsesDeterministicTestStub() async throws {
         let headers = try await supabaseManager.getValidAuthHeaders()
 
@@ -838,11 +900,12 @@ final class SupabaseManagerTests: XCTestCase {
 
         try await SupabaseManager.finalizeGhostProfileHandoff(
             completeServerHandoff: { calls.append("server") },
+            synchronizeProviderPurchases: { calls.append("provider") },
             rebindAndSynchronizeLocalEvidence: { calls.append("local") },
             clearPendingHandoff: { calls.append("clear") }
         )
 
-        XCTAssertEqual(calls, ["server", "local", "clear"])
+        XCTAssertEqual(calls, ["server", "provider", "local", "clear"])
     }
 
     func testGhostHandoffRetainsQueueWhenServerOrLocalCompletionFails() async {
@@ -852,6 +915,9 @@ final class SupabaseManagerTests: XCTestCase {
                 completeServerHandoff: {
                     serverFailureCalls.append("server")
                     throw GhostHandoffTestError.expected
+                },
+                synchronizeProviderPurchases: {
+                    serverFailureCalls.append("provider")
                 },
                 rebindAndSynchronizeLocalEvidence: {
                     serverFailureCalls.append("local")
@@ -864,11 +930,35 @@ final class SupabaseManagerTests: XCTestCase {
         } catch {}
         XCTAssertEqual(serverFailureCalls, ["server"])
 
+        var providerFailureCalls: [String] = []
+        do {
+            try await SupabaseManager.finalizeGhostProfileHandoff(
+                completeServerHandoff: {
+                    providerFailureCalls.append("server")
+                },
+                synchronizeProviderPurchases: {
+                    providerFailureCalls.append("provider")
+                    throw GhostHandoffTestError.expected
+                },
+                rebindAndSynchronizeLocalEvidence: {
+                    providerFailureCalls.append("local")
+                },
+                clearPendingHandoff: {
+                    providerFailureCalls.append("clear")
+                }
+            )
+            XCTFail("Provider synchronization failure must retain the durable handoff")
+        } catch {}
+        XCTAssertEqual(providerFailureCalls, ["server", "provider"])
+
         var localFailureCalls: [String] = []
         do {
             try await SupabaseManager.finalizeGhostProfileHandoff(
                 completeServerHandoff: {
                     localFailureCalls.append("server")
+                },
+                synchronizeProviderPurchases: {
+                    localFailureCalls.append("provider")
                 },
                 rebindAndSynchronizeLocalEvidence: {
                     localFailureCalls.append("local")
@@ -880,7 +970,7 @@ final class SupabaseManagerTests: XCTestCase {
             )
             XCTFail("Local evidence failure must retain the durable handoff")
         } catch {}
-        XCTAssertEqual(localFailureCalls, ["server", "local"])
+        XCTAssertEqual(localFailureCalls, ["server", "provider", "local"])
     }
 
     func testGhostHandoffRemovalFailureRemainsRetryable() async {
@@ -888,6 +978,7 @@ final class SupabaseManagerTests: XCTestCase {
         do {
             try await SupabaseManager.finalizeGhostProfileHandoff(
                 completeServerHandoff: { calls.append("server") },
+                synchronizeProviderPurchases: { calls.append("provider") },
                 rebindAndSynchronizeLocalEvidence: { calls.append("local") },
                 clearPendingHandoff: {
                     calls.append("clear")
@@ -896,7 +987,7 @@ final class SupabaseManagerTests: XCTestCase {
             )
             XCTFail("A failed verified queue write must be retried")
         } catch {}
-        XCTAssertEqual(calls, ["server", "local", "clear"])
+        XCTAssertEqual(calls, ["server", "provider", "local", "clear"])
     }
 
     func testTargetAccountActivationPreservesPendingAndHistoricalEvidence() {

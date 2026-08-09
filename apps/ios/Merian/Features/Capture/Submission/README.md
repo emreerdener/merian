@@ -67,6 +67,19 @@ Capture never shows the complimentary countdown. It uses
 Pro-funded analysis. Video, multiple or mixed evidence, refinement, and other
 Pro-only entry points open the soft paywall when unavailable.
 
+Before a camera shutter, audio recorder, or staged submission can begin work,
+online Capture calls the authenticated, caller-scoped
+`get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access
+denial opens the existing root paywall immediately and leaves staged input
+untouched; Capture does not start hardware, create a queue row, open Insight,
+or invoke inference. Flash eligibility is true only for one ordinary image,
+standalone audio clip, or description; video, mixed/multiple evidence, and
+refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
+preview, not a reservation. Offline Capture falls back to the local meter, and the later
+`reserve_ai_quota(...)` transaction remains authoritative, so an exact `429`
+from a cross-device race still replaces Insight with the paywall as a recovery
+fallback.
+
 Actual admission is a synchronous `@MainActor` funding claim keyed by the stable
 scan ID and active account before any source file is written or foreground
 inference starts. The claim subtracts unresolved local complimentary
@@ -120,11 +133,12 @@ incident and release test are documented in the
 
 The adjacent provider-admission codes keep their own recovery UX. Exact
 `402 pro_required` shows **Upgrade needed / Scan saved**; daily allowance
-exhaustion shows **Daily limit reached / Scan saved**; and stable user/IP rate
-limits show **Retrying shortly / Scan saved**. None are labeled as network
-timeouts or advance the device network circuit. The queued observation remains
-the recovery owner, with `402` becoming explicit attention and `429` honoring
-the server retry delay.
+exhaustion replaces the open Insight sheet with the existing root paywall and
+never publishes a **Daily limit reached** result; and stable user/IP rate limits
+show **Retrying shortly / Scan saved**. None are labeled as network timeouts or
+advance the device network circuit. The queued observation remains the recovery
+owner behind the paywall, with `402` becoming explicit attention and `429`
+honoring the server retry delay.
 
 Exact `400 observation_rejected` requires different source media. It presents
 **Try another capture / Scan not processed**, does not advance the network

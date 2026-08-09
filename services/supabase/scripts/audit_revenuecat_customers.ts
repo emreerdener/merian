@@ -224,6 +224,11 @@ export function buildRevenueCatCustomerAudit(input: {
     if (!appUserID) {
       throw new Error("RevenueCat customer has an empty app_user_id.");
     }
+    if (exactRevenueCatIDs.has(appUserID)) {
+      throw new Error(
+        "RevenueCat customer export contains a duplicate app_user_id.",
+      );
+    }
     exactRevenueCatIDs.add(appUserID);
 
     const directUUID = canonicalUUID(appUserID);

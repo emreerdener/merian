@@ -7,6 +7,17 @@ only in the same privacy-filtered public post projections returned by
 load, send, delete, or rate messages in that conversation; it is not visible to
 other viewers.
 
+Access requires the same durable server-side Pro projection as Insight Field
+Chat. An active store subscription, receipt-backed free trial, or explicitly
+approved finite RevenueCat beta promotion qualifies only after it reaches
+`public.users.subscription_tier = 'pro'`; the RevenueCat developer project plan,
+and client-only state do not. The independent, exactly verified
+`pro_complimentary` functional tier also qualifies while a credit or active hold
+remains, without creating RevenueCat Pro or a paid badge. Beta promotion apply
+remains
+[release-held](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md)
+until the documented identity and cohort controls pass.
+
 The function supports `load`, `send`, `delete`, `feedback`, and
 `suggest_prompts` actions with `post_id`; `send` also requires a UUID
 `client_message_id`. It deliberately excludes owner scan rows, media bytes or

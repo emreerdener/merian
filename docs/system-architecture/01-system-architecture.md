@@ -254,9 +254,10 @@ single-responsibility functions under `/services/supabase/functions/`.
     scans upgrading to Pro insight depths.
   - `/merge-ghost-profile`: Handles existing-account OAuth conflicts with a
     source-issued, provider-bound proof, an atomic Ghost-to-account data merge,
-    and an idempotent cleanup receipt. The pending schema-aware expansion adds
-    manifest-reviewed ownership and durable provider repair behind the rollout
-    gate.
+    a verified RevenueCat Pro mirror before source Auth deletion, client receipt
+    synchronization, and an idempotent cleanup receipt. The schema-aware
+    expansion adds manifest-reviewed ownership and durable provider repair behind
+    the rollout gate.
   - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
@@ -417,6 +418,12 @@ single-responsibility functions under `/services/supabase/functions/`.
     writes `flagged_reviews` and sets `scans.is_flagged`; it is not used for
     reports about Explore post content.
 - **Revenue Integration**
+  - Merian's only generated RevenueCat App User ID is the uppercase Supabase
+    UUID. RevenueCat's customer GET is case-sensitive and get-or-create, so
+    provider row counts are audit evidence rather than a one-to-one Supabase
+    invariant. Project-level RevenueCat Pro billing grants no customer access;
+    store trials and finite beta promotions become server Pro only after
+    authoritative CustomerInfo projection.
   - `/revenuecat-webhook`: Subscribes to realtime Apple/Google subscription
     transitions, verifies RevenueCat's timestamped raw-body HMAC, fetches
     authoritative CustomerInfo, and commits each unique event through a
@@ -430,6 +437,16 @@ single-responsibility functions under `/services/supabase/functions/`.
     CustomerInfo concurrency, and applies only a newer authoritative snapshot
     after a missed delivery. An indexed service-only health RPC plus independent
     scheduled monitor alerts on expired leases and oldest due age.
+  - The source path now uses explicit-cohort selection, accepts successful GET
+    `200|201`, permits provider mutation only on the exact linked stable Ghost
+    or permanent custom ID, and preserves that ID on generic `401` responses.
+    Ghosts may purchase and receive beta grants. User-facing Continue as Ghost
+    retains the same linked UUID, while an existing-account conflict preserves
+    and verifies provider access before source Auth cleanup. Prelaunch provider
+    cleanup is limited to an exact digest/count batch of live-revalidated empty
+    shells and never deletes Supabase data. Grant and cleanup apply still require
+    the exact provider-operation evidence in the
+    [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### 6. Continuous Gamification Ecosystem (`GamificationManager`)
 

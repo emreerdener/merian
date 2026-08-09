@@ -11,12 +11,14 @@ for an event that maps to a Merian user.
 Existing scan media never moves when a tier changes. Both `public_uploads/free/`
 and `public_uploads/pro/` are durable prefixes.
 
-This boundary synchronizes paid status only. It never grants, consumes,
-releases, or resets the three-scan complimentary ledger, and it never turns
-functional complimentary access into a public paid-Pro badge. Effective access
-resolves paid Pro before the existing complimentary state. If paid access
-activates while a complimentary scan is in flight, final scan settlement
-releases that hold rather than consuming it. See
+This boundary synchronizes RevenueCat-backed Pro status only. The legacy
+`pro_paid` policy name includes store trials and approved promotions and is not
+proof that money changed hands. The webhook never grants, consumes, releases, or
+resets the three-scan complimentary ledger, and it never turns functional
+complimentary access into a public provider-backed Pro state. Effective access
+resolves provider-backed Pro before the existing complimentary state. If that
+access activates while a complimentary scan is in flight, final scan settlement
+releases the hold rather than consuming it. See
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 ## Security and processing order
@@ -55,7 +57,9 @@ After ingress verification, the handler:
 4. Calls RevenueCat `GET /v1/subscribers/{app_user_id}` with
    `REVENUECAT_SECRET_API_KEY` for every mapped customer. Both sides of a
    transfer are fetched concurrently, and either lookup failing prevents both
-   database changes.
+   database changes. The endpoint is get-or-create: HTTP `200` (found) and `201`
+   (created) are both successful CustomerInfo responses. A newly created empty
+   customer still projects free; success status is not entitlement proof.
 5. Derives standard Pro from the active `pro` or `Naturalist Tier` entitlement.
    Recurring access persists the later of its authoritative expiration and
    grace-period expiration; `NULL` is reserved for genuinely non-expiring
@@ -130,6 +134,13 @@ Supabase UUID used by iOS configuration and by
 preserved exactly; only database-generated same-user UUID lookups are
 canonicalized.
 
+Project-level RevenueCat Pro billing does not grant customer access. Store
+trials arrive through receipt-backed CustomerInfo, while beta access requires a
+separate finite promotional grant. Once either produces an active `pro`
+entitlement, this webhook projects the same `pro_paid` server access, including
+Field Chat. The beta grant operation is currently release-held under the
+[RevenueCat customer identity incident](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md).
+
 `reconcile-revenuecat-subscribers` runs every 15 minutes. It claims six-customer
 waves under two-minute UUID leases, performs at most three CustomerInfo requests
 concurrently, and continues draining until the queue is empty or its 60-second
@@ -190,7 +201,8 @@ deno test --frozen \
   services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
-  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts
+  services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts \
+  services/supabase/scripts/revenuecat_customer_operations_test.ts
 
 deno test --frozen \
   --config services/supabase/functions/deno.json \

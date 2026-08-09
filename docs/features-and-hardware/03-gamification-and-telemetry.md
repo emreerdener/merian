@@ -336,8 +336,11 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   plus `effective_tier`, `plan`, `subscription_tier`, `trial_active`, and
   `entitlement_version` from the atomic quota reservation:
   - paid Pro: `effective_tier = "pro"`, `plan = "pro_paid"`,
-    `subscription_tier = "pro"`, `trial_active = false`; this includes active
-    standard Pro subscriptions and active paid 7-day passes
+    `subscription_tier = "pro"`, `trial_active = false`; this is the current
+    database policy bucket for active RevenueCat-backed Pro projections,
+    including standard subscriptions, paid 7-day passes, receipt-backed store
+    trials, and approved beta promotions. The legacy `pro_paid` label is not by
+    itself proof that money changed hands
   - complimentary Pro: `effective_tier = "pro"`,
     `plan = "pro_complimentary"`, `subscription_tier = "free"`,
     `trial_active = false`; balance, in-flight holds, settlement reason, Flash

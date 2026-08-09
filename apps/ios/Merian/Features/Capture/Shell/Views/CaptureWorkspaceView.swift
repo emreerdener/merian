@@ -95,6 +95,7 @@ struct CaptureWorkspaceView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AudioCaptureManager.self) var audioCaptureManager
     @Environment(RevenueCatManager.self) private var revenueCatManager
+    @Environment(UsageManager.self) private var usageManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(SupabaseManager.self) private var supabaseManager
@@ -569,11 +570,13 @@ struct CaptureWorkspaceView: View {
             isPresented: isCropSheetPresented,
             viewModel: viewModel,
             onRequiredCropReadyForSubmit: {
-                viewModel.submitStagedCapture(
-                    modelContext: modelContext,
-                    preferredGoal: preferredFieldTripGoal
-                )
-                cameraManager.resetZoom()
+                Task { @MainActor in
+                    await viewModel.submitStagedCapture(
+                        modelContext: modelContext,
+                        preferredGoal: preferredFieldTripGoal
+                    )
+                    cameraManager.resetZoom()
+                }
             },
             onDismiss: handleFeaturePresentationDismissed
         ))
@@ -639,21 +642,25 @@ struct CaptureWorkspaceView: View {
             guard count == 1 else { return }
             guard viewModel.shouldAutoSubmitStagedCapture else { return }
 
-            viewModel.submitStagedCapture(
-                modelContext: modelContext,
-                preferredGoal: preferredFieldTripGoal
-            )
-            cameraManager.resetZoom()
+            Task { @MainActor in
+                await viewModel.submitStagedCapture(
+                    modelContext: modelContext,
+                    preferredGoal: preferredFieldTripGoal
+                )
+                cameraManager.resetZoom()
+            }
         }
         .onChange(of: viewModel.stagedCapture.videos.count) { _, count in
             guard count == 1 else { return }
             guard viewModel.shouldAutoSubmitStagedCapture else { return }
 
-            viewModel.submitStagedCapture(
-                modelContext: modelContext,
-                preferredGoal: preferredFieldTripGoal
-            )
-            cameraManager.resetZoom()
+            Task { @MainActor in
+                await viewModel.submitStagedCapture(
+                    modelContext: modelContext,
+                    preferredGoal: preferredFieldTripGoal
+                )
+                cameraManager.resetZoom()
+            }
         }
         .onChange(of: viewModel.imageToCrop != nil) { _, isCropPresented in
             handleCropPresentationChange(isCropPresented: isCropPresented)
@@ -728,6 +735,9 @@ struct CaptureWorkspaceView: View {
         .onChange(of: inferenceEngine.isProcessing) { _, isStillProcessing in
             viewModel.handleInferenceProcessingChange(isStillProcessing: isStillProcessing)
         }
+        .onChange(of: usageManager.showPaywall, initial: true) { _, isRequested in
+            viewModel.handlePaywallPresentationRequest(isRequested: isRequested)
+        }
         .onChange(of: isFeaturePresentationOccupied) { _, isOccupied in
             if isOccupied {
                 cameraManager.stopSession()
@@ -792,10 +802,20 @@ struct CaptureWorkspaceView: View {
                 
             if willStageOnly {
                 viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
+                audioCaptureManager.reset()
             } else {
-                viewModel.submitAudio(audioFileName: fileName, modelContext: modelContext)
+                Task { @MainActor in
+                    let didSubmit = await viewModel.submitAudio(
+                        audioFileName: fileName,
+                        modelContext: modelContext
+                    )
+                    if didSubmit {
+                        audioCaptureManager.reset()
+                    } else {
+                        audioCaptureManager.restoreSubmissionForReview()
+                    }
+                }
             }
-            audioCaptureManager.reset()
         }
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
@@ -848,13 +868,17 @@ struct CaptureWorkspaceView: View {
 
     private func submitActiveStagedCapture() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        _ = viewModel.stagePendingDescribeDraftForActiveSubmission(observationContext)
-        observationContext = ObservationContext()
-        viewModel.submitStagedCapture(
-            modelContext: modelContext,
-            preferredGoal: preferredFieldTripGoal
-        )
-        cameraManager.resetZoom()
+        Task { @MainActor in
+            _ = viewModel.stagePendingDescribeDraftForActiveSubmission(
+                observationContext
+            )
+            observationContext = ObservationContext()
+            await viewModel.submitStagedCapture(
+                modelContext: modelContext,
+                preferredGoal: preferredFieldTripGoal
+            )
+            cameraManager.resetZoom()
+        }
     }
 
     private var preferredFieldTripGoal: FieldTripPreferredGoal? {

@@ -568,6 +568,13 @@ server entitlement and quota boundary.
 | `pro_week`   | Non-renewing 7-day pass           | $3.99                 |
 | `pro_annual` | Auto-renewing annual subscription | $24.99                |
 
+RevenueCat's developer-account Pro plan is not a Naturebook customer product
+and grants no user access. If a paid product has an App Store introductory free
+trial, the store receipt activates the mapped RevenueCat entitlement through the
+normal purchase flow; RevenueCat staff do not approve each trialing user. A beta
+promotion is a separate, explicit, finite grant of the RevenueCat `pro`
+entitlement and does not create or modify a store subscription.
+
 The staged introductory offer replaces the dynamic seven-day trial with three
 complimentary Pro scans for every existing and future account. Credits have no
 calendar expiry. This offer is not an App Store product and does not alter the
@@ -598,6 +605,10 @@ fourth analysis.
 High database fair-use and rate ceilings bound automation and provider cost, so
 product copy must not promise technically unbounded model traffic.
 
+An active store trial or beta promotional `pro` grant receives this paid
+capability set for its active period, including private Insight and Explore
+Field Chat, after authoritative RevenueCat state is projected to Supabase.
+
 This list must be read with implementation status. Events are generally
 available. Apple Watch logging is partial because the phone receiver is incomplete. Paywall
 copy must not promise an end-to-end capability that the released client cannot
@@ -614,6 +625,26 @@ fetches authoritative source and destination state and commits both projections
 under one event transaction. Paid-model authorization uses the database quota
 reservation, not client display state or Edge-isolate memory; lookup errors fail
 closed.
+
+The case-sensitive customer identity is the uppercase Supabase UUID on iOS and
+every database-generated RevenueCat lookup. `subscription_tier` is a projection
+of provider truth, not beta-membership data or a support toggle. Customer totals
+need not match Supabase profiles, and provider history is never deleted merely
+to normalize counts.
+
+A Ghost UUID is a first-class lifetime customer identity. It can purchase,
+restore, redeem, and receive reviewed beta Pro without login. OAuth normally
+links credentials to that same UUID. Returning to Ghost presentation keeps the
+private linked Supabase session and UUID, so app ownership and billing do not
+change. If the provider identity already belongs to a different UUID, the
+conflict merge mirrors and verifies active Pro before source Auth deletion and
+then synchronizes the real store receipt under RevenueCat's **Transfer to new App
+User ID** behavior.
+
+During prelaunch, an exact guarded cleanup may delete inactive provider shells
+created by the historical identity-rotation bug, but only when fresh exports and
+live RevenueCat checks prove no purchase/promotion, alias, active identity,
+recent use, or ambiguous state. It never deletes a Supabase user or app data.
 
 Complimentary usage is derived from a private held/consumed/released lifetime
 ledger keyed by account and original scan UUID. The server resolves paid Pro →
@@ -733,6 +764,19 @@ Naturebook starts with an anonymous Supabase user and a device-derived local
 identity protected through Keychain-based storage. A person can later link or
 merge with Apple or Google authentication. RevenueCat and PostHog identities
 transition to the authenticated Supabase UUID when appropriate.
+
+The normal provider link preserves the Ghost UUID. The existing-account
+conflict path changes from one custom RevenueCat UUID to another, and RevenueCat
+does not transfer purchases or promotions during that custom-to-custom login.
+Naturebook intentionally allows an exactly linked stable Ghost account to
+purchase, restore, and redeem. Generic `401` responses preserve that UUID rather
+than creating another account, and the normal provider link keeps its purchase
+identity. The existing-account conflict path separately requires tested store
+transfer behavior; beta promotion remains restricted to the reviewed permanent
+cohort because it has no store receipt to transfer. The
+beta/canonical-ID production rollout remains release-held for the independent
+database replay, staging, exact-SHA, and provider-operation gates. See the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Sign-out clears the local user scope without redefining backend retention or
 deletion policy. Account deletion is a separate, explicit operation.

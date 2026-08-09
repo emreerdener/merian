@@ -26,6 +26,28 @@ final class EnvironmentContextGraceGate: @unchecked Sendable {
     }
 }
 
+private struct StagedCaptureAdmissionSnapshot: Equatable {
+    let imageIDs: [UUID]
+    let imagePayloads: [Data]
+    let audioFilePaths: [String]
+    let audioAddedAt: [Date]
+    let videoFilePaths: [String]
+    let videoAddedAt: [Date]
+    let observationContexts: [ObservationContext]
+    let observationAddedAt: [Date]
+
+    init(_ stagedCapture: StagedCapture) {
+        imageIDs = stagedCapture.images.map(\.original.id)
+        imagePayloads = stagedCapture.images.map(\.compressedData)
+        audioFilePaths = stagedCapture.audios.map(\.filePath)
+        audioAddedAt = stagedCapture.audios.map(\.addedAt)
+        videoFilePaths = stagedCapture.videos.map(\.filePath)
+        videoAddedAt = stagedCapture.videos.map(\.addedAt)
+        observationContexts = stagedCapture.observationContexts.map(\.context)
+        observationAddedAt = stagedCapture.observationContexts.map(\.addedAt)
+    }
+}
+
 extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Staged Capture
@@ -37,9 +59,10 @@ extension CaptureWorkspaceViewModel {
     /// - Any submission without images → shared non-visual pipeline (`submitNonVisualCapture`)
     ///
     /// Call order:
-    /// 1. Reset `InferenceEngine` display state and open the insight sheet immediately.
-    /// 2. Snapshot the staging buffers, then clear them to prevent double-submit.
-    /// 3. Generate a stable `scanId` shared by the queue record and live inference task.
+    /// 1. Snapshot the staging buffers and run caller-scoped scan admission.
+    /// 2. If admission is exhausted, preserve the buffers and present the paywall.
+    /// 3. Otherwise clear the buffers and generate one stable `scanId` shared by
+    ///    the queue record and live inference task.
     /// 4. **Enqueue immediately** (still in foreground) with a source-aware context
     ///    snapshot and the serialized observation context when present. Gallery media
     ///    uses only its embedded historical context; live media can use cached device
@@ -51,9 +74,14 @@ extension CaptureWorkspaceViewModel {
     func submitStagedCapture(
         modelContext: ModelContext,
         preferredGoal: FieldTripPreferredGoal? = nil
-    ) {
+    ) async {
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         let stagedNodes = stagedCapture.orderedNodes
+        let admissionSnapshot = StagedCaptureAdmissionSnapshot(stagedCapture)
+        guard !stagedNodes.isEmpty, !isCheckingScanAdmission else { return }
+        isCheckingScanAdmission = true
+        defer { isCheckingScanAdmission = false }
+
         var capturedMediaTimeline: [CaptureSubmissionMediaItem] = []
         var capturedDisplayImages: [StagedImage] = []
         var capturedInferenceImages: [StagedImage] = []
@@ -116,17 +144,34 @@ extension CaptureWorkspaceViewModel {
         let capturedAudioFilePaths = capturedMediaTimeline.audioFilePaths
         let capturedVideoFilePaths = capturedMediaTimeline.videoFilePaths
         let capturedObservationContexts = capturedMediaTimeline.observationContexts
+        let flashFallbackEligible = Self.isFlashFallbackEligible(
+            capturedMediaTimeline,
+            targetEradicationScanId: baseRefinementContext?.scanId
+        )
+
+        guard await requestScanAdmission(
+            flashFallbackEligible: flashFallbackEligible
+        ) else {
+            return
+        }
+        // The preview crosses a network boundary. Never clear or submit a
+        // staging buffer the user changed while that caller-scoped read ran.
+        guard StagedCaptureAdmissionSnapshot(stagedCapture) == admissionSnapshot else {
+            return
+        }
 
         guard stagedCapture.hasVisualMedia else {
-            submitNonVisualCapture(
+            let didEnqueue = await submitNonVisualCapture(
                 audioFileNames: capturedAudioFilePaths,
                 observationContexts: capturedObservationContexts,
                 videoFileNames: capturedVideoFilePaths,
                 mediaTimeline: capturedMediaTimeline,
                 modelContext: modelContext,
                 targetEradicationScanId: baseRefinementContext?.scanId,
-                userPerceivedStart: analysisTappedAt
+                userPerceivedStart: analysisTappedAt,
+                admissionWasChecked: true
             )
+            guard didEnqueue else { return }
             clearStagedCaptureAndCropState()
             baseRefinementContext = nil
             refinementSubjectId = nil
@@ -480,6 +525,67 @@ extension CaptureWorkspaceViewModel {
         )
     }
 
+    /// Uses the local meter only while offline; online Capture asks the
+    /// caller-scoped database preview before inference. An online preview
+    /// failure blocks new processing until the app can prove admission; the
+    /// Identify reservation remains authoritative.
+    func requestScanAdmission(flashFallbackEligible: Bool) async -> Bool {
+        let canStartLocally: Bool
+        if flashFallbackEligible {
+            canStartLocally = diContainer.usageManager.canPerformScan(
+                isProActive: diContainer.revenueCatManager.canStartProScan
+            )
+        } else {
+            canStartLocally = diContainer.revenueCatManager.canStartProScan
+        }
+
+        guard diContainer.offlineQueueManager.isOnline else {
+            guard canStartLocally else {
+                presentScanAdmissionPaywall()
+                return false
+            }
+            return true
+        }
+        let preview = await diContainer.scanAdmissionManager.preview(
+            flashFallbackEligible: flashFallbackEligible
+        )
+        guard !Task.isCancelled else { return false }
+        guard let preview else {
+            offlineToastMessage = .error(
+                "Unable to check scan availability. Please try again."
+            )
+            return false
+        }
+
+        switch preview.decision {
+        case .allowed:
+            return true
+        case .dailyQuotaExhausted, .proRequired:
+            presentScanAdmissionPaywall()
+            return false
+        }
+    }
+
+    private func presentScanAdmissionPaywall() {
+        AppTelemetry.trackPaywallImpression()
+        activeSheet = .paywall
+    }
+
+    static func isFlashFallbackEligible(
+        _ timeline: [CaptureSubmissionMediaItem],
+        targetEradicationScanId: String? = nil
+    ) -> Bool {
+        guard targetEradicationScanId == nil, timeline.count == 1 else {
+            return false
+        }
+        switch timeline[0] {
+        case .image, .audio, .description:
+            return true
+        case .video:
+            return false
+        }
+    }
+
     static func environmentContext(
         from task: Task<EnvironmentContext, Never>?,
         graceMilliseconds: Int
@@ -529,6 +635,16 @@ extension CaptureWorkspaceViewModel {
     }
 
     // MARK: - Inference Processing Change
+
+    /// Consumes the app-wide paywall intent at the root presentation boundary.
+    /// If Insight is already open, `activeSheet` performs its normal ordered
+    /// dismissal and mounts the paywall only after UIKit releases that slot.
+    func handlePaywallPresentationRequest(isRequested: Bool) {
+        guard isRequested else { return }
+        diContainer.usageManager.showPaywall = false
+        AppTelemetry.trackPaywallImpression()
+        activeSheet = .paywall
+    }
 
     /// Responds to changes in `InferenceEngine.isProcessing`.
     func handleInferenceProcessingChange(isStillProcessing: Bool) {

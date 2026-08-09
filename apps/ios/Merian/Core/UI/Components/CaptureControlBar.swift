@@ -107,6 +107,7 @@ struct CaptureControlBar: View {
                 // All modes disabled when staging area is full — no new input can be added.
                 // Describe also disabled while a refinement image is still loading.
                 let isSubmitDisabled: Bool = isAtCapacity
+                    || viewModel.isCheckingScanAdmission
                     || (captureMode == .describe && viewModel.isStagingRefinement)
                 let isInputActive = captureMode != .describe || !observationContext.isEmpty
 
@@ -131,7 +132,18 @@ struct CaptureControlBar: View {
                             }
                         case .audio:
                             if audioCaptureManager.pendingPlaybackPath != nil {
-                                audioCaptureManager.confirmAndSubmit()
+                                guard audioRecordingStartTask == nil else { return }
+                                audioRecordingStartTask = Task {
+                                    defer { audioRecordingStartTask = nil }
+                                    guard await viewModel.requestScanAdmission(
+                                        flashFallbackEligible:
+                                            viewModel.stagedCapture.isEmpty &&
+                                            viewModel.baseRefinementContext == nil
+                                    ) else {
+                                        return
+                                    }
+                                    audioCaptureManager.confirmAndSubmit()
+                                }
                             } else if audioCaptureManager.isRecording {
                                 if audioCaptureManager.isPaused {
                                     audioCaptureManager.resumeRecording()
@@ -143,6 +155,13 @@ struct CaptureControlBar: View {
                                 audioRecordingStartTask = Task {
                                     defer { audioRecordingStartTask = nil }
                                     do {
+                                        guard await viewModel.requestScanAdmission(
+                                            flashFallbackEligible:
+                                                viewModel.stagedCapture.isEmpty &&
+                                                viewModel.baseRefinementContext == nil
+                                        ) else {
+                                            return
+                                        }
                                         // Ask immediately while the red-button action is still
                                         // visible and before camera shutdown can introduce delay.
                                         guard scenePhase == .active else { return }
@@ -169,12 +188,14 @@ struct CaptureControlBar: View {
                             }
                         case .describe:
                             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                            let didSubmit = viewModel.submitDescribe(
-                                observationContext: observationContext,
-                                modelContext: modelContext
-                            )
-                            if didSubmit {
-                                observationContext = ObservationContext()
+                            Task { @MainActor in
+                                let didSubmit = await viewModel.submitDescribe(
+                                    observationContext: observationContext,
+                                    modelContext: modelContext
+                                )
+                                if didSubmit {
+                                    observationContext = ObservationContext()
+                                }
                             }
                         }
                     },

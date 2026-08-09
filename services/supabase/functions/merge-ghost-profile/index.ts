@@ -19,6 +19,7 @@ import {
   parseGhostMergeRequest,
   sha256Hex,
 } from "./protocol.ts";
+import { preserveRevenueCatAccessForGhostMerge } from "./revenuecat.ts";
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -103,6 +104,35 @@ Deno.serve((req: Request) =>
             request.handoffId,
             secretHash,
           );
+
+          const revenueCatHandoff = await preserveRevenueCatAccessForGhostMerge(
+            receipt.ghostUserId,
+            receipt.targetUserId,
+            Deno.env.get("REVENUECAT_SECRET_API_KEY")?.trim() ?? "",
+          );
+          if (!revenueCatHandoff.succeeded) {
+            await recordGhostAuthCleanup(
+              receipt.handoffId,
+              false,
+              revenueCatHandoff.errorCode,
+              supabaseAdmin,
+            );
+            logStructuredError(
+              "ghost_profile_merge_revenuecat_handoff_pending",
+              {
+                handoffId: receipt.handoffId,
+                ghostUserId: receipt.ghostUserId,
+                targetUserId: receipt.targetUserId,
+                errorCode: revenueCatHandoff.errorCode,
+              },
+            );
+            return publicErrorResponse(
+              req,
+              503,
+              "purchase_handoff_pending",
+              "Account data was upgraded, but purchase continuity is still syncing. Retrying is safe.",
+            );
+          }
 
           const cleanup = await deleteMergedGhostAuthUser(
             receipt.ghostUserId,

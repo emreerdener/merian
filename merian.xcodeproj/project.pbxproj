@@ -429,6 +429,7 @@
 		CE819C2F35334E17B8F3A86D /* ScansManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7811F86CBCA6CDB0188A8929 /* ScansManagerTests.swift */; };
 		CED501F9C15F90353CDAA263 /* KeyValueRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBD3911AA184ECE86F6960B /* KeyValueRow.swift */; };
 		CF42AB45894FB58A5A57D1BB /* DidYouKnowCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45752C39C53E775E60290AE /* DidYouKnowCard.swift */; };
+		CF6704A4FD524955630889A2 /* ScanAdmissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49B0A6F5F0E46D629138E502 /* ScanAdmissionManager.swift */; };
 		D04601386C3C540AC9E1A14C /* MerianApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D57A8D01CDAF8E994655620 /* MerianApp.swift */; };
 		D0709C98BB55A0237CA78FC3 /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D455C80CDC1DAFE893A1F7E /* PhotoLibraryManager.swift */; };
 		D1130BDB04B0BB0FA5C12557 /* OverviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 425723D909583D5FCF661C3A /* OverviewCard.swift */; };
@@ -746,6 +747,7 @@
 		4835BB38552A9C9A15CA7101 /* CaptureWorkspaceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureWorkspaceViewModel.swift; sourceTree = "<group>"; };
 		485E768349B9D8AAB3B5CC9F /* CompositeLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositeLibraryTests.swift; sourceTree = "<group>"; };
 		490F6B0A61D227C143DAF028 /* PostHogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostHogManager.swift; sourceTree = "<group>"; };
+		49B0A6F5F0E46D629138E502 /* ScanAdmissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAdmissionManager.swift; sourceTree = "<group>"; };
 		49B3A90A4B71BAFAEEFCA6BF /* InsightContentRouterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightContentRouterView.swift; sourceTree = "<group>"; };
 		49BD12B2FA16808496408D6F /* MediaModeToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaModeToggle.swift; sourceTree = "<group>"; };
 		4AF477FE5240556EA07A5527 /* SchemaV12.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV12.swift; sourceTree = "<group>"; };
@@ -3386,6 +3388,7 @@
 				21F87DC06ADD940406F7EE95 /* DeviceIdentityManager.swift */,
 				733AD50E8B6565B7A602E13F /* EntitlementManager.swift */,
 				2F4EAD03252E289E9516AC28 /* RevenueCatManager.swift */,
+				49B0A6F5F0E46D629138E502 /* ScanAdmissionManager.swift */,
 				13E259CE33927D81AE714096 /* SecureTransportPolicy.swift */,
 				4E53EEAA4B495EBA59F7F561 /* SocialGuardManager.swift */,
 			);
@@ -4422,6 +4425,7 @@
 				42256BF6A35600A8B6E21C9A /* RevenueCatManager.swift in Sources */,
 				84D8C7DBB34E110B5BBC0F17 /* SNRGaugeView.swift in Sources */,
 				FAECE180627AC9FCD58E9DA3 /* SafariView.swift in Sources */,
+				CF6704A4FD524955630889A2 /* ScanAdmissionManager.swift in Sources */,
 				FBD552F932F331C0D412DEE4 /* ScanCollection.swift in Sources */,
 				E15D472AEF88505382BAD5D1 /* ScanDeletionDialogModifier.swift in Sources */,
 				D3DA21D5A41DAADF689AFF1E /* ScanInformationCard.swift in Sources */,

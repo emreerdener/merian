@@ -9,7 +9,8 @@ Authentication with RevenueCat SDK bindings for entitlement checking.
   — Ghost session creation, OAuth upgrade, account merging, historical sync
 - [Paywalls and Entitlements
   (`RevenueCatManager`)](#paywalls-and-entitlements-revenuecatmanager) — paid,
-  functional, and new-scan capacity; current-launch `EntitlementManager`
+  functional, and new-scan capacity; trials, beta grants, Field Chat, and the
+  current-launch `EntitlementManager`
 - [RevenueCat Webhook](#revenuecat-webhook-revenuecat-webhook) — Server-side
   paid-tier and timed-pass synchronization
 - [Usage Limits (`UsageManager`)](#usage-limits-usagemanager) — Daily Flash
@@ -36,10 +37,16 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   / `getValidAuthHeaders()` all await the same in-flight anonymous sign-in
   instead of racing multiple `signInAnonymously()` requests against the same
   empty state.
-- Exposes an `isGuestUser` property (mapped to `currentUser?.isAnonymous`)
-  allowing features like `ProfileTabView` to selectively render Apple
-  Authentication loops instead of surfacing "Sign Out" buttons on ghost
-  sessions.
+- A generic Edge `401` is not account-deletion evidence and preserves the
+  current Ghost UUID. Replacement is allowed only for the stable
+  missing/invalid-session contract after a Supabase SDK refresh also fails.
+  This prevents a failing route from creating a chain of Supabase Ghost users
+  and matching RevenueCat customer shells.
+- Exposes `isGuestUser` through `AccountPresentationPolicy`. It is true for a
+  Supabase-anonymous session and for a linked session whose same UUID is in
+  app-level Ghost mode. This lets login remain optional without revoking the
+  private session that owns the user's scans, preferences, and RevenueCat
+  customer.
 - **Identity Resolution & OAuth**: Merian uses standard Apple
   (`ASAuthorizationAppleIDProvider`) and Google (`GIDSignIn`) iOS libraries to
   authenticate without web-view redirects.
@@ -103,6 +110,19 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     RevenueCat reconciliation and merge both lock the public user before the
     queue row, and reconciliation revalidates its lease under lock before
     applying entitlement state.
+  - A database queue repair does not transfer RevenueCat provider state. The
+    Ghost UUID and permanent UUID are both non-anonymous custom RevenueCat IDs,
+    and RevenueCat documents custom-to-custom `logIn` as an account switch with
+    no purchase transfer. This does **not** block Ghost purchases: a stable Ghost
+    UUID is a first-class RevenueCat purchase identity, and the normal OAuth link
+    preserves that UUID. For the existing-account conflict fallback, the Edge
+    function reads source and destination CustomerInfo, mirrors and verifies the
+    source's active finite or lifetime Pro horizon, and only then allows obsolete
+    source Auth deletion. The iOS durable completion then calls
+    `syncPurchases()` under the required **Transfer to new App User ID** project
+    behavior before rebinding local evidence and removing its proof. The worker
+    repeats server preservation before cleanup if the client disappears. Beta
+    grants accept both verified active Ghost and linked Auth identities.
   - The schema-aware conflict fallback remains release-gated until that durable
     queue behavior, RevenueCat and Community lock ordering, both scan-ledger
     error mappings, exact-version catalog replay, and staging concurrency probes
@@ -125,16 +145,20 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
     scan history and loads it into local SwiftData structures.
-  - When executing `signOut()`, `SupabaseManager` signs out with Supabase
-    `.local` scope so one device or simulator does not revoke every active
-    session for the same account. It clears RevenueCat's local entitlement and
-    linked-identity state without calling `Purchases.logOut()`, because SDK
-    logout creates a new `$RCAnonymousID` customer. Purchase-related operations
-    remain closed until the replacement Supabase ghost or authenticated UUID is
-    linked directly with `logIn`.
+  - User-facing **Continue as Ghost** calls `continueAsGhost()`. It records the
+    same linked UUID in `Merian_GhostModeUserID_v1` and changes presentation only;
+    Supabase, RevenueCat, app data, and purchase access keep the same owner. True
+    linked Ghost mode exposes only **Resume linked account**, which removes that
+    marker locally instead of offering a provider action that could switch
+    users. `signOut()` uses Supabase `.local` scope and clears provider fences
+    without calling `Purchases.logOut()`; it is reserved for account deletion,
+    revoked credentials, or authoritative invalid-session recovery, not ordinary
+    login-optional UX.
   - The authenticated-session marker is centralized under
     `KeychainKeys.hasAuthenticatedOAuth`. Do not inline the legacy string key in
-    auth or network code.
+    auth or network code. The Ghost presentation marker is centralized under
+    `KeychainKeys.ghostModeUserID` and is valid only when it matches the current
+    Supabase UUID.
 
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
@@ -153,6 +177,10 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   iOS SDK key beginning with `appl_` before Organizer distribution.
 - Uses `logIn(canonicalAppUserID)` to switch directly between known Supabase
   accounts. It never configures anonymously and never uses RevenueCat logout.
+  This prevents new `$RCAnonymousID` rows but does not imply that provider
+  purchases or promotional grants transfer between two custom UUIDs. The
+  existing-account Ghost merge uses the separate verified server mirror plus
+  client receipt-sync contract above.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
   operational error when there is no current offering, the current offering has
@@ -211,6 +239,60 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     pro`, it receives the same server `pro_paid` feature gates—including Field
     Chat—as store-paid Pro for the grant period. A manual database-only Pro edit
     is intentionally reverted when RevenueCat has no active entitlement.
+
+### RevenueCat plan, trials, beta grants, and Field Chat
+
+These similarly named states have different authorities:
+
+| State | How it starts | Customer access |
+| --- | --- | --- |
+| RevenueCat developer account Pro | The developer pays RevenueCat for its project plan | Enables project features and integrations only; it grants no app user Pro access. |
+| App Store introductory free trial | The user completes the normal store purchase flow and the receipt contains an introductory trial | RevenueCat activates the mapped `pro` entitlement automatically. There is no manual per-user RevenueCat approval step. |
+| Beta promotional Pro | A reviewed operator or server uses RevenueCat's secret-key promotional entitlement boundary with a finite expiration | Immediate provider Pro for the approved customer; it does not create or alter an App Store subscription. |
+| Three introductory Pro scans | Supabase grants and settles the private complimentary ledger | Separate functional allowance; it is not a RevenueCat trial, purchase, or promotion. |
+
+For store trials and beta promotions, RevenueCat CustomerInfo is the Pro-state
+authority and Supabase is its durable server projection. The webhook normally
+projects the change immediately; the scheduled reconciler repairs a missed
+delivery. After `subscription_tier = pro` is projected, the server resolves
+`pro_paid`, so the customer receives Field Chat and the other paid feature gates
+for the active period. Editing the database tier directly is never a grant and
+will be overwritten by the next authoritative reconciliation.
+
+The independent `pro_complimentary` path can also resolve
+`effective_tier = pro` while an exactly verified credit or active hold remains,
+so it passes the Field Chat gate without creating a RevenueCat entitlement or
+paid badge. That functional allowance is not evidence about the customer's
+store trial or beta membership.
+
+Beta membership must come from an explicit reviewed UUID cohort, not from the
+current tier column. A user who already reverted to `free` is still eligible if
+the approved cohort says they are a beta member. The Auth audit requires a live
+Auth user but accepts both Supabase-anonymous Ghost and linked accounts.
+RevenueCat customer-count parity is also not expected: aliases, case variants,
+test identities, deleted Merian users, and get-or-create shells can all exist in
+the provider project.
+
+The P1 source corrections for the canonical-ID and beta rollout include a grant
+client that accepts successful CustomerInfo GET `200|201`, consumes an explicit
+cohort independent of tier, and reports verified Ghost/linked counts. The iOS
+mutation boundary accepts an exact stable Ghost or linked identity, and its
+generic-`401` path preserves the current UUID instead of manufacturing another
+Ghost and RevenueCat customer. The conflict fallback mirrors active Pro before
+source Auth deletion and synchronizes the real store receipt before its durable
+client proof is removed.
+
+Prelaunch cleanup is permitted only through the exact
+`cleanup-revenuecat-shells` plan/apply boundary. It protects the reviewed cohort,
+every active Auth identity, canonical current Supabase customers by default,
+purchase/promotion history, aliases, recent activity, and ambiguous state, then
+revalidates live RevenueCat state before each exact delete. It never deletes a
+Supabase user or app data. A later lookup can recreate an empty provider shell,
+but cannot reconstruct deleted aliases, purchases, or promotions; that is why
+only shells proven to have none are eligible. See the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md)
+and
+[deployment release gate](../backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate).
 
 ### Prelaunch purchase testing
 

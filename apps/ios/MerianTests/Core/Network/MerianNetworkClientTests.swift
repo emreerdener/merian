@@ -263,20 +263,29 @@ struct MerianNetworkClientTests {
         #expect(String(decoding: secondData, as: UTF8.self) == "second")
     }
 
-    @Test func testMissingAuthSessionRecoveryOnlyRegeneratesGuestSessions() {
-        #expect(MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+    @Test func testUnauthorizedRecoveryOnlyRegeneratesAuthoritativelyMissingGuestSessions() {
+        #expect(MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: true,
             hasAuthenticatedOAuth: false,
             isGuestUser: true
         ))
-        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: false,
+            hasAuthenticatedOAuth: false,
+            isGuestUser: true
+        ))
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: true,
             hasAuthenticatedOAuth: true,
             isGuestUser: true
         ))
-        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: true,
             hasAuthenticatedOAuth: false,
             isGuestUser: false
         ))
-        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterMissingAuthSession(
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: false,
             hasAuthenticatedOAuth: true,
             isGuestUser: false
         ))

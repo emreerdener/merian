@@ -214,6 +214,7 @@ final class CaptureWorkspaceViewModel {
     var stagedCapture = StagedCapture()
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isTooltipVisible: Bool = false
+    var isCheckingScanAdmission = false
     
     // MARK: - Refinement Flow
     /// The historical scan actively chosen by the user to be appended with new photographic context.

@@ -200,12 +200,13 @@ Scans.
 
 Provider admission is also separated from transport health for both live
 pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
-`429 ai_quota_daily_exceeded` presents **Daily limit reached / Scan saved**;
-and stable user/IP rate limits present **Retrying shortly / Scan saved**. These
-handler-owned decisions do not advance the device network circuit. The durable
-queue retains the observation: entitlement exhaustion becomes explicit
-attention after the server proof refresh, while rate limits use the server's
-bounded retry delay.
+`429 ai_quota_daily_exceeded` requests the root paywall without publishing a
+synthetic Insight result; and stable user/IP rate limits present **Retrying
+shortly / Scan saved**. These handler-owned decisions do not advance the device
+network circuit. The durable queue retains the observation behind the paywall
+and continues to honor the server retry schedule; entitlement exhaustion
+becomes explicit attention after the server proof refresh, while temporary rate
+limits use the server's bounded retry delay.
 
 Exact `400 observation_rejected` is terminal policy feedback, not a transport
 failure. Both live pipelines present **Try another capture / Scan not

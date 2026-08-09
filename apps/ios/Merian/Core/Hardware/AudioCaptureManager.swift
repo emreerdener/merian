@@ -527,6 +527,16 @@ final class AudioCaptureManager {
         pendingPlaybackPath = nil
     }
 
+    /// Returns a failed direct submission to the review state without deleting
+    /// the irreplaceable recording. Setting `audioFilePath` back to nil does not
+    /// retrigger submission; the next explicit confirm creates a fresh change.
+    func restoreSubmissionForReview() {
+        guard pendingPlaybackPath == nil,
+              let submittedPath = audioFilePath else { return }
+        pendingPlaybackPath = submittedPath
+        audioFilePath = nil
+    }
+
     /// Discards the pending recording and returns to idle state without submitting.
     func discardPending() {
         stopPlayback()

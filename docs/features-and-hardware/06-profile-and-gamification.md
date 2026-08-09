@@ -75,9 +75,13 @@ badges use paid status only.
 - `updatePublicAvatar(_:)` — stages a prepared square profile picture in R2,
   calls `/update-public-avatar`, refreshes `publicAvatarUrl`, and publishes
   `.publicAuthorIdentityChanged`
-- `signInWithApple()`, `signInWithGoogle()`, `signOut()` — delegates to
-  `SupabaseManager`; normal logout is local to the current device and also
-  clears the current RevenueCat/PostHog identity cache
+- `signInWithApple()`, `signInWithGoogle()`, `continueAsGhost()` — delegates to
+  `SupabaseManager`; Continue as Ghost is a presentation change that keeps the
+  same Supabase UUID, RevenueCat customer, purchases, and app data. True
+  anonymous Ghosts see provider-link actions, while a linked Ghost sees only
+  `resumeLinkedAccount()` so returning to linked presentation cannot switch
+  users. True `signOut()` is reserved for deletion or authoritative credential
+  failure.
 - Auth state computed properties (`isGuestUser`, `userName`, `userEmail`,
   `userAvatarURL`, `publicUsernameDisplayName`)
 

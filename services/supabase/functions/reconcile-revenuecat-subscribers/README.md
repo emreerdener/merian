@@ -21,8 +21,8 @@ is not a browser or iOS API.
   case-sensitive. Migration
   `20260809055035_canonicalize_revenuecat_app_user_ids.sql` makes the uppercase
   Supabase UUID canonical for new-user enqueue and ghost-merge repair, and
-  normalizes only queue values that are provably the same UUID. Emails,
-  aliases, `$RCAnonymousID` values, and other provider IDs remain unchanged.
+  normalizes only queue values that are provably the same UUID. Emails, aliases,
+  `$RCAnonymousID` values, and other provider IDs remain unchanged.
 - The invocation budget is 90 seconds. New claim waves stop after 60 seconds,
   reserving 30 seconds for the final bounded provider wave, database writes, and
   queue-health read. The cron dispatch uses a 120-second `pg_net` response
@@ -36,10 +36,12 @@ is not a browser or iOS API.
   purchase over a free/refunded customer watermark. Webhook event context owns
   that revocation decision.
 
-The projected Pro/free labels in this worker refer only to RevenueCat-paid
-state. Reconciliation does not edit complimentary usage or infer a public paid
-badge. Effective access may fall through from a non-paid snapshot to an existing
-complimentary credit or hold. The joined entitlement contract is
+The projected Pro/free labels in this worker refer only to RevenueCat-backed Pro
+state. The legacy `pro_paid` policy name includes store trials and approved
+promotions and is not proof that money changed hands. Reconciliation does not
+edit complimentary usage or infer access from the complimentary ledger.
+Effective access may fall through from a non-Pro provider snapshot to an
+existing complimentary credit or hold. The joined entitlement contract is
 [Three Complimentary Pro Scans](../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
 The queue has RLS enabled and no direct API-role or service-role table grants.
@@ -75,9 +77,21 @@ claim-fenced queue to retry; do not grant table access or directly edit tiers.
 For beta migration and customer-count investigation, use the offline
 `audit_revenuecat_customers.ts` export comparison and the dry-run-first
 `grant_revenuecat_beta_entitlements.ts` workflow documented in the deployment
-runbook. Never delete RevenueCat customer history as a reconciliation strategy.
+runbook. Never delete RevenueCat customer history as a reconciliation strategy;
+the separately authorized empty-shell cleanup can delete only a live-revalidated
+customer proven to have no such history and never writes this queue or Supabase.
 Promotional grants emit production `NON_RENEWING_PURCHASE` webhooks; the normal
 webhook/reconciliation path remains the only tier writer.
+
+The grant workflow is currently production-held and may be used only in dry-run
+mode. Its GET path must accept both successful CustomerInfo statuses (`200`
+found and `201` created), and beta membership must come from an explicit
+reviewed UUID cohort rather than current `subscription_tier`. The canonical
+migration makes normalized rows immediately due, so a future apply must pause
+only this named reconciler during the bounded migration/grant window, then
+restore its exact schedule and prove queue health. The full hold and exit
+criteria are in the
+[RevenueCat customer identity incident](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Unit coverage lives in `db_test.ts`, `worker_test.ts`, and
 `services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts`. Migration

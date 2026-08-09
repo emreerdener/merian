@@ -168,6 +168,10 @@ enum ManualAppleRevocationNoticeStore {
 enum KeychainKeys {
     /// Distinguishes OAuth-authenticated users from anonymous ghost sessions.
     static let hasAuthenticatedOAuth = "Merian_HasAuthenticatedOAuth"
+    /// The exact Supabase user that chose the app-level Ghost presentation.
+    /// The underlying private Auth session remains active so the UUID, data,
+    /// RevenueCat customer, and purchases do not rotate on a user-facing logout.
+    static let ghostModeUserID = "Merian_GhostModeUserID_v1"
     /// Provider-bound, one-use proof retained until the server confirms that
     /// both the guest data merge and Auth cleanup completed.
     static let pendingGhostProfileMerge = "Merian_PendingGhostProfileMerge"

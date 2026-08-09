@@ -47,6 +47,7 @@ import SwiftUI
     // MARK: - Dependencies (Analytics & Security)
     var consentManager = ConsentManager.shared
     var revenueCatManager = RevenueCatManager.shared
+    var scanAdmissionManager = ScanAdmissionManager.shared
     var usageManager = UsageManager.shared
     var gamificationManager = GamificationManager.shared
     var circuitBreakerManager = CircuitBreakerManager.shared

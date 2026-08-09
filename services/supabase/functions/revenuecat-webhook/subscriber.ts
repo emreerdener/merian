@@ -39,6 +39,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * Parses the CustomerInfo shape returned by RevenueCat v1. The OpenAPI
+ * renderer wraps some response examples in `value`, while live endpoints may
+ * return the CustomerInfo object directly, so both documented shapes are
+ * accepted and everything else fails closed.
+ */
+export function parseRevenueCatCustomerInfoPayload(
+  payload: unknown,
+): RevenueCatCustomerInfo {
+  const root = isRecord(payload) && isRecord(payload.value)
+    ? payload.value
+    : payload;
+  if (
+    !isRecord(root) ||
+    typeof root.request_date_ms !== "number" ||
+    !Number.isSafeInteger(root.request_date_ms) ||
+    root.request_date_ms < 0 ||
+    root.request_date_ms > MAX_POSTGRES_TIMESTAMP_MS ||
+    !isRecord(root.subscriber)
+  ) {
+    throw new RevenueCatApiError(
+      "RevenueCat CustomerInfo response was missing required fields.",
+      true,
+    );
+  }
+
+  return {
+    requestDateMs: root.request_date_ms,
+    subscriber: root.subscriber,
+  };
+}
+
 function parseDateMs(value: unknown): number | null {
   if (typeof value !== "string") return null;
   const parsed = Date.parse(value);
@@ -156,6 +188,44 @@ async function readBoundedResponseBody(
   return result.bytes;
 }
 
+export async function readRevenueCatCustomerInfoResponse(
+  response: Response,
+): Promise<RevenueCatCustomerInfo> {
+  const contentLength = Number(response.headers.get("Content-Length"));
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_CUSTOMER_INFO_BYTES
+  ) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new RevenueCatApiError(
+      "RevenueCat CustomerInfo response exceeded the size limit.",
+      true,
+    );
+  }
+
+  const rawBytes = await readBoundedResponseBody(response);
+  let rawBody: string;
+  try {
+    rawBody = new TextDecoder("utf-8", { fatal: true }).decode(rawBytes);
+  } catch {
+    throw new RevenueCatApiError(
+      "RevenueCat CustomerInfo returned invalid UTF-8.",
+      true,
+    );
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawBody);
+  } catch {
+    throw new RevenueCatApiError(
+      "RevenueCat CustomerInfo returned invalid JSON.",
+      true,
+    );
+  }
+  return parseRevenueCatCustomerInfoPayload(payload);
+}
+
 export function deriveRevenueCatEntitlementState(
   customerInfo: RevenueCatCustomerInfo,
   event?: RevenueCatWebhookEvent,
@@ -251,57 +321,7 @@ export async function fetchRevenueCatCustomerInfo(
       );
     }
 
-    const contentLength = Number(response.headers.get("Content-Length"));
-    if (
-      Number.isFinite(contentLength) &&
-      contentLength > MAX_CUSTOMER_INFO_BYTES
-    ) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new RevenueCatApiError(
-        "RevenueCat CustomerInfo response exceeded the size limit.",
-        true,
-      );
-    }
-
-    const rawBytes = await readBoundedResponseBody(response);
-    let rawBody: string;
-    try {
-      rawBody = new TextDecoder("utf-8", { fatal: true }).decode(rawBytes);
-    } catch {
-      throw new RevenueCatApiError(
-        "RevenueCat CustomerInfo returned invalid UTF-8.",
-        true,
-      );
-    }
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      throw new RevenueCatApiError(
-        "RevenueCat CustomerInfo returned invalid JSON.",
-        true,
-      );
-    }
-
-    if (
-      !isRecord(payload) ||
-      typeof payload.request_date_ms !== "number" ||
-      !Number.isSafeInteger(payload.request_date_ms) ||
-      payload.request_date_ms < 0 ||
-      payload.request_date_ms > 253_402_300_799_999 ||
-      !isRecord(payload.subscriber)
-    ) {
-      throw new RevenueCatApiError(
-        "RevenueCat CustomerInfo response was missing required fields.",
-        true,
-      );
-    }
-
-    return {
-      requestDateMs: payload.request_date_ms,
-      subscriber: payload.subscriber,
-    };
+    return await readRevenueCatCustomerInfoResponse(response);
   } catch (error) {
     if (error instanceof RevenueCatApiError) throw error;
     const detail = error instanceof Error ? error.message : "response failure";

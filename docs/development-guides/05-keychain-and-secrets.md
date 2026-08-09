@@ -32,6 +32,7 @@ Merian.
 | `SUPABASE_PUBLISHABLE_KEYS`                        | Supabase Edge server env                                                       | Hosted JSON dictionary for user-scoped project clients; its keys are public but its shape is server runtime config |
 | `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
 | `Merian_HasAuthenticatedOAuth`                     | `KeychainManager` (`kSecClassGenericPassword`)                                | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                            |
+| `Merian_GhostModeUserID_v1`                        | `KeychainManager` (`kSecClassGenericPassword`)                                | Same-UUID app presentation marker; keeps the private linked session and billing identity while the UI returns to Ghost mode |
 | `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
 | `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
 | Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
@@ -325,7 +326,7 @@ Currently stored keys:
 
 | Key                               | Type        | Accessibility                    | Purpose                                                                                                                                                             |
 | --------------------------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; used by `MerianNetworkClient` to decide whether a 401 triggers re-auth or Ghost regeneration |
+| `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; only a stable missing/invalid-session response plus failed refresh may use it when deciding whether authoritative Ghost regeneration is allowed |
 | `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades          |
 | `Merian_AnalyticsRevocationIntent_v1` | JSON `Data` | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                               |
 
@@ -390,6 +391,13 @@ the durable billing identifier. Once Supabase returns a user, the Supabase Auth
 UUID is passed to RevenueCat and PostHog; RevenueCat also receives subscriber
 attributes such as auth email, public username, public display name, and account
 kind for manual support lookup.
+
+After OAuth linkage, `Merian_GhostModeUserID_v1` may hold that same Supabase UUID
+when the user chooses **Continue as Ghost**. It does not contain a token and does
+not revoke or replace the SDK-managed Supabase session. It is accepted only when
+it matches the current session UUID, and true sign-out/deletion removes it. This
+is what allows login to remain optional without changing the database or
+RevenueCat owner.
 
 ---
 

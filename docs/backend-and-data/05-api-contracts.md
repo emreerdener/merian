@@ -84,9 +84,37 @@ distinct:
 | ---: | ------------------------------- | ------------------------------------ |
 |  403 | `ai_consent_required`           | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent. |
 |  402 | `pro_required`                  | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path. |
-|  429 | `ai_quota_daily_exceeded`       | The applicable daily provider allowance is exhausted. Honor `Retry-After`; do not route to consent. |
+|  429 | `ai_quota_daily_exceeded`       | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent. |
 |  429 | `ai_user_rate_limit_exceeded`   | Temporary per-user request-rate protection. Use bounded retry. |
 |  429 | `ai_ip_rate_limit_exceeded`     | Temporary per-network request-rate protection. Use bounded retry. |
+
+### Scan admission preview RPC
+
+Before Capture starts camera/audio hardware or submits staged evidence, an
+online authenticated client calls
+`get_my_scan_admission_preview(p_flash_fallback_eligible boolean)`. The RPC has
+no user-ID input and derives the account from `auth.uid()`. It returns exactly
+one row. The current iOS caller sets the boolean only for one ordinary image,
+standalone audio clip, or description; video, mixed/multiple evidence, and
+refinement pass false.
+
+| Field | Type | Meaning |
+| ----- | ---- | ------- |
+| `decision` | text | `allowed`, `daily_quota_exhausted`, or `pro_required` |
+| `effective_plan` | text | Prospective `pro_paid`, `pro_trial`, `pro_complimentary`, or `free` plan |
+| `daily_limit` | integer, nullable | Applicable UTC-day limit, or null for an unlimited plan/no applicable policy |
+| `daily_remaining` | integer, nullable | Non-negative remaining allowance after existing usage; zero accompanies daily exhaustion |
+
+This endpoint is an advisory, read-only UX preflight: it does not reserve a
+complimentary credit, increment a counter, or authorize provider dispatch. The
+client opens the existing paywall and preserves staged input for either denial.
+`reserve_ai_quota(...)` remains authoritative, and a later exact
+`ai_quota_daily_exceeded` caused by a concurrent device or request must use the
+same paywall fallback.
+
+Release order is database first, iOS second. The iOS client intentionally
+blocks online processing with retry feedback when this RPC is unavailable, so
+shipping the caller before migration `20260809155517` would stop online scans.
 
 Before constructing a first Identify request for a newly onboarded account, an
 iOS client must push pending adult, Terms, and Gemini evidence and verify a
@@ -6142,6 +6170,15 @@ viewer, and resolves functional Pro access server-side. Each
 `(post_id, viewer user_id)` pair has its own conversation. Other viewers cannot
 load or mutate it; the post author may own a conversation when viewing their own
 published post.
+
+The Pro gate uses the durable Supabase projection of an active RevenueCat store
+subscription, receipt-backed free trial, or explicitly approved finite beta
+promotion. RevenueCat's developer project plan, client-only subscription state,
+and a database edit do not authorize this route. The separate, exactly verified
+`pro_complimentary` functional tier also qualifies while an available credit or
+active hold remains; it is not RevenueCat or paid status. The beta promotion
+operation remains release-held under the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Model sends reserve `explore_post_chat_reply` using
 `client_message_id`/`Idempotency-Key` before provider dispatch and use the

@@ -103,6 +103,7 @@ struct PaywallView: View {
     @State private var heroCarouselAutoAdvanceDisabled = false
     @State private var isPurchasing = false
     @State private var isRestoring = false
+    @State private var operationErrorMessage: String?
 
     private var packages: [Package] {
         (revenueCatManager.currentOfferings?.current?.availablePackages ?? [])
@@ -116,6 +117,17 @@ struct PaywallView: View {
         }
 
         return preferredPackage(from: packages)
+    }
+
+    private var isShowingOperationError: Binding<Bool> {
+        Binding(
+            get: { operationErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    operationErrorMessage = nil
+                }
+            }
+        )
     }
 
     var body: some View {
@@ -179,6 +191,13 @@ struct PaywallView: View {
         }
         .onChange(of: packages.map(\.identifier)) { _, _ in
             selectDefaultPackageIfNeeded()
+        }
+        .alert("Unable to Complete Purchase", isPresented: isShowingOperationError) {
+            Button("OK", role: .cancel) {
+                operationErrorMessage = nil
+            }
+        } message: {
+            Text(operationErrorMessage ?? "Please try again.")
         }
     }
 
@@ -402,7 +421,10 @@ struct PaywallView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.white)
-            .disabled(selectedPackage == nil || isPurchasing)
+            .disabled(
+                selectedPackage == nil || isPurchasing ||
+                    !revenueCatManager.isPurchaseIdentityReady
+            )
             .padding(.horizontal, isCompact ? 8 : 28)
             .padding(.top, isCompact ? 8 : 14)
             .padding(.bottom, isCompact ? 8 : 12)
@@ -433,6 +455,9 @@ struct PaywallView: View {
                 }
             }
             .foregroundStyle(.secondary)
+            .disabled(
+                !revenueCatManager.isPurchaseIdentityReady || isRestoring
+            )
         }
         .font(.system(size: 13, weight: .medium))
         .buttonStyle(.plain)
@@ -530,7 +555,8 @@ struct PaywallView: View {
                 dismiss()
             }
         } catch {
-            MerianLog.general.error("Purchase restore failed: \(error.localizedDescription, privacy: .public)")
+            operationErrorMessage = error.localizedDescription
+            MerianLog.general.error("Purchase restore failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -545,7 +571,8 @@ struct PaywallView: View {
                 dismiss()
             }
         } catch {
-            MerianLog.general.error("In-app purchase failed: \(error.localizedDescription, privacy: .public)")
+            operationErrorMessage = error.localizedDescription
+            MerianLog.general.error("In-app purchase failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 }

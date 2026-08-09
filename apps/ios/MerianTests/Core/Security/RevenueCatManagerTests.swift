@@ -61,6 +61,92 @@ final class RevenueCatManagerTests: XCTestCase {
         )
     }
 
+    func testRevenueCatAccountMutationPolicyAcceptsStableGhostAndPermanentAccounts() {
+        XCTAssertEqual(
+            RevenueCatAccountMutationPolicy.accountKind(isAnonymous: true),
+            "anonymous"
+        )
+        XCTAssertEqual(
+            RevenueCatAccountMutationPolicy.accountKind(isAnonymous: false),
+            "authenticated"
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: "authenticated"
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: " Authenticated "
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: "anonymous"
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: " Anonymous "
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: "unknown"
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatAccountMutationPolicy.allowsProviderMutation(
+                accountKind: nil
+            )
+        )
+    }
+
+    func testRevenueCatAccountMutationPolicyRejectsStaleLinkage() {
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: true,
+                requestedAccountKind: " Authenticated ",
+                linkedAccountKind: "authenticated"
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: true,
+                requestedAccountKind: "anonymous",
+                linkedAccountKind: " Anonymous "
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: false,
+                requestedAccountKind: "authenticated",
+                linkedAccountKind: "authenticated"
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: true,
+                requestedAccountKind: "authenticated",
+                linkedAccountKind: nil
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: true,
+                requestedAccountKind: "anonymous",
+                linkedAccountKind: "anonymous"
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatAccountMutationPolicy.isReady(
+                identityReady: true,
+                requestedAccountKind: "anonymous",
+                linkedAccountKind: "authenticated"
+            )
+        )
+    }
+
     func testRevenueCatIdentityContextAddsDashboardLookupAttributes() {
         let context = RevenueCatIdentityContext(
             userId: "user-123",

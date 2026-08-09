@@ -1403,8 +1403,15 @@ actual import, and permission-denial UI require the physical-device checklist in
   `getOrGeneratePersistentIDFV()` method directly. The test wipes the relevant
   Keychain item via `SecItemDelete` before and after the assertion to prevent
   cross-run contamination. `RevenueCatManagerTests` also locks the required
-  current-offering product set to `pro_week` plus `pro_annual`; it does not
-  replace dashboard/App Store smoke testing. `EntitlementManagerTests` lock
+  current-offering product set to `pro_week` plus `pro_annual` and the pure
+  provider-mutation policy: matching normalized `anonymous` and `authenticated`
+  identities are allowed, while missing, unknown, or mismatched account kinds
+  fail closed. `MerianNetworkClientTests` separately proves that a generic `401`
+  cannot rotate a Ghost UUID. This does not replace dashboard/App Store smoke
+  testing or prove provider state transfers between two custom App User IDs;
+  staging must verify that the compiled purchase, restore, and redemption entry
+  points enforce the policy during both normal Ghost upgrade and an
+  existing-account conflict. `EntitlementManagerTests` lock
   current-launch verification, buffered replay metadata, stale-version
   rejection, account isolation, balance validation, exhaustion, and the
   difference between functional access and new-scan capacity.
@@ -3407,6 +3414,14 @@ deployment runbook; it is not inferred from the launch-disabled posture.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
   CLI safety, and operator summary.
+- **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
+  offline exports, conservative customer classification, canonical UUID
+  formatting, exact explicit-cohort selection independent of current
+  free/timed/permanent projection, permanent Auth evidence, duplicate/malformed
+  and Ghost rejection, cohort hashing, finite grant expiration, zero-request
+  dry-run, no-non-cohort request proof, already-active skip, successful
+  get-or-create GET `201` followed by one POST `201`, rejected POST `200`,
+  bounded retry, and secret-free per-customer failures.
 - **`tests/revenuecat_webhook_security.sql`**: Executable pgTAP coverage for
   ACLs, direct-table isolation, duplicate delivery, a delayed expiration after
   renewal, a delayed purchase after refund, snapshot-primary ordering,
@@ -3416,6 +3431,22 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   ambiguous-alias rejection, missing-user failure, and entitlement-version
   advancement. Keep this test in the disposable-database deployment gate
   alongside `privileged_routine_security.sql` and `ai_quota_security.sql`.
+
+The source-level grant, stable-purchase-identity, and unauthorized-recovery P1
+matrix above is implemented.
+The canonical-ID/beta rollout remains release-evidence-blocked until one exact
+revision also supplies both of the following:
+
+1. A staged Ghost purchase plus normal OAuth link proving the UUID and Pro state
+   remain stable, a generic-`401` case proving no identity rotation, and an
+   existing-account conflict pair proving the configured store-transfer
+   behavior. Beta promotion remains limited to the reviewed permanent cohort.
+2. A complete disposable PostgreSQL replay and all catalog tests under the
+   pinned Supabase CLI. Static migration contracts and green iOS/TypeScript unit
+   tests do not replace this evidence.
+
+The complete production hold and customer-path smoke matrix are in the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### `sync-collections/db_test.ts`
 

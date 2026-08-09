@@ -75,11 +75,19 @@ public post metadata, or Darwin Core export payloads to the prompt.
   revokes the legacy authenticated Data API surface from Insight answer and
   feature feedback; all current writes remain through these authenticated Edge
   routes.
-- Requires durable effective Pro entitlement. Model replies, prompt suggestions,
-  and field-note summaries reserve separate database quota operations before
-  provider dispatch. Complimentary access uses the `pro_complimentary` policy
-  and retains the original scan linkage without acquiring another scan credit;
-  `pro_trial` remains historical only after entitlement cutover.
+- Requires durable effective Pro entitlement. Active store subscriptions,
+  receipt-backed free trials, and explicitly approved finite RevenueCat beta
+  promotions unlock Field Chat only after the provider entitlement is projected
+  to `public.users.subscription_tier = 'pro'`. RevenueCat's developer project
+  plan and client-only state grant no access. The beta operation is
+  [release-held](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md)
+  until its identity and cohort controls pass. Model replies, prompt
+  suggestions, and field-note summaries reserve separate database quota
+  operations before provider dispatch. The independent, exactly verified
+  `pro_complimentary` functional tier also satisfies the chat gate while an
+  available credit or active hold remains. It retains the original scan linkage
+  without acquiring another scan credit and does not create RevenueCat Pro or a
+  paid badge. `pro_trial` remains historical only after entitlement cutover.
 - `client_message_id` is the durable request identity for sends. The function
   canonicalizes it to lowercase, records it privately on both sides of the saved
   user/assistant pair, and projects it as `client_message_id` on both response

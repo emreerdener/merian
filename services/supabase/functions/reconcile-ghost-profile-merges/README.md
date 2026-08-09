@@ -1,7 +1,7 @@
 # Reconcile Ghost Profile Merges
 
-Durable service-role worker for the final Auth cleanup step of an anonymous
-profile merge.
+Durable service-role worker for the final RevenueCat-preservation and Auth
+cleanup steps of an anonymous profile merge.
 
 `merge-ghost-profile` commits all data ownership changes before deleting the
 obsolete anonymous `auth.users` row. If the request is interrupted, the Auth
@@ -10,11 +10,15 @@ database receipt remains authoritative and this worker completes the cleanup.
 
 ## Scope boundary
 
-This worker repairs only post-commit deletion of the obsolete anonymous Auth
-user. It does not reconcile subscriptions and never reads or writes
-`internal.revenuecat_reconciliation_queue`. A profile merge must independently
-create or refresh an immediately due queue row for the permanent destination;
-successful Auth cleanup is not evidence that RevenueCat state has recovered.
+For each committed merge, this worker first reads authoritative RevenueCat
+CustomerInfo for the Ghost and destination UUIDs. It requires the destination to
+cover the source's active functional Pro horizon, granting and verifying an
+exact finite/lifetime promotional mirror only when needed, before it deletes the
+obsolete anonymous Auth user. It does not drain subscriptions or read/write
+`internal.revenuecat_reconciliation_queue`; the merge independently creates an
+immediately due destination row. Successful Auth cleanup proves that access was
+preserved at that point, not that the database projection has reconciled or the
+client has synchronized the real store receipt.
 
 ## Authorization
 
@@ -37,11 +41,16 @@ worker every five minutes. The service-role claim RPC:
 - reclaims an abandoned lease after ten minutes; and
 - backs off repeated failures from one to fifteen minutes.
 
-For each claim, the worker calls `auth.admin.deleteUser(ghost_user_id)`. HTTP
-404 and the exact Auth code `user_not_found` are idempotent success; a generic
-message containing “not found” is not. The claim-token-bound finish RPC records
-success or the bounded error code. A source Auth row is never deleted by the
-database merge transaction itself.
+For each claim, the worker calls
+`preserveRevenueCatAccessForGhostMerge(ghost_user_id, target_user_id)` first.
+Missing/invalid server secrets, provider unavailability, malformed state, or
+failed target coverage are bounded retryable failures and leave Auth intact.
+Only after provider preservation succeeds does it call
+`auth.admin.deleteUser(ghost_user_id)`. HTTP 404 and the exact Auth code
+`user_not_found` are idempotent success; a generic message containing “not
+found” is not. The claim-token-bound finish RPC records success or the bounded
+error code. A source Auth row is never deleted by the database merge transaction
+itself, and the worker never deletes a RevenueCat customer.
 
 ## Manual invocation
 
@@ -73,6 +82,9 @@ deno check \
 deno test \
   --config services/supabase/functions/reconcile-ghost-profile-merges/deno.json \
   services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts
+deno test \
+  --config services/supabase/functions/merge-ghost-profile/deno.json \
+  services/supabase/functions/merge-ghost-profile/revenuecat_test.ts
 supabase --workdir services db reset
 make test-supabase-privileged-routines
 ```

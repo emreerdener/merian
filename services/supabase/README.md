@@ -109,10 +109,18 @@ alone is not relational authorization evidence.
 RevenueCat App User IDs are case-sensitive, and `GET /v1/subscribers/{id}` is a
 get-or-create operation. Merian's only database-generated customer ID is the
 uppercase Supabase UUID returned by
-`internal.canonical_revenuecat_app_user_id(...)`, matching iOS. Never investigate
-customer-count drift by deleting provider customers or by editing
-`public.users.subscription_tier`; the former destroys history and the latter is
-correctly overwritten by authoritative reconciliation.
+`internal.canonical_revenuecat_app_user_id(...)`, matching iOS. Never repair
+entitlement drift by editing `public.users.subscription_tier`; authoritative
+reconciliation correctly overwrites it. Provider shell cleanup is a separate,
+exact operation and never mutates Supabase.
+
+The subscriber GET returns `200` when the customer exists and `201` when the
+request creates it. Both are successful CustomerInfo responses. A RevenueCat
+developer account on Pro enables project integrations; it does not grant app
+users Pro. Store trials activate through receipts without manual per-customer
+RevenueCat approval, while beta access is an explicit finite promotional `pro`
+grant. Once authoritative state is projected to Supabase, it includes Field
+Chat for the active period.
 
 Use the export-only comparison first:
 
@@ -121,11 +129,60 @@ make audit-revenuecat-customers ARGS='--supabase-users-csv /path/users.csv --rev
 ```
 
 The default console and JSON output contain counts only. `--review-csv` is an
-explicit identity-bearing local artifact and must be handled accordingly. For a
-reviewed legacy beta cohort, `make grant-beta-pro` is dry-run-only unless the
-operator provides a finite `--expires-at`, `--apply`,
-`--confirm-beta-pro-grant`, an output ledger, and the server-side
-`REVENUECAT_SECRET_API_KEY`. The full order and recovery rules are in the
+explicit identity-bearing local artifact and must be handled accordingly.
+
+After the stable-identity build has stopped creating new shells, generate an
+exact cleanup plan from a fresh users export, full Auth audit, RevenueCat export,
+and nonempty reviewed protected cohort:
+
+```bash
+make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --summary-json /tmp/revenuecat-cleanup-plan.json --review-csv /secure/revenuecat-cleanup-review.csv'
+```
+
+Dry-run performs zero network requests and prints the exact candidate SHA-256
+and count. It protects current canonical Supabase customers by default, all
+active Auth identities (Ghost or linked), the reviewed cohort, purchase/promo
+history, linked aliases, recent/unknown recency, and ambiguous rows. Apply must
+repeat the same inputs and add
+`--apply --confirm-delete-empty-revenuecat-shells --approved-plan-sha256 <sha> --confirm-count <count> --project-id <proj...> --results-csv /secure/revenuecat-cleanup-results.csv`.
+It revalidates live last-seen state, active entitlements, Supabase-link
+attributes, complete aliases, and v1 purchase history before each exact v2
+delete. A changed or ambiguous customer is protected. Do not use
+`--include-current-supabase-shells` for historical-duplicate cleanup. That
+separate flag can include an inactive orphaned public profile only when the full
+audit says `auth_exists=false`; an active Auth UUID is always protected.
+
+`make grant-beta-pro` now consumes three independent operator artifacts:
+
+- `--cohort-csv`: an exact one-column CSV with header `id`; this is the only
+  beta-membership authority;
+- `--users-csv`: a `public.users` export used only to report aggregate current
+  free/timed-Pro/permanent-Pro projections; and
+- `--auth-audit-csv`: the CSV from `make audit-ghost-users ... --snapshot-csv`,
+  used to require a live Supabase Auth account for every member and report
+  strict Ghost (`auth_is_anonymous=true`) and linked counts separately.
+
+It canonicalizes and validates the reviewed cohort, reports its SHA-256 digest,
+performs zero requests by default, accepts CustomerInfo GET `200|201`, skips an
+already-active entitlement, and requires promotional POST `201` plus an active
+entitlement in the response. Apply still requires a finite expiration,
+`--results-csv`, `--confirm-beta-pro-grant`, and the server-only
+`REVENUECAT_SECRET_API_KEY`.
+
+```bash
+make grant-beta-pro ARGS='--users-csv /secure/users.csv --cohort-csv /secure/beta-cohort.csv --auth-audit-csv /secure/ghost-audit.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-plan.json --results-csv /secure/beta-pro-results.csv'
+```
+
+> **Operation evidence (2026-08-09):** The P1 source defects are repaired and
+> beta cleanup is authorized in principle. Do not use production credentials or
+> either `--apply` mode without the exact current exports/audit, reviewed cohort,
+> dry-run digest/count, project/expiration, identity-bearing results path, and
+> retained operator approval required by the incident contract.
+
+The complete authority model, guest-account constraint, supervised cutover,
+and exit criteria are in the
+[RevenueCat customer identity incident](../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md)
+and
 [RevenueCat Webhook Release Gate](../../docs/backend-and-data/06-supabase-deployment-runbook.md#revenuecat-webhook-release-gate).
 
 ## Edge Functions
@@ -1175,6 +1232,17 @@ an older attempt cannot mutate a retry. A provider failure transitions
 `committed` to `failed`: counters remain charged, but the same request key can
 make a newly metered retry.
 
+Migration `20260809155517_add_scan_admission_preview.sql` adds
+`get_my_scan_admission_preview(boolean)` for pre-capture UX. The authenticated
+caller can read only their prospective paid → complimentary → Flash decision
+and remaining UTC-day allowance; `anon`, `service_role`, and direct internal
+table access remain denied. The boolean describes whether the pending media
+shape is eligible for Flash fallback. This function never inserts, updates, or
+reserves quota, so `reserve_ai_quota(...)` remains the only provider-dispatch
+authorization boundary and may still reject a race after the preview.
+Deploy this migration before releasing an iOS build that calls the RPC: online
+Capture intentionally blocks new processing when the preview is unavailable.
+
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add the legal prerequisite
 to both quota overloads. Forward migration
@@ -1561,12 +1629,17 @@ provider-subject-bound 30-day handoff; the permanent destination consumes it in
 one serialized database transaction. The caller cannot nominate either user
 UUID.
 
-The foreground endpoint deletes the obsolete anonymous Auth row after commit.
+After commit, the foreground endpoint reads source/destination RevenueCat state,
+mirrors and verifies any active finite/lifetime Pro horizon, and only then
+deletes the obsolete anonymous Auth row. The proof-bearing client synchronizes
+the real store receipt before it may remove its durable handoff.
 `functions/reconcile-ghost-profile-merges/` is the five-minute, service-only
-recovery worker for interrupted cleanup. It has `verify_jwt = false` solely for
-`pg_net` compatibility and uses the shared exact environment-backed request
-policy, accepting an opaque key only in `apikey`. See the two function READMEs
-and the deployment runbook before changing this protocol.
+recovery worker for interrupted provider preservation and Auth cleanup; it also
+preserves access before deletion. It has `verify_jwt = false` solely for `pg_net`
+compatibility and uses the shared exact environment-backed request policy,
+accepting an opaque key only in `apikey`. Neither path deletes the source
+RevenueCat customer. See the two function READMEs and the deployment runbook
+before changing this protocol.
 `tests/ghost_profile_merge_security.sql` runs in the disposable catalog through
 `make test-supabase-privileged-routines`. Ownership transfer is driven by the
 private, source-controlled `internal.ghost_profile_merge_reference_policies`

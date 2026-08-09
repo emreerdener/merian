@@ -5,7 +5,7 @@ struct DangerZone: View {
     @Binding var showDeleteConfirmation: Bool
     var onCacheCleared: ((Bool) -> Void)?
 
-    @State private var showSignOutConfirmation = false
+    @State private var showGhostModeConfirmation = false
 
     var body: some View {
         Section {
@@ -18,20 +18,22 @@ struct DangerZone: View {
 
             if !supabase.isGuestUser {
                 Button {
-                    showSignOutConfirmation = true
+                    showGhostModeConfirmation = true
                 } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label("Continue as Ghost", systemImage: "theatermasks")
                 }
                 .foregroundColor(.red)
                 .confirmationDialog(
-                    "Are you sure you want to sign out?",
-                    isPresented: $showSignOutConfirmation,
+                    "Continue as Ghost on this device?",
+                    isPresented: $showGhostModeConfirmation,
                     titleVisibility: .visible
                 ) {
-                    Button("Sign out", role: .destructive) {
-                        Task { await performSignOut() }
+                    Button("Continue as Ghost") {
+                        performContinueAsGhost()
                     }
                     Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("Your Naturebook user, scans, Pro access, and purchases stay with the same private account. This does not delete data or revoke the linked sign-in provider.")
                 }
             }
 
@@ -80,7 +82,7 @@ struct DangerZone: View {
         }
     }
 
-    private func performSignOut() async {
-        await supabase.transitionToGhostSession()
+    private func performContinueAsGhost() {
+        _ = supabase.continueAsGhost()
     }
 }

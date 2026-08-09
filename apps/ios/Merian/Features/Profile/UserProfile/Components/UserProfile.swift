@@ -133,41 +133,58 @@ struct UserProfile: View {
 
     private var signInButtons: some View {
         VStack(spacing: 12) {
-            Button(action: {
-                Task {
-                    await profileViewModel.signInWithApple()
+            if profileViewModel.canResumeLinkedAccount {
+                Button {
+                    _ = profileViewModel.resumeLinkedAccount()
+                } label: {
+                    HStack {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                        Text("Resume linked account")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.primary)
+                    .foregroundColor(Color(UIColor.systemBackground))
+                    .clipShape(Capsule())
                 }
-            }) {
-                HStack {
-                    Image(systemName: "applelogo")
-                    Text("Sign in with Apple")
-                        .fontWeight(.semibold)
+            } else {
+                Button(action: {
+                    Task {
+                        await profileViewModel.signInWithApple()
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "applelogo")
+                        Text("Sign in with Apple")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.primary)
+                    .foregroundColor(Color(UIColor.systemBackground))
+                    .clipShape(Capsule())
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.primary)
-                .foregroundColor(Color(UIColor.systemBackground))
-                .clipShape(Capsule())
-            }
 
-            Button(action: {
-                Task {
-                    await profileViewModel.signInWithGoogle()
+                Button(action: {
+                    Task {
+                        await profileViewModel.signInWithGoogle()
+                    }
+                }) {
+                    HStack {
+                        Image("google-logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 18, height: 18)
+                        Text("Sign in with Google")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                    .foregroundColor(.primary)
+                    .clipShape(Capsule())
                 }
-            }) {
-                HStack {
-                    Image("google-logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
-                    Text("Sign in with Google")
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color(UIColor.secondarySystemGroupedBackground))
-                .foregroundColor(.primary)
-                .clipShape(Capsule())
             }
         }
     }

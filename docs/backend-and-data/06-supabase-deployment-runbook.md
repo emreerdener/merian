@@ -2777,11 +2777,28 @@ Populate and configure the credentials before merging the first deployment:
 
 RevenueCat project billing being Pro enables integrations such as webhooks; it
 does not grant Merian Pro to any customer. RevenueCat App User IDs are
-case-sensitive, and `GET /v1/subscribers/{app_user_id}` creates the customer when
-it does not exist. Merian therefore uses the uppercase RFC 4122 Supabase UUID
-everywhere. The forward migration canonicalizes only queue lookups already
-proven to be the same UUID, clears their outstanding claim leases, and preserves
-emails, provider aliases, `$RCAnonymousID` values, and nonmatching identifiers.
+case-sensitive, and `GET /v1/subscribers/{app_user_id}` is get-or-create. Merian
+therefore uses the uppercase RFC 4122 Supabase UUID everywhere. The GET returns
+`200` for an existing customer and `201` for a customer created by that request;
+both are successful CustomerInfo responses. The promotional grant POST returns
+`201`.
+
+The forward migration canonicalizes only queue lookups already proven to be the
+same UUID, clears their outstanding claim leases, makes those rows immediately
+due, and preserves emails, provider aliases, `$RCAnonymousID` values, and
+nonmatching identifiers. Because immediately due rows can run before a
+promotional grant exists, this migration and a beta grant are one supervised
+cutover when the same cohort depends on both.
+
+> **Exact operation gate (2026-08-09):** The P1 grant client, Ghost-capable
+> explicit cohort, stable purchase identity, conflict handoff, unauthorized
+> recovery, and empty-shell cleanup are repaired in source. Provider mutation is
+> allowed only from the exact current exports/Auth audit, reviewed cohort,
+> dry-run digest/count, project/expiration, results path, and operator approval
+> required below. Source readiness or beta cleanup authorization alone is not an
+> executable customer batch. The remaining evidence and exit criteria are
+> normative in the
+> [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Before the migration, export `public.users` from Supabase and use RevenueCat
 Customers → All customers → Export all. The RevenueCat `.csv.gz` export can be
@@ -2798,51 +2815,141 @@ UUIDs, and linked/unlinked aliases; purchase or promotional history always
 fails closed to retention. This workflow performs no API requests and never
 deletes a customer.
 
-Do not bulk-delete the extra RevenueCat rows. Deletion permanently removes
-customer history, attributes, aliases, and promotional grants, while the iOS
-SDK or the reconciler's get-or-create call can create a new record later. That
-repopulation is not recovery of the deleted history and may not restore the
-correct purchase identity. Keep all existing records until the canonical-ID
-release has stopped new duplication and a separately approved, purchase-safe
-support process has resolved aliases.
+Do not select dashboard rows and bulk-delete them. Deletion permanently removes
+customer history, attributes, aliases, and promotional grants, while the iOS SDK
+or a get-or-create call can create a new empty record later. That repopulation is
+not recovery. The beta-authorized cleanup below begins only after the
+stable-identity release has stopped new duplication and deletes only an exact
+shell that both offline evidence and live provider revalidation prove empty.
 
-After deploying the database migration, plan the one-time beta grant from the
-pre-migration Supabase snapshot. By default the tool selects only rows that were
-`subscription_tier = pro` with no `subscription_expires_at`; it excludes timed
-passes and checks live RevenueCat state in apply mode so already-active Pro
-customers are not granted again. The supplied 2026-08-09 snapshot has 100 users
-and produces 95 candidates under this permanent-Pro rule. Re-export and review
-the count before any apply:
+Create and retain these three inputs independently:
 
-```bash
-make grant-beta-pro ARGS='--users-csv /secure/users.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-plan.json --results-csv /secure/beta-pro-results.csv'
-```
+1. `/secure/beta-cohort.csv`: an operator-reviewed one-column CSV whose exact
+   header is `id`; this file alone defines beta membership.
+2. `/secure/users.csv`: a fresh `public.users` export. It classifies the current
+   free/timed-Pro/permanent-Pro projection but never adds or removes a member.
+3. `/secure/ghost-audit.csv`: a fresh `audit-ghost-users --snapshot-csv`
+   artifact. Every cohort row must join to `auth_exists=true`; strict
+   `auth_is_anonymous=true` Ghosts and `false` linked users are both eligible,
+   while missing or malformed evidence aborts the entire run.
 
-Dry-run mode performs zero RevenueCat requests. Choose a finite beta end date;
-apply mode rejects a grant shorter than one hour or longer than 366 days. Once
-the plan and cohort are approved, load `REVENUECAT_SECRET_API_KEY` into the
-operator environment without placing it in source or command history, then run:
+Generate the Auth evidence through the read-only audit under the normal
+server-credential preflight:
 
 ```bash
-make grant-beta-pro ARGS='--users-csv /secure/users.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-apply.json --results-csv /secure/beta-pro-results.csv --apply --confirm-beta-pro-grant'
+make audit-ghost-users ARGS='--snapshot-json /secure/ghost-audit.json --snapshot-csv /secure/ghost-audit.csv --summary-md /tmp/ghost-audit.md'
 ```
 
-The apply path GETs each canonical customer, skips an already-active `pro`, and
-POSTs only missing promotional grants with the fixed expiration. RevenueCat
-emits a production `NON_RENEWING_PURCHASE` webhook; the normal webhook and
-scheduled repair project it to `subscription_tier = pro` / `pro_paid`. This is
-the same functional Pro gate as a store entitlement and includes Field Chat for
-the grant period. A direct database-only Pro edit is not beta authority and is
-intentionally reverted when RevenueCat reports no active entitlement. Retain
-the results ledger, verify zero failures and the reconciliation monitor, and
-never retry with a different end time until the first result is understood.
+Then run the grant tool without `--apply`:
 
-The production order is: retain both exports, deploy the forward database
-migration, verify queue health, apply the reviewed promotional cohort, then
-release the iOS custom-ID-only build. After the iOS rollout, sign out and enter a
-new ghost session on a clean test device; RevenueCat must switch from one
-uppercase UUID to the next without creating a new `$RCAnonymousID` customer.
-None of these steps authorizes deletion of historical provider customers.
+```bash
+make grant-beta-pro ARGS='--users-csv /secure/users.csv --cohort-csv /secure/beta-cohort.csv --auth-audit-csv /secure/ghost-audit.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-plan.json --results-csv /secure/beta-pro-results.csv'
+```
+
+Dry-run performs zero RevenueCat requests. Require
+`selection=explicit_reviewed_cohort`, a matching cohort SHA-256, candidate count
+equal to the frozen row count, `verified_auth_user_count` equal to candidate
+count, Ghost plus linked counts equal to that total, and reviewed aggregate
+projection counts. The implementation and tests reject
+duplicate/malformed/missing/nonexistent Auth identities, prove no non-cohort
+request, accept CustomerInfo GET `200|201`, skip active Pro, require promotional
+POST `201`, bound retries and response bytes, and keep console/summary output
+identity-free. The results CSV is intentionally identity-bearing and remains in
+restricted storage.
+
+iOS allows purchase, restore, and offer-code redemption for the exact linked
+Supabase identity when requested and linked account kinds match and normalize to
+either `anonymous` or `authenticated`. Ghost purchasing is intentional. A
+generic Edge `401` preserves that UUID; only a stable missing/invalid-session
+response followed by failed SDK refresh may replace it. The normal OAuth link
+keeps the same UUID. The existing-account conflict path still requires the
+RevenueCat **Transfer to new App User ID** restore behavior to be configured and
+proven. After the database merge, the server mirrors and verifies source Pro on
+the destination before source Auth deletion; the durable client then calls
+`syncPurchases()` to transfer the real receipt before removing its proof.
+RevenueCat-only promotional grants have no receipt, which is why the server
+mirror is mandatory.
+
+After the remaining incident gates pass, choose one finite beta end date. Apply
+mode requires `--apply --confirm-beta-pro-grant`, the reviewed results path, and
+`REVENUECAT_SECRET_API_KEY` supplied through the process environment. It GETs
+each canonical customer, skips an already-active `pro`, and POSTs only missing
+promotional grants. RevenueCat emits a production
+`NON_RENEWING_PURCHASE` webhook; the normal webhook and scheduled repair project
+it to `subscription_tier = pro` / `pro_paid`. That is the same functional Pro
+gate as a store entitlement and includes Field Chat for the grant period. A
+direct database-only Pro edit is not beta authority and is intentionally
+reverted when RevenueCat reports no active entitlement.
+
+After new identity creation has stopped, retain a fourth independent artifact:
+`/secure/protected-cohort.csv`, a nonempty exact one-column `id` list of every
+beta or otherwise protected customer, including Ghosts. Plan the historical
+empty-shell cleanup with all four fresh sources:
+
+```bash
+make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --summary-json /tmp/revenuecat-cleanup-plan.json --review-csv /secure/revenuecat-cleanup-review.csv'
+```
+
+Dry-run makes zero requests and emits all four source hashes, exact candidate
+count, and candidate SHA-256. Review the identity-bearing CSV. The default plan
+protects current canonical Supabase customers, every active Auth UUID, the
+protected cohort, purchase/promotion evidence, linked aliases, recent use, and
+unknown recency. Do not add `--include-current-supabase-shells` to the historical
+duplicate cleanup. In a separately reviewed orphan-profile operation, that flag
+can include an inactive `public.users` UUID only when the full audit says
+`auth_exists=false`; an active Auth UUID remains protected unconditionally.
+
+Apply only the identical reviewed inputs and inactivity threshold:
+
+```bash
+REVENUECAT_SECRET_API_KEY='<sk_...>' \
+make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --project-id <proj...> --approved-plan-sha256 <sha256> --confirm-count <count> --results-csv /secure/revenuecat-cleanup-results.csv --summary-json /tmp/revenuecat-cleanup-result.json --apply --confirm-delete-empty-revenuecat-shells'
+```
+
+Before each exact v2 delete, apply confirms the project/customer response,
+requires live `last_seen_at` to be no newer than the reviewed export and still
+inactive, requires no active entitlements, protects a new `supabase_user_id`
+attribute, requires a complete self-only alias list, and requires the v1
+CustomerInfo to have no entitlement, subscription, non-subscription,
+other-purchase, or management history. Any changed, paginated, malformed, or
+ambiguous response becomes `protected_live_evidence`; it is never coerced into
+deletion. The tool does not call Supabase.
+
+Once the incident exit criteria are green on one exact SHA, use this supervised
+production order:
+
+1. Retain both fresh exports, the offline audit, the explicit cohort checksum,
+   exact count, finite expiration, dry-run summary, and candidate SHA.
+2. Verify pre-cutover webhook credentials, queue health, and the independent
+   reconciliation monitor.
+3. Pause only
+   `reconcile_revenuecat_subscribers_every_fifteen_minutes` for a bounded
+   maintenance window and record its exact prior schedule.
+4. Deploy the forward canonical-ID migration through the normal exact-SHA
+   workflow.
+5. Apply only the approved explicit cohort. Require GET `200|201`, promotional
+   POST `201` for each missing grant, and zero unexplained failures.
+6. Verify authoritative CustomerInfo, Supabase Pro projection, and one eligible
+   Field Chat customer path without writing identities into release artifacts.
+7. Restore the exact reconciliation schedule and require the due backlog and
+   oldest-due age to return below monitor thresholds.
+8. Release the custom-ID-only iOS build containing the exact stable-identity
+   mutation fence only after the backend is healthy. On a clean test device,
+   **Continue as Ghost** after OAuth must retain the same uppercase custom UUID
+   and create no new Supabase or RevenueCat customer. Purchase/restore/redeem
+   must work on the stable Ghost UUID, a generic `401` must preserve it, normal
+   OAuth linking must retain it, and the existing-account conflict path must
+   mirror access, synchronize the receipt, and emit/project the expected
+   transfer evidence.
+9. Generate the fresh cleanup plan only after step 8 proves new duplication has
+   stopped. Apply the exact reviewed digest/count, retain the results ledger, and
+   require zero unexplained failures or deletions of protected live evidence.
+
+If apply partially fails, reconcile only failed IDs from the retained results
+ledger. If the maintenance window cannot finish, restore the worker so ordinary
+subscription correctness resumes and leave the beta rollout incomplete. Never
+change the expiration silently, clear queue state, leave an unrecorded cron
+pause, or delete any provider customer outside the exact cleanup plan.
 
 Run the complete preflight:
 
@@ -2856,6 +2963,8 @@ deno test --frozen \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
   services/supabase/functions/revenuecat-webhook/subscriber_test.ts \
+  services/supabase/functions/merge-ghost-profile/revenuecat_test.ts \
+  services/supabase/functions/reconcile-ghost-profile-merges/worker_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
   services/supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
   services/supabase/scripts/monitor_revenuecat_reconciliation_test.ts \
@@ -3561,7 +3670,7 @@ accept its arbitrary source UUID payload.
 
 ### Release hold
 
-Do not run the production commands in this section until all four requirements
+Do not run the production commands in this section until all six requirements
 below have implementation and test evidence in the same exact SHA:
 
 - [ ] Merge completion creates or refreshes an immediately due destination
@@ -3575,12 +3684,20 @@ below have implementation and test evidence in the same exact SHA:
 - [ ] `user_species_scan_count_underflow` maps to the same HTTP 503
       `merge_temporarily_unavailable` guest-data-unchanged response as
       `ghost_merge_species_ledger_mismatch`.
+- [ ] Foreground and worker cleanup both preserve and verify the source Ghost's
+      active RevenueCat Pro horizon on the destination before source Auth
+      deletion; provider failure leaves Auth intact and retryable.
+- [ ] The proof-capable iOS client calls `syncPurchases()` after durable server
+      completion and before local evidence rebind or handoff removal, retaining
+      the proof on any failure.
 
-The 2026-08-01 implementation adds all four fixes in the forward correction and
-Edge mapper. Static migration validation and focused Edge tests pass, and the
-repository contains deterministic RevenueCat and Community two-session schedules
-in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow clears the
-hold only when its exact-CLI disposable replay, complete pgTAP/catalog
+The 2026-08-01 implementation adds the four database/concurrency fixes in the
+forward correction and Edge mapper. The provider-preservation module, worker
+ordering, and proof-bearing iOS receipt sync add the two purchase-continuity
+requirements. Static migration validation and focused Edge/iOS tests pass, and
+the repository contains deterministic RevenueCat and Community two-session
+schedules in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow
+clears the hold only when its exact-CLI disposable replay, complete pgTAP/catalog
 execution, live local-database concurrency tests, complete Edge suite, lint, and
 advisors all pass in the same job. Partial or connection-skipped evidence does
 not authorize production deployment.
@@ -3609,8 +3726,12 @@ After the release hold is cleared:
    roles, and installs the five-minute cleanup schedule; the schema-aware and
    corrective migrations tighten its execution semantics without restoring a
    client-nominated UUID path.
-5. Smoke-test both the normal direct-link path and the existing-account conflict
-   path before lifting the release gate.
+5. Confirm both Edge Functions have the same valid `sk_`
+   `REVENUECAT_SECRET_API_KEY` and the RevenueCat project uses **Transfer to new
+   App User ID** restore behavior.
+6. Smoke-test both the normal direct-link path and the existing-account conflict
+   path, including a purchased Ghost, server access mirror, client receipt sync,
+   and a later CustomerInfo/Supabase projection, before lifting the release gate.
 
 Never restore client execution of `reparent_user_follows` and never add a
 compatibility request field that lets the caller nominate `ghost_user_id` or
@@ -3650,7 +3771,8 @@ deno check \
   services/supabase/functions/reconcile-ghost-profile-merges/index.ts
 deno test \
   --config services/supabase/functions/merge-ghost-profile/deno.json \
-  services/supabase/functions/_tests/mergeGhostProfile.test.ts
+  services/supabase/functions/_tests/mergeGhostProfile.test.ts \
+  services/supabase/functions/merge-ghost-profile/revenuecat_test.ts
 deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,apps/ios \
@@ -3686,6 +3808,7 @@ does not replace that full gate.
 | Gate                          | Required automated proof in the production workflow                                                                                                                                                                                                                                                                                        |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields.                                                       |
+| Provider access handoff        | `revenuecat_test.ts` proves case-exact source/target reads, free and already-covered idempotency, finite/lifetime Pro mirroring, verified target coverage, and bounded failure. Worker tests require preservation before Auth deletion and leave a failed handoff retryable; the client contract pins `syncPurchases()` before evidence rebind/proof removal. |
 | RevenueCat lock order         | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation.                                          |
 | Community actor lock order    | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts.                                                                               |
 | Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged. |
@@ -6064,8 +6187,17 @@ After deployment:
   profile, or database availability; never bypass reconciliation to clear the
   retry queue. Confirm every database-generated UUID lookup equals
   `internal.canonical_revenuecat_app_user_id(merian_user_id)`, run the offline
-  customer export audit, and verify a sign-out-to-ghost transition creates no
-  new RevenueCat anonymous customer.
+  customer export audit, and verify **Continue as Ghost** preserves the same
+  Supabase/RevenueCat UUID and creates no new customer. For the
+  beta/canonical-ID cutover, this
+  smoke does not waive the exact operation gate: also require the explicit
+  cohort checksum/count, GET `200|201` and promotional POST `201` coverage, zero
+  unexplained grant failures, restored reconciliation schedule, healthy due-age
+  trend, an entitled Field Chat smoke, provider-preserving conflict merge, and
+  the enforced Ghost purchase/grant continuity policy from the RevenueCat
+  identity incident. For shell cleanup, also require four fresh input hashes,
+  the exact reviewed candidate digest/count, live last-seen/history/alias
+  revalidation, and a retained results ledger.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,

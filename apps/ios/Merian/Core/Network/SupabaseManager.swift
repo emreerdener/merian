@@ -42,6 +42,35 @@ enum SupabaseAuthTransitionError: LocalizedError {
     }
 }
 
+enum AccountPresentationPolicy {
+    static func isGhost(
+        userID: UUID?,
+        authIsAnonymous: Bool,
+        storedGhostModeUserID: String?
+    ) -> Bool {
+        guard let userID else { return true }
+        if authIsAnonymous { return true }
+        return storedGhostModeUserID?.lowercased()
+            == userID.uuidString.lowercased()
+    }
+
+    static func persistedGhostModeUserID(
+        userID: UUID?,
+        authIsAnonymous: Bool
+    ) -> String? {
+        guard let userID, !authIsAnonymous else { return nil }
+        return userID.uuidString.lowercased()
+    }
+
+    static func canResumeLinkedAccount(
+        userID: UUID?,
+        authIsAnonymous: Bool,
+        isUsingGhostMode: Bool
+    ) -> Bool {
+        userID != nil && !authIsAnonymous && isUsingGhostMode
+    }
+}
+
 // MARK: - Supabase Manager
 
 /// Manages the global Supabase connection, auth state, and OAuth sign-in flows.
@@ -132,9 +161,24 @@ enum SupabaseAuthTransitionError: LocalizedError {
     // MARK: - State
     var currentUser: User?
     var isAuthenticated: Bool = false
+    private(set) var isUsingGhostMode = false
 
     var isGuestUser: Bool {
-        currentUser?.isAnonymous ?? true
+        AccountPresentationPolicy.isGhost(
+            userID: currentUser?.id,
+            authIsAnonymous: currentUser?.isAnonymous ?? true,
+            storedGhostModeUserID: isUsingGhostMode
+                ? currentUser?.id.uuidString
+                : nil
+        )
+    }
+
+    var canResumeLinkedAccount: Bool {
+        AccountPresentationPolicy.canResumeLinkedAccount(
+            userID: currentUser?.id,
+            authIsAnonymous: currentUser?.isAnonymous ?? true,
+            isUsingGhostMode: isUsingGhostMode
+        )
     }
 
     var currentUserAvatarUrl: URL? {
@@ -341,6 +385,13 @@ enum SupabaseAuthTransitionError: LocalizedError {
                     guard let session = state.session else { continue }
                     self.currentUser = session.user
                     self.isAuthenticated = true
+                    self.isUsingGhostMode = AccountPresentationPolicy.isGhost(
+                        userID: session.user.id,
+                        authIsAnonymous: false,
+                        storedGhostModeUserID: KeychainManager.shared.string(
+                            forKey: KeychainKeys.ghostModeUserID
+                        )
+                    )
                     appRouteSessionController?.beginAccountSession(
                         accountID: session.user.id.uuidString,
                         origin: accountSessionOrigin,
@@ -406,6 +457,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
                 case .signedOut:
                     self.currentUser = nil
                     self.isAuthenticated = false
+                    self.isUsingGhostMode = false
                     appRouteSessionController?.beginAccountSession(
                         accountID: nil,
                         origin: accountSessionOrigin,
@@ -452,7 +504,9 @@ enum SupabaseAuthTransitionError: LocalizedError {
             publicUsername: publicIdentity?.publicUsername,
             publicAuthorName: publicIdentity?.publicAuthorName,
             publicIdentitySource: publicIdentity?.publicIdentitySource,
-            accountKind: user.isAnonymous ? "anonymous" : "authenticated"
+            accountKind: RevenueCatAccountMutationPolicy.accountKind(
+                isAnonymous: user.isAnonymous
+            )
         )
     }
 
@@ -485,7 +539,13 @@ enum SupabaseAuthTransitionError: LocalizedError {
     private func ensureTelemetryLinkedIfNeeded(for user: User) async -> Bool {
         let userId = user.id
         let identityChanged = userId != lastLinkedUserId
-        guard identityChanged || !RevenueCatManager.shared.isIdentityReady else {
+        let expectedAccountKind = RevenueCatAccountMutationPolicy.accountKind(
+            isAnonymous: user.isAnonymous
+        )
+        let accountKindChanged = RevenueCatManager.shared.linkedAccountKind
+            != expectedAccountKind
+        guard identityChanged || accountKindChanged ||
+                !RevenueCatManager.shared.isIdentityReady else {
             return false
         }
         lastLinkedUserId = userId
@@ -557,6 +617,63 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
     // MARK: - Session Utilities
 
+    /// Returns the linked account to Naturebook's Ghost presentation without
+    /// invalidating its private Supabase session or changing its canonical UUID.
+    /// This is the user-facing logout contract. A true Auth sign-out cannot later
+    /// recover the same Supabase anonymous user, so it is reserved for account
+    /// deletion and authoritative credential failure.
+    @discardableResult
+    func continueAsGhost() -> Bool {
+        guard let user = currentUser else { return false }
+        guard let storedUserID = AccountPresentationPolicy.persistedGhostModeUserID(
+            userID: user.id,
+            authIsAnonymous: user.isAnonymous
+        ) else {
+            isUsingGhostMode = user.isAnonymous
+            return user.isAnonymous
+        }
+
+        guard KeychainManager.shared.set(
+            storedUserID,
+            forKey: KeychainKeys.ghostModeUserID
+        ) else {
+            MerianLog.auth.error(
+                "Could not persist Ghost mode; preserving the linked-account presentation."
+            )
+            return false
+        }
+
+        isUsingGhostMode = true
+        MerianLog.auth.debug(
+            "Continued as Ghost without changing the Supabase or RevenueCat identity."
+        )
+        return true
+    }
+
+    /// Leaves same-UUID Ghost presentation without running OAuth or replacing
+    /// the private linked session that continued to own the account.
+    @discardableResult
+    func resumeLinkedAccount() -> Bool {
+        guard let user = currentUser,
+              canResumeLinkedAccount else {
+            return false
+        }
+        leaveGhostMode(for: user.id)
+        return !isUsingGhostMode
+    }
+
+    private func leaveGhostMode(for userID: UUID) {
+        let storedUserID = KeychainManager.shared.string(
+            forKey: KeychainKeys.ghostModeUserID
+        )
+        guard storedUserID?.lowercased() == userID.uuidString.lowercased()
+                || isUsingGhostMode else {
+            return
+        }
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
+        isUsingGhostMode = false
+    }
+
     func signOut() async {
         await signOut(
             performRemoteSignOut: { [client] in
@@ -627,6 +744,8 @@ enum SupabaseAuthTransitionError: LocalizedError {
         publicAuthorIdentityRefreshTask = nil
         cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
+        isUsingGhostMode = false
         PostHogManager.shared.reset()
         return cancelledGhostSessionTask
     }
@@ -690,6 +809,8 @@ enum SupabaseAuthTransitionError: LocalizedError {
         publicAuthorIdentityRefreshTask = nil
         cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
+        isUsingGhostMode = false
         PostHogManager.shared.reset()
         await RevenueCatManager.shared.handleSupabaseSignOut()
         MerianLog.auth.debug("Cleared local Supabase session after auth failure.")
@@ -759,6 +880,7 @@ enum SupabaseAuthTransitionError: LocalizedError {
             let session = try await client.auth.session
             currentUser = session.user
             isAuthenticated = true
+            leaveGhostMode(for: session.user.id)
             _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
             if didPersistGoogleMetadata {
                 _ = await refreshPublicAuthorIdentity()
@@ -1103,6 +1225,10 @@ enum SupabaseAuthTransitionError: LocalizedError {
                                 )
                             )
                         },
+                        synchronizeProviderPurchases: {
+                            try await RevenueCatManager.shared
+                                .synchronizePurchasesAfterAccountMerge()
+                        },
                         rebindAndSynchronizeLocalEvidence: {
                             try await ConsentManager.shared
                                 .rebindAndSynchronizeGhostEvidence(
@@ -1299,10 +1425,13 @@ enum SupabaseAuthTransitionError: LocalizedError {
 
     static func finalizeGhostProfileHandoff(
         completeServerHandoff: () async throws -> Void,
+        synchronizeProviderPurchases: () async throws -> Void,
         rebindAndSynchronizeLocalEvidence: () async throws -> Void,
         clearPendingHandoff: () throws -> Void
     ) async throws {
         try await completeServerHandoff()
+        try Task.checkCancellation()
+        try await synchronizeProviderPurchases()
         try Task.checkCancellation()
         try await rebindAndSynchronizeLocalEvidence()
         try Task.checkCancellation()
@@ -1617,6 +1746,7 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 let session = try await client.auth.session
                 currentUser = session.user
                 isAuthenticated = true
+                leaveGhostMode(for: session.user.id)
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
                 if didPersistAppleMetadata {
                     _ = await refreshPublicAuthorIdentity()

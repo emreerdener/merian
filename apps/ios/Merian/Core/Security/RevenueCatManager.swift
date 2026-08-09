@@ -43,6 +43,44 @@ enum RevenueCatAppUserIDPolicy {
     }
 }
 
+enum RevenueCatAccountMutationPolicy {
+    static let ghostAccountKind = "anonymous"
+    static let permanentAccountKind = "authenticated"
+
+    static func accountKind(isAnonymous: Bool) -> String {
+        isAnonymous ? ghostAccountKind : permanentAccountKind
+    }
+
+    static func normalizedAccountKind(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value.lowercased()
+    }
+
+    static func allowsProviderMutation(accountKind: String?) -> Bool {
+        switch normalizedAccountKind(accountKind) {
+        case ghostAccountKind, permanentAccountKind:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func isReady(
+        identityReady: Bool,
+        requestedAccountKind: String?,
+        linkedAccountKind: String?
+    ) -> Bool {
+        let requested = normalizedAccountKind(requestedAccountKind)
+        let linked = normalizedAccountKind(linkedAccountKind)
+        return identityReady
+            && requested == linked
+            && allowsProviderMutation(accountKind: linked)
+    }
+}
+
 enum RevenueCatManagerError: LocalizedError {
     case identityNotReady
 
@@ -131,12 +169,22 @@ struct RevenueCatIdentityContext: Equatable {
 
     private(set) var linkedAppUserID: String?
     private var requestedAppUserID: String?
+    private(set) var linkedAccountKind: String?
+    private var requestedAccountKind: String?
 
-    /// Purchase operations are allowed only when RevenueCat and the active
-    /// Supabase session agree on the exact canonical, non-anonymous identity.
+    /// RevenueCat and the active Supabase session agree on the exact canonical
+    /// custom identity. This includes both Ghost and permanent accounts.
     var isIdentityReady: Bool {
         guard let linkedAppUserID else { return false }
         return isCurrentIdentity(linkedAppUserID)
+    }
+
+    /// Provider mutations are allowed only after RevenueCat is linked to the
+    /// exact stable Supabase identity and account kind. Both Ghost and
+    /// permanent accounts may purchase.
+    var isPurchaseIdentityReady: Bool {
+        guard let linkedAppUserID else { return false }
+        return isCurrentProviderMutationIdentity(linkedAppUserID)
     }
 
     private func isCurrentIdentity(_ appUserID: String) -> Bool {
@@ -148,6 +196,14 @@ struct RevenueCatIdentityContext: Equatable {
         }
 
         return !Purchases.shared.isAnonymous && Purchases.shared.appUserID == appUserID
+    }
+
+    private func isCurrentProviderMutationIdentity(_ appUserID: String) -> Bool {
+        RevenueCatAccountMutationPolicy.isReady(
+            identityReady: isCurrentIdentity(appUserID),
+            requestedAccountKind: requestedAccountKind,
+            linkedAccountKind: linkedAccountKind
+        )
     }
 
     // MARK: - Configuration
@@ -186,13 +242,20 @@ struct RevenueCatIdentityContext: Equatable {
         guard !TestExecutionCoordinator.isRunningTests else { return }
 
         let appUserID = RevenueCatAppUserIDPolicy.canonicalID(for: userId)
+        let normalizedAccountKind = RevenueCatAccountMutationPolicy.normalizedAccountKind(accountKind)
         requestedAppUserID = appUserID
+        requestedAccountKind = normalizedAccountKind
 
         if linkedAppUserID != appUserID {
             linkedAppUserID = nil
+            linkedAccountKind = nil
             isSubscribed = false
             currentOfferings = nil
             synchronizeFunctionalEntitlement()
+        } else if linkedAccountKind != normalizedAccountKind {
+            // Fail closed while the same Supabase UUID changes from a Ghost to
+            // a permanent account (or vice versa).
+            linkedAccountKind = nil
         }
 
         let identity = RevenueCatIdentityContext(
@@ -203,7 +266,7 @@ struct RevenueCatIdentityContext: Equatable {
             publicUsername: publicUsername,
             publicAuthorName: publicAuthorName,
             publicIdentitySource: publicIdentitySource,
-            accountKind: accountKind
+            accountKind: normalizedAccountKind
         )
 
         Purchases.logLevel = .warn
@@ -222,6 +285,7 @@ struct RevenueCatIdentityContext: Equatable {
             }
 
             guard requestedAppUserID == appUserID,
+                  requestedAccountKind == normalizedAccountKind,
                   Purchases.shared.appUserID == appUserID,
                   !Purchases.shared.isAnonymous else {
                 MerianLog.general.warning("RevenueCat identity changed before linking completed; ignoring stale result.")
@@ -229,6 +293,7 @@ struct RevenueCatIdentityContext: Equatable {
             }
 
             linkedAppUserID = appUserID
+            linkedAccountKind = normalizedAccountKind
 
             if let customerInfo {
                 updateEntitlements(with: customerInfo)
@@ -236,7 +301,9 @@ struct RevenueCatIdentityContext: Equatable {
                 await refreshCustomerInfo()
             }
 
-            guard isCurrentIdentity(appUserID) else {
+            guard isCurrentIdentity(appUserID),
+                  requestedAccountKind == normalizedAccountKind,
+                  linkedAccountKind == normalizedAccountKind else {
                 MerianLog.general.warning("RevenueCat identity changed before profile sync completed; ignoring stale result.")
                 return
             }
@@ -349,7 +416,9 @@ struct RevenueCatIdentityContext: Equatable {
     /// anonymous customer. The next Supabase session switches IDs directly.
     func handleSupabaseSignOut() async {
         requestedAppUserID = nil
+        requestedAccountKind = nil
         linkedAppUserID = nil
+        linkedAccountKind = nil
         isProActive = false
         isSubscribed = false
         currentOfferings = nil
@@ -359,34 +428,48 @@ struct RevenueCatIdentityContext: Equatable {
 
     // MARK: - Purchases
 
-    /// Initiates the purchase flow for `package`.
-    func purchase(_ package: Package) async throws {
+    private func providerMutationAppUserID() throws -> String {
         guard let appUserID = linkedAppUserID,
-              isCurrentIdentity(appUserID) else {
+              isCurrentProviderMutationIdentity(appUserID) else {
             throw RevenueCatManagerError.identityNotReady
         }
+        return appUserID
+    }
+
+    /// Initiates the purchase flow for `package`.
+    func purchase(_ package: Package) async throws {
+        let appUserID = try providerMutationAppUserID()
         let result = try await Purchases.shared.purchase(package: package)
-        guard isCurrentIdentity(appUserID) else { return }
+        guard isCurrentProviderMutationIdentity(appUserID) else { return }
         updateEntitlements(with: result.customerInfo)
     }
 
     /// Restores previous purchases from Apple.
     func restorePurchases() async throws {
-        guard let appUserID = linkedAppUserID,
-              isCurrentIdentity(appUserID) else {
-            throw RevenueCatManagerError.identityNotReady
-        }
+        let appUserID = try providerMutationAppUserID()
         let info = try await Purchases.shared.restorePurchases()
-        guard isCurrentIdentity(appUserID) else { return }
+        guard isCurrentProviderMutationIdentity(appUserID) else { return }
         updateEntitlements(with: info)
     }
 
-    /// Presents Apple's offer-code redemption sheet only for the linked account.
-    func presentCodeRedemptionSheet() {
-        guard isIdentityReady else {
-            MerianLog.general.warning("Code redemption skipped while RevenueCat identity is not ready.")
-            return
+    /// Reposts the current App Store receipt after a durable Ghost-profile
+    /// merge. Under Merian's required RevenueCat `Transfer` restore behavior,
+    /// this moves store ownership to the already-linked target UUID without a
+    /// user-facing restore prompt. Promotional and pass access are also
+    /// mirrored server-side before the old Ghost Auth identity is retired.
+    func synchronizePurchasesAfterAccountMerge() async throws {
+        let appUserID = try providerMutationAppUserID()
+        let info = try await Purchases.shared.syncPurchases()
+        guard isCurrentProviderMutationIdentity(appUserID) else {
+            throw RevenueCatManagerError.identityNotReady
         }
+        updateEntitlements(with: info)
+    }
+
+    /// Presents Apple's offer-code redemption sheet only for the exact linked
+    /// Ghost or permanent Supabase account.
+    func presentCodeRedemptionSheet() throws {
+        _ = try providerMutationAppUserID()
         Purchases.shared.presentCodeRedemptionSheet()
     }
 

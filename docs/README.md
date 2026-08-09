@@ -88,6 +88,18 @@ as their permanent engineering identity.
   small leased waves against a runtime cutoff, with indexed lease recovery and
   an independent oldest-due-age alert. The production deploy workflow validates
   and synchronizes all three backend credentials before function deployment.
+  The case-sensitive App User ID is the uppercase Supabase UUID; provider
+  customer totals are not expected to equal Supabase profile totals. Store
+  trials activate through
+  receipts without manual RevenueCat approval, while beta Pro is an explicit
+  finite promotional grant and includes Field Chat after Supabase projection.
+  The grant client now accepts get-or-create `201`, membership comes from an
+  explicit Ghost-or-linked cohort rather than current tier, and durable Ghost
+  merge completion preserves provider access before retiring source Auth.
+  Prelaunch cleanup can delete only exact inactive provider shells proven empty
+  by reviewed offline evidence plus live revalidation; it never deletes
+  Supabase users or app data. See the
+  [RevenueCat customer identity incident](./incidents/2026-08-revenuecat-customer-identity-drift.md).
 - **Server credential and database safety**: Current opaque project keys use
   only Supabase's standard `apikey` header; only user JWTs and the temporary
   legacy service-role JWT use Bearer transport. Exposed tables require RLS,

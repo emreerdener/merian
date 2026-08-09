@@ -84,7 +84,9 @@ restoration and mount the Ready approval screen before refresh completes.
   then the client rebuilds and retries the request once with the new access
   token. Anonymous identity replacement is considered only after that refresh
   fails, so an ordinary expired JWT cannot detach a first scan, consent ledger,
-  or entitlement reservation from its existing account UUID.
+  or entitlement reservation from its existing account UUID. Every unclassified
+  `401` preserves both Ghost and OAuth identities because route policy failure is
+  not Auth-deletion evidence.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
 - Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response
@@ -551,7 +553,17 @@ then clears the local session for revoked, missing, transferred, unknown, or
 failed state resolution. An authoritative `.authorized` result preserves the
 session. This client transition does not fabricate a server revocation receipt.
 
-## Sign-out transition
+## Ghost mode and true sign-out
+
+User-facing logout is `continueAsGhost()`. For a linked account it persists the
+current UUID under `KeychainKeys.ghostModeUserID` and changes account
+presentation only. The Supabase session, database owner, RevenueCat custom ID,
+entitlements, offline queue, and app data remain unchanged. The marker is
+restored only when it matches the active UUID; a different account cannot inherit
+it. A genuinely anonymous session is already Ghost and needs no marker. A
+linked Ghost sees **Resume linked account** instead of provider sign-in buttons;
+`resumeLinkedAccount()` removes only the matching marker, without OAuth or an
+account switch.
 
 `SupabaseManager` closes the authenticated-request gate and clears observable
 account state before asking Supabase Auth to invalidate the local session. It
@@ -563,10 +575,13 @@ session-refresh retries cannot reopen authenticated state. Explore, Field trip,
 and profile Edge requests therefore cannot launch with a token that is being
 invalidated.
 
-Call `transitionToGhostSession()` for user-facing sign-out or anonymous-session
-recovery. It creates the replacement guest identity only after sign-out and
-external identity cleanup finish. Account deletion intentionally calls
-`signOut()` alone so it does not recreate an identity during deletion. The
+True `signOut()` cannot later recover the same Supabase anonymous account and is
+reserved for account deletion or authoritative credential invalidation.
+`transitionToGhostSession()` is only the last-resort recovery path after a
+stable missing/invalid-session response and failed SDK refresh; it creates a
+replacement identity after sign-out and external cleanup. A generic `401` never
+reaches it. Account deletion intentionally calls `signOut()` alone so it does
+not recreate an identity during deletion. The
 `/safe-delete` call may return immediate `200` completion or `202` durable
 acceptance. The shared request layer strictly decodes the matching status plus
 the required `manual_provider_revocation_required` boolean; missing or

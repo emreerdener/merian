@@ -309,6 +309,68 @@ every leaf partition first. Create the parent partitioned index only as a
 reviewed metadata operation, then retry. Never let a migration recursively
 perform a blocking parent build.
 
+## External RevenueCat Mutation Safety
+
+A RevenueCat promotional entitlement grant, revocation, transfer, or customer
+deletion is a hosted provider mutation. Authorization to prepare tooling,
+inspect exports, diagnose Supabase, or deploy a migration does not authorize any
+of those actions.
+
+Before an apply-capable promotional grant:
+
+1. Resolve the exact RevenueCat project, Supabase project, source revision,
+   entitlement ID, finite expiration, and operator credential class.
+2. Freeze an explicit canonical-UUID cohort with a retained checksum and exact
+   count. Current `subscription_tier` is a mutable projection and cannot define
+   beta membership.
+3. Prove dry-run performs zero provider requests and no identity outside that
+   cohort can reach the request boundary.
+4. Require the CustomerInfo client to accept RevenueCat GET `200` (found) and
+   `201` (created), while requiring promotional POST `201` and an active
+   entitlement in the bounded response.
+5. Retain aggregate summaries separately from the identity-bearing results
+   ledger. Do not log API keys, App User IDs, emails, response bodies, or
+   customer attributes.
+6. Revalidate the live customer before every mutation, skip already-active Pro,
+   and preserve per-customer idempotency and bounded retry.
+7. Treat a changed cohort, entitlement, expiration, or partial-results ledger as
+   a new operation requiring review.
+
+The grant tool now implements these source safeguards, but production apply
+remains held until the disposable replay, staging matrix, exact-SHA review,
+cohort/expiration approval, and explicit provider/production authorization in
+the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md)
+are complete. Dry-run remains the only authorized mode before those gates pass.
+
+RevenueCat customer deletion is permanent erasure, not deduplication. A later
+SDK or subscriber GET can recreate an empty shell, but that lookup does not
+itself restore deleted history, aliases, attributes, purchases, or promotional
+grants. A store receipt may be observed again through a separate SDK/store flow;
+that is not recovery of the deleted customer, is identity/configuration
+dependent, and cannot recreate a RevenueCat-only promotion.
+
+Deletion is limited to an exact verified test identity, the separate privacy
+erasure workflow, or the prelaunch empty-shell cleanup authorized in the
+RevenueCat identity incident. That cleanup requires four fresh artifacts, an
+identity-bearing review, exact candidate SHA-256/count confirmation, and live
+project/customer, inactivity, entitlement, attribute, alias, and purchase-history
+revalidation before each v2 delete. It protects current canonical Supabase users
+and all active Auth identities by default and never mutates Supabase. Dashboard
+count, UUID case, inactivity, or missing profile evidence alone is insufficient.
+
+Merian's Ghost and permanent Supabase UUIDs are both custom RevenueCat IDs.
+RevenueCat custom-to-custom login does not transfer provider state. Merian
+intentionally permits purchase, restore, and offer-code redemption on either
+exact stable identity. Ordinary OAuth linking preserves a Ghost UUID. Generic
+`401` responses also preserve it; only authoritative missing-session evidence
+plus a failed SDK refresh may rotate the account. The existing-account conflict
+  path mirrors/verifies the source's active finite or lifetime Pro horizon on
+  the destination before source Auth deletion, then the proof-bearing iOS client
+  calls `syncPurchases()` under the project-configured **Transfer to new App User
+  ID** behavior. Beta promotion therefore accepts reviewed active Ghost and
+  linked cohorts; a nonexistent Auth identity still fails closed.
+
 ## Destructive Queue and Orphan Triage
 
 An old `pending_storage_deletions` row is not deletion authority. Storage work
@@ -377,6 +439,11 @@ this correction released:
    retry test.
 9. Manually dispatch and inspect account-deletion, scan-media, DwC-A, and
    RevenueCat monitors. Investigate any orphan alert before changing state.
+10. For a RevenueCat identity/beta release, require the explicit cohort,
+    successful GET `200|201` coverage, guest-provider continuity control,
+    supervised reconciliation pause/restoration evidence, zero unexplained
+    grant failures, and one entitled Field Chat smoke before declaring the
+    customer path verified.
 
 Record the commit SHA, workflow run and attempt, migration versions, catalog
 results, deployment IDs, and monitor links. “Repository corrected” and

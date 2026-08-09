@@ -276,7 +276,12 @@ Tracks the global state of the anonymous/authenticated user.
   is the PostHog distinct ID and, in uppercase RFC 4122 form, the case-sensitive
   RevenueCat App User ID; RevenueCat subscriber attributes also mirror auth
   email and public identity fields for support lookups.
-- `subscription_tier` (ENUM): `'free'` | `'pro'`
+- `subscription_tier` (ENUM): `'free'` | `'pro'`. This is the durable
+  projection of authoritative RevenueCat-backed Pro state, not
+  beta-membership data or an operator-controlled entitlement switch.
+  Webhook/reconciliation is expected to overwrite a direct manual edit. Three
+  introductory Pro scans are represented by the separate private entitlement
+  ledger.
 - `subscription_expires_at` (TIMESTAMPTZ, nullable): For recurring RevenueCat
   access, the later of entitlement expiration and grace-period expiration. It is
   also set for timed grants such as the detached `pro_week` non-renewing
@@ -3792,6 +3797,15 @@ service-role definer RPCs.
   decrements these counters once in the same daily/user/IP lock order used by
   reservation, removes zero rows, then removes the links.
 
+Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
+authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this
+private state. It binds the lookup to `auth.uid()`, resolves the prospective
+paid → complimentary → Flash plan, and returns `allowed`,
+`daily_quota_exhausted`, or `pro_required` plus the applicable daily limit and
+remaining count. It is intentionally read-only and does not create a hold,
+counter increment, or reservation. Only `authenticated` has execute privilege;
+the later service-only reservation remains authoritative.
+
 `reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)` locks the
 user before quota or ledger rows, serializes an identical request key, resolves
 paid Pro → complimentary Pro → free under the rollout fence, and consumes all
@@ -3929,7 +3943,16 @@ seven-day pass. Database-generated lookups use
 `internal.canonical_revenuecat_app_user_id(...)`; webhook-provided aliases stay
 byte-for-byte unchanged. Because RevenueCat subscriber GET is get-or-create,
 this case contract prevents a lowercase UUID customer from being manufactured
-beside the uppercase iOS customer.
+beside the uppercase iOS customer. The GET can successfully return `200` for an
+existing customer or `201` for a newly created empty customer. Either status is
+transport success; only parsed CustomerInfo determines entitlement.
+
+The canonicalization migration makes repaired UUID queue rows immediately due.
+That is desirable for ordinary repair but creates a release-order boundary when
+the same users need beta promotions: the named reconciler must not run between
+the migration and approved grants. The supervised hold, explicit cohort, and
+schedule-restoration evidence are defined in the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 `public.get_revenuecat_reconciliation_health()` is a service-role-only
 `SECURITY DEFINER` routine with an empty search path and an in-body caller

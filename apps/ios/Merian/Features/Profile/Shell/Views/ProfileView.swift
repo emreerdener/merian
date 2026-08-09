@@ -104,11 +104,9 @@ struct ProfileView: View {
 
             if !viewModel.isGuestUser {
                 Button {
-                    Task {
-                        await viewModel.signOut()
-                    }
+                    _ = viewModel.continueAsGhost()
                 } label: {
-                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                    Label("Continue as Ghost", systemImage: "theatermasks")
                 }
             }
         } label: {

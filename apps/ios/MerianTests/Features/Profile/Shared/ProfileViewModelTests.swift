@@ -22,15 +22,13 @@ struct ProfileViewModelTests {
         #expect(viewModel.displayName == "River Wren")
     }
 
-    @Test("Auth Routing Boundary Unlocks")
-    func testSignOutExecution() async throws {
+    @Test("Ghost presentation hides provider-derived names")
+    func testGhostPresentationHidesProviderName() async throws {
         let viewModel = ProfileViewModel()
-        
-        // Since Supabase SDK abstracts test execution dynamically behind URLSession, 
-        // testing signOut directly locally ensures the TCP tear-downs don't lock Swift concurrency.
-        await viewModel.signOut()
-        
-        // We evaluate that guest states flip gracefully without blocking the thread pipeline.
-        #expect(viewModel.isGuestUser == true || viewModel.isGuestUser == false)
+        viewModel.publicAuthorName = "Provider Name"
+        viewModel.publicIdentitySource = "oauth"
+
+        #expect(viewModel.displayName == "Explorer")
     }
+
 }

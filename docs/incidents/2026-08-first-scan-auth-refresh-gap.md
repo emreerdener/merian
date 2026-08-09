@@ -53,7 +53,9 @@ Before this repair, `MerianNetworkClient.performAuthenticatedRequest` called
 `SupabaseManager.refreshActiveSessionForRetry()` only when the response matched
 `auth_session_missing`. The stable `invalid_session_token` path instead reached
 the generic 401 branch. OAuth accounts failed closed, while anonymous accounts
-could transition directly to a replacement Ghost identity.
+could transition directly to a replacement Ghost identity. That generic branch
+also rotated an anonymous UUID for unrelated endpoint-policy `401` responses;
+each replacement was subsequently linked as another RevenueCat customer.
 
 That classification conflicted with Supabase's session model: an access JWT is
 short-lived, while the current refresh token can still exchange it for a new
@@ -70,7 +72,9 @@ codes as refreshable:
 2. preserve the current account while it is pending;
 3. reconstruct the original request so it reads the rotated access token;
 4. retry exactly once; and
-5. consider the existing identity-sensitive fallback only if refresh fails.
+5. consider the existing identity-sensitive fallback only if refresh fails; and
+6. preserve the current identity for every unclassified `401`, which is not
+   proof that Auth deleted the session.
 
 The handler's auth check precedes route domain mutation, so the refresh replay
 does not duplicate a successful write. The retry retains the original request

@@ -37,6 +37,12 @@ remote URLs before network/media frameworks see them. See the
   monotonic entitlement version. It also serializes stable scan/account funding
   reservations on `@MainActor`; the exposed booleans are UI hints, not an
   admission transaction.
+- `ScanAdmissionManager` reads the authenticated account's prospective scan
+  plan and UTC-day allowance immediately before Capture starts hardware or
+  submission work. Preview responses are never cached, because even a short
+  cache could outlive a concurrent scan's final daily allowance. The manager
+  never reserves quota; the provider-side `reserve_ai_quota(...)` transaction
+  remains the authorization boundary and can still reject a concurrent race.
 - `ConsentManager` owns the append-only local ledger for adult confirmation,
   Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
   grant/revocation. `ConsentLedgerStore` persists that ledger as an atomically
@@ -151,9 +157,15 @@ the current offering to the Settings paywall.
 Account changes switch directly with `Purchases.logIn(canonicalUUID)`. Merian
 never configures without a custom ID and never calls `Purchases.logOut()`, both
 of which would generate a `$RCAnonymousID` customer. Sign-out clears local paid
-state and the expected/linked identity fence; purchase, restore, offer-code,
-offering, and subscription-management operations remain closed until the next
-Supabase account is linked and the SDK reports that exact non-anonymous ID.
+state plus the expected/linked ID and account-kind fences. Offering reads and
+subscription management require the next exact custom ID. Purchase, restore,
+and offer-code redemption require the exact linked UUID plus a matching known
+Supabase `account_kind`. Both `anonymous` Ghost and `authenticated` permanent
+accounts may purchase; missing, unknown, or asynchronously mismatched account
+kinds fail closed. A generic Edge `401` never rotates a Ghost identity. Only a
+stable missing-session response followed by a failed Supabase SDK refresh may
+replace that UUID, preventing endpoint-policy failures from manufacturing new
+Supabase and RevenueCat customers.
 `RevenueCatOfferingPolicy` requires these App Store product identifiers:
 
 - `pro_week`
@@ -256,6 +268,12 @@ the strict server cutover or a production submission.
 
 - The Supabase Auth UUID remains the RevenueCat App User ID across anonymous and
   OAuth-upgraded sessions, always in uppercase RFC 4122 form.
+- RevenueCat purchase, restore, and offer-code redemption require both the exact
+  linked UUID and one matching recognized account kind. Stable Ghost accounts
+  are first-class purchase identities; an ordinary OAuth link preserves their
+  UUID and provider state.
+- An unclassified `401` preserves the active Supabase identity. Ghost replacement
+  requires an explicit missing/invalid-session response and a failed SDK refresh.
 - Normal sign-out is device-local, clears RevenueCat's local linked-state fence
   and PostHog identity, and never asks RevenueCat to generate an anonymous App
   User ID. It does not change the durable account-wide analytics choice on

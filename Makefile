@@ -1,4 +1,4 @@
-.PHONY: help xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers grant-beta-pro db-push functions-deploy
+.PHONY: help xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells grant-beta-pro db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -30,6 +30,7 @@ help:
 	@printf "  make audit-ghost-users ARGS='...'     Run read-only Supabase ghost-user audit\n"
 	@printf "  make cleanup-ghost-users ARGS='...'   Dry-run or execute guarded ghost-user cleanup\n"
 	@printf "  make audit-revenuecat-customers ARGS='...' Compare Supabase and RevenueCat CSV exports offline\n"
+	@printf "  make cleanup-revenuecat-shells ARGS='...' Plan or apply guarded empty-shell deletion\n"
 	@printf "  make grant-beta-pro ARGS='...'        Dry-run or apply guarded RevenueCat beta grants\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
@@ -140,6 +141,13 @@ audit-revenuecat-customers:
 	deno run --frozen --config services/supabase/functions/deno.json \
 		--allow-read --allow-write \
 		services/supabase/scripts/audit_revenuecat_customers.ts $(ARGS)
+
+cleanup-revenuecat-shells:
+	deno run --frozen --config services/supabase/functions/deno.json \
+		--allow-env=REVENUECAT_SECRET_API_KEY,REVENUECAT_PROJECT_ID \
+		--allow-net=api.revenuecat.com \
+		--allow-read --allow-write \
+		services/supabase/scripts/cleanup_revenuecat_customer_shells.ts $(ARGS)
 
 grant-beta-pro:
 	deno run --frozen --config services/supabase/functions/deno.json \

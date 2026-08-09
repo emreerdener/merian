@@ -977,6 +977,10 @@ authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`,
 and `KeychainManager` migration logic. Do not inline
 `"Merian_HasAuthenticatedOAuth"`.
 
+`KeychainKeys.ghostModeUserID` is the single source of truth for the same-UUID
+Ghost presentation marker. It never replaces the Supabase SDK session and is
+valid only for the currently active UUID.
+
 ### `FieldNotesRepository`
 
 - `@MainActor` local/private field-note boundary living in
@@ -1291,13 +1295,28 @@ and `KeychainManager` migration logic. Do not inline
   metadata.
   RevenueCat remains unconfigured until this UUID exists. Session replacement
   switches directly with `logIn`; sign-out clears the manager fence without SDK
-  logout, preventing `$RCAnonymousID` customer creation.
+  logout, preventing `$RCAnonymousID` customer creation. Direct custom-ID
+  switching does not transfer provider state: RevenueCat documents a
+  non-anonymous custom ID → custom ID login as a logout/login with no purchase
+  transfer. The normal OAuth link preserves the UUID and is safe from that
+  identity change. The existing-account Ghost merge changes UUIDs, so
+  `RevenueCatManager` now tracks the Supabase `account_kind` alongside its exact
+  ID fence. Matching normalized `anonymous` and `authenticated` accounts may
+  purchase, restore, and redeem; missing, unknown, or stale account-kind results
+  fail closed. The conflict fallback separately mirrors and verifies active Pro
+  on the destination, then synchronizes the store receipt under the tested
+  RevenueCat transfer behavior.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
   serializes anonymous session creation across all callers. This closes the
   suspension-window race where multiple `getValidAuthHeaders()` calls could each
   enter `initializeGhostSession()` and perform overlapping `signInAnonymously()`
   requests.
+- **Unauthorized identity preservation**: a generic route `401` is not proof
+  that Auth deleted the user and never rotates the current UUID. A Ghost can be
+  replaced only when the response carries the stable missing/invalid-session
+  contract and an SDK refresh fails. This prevents repeated endpoint failures
+  from manufacturing Supabase and RevenueCat customers.
 - **DRY OAuth Abstraction**: Apple Sign In and Google Sign In share a single
   `private func finalizeOAuthLogin` path, removing the duplicate
   `.linkIdentityWithIdToken` / `.signInWithIdToken` logic that previously
@@ -1336,9 +1355,20 @@ and `KeychainManager` migration logic. Do not inline
   duplicate `signInAnonymously()` block.
 - Maps Apple and Google OAuth hooks to migrate Ghost User accounts, calling
   `RevenueCatManager.shared.linkWithSupabase()` to align payment state.
-- Normal sign-out uses Supabase `.local` scope, then clears RevenueCat and
-  PostHog state for the current device. Do not use global sign-out for ordinary
-  in-app logout because it revokes the account's other active devices too.
+- The database Ghost merge's destination reconciliation row repairs Merian's
+  provider lookup schedule only. After commit, the server separately reads both
+  RevenueCat customers, mirrors/verifies the source's active finite or lifetime
+  Pro horizon, and blocks source Auth deletion on any failure. The durable client
+  calls `syncPurchases()` before local evidence rebind and proof removal. Ghosts
+  may purchase, restore, redeem, and receive reviewed beta grants.
+- `continueAsGhost()` is ordinary login-optional UX. It keeps the current private
+  Supabase session and UUID while presenting the account as Ghost, preserving
+  RevenueCat, PostHog ownership, app data, and purchases. In that state the UI
+  calls `resumeLinkedAccount()` rather than a provider sign-in, preventing an
+  accidental account switch. True local-scope `signOut()` clears those fences
+  only for account deletion or authoritative credential invalidation; global
+  sign-out remains inappropriate for a local transition because it revokes other
+  active devices too.
 
 ### `DetachedWork`
 
@@ -1436,10 +1466,22 @@ and `KeychainManager` migration logic. Do not inline
   `isProActive` combines paid status with current-launch server-verified
   functional access; and `canStartProScan` additionally requires capacity to
   fund a new analysis.
+- Treats exact RevenueCat identity linkage and permission to mutate provider
+  state as separate conditions. Offerings and subscription management can use
+  an exact custom Ghost identity; purchase, restore, and offer-code redemption
+  also work for that stable identity. The requested and linked account-kind
+  fences must match as normalized `anonymous` or `authenticated`, rejecting
+  stale anonymous-to-authenticated link results.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.
-- Connects authenticated users to RevenueCat; the `revenuecat-webhook` Edge
+- A store introductory trial activates through its receipt without a manual
+  RevenueCat approval. A beta promotion is different: it is an explicit,
+  finite secret-key grant of the same `pro` entitlement. Once either is
+  projected to Supabase, it resolves as `pro_paid` and includes Field Chat for
+  the active period. RevenueCat project-level Pro billing grants neither state.
+- Connects Ghost and authenticated users to RevenueCat; the
+  `revenuecat-webhook` Edge
   function remains the server-side purchase authority. It verifies signed
   delivery, fetches authoritative CustomerInfo, persists recurring/grace expiry,
   and writes snapshot-primary tier/timed-pass state through the service-only
@@ -1452,6 +1494,13 @@ and `KeychainManager` migration logic. Do not inline
   product is absent. These diagnostics do not create products or repair package
   mapping; App Store Connect product readiness and RevenueCat dashboard mapping
   remain release prerequisites.
+- The only canonical App User ID is the uppercase Supabase UUID. Customer
+  counts need not match `public.users`, and historical provider rows are never
+  deleted for normalization. The grant client now accepts GET `200|201`, uses an
+  explicit tier-independent cohort, and joins to permanent Auth evidence. The
+  beta/canonical-ID production rollout remains held for disposable replay,
+  staging, exact-SHA review, and explicit provider authorization. See the
+  [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### `EntitlementManager`
 
@@ -1480,6 +1529,21 @@ and `KeychainManager` migration logic. Do not inline
   metadata is reconciled from `plan_used` plus `credit_consumed`.
 - Full contract documented in
   [18-complimentary-pro-scans.md](../backend-and-data/18-complimentary-pro-scans.md).
+
+### `ScanAdmissionManager`
+
+- Lives at `Core/Security/ScanAdmissionManager.swift`. Before online Capture
+  starts camera/audio hardware or submits staged evidence, it calls the
+  authenticated `get_my_scan_admission_preview(...)` RPC for the active
+  Supabase account.
+- Validates the exact decision/plan/daily-count shape and never caches a
+  response. An exhausted daily allowance or unavailable Pro path opens the
+  existing paywall before inference or queue mutation. An unavailable online
+  preview blocks the attempt with retry feedback; offline work falls back to
+  `UsageManager`.
+- The preview never reserves quota. The Edge route's later
+  `reserve_ai_quota(...)` call remains authoritative, so Capture retains the
+  exact `429 ai_quota_daily_exceeded` paywall fallback for a concurrent race.
 
 ### `UsageManager`
 

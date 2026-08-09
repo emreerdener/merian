@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deleteMergedGhostAuthUser } from "../merge-ghost-profile/db.ts";
+import { preserveRevenueCatAccessForGhostMerge } from "../merge-ghost-profile/revenuecat.ts";
 import {
   claimGhostMergeAuthCleanups,
   finishGhostMergeAuthCleanup,
@@ -33,6 +34,10 @@ export type ReconcileGhostProfileMergeDependencies = {
     ghostUserId: string,
     supabaseAdmin: SupabaseClient,
   ) => Promise<CleanupResult>;
+  preserveRevenueCatAccess?: (
+    ghostUserId: string,
+    targetUserId: string,
+  ) => Promise<CleanupResult>;
   finish?: (
     supabaseAdmin: SupabaseClient,
     claim: GhostMergeCleanupClaim,
@@ -51,6 +56,13 @@ export async function reconcileGhostProfileMerges(
     MAX_LIMIT,
   );
   const claim = dependencies.claim ?? claimGhostMergeAuthCleanups;
+  const preserveRevenueCatAccess = dependencies.preserveRevenueCatAccess ??
+    ((ghostUserId, targetUserId) =>
+      preserveRevenueCatAccessForGhostMerge(
+        ghostUserId,
+        targetUserId,
+        Deno.env.get("REVENUECAT_SECRET_API_KEY")?.trim() ?? "",
+      ));
   const deleteAuthUser = dependencies.deleteAuthUser ??
     deleteMergedGhostAuthUser;
   const finish = dependencies.finish ?? finishGhostMergeAuthCleanup;
@@ -64,6 +76,26 @@ export async function reconcileGhostProfileMerges(
 
   for (const cleanupClaim of claims) {
     try {
+      const revenueCatHandoff = await preserveRevenueCatAccess(
+        cleanupClaim.ghostUserId,
+        cleanupClaim.targetUserId,
+      );
+      if (!revenueCatHandoff.succeeded) {
+        await finish(
+          supabaseAdmin,
+          cleanupClaim,
+          false,
+          revenueCatHandoff.errorCode,
+        );
+        result.failed += 1;
+        result.errors.push({
+          handoffId: cleanupClaim.handoffId,
+          ghostUserId: cleanupClaim.ghostUserId,
+          reason: revenueCatHandoff.errorCode,
+        });
+        continue;
+      }
+
       const cleanup = await deleteAuthUser(
         cleanupClaim.ghostUserId,
         supabaseAdmin,

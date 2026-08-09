@@ -28,14 +28,19 @@ identity linking cannot succeed:
 7. The database proves that the destination account owns the bound provider
    identity, locks the handoff and both users, and performs the data merge in
    one transaction.
-8. Only after that transaction commits does the Edge Function delete the empty
-   anonymous Auth user.
+8. Only after that transaction commits does the Edge Function read authoritative
+   RevenueCat source/destination state, mirror and verify any active Pro
+   horizon, and then delete the obsolete anonymous Auth user.
+9. The client synchronizes the destination's App Store receipt, rebinds local
+   evidence, and removes its durable proof only after every step succeeds.
 
-The completion call is idempotent for the same destination and secret. If Auth
-cleanup fails after the data transaction, the function returns a retryable 503;
-repeating the same completion cannot move the data twice. The client removes
-only successful or terminal invalid/expired queue entries. A service-role worker
-also reconciles committed cleanup receipts every five minutes.
+The completion call is idempotent for the same destination and secret. If the
+RevenueCat handoff or Auth cleanup fails after the data transaction, the
+function returns a retryable 503; repeating the same completion cannot move the
+data twice. The client removes only fully synchronized or terminal
+invalid/expired queue entries. A service-role worker also reconciles committed
+cleanup receipts every five minutes and repeats provider preservation before
+Auth deletion.
 
 ## Database guarantees
 
@@ -94,11 +99,32 @@ completion resets or replaces the lease first, the stale callback fails closed
 instead of applying an obsolete provider snapshot.
 
 Completion must unconditionally upsert a destination reconciliation row. The row
-uses the permanent uppercase UUID as `lookup_app_user_id`, is due immediately, resets
-`attempt_count`, clears all claim/error fields, and exists whether or not the
-anonymous source had a queue row. The foreground RevenueCat `logIn` call and
+uses the permanent uppercase UUID as `lookup_app_user_id`, is due immediately,
+resets `attempt_count`, clears all claim/error fields, and exists whether or not
+the anonymous source had a queue row. The foreground RevenueCat `logIn` call and
 webhook delivery are accelerators; this destination queue is the durable repair
 authority for a completely missed webhook.
+
+That queue schedules a lookup; it is not provider handoff evidence. The Ghost
+UUID and permanent UUID are both non-anonymous custom App User IDs, and
+RevenueCat custom-to-custom `logIn` performs an account switch without moving
+purchases or promotional grants. `preserveRevenueCatAccessForGhostMerge(...)`
+therefore fetches authoritative CustomerInfo for both IDs after the database
+commit. A free source requires no mutation. Otherwise the destination must
+already cover the source's active functional Pro horizon or receive and verify
+an exact finite/lifetime promotional `pro` mirror. Any unavailable secret,
+provider error, invalid response, or failed coverage check blocks Auth deletion
+with retryable `purchase_handoff_pending`.
+
+The server never revokes or deletes the source RevenueCat customer and never
+synthesizes a store receipt. The proof-bearing iOS completion calls
+`syncPurchases()` while linked to the destination, relying on the project's
+reviewed **Transfer to new App User ID** restore behavior for store ownership
+and future renewal continuity. Its device-only proof remains until provider
+sync, local evidence rebinding, and verified removal succeed. This permits Ghost
+purchase and beta promotion without requiring login. The active constraints and
+exit criteria are in the
+[RevenueCat customer identity incident](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Community activity actors use the writer-compatible activity-group-before-actor
 order. The merge handler updates the existing target actor and deletes the
@@ -117,15 +143,18 @@ message. The transaction rolls back before either reaches the Edge mapper.
 
 Forward migration
 `20260801220318_harden_ghost_merge_concurrency_and_provider_repair.sql` and the
-Edge mapper implement the four concurrency/provider-repair requirements above
-without editing committed migration history. Static and Edge tests cover their
-source contracts, and `ghostProfileMergeConcurrencyDb.test.ts` provides the two
-session deadlock schedules. `ghostProfileMergeClientContract.test.ts` pins proof
-persistence before the session switch, retry on permanent-session restoration,
-device-only Keychain storage, and terminal-only deletion. Do not deploy or
-enable the existing-account conflict fallback until the production workflow's
-exact-CLI disposable replay, complete catalog and Edge suites, two-session
-schedules, strict lint, and advisors clear the release hold in the
+Edge mapper implement the four database/concurrency requirements above without
+editing committed migration history. The RevenueCat preservation module and
+proof-bearing iOS receipt sync add the provider-continuity requirements. Static,
+Edge, and iOS tests cover their source contracts, and
+`ghostProfileMergeConcurrencyDb.test.ts` provides the two-session deadlock
+schedules. `ghostProfileMergeClientContract.test.ts` pins proof persistence
+before the session switch, retry on permanent-session restoration, provider sync
+before local evidence rebind/removal, device-only Keychain storage, and
+terminal-only deletion. Do not deploy or enable the existing-account conflict
+fallback until the production workflow's exact-CLI disposable replay, complete
+catalog and Edge suites, two-session schedules, strict lint, and advisors clear
+the release hold in the
 [deployment runbook](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
 ## Operations
@@ -142,10 +171,12 @@ confirms cleanup. `reconcile-ghost-profile-merges` leases the same receipts with
 a random claim token, ten-minute stale-lease recovery, and bounded retry
 backoff, so cleanup does not depend on another app launch.
 
-That worker repairs only the obsolete anonymous Auth shell. RevenueCat provider
-state is repaired independently through
-`internal.revenuecat_reconciliation_queue`; a successful Auth cleanup does not
-prove that the destination provider queue exists or has reconciled.
+Before repairing the obsolete anonymous Auth shell, that worker repeats the same
+authoritative RevenueCat access-preservation step. A failed provider check
+records a bounded retryable claim error and leaves Auth intact. The independent
+`internal.revenuecat_reconciliation_queue` still projects provider state into
+Supabase; successful Auth cleanup alone does not prove that projection has
+drained.
 
 The scheduled **Ghost Profile Merge Health Monitor** and the production
 post-deploy audit call

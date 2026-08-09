@@ -114,7 +114,18 @@ including a post authored by the viewer. This is not a public comment: each
 conversation is keyed to the authenticated viewer and post, and is visible only
 to that viewer. `/explore-post-chat` builds answers from privacy-filtered public
 post/detail and Species Dictionary text, while owner scan data and every other
-viewer's conversation remain outside the context and response.
+viewer's conversation remain outside the context and response. A store trial or
+finite RevenueCat beta promotion receives this gate only after authoritative
+CustomerInfo is projected to Supabase as Pro; the developer's RevenueCat account
+plan and an iOS-only entitlement display are not server authorization.
+
+The RevenueCat customer key is the uppercase Supabase Auth UUID for both Ghost
+and linked sessions. Ghost is a durable, purchasable identity; login normally
+links credentials to the same UUID, and Continue as Ghost later changes only UI
+presentation. The existing-account conflict merge preserves active provider
+access before source Auth deletion and synchronizes the store receipt. Exact
+prelaunch cleanup can delete only live-revalidated empty RevenueCat shells and
+never deletes Supabase users or app data.
 
 ## Core Decoupling (AppDIContainer)
 
@@ -190,6 +201,12 @@ A structured schema built on native SwiftData migrations:
   completion to make the permanent RevenueCat reconciliation row due; the client
   SDK login is not the durable recovery authority, and the rollout remains
   release-gated until that server repair is proven.
+- Both the Ghost UUID and permanent UUID are custom RevenueCat IDs. RevenueCat
+  does not transfer purchases or promotions when a non-anonymous custom ID logs
+  into another custom ID. Database ownership repair therefore cannot by itself
+  preserve provider access across the existing-account conflict path. Guest
+  purchases and beta promotions remain release-held until Merian requires a
+  stable permanent identity or implements an idempotent provider-aware handoff.
 - RevenueCat webhook delivery is an external-provider boundary, so its Supabase
   JWT check is disabled only for that route. The handler replaces it with a
   configured bearer check and timestamped raw-body HMAC, then fetches
@@ -199,11 +216,25 @@ A structured schema built on native SwiftData migrations:
   `TRANSFER` source and destination updates share one transaction. Accepted
   tier/expiry changes advance `users.entitlement_version`, which the
   server-side AI quota reservation reads before provider dispatch.
+- The case-sensitive App User ID invariant is the uppercase Supabase UUID for
+  every database-generated and iOS-configured lookup. RevenueCat subscriber GET
+  is get-or-create, so a different case manufactures a different customer
+  shell. Provider customer counts are therefore audit inputs, not a required
+  one-to-one match with `public.users`; historical aliases and rows are not
+  deleted as normalization.
 - `EntitlementManager` verifies `get_my_entitlement()` for the active Supabase
   user each launch, derives complimentary functional access from only that
   current versioned snapshot, buffers stored replay metadata until the launch
   baseline succeeds, and rejects stale responses. `RevenueCatManager` continues
-  to own paid access and paid-only public badge state.
+  to own paid access and paid-only public badge state. It may link an exact
+  custom Ghost UUID for reads and provider mutations. Purchase, restore, and
+  offer-code redemption require the requested and linked UUID/account-kind
+  fences to agree; both `anonymous` and `authenticated` are valid. Generic
+  unauthorized route responses preserve the current UUID.
+
+The active production hold, explicit beta-cohort contract, supervised worker
+cutover, and no-deletion policy are maintained in the
+[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ## Privacy & Geoprivacy Focus
 

@@ -16,7 +16,10 @@ extension CaptureWorkspaceViewModel {
     ///
     /// Includes a 1.5s debounce to prevent duplicate enqueuing on rapid physical taps.
     @discardableResult
-    func submitDescribe(observationContext: ObservationContext, modelContext: ModelContext) -> Bool {
+    func submitDescribe(
+        observationContext: ObservationContext,
+        modelContext: ModelContext
+    ) async -> Bool {
         // Prevent rapid duplicate taps from spawning identical offline queue records
         let now = CFAbsoluteTimeGetCurrent()
         guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return false }
@@ -57,7 +60,11 @@ extension CaptureWorkspaceViewModel {
                     let targetEradicationScanId = baseRefinementContext?.scanId
                     baseRefinementContext = nil
                     refinementSubjectId = nil
-                    submitDescribeSolo(observationContext: stagedContext, modelContext: modelContext, targetEradicationScanId: targetEradicationScanId)
+                    return await submitDescribeSolo(
+                        observationContext: stagedContext,
+                        modelContext: modelContext,
+                        targetEradicationScanId: targetEradicationScanId
+                    )
                 }
                 return true
             }
@@ -107,9 +114,14 @@ extension CaptureWorkspaceViewModel {
     /// 2. Enqueue via `OfflineQueueManager.enqueueNonVisualCapture` with cached GPS telemetry.
     ///    WeatherKit backfill is deferred to `dispatchInferenceDownloadTask` on retry.
     /// 3. Show "No network connection. Queued for upload." toast.
-    func submitDescribeSolo(observationContext: ObservationContext, modelContext: ModelContext, targetEradicationScanId: String? = nil) {
-        guard !observationContext.isEmpty else { return }
-        submitNonVisualCapture(
+    @discardableResult
+    func submitDescribeSolo(
+        observationContext: ObservationContext,
+        modelContext: ModelContext,
+        targetEradicationScanId: String? = nil
+    ) async -> Bool {
+        guard !observationContext.isEmpty else { return false }
+        return await submitNonVisualCapture(
             audioFileNames: [],
             observationContexts: [observationContext],
             mediaTimeline: [.description(observationContext)],

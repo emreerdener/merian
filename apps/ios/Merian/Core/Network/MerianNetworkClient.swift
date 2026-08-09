@@ -1406,11 +1406,12 @@ final class MerianNetworkClient {
     }
     #endif
 
-    static func shouldRegenerateSessionAfterMissingAuthSession(
+    static func shouldRegenerateSessionAfterUnauthorized(
+        responseProvesMissingSession: Bool,
         hasAuthenticatedOAuth: Bool,
         isGuestUser: Bool
     ) -> Bool {
-        !hasAuthenticatedOAuth && isGuestUser
+        responseProvesMissingSession && !hasAuthenticatedOAuth && isGuestUser
     }
 
     #if DEBUG
@@ -1653,7 +1654,8 @@ final class MerianNetworkClient {
 
                     let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                     let isGuest = await SupabaseManager.shared.isGuestUser
-                    if Self.shouldRegenerateSessionAfterMissingAuthSession(
+                    if Self.shouldRegenerateSessionAfterUnauthorized(
+                        responseProvesMissingSession: true,
                         hasAuthenticatedOAuth: hasAuthenticatedOAuth,
                         isGuestUser: isGuest
                     ) {
@@ -1680,33 +1682,16 @@ final class MerianNetworkClient {
                     throw MerianError.invalidResponse
                 }
 
-                let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
-                if hasAuthenticatedOAuth {
-                    // An unclassified OAuth 401 must not replace the signed-in account.
-                    throw MerianError.invalidResponse
-                }
-
-                let isGuest = await SupabaseManager.shared.isGuestUser
-                if isGuest {
-                    MerianLog.network.debug("Zombie session detected — regenerating ghost session.")
-                    await SupabaseManager.shared.transitionToGhostSession()
-
-                    // Allow ~1.5s for the API gateway to recognize the new token signature.
-                    try await Task.sleep(nanoseconds: 1_500_000_000)
-
-                    return try await performAuthenticatedRequest(
-                        url: url,
-                        method: method,
-                        body: body,
-                        timeoutInterval: timeoutInterval,
-                        isRetry: true,
-                        functionRouteRetryAttempt: functionRouteRetryAttempt,
-                        idempotencyKey: idempotencyKey,
-                        onRequestBodySent: onRequestBodySent
-                    )
-                } else {
-                    throw MerianError.invalidResponse
-                }
+                // A generic 401 can be an endpoint policy or configuration
+                // rejection. It is not proof that Supabase Auth deleted the
+                // current account, so rotating a Ghost UUID here would strand
+                // ownership and create another RevenueCat customer. Only the
+                // stable missing-session branch above may replace a Ghost,
+                // after an SDK refresh also fails.
+                MerianLog.network.debug(
+                    "Unclassified unauthorized response preserved the active Supabase identity."
+                )
+                throw MerianError.invalidResponse
             }
 
             // A transport failure or 5xx can occur after a mutation committed.
