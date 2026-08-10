@@ -114,6 +114,13 @@ entitlement drift by editing `public.users.subscription_tier`; authoritative
 reconciliation correctly overwrites it. Provider shell cleanup is a separate,
 exact operation and never mutates Supabase.
 
+The scheduled Ghost-merge health monitor can execute repository code before a
+blocked candidate migration reaches production. Its read-only queue comparison
+therefore mirrors the helper's immutable `UPPER(uuid::TEXT)` result inline so it
+remains compatible with the immediately preceding catalog. Database writers
+continue to use the private helper; the monitor fallback is not a second
+customer-ID policy.
+
 The subscriber GET returns `200` when the customer exists and `201` when the
 request creates it. Both are successful CustomerInfo responses. A RevenueCat
 developer account on Pro enables project integrations; it does not grant app

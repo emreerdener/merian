@@ -193,9 +193,11 @@ export async function inspectGhostMergeHealth(
                 WHERE queue.merian_user_id IS NOT NULL
                   AND queue.lookup_app_user_id
                     IS DISTINCT FROM
-                      internal.canonical_revenuecat_app_user_id(
-                        handoff.target_user_id
-                      )
+                      -- This scheduled monitor can run from main while the
+                      -- candidate migration is still blocked. Mirror the
+                      -- immutable helper inline so the read remains compatible
+                      -- with the immediately preceding production catalog.
+                      pg_catalog.UPPER(handoff.target_user_id::TEXT)
               )
             )::INTEGER AS misdirected_destination_queue_count,
             (

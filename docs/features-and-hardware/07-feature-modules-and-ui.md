@@ -1448,7 +1448,7 @@ on gesture-driven layout abstractions.
   the UI shows an error and deletes unowned source media; if the user is
   un-networked, execution drops after the queued callback, clears the pending
   live scan ID, circumvents timeout overlays, and surfaces a temporary
-  `ToastBanner` ("No network connection. Queued for upload.") directly on the
+  `ToastBanner` ("No network connection. Scan queued for later.") directly on the
   camera matrix without locking the viewfinder. **On-Device Subject
   Classification (`VNClassifyImageRequest`)**: After staging images or sampled
   video frames for inference, `InferenceEngine.analyze` fires

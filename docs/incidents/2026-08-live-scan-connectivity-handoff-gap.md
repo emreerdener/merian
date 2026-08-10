@@ -4,8 +4,8 @@
 **Severity:** Release-blocking scan-reliability risk\
 **Affected boundary:** Queue-backed foreground Identify transport → durable
 offline replay → open Insight presentation\
-**Repository status:** Open in source; presentation plumbing exists, but the
-joined transport/ownership behavior is not yet accepted\
+**Repository status:** Open in source; the saved-service placeholder mismatch is
+repaired, but the joined transport/ownership behavior is not yet accepted\
 **Production status:** Do not describe the handoff as released until every
 closure gate below passes on one exact workflow SHA
 
@@ -18,16 +18,15 @@ change to **Queued for later**, and the durable queue should resume the same
 scan UUID when transport is eligible.
 
 The reviewed working tree contains the exact-ID presentation state and queued
-view needed for that experience, but four joined gaps remain:
+view needed for that experience. The placeholder mismatch has been repaired, but
+three joined gaps remain:
 
 1. connectivity monitoring can retire the durable foreground generation before
    the live URLSession failure reaches `InferenceEngine`;
 2. the shared authenticated client can replay the queue-backed Identify request
    once after a transient transport failure, delaying the handoff through a
    second 90-second request deadline;
-3. the queued service fallback title **Analysis delayed** is not included in
-   `SpeciesData.isInferenceErrorPlaceholder`; and
-4. the new connectivity tests throw from a pre-request consent seam, so they do
+3. the new connectivity tests throw from a pre-request consent seam, so they do
    not exercise URLSession retry, upload-hold release, or connectivity-driven
    retirement.
 
@@ -95,17 +94,18 @@ retry and status recovery. This exception must be scoped to queue-backed live
 Identify; it must not silently remove reviewed retry behavior from unrelated
 read routes, server-route propagation recovery, or a truly queue-less caller.
 
-### Error placeholder classification is string-fragile
+### Error placeholder classification was string-fragile
 
 The generic saved-service fallback constructs non-biological-shaped
-`SpeciesData` titled **Analysis delayed**, but the placeholder whitelist does
-not recognize that title. The row can therefore be classified as a genuine
+`SpeciesData` titled **Analysis delayed**. The former placeholder whitelist did
+not recognize that title, so the row could be classified as a genuine
 non-biological result and receive the wrong pill, retention copy, haptic, or
-success lifecycle.
+success lifecycle. The current source whitelist includes it.
 
 The long-term contract should use typed presentation state. The minimum safe
-repair must classify **Analysis delayed** as an inference error placeholder and
-lock its Insight routing and lifecycle behavior in tests.
+repair now classifies **Analysis delayed** as an inference error placeholder,
+and the queue-backed server-failure test locks that routing. This source repair
+does not close the separate transport/ownership gates below.
 
 ### Existing tests stop before the transport boundary
 

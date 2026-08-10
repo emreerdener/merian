@@ -281,8 +281,9 @@ documented states.
 plumbing exist in the reviewed working tree, but the joined post-dispatch
 contract is not accepted. The engine currently couples queued publication to a
 durable generation that connectivity monitoring may already have retired, the
-network client can replay transient transport once, and **Analysis delayed** is
-missing from the placeholder whitelist. See the
+network client can replay transient transport once, and the transport-level
+regression still stops at a pre-request seam. **Analysis delayed** is now in the
+placeholder whitelist. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 before making any release claim.
 

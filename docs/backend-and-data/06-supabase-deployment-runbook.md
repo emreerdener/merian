@@ -212,7 +212,10 @@ steps:
     misdirected destination RevenueCat queues. A warning fails the deployment
     workflow after mutation so the release cannot be declared healthy while an
     invariant is degraded; the scheduled monitor continues the same audit every
-    15 minutes.
+    15 minutes. That scheduled workflow may check out `main` before a blocked
+    migration is deployed, so its read-only destination comparison mirrors the
+    canonical helper's immutable uppercase-UUID expression inline and remains
+    compatible with the immediately preceding production catalog.
 
 Local and CI database rebuilds use the exact reviewed Supabase CLI `2.109.1`.
 The CLI owns migration transaction and history boundaries. Its normal apply path

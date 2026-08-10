@@ -1331,7 +1331,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         try await waitUntil {
             viewModel.offlineToastMessage?.title ==
-                "No network connection. Queued for upload."
+                "No network connection. Scan queued for later."
         }
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)

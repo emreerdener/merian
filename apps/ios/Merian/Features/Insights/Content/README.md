@@ -45,9 +45,10 @@ place.
 
 This behavior is release-gated. The current catch path can lose full durable
 ownership before it publishes the still-current local presentation, and the
-transport helper can replay once before returning the failure. In addition,
-**Analysis delayed** must be classified as an inference error placeholder so a
-saved service failure never receives non-biological success treatment. See the
+transport helper can replay once before returning the failure. **Analysis
+delayed** is now classified as an inference error placeholder, so a saved
+service failure does not receive non-biological success treatment; that isolated
+repair does not close the transport handoff. See the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for current status and closure tests.
 

@@ -350,7 +350,8 @@ as their permanent engineering identity.
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
   — Required first-failure **Queued for later** behavior, the durable-owner
   versus local-presentation race, inline transport-replay latency,
-  **Analysis delayed** placeholder mismatch, transport-boundary test gap, and
+  the repaired **Analysis delayed** placeholder mismatch, the remaining
+  transport-boundary test gap, and
   exact closure gates.
 - **[`/incidents/2026-08-first-scan-auth-refresh-gap.md`](./incidents/2026-08-first-scan-auth-refresh-gap.md)**
   — Sanitized Edge-origin Auth evidence, the `invalid_session_token`

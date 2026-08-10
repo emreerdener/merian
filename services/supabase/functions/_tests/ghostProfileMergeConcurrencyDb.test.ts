@@ -325,7 +325,10 @@ Deno.test("Ghost merge concurrency DB - RevenueCat parent lock displaces stale a
       [targetUserId],
     );
     assertEquals(state.rows.length, 1);
-    assertEquals(state.rows[0].lookup_app_user_id, targetUserId);
+    assertEquals(
+      state.rows[0].lookup_app_user_id,
+      targetUserId.toUpperCase(),
+    );
     assert(state.rows[0].due_now);
     assertEquals(state.rows[0].claim_token, null);
     assertEquals(state.rows[0].subscription_tier, "free");

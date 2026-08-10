@@ -69,9 +69,12 @@ Deno.test("Ghost merge database audit is bounded and read-only", async () => {
   assertStringIncludes(source, "queue.updated_at < handoff.merged_at");
   assertStringIncludes(
     source,
-    "internal.canonical_revenuecat_app_user_id(",
+    "pg_catalog.UPPER(handoff.target_user_id::TEXT)",
   );
-  assert(!source.includes("handoff.target_user_id::TEXT"));
+  assert(
+    !source.includes("internal.canonical_revenuecat_app_user_id("),
+    "the scheduled monitor must remain executable before the helper migration deploys",
+  );
 });
 
 Deno.test("Ghost merge health parser rejects malformed or inconsistent rows", () => {

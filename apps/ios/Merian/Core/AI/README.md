@@ -180,9 +180,10 @@ currently require the full durable generation to remain current before they can
 publish queued presentation. Connectivity-driven retirement can make that check
 false first. `identifyMultiModal` also inherits the generic one-time transient
 transport replay, so a queue-backed request can wait through two 90-second
-deadlines. Finally, **Analysis delayed** is not yet recognized by
-`SpeciesData.isInferenceErrorPlaceholder`. Do not describe this handoff as
-complete until the transport-level ownership tests and closure gates in the
+deadlines. **Analysis delayed** is now recognized by
+`SpeciesData.isInferenceErrorPlaceholder`, but that isolated repair does not
+close the handoff. Do not describe it as complete until the transport-level
+ownership tests and closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 pass.
 

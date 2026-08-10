@@ -157,8 +157,8 @@ The queue-backed branch above is the required contract, not current release
 evidence. Connectivity monitoring can retire the durable generation before
 URLSession returns, and the current catch guard can then skip queued
 presentation. The shared network helper can also replay once before returning
-the failure, while **Analysis delayed** is absent from the current placeholder
-whitelist. See the
+the failure. **Analysis delayed** is now in the placeholder whitelist, but that
+isolated repair does not close the transport handoff. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for the ownership split, no-inline-replay rule, transport-level regression
 matrix, and closure status.

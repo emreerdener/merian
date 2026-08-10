@@ -1106,8 +1106,8 @@ insight sheet display.
   momentary Deno isolate errors. If both attempts fail, queued work uses
   **Analysis delayed / Scan saved** rather than misreporting a server failure as
   device connectivity loss. That fallback is presentation error state, not a
-  non-biological classification; `SpeciesData.isInferenceErrorPlaceholder` must
-  recognize it before release.
+  non-biological classification; `SpeciesData.isInferenceErrorPlaceholder` now
+  recognizes it, while the separate queue-handoff transport gates remain open.
 - **Tier-conditional inference resolution**
   (`MerianConfig.inferenceImageMaxSize(isProActive:)`): Flash/free-tier captures
   are downsampled to **768 px** (single Gemini vision tile, ~258 input tokens);

@@ -186,10 +186,15 @@ counts, overdue Auth-cleanup counts/ages, and 24-hour missing, misdirected, or
 unrefreshed destination RevenueCat queue anomalies without emitting handoff/user
 IDs, proof hashes, or provider subjects. Migration
 `20260802025258_index_ghost_merge_health_audits.sql` supplies predicate-matched
-time indexes for both rolling windows. A prepared receipt is a prompt to confirm
-Edge telemetry and proof-capable Keychain retries; it is not permission to edit
-a receipt or manually reparent data. See the deployment runbook for thresholds
-and recovery.
+time indexes for both rolling windows. Because the scheduled workflow checks out
+`main` independently of production deployment, its destination comparison uses
+the exact uppercase-UUID expression inline and remains read-compatible with the
+catalog immediately before the canonical helper migration. This does not change
+the database write contract: migrated routines still use
+`internal.canonical_revenuecat_app_user_id(...)`. A prepared receipt is a prompt
+to confirm Edge telemetry and proof-capable Keychain retries; it is not
+permission to edit a receipt or manually reparent data. See the deployment
+runbook for thresholds and recovery.
 
 All handoff tables and helper routines are in the unexposed `internal` schema.
 Public RPC wrappers revoke `PUBLIC`/`anon` access and grant only the minimum

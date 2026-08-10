@@ -257,6 +257,7 @@ extension SpeciesData {
             .lowercased()
         return normalizedCommonName == "network timeout"
             || normalizedCommonName == "analysis failed"
+            || normalizedCommonName == "analysis delayed"
             || normalizedCommonName == "restoring scan"
             || normalizedCommonName == "approval needed"
             || normalizedCommonName == "upgrade needed"
