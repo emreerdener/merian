@@ -21,11 +21,11 @@ uppercase customer remains Pro.
 
 The mismatch and a separate iOS identity-rotation defect explain why RevenueCat
 can contain far more customers than the real beta population. RevenueCat rows
-can include case variants, aliases, historical test identities,
-`$RCAnonymousID` values, deleted Merian users, and customer shells created by
-get-or-create reads. Earlier iOS code also treated any unclassified guest `401`
-as a dead Auth session, replaced the Supabase Ghost UUID, and immediately linked
-the replacement UUID to RevenueCat. Repeated route failures could therefore
+can include case variants, aliases, historical test identities, `$RCAnonymousID`
+values, deleted Merian users, and customer shells created by get-or-create
+reads. Earlier iOS code also treated any unclassified guest `401` as a dead Auth
+session, replaced the Supabase Ghost UUID, and immediately linked the
+replacement UUID to RevenueCat. Repeated route failures could therefore
 manufacture a chain of empty customers. Customer-count parity is not a
 correctness invariant.
 
@@ -137,9 +137,8 @@ reconciler could observe no active entitlement and project `free`.
 
 The original grant tool derived its candidate cohort from rows already holding
 `subscription_tier = pro`, optionally excluding timed rows. That was not a safe
-definition of “all current beta users” because it excluded users who had
-already reverted to `free`, which are the exact accounts the repair must
-recover.
+definition of “all current beta users” because it excluded users who had already
+reverted to `free`, which are the exact accounts the repair must recover.
 
 A Supabase profile export can contain permanent accounts and historical Ghost
 profiles; its row count is not the beta population. Earlier projection
@@ -152,14 +151,13 @@ classification.
 ### Generic unauthorized response rotated Ghost identity
 
 The iOS request fallback historically treated every unclassified guest HTTP
-`401` as a “zombie session.” It performed local sign-out, created a new
-Supabase anonymous user, and retried. The Auth listener then configured
-RevenueCat with that replacement UUID. An endpoint policy, route deployment, or
-configuration error could repeat this cycle even though the original Auth user
-still existed.
+`401` as a “zombie session.” It performed local sign-out, created a new Supabase
+anonymous user, and retried. The Auth listener then configured RevenueCat with
+that replacement UUID. An endpoint policy, route deployment, or configuration
+error could repeat this cycle even though the original Auth user still existed.
 
-The repaired policy preserves the active identity for every generic `401`.
-Ghost replacement is permitted only when the response uses the stable
+The repaired policy preserves the active identity for every generic `401`. Ghost
+replacement is permitted only when the response uses the stable
 `auth_session_missing` or `invalid_session_token` contract and a Supabase SDK
 refresh also fails. Anonymous-session bootstrap remains single-flight. This
 keeps one install on one Ghost UUID during ordinary failures while still
@@ -169,8 +167,8 @@ recovering when Auth authoritatively no longer recognizes the session.
 
 The original grant tool accepted only HTTP `200` from its preliminary
 CustomerInfo GET. RevenueCat documents HTTP `201` as success when that GET
-creates the canonical customer. The repaired client accepts both statuses,
-still requires promotional POST `201`, and validates that the bounded response
+creates the canonical customer. The repaired client accepts both statuses, still
+requires promotional POST `201`, and validates that the bounded response
 contains an active entitlement.
 
 ### Guest-to-existing-account provider continuity
@@ -204,9 +202,9 @@ The conflict fallback now provides both parts of the handoff:
    ID** behavior, that transfers the real store receipt. The device-only handoff
    queue remains until provider synchronization, local evidence rebinding, and
    verified queue removal all succeed.
-3. If the client disappears after the database commit, the service worker repeats
-   the same provider access preservation before deleting the obsolete source Auth
-   shell. It never deletes the source RevenueCat customer.
+3. If the client disappears after the database commit, the service worker
+   repeats the same provider access preservation before deleting the obsolete
+   source Auth shell. It never deletes the source RevenueCat customer.
 
 The promotional mirror closes the receipt-independent gap, while receipt sync
 preserves later store renewals. Beta grants therefore accept both active
@@ -252,8 +250,8 @@ Before any apply-capable tool can be used, it must:
 - report the cohort artifact checksum, exact candidate/authenticated counts, and
   exact verified Ghost/linked counts, and aggregate projection counts without
   printing identities;
-- classify permanent, timed, and free Supabase projections without using them
-  to silently remove an approved member, and reject a missing projection;
+- classify permanent, timed, and free Supabase projections without using them to
+  silently remove an approved member, and reject a missing projection;
 - require `auth_exists=true` for every cohort identity and accept both strict
   `auth_is_anonymous=true` Ghosts and `auth_is_anonymous=false` linked users;
 - prove that no ID outside the reviewed cohort can receive a RevenueCat request;
@@ -302,11 +300,11 @@ provide:
    all catalog tests under the pinned Supabase CLI. Static SQL tests alone are
    not migration evidence.
 10. Staging must exercise a brand-new canonical customer, an existing active
-   customer, a reverted beta customer, a duplicate invocation, a webhook delay,
-   a Ghost purchase, generic-`401` identity preservation, and both normal Ghost
-   upgrade and existing-account conflict restore behavior. The exact cleanup
-   batch additionally requires fresh production exports and live provider
-   revalidation; staging fixtures do not authorize production customer IDs.
+    customer, a reverted beta customer, a duplicate invocation, a webhook delay,
+    a Ghost purchase, generic-`401` identity preservation, and both normal Ghost
+    upgrade and existing-account conflict restore behavior. The exact cleanup
+    batch additionally requires fresh production exports and live provider
+    revalidation; staging fixtures do not authorize production customer IDs.
 
 ## Supervised rollout after the hold closes
 
@@ -351,8 +349,8 @@ and retry only the failed identities using the retained ledger. If the window
 cannot be completed safely, restore the reconciler so ordinary subscription
 correctness resumes, retain all evidence, and leave the beta rollout incomplete.
 Never keep an unrecorded cron pause or clear queue state to make health green.
-Grant and cleanup results are separate identity-bearing ledgers and must never be
-silently combined or inferred from one another.
+Grant and cleanup results are separate identity-bearing ledgers and must never
+be silently combined or inferred from one another.
 
 ## Exact empty-shell cleanup contract
 
@@ -364,11 +362,13 @@ Create the cleanup plan only from four fresh, independently retained inputs:
 4. a nonempty, reviewed one-column `id` CSV containing every beta or otherwise
    protected customer, including Ghost users.
 
-Dry-run is network-free and hashes all four source artifacts plus the sorted
-candidate plan. By default it excludes canonical current Supabase customers and
-protects every active Auth UUID, reviewed cohort member, linked alias, row with
-purchase/promotion or customer-attribute evidence, recently seen row, and row
-with missing recency.
+Dry-run is network-free and hashes all four source artifacts, the inactivity
+threshold, the current-Supabase-shell flag, and the stable candidate identity
+and evidence fields. The display-only `inactive_days` value is excluded so the
+authorization digest cannot drift merely because wall time advances. By default
+it excludes canonical current Supabase customers and protects every active Auth
+UUID, reviewed cohort member, linked alias, row with purchase/promotion or
+customer-attribute evidence, recently seen row, and row with missing recency.
 `--include-current-supabase-shells` is an exceptional separate operation for an
 inactive `public.users` row whose full Auth audit proves `auth_exists=false`; an
 active Auth UUID remains protected even with the flag. It is not part of the
@@ -376,21 +376,124 @@ initial historical-duplicate cleanup.
 
 Apply requires `--apply --confirm-delete-empty-revenuecat-shells`, the exact
 dry-run `--approved-plan-sha256`, exact `--confirm-count`, an identity-bearing
-`--results-csv`, the exact RevenueCat project ID, and an `sk_` server key. Before
-each delete it uses the dedicated local-only
+`--results-csv`, the exact RevenueCat project ID, and an `sk_` server key.
+Before each delete it uses the dedicated local-only
 `REVENUECAT_CLEANUP_V2_API_KEY` and revalidates the exact project/customer,
-requires that live
-`last_seen_at` is no newer than the reviewed export and remains outside the
-inactivity window, requires no active entitlement or customer attribute,
-requires a complete self-only alias list, and requires complete empty V2
-subscription, purchase, and customer-event lists. It never calls the V1
-get-or-create subscriber endpoint. A changed or ambiguous response protects the
-row; the tool never writes Supabase.
+requires that live `last_seen_at` is no newer than the reviewed export and
+remains outside the inactivity window, requires no active entitlement or
+customer attribute, requires a complete self-only alias list, and requires
+complete empty V2 subscription, purchase, and customer-event lists. It never
+calls the V1 get-or-create subscriber endpoint. A changed or ambiguous response
+protects the row; the tool never writes Supabase.
+
+RevenueCat dashboard exports currently truncate `last_seen_at` to a whole second
+even though they encode it as epoch milliseconds; the live V2 customer response
+can restore the original millisecond remainder. Revalidation accepts only that
+remainder of the same exported second. Any later second, or any live timestamp
+inside the inactivity window, remains protected. The result ledger uses separate
+stable codes for identity, recency, active-entitlement, attribute, alias, and
+history evidence.
+
+### 2026-08-10 prelaunch cleanup execution note
+
+The first reviewed provider-only batch contained 188 candidates and protected
+all 269 current Auth UUIDs. Apply deleted one verified empty shell, protected
+187 at the initial customer-state boundary, failed none, and made no Supabase
+mutation. Aggregate inspection showed that all 187 shared the same boundary; the
+frozen export stored each candidate timestamp at `.000Z`, exposing the
+whole-second export versus live-millisecond precision mismatch above.
+
+The validator was corrected and regression-tested at both edges: a live value up
+to `+999 ms` within the reviewed second proceeds to the remaining evidence
+checks, while `+1,000 ms` fails closed as newer activity. The plan digest was
+also corrected to bind the exact four sources and selection configuration while
+excluding derived age. The replacement dry-run retained the identical 188
+customer IDs and stable evidence fields. Preserve the first apply ledger; any
+retry uses a separately named ledger and the replacement plan digest.
+
+The replacement apply then deleted 154 additional verified-empty shells,
+confirmed the first deletion as already absent, protected 33, failed none, and
+again made no Supabase mutation. Aggregate-only review classified 32 protected
+rows as customers with non-self alias groups and one as a customer with
+attributes. Those 33 are not empty-shell deletions: retain them until a separate
+read-only alias/attribute review proves the complete customer relationship and
+defines an independently approved operation. Across both passes, 155 provider
+shells were deleted with zero failed requests.
+
+A fresh dashboard export after both passes reconciled exactly: the original 435
+rows minus 155 deleted IDs plus four newly materialized canonical customers
+equalled 284 rows. The removed set exactly matched the two deletion ledgers, no
+deleted ID repopulated, and all 33 protected IDs remained. Each of the four new
+rows was the uppercase canonical RevenueCat form of a pre-existing Supabase
+UUID, not a new Supabase user; this is expected output from the deployed
+canonical reconciliation repair. The fresh read-only audit reported 284
+RevenueCat rows, 269 Supabase users, 152 exact canonical-customer matches, five
+case-variant rows, 119 unknown UUID rows, seven `$RCAnonymousID` rows, one other
+unlinked alias, five duplicate identity groups, and 36 review rows.
+
+The post-cleanup offline shell plan still selects 33 old unknown UUIDs because a
+dashboard export cannot prove their live provider relationships. Do not apply
+that plan: the preceding live pass already proved 32 have non-self alias groups
+and one has customer attributes. Three additional review rows are inactive
+case-variant members of two-row Supabase identity groups and remain protected by
+the current Auth cohort. A new deletion operation requires new live evidence and
+separate authorization; the fresh export alone is verification, not authority.
+
+The coordinated Supabase cleanup was then rerun in dry-run mode with the fresh
+284-row provider export, the same 269-row Auth audit, and the conservative
+protected cohort containing every current Auth UUID. Five old empty Ghosts met
+the database-audit age/content rules, but zero passed the independent provider
+gate, so the selected count remained zero. No current Supabase/Auth deletion is
+authorized by this evidence. Reducing the 269 current Auth identities to the 29
+known TestFlight humans would require either an independently proven exact UUID
+cohort or an explicitly approved prelaunch data reset; dashboard counts and
+simulator-looking platform versions are not identity proof.
+
+The product owner subsequently authorized the exceptional RevenueCat-only
+prelaunch project reset and asserted that the app has not launched publicly and
+that no provider transaction or customer is real. This authority does not extend
+to Supabase/Auth deletion. The retained post-cleanup export contains 284 exact
+customers in dashboard project `49ebd1c2`, has SHA-256
+`99a241dac9082c23adde45ddfd94657e3ede1804739ae34547dc5b521ee0175f`, and maps to
+V2 project `proj49ebd1c2`. The reset dry-run selected all 284 rows, reported
+five with purchase or entitlement evidence and 191 with customer attributes, and
+produced plan SHA-256
+`006f141f5deca54c16970f7430254025f34e1db9a0b2748c8ade2cd1fde2a4de`. Those
+evidence rows are included intentionally under the recorded synthetic-data
+assertion; this is erasure, not empty-shell deduplication.
+
+Apply completed at `2026-08-10T20:51:05.083Z`. All 284 exact planned customers
+returned `deleted`; none were queued, already absent, or failed, and the ledger
+contains 284 unique App User IDs with no error code. The result summary has
+SHA-256 `866ebf92e88e119e3e35a5083be9be57a8caf8d28e75bbb9f2fd02f27da5f0f8`;
+the identity-bearing results CSV has SHA-256
+`6abba60bc8bc766e9fd533cff47c89a1a9f77467f2bd9ed1365da103ad6b3494`.
+The terminal summary records `supabase_mutations=false`.
+
+The completed reset remains snapshot-bound. It issued no Supabase request and
+could not delete a RevenueCat customer created after the export. SDK
+identification and the deployed reconciler may recreate empty or canonical
+provider customers during or after apply, without restoring erased aliases,
+attributes, promotions, or history. Preserve the separately named apply ledger,
+take a fresh post-reset export, and revoke the temporary reset key. Any remaining
+or newly created customers require a new reviewed snapshot and digest.
+
+The immediate follow-up export had SHA-256
+`9c53cf3568380bc2bb00df0d6a53703cc4ab042ec6f2403bfff12c86d7085d0c`
+and temporarily returned eight rows: seven Test Store fixtures and one App Store
+Ghost, with no purchase or entitlement evidence. All eight were exact matches
+to the approved snapshot, including unchanged first/last-seen timestamps, and
+all eight had terminal `deleted` entries in the apply ledger. A subsequent
+RevenueCat dashboard refresh settled to zero customers without a second apply,
+confirming provider/export propagation rather than new activity. No pass-two
+deletion was executed.
 
 Deletion remains permanent provider erasure. A later SDK or get-or-create read
 may make a new empty shell with the same ID, but it will not recover deleted
 aliases, attributes, promotions, or history. That is why the apply boundary
-deletes only customers already proven to have none of those things.
+for normal empty-shell cleanup deletes only customers already proven to have
+none of those things. The exceptional full prelaunch reset above instead relied
+on the explicit synthetic-data assertion and exact project-wide snapshot.
 
 ## Coordinated empty Ghost cleanup
 
@@ -427,8 +530,8 @@ The current coordinated procedure is deliberately ordered:
    exports, then run the provider-only cleanup again for newly orphaned empty
    shells.
 
-The database guard treats every reviewed current or future user foreign key as
-a blocker by default. It additionally blocks recent Auth sessions, logical
+The database guard treats every reviewed current or future user foreign key as a
+blocker by default. It additionally blocks recent Auth sessions, logical
 references without foreign keys, active merge/deletion state, custom profile
 state, and any Field Trip state other than the exact automatically created,
 untouched Backyard Safari Level 1 baseline. Schema drift or an unread audit
@@ -438,11 +541,11 @@ and durable deletion-job ID.
 
 `internal.entitlement_rollout_config.entitlement_mode = 'legacy_trial'` is
 orthogonal to this cleanup. It means the resolver may give a newly created free
-profile the legacy seven-day effective trial; it neither identifies beta
-members nor creates a RevenueCat entitlement. Do not change that configuration
-as a cleanup side effect. Beta access remains the explicit, finite promotional
-grant for the reviewed cohort until a separately validated entitlement-policy
-rollout replaces it.
+profile the legacy seven-day effective trial; it neither identifies beta members
+nor creates a RevenueCat entitlement. Do not change that configuration as a
+cleanup side effect. Beta access remains the explicit, finite promotional grant
+for the reviewed cohort until a separately validated entitlement-policy rollout
+replaces it.
 
 ## Customer deletion policy
 
@@ -454,11 +557,14 @@ Neither is recovery of the deleted customer or its aliases, attributes,
 RevenueCat-only promotions, and historical evidence.
 
 Deletion is permitted for an exact test identity, a verified privacy-erasure
-request under the separate account-deletion process, or the beta-authorized
-empty-shell batch produced and live-revalidated by
-`cleanup-revenuecat-shells`. A high dashboard count, UUID case difference, old
-timestamp, or absent Supabase profile is never sufficient by itself. The exact
-plan digest/count and retained results ledger are the deletion authority.
+request under the separate account-deletion process, the beta-authorized
+empty-shell batch produced and live-revalidated by `cleanup-revenuecat-shells`,
+or an explicitly owner-authorized full prelaunch provider reset after every
+provider row is asserted synthetic. A high dashboard count, UUID case
+difference, old timestamp, or absent Supabase profile is never sufficient by
+itself. The exact plan digest/count and retained results ledger are the deletion
+authority. A full prelaunch reset is not an acceptable live production cleanup
+path.
 
 ## Recovery and rollback
 
@@ -496,8 +602,10 @@ The incident can be closed only when:
   existing-account conflict path has a proven provider handoff;
 - the reconciliation cron is restored and health remains normal through the
   agreed observation window; and
-- every authorized cleanup candidate has a retained terminal result, with no
-  purchase-bearing, aliased, active, recent, or ambiguous customer deleted.
+- every normal cleanup candidate has a retained terminal result, with no
+  purchase-bearing, aliased, active, recent, or ambiguous customer deleted; any
+  exceptional full prelaunch provider reset instead has its owner assertion,
+  exact snapshot/digest/count, terminal ledger, and fresh post-reset export.
 
 “Implemented in source,” “validated against a disposable catalog,” “applied to
 production,” “provider grants complete,” “iOS released,” and “customer paths

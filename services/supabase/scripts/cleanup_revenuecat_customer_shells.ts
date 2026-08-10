@@ -26,6 +26,8 @@ const MAX_RESPONSE_BYTES = 512 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_ATTEMPTS = 3;
 const APPLY_CONFIRMATION = "--confirm-delete-empty-revenuecat-shells";
+const WHOLE_SECOND_LAST_SEEN_PATTERN = /\.000Z$/;
+const WHOLE_SECOND_UPPER_BOUND_OFFSET_MS = 999;
 
 export interface RevenueCatShellCleanupArgs {
   supabaseUsersCsvPath: string | null;
@@ -181,19 +183,22 @@ export async function runRevenueCatShellCleanup(
     includeCurrentSupabaseShells: args.includeCurrentSupabaseShells,
     now,
   });
-  const [
-    supabaseSHA,
-    authAuditSHA,
-    revenueCatSHA,
-    cohortSHA,
-    candidateSHA,
-  ] = await Promise.all([
-    sha256Hex(supabaseArtifact.sourceBytes),
-    sha256Hex(authAuditArtifact.sourceBytes),
-    sha256Hex(revenueCatArtifact.sourceBytes),
-    sha256Hex(cohortArtifact.sourceBytes),
-    revenueCatShellCandidateSHA256(plan.candidates),
-  ]);
+  const [supabaseSHA, authAuditSHA, revenueCatSHA, cohortSHA] = await Promise
+    .all([
+      sha256Hex(supabaseArtifact.sourceBytes),
+      sha256Hex(authAuditArtifact.sourceBytes),
+      sha256Hex(revenueCatArtifact.sourceBytes),
+      sha256Hex(cohortArtifact.sourceBytes),
+    ]);
+  const candidateSHA = await revenueCatShellCandidateSHA256({
+    candidates: plan.candidates,
+    inactiveDays: args.inactiveDays,
+    includeCurrentSupabaseShells: args.includeCurrentSupabaseShells,
+    supabaseSHA256: supabaseSHA,
+    authAuditSHA256: authAuditSHA,
+    revenueCatSHA256: revenueCatSHA,
+    protectedCohortSHA256: cohortSHA,
+  });
 
   if (args.reviewCsvPath) {
     await Deno.writeTextFile(
@@ -514,17 +519,31 @@ function candidateFromAuditRow(input: {
   };
 }
 
-export async function revenueCatShellCandidateSHA256(
-  candidates: RevenueCatShellCleanupCandidate[],
-): Promise<string> {
-  const canonicalPlan = candidates.map((candidate) => ({
-    app_user_id: candidate.app_user_id,
-    classification: candidate.classification,
-    linked_supabase_user_id: candidate.linked_supabase_user_id,
-    last_seen_at: candidate.last_seen_at,
-    inactive_days: candidate.inactive_days,
-    reason: candidate.reason,
-  }));
+export async function revenueCatShellCandidateSHA256(input: {
+  candidates: RevenueCatShellCleanupCandidate[];
+  inactiveDays: number;
+  includeCurrentSupabaseShells: boolean;
+  supabaseSHA256: string;
+  authAuditSHA256: string;
+  revenueCatSHA256: string;
+  protectedCohortSHA256: string;
+}): Promise<string> {
+  const canonicalPlan = {
+    selection: "empty_inactive_shells_outside_protected_cohort",
+    inactive_days: input.inactiveDays,
+    include_current_supabase_shells: input.includeCurrentSupabaseShells,
+    supabase_export_sha256: input.supabaseSHA256,
+    auth_audit_sha256: input.authAuditSHA256,
+    revenuecat_export_sha256: input.revenueCatSHA256,
+    protected_cohort_sha256: input.protectedCohortSHA256,
+    candidates: input.candidates.map((candidate) => ({
+      app_user_id: candidate.app_user_id,
+      classification: candidate.classification,
+      linked_supabase_user_id: candidate.linked_supabase_user_id,
+      last_seen_at: candidate.last_seen_at,
+      reason: candidate.reason,
+    })),
+  };
   return await sha256Hex(`${JSON.stringify(canonicalPlan)}\n`);
 }
 
@@ -668,15 +687,33 @@ export async function revalidateRevenueCatShell(
     const customer = parseJSON<RevenueCatV2Customer>(customerResponse.body);
     if (
       customer.object !== "customer" || customer.id !== customerID ||
-      customer.project_id !== input.projectID ||
+      customer.project_id !== input.projectID
+    ) {
+      return result(
+        customerID,
+        "protected_live_evidence",
+        "customer_identity",
+      );
+    }
+    if (
       !liveCustomerRemainsInactive(
         customer,
         input.candidate,
         input.inactiveBeforeMs,
-      ) ||
-      !isEmptyCompleteList(customer.active_entitlements)
+      )
     ) {
-      return result(customerID, "protected_live_evidence", "customer_state");
+      return result(
+        customerID,
+        "protected_live_evidence",
+        "customer_recency",
+      );
+    }
+    if (!isEmptyCompleteList(customer.active_entitlements)) {
+      return result(
+        customerID,
+        "protected_live_evidence",
+        "customer_active_entitlements",
+      );
     }
     if (!isEmptyCompleteList(customer.attributes)) {
       return result(
@@ -799,10 +836,18 @@ function liveCustomerRemainsInactive(
 ): boolean {
   const exportedLastSeenMs = Date.parse(candidate.last_seen_at);
   const liveLastSeenMs = customer.last_seen_at;
+  // RevenueCat dashboard exports encode last_seen_at as epoch milliseconds but
+  // currently truncate the value to a whole second. The V2 customer endpoint
+  // returns the original millisecond precision. Treat only the remainder of
+  // that same exported second as equivalent; a later second still fails closed.
+  const exportedLastSeenUpperBoundMs = exportedLastSeenMs +
+    (WHOLE_SECOND_LAST_SEEN_PATTERN.test(candidate.last_seen_at)
+      ? WHOLE_SECOND_UPPER_BOUND_OFFSET_MS
+      : 0);
   return typeof liveLastSeenMs === "number" &&
     Number.isSafeInteger(liveLastSeenMs) && liveLastSeenMs > 0 &&
     Number.isFinite(exportedLastSeenMs) &&
-    liveLastSeenMs <= exportedLastSeenMs &&
+    liveLastSeenMs <= exportedLastSeenUpperBoundMs &&
     liveLastSeenMs <= inactiveBeforeMs;
 }
 

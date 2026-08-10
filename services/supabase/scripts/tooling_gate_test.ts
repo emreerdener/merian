@@ -38,6 +38,40 @@ const dependabotPath = new URL(
   scriptsDirectory,
 );
 
+Deno.test("RevenueCat shell cleanup Make target exposes only its dedicated apply key", async () => {
+  const makefile = await Deno.readTextFile(makefilePath);
+  const target = makefile.match(
+    /^cleanup-revenuecat-shells:\n[\s\S]*?(?=^[A-Za-z0-9_-]+:|(?![\s\S]))/m,
+  )?.[0] ?? "";
+
+  assertMatch(
+    target,
+    /--allow-env=REVENUECAT_CLEANUP_V2_API_KEY,REVENUECAT_PROJECT_ID/,
+  );
+  assert(
+    !target.includes("REVENUECAT_SECRET_API_KEY"),
+    "Provider deletion must not receive the broader grant/webhook key variable.",
+  );
+});
+
+Deno.test("RevenueCat prelaunch reset Make target exposes only its dedicated destructive key", async () => {
+  const makefile = await Deno.readTextFile(makefilePath);
+  const target = makefile.match(
+    /^reset-revenuecat-customers-prelaunch:\n[\s\S]*?(?=^[A-Za-z0-9_-]+:|(?![\s\S]))/m,
+  )?.[0] ?? "";
+
+  assertMatch(
+    target,
+    /--allow-env=REVENUECAT_PRELAUNCH_RESET_V2_API_KEY/,
+  );
+  assert(
+    !target.includes("REVENUECAT_CLEANUP_V2_API_KEY") &&
+      !target.includes("REVENUECAT_SECRET_API_KEY") &&
+      !target.includes("SUPABASE"),
+    "The full provider reset must receive neither normal cleanup/grant credentials nor Supabase access.",
+  );
+});
+
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
   const testFiles: string[] = [];

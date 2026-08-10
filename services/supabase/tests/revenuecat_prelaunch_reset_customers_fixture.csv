@@ -1,0 +1,3 @@
+project_id,app_user_id,last_seen_at,custom_attributes,latest_entitlement,is_rc_promo,total_spent
+49ebd1c2,fixture-one,2026-08-01T00:00:00Z,,,,0
+49ebd1c2,fixture-two,2026-08-02T00:00:00Z,"{""email"":{""value"":""fixture@example.com""}}",pro,true,0

@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertThrows,
+} from "@std/assert";
 import {
   buildRevenueCatCustomerAudit,
   canonicalUUID,
@@ -214,9 +219,47 @@ Deno.test("RevenueCat shell cleanup plan protects canonical users, cohort, histo
     [USER_ONE, "$RCAnonymousID:stale", "unknown-shell"].sort(),
   );
   assertEquals(
-    (await revenueCatShellCandidateSHA256(plan.candidates)).length,
+    (await revenueCatShellCandidateSHA256({
+      candidates: plan.candidates,
+      inactiveDays: 7,
+      includeCurrentSupabaseShells: false,
+      supabaseSHA256: "a".repeat(64),
+      authAuditSHA256: "b".repeat(64),
+      revenueCatSHA256: "c".repeat(64),
+      protectedCohortSHA256: "d".repeat(64),
+    })).length,
     64,
   );
+});
+
+Deno.test("RevenueCat cleanup authorization digest is stable across derived age changes and binds inputs", async () => {
+  const candidate = cleanupCandidate("stale-shell");
+  const digestInput = {
+    candidates: [candidate],
+    inactiveDays: 30,
+    includeCurrentSupabaseShells: false,
+    supabaseSHA256: "a".repeat(64),
+    authAuditSHA256: "b".repeat(64),
+    revenueCatSHA256: "c".repeat(64),
+    protectedCohortSHA256: "d".repeat(64),
+  };
+  const original = await revenueCatShellCandidateSHA256(digestInput);
+  const later = await revenueCatShellCandidateSHA256({
+    ...digestInput,
+    candidates: [{ ...candidate, inactive_days: candidate.inactive_days + 1 }],
+  });
+  const differentThreshold = await revenueCatShellCandidateSHA256({
+    ...digestInput,
+    inactiveDays: 31,
+  });
+  const differentSource = await revenueCatShellCandidateSHA256({
+    ...digestInput,
+    protectedCohortSHA256: "e".repeat(64),
+  });
+
+  assertEquals(later, original);
+  assertNotEquals(differentThreshold, original);
+  assertNotEquals(differentSource, original);
 });
 
 Deno.test("RevenueCat shell cleanup can explicitly include inactive orphaned Supabase shells", () => {
@@ -373,6 +416,76 @@ Deno.test("RevenueCat empty-shell verification is read-only", async () => {
   );
 });
 
+Deno.test("RevenueCat live cleanup accepts millisecond precision restored within the exported second", async () => {
+  const candidate = cleanupCandidate("stale-shell");
+  let requestCount = 0;
+  const fakeFetch: typeof fetch = (input) => {
+    requestCount += 1;
+    const url = String(input);
+    if (url.includes("/aliases")) {
+      return Promise.resolve(jsonResponse({
+        items: [{ object: "customer.alias", id: candidate.app_user_id }],
+        next_page: null,
+      }));
+    }
+    if (
+      url.includes("/subscriptions") || url.includes("/purchases") ||
+      url.includes("/events")
+    ) {
+      return Promise.resolve(jsonResponse(emptyV2List()));
+    }
+    return Promise.resolve(jsonResponse({
+      object: "customer",
+      id: candidate.app_user_id,
+      project_id: "projtest1234",
+      last_seen_at: Date.parse(candidate.last_seen_at) + 999,
+      active_entitlements: { items: [], next_page: null },
+      attributes: { items: [], next_page: null },
+    }));
+  };
+
+  const result = await revalidateRevenueCatShell({
+    candidate,
+    protectedCohort: new Set(),
+    inactiveBeforeMs: Date.parse("2026-08-02T00:00:00Z"),
+    projectID: "projtest1234",
+    apiKey: "sk_fixture",
+    fetcher: fakeFetch,
+    sleep: () => Promise.resolve(),
+  });
+
+  assertEquals(result.status, "verified_empty");
+  assertEquals(requestCount, 5);
+});
+
+Deno.test("RevenueCat live cleanup protects activity in a later second", async () => {
+  const candidate = cleanupCandidate("stale-shell");
+  let requestCount = 0;
+  const result = await revalidateRevenueCatShell({
+    candidate,
+    protectedCohort: new Set(),
+    inactiveBeforeMs: Date.parse("2026-08-02T00:00:00Z"),
+    projectID: "projtest1234",
+    apiKey: "sk_fixture",
+    fetcher: () => {
+      requestCount += 1;
+      return Promise.resolve(jsonResponse({
+        object: "customer",
+        id: candidate.app_user_id,
+        project_id: "projtest1234",
+        last_seen_at: Date.parse(candidate.last_seen_at) + 1_000,
+        active_entitlements: { items: [], next_page: null },
+        attributes: { items: [], next_page: null },
+      }));
+    },
+    sleep: () => Promise.resolve(),
+  });
+
+  assertEquals(result.status, "protected_live_evidence");
+  assertEquals(result.error_code, "customer_recency");
+  assertEquals(requestCount, 1);
+});
+
 Deno.test("RevenueCat live cleanup preserves promotional history and never deletes", async () => {
   const candidate = cleanupCandidate("stale-shell");
   const methods: string[] = [];
@@ -444,6 +557,7 @@ Deno.test("RevenueCat live cleanup protects a shell seen after its reviewed expo
   });
 
   assertEquals(result.status, "protected_live_evidence");
+  assertEquals(result.error_code, "customer_recency");
   assertEquals(requestCount, 1);
 });
 

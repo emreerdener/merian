@@ -49,16 +49,15 @@ runs a lightweight scope job on every pull request, supports manual dispatch,
 and can be called by another workflow. The detector uses the complete git event
 range rather than workflow path filters, includes every repository root read or
 scanned by its contracts, and requires full validation when comparison fails or
-a changed path is not explicitly reviewed as build-only.
-Manual, merge-queue, and reusable non-PR calls always validate. Configure
-repository rules to require `Supabase Candidate Validation / Candidate
-readiness`. The complete gate uses a disposable database and has no GitHub
-Production environment, production secrets, database push, Function
-deployment, or production smoke. The production workflow declares this
-reusable gate as a required predecessor; only its subsequent `deploy` job
-enters the Production environment. A green candidate run proves the reviewed
-source and disposable
-catalog, not that production changed.
+a changed path is not explicitly reviewed as build-only. Manual, merge-queue,
+and reusable non-PR calls always validate. Configure repository rules to require
+`Supabase Candidate Validation / Candidate
+readiness`. The complete gate uses a
+disposable database and has no GitHub Production environment, production
+secrets, database push, Function deployment, or production smoke. The production
+workflow declares this reusable gate as a required predecessor; only its
+subsequent `deploy` job enters the Production environment. A green candidate run
+proves the reviewed source and disposable catalog, not that production changed.
 
 The deploy workflow is a backend production gate only. It must not wait for the
 iOS simulator startup-safety lane, and the iOS lane must not be treated as proof
@@ -1172,21 +1171,21 @@ the shared server-key transport migration
 migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
 the Apple provider migration
 `20260806203700_durable_apple_provider_revocation.sql`,
-`register-apple-revocation-token`, `safe-delete`,
-`reconcile-account-deletions`, `generate-upload-urls`, and
-`replay-scan-ingestion`, form one release unit. The Apple stage requires
-`APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
+`register-apple-revocation-token`, `safe-delete`, `reconcile-account-deletions`,
+`generate-upload-urls`, and `replay-scan-ingestion`, form one release unit. The
+Apple stage requires `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
 `APPLE_SIGN_IN_PRIVATE_KEY` in the GitHub `Production` environment. The deploy
 workflow validates them before database mutation and synchronizes them to Edge
 before function deployment. The reaper uses the existing Supabase service-role
 and R2 values, and the independent GitHub monitor resolves a server key with the
-existing `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty `SUPABASE_URL` and
-an active server key in the compatibility-named `SUPABASE_SERVICE_ROLE_KEY`
-Vault slot (or the documented app-setting fallback); missing values now produce
-a critical monitor result. Its current transport sends a modern `sb_secret_...`
-Vault key only in `apikey`, or a legacy service-role JWT in both `apikey` and
-Bearer Authorization. The value must match an active project server key. Do not
-replace only the Vault value; rotate it and the project key together.
+existing `SUPABASE_ACCESS_TOKEN`. The reaper still requires non-empty
+`SUPABASE_URL` and an active server key in the compatibility-named
+`SUPABASE_SERVICE_ROLE_KEY` Vault slot (or the documented app-setting fallback);
+missing values now produce a critical monitor result. Its current transport
+sends a modern `sb_secret_...` Vault key only in `apikey`, or a legacy
+service-role JWT in both `apikey` and Bearer Authorization. The value must match
+an active project server key. Do not replace only the Vault value; rotate it and
+the project key together.
 
 The release must also satisfy the normative
 [scientific-observation retention contract](./17-scientific-observation-retention.md),
@@ -1235,8 +1234,8 @@ migration sequence:
 - records `pending`, `completed`, `manual_required`, or `not_required` provider
   disposition on each deletion job;
 - requires claimed Apple revocation and Vault-secret destruction after storage
-  verification and before Auth deletion, while returning the manual fallback
-  for legacy Apple identities without a stored token;
+  verification and before Auth deletion, while returning the manual fallback for
+  legacy Apple identities without a stored token;
 - installs service-only account and storage claim/advance/failure RPCs;
 - adds indexed, identity-free aggregate health for active/due age, retries,
   leases, storage backlog, cron state, and credential readiness; and
@@ -1359,22 +1358,22 @@ make test-supabase-privileged-routines
 The production workflow applies migrations before Edge bundles. During that
 short interval, the previous worker rejects the new
 `provider_revocation_pending` return value before Auth; the restrictive
-credential/Auth foreign key and terminal SQL fence remain independent
-backstops. Legacy manual notices require the new response bundle and iOS client,
-so avoid deliberately exercising account deletion until
+credential/Auth foreign key and terminal SQL fence remain independent backstops.
+Legacy manual notices require the new response bundle and iOS client, so avoid
+deliberately exercising account deletion until
 `register-apple-revocation-token`, `safe-delete`, and
 `reconcile-account-deletions` are deployed. The deployment-workflow change
 selects the complete function fleet, ensuring all shared Apple transport
 consumers install together. Do not distribute the supporting iOS build before
 this backend release and its Apple smoke pass.
 
-Publishing that build is not, by itself, the legacy-account rollout gate.
-Older binaries ignore `manual_provider_revocation_required` and cannot persist
-the manual-removal notice. Before public promotion, either enforce a minimum
+Publishing that build is not, by itself, the legacy-account rollout gate. Older
+binaries ignore `manual_provider_revocation_required` and cannot persist the
+manual-removal notice. Before public promotion, either enforce a minimum
 supported build that contains this contract and gives the user a clear update
 path back to in-app deletion, or deploy and verify an independent
-server-delivered manual-revocation fallback. This repository has neither
-control as of 2026-08-06; treat that absence as a release blocker.
+server-delivered manual-revocation fallback. This repository has neither control
+as of 2026-08-06; treat that absence as a release blocker.
 
 After deployment, confirm the relational invariants, cron, and aggregate state
 without printing user identifiers:
@@ -1611,16 +1610,16 @@ before token capture was deployed. Confirm:
 16. on a physical device with a separate staging-only Apple account, removing
     Naturebook from Sign in with Apple causes the app to query the active
     provider-specific subject and clear that matching local session after Apple
-    reports a non-authorized credential state. Reauthorize afterward and prove
-    a new Vault credential registration succeeds. Do not log or retain the
-    Apple subject while collecting this evidence.
+    reports a non-authorized credential state. Reauthorize afterward and prove a
+    new Vault credential registration succeeds. Do not log or retain the Apple
+    subject while collecting this evidence.
 
 Separately verify the selected older-binary rollout control: either an older
-binary is prevented from starting legacy Apple deletion until it follows a
-clear supported-update path, or the independent server fallback durably
-delivers Apple's manual-removal instructions even though that binary ignores
-the new response field. App Store availability of the new build is not evidence
-that every installed binary has adopted the contract.
+binary is prevented from starting legacy Apple deletion until it follows a clear
+supported-update path, or the independent server fallback durably delivers
+Apple's manual-removal instructions even though that binary ignores the new
+response field. App Store availability of the new build is not evidence that
+every installed binary has adopted the contract.
 
 Do not use a real customer as the legacy fixture and do not manufacture one by
 deleting a production Vault secret. Establish it before the staging rollout or
@@ -1657,18 +1656,18 @@ On alert:
 
 Never recover a `pending`, `storage_pending`, or provider-pending job by
 deleting Auth manually, deleting/copying a Vault token, or editing a cursor,
-lease, provider status, or next-attempt timestamp. Never blanket-delete
-outbox rows, sweep their prefixes, make them due, or run ad-hoc SQL merely to
-clear an alert. A legacy Auth-first incident can be placed into the durable
-pipeline only after an operator verifies the recorded UUID and invokes
+lease, provider status, or next-attempt timestamp. Never blanket-delete outbox
+rows, sweep their prefixes, make them due, or run ad-hoc SQL merely to clear an
+alert. A legacy Auth-first incident can be placed into the durable pipeline only
+after an operator verifies the recorded UUID and invokes
 `request_account_deletion` through a reviewed service-role or owner session.
 
 Do not roll back by dropping the private table, unique outbox index, or cron;
 that would discard deletion intent. Fix forward while keeping the reaper
 available.
 
-The provider-specific design, rotation procedure, client rollout limitation,
-and complete exit gate are normative in
+The provider-specific design, rotation procedure, client rollout limitation, and
+complete exit gate are normative in
 [`20-sign-in-with-apple-account-deletion.md`](./20-sign-in-with-apple-account-deletion.md).
 
 #### Account-scoped image-loss containment and repair
@@ -2814,14 +2813,14 @@ make audit-revenuecat-customers ARGS='--supabase-users-csv /secure/users.csv --r
 The console and summary JSON are aggregate-only. The optional review CSV
 contains App User IDs and must remain in operator-controlled storage. It
 classifies canonical UUIDs, case variants, RevenueCat anonymous IDs, unknown
-UUIDs, and linked/unlinked aliases; purchase or promotional history always
-fails closed to retention. This workflow performs no API requests and never
-deletes a customer.
+UUIDs, and linked/unlinked aliases; purchase or promotional history always fails
+closed to retention. This workflow performs no API requests and never deletes a
+customer.
 
 Do not select dashboard rows and bulk-delete them. Deletion permanently removes
 customer history, attributes, aliases, and promotional grants, while the iOS SDK
-or a get-or-create call can create a new empty record later. That repopulation is
-not recovery. The beta-authorized cleanup below begins only after the
+or a get-or-create call can create a new empty record later. That repopulation
+is not recovery. The beta-authorized cleanup below begins only after the
 stable-identity release has stopped new duplication and deletes only an exact
 shell that both offline evidence and live provider revalidation prove empty.
 
@@ -2877,12 +2876,12 @@ After the remaining incident gates pass, choose one finite beta end date. Apply
 mode requires `--apply --confirm-beta-pro-grant`, the reviewed results path, and
 `REVENUECAT_SECRET_API_KEY` supplied through the process environment. It GETs
 each canonical customer, skips an already-active `pro`, and POSTs only missing
-promotional grants. RevenueCat emits a production
-`NON_RENEWING_PURCHASE` webhook; the normal webhook and scheduled repair project
-it to `subscription_tier = pro` / `pro_paid`. That is the same functional Pro
-gate as a store entitlement and includes Field Chat for the grant period. A
-direct database-only Pro edit is not beta authority and is intentionally
-reverted when RevenueCat reports no active entitlement.
+promotional grants. RevenueCat emits a production `NON_RENEWING_PURCHASE`
+webhook; the normal webhook and scheduled repair project it to
+`subscription_tier = pro` / `pro_paid`. That is the same functional Pro gate as
+a store entitlement and includes Field Chat for the grant period. A direct
+database-only Pro edit is not beta authority and is intentionally reverted when
+RevenueCat reports no active entitlement.
 
 After new identity creation has stopped, retain a fourth independent artifact:
 `/secure/protected-cohort.csv`, a nonempty exact one-column `id` list of every
@@ -2894,13 +2893,17 @@ make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --au
 ```
 
 Dry-run makes zero requests and emits all four source hashes, exact candidate
-count, and candidate SHA-256. Review the identity-bearing CSV. The default plan
-protects current canonical Supabase customers, every active Auth UUID, the
-protected cohort, purchase/promotion evidence, linked aliases, recent use, and
-unknown recency. Do not add `--include-current-supabase-shells` to the historical
-duplicate cleanup. In a separately reviewed orphan-profile operation, that flag
-can include an inactive `public.users` UUID only when the full audit says
-`auth_exists=false`; an active Auth UUID remains protected unconditionally.
+count, and candidate SHA-256. The authorization digest binds the four exact
+source artifacts, inactivity threshold, current-Supabase-shell flag, and stable
+candidate identity/evidence fields; it intentionally excludes the display-only
+`inactive_days` value so an unchanged plan does not drift as wall time advances.
+Review the identity-bearing CSV. The default plan protects current canonical
+Supabase customers, every active Auth UUID, the protected cohort,
+purchase/promotion evidence, linked aliases, recent use, and unknown recency. Do
+not add `--include-current-supabase-shells` to the historical duplicate cleanup.
+In a separately reviewed orphan-profile operation, that flag can include an
+inactive `public.users` UUID only when the full audit says `auth_exists=false`;
+an active Auth UUID remains protected unconditionally.
 
 Apply only the identical reviewed inputs and inactivity threshold:
 
@@ -2909,20 +2912,72 @@ REVENUECAT_CLEANUP_V2_API_KEY='<sk_...>' \
 make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --project-id <proj...> --approved-plan-sha256 <sha256> --confirm-count <count> --results-csv /secure/revenuecat-cleanup-results.csv --summary-json /tmp/revenuecat-cleanup-result.json --apply --confirm-delete-empty-revenuecat-shells'
 ```
 
-`REVENUECAT_CLEANUP_V2_API_KEY` is a dedicated V2 key with Customers
-read/write, Subscriptions read, and Purchases read. No audience, charts,
-invoice, or project configuration permission is required. Never store this
-temporary operator key in the app, Supabase Edge secrets, or GitHub production
-environment; revoke it after the retained cleanup results are complete.
+`REVENUECAT_CLEANUP_V2_API_KEY` is a dedicated V2 key with Customers read/write,
+Subscriptions read, and Purchases read. No audience, charts, invoice, or project
+configuration permission is required. Never store this temporary operator key in
+the app, Supabase Edge secrets, or GitHub production environment; revoke it
+after the retained cleanup results are complete.
 
 Before each exact V2 delete, apply confirms the project/customer response,
 requires live `last_seen_at` to be no newer than the reviewed export and still
 inactive, requires no active entitlements or customer attributes, requires a
-complete self-only alias list, and requires complete empty
-V2 subscription, purchase, and customer-event lists. It deliberately never
-calls the V1 get-or-create subscriber endpoint. Any changed, paginated,
-malformed, or ambiguous response becomes `protected_live_evidence`; it is never
-coerced into deletion. The tool does not call Supabase.
+complete self-only alias list, and requires complete empty V2 subscription,
+purchase, and customer-event lists. It deliberately never calls the V1
+get-or-create subscriber endpoint. Any changed, paginated, malformed, or
+ambiguous response becomes `protected_live_evidence`; it is never coerced into
+deletion. The tool does not call Supabase.
+
+RevenueCat dashboard exports currently encode `last_seen_at` as epoch
+milliseconds truncated to a whole second, while the V2 customer endpoint can
+restore the original millisecond portion. Live revalidation treats only the
+remainder of that same exported second as the reviewed observation. A timestamp
+in any later second, or one inside the inactivity window, remains protected. The
+results ledger distinguishes customer identity, recency, active-entitlement,
+attribute, alias, and history evidence so an all-protected run can be diagnosed
+without exposing customer identifiers.
+
+### Exceptional full RevenueCat prelaunch reset
+
+`reset-revenuecat-customers-prelaunch` is a separate, irreversible project-reset
+tool. It is permitted only before public launch after the product owner records
+that every customer, purchase, promotion, attribute, alias, and history item in
+the target RevenueCat project is synthetic and may be erased. It never reads or
+mutates Supabase. Do not use this path to deduplicate a live project, answer a
+privacy request, or clean individual users.
+
+First preserve a fresh **Customers → All customers → Export all** artifact in
+restricted storage. Dry-run binds the exact artifact bytes, every exact App User
+ID, the dashboard export project ID, and the V2 project ID. It makes no network
+request and surfaces how many rows contain purchase/entitlement or customer
+attribute evidence:
+
+```bash
+make reset-revenuecat-customers-prelaunch ARGS='--revenuecat-customers-csv /secure/revenuecat-all-customers.csv --project-id <proj...> --export-project-id <dashboard-project-id-without-proj-prefix> --summary-json /secure/revenuecat-prelaunch-reset-plan.json --review-csv /secure/revenuecat-prelaunch-reset-review.csv'
+```
+
+Review the complete identity-bearing CSV and preserve the source checksum,
+candidate count, and candidate SHA-256. Apply accepts only that exact plan and
+requires both destructive acknowledgements:
+
+```bash
+REVENUECAT_PRELAUNCH_RESET_V2_API_KEY='<sk_...>' \
+make reset-revenuecat-customers-prelaunch ARGS='--revenuecat-customers-csv /secure/revenuecat-all-customers.csv --project-id <proj...> --export-project-id <dashboard-project-id-without-proj-prefix> --approved-plan-sha256 <sha256> --confirm-count <count> --concurrency 2 --results-csv /secure/revenuecat-prelaunch-reset-results.csv --summary-json /secure/revenuecat-prelaunch-reset-result.json --apply --confirm-prelaunch-revenuecat-project-reset --acknowledge-entitlement-alias-and-history-erasure'
+```
+
+Use a temporary V2 key with only Customers read/write and revoke it after the
+retained result is complete. The target issues only exact V2 customer DELETEs;
+`200` is recorded as deleted, `202` as queued, `404` as already absent, and any
+other terminal response as failed. It receives no Supabase credential and
+reports `supabase_mutations=false`.
+
+This operation erases RevenueCat-only Pro grants. It does not delete Supabase
+profiles or app content, and it does not disable the SDK, webhook processing, or
+the reconciliation queue. Therefore an app session or backend repair may create
+a new customer during or after the batch. Take a fresh RevenueCat export after
+the apply result settles. A nonzero export is expected when a writer ran; it is
+not recovery of erased provider history. Review any remainder as a new snapshot,
+never extend the approved digest to unseen IDs, and restore beta Pro only for a
+separately reviewed exact cohort.
 
 Once the incident exit criteria are green on one exact SHA, use this supervised
 production order:
@@ -2931,9 +2986,8 @@ production order:
    exact count, finite expiration, dry-run summary, and candidate SHA.
 2. Verify pre-cutover webhook credentials, queue health, and the independent
    reconciliation monitor.
-3. Pause only
-   `reconcile_revenuecat_subscribers_every_fifteen_minutes` for a bounded
-   maintenance window and record its exact prior schedule.
+3. Pause only `reconcile_revenuecat_subscribers_every_fifteen_minutes` for a
+   bounded maintenance window and record its exact prior schedule.
 4. Deploy the forward canonical-ID migration through the normal exact-SHA
    workflow.
 5. Apply only the approved explicit cohort. Require GET `200|201`, promotional
@@ -2951,8 +3005,9 @@ production order:
    mirror access, synchronize the receipt, and emit/project the expected
    transfer evidence.
 9. Generate the fresh cleanup plan only after step 8 proves new duplication has
-   stopped. Apply the exact reviewed digest/count, retain the results ledger, and
-   require zero unexplained failures or deletions of protected live evidence.
+   stopped. Apply the exact reviewed digest/count, retain the results ledger,
+   and require zero unexplained failures or deletions of protected live
+   evidence.
 
 If apply partially fails, reconcile only failed IDs from the retained results
 ledger. If the maintenance window cannot finish, restore the worker so ordinary
@@ -3351,15 +3406,14 @@ through `20260808230028_restore_field_trip_capture_context_source_reads.sql`,
 updated ingestion functions, and updated `field-trips` must precede the
 Insight-card iOS client. The confidence migration applies the tier-specific
 Possible-match boundary (`Flash >= 0.75`, `Pro >= 0.65`), repairs prior weak
-unreviewed credit,
-and preserves selected-goal hints pending explicit confirmation or correction.
-Confidence, inference tier, confirmation, and the pending hint participate in
-the durable receipt revision. Future evidence downgrades run the same
-reconciliation even after completion: they remove standard/Event credit, reopen
-the earliest incomplete level, clear derived Event badges, and soft-delete
-invalid completion publications or entries without producing a new completion
-toast. Older clients omit the hint and continue to receive deterministic
-fallback behavior.
+unreviewed credit, and preserves selected-goal hints pending explicit
+confirmation or correction. Confidence, inference tier, confirmation, and the
+pending hint participate in the durable receipt revision. Future evidence
+downgrades run the same reconciliation even after completion: they remove
+standard/Event credit, reopen the earliest incomplete level, clear derived Event
+badges, and soft-delete invalid completion publications or entries without
+producing a new completion toast. Older clients omit the hint and continue to
+receive deterministic fallback behavior.
 
 The starter-level migration preserves checklist identities while moving Backyard
 Safari and Park Pollinators into 2/4/4 progressions. The following
@@ -3607,10 +3661,10 @@ repaired data in place. Keep the internal eligibility and reconciliation helpers
 denied to `PUBLIC`, `anon`, `authenticated`, and `service_role`.
 
 Current client rollout (2026-08-07): standard Field trips, Outings, and Seasonal
-Challenge Events are public. Events have no independent iOS feature flag,
-tester allowlist, simulator bypass, or debug override. The release did not
-change Supabase authorization and required no migration or Function redeploy.
-Follow the current client contract in
+Challenge Events are public. Events have no independent iOS feature flag, tester
+allowlist, simulator bypass, or debug override. The release did not change
+Supabase authorization and required no migration or Function redeploy. Follow
+the current client contract in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state).
 
 Each deployed function directory must also have a `[functions.<name>]` entry in
@@ -3706,10 +3760,10 @@ ordering, and proof-bearing iOS receipt sync add the two purchase-continuity
 requirements. Static migration validation and focused Edge/iOS tests pass, and
 the repository contains deterministic RevenueCat and Community two-session
 schedules in `ghostProfileMergeConcurrencyDb.test.ts`. The production workflow
-clears the hold only when its exact-CLI disposable replay, complete pgTAP/catalog
-execution, live local-database concurrency tests, complete Edge suite, lint, and
-advisors all pass in the same job. Partial or connection-skipped evidence does
-not authorize production deployment.
+clears the hold only when its exact-CLI disposable replay, complete
+pgTAP/catalog execution, live local-database concurrency tests, complete Edge
+suite, lint, and advisors all pass in the same job. Partial or
+connection-skipped evidence does not authorize production deployment.
 
 ### Compatibility order
 
@@ -3740,7 +3794,8 @@ After the release hold is cleared:
    App User ID** restore behavior.
 6. Smoke-test both the normal direct-link path and the existing-account conflict
    path, including a purchased Ghost, server access mirror, client receipt sync,
-   and a later CustomerInfo/Supabase projection, before lifting the release gate.
+   and a later CustomerInfo/Supabase projection, before lifting the release
+   gate.
 
 Never restore client execution of `reparent_user_follows` and never add a
 compatibility request field that lets the caller nominate `ghost_user_id` or
@@ -3814,14 +3869,14 @@ does not replace that full gate.
 
 ### Required disposable-CI proof matrix
 
-| Gate                          | Required automated proof in the production workflow                                                                                                                                                                                                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields.                                                       |
-| Provider access handoff        | `revenuecat_test.ts` proves case-exact source/target reads, free and already-covered idempotency, finite/lifetime Pro mirroring, verified target coverage, and bounded failure. Worker tests require preservation before Auth deletion and leave a failed handoff retryable; the client contract pins `syncPurchases()` before evidence rebind/proof removal. |
-| RevenueCat lock order         | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation.                                          |
-| Community actor lock order    | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts.                                                                               |
-| Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged. |
-| Client proof durability       | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued.                     |
+| Gate                          | Required automated proof in the production workflow                                                                                                                                                                                                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Destination RevenueCat repair | pgTAP first deletes both queue rows and proves the helper creates the destination, then runs full completion with no source row and a leased/delayed target. Both paths require the permanent UUID lookup, `next_reconcile_at <= now()`, zero attempts, and null claim/error fields.                                                                          |
+| Provider access handoff       | `revenuecat_test.ts` proves case-exact source/target reads, free and already-covered idempotency, finite/lifetime Pro mirroring, verified target coverage, and bounded failure. Worker tests require preservation before Auth deletion and leave a failed handoff retryable; the client contract pins `syncPurchases()` before evidence rebind/proof removal. |
+| RevenueCat lock order         | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation.                                                             |
+| Community actor lock order    | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts.                                                                                                  |
+| Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged.                    |
+| Client proof durability       | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued.                                        |
 
 After reset, run the owner-only topology assertion explicitly:
 
@@ -3918,10 +3973,9 @@ answers. Deno 2.9's Node TCP compatibility path rechecks the resolved address
 used by `postgres`, so allowing the hostname alone can fail with `NotCapable`
 before either summary artifact exists. Keep the generated hostname-plus-address
 scope; do not widen it to bare `--allow-net` or pin a pooler IP that can rotate.
-Forward migration
-`20260802025258_index_ghost_merge_health_audits.sql` adds predicate-matched
-recent-receipt and completed-destination indexes so these rolling audits do not
-scan all historical handoffs:
+Forward migration `20260802025258_index_ghost_merge_health_audits.sql` adds
+predicate-matched recent-receipt and completed-destination indexes so these
+rolling audits do not scan all historical handoffs:
 
 - prepared, merged, and expired receipts created in the last 12 hours;
 - the count and oldest age of committed merges awaiting Auth cleanup;
@@ -4042,19 +4096,18 @@ has stopped creating shells:
    Subscriptions read, and Purchases read. The tool may issue RevenueCat GETs
    but no provider DELETE.
 5. Confirm each accepted job is `storage_pending`, the public profile is gone,
-   Auth remains, and the independent account-deletion health monitor stays
-   green through the 25-hour verification window. Wait for `completed`.
+   Auth remains, and the independent account-deletion health monitor stays green
+   through the 25-hour verification window. Wait for `completed`.
 6. Take fresh Auth/public and RevenueCat exports. Only then use the separate
-   `cleanup-revenuecat-shells` dry-run/apply contract for newly orphaned provider
-   shells.
+   `cleanup-revenuecat-shells` dry-run/apply contract for newly orphaned
+   provider shells.
 
 Stop on any database/provider blocker, digest drift, unexpected alias,
 purchase/promotion, provider customer attribute, recent session, custom
-identity, activity/reference, reservation conflict, or account-deletion
-warning. Preserve the row and
-evidence; investigate before producing a new plan. Never directly delete
-`auth.users` or `public.users`, never delete the RevenueCat customer before the
-Supabase job completes, and never change
+identity, activity/reference, reservation conflict, or account-deletion warning.
+Preserve the row and evidence; investigate before producing a new plan. Never
+directly delete `auth.users` or `public.users`, never delete the RevenueCat
+customer before the Supabase job completes, and never change
 `internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
 `legacy_trial` and manually granted beta Pro are separate access policies.
 
@@ -4689,10 +4742,9 @@ manually dispatch `iOS Build and Test` against that exact revision after the
 backend gate is green. Verify the scope reason identifies manual dispatch, the
 full unit-test target passes, the exact live-Insight-to-queue and queued-scan
 completion UI smokes report two passed and zero skipped cases, and the
-validation-only Release archive
-succeeds from the same SHA with `privacy_manifest_valid: true` and
-`transport_security: "ats-default"`. A green scope
-job with skipped macOS jobs proves only that changed-file classification
+validation-only Release archive succeeds from the same SHA with
+`privacy_manifest_valid: true` and `transport_security: "ats-default"`. A green
+scope job with skipped macOS jobs proves only that changed-file classification
 worked; it does not satisfy the release gate.
 
 ### Rollback and exit criteria
@@ -5144,23 +5196,23 @@ requires explicit incident authority and one reviewed owner transaction.
 ## Adult, Terms, Google Gemini, and Analytics Consent Cutover
 
 Migration `20260804033307_add_adult_and_analytics_consent.sql` adds immutable
-adult-confirmation and PostHog event tables, owner-only RLS/ACLs, merge policies,
-and owner-scoped analytics Realtime propagation. Forward migration
+adult-confirmation and PostHog event tables, owner-only RLS/ACLs, merge
+policies, and owner-scoped analytics Realtime propagation. Forward migration
 `20260804215234_bump_consent_disclosure_versions.sql` advances the retained
 Gemini and analytics copy without rewriting historical evidence. It leaves
-`internal.ai_consent_rollout_config.enforcement_mode` at
-`legacy_compatible`. During this bounded TestFlight transition, the quota guard
-accepts the complete newest bundle or an explicitly allowlisted complete prior
-beta bundle; it never accepts partial evidence. The replacement app itself
-always requires current adult policy `2026-08-03`, Terms `2026-08-03`, Gemini
-disclosure `2026-08-04.1`, and analytics disclosure `2026-08-04`.
+`internal.ai_consent_rollout_config.enforcement_mode` at `legacy_compatible`.
+During this bounded TestFlight transition, the quota guard accepts the complete
+newest bundle or an explicitly allowlisted complete prior beta bundle; it never
+accepts partial evidence. The replacement app itself always requires current
+adult policy `2026-08-03`, Terms `2026-08-03`, Gemini disclosure `2026-08-04.1`,
+and analytics disclosure `2026-08-04`.
 
 Forward migration `20260806024844_enforce_causal_consent_streams.sql` is an
 intentional compatibility boundary, not an additive coexistence migration. It
 adds server-only revisions and causal parents, replaces authenticated direct AI
 and analytics inserts with locked compare-and-append RPCs, and makes revision
-order authoritative. An older client can read history but cannot record a new
-AI or analytics action after this migration.
+order authoritative. An older client can read history but cannot record a new AI
+or analytics action after this migration.
 
 Forward migration
 `20260806144105_authorize_consent_from_provider_stream_heads.sql` completes that
@@ -5180,59 +5232,59 @@ grant may be checked against current disclosure compatibility.
 > Deno suite; it does not replace those hosted/runtime gates.
 
 1. From the exact candidate SHA, confirm every source-complete readiness item
-   remains closed. Run migration contracts, all Edge tests,
-   disposable-catalog pgTAP, the unsigned
-   iOS simulator build/tests, and the Release archive gates from the candidate
-   SHA. Confirm `legal_consent_security.sql`, all quota fixtures, and the full
-   consent lifecycle matrix pass without skips or compile failures.
+   remains closed. Run migration contracts, all Edge tests, disposable-catalog
+   pgTAP, the unsigned iOS simulator build/tests, and the Release archive gates
+   from the candidate SHA. Confirm `legal_consent_security.sql`, all quota
+   fixtures, and the full consent lifecycle matrix pass without skips or compile
+   failures.
 2. Archive and upload the replacement TestFlight binary, let App Store Connect
    finish processing it, and record the exact SHA/version/build. Do not
-   distribute it while its causal RPCs or provider-head authorization are absent.
+   distribute it while its causal RPCs or provider-head authorization are
+   absent.
 3. After separate production authorization, open a consent maintenance window.
    Suspend consent-changing access and expire every older TestFlight build that
    writes AI or analytics events directly. If the affected cohort cannot be
    stopped, do not continue with this one-step protocol.
 4. Use the reviewed production workflow to apply the causal and provider-head
    authorization migrations and deploy consent-gated Edge telemetry while
-   rollout mode remains
-   `legacy_compatible`. Prove direct authenticated inserts and revision-sequence
-   access fail, both RPCs take the account-row lock before the provider-stream
-   lock and are authenticated/idempotent, and the inverse-order AI and analytics
-   pgTAP cases reject delayed grants and rebase delayed revocations. Require
-   `_tests/legalConsentConcurrencyDb.test.ts` to run against the disposable
-   catalog and prove an overlapping grant/revocation pair ends revoked for each
-   provider.
-5. Distribute the processed replacement TestFlight build. Existing testers without
-   current evidence must remain on the launch-matched neutral root until an
-   authoritative merge completes, then enter directly at the **One last step**
-   Ready consent screen without repeating camera or location onboarding. A
-   completed account whose local ledger is cleared but whose server evidence is current must open the
-   scanner without constructing the Ready consent screen. In the exact-SHA
-   automated fixtures, classify an expired cached Auth session as awaiting
-   refresh and retain its account on the neutral root. Verify refresh success
-   reaches the workspace without a Ready frame, and verify an invalid refresh
-   token must emit sign-out before Ready becomes eligible. Also inject both the
-   generic non-cancellation synchronization boundary and the
-   verified-ledger-write boundary. Each must retain the neutral root,
-   expose **Try Again**, and preserve the 5-, 10-, and 20-second outer retry
-   sequence instead of treating failure as absence. On TestFlight, interrupt
-   connectivity and confirm the same user-visible behavior.
-   Exhaustion must remain explicitly retryable. Repeated same-account auth must
-   not consume another attempt; account replacement must cancel stale timers,
-   and a new synchronization generation must not inherit an orphaned waiting
-   state. Test every switch combination in the displayed required Age →
-   Gemini/Terms group followed by optional Analytics: age and Gemini/Terms are
-   required; analytics is optional and never blocks scanning. Exercise the
-   inline Terms link, VoiceOver labels and hints,
-   every supported Dynamic Type size, and the smallest supported iPhone in both
-   orientations. On a clean install, create a new anonymous account, complete
-   Ready, and retain evidence that its adult, Terms, and Gemini rows upload and
-   refetch before the first Identify request. Its first ordinary scan must issue
-   exactly one provider call and save a usable result. Then force one required
-   row missing and require exact `403 ai_consent_required`, zero automatic
-   redispatch and included-Pro/daily-Flash consumption, media retention across
-   relaunch, Ready routing, fresh head-anchored approval, and successful retry
-   under the original scan ID. See the
+   rollout mode remains `legacy_compatible`. Prove direct authenticated inserts
+   and revision-sequence access fail, both RPCs take the account-row lock before
+   the provider-stream lock and are authenticated/idempotent, and the
+   inverse-order AI and analytics pgTAP cases reject delayed grants and rebase
+   delayed revocations. Require `_tests/legalConsentConcurrencyDb.test.ts` to
+   run against the disposable catalog and prove an overlapping grant/revocation
+   pair ends revoked for each provider.
+5. Distribute the processed replacement TestFlight build. Existing testers
+   without current evidence must remain on the launch-matched neutral root until
+   an authoritative merge completes, then enter directly at the **One last
+   step** Ready consent screen without repeating camera or location onboarding.
+   A completed account whose local ledger is cleared but whose server evidence
+   is current must open the scanner without constructing the Ready consent
+   screen. In the exact-SHA automated fixtures, classify an expired cached Auth
+   session as awaiting refresh and retain its account on the neutral root.
+   Verify refresh success reaches the workspace without a Ready frame, and
+   verify an invalid refresh token must emit sign-out before Ready becomes
+   eligible. Also inject both the generic non-cancellation synchronization
+   boundary and the verified-ledger-write boundary. Each must retain the neutral
+   root, expose **Try Again**, and preserve the 5-, 10-, and 20-second outer
+   retry sequence instead of treating failure as absence. On TestFlight,
+   interrupt connectivity and confirm the same user-visible behavior. Exhaustion
+   must remain explicitly retryable. Repeated same-account auth must not consume
+   another attempt; account replacement must cancel stale timers, and a new
+   synchronization generation must not inherit an orphaned waiting state. Test
+   every switch combination in the displayed required Age → Gemini/Terms group
+   followed by optional Analytics: age and Gemini/Terms are required; analytics
+   is optional and never blocks scanning. Exercise the inline Terms link,
+   VoiceOver labels and hints, every supported Dynamic Type size, and the
+   smallest supported iPhone in both orientations. On a clean install, create a
+   new anonymous account, complete Ready, and retain evidence that its adult,
+   Terms, and Gemini rows upload and refetch before the first Identify request.
+   Its first ordinary scan must issue exactly one provider call and save a
+   usable result. Then force one required row missing and require exact
+   `403 ai_consent_required`, zero automatic redispatch and
+   included-Pro/daily-Flash consumption, media retention across relaunch, Ready
+   routing, fresh head-anchored approval, and successful retry under the
+   original scan ID. See the
    [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 6. Verify adult and Terms actions create immutable owner receipts, while Gemini
    and optional analytics actions create immutable causally linked rows with
@@ -5241,20 +5293,19 @@ grant may be checked against current disclosure compatibility.
    A reconnect for both providers; the stale grants must be rejected and both
    providers must remain revoked. Then reproduce Device A offline revocation →
    Device B synchronized grant → Device A reconnect; each revocation must be
-   accepted, rebased to Device B's grant, remain idempotent when retried with its
-   originally observed parent, and leave the provider revoked. Repeat that
+   accepted, rebased to Device B's grant, remain idempotent when retried with
+   its originally observed parent, and leave the provider revoked. Repeat that
    sequence with Device A's queued revocation carrying the prior disclosure
    version and the causal parent it observed before Device B's current-version
    grant. Verify the stored accepted parent becomes Device B's grant and the
    all-version head remains revoked for both Gemini and PostHog. Verify no
-   Gemini provider call occurs without
-   all current required evidence; and no iOS or Edge PostHog request occurs
-   unless the provider-wide head itself is a current-disclosure grant. Verify
-   the consent rejection creates no quota reservation or entitlement hold and
-   is never displayed as no scans left. Exercise real `402 pro_required` and
-   `429 ai_quota_daily_exceeded` responses separately and verify they retain
-   upgrade and daily-limit handling instead of entering consent recovery. Verify
-   Settings withdrawal is immediate,
+   Gemini provider call occurs without all current required evidence; and no iOS
+   or Edge PostHog request occurs unless the provider-wide head itself is a
+   current-disclosure grant. Verify the consent rejection creates no quota
+   reservation or entitlement hold and is never displayed as no scans left.
+   Exercise real `402 pro_required` and `429 ai_quota_daily_exceeded` responses
+   separately and verify they retain upgrade and daily-limit handling instead of
+   entering consent recovery. Verify Settings withdrawal is immediate,
    account-wide, and leaves core functionality unchanged.
 7. As database owner, run
    `psql "$MERIAN_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/supabase/scripts/cutover_strict_ai_consent.sql`.
@@ -5300,8 +5351,8 @@ Migration `20260808144244_expand_reserved_public_username_policy.sql`, the
 shared `update-public-username/validation.ts` policy, both username Edge routes,
 and the iOS profile editor form one compatibility unit. The canonical product
 and historical-mention contract is
-[`21-public-usernames.md`](../features-and-hardware/21-public-usernames.md); this
-section defines release order and evidence only.
+[`21-public-usernames.md`](../features-and-hardware/21-public-usernames.md);
+this section defines release order and evidence only.
 
 The change reserves exact product namespaces, exact official/system roles, and
 exact product-role combinations in both orders. It is intentionally not a broad
@@ -5336,26 +5387,25 @@ mirrors, and the static migration contract fails on policy-set drift.
 2. Prefer deploying the shared Edge policy and both
    `check-public-username`/`update-public-username` routes first as a separately
    validated compatible phase. They only reject additional handles and do not
-   require the new migration. Confirm the dependency planner selects both
-   routes because they import the same validation module.
+   require the new migration. Confirm the dependency planner selects both routes
+   because they import the same validation module.
 3. Apply the migration through the normal production workflow. It repairs only
-   current profile rows whose handles are reserved under the expanded policy,
-   in stable user-ID lock
-   order, using neutral deterministic collision-safe aliases. It aligns
-   `public_author_name` only for alias-source profiles, rebuilds and validates
-   the profile CHECK, and installs a separately validated structural CHECK for
-   historical mention snapshots.
+   current profile rows whose handles are reserved under the expanded policy, in
+   stable user-ID lock order, using neutral deterministic collision-safe
+   aliases. It aligns `public_author_name` only for alias-source profiles,
+   rebuilds and validates the profile CHECK, and installs a separately validated
+   structural CHECK for historical mention snapshots.
 4. A combined workflow that applies the migration before the Edge rollout is
-   database-safe: the profile CHECK still rejects an old client's newly
-   reserved write. The old route may temporarily surface a generic database
-   failure instead of the reviewed inline message, so do not call the customer
-   path complete until both Functions are live.
+   database-safe: the profile CHECK still rejects an old client's newly reserved
+   write. The old route may temporarily surface a generic database failure
+   instead of the reviewed inline message, so do not call the customer path
+   complete until both Functions are live.
 5. Ship the iOS mirror after the server boundary is live. Older clients remain
    protected by Edge and PostgreSQL. The iOS list improves immediate feedback;
    it is never the authorization or integrity boundary.
 
-This migration is forward-only. Do not preserve an official-looking prefix
-such as `admin_...` during repair, rewrite historical mention tokens, relax the
+This migration is forward-only. Do not preserve an official-looking prefix such
+as `admin_...` during repair, rewrite historical mention tokens, relax the
 profile CHECK for an old client, or grant meaning to a username/display label.
 Trusted status requires a separate server-owned role, claim, or badge.
 
@@ -5439,7 +5489,7 @@ secret set into either Vercel project.
 | ----------------------------------- | ------------------------------------------------------------- |
 | `APPLE_SIGN_IN_TEAM_ID`             | Required; synchronized by the workflow to Supabase Edge only  |
 | `APPLE_SIGN_IN_KEY_ID`              | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_PRIVATE_KEY`         | Required `.p8`; synchronized to Supabase Edge only             |
+| `APPLE_SIGN_IN_PRIVATE_KEY`         | Required `.p8`; synchronized to Supabase Edge only            |
 | `DWCA_PSEUDONYM_HMAC_KEY_V1`        | Synchronized by the workflow to Supabase Edge only            |
 | `GEMINI_PAID_API_KEY`               | Required; synchronized by the workflow to Supabase Edge only  |
 | `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
@@ -5469,8 +5519,8 @@ Set these in the repository's GitHub Actions secrets:
   deletion revocation. The workflow rejects missing or malformed key material
   before migration and synchronizes all three to Edge. Raw or escaped newlines
   are accepted. Rotate them as one supervised operation and retire the previous
-  Apple key only after exchange and revoke smokes pass. Never store the `.p8`
-  in the repository or Vercel.
+  Apple key only after exchange and revoke smokes pass. Never store the `.p8` in
+  the repository or Vercel.
 - `AI_QUOTA_IP_HASH_SECRET` (optional override) — at least 32 high-entropy
   characters. When present in the GitHub `Production` environment, the deploy
   workflow validates and synchronizes it before deploying functions. When
@@ -6202,13 +6252,11 @@ After deployment:
   or hidden iOS UI alone are not sign-off. Require the stable hosted
   `iOS Build and Test / Production readiness` result, including the full
   unit-test target, exact live-Insight-to-queue and queued-scan-completion UI
-  smokes, and independent
-  unsigned Release archive with `privacy_manifest_valid: true` and
-  `transport_security: "ats-default"`, plus the frozen
-  public-web
-  install/audit/test/type-check/build gate for the same release SHA. Do not
-  require active-export maximum-shape/provider proof for this default-off
-  launch; require it before the later DwC-A feature enable.
+  smokes, and independent unsigned Release archive with
+  `privacy_manifest_valid: true` and `transport_security: "ats-default"`, plus
+  the frozen public-web install/audit/test/type-check/build gate for the same
+  release SHA. Do not require active-export maximum-shape/provider proof for
+  this default-off launch; require it before the later DwC-A feature enable.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement
@@ -6241,15 +6289,15 @@ After deployment:
   `internal.canonical_revenuecat_app_user_id(merian_user_id)`, run the offline
   customer export audit, and verify **Continue as Ghost** preserves the same
   Supabase/RevenueCat UUID and creates no new customer. For the
-  beta/canonical-ID cutover, this
-  smoke does not waive the exact operation gate: also require the explicit
-  cohort checksum/count, GET `200|201` and promotional POST `201` coverage, zero
-  unexplained grant failures, restored reconciliation schedule, healthy due-age
-  trend, an entitled Field Chat smoke, provider-preserving conflict merge, and
-  the enforced Ghost purchase/grant continuity policy from the RevenueCat
-  identity incident. For shell cleanup, also require four fresh input hashes,
-  the exact reviewed candidate digest/count, live last-seen/history/alias
-  revalidation, and a retained results ledger.
+  beta/canonical-ID cutover, this smoke does not waive the exact operation gate:
+  also require the explicit cohort checksum/count, GET `200|201` and promotional
+  POST `201` coverage, zero unexplained grant failures, restored reconciliation
+  schedule, healthy due-age trend, an entitled Field Chat smoke,
+  provider-preserving conflict merge, and the enforced Ghost purchase/grant
+  continuity policy from the RevenueCat identity incident. For shell cleanup,
+  also require four fresh input hashes, the exact reviewed candidate
+  digest/count, live last-seen/history/alias revalidation, and a retained
+  results ledger.
 - For an exact external-reference-media suppression, apply its cleanup/write
   prevention migration before deploying dependent functions. Deploy every
   transitive consumer selected for `_shared/externalImagePolicy.ts`,
@@ -6361,15 +6409,14 @@ After deployment:
   Event RPC failure and confirm all of them roll back; retry the unchanged scan
   and confirm the stored result is returned. Publish a completed outing and
   verify its snapshot item rows reference the returned publication ID. Verify
-  physical signed-in and ghost accounts plus simulator builds all see the
-  Events segment, requests, badges, routes, and hashtag suggestions, then
-  exercise the complete server-authorized Events flow. Rerun the Field trips
-  iOS/Deno suites plus an unsigned device build. No backend deploy is implied
-  unless a backend contract changed independently. Publishing a Field trip or
-  challenge entry must not
-  write `explore_posts`, map points, normal Explore post notification rows,
-  APNs, widgets, public web share pages, prize rows, or leaderboard rows. Field
-  trip comment/reply/followed-publication activity may appear in
+  physical signed-in and ghost accounts plus simulator builds all see the Events
+  segment, requests, badges, routes, and hashtag suggestions, then exercise the
+  complete server-authorized Events flow. Rerun the Field trips iOS/Deno suites
+  plus an unsigned device build. No backend deploy is implied unless a backend
+  contract changed independently. Publishing a Field trip or challenge entry
+  must not write `explore_posts`, map points, normal Explore post notification
+  rows, APNs, widgets, public web share pages, prize rows, or leaderboard rows.
+  Field trip comment/reply/followed-publication activity may appear in
   `field_trip_activity_notifications` and the in-app Explore activity feed.
 - For Explore author-maintenance releases, apply
   `20260720042641_optimize_explore_author_maintenance.sql` before deploying the
@@ -6393,8 +6440,9 @@ After deployment:
 - Confirm `auto-purge-nonbio` and `delete-scan` were deployed after any
   `_shared/aws.ts` change.
 - For public Explore audio, confirm both audio migrations are applied,
-  `GEMINI_PAID_API_KEY` exists as an Edge secret from the approved billing-enabled project, and `identify-multimodal`,
-  `share-scan-to-explore`, `update-explore-field-notes`, `delete-scan`,
+  `GEMINI_PAID_API_KEY` exists as an Edge secret from the approved
+  billing-enabled project, and `identify-multimodal`, `share-scan-to-explore`,
+  `update-explore-field-notes`, `delete-scan`,
   `backfill-explore-audio-spectrograms`, `auto-purge-nonbio`, and
   `scan-media-health` were deployed together.
 - Confirm `/generate-upload-urls` was deployed after any
@@ -6472,10 +6520,10 @@ After deployment:
   `false` respectively.
 - Confirm `sync-community-taxonomy-index` accepts a tiny `dry_run = true` Birds
   request without advancing `taxonomy_coverage_targets.next_import_offset`,
-  while its returned simulated `next_offset` advances. In a disposable or
-  mocked staging case, also prove a raw nonempty/normalized-empty live page
-  checkpoints and fetches the following page, and that an all-empty run does not
-  refresh coverage.
+  while its returned simulated `next_offset` advances. In a disposable or mocked
+  staging case, also prove a raw nonempty/normalized-empty live page checkpoints
+  and fetches the following page, and that an all-empty run does not refresh
+  coverage.
 - Smoke-test `/insight-chat` with `action: "load"` and
   `action:
   "suggest_prompts"` against an owned completed biological scan.
