@@ -139,8 +139,8 @@ an IPA, reuse archive `236`, or upload from another tool.
 The replacement architecture is validated for a release candidate when one
 exact revision has all of:
 
-1. a green hosted complete unit target, exact queued-scan XCUI smoke, and
-   current-SHA unsigned Release validation archive;
+1. a green hosted complete unit target, both exact critical scan XCUI smokes,
+   and current-SHA unsigned Release validation archive;
 2. a clean Xcode Organizer archive with the intended revision and fingerprint;
 3. a successful Organizer upload whose Xcode-managed version/build matches the
    processed App Store Connect build; and

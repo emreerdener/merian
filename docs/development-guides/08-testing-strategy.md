@@ -251,7 +251,7 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and both macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, critical queued-scan UI smoke, and
+replace the complete unit target, both critical scan UI smokes, and
 Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
@@ -471,7 +471,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 81
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 91
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -484,13 +484,15 @@ HTTP request is dispatched. See the
    hosted job summary.
 
    After the complete unit target passes, the same checkout, simulator
-   destination, locked packages, and `build-for-testing` output execute one
-   deterministic runtime UI smoke:
-   `merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`.
+   destination, locked packages, and `build-for-testing` output execute two
+   deterministic runtime UI smokes:
+   `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and
+   `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
+   `merianUITests/merianUITests`.
    This is deliberately narrower than the complete UI suite, whose
    camera/Photos/hardware cases remain separate. The focused result must report
-   exactly one passed case and zero failed or skipped cases. Its structured tree
-   must contain exactly that case under `merianUITests`; missing, wrong,
+   exactly those two passed cases and zero failed or skipped cases. Its
+   structured tree must contain that exact named set under `merianUITests`; missing, wrong,
    duplicated, malformed, empty, or contradictory evidence fails the job.
    `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
    and `scripts/test-validate-ios-focused-test-results.sh` provides portable
@@ -650,7 +652,7 @@ failure:
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                        |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                     |
-| Queued-scan UI smoke or focused-result validation                     | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require exactly one protected case. |
+| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact two protected cases. |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted. |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                    |
@@ -2627,9 +2629,30 @@ deadline. Separate controls must preserve **Network timeout** for a queue-less
 direct request and classify **Analysis delayed / Scan saved** as an inference
 error placeholder for an exhausted queue-backed server failure. Finally, a
 same-ID background/status completion must replace queued content, while a newer
-scan fences the delayed error. This complete matrix is a release closure gate,
-not merely a compiled test; see the
+scan fences the delayed error.
+
+The current source implements this matrix with the gated
+`queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual`,
+the network-client request-count controls
+`queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay` and
+`queueLessIdentifyRetainsOneReviewedInlineTransportReplay`, the queue-less
+engine presentation control, the server-failure separation test,
+`retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess`, and existing
+background/replacement identity fences. All are exact protected cases in
+`validate-ios-critical-test-results.sh`. The complete matrix remains a release
+closure gate, not merely a compiled test; see the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
+The compiled hosted UI gate adds
+`testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only
+fixture commits an exact description-backed queue row, opens the standard live
+Insight in analyzing mode, and waits for an explicit `ScanningStatusBadge` tap
+before invoking the production queue-presentation boundary. The test requires
+the exact `QueuedForConnectivityMessage_<scan-id>` node, **Saved to Scans**
+copy, absence of **Network timeout**, successful sheet dismissal, and the same
+`QueuedScanTile_<scan-id>` in Scans. This complements rather than replaces the
+URLSession regression: the unit test proves transport and ownership ordering;
+the UI smoke proves the open sheet consumes the resulting exact-ID state.
 
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the
@@ -2846,11 +2869,11 @@ frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
 but proved that synthetic recomposition also prevents the caller's
 `ScanningStatusBadge` identifier from being found as a Button. The portable
 contract therefore rejects both animation patterns and that accessibility
-modifier. It requires exactly one `ScanningStatusBadge` identifier occurrence
-and binds that occurrence to
-`let scanningStatusBadge = app.buttons["ScanningStatusBadge"]`, so the test
-cannot retain dead native-query text while silently falling back to weaker
-element-class semantics. The smoke requires the native Button's accessibility
+modifier. Both critical scan smokes share one
+`scanningStatusBadgeElement(in:)` helper containing the repository's single
+`app.buttons["ScanningStatusBadge"]` query, so neither test can retain dead
+native-query text while silently falling back to weaker element-class
+semantics. The queued-completion smoke requires the native Button's accessibility
 frame to be fully contained by the application frame before tapping and prints
 both rectangles on failure. This prevents XCTest from silently substituting an
 edge-of-window activation point for an invalid off-window rectangle and

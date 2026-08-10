@@ -1474,6 +1474,7 @@ final class MerianNetworkClient {
         isRetry: Bool = false,
         functionRouteRetryAttempt: Int = 0,
         idempotencyKey: String? = nil,
+        allowsTransientTransportRetry: Bool = true,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
@@ -1544,7 +1545,8 @@ final class MerianNetworkClient {
             let transientCodes: Set<URLError.Code> = [
                 .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet
             ]
-            if transientCodes.contains(urlError.code),
+            if allowsTransientTransportRetry,
+               transientCodes.contains(urlError.code),
                !isRetry,
                Self.canReplayAfterAmbiguousFailure(
                    url: url,
@@ -1561,6 +1563,8 @@ final class MerianNetworkClient {
                     isRetry: true,
                     functionRouteRetryAttempt: functionRouteRetryAttempt,
                     idempotencyKey: idempotencyKey,
+                    allowsTransientTransportRetry:
+                        allowsTransientTransportRetry,
                     onRequestBodySent: onRequestBodySent
                 )
             }
@@ -1599,6 +1603,8 @@ final class MerianNetworkClient {
                         isRetry: isRetry,
                         functionRouteRetryAttempt: functionRouteRetryAttempt + 1,
                         idempotencyKey: idempotencyKey,
+                        allowsTransientTransportRetry:
+                            allowsTransientTransportRetry,
                         onRequestBodySent: onRequestBodySent
                     )
                 }
@@ -1648,6 +1654,8 @@ final class MerianNetworkClient {
                             isRetry: true,
                             functionRouteRetryAttempt: functionRouteRetryAttempt,
                             idempotencyKey: idempotencyKey,
+                            allowsTransientTransportRetry:
+                                allowsTransientTransportRetry,
                             onRequestBodySent: onRequestBodySent
                         )
                     }
@@ -1670,6 +1678,8 @@ final class MerianNetworkClient {
                                 isRetry: true,
                                 functionRouteRetryAttempt: functionRouteRetryAttempt,
                                 idempotencyKey: idempotencyKey,
+                                allowsTransientTransportRetry:
+                                    allowsTransientTransportRetry,
                                 onRequestBodySent: onRequestBodySent
                             )
                         }
@@ -1713,6 +1723,8 @@ final class MerianNetworkClient {
                     isRetry: true,
                     functionRouteRetryAttempt: functionRouteRetryAttempt,
                     idempotencyKey: idempotencyKey,
+                    allowsTransientTransportRetry:
+                        allowsTransientTransportRetry,
                     onRequestBodySent: onRequestBodySent
                 )
             }
@@ -2042,6 +2054,7 @@ final class MerianNetworkClient {
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil,
         preferredGoal: FieldTripPreferredGoal? = nil,
+        allowsInlineTransportRetry: Bool = true,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
         let request = try await buildMultiModalRequest(
@@ -2069,6 +2082,7 @@ final class MerianNetworkClient {
             body: bodyData,
             timeoutInterval: 90.0,
             idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
+            allowsTransientTransportRetry: allowsInlineTransportRetry,
             onRequestBodySent: onRequestBodySent
         )
         return data

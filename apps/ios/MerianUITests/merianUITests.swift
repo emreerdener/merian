@@ -294,6 +294,74 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    private func scanningStatusBadgeElement(
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        app.buttons["ScanningStatusBadge"]
+    }
+
+    @MainActor
+    func testLiveInsightConnectivityFailureTransitionsToDurableQueue() throws {
+        let scanId = "ui_test_live_queue_handoff"
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedLiveQueueHandoffFlow"]
+        )
+
+        let insightSheet = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(
+            insightSheet.waitForExistence(timeout: 8.0),
+            "Seeded live analyzing Insight failed to open"
+        )
+
+        let liveScanningStatusBadge = scanningStatusBadgeElement(in: app)
+        XCTAssertTrue(
+            liveScanningStatusBadge.waitForExistence(timeout: 8.0),
+            "Live Insight did not expose its analyzing status badge"
+        )
+        XCTAssertFalse(
+            app.staticTexts["Network timeout"].exists,
+            "The live sheet started in the obsolete timeout presentation"
+        )
+        liveScanningStatusBadge.tap()
+
+        let exactQueuedMessage = app.descendants(matching: .any)
+            .matching(
+                identifier: "QueuedForConnectivityMessage_\(scanId)"
+            )
+            .firstMatch
+        XCTAssertTrue(
+            exactQueuedMessage.waitForExistence(timeout: 8.0),
+            "The open live Insight did not bind the exact durable queued row"
+        )
+        XCTAssertTrue(
+            exactQueuedMessage.label.contains("Saved to Scans"),
+            "The queued handoff did not explain that the scan is safe"
+        )
+        XCTAssertFalse(
+            app.staticTexts["Network timeout"].exists,
+            "A durable live-to-queue handoff rendered Network timeout"
+        )
+
+        let closeButton = app.buttons["Close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 4.0))
+        closeButton.tap()
+        XCTAssertFalse(
+            insightSheet.waitForExistence(timeout: 4.0),
+            "The live Insight did not dismiss after its queued handoff"
+        )
+
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
+        scansButton.tap()
+        XCTAssertTrue(
+            app.buttons["QueuedScanTile_\(scanId)"].waitForExistence(
+                timeout: 8.0
+            ),
+            "The exact durable scan disappeared after the live sheet handed off"
+        )
+    }
+
+    @MainActor
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 
@@ -313,7 +381,7 @@ final class merianUITests: XCTestCase {
             "Queued insight did not open inside the scans navigation stack"
         )
 
-        let scanningStatusBadge = app.buttons["ScanningStatusBadge"]
+        let scanningStatusBadge = scanningStatusBadgeElement(in: app)
         XCTAssertTrue(
             scanningStatusBadge.waitForExistence(timeout: 8.0),
             "Queued scan did not render the shared scanning status badge"

@@ -24,7 +24,8 @@ must never bind the first pending scan, retain a live SwiftData model across the
 sheet boundary, or allow scan A's delayed fetch to replace scan B. Durable
 foreground retirement and local presentation ownership are distinct: a
 connectivity callback may release provider ownership while the still-current
-sheet remains authorized to become queued. This joined behavior is currently
+sheet remains authorized to become queued. Source and protected transport tests
+now enforce that split; hosted exact-SHA and physical-device acceptance remain
 release-gated by the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 

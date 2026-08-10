@@ -43,14 +43,15 @@ message. This handoff must not create a synthetic **Network timeout** result or
 an error haptic, and normal same-ID queued completion must still replace it in
 place.
 
-This behavior is release-gated. The current catch path can lose full durable
-ownership before it publishes the still-current local presentation, and the
-transport helper can replay once before returning the failure. **Analysis
-delayed** is now classified as an inference error placeholder, so a saved
-service failure does not receive non-biological success treatment; that isolated
-repair does not close the transport handoff. See the
+This behavior remains release-gated, but the source boundary is remediated. The
+catch path now retains exact local presentation authority after durable
+ownership retirement solely to publish queue takeover, and queue-backed
+Identify does not enter the generic inline transport replay. A protected gated
+URLSession regression proves the exact queued view binds after that ordering.
+**Analysis delayed** remains an inference error placeholder, so a saved service
+failure cannot receive non-biological success treatment. See the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
-for current status and closure tests.
+for remaining exact-SHA and device closure evidence.
 
 Queued scans supply snapshot telemetry but do not add a separate title, helper
 paragraph, media-kind summary, or file-size label. Retry timing, errors, and
@@ -69,3 +70,12 @@ event still refreshes the parent Scans surface; the deterministic transition
 does not depend on a cross-context merge. The coordinator is enabled only for
 the exact Debug UI-test seed; normal app sessions and Release builds retain
 ordinary badge behavior.
+
+The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight
+in analyzing mode with its exact queue row already committed. UI automation
+must observe that live state before tapping the shared badge. The Debug-only
+action then calls the production `transitionToQueuedPresentation` boundary;
+the sheet's exact-ID task must bind the row, expose
+`QueuedForConnectivityMessage_<scan-id>`, avoid **Network timeout**, and leave
+the same tile present in Scans after dismissal. The trigger is absent from
+Release and ordinary Debug sessions.

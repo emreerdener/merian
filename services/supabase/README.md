@@ -149,13 +149,18 @@ make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --au
 Dry-run performs zero network requests and prints the exact candidate SHA-256
 and count. It protects current canonical Supabase customers by default, all
 active Auth identities (Ghost or linked), the reviewed cohort, purchase/promo
-history, linked aliases, recent/unknown recency, and ambiguous rows. Apply must
+history, customer attributes, linked aliases, recent/unknown recency, and
+ambiguous rows. Apply must
 repeat the same inputs and add
 `--apply --confirm-delete-empty-revenuecat-shells --approved-plan-sha256 <sha> --confirm-count <count> --project-id <proj...> --results-csv /secure/revenuecat-cleanup-results.csv`.
-It revalidates live last-seen state, active entitlements, Supabase-link
-attributes, complete aliases, and v1 purchase history before each exact v2
-delete. A changed or ambiguous customer is protected. Do not use
-`--include-current-supabase-shells` for historical-duplicate cleanup. That
+It revalidates live last-seen state, active entitlements, requires an empty
+customer-attribute list, checks complete aliases, and checks the complete V2
+subscription, purchase, and customer-event lists before each exact V2 delete.
+It never calls the V1
+get-or-create subscriber endpoint. A changed or ambiguous customer is
+protected. The dedicated V2 key needs Customers read/write, Subscriptions read,
+and Purchases read; no broader configuration permissions are required. Do not
+use `--include-current-supabase-shells` for historical-duplicate cleanup. That
 separate flag can include an inactive orphaned public profile only when the full
 audit says `auth_exists=false`; an active Auth UUID is always protected.
 
@@ -2102,7 +2107,10 @@ Auth Admin users plus public activity tables, classifies likely empty ghost
 profiles, and writes reviewable JSON/CSV/Markdown snapshots. The audit also
 calls the service-role-only protected-source RPC; prepared handoffs and merged
 receipts awaiting Auth cleanup count as activity and can never become deletion
-candidates. It does not delete or mutate data.
+candidates. The automatically created, untouched Backyard Safari Level 1 trip
+does not count as activity; the execute-time database guard recognizes only
+that exact trip/period baseline and blocks any progress or lifecycle change. It
+does not delete or mutate data.
 
 ```bash
 SUPABASE_URL="https://<project>.supabase.co" \
@@ -2113,28 +2121,47 @@ make audit-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --snapshot-cs
 `SUPABASE_SERVICE_ROLE_KEY` is still accepted for older projects, but new
 Supabase projects should use a secret key from Settings > API Keys.
 
-Review cleanup candidates with the guarded cleanup dry-run. This reads the audit
-JSON and does not delete unless `--execute` and the confirmation flag are both
-present.
+Create a one-column `id` or `user_id` CSV containing every beta tester, team
+member, or other account that must survive even if it currently appears empty.
+Then review cleanup candidates using a fresh RevenueCat **Export all** file. The
+dry-run is offline and performs no Supabase or RevenueCat mutations.
 
 ```bash
-make cleanup-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --limit 10 --output-json /tmp/ghost-cleanup-dry-run.json"
+make cleanup-ghost-users ARGS='--snapshot-json /secure/ghost-users.json --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --threshold-days 30 --limit 10 --output-json /secure/ghost-cleanup-plan.json'
 ```
 
-After manually reviewing a dry-run batch, execute only a tiny batch:
+The plan excludes every protected cohort member and any account with an email,
+non-anonymous identity, paid/pass projection, custom identity, audited activity,
+RevenueCat purchase/promotion, alias/case variant, multiple linked customers, or
+customer-attribute evidence or recent/unknown provider use. Execute also refuses
+an audit with an unread activity source or an older audit contract version.
+Review the identity-bearing
+JSON, retain its exact `candidate_sha256` and `selected_count`, and start with a
+tiny batch:
 
 ```bash
 SUPABASE_URL="https://<project>.supabase.co" \
 SUPABASE_SECRET_KEY="<sb_secret_...>" \
-make cleanup-ghost-users ARGS="--snapshot-json /tmp/ghost-users.json --limit 10 --execute --confirm-delete-likely-empty-ghosts --output-json /tmp/ghost-cleanup-result.json"
+REVENUECAT_CLEANUP_V2_API_KEY="<sk_...>" \
+make cleanup-ghost-users ARGS='--snapshot-json /secure/ghost-users.json --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --threshold-days 30 --limit 5 --execute --confirm-delete-likely-empty-ghosts --approved-plan-sha256 <sha> --confirm-count 5 --project-id <proj...> --output-json /secure/ghost-cleanup-results.json'
 ```
 
-Execute mode performs a second, live database reservation for each candidate
-before calling Auth Admin delete. The reservation and handoff issuance share an
-advisory lock: if an account upgrade is prepared first, cleanup fails closed; if
-cleanup reserves first, prepare returns a retryable error without switching the
-guest session. Do not run a historical version of the cleanup script after the
-secure merge migration.
+Execute first calls the database inspector, then reserves the identity and
+performs **GET-only** live RevenueCat V2 customer, alias, subscription,
+purchase, and event checks. It does not call the V1 get-or-create endpoint and
+does not delete the RevenueCat customer. If provider state is absent or proven
+empty, `request_empty_ghost_account_deletion(...)` reruns the exhaustive
+database guard and atomically enters the existing relational → R2 storage →
+provider → Auth deletion state machine. Auth remains until the 25-hour delayed
+storage verification completes. The reservation and Ghost-login handoff share
+an advisory lock, so upgrades and cleanup cannot cross.
+
+After all accepted Supabase jobs reach `completed`, take a new Auth audit and
+RevenueCat export. Only then run the separate `cleanup-revenuecat-shells`
+dry-run/apply workflow to erase newly orphaned provider shells that still pass
+its live checks. Never reverse these steps, never directly delete Auth or
+`public.users`, and never infer that two UUID Ghosts are duplicates. An account
+is removable only because every required source proves it is an empty shell.
 
 ## Deployment
 

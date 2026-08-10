@@ -153,15 +153,16 @@ The complete evidence and release closure test are in the
    states, never non-biological classifications; placeholder routing must hide
    collection/retention success treatment.
 
-The queue-backed branch above is the required contract, not current release
-evidence. Connectivity monitoring can retire the durable generation before
-URLSession returns, and the current catch guard can then skip queued
-presentation. The shared network helper can also replay once before returning
-the failure. **Analysis delayed** is now in the placeholder whitelist, but that
-isolated repair does not close the transport handoff. See the
+The queue-backed branch above is implemented source behavior, not current
+release evidence. The catch path now preserves exact local presentation
+authority after connectivity monitoring retires the durable generation, and
+queue-backed Identify disables the shared helper's inline transient replay.
+Protected URLSession-level race, request-count, queue-less timeout, provider
+failure, and stale-result controls cover the joined boundary. **Analysis
+delayed** remains in the placeholder whitelist. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
-for the ownership split, no-inline-replay rule, transport-level regression
-matrix, and closure status.
+for the ownership split, no-inline-replay rule, regression matrix, and remaining
+hosted/device closure status.
 
 ---
 
@@ -254,7 +255,7 @@ write.
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inference decoding failure (`MerianError.decodingFailed`)                                                                       | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                                                                                                                                          |
 | Known offline before queue-backed provider dispatch                                                                             | Keep the exact durable row and show queued confirmation; do not start live provider transport                                                                                                                                                                                                                            |
-| First queue-backed connectivity failure after dispatch                                                                          | Required result is same-ID **Queued for later** with automatic-resume copy, no synthetic result/haptic/circuit failure, and exactly one live request. This path remains release-gated by the live scan connectivity incident.                                                                                              |
+| First queue-backed connectivity failure after dispatch                                                                          | Source result is same-ID **Queued for later** with automatic-resume copy, no synthetic result/haptic/circuit failure, and exactly one live request. Exact-SHA and physical-device acceptance remain release-gated by the live scan connectivity incident.                                                                |
 | Queue-less direct connectivity failure                                                                                          | InsightSheet may show **Network timeout / Please try again** as an inference error placeholder; never show non-biological collection/retention copy                                                                                                                                                                       |
 | Exhausted queue-backed handler/provider service failure                                                                         | Show **Analysis delayed / Scan saved** as an inference error placeholder and retain durable retry; never label the device offline or present non-biological success treatment                                                                                                                                             |
 | Exact handler-owned `402 pro_required`                                                                                           | Show **Upgrade needed / Scan saved** for the retained observation; entitlement policy, not connectivity, owns the next action                                                                                                                                                                                            |

@@ -1221,8 +1221,10 @@ the latch without waiting for a URLSession delegate callback.
   retirement and local presentation authority must be evaluated separately:
   path monitoring can retire the former before URLSession returns, while the
   exact still-current sheet still needs to acknowledge queue takeover. The
-  current catch path couples those checks and is release-blocked pending the
-  transport-level race coverage in the
+  current catch path separates those checks, and queue-backed Identify returns
+  the first transport failure without generic inline replay. A protected gated
+  transport test reproduces retirement-before-callback ordering. Exact-SHA and
+  device acceptance remain release-blocked in the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
   Same-ID background completion continues to use the result observer
   (`isProcessing == false && speciesData != nil`). Queue takeover instead uses

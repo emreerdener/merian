@@ -367,7 +367,8 @@ Create the cleanup plan only from four fresh, independently retained inputs:
 Dry-run is network-free and hashes all four source artifacts plus the sorted
 candidate plan. By default it excludes canonical current Supabase customers and
 protects every active Auth UUID, reviewed cohort member, linked alias, row with
-purchase/promotion evidence, recently seen row, and row with missing recency.
+purchase/promotion or customer-attribute evidence, recently seen row, and row
+with missing recency.
 `--include-current-supabase-shells` is an exceptional separate operation for an
 inactive `public.users` row whose full Auth audit proves `auth_exists=false`; an
 active Auth UUID remains protected even with the flag. It is not part of the
@@ -376,17 +377,72 @@ initial historical-duplicate cleanup.
 Apply requires `--apply --confirm-delete-empty-revenuecat-shells`, the exact
 dry-run `--approved-plan-sha256`, exact `--confirm-count`, an identity-bearing
 `--results-csv`, the exact RevenueCat project ID, and an `sk_` server key. Before
-each delete it revalidates the exact project/customer, requires that live
+each delete it uses the dedicated local-only
+`REVENUECAT_CLEANUP_V2_API_KEY` and revalidates the exact project/customer,
+requires that live
 `last_seen_at` is no newer than the reviewed export and remains outside the
-inactivity window, requires no active entitlement, protects new Supabase-link
-attributes, requires a complete self-only alias list, and requires empty v1
-entitlement/subscription/non-subscription/other-purchase history. A changed or
-ambiguous response protects the row; the tool never writes Supabase.
+inactivity window, requires no active entitlement or customer attribute,
+requires a complete self-only alias list, and requires complete empty V2
+subscription, purchase, and customer-event lists. It never calls the V1
+get-or-create subscriber endpoint. A changed or ambiguous response protects the
+row; the tool never writes Supabase.
 
 Deletion remains permanent provider erasure. A later SDK or get-or-create read
 may make a new empty shell with the same ID, but it will not recover deleted
 aliases, attributes, promotions, or history. That is why the apply boundary
 deletes only customers already proven to have none of those things.
+
+## Coordinated empty Ghost cleanup
+
+Cleaning Supabase identities is a different operation from deleting
+RevenueCat-only shells. Preserve every real Ghost: anonymous users may purchase,
+remain anonymous for their lifetime, later link an OAuth identity without
+changing their UUID, and log out without rotating that identity. A high row
+count never authorizes deletion, and two Ghost UUIDs are never merged merely
+because they look inactive.
+
+The current coordinated procedure is deliberately ordered:
+
+1. Freeze identity-rotation defects and retain fresh Auth/public audit,
+   RevenueCat export, and a nonempty protected beta/team cohort.
+2. Run the provider-only cleanup in dry-run mode if an initial orphan inventory
+   is useful, but do not apply RevenueCat deletion yet.
+3. Run `cleanup-ghost-users` offline. Its Supabase candidates must be old,
+   anonymous, free, identity-free, activity-free, and outside the protected
+   cohort. Their canonical RevenueCat row must be absent or a single inactive
+   empty customer; purchase, promotion, customer-attribute, alias, case-variant,
+   multi-customer, recent, or unknown provider evidence excludes the Supabase
+   account.
+4. Execute only the reviewed digest/count. For each candidate, the tool calls
+   `inspect_empty_ghost_cleanup_candidate`, reserves the Ghost/merge lock, and
+   performs live RevenueCat **GET-only** V2 customer, alias, subscription,
+   purchase, and event checks. It then calls
+   `request_empty_ghost_account_deletion`; it never calls Auth Admin delete,
+   directly deletes `public.users`, calls the V1 get-or-create endpoint, or
+   deletes a RevenueCat customer.
+5. The database reruns the complete reference guard and atomically enters the
+   normal relational, R2 storage, provider, and Auth deletion state machine.
+   Auth remains recoverable until delayed storage verification is complete.
+6. Wait for every accepted account-deletion job to complete. Generate fresh
+   exports, then run the provider-only cleanup again for newly orphaned empty
+   shells.
+
+The database guard treats every reviewed current or future user foreign key as
+a blocker by default. It additionally blocks recent Auth sessions, logical
+references without foreign keys, active merge/deletion state, custom profile
+state, and any Field Trip state other than the exact automatically created,
+untouched Backyard Safari Level 1 baseline. Schema drift or an unread audit
+source fails closed. The private deletion receipt stores only the reviewed plan
+hash, RevenueCat project, recent verification timestamp, checked-customer count,
+and durable deletion-job ID.
+
+`internal.entitlement_rollout_config.entitlement_mode = 'legacy_trial'` is
+orthogonal to this cleanup. It means the resolver may give a newly created free
+profile the legacy seven-day effective trial; it neither identifies beta
+members nor creates a RevenueCat entitlement. Do not change that configuration
+as a cleanup side effect. Beta access remains the explicit, finite promotional
+grant for the reviewed cohort until a separately validated entitlement-policy
+rollout replaces it.
 
 ## Customer deletion policy
 

@@ -17,6 +17,16 @@ verified R2 erasure a required durable phase: Migration
 `20260806203700_durable_apple_provider_revocation.sql` adds a claim-fenced
 provider substage after storage and before Auth.
 
+Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` adds a second,
+operator-only intake for prelaunch anonymous shells. It does not change this
+state machine or expose `/safe-delete` to arbitrary UUIDs. After an offline
+review and live GET-only RevenueCat proof, the service-only intake reruns an
+exhaustive database blocker check, records identity-free operator evidence, and
+atomically performs steps 1–3 below. It must stop at `storage_pending`; this
+worker remains the only path through delayed R2 verification and eventual Auth
+deletion. RevenueCat customer deletion is a later, separate orphan-shell
+operation and is never performed by the guarded intake.
+
 Migration `20260725035737_repair_tombstone_profile_seed.sql` is an explicit
 executable no-op compatibility bridge for production run 1461. Its superseded
 public-only sentinel insert could not satisfy production's

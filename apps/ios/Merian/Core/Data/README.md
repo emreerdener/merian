@@ -137,7 +137,7 @@ the exact still-current sheet's authority to acknowledge the handoff as
 **Queued for later**. Conversely, local presentation authority never permits a
 retired task to persist a provider result, delete queue state, record transport
 failure, or overwrite a newer/completed presentation. The current joined-source
-gap and required race tests are tracked in the
+repair and its remaining exact-SHA/device acceptance gates are tracked in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 Consent-policy rejection is outside that retry-budget state machine. Foreground

@@ -174,7 +174,8 @@ the matching `OfflineQueuedScan` snapshot and routes the sheet to `.queued`.
 An exhausted queue-backed service failure uses **Analysis delayed / Scan
 saved** and now satisfies `isInferenceErrorPlaceholder`, so the simple renderer
 cannot apply non-biological success treatment to an operational failure. The
-separate transport/ownership closure remains release-blocked by the
+transport/ownership source boundary is now protected; exact-SHA and
+physical-device closure remain release-blocked by the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 The exact Identify replay conflicts `ai_request_in_progress`,
@@ -538,14 +539,14 @@ explains that the scan is saved and will resume or is continuing automatically.
 It emits no error haptic and preserves the normal same-ID completed-result
 promotion path.
 
-The engine half remains release-gated. The queue manager can retire durable
-foreground ownership as soon as the path becomes unsatisfied, before
-URLSession's error reaches the engine. A full-ownership guard must not prevent
-the exact still-current local presentation from publishing queue takeover, but
-a newer scan or completed result must still fence it. The current source does
-not yet prove that split, and generic transport replay can delay the state
-change. Closure requires the transport/retirement race and request-count matrix
-in the
+The engine half remains release-gated, with its source behavior now remediated.
+The queue manager can retire durable foreground ownership as soon as the path
+becomes unsatisfied, before URLSession's error reaches the engine. The catch
+path uses exact local presentation authority only to publish queue takeover;
+provider results and generic failures still require full ownership, so a newer
+scan or completed result fences them. Queue-backed transport does not replay
+inline. The protected transport/retirement race and request-count matrix are
+defined in the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 Each poll and delayed Retry callback applies its fresh `QueuedScanContext` only
@@ -651,6 +652,14 @@ semantic geometry, as hosted Run 104 proved. Automation had consequently tapped
 a fallback edge point instead of the capsule. The exact queued-audio smoke
 requires the frame to remain fully inside the app window before it initiates
 deterministic completion and reports both rectangles on failure.
+
+The companion live-connectivity smoke starts from an analyzing Insight whose
+exact durable queue row already exists. Its Debug-only trigger calls the same
+production queue-presentation transition used after a transport handoff. The
+test requires the identifier-scoped **Queued for later** message, rejects any
+**Network timeout** card, dismisses the sheet, and verifies that the same scan
+ID remains queued in Scans. The hosted gate accepts only the exact two-case set
+containing this transition and the queued-audio completion smoke.
 
 The handoff single-flight is subject-aware rather than one global busy Boolean.
 A request for a different queued scan advances its generation and replaces the

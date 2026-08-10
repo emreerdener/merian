@@ -316,7 +316,8 @@ assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
 assert_contains 'Critical scan-flow regressions: \`passed\`'
-assert_contains 'Exact queued-scan UX regression: \`passed\`'
+assert_contains 'Exact live-to-queue and completion UX regressions: \`passed\`'
+assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
 assert_contains "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
 assert_contains 'echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"'
 assert_contains '${{ runner.temp }}/ios-critical-scan-ui.xcresult'
@@ -335,6 +336,7 @@ assert_contains '"-seedAchievementDetailFlow"'
 assert_contains '"-seedAchievementDeletionRefreshFlow"'
 assert_contains '"-seedQueuedAudioHandoffFlow"'
 assert_contains '"ui_test_queued_audio_handoff.wav"'
+assert_contains '"-seedLiveQueueHandoffFlow"'
 assert_contains '"-seedMissingVideoFallbackFlow"'
 assert_contains '"ui_test_video_fallback.png"'
 assert_count 1 "ios-release-main-binary-strings.txt"
@@ -346,12 +348,12 @@ assert_contains 'UNIT_TEST_RESULT" != "success'
 assert_contains 'RELEASE_ARCHIVE_RESULT" != "success'
 assert_before \
   "- name: Validate and summarize unit-test execution" \
-  "- name: Run queued-scan completion UI smoke"
+  "- name: Run critical scan UI smokes"
 assert_before \
-  "- name: Run queued-scan completion UI smoke" \
-  "- name: Validate and summarize queued-scan completion UI smoke"
+  "- name: Run critical scan UI smokes" \
+  "- name: Validate and summarize critical scan UI smokes"
 assert_before \
-  "- name: Validate and summarize queued-scan completion UI smoke" \
+  "- name: Validate and summarize critical scan UI smokes" \
   "- name: Upload unit-test evidence"
 
 if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$workflow"; then
@@ -361,10 +363,10 @@ fi
 # Building and running the whole unit-test target is deliberate. A selector
 # below the target level can silently remove Camera, inference, or offline-sync
 # coverage while leaving xcodebuild green. The UI bundle is compiled in full,
-# then exactly one deterministic critical-path regression is executed.
+# then exactly two deterministic critical-path regressions are executed.
 assert_count 2 "-only-testing:merianTests"
-assert_count 2 "-only-testing:merianUITests"
-assert_count 1 "-only-testing:merianUITests/"
+assert_count 3 "-only-testing:merianUITests"
+assert_count 2 "-only-testing:merianUITests/"
 if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
   fail "The production gate must not narrow merianTests to selected suites."
 fi
@@ -408,11 +410,12 @@ assert_file_contains "$critical_results_check" "CameraManagerTests"
 assert_file_contains "$critical_results_check" "InferenceEngineTests"
 assert_file_contains "$critical_results_check" "OfflineQueueManagerTests"
 assert_file_contains "$critical_results_check" "SyncStateManagerTests"
-assert_file_contains "$focused_results_check" '.totalTestCount == 1'
+assert_file_contains "$focused_results_check" '.totalTestCount == $expected_test_count'
 assert_file_contains "$focused_results_check" '.skippedTests == 0'
 assert_file_contains "$focused_results_check" '($required_suites | length) == 1'
 assert_file_contains "$focused_results_check" '$required_suites[0].result? == "Passed"'
-assert_file_contains "$focused_results_check" '($all_cases | length) == 1'
+assert_file_contains "$focused_results_check" '($all_cases | length) == $expected_test_count'
+assert_file_contains "$focused_results_check" '($suite_cases | length) == $expected_test_count'
 assert_file_contains "$ui_seed_source" "try prepareQueuedAudioHandoffMedia()"
 assert_file_contains "$ui_seed_source" 'appendASCII("RIFF")'
 assert_file_contains "$ui_seed_source" "#if DEBUG"
@@ -425,6 +428,7 @@ assert_file_contains \
   "$ui_seed_source" \
   "ProcessInfo.processInfo.arguments.contains(requiredConsentArgument)"
 assert_file_contains "$ui_test_source" '"-seedCurrentRequiredConsent"'
+assert_file_contains "$ui_test_source" '"-seedLiveQueueHandoffFlow"'
 assert_file_count \
   "$ui_seed_source" \
   2 \
@@ -447,6 +451,10 @@ assert_file_count \
   "static func completeQueuedAudioHandoffIfNeeded("
 assert_file_count \
   "$ui_seed_source" \
+  1 \
+  "static func performLiveQueueHandoffIfNeeded("
+assert_file_count \
+  "$ui_seed_source" \
   0 \
   "static func triggerQueuedAudioHandoffIfNeeded("
 assert_file_count "$ui_seed_source" 0 "4_000_000_000"
@@ -457,8 +465,14 @@ assert_file_count "$ui_seed_source" 0 "ScanLibraryEvents.postLibraryDidUpdate()"
 assert_file_count \
   "$ui_test_source" \
   1 \
-  'let scanningStatusBadge = app.buttons["ScanningStatusBadge"]'
+  'app.buttons["ScanningStatusBadge"]'
 assert_file_count "$ui_test_source" 1 '"ScanningStatusBadge"'
+assert_file_contains \
+  "$ui_test_source" \
+  "testLiveInsightConnectivityFailureTransitionsToDurableQueue()"
+assert_file_contains \
+  "$ui_test_source" \
+  'identifier: "QueuedForConnectivityMessage_\(scanId)"'
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
 assert_file_contains \
   "$ui_test_source" \
@@ -468,6 +482,9 @@ assert_file_contains "$ui_test_source" "badgeFrame=\\(scanningStatusBadgeFrame)"
 assert_file_contains \
   "$scanning_experience_source" \
   ".fixedSize(horizontal: true, vertical: true)"
+assert_file_contains \
+  "$scanning_experience_source" \
+  "UITestSeedCoordinator.performLiveQueueHandoffIfNeeded("
 assert_file_before \
   "$scanning_experience_source" \
   "            supplementalContent" \
@@ -489,6 +506,9 @@ assert_file_contains "$confidence_badge_source" ".contentTransition(.opacity)"
 assert_file_contains \
   "$queued_content_source" \
   "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("
+assert_file_contains \
+  "$queued_content_source" \
+  '"QueuedForConnectivityMessage_\(queuedContext.id)"'
 assert_file_contains "$queued_content_source" "modelContext: modelContext"
 assert_file_count "$queued_content_source" 0 "container: modelContext.container"
 assert_file_contains \
@@ -720,13 +740,23 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "81" ]] \
+[[ "$protected_case_count" == "91" ]] \
   || fail \
-    "Expected 81 exact protected iOS test cases; found $protected_case_count."
+    "Expected 91 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
+  "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual" \
+  "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess" \
+  "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss" \
+  "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation" \
+  "staleAttemptForSameScanCannotOverwriteReplacementGeneration" \
+  "recoveredBackgroundResultCanReplaceExactReleasedAttempt" \
+  "recoveredQueuedResultCanReplaceExactRetainedPresentation" \
+  "recoveredQueuedResultRejectsStaleOrMismatchedScan" \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay" \
   "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual" \
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry" \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \

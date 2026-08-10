@@ -1,9 +1,111 @@
 import Combine
+import Dispatch
 import Foundation
 import SwiftData
 import Testing
 
 @testable import Merian
+
+private final class GatedInferenceTransport: @unchecked Sendable {
+    private enum Outcome {
+        case failure(URLError.Code)
+        case success(Data)
+    }
+
+    private let lock = NSLock()
+    private let firstResponseRelease = DispatchSemaphore(value: 0)
+    private let outcome: Outcome
+    private var didStartFirstRequest = false
+    private var requestCount = 0
+
+    init(errorCode: URLError.Code) {
+        self.outcome = .failure(errorCode)
+    }
+
+    init(successData: Data) {
+        self.outcome = .success(successData)
+    }
+
+    func handle(
+        _ request: URLRequest
+    ) throws -> (HTTPURLResponse, Data) {
+        let attempt: Int
+        lock.lock()
+        requestCount += 1
+        attempt = requestCount
+        if attempt == 1 {
+            didStartFirstRequest = true
+        }
+        lock.unlock()
+
+        if attempt == 1 {
+            _ = firstResponseRelease.wait(timeout: .now() + 5)
+        }
+        switch outcome {
+        case .failure(let errorCode):
+            throw URLError(errorCode)
+        case .success(let data):
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                      url: url,
+                      statusCode: 200,
+                      httpVersion: nil,
+                      headerFields: nil
+                  ) else {
+                throw URLError(.badServerResponse)
+            }
+            return (response, data)
+        }
+    }
+
+    func waitUntilFirstRequestStarts() async throws -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
+            if hasStartedFirstRequest { return true }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+
+    func releaseFirstResponse() {
+        firstResponseRelease.signal()
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+
+    private var hasStartedFirstRequest: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return didStartFirstRequest
+    }
+}
+
+private final class ImmediateInferenceTransportFailure: @unchecked Sendable {
+    private let lock = NSLock()
+    private let errorCode: URLError.Code
+    private var requestCount = 0
+
+    init(errorCode: URLError.Code) {
+        self.errorCode = errorCode
+    }
+
+    func handle(_: URLRequest) throws -> (HTTPURLResponse, Data) {
+        lock.lock()
+        requestCount += 1
+        lock.unlock()
+        throw URLError(errorCode)
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return requestCount
+    }
+}
 
 @MainActor
 @Suite("Inference Engine Tests", .serialized)
@@ -1336,6 +1438,21 @@ struct InferenceEngineTests {
         manager.deferredLiveUploadScanIds.remove(scanId)
     }
 
+    private func waitForForegroundInferenceRetirement(
+        scanId: String,
+        manager: OfflineQueueManager
+    ) async throws -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
+            if manager.foregroundInferenceGenerations[scanId] == nil,
+               manager.startedForegroundInferenceGenerations[scanId] == nil {
+                return true
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        return false
+    }
+
     @Test func queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual() async throws {
         enum SubmissionKind {
             case visual
@@ -1349,9 +1466,10 @@ struct InferenceEngineTests {
         let originalIsOnline = manager.isOnline
         let context = try createInMemoryContext()
         manager.modelContext = context
-        manager.isOnline = false
+        manager.isOnline = true
         circuitBreaker.recordSuccess()
         defer {
+            MockURLProtocol.mockEndpoints = [:]
             client.overridingInferenceConsentCheck = {}
             manager.modelContext = originalContext
             manager.isOnline = originalIsOnline
@@ -1359,15 +1477,25 @@ struct InferenceEngineTests {
         }
 
         let submissions: [(SubmissionKind, URLError.Code)] = [
+            (.visual, .networkConnectionLost),
+            (.nonVisual, .notConnectedToInternet),
+            // Three queue-owned failures would trip the global service circuit
+            // if this path accidentally recorded them as provider failures.
             (.visual, .timedOut),
-            (.nonVisual, .notConnectedToInternet)
+            // A URLSession-owned cancellation is not a user cancellation when
+            // the enclosing inference task remains current.
+            (.nonVisual, .cancelled)
         ]
         for (kind, connectivityErrorCode) in submissions {
             let scanId = UUID().uuidString.lowercased()
             let generation = UUID()
-            client.overridingInferenceConsentCheck = {
-                throw URLError(connectivityErrorCode)
+            let transportFailure = GatedInferenceTransport(
+                errorCode: connectivityErrorCode
+            )
+            MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+                try transportFailure.handle(request)
             }
+            manager.isOnline = true
             try prepareQueueBackedInferenceAttempt(
                 scanId: scanId,
                 generation: generation,
@@ -1399,14 +1527,80 @@ struct InferenceEngineTests {
                     modelContext: context
                 )
             }
+            let didDispatch = try await transportFailure
+                .waitUntilFirstRequestStarts()
+            #expect(didDispatch)
+            guard didDispatch else {
+                transportFailure.releaseFirstResponse()
+                engine.cancelActiveRequest()
+                continue
+            }
+
+            // Reproduce the production ordering from the NWPathMonitor callback:
+            // the queue releases the upload hold and durably retires foreground
+            // ownership before URLSession delivers its transport error.
+            manager.isOnline = false
+            manager.releaseAllDeferredLiveUploads(
+                reason: "test_connectivity_lost"
+            )
+            manager.releaseAllForegroundInferenceClaims(
+                reason: "test_connectivity_lost"
+            )
+            let didRetire = try await waitForForegroundInferenceRetirement(
+                scanId: scanId,
+                manager: manager
+            )
+            #expect(didRetire)
+            #expect(
+                !manager.deferredLiveUploadScanIds.contains(scanId),
+                "Connectivity retirement must release the exact upload hold."
+            )
+            #expect(
+                !manager.isForegroundInferenceAttemptCurrent(
+                    scanId: scanId,
+                    generation: generation
+                ),
+                "The regression requires transport to fail after durable ownership retires."
+            )
+
+            let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+            var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+                predicate: #Predicate { $0.id == jobId }
+            )
+            jobDescriptor.fetchLimit = 1
+            let job = try #require(context.fetch(jobDescriptor).first)
+            #expect(
+                InferenceGenerationMetadataContract.generation(
+                    in: job.metadataJSON
+                ) == nil,
+                "Production retirement must clear durable generation metadata before the transport callback resumes."
+            )
+
+            let failureReleasedAt = ContinuousClock.now
+            transportFailure.releaseFirstResponse()
             if let task = engine.inferenceTask {
                 _ = try? await task.value
             }
+            let handoffDuration = failureReleasedAt.duration(
+                to: ContinuousClock.now
+            )
 
             #expect(engine.queuedPresentationScanId == scanId)
             #expect(engine.recoverablePresentationScanId == scanId)
             #expect(engine.speciesData == nil)
             #expect(!engine.isProcessing)
+            #expect(
+                transportFailure.count == 1,
+                "A queue-backed foreground request must not start an inline transport replay."
+            )
+            #expect(
+                handoffDuration < .milliseconds(1_500),
+                "The queued handoff must finish before the client's two-second replay delay."
+            )
+            #expect(
+                !circuitBreaker.isCircuitTripped,
+                "Device connectivity loss must not count as an analysis-service circuit failure."
+            )
 
             let viewModel = InsightSheetViewModel(
                 inferenceEngine: engine
@@ -1423,10 +1617,85 @@ struct InferenceEngineTests {
             let descriptor = FetchDescriptor<OfflineQueuedScan>(
                 predicate: #Predicate { $0.id == scanId }
             )
-            let queuedScanCount = try context.fetchCount(descriptor)
-            #expect(queuedScanCount == 1)
+            let queuedScan = try #require(context.fetch(descriptor).first)
+            #expect(queuedScan.queueState == .pending)
             engine.cancelActiveRequest()
         }
+    }
+
+    @Test func retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess() async throws {
+        let manager = OfflineQueueManager.shared
+        let client = MerianNetworkClient.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createInMemoryContext()
+        let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
+        let transport = GatedInferenceTransport(
+            successData: Data(#"{"success":true}"#.utf8)
+        )
+        manager.modelContext = context
+        manager.isOnline = true
+        try prepareQueueBackedInferenceAttempt(
+            scanId: scanId,
+            generation: generation,
+            modelContext: context
+        )
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            try transport.handle(request)
+        }
+        defer {
+            transport.releaseFirstResponse()
+            clearQueueBackedInferenceAttempt(scanId: scanId)
+            MockURLProtocol.mockEndpoints = [:]
+            client.overridingInferenceConsentCheck = {}
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+        }
+
+        let engine = InferenceEngine()
+        engine.analyzeNonVisual(
+            scanId: scanId,
+            foregroundInferenceGeneration: generation,
+            observationContexts: [
+                ObservationContext(freeText: "Small orange butterfly")
+            ],
+            telemetry: makeTelemetry(),
+            modelContext: context
+        )
+        let didDispatch = try await transport.waitUntilFirstRequestStarts()
+        #expect(didDispatch)
+        guard didDispatch else {
+            engine.cancelActiveRequest()
+            return
+        }
+
+        manager.isOnline = false
+        manager.releaseAllDeferredLiveUploads(
+            reason: "test_ownership_retired_before_response"
+        )
+        manager.releaseAllForegroundInferenceClaims(
+            reason: "test_ownership_retired_before_response"
+        )
+        #expect(try await waitForForegroundInferenceRetirement(
+            scanId: scanId,
+            manager: manager
+        ))
+
+        transport.releaseFirstResponse()
+        if let task = engine.inferenceTask {
+            _ = try? await task.value
+        }
+
+        #expect(transport.count == 1)
+        #expect(engine.queuedPresentationScanId == scanId)
+        #expect(engine.recoverablePresentationScanId == scanId)
+        #expect(engine.speciesData == nil)
+        #expect(!engine.isProcessing)
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        #expect(try context.fetch(descriptor).first?.queueState == .pending)
     }
 
     @Test func queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss() async throws {
@@ -1481,6 +1750,44 @@ struct InferenceEngineTests {
             engine.speciesData?.insightData.aiReasoning
                 .contains("retry it automatically") == true
         )
+    }
+
+    @Test func queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation() async {
+        let client = MerianNetworkClient.shared
+        let circuitBreaker = CircuitBreakerManager.shared
+        let transportFailure = ImmediateInferenceTransportFailure(
+            errorCode: .notConnectedToInternet
+        )
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            try transportFailure.handle(request)
+        }
+        client.overridingInferenceConsentCheck = {}
+        circuitBreaker.recordSuccess()
+        defer {
+            MockURLProtocol.mockEndpoints = [:]
+            client.overridingInferenceConsentCheck = {}
+            circuitBreaker.recordSuccess()
+        }
+
+        let engine = InferenceEngine()
+        engine.analyzeNonVisual(
+            scanId: nil,
+            observationContexts: [
+                ObservationContext(freeText: "Small orange butterfly")
+            ],
+            telemetry: makeTelemetry(),
+            modelContext: nil
+        )
+        if let task = engine.inferenceTask {
+            _ = try? await task.value
+        }
+
+        #expect(transportFailure.count == 2)
+        #expect(engine.queuedPresentationScanId == nil)
+        #expect(engine.recoverablePresentationScanId == nil)
+        #expect(engine.speciesData?.commonName == "Network timeout")
+        #expect(engine.speciesData?.scientificName == "Please try again")
+        #expect(engine.speciesData?.isInferenceErrorPlaceholder == true)
     }
 
     @Test func consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {

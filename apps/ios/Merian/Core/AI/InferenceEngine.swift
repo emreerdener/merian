@@ -1291,7 +1291,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 try Task.checkCancellation()
 
                 // --- Step 2: Edge Inference Generation (Gemini 1.5 Flash) ---
-                
+
                 MerianLog.general.debug("[⏱ BENCH] Pre-flight (encode+auth): \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - pipelineStart), privacy: .public)s")
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
@@ -1348,6 +1348,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId,
                     preferredGoal: preferredGoal,
+                    // A durable queue already owns every later transport retry.
+                    // Return its first uplink failure so this sheet can hand off
+                    // immediately instead of waiting through another 90-second
+                    // request deadline.
+                    allowsInlineTransportRetry:
+                        ownedForegroundInferenceGeneration == nil,
                     onRequestBodySent: {
                         Task { @MainActor in
                             OfflineQueueManager.shared.releaseDeferredLiveUpload(
@@ -1501,33 +1507,83 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         foregroundInferenceGeneration:
                             ownedForegroundInferenceGeneration
                     )
-                if stillOwnsAttempt {
-                    OfflineQueueManager.shared.releaseDeferredLiveUpload(
-                        scanId: resolvedClientScanId,
+
+                // Cancellation: the task was cancelled (e.g., user started a new scan via
+                // prepareForNewScan). The scan is already durably in the offline queue, so
+                // the background upload path will complete it — no credit refund needed.
+                if Task.isCancelled {
+                    if stillOwnsAttempt {
+                        self.releaseQueueBackedLiveInferenceForRecovery(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            reason: "live_request_cancelled"
+                        )
+                    }
+                    return
+                }
+
+                // Ownership checks also throw CancellationError when the queue
+                // retires this provider generation without cancelling the Swift
+                // task. Preserve the exact still-current sheet in that case.
+                if error is CancellationError {
+                    if publishQueuedRetiredOwnershipHandoffIfNeeded(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
                         foregroundInferenceGeneration:
-                            ownedForegroundInferenceGeneration,
-                        reason: "live_request_failed_or_cancelled"
-                    )
-                    self.retireForegroundInferenceIfCurrent(
+                            ownedForegroundInferenceGeneration
+                    ) {
+                        return
+                    }
+                    if stillOwnsAttempt {
+                        self.releaseQueueBackedLiveInferenceForRecovery(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            reason: "live_request_cancelled"
+                        )
+                    }
+                    return
+                }
+
+                if (error as? URLError)?.code == .cancelled {
+                    _ = publishQueuedRecoveryHandoffIfNeeded(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
                         foregroundInferenceGeneration:
                             ownedForegroundInferenceGeneration,
-                        resumeBackground: true,
-                        reason: "live_request_failed_or_cancelled"
+                        telemetryEvent:
+                            "InferenceQueuedForTransportCancellation",
+                        reason: "live_transport_cancelled"
                     )
-                }
-                
-                // Cancellation: the task was cancelled (e.g., user started a new scan via
-                // prepareForNewScan). The scan is already durably in the offline queue, so
-                // the background upload path will complete it — no credit refund needed.
-                if error is CancellationError || (error as? URLError)?.code == .cancelled {
                     return
                 }
-                guard !Task.isCancelled,
-                      stillOwnsAttempt else {
+
+                // Connectivity monitoring may have retired the durable foreground
+                // generation before URLSession reports the matching failure. The
+                // still-current local presentation remains authorized to acknowledge
+                // that exact queue handoff, but it cannot publish provider results or
+                // generic error state.
+                if publishQueuedConnectivityFailureIfNeeded(
+                    error,
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                ) {
                     return
                 }
+
+                guard stillOwnsAttempt else { return }
+                self.releaseQueueBackedLiveInferenceForRecovery(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration,
+                    reason: "live_request_failed"
+                )
                 if ownedScanId != nil {
                     self.recoverablePresentationScanId = resolvedClientScanId
                 }
@@ -1558,15 +1614,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     error,
                     scanId: resolvedClientScanId,
                     telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if publishQueuedConnectivityFailureIfNeeded(
-                    error,
-                    scanId: ownedScanId,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
                 ) {
                     return
                 }
@@ -1768,7 +1815,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     audioFilePaths: filteredAudioFilePaths,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
-                    clientScanId: scanId
+                    clientScanId: scanId,
+                    allowsInlineTransportRetry:
+                        ownedForegroundInferenceGeneration == nil
                 )
                 try self.checkLiveInferenceAttempt(
                     scanId: ownedScanId,
@@ -1899,24 +1948,73 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         foregroundInferenceGeneration:
                             ownedForegroundInferenceGeneration
                     )
-                if stillOwnsAttempt {
-                    self.retireForegroundInferenceIfCurrent(
+                if Task.isCancelled {
+                    if stillOwnsAttempt {
+                        self.releaseQueueBackedLiveInferenceForRecovery(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            reason: "live_nonvisual_cancelled"
+                        )
+                    }
+                    return
+                }
+
+                // Apply the same task-cancellation versus ownership-retirement
+                // distinction used by the visual pipeline.
+                if error is CancellationError {
+                    if publishQueuedRetiredOwnershipHandoffIfNeeded(
+                        scanId: ownedScanId,
+                        attemptGeneration: attemptGeneration,
+                        foregroundInferenceGeneration:
+                            ownedForegroundInferenceGeneration
+                    ) {
+                        return
+                    }
+                    if stillOwnsAttempt {
+                        self.releaseQueueBackedLiveInferenceForRecovery(
+                            scanId: ownedScanId,
+                            attemptGeneration: attemptGeneration,
+                            foregroundInferenceGeneration:
+                                ownedForegroundInferenceGeneration,
+                            reason: "live_nonvisual_cancelled"
+                        )
+                    }
+                    return
+                }
+
+                if (error as? URLError)?.code == .cancelled {
+                    _ = publishQueuedRecoveryHandoffIfNeeded(
                         scanId: ownedScanId,
                         attemptGeneration: attemptGeneration,
                         foregroundInferenceGeneration:
                             ownedForegroundInferenceGeneration,
-                        resumeBackground: true,
-                        reason: "live_nonvisual_failed"
+                        telemetryEvent:
+                            "InferenceQueuedForTransportCancellation",
+                        reason: "live_nonvisual_transport_cancelled"
                     )
-                }
-                if error is CancellationError ||
-                    (error as? URLError)?.code == .cancelled {
                     return
                 }
-                guard !Task.isCancelled,
-                      stillOwnsAttempt else {
+
+                if publishQueuedConnectivityFailureIfNeeded(
+                    error,
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration
+                ) {
                     return
                 }
+
+                guard stillOwnsAttempt else { return }
+                self.releaseQueueBackedLiveInferenceForRecovery(
+                    scanId: ownedScanId,
+                    attemptGeneration: attemptGeneration,
+                    foregroundInferenceGeneration:
+                        ownedForegroundInferenceGeneration,
+                    reason: "live_nonvisual_failed"
+                )
                 if ownedScanId != nil {
                     self.recoverablePresentationScanId = resolvedClientScanId
                 }
@@ -1944,15 +2042,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     error,
                     scanId: resolvedClientScanId,
                     telemetry: telemetry
-                ) {
-                    return
-                }
-
-                if publishQueuedConnectivityFailureIfNeeded(
-                    error,
-                    scanId: ownedScanId,
-                    foregroundInferenceGeneration:
-                        ownedForegroundInferenceGeneration
                 ) {
                     return
                 }
@@ -2064,24 +2153,95 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     private func publishQueuedConnectivityFailureIfNeeded(
         _ error: Error,
         scanId: String?,
+        attemptGeneration: UUID,
         foregroundInferenceGeneration: UUID?
     ) -> Bool {
-        guard Self.isConnectivityFailure(error),
-              let scanId,
-              foregroundInferenceGeneration != nil else {
+        guard Self.isConnectivityFailure(error) else {
             return false
         }
 
         // Physical captures are already durable before this request starts.
         // Connectivity loss therefore changes presentation and ownership, not
         // scan success: background recovery continues from the same scan ID.
-        AppTelemetry.trackError("InferenceQueuedForConnectivity")
-        CircuitBreakerManager.shared.recordFailure()
+        return publishQueuedRecoveryHandoffIfNeeded(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            telemetryEvent: "InferenceQueuedForConnectivity",
+            reason: "live_connectivity_handoff"
+        )
+    }
+
+    private func publishQueuedRetiredOwnershipHandoffIfNeeded(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?
+    ) -> Bool {
+        guard let scanId, let foregroundInferenceGeneration,
+              !OfflineQueueManager.shared.isForegroundInferenceAttemptCurrent(
+                  scanId: scanId,
+                  generation: foregroundInferenceGeneration
+              ) else {
+            return false
+        }
+        return publishQueuedRecoveryHandoffIfNeeded(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            telemetryEvent: "InferenceQueuedAfterOwnershipRetirement",
+            reason: "live_ownership_retired"
+        )
+    }
+
+    private func publishQueuedRecoveryHandoffIfNeeded(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
+        telemetryEvent: String,
+        reason: String
+    ) -> Bool {
+        guard let scanId,
+              foregroundInferenceGeneration != nil,
+              isLocalLiveInferenceAttemptCurrent(
+                  scanId: scanId,
+                  attemptGeneration: attemptGeneration
+              ) else {
+            return false
+        }
+
+        releaseQueueBackedLiveInferenceForRecovery(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            reason: reason
+        )
+        AppTelemetry.trackError(telemetryEvent)
         MerianLog.general.debug(
-            "Live inference lost connectivity; presenting durable queue state."
+            "Live inference handed presentation to durable queue state."
         )
         transitionToQueuedPresentation(scanId: scanId)
         return true
+    }
+
+    private func releaseQueueBackedLiveInferenceForRecovery(
+        scanId: String?,
+        attemptGeneration: UUID,
+        foregroundInferenceGeneration: UUID?,
+        reason: String
+    ) {
+        guard let scanId, let foregroundInferenceGeneration else { return }
+        OfflineQueueManager.shared.releaseDeferredLiveUpload(
+            scanId: scanId,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            reason: reason
+        )
+        retireForegroundInferenceIfCurrent(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            resumeBackground: true,
+            reason: reason
+        )
     }
 
     private static func isTerminalObservationRejection(_ error: Error) -> Bool {

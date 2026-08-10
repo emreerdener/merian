@@ -131,7 +131,7 @@ Before contributing, please review our core architectural tenets. Refactoring co
   Relevant iOS, watch, Xcode project, configuration, and build-tooling changes
   then enter `.github/workflows/ios-build-and-test.yml`. Its macOS jobs compile
   both shared test bundles, execute the complete `merianTests` target, run the
-  deterministic queued-scan completion UI smoke, and create an unsigned Release
+  deterministic live-to-queue and queued-completion UI smokes, and create an unsigned Release
   archive from the exact workflow SHA using only `Package.resolved` versions.
   Repository rules must require
   `iOS Build and Test / Production readiness`; do not require the conditional

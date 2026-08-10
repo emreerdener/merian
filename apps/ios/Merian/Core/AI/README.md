@@ -175,15 +175,21 @@ background completion, or replaced presentation must still fence every delayed
 mutation. Durable retirement alone is not permission to leave the current sheet
 with no result and no queued context.
 
-**Current source status (2026-08-09): release-blocking gap.** The catch paths
-currently require the full durable generation to remain current before they can
-publish queued presentation. Connectivity-driven retirement can make that check
-false first. `identifyMultiModal` also inherits the generic one-time transient
-transport replay, so a queue-backed request can wait through two 90-second
-deadlines. **Analysis delayed** is now recognized by
-`SpeciesData.isInferenceErrorPlaceholder`, but that isolated repair does not
-close the handoff. Do not describe it as complete until the transport-level
-ownership tests and closure gates in the
+**Current source status (2026-08-09): remediated; release acceptance pending.**
+The catch paths now use full durable ownership for provider results and generic
+failures, but retain the exact local presentation UUID solely for the queued
+connectivity acknowledgement. They release queue-backed recovery state
+idempotently and never record device connectivity loss against the provider
+circuit. Queue-backed `identifyMultiModal` returns its first transient transport
+failure; queue-less callers retain the reviewed replay. The protected
+URLSession-level regression retires durable ownership before releasing visual
+and nonvisual transport errors and proves exact queued routing, one request,
+bounded handoff, and durable-row survival. A companion case proves a successful
+transport response that loses durable ownership before the post-request check
+also hands the exact local presentation to the queue; a transport-owned
+cancellation does the same. **Analysis delayed** remains an error placeholder.
+Do not describe this as shipped until the remaining exact-SHA and
+physical-device closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 pass.
 

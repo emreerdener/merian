@@ -1,5 +1,12 @@
 # Production Ghost User Cleanup - 2026-07-09
 
+> **Historical record—do not reuse this procedure.** The 2026-07-09 batches
+> used direct Auth deletion and predate durable storage verification,
+> RevenueCat live evidence, automatic Field Trip enrollment, and the current
+> exhaustive reference guard. Current operations must follow
+> `services/supabase/README.md#ghost-user-audit` and the RevenueCat identity
+> incident runbook. The counts below document the old event only.
+
 ## Summary
 
 On 2026-07-09, production Supabase anonymous ghost users were audited and old
@@ -20,10 +27,11 @@ required every deleted user to be:
 - without custom public identity
 
 This historical run predates the secure account-upgrade handoff table. Current
-cleanup has two additional mandatory protections: the audit treats prepared
-handoffs and merged receipts awaiting Auth cleanup as activity, and execute mode
-acquires a live tokenized reservation under the same advisory lock as handoff
-issuance. Never reuse the 2026-07-09 script revision against the current schema.
+cleanup also requires a protected beta/team cohort, exact plan digest/count,
+complete fresh audit coverage, live GET-only RevenueCat proof, a tokenized
+reservation under the merge advisory lock, final database reference
+revalidation, and storage-first/Auth-last durable deletion. Never reuse the
+2026-07-09 script revision against the current schema.
 
 ## Production Counts
 
@@ -78,7 +86,7 @@ These files may contain production user IDs and should not be committed.
 - Leave the 11 recent empty ghosts alone until they age past the threshold and a
   fresh audit confirms they remain empty.
 - Re-run the audit before any future cleanup batch.
-- Use only the current guarded cleanup implementation. Confirm
-  `list_protected_ghost_profile_merge_sources`,
-  `reserve_ghost_user_bulk_cleanup`, and `finish_ghost_user_bulk_cleanup` are
-  service-role-only before execute mode.
+- Use only the current guarded cleanup implementation. Confirm the protected
+  source, reservation, inspection, and guarded deletion-intake RPCs are
+  service-role-only before execute mode, and wait for durable deletion
+  completion before a fresh RevenueCat orphan-shell pass.

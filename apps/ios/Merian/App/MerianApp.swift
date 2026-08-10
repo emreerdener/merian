@@ -91,14 +91,17 @@ enum UITestSeedCoordinator {
     private static let requiredConsentArgument = "-seedCurrentRequiredConsent"
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
+    private static let liveQueueHandoffArgument = "-seedLiveQueueHandoffFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
+    private static let liveQueueHandoffScanId = "ui_test_live_queue_handoff"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
     private static let queuedAudioHandoffImageFilename = "ui_test_queued_audio_handoff.webp"
     private static let missingVideoFallbackScanId = "ui_test_missing_video_fallback"
     private static let missingVideoFilename = "ui_test_missing_video.mp4"
     private static let missingVideoFallbackImageFilename = "ui_test_video_fallback.png"
     @MainActor private static var triggeredQueuedAudioHandoffs: Set<String> = []
+    @MainActor private static var triggeredLiveQueueHandoffs: Set<String> = []
 
     static var isEnabled: Bool {
         return TestExecutionCoordinator.isRunningUITests
@@ -124,6 +127,7 @@ enum UITestSeedCoordinator {
         guard arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
+                arguments.contains(liveQueueHandoffArgument) ||
                 arguments.contains(missingVideoFallbackArgument) else { return }
 
         let context = container.mainContext
@@ -151,6 +155,11 @@ enum UITestSeedCoordinator {
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredQueuedAudioHandoffs.removeAll(keepingCapacity: false)
                 MerianLog.general.debug("UITestSeedCoordinator seeded queued audio handoff flow.")
+            } else if arguments.contains(liveQueueHandoffArgument) {
+                context.insert(liveQueueHandoffScan())
+                OfflineQueueManager.shared.unsyncedItemsCount = 1
+                triggeredLiveQueueHandoffs.removeAll(keepingCapacity: false)
+                MerianLog.general.debug("UITestSeedCoordinator seeded live queue handoff flow.")
             } else if arguments.contains(missingVideoFallbackArgument) {
                 try prepareMissingVideoFallbackImage()
                 context.insert(missingVideoFallbackRecord())
@@ -161,6 +170,14 @@ enum UITestSeedCoordinator {
             try context.save()
 
             AppSettings.shared.hasUnseenScan = false
+
+            if arguments.contains(liveQueueHandoffArgument) {
+                AppDIContainer.shared.inferenceEngine.simulateAnalyzing()
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .debugPreviewAnalyzing,
+                    source: .debug
+                )
+            }
         } catch {
             MerianLog.general.error("UITestSeedCoordinator failed to seed data: \(error.localizedDescription, privacy: .private)")
         }
@@ -206,6 +223,48 @@ enum UITestSeedCoordinator {
             MerianLog.general.error("UITestSeedCoordinator failed completing queued audio handoff flow: \(error.localizedDescription, privacy: .private)")
             return false
         }
+    }
+
+    static var isLiveQueueHandoffTriggerEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains(
+            liveQueueHandoffArgument
+        )
+    }
+
+    /// Deterministically exercises the production live-sheet queue binding only
+    /// after UI automation has observed and tapped the analyzing badge. The row
+    /// must already be durable in the exact environment context before the
+    /// engine is allowed to publish its presentation ID.
+    @discardableResult
+    @MainActor
+    static func performLiveQueueHandoffIfNeeded(
+        inferenceEngine: InferenceEngine,
+        modelContext: ModelContext
+    ) -> Bool {
+        guard isLiveQueueHandoffTriggerEnabled,
+              !triggeredLiveQueueHandoffs.contains(liveQueueHandoffScanId) else {
+            return false
+        }
+
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == liveQueueHandoffScanId }
+        )
+        descriptor.fetchLimit = 1
+        guard (try? modelContext.fetch(descriptor).first) != nil else {
+            MerianLog.general.error(
+                "UITestSeedCoordinator could not find the durable live-handoff row."
+            )
+            return false
+        }
+
+        triggeredLiveQueueHandoffs.insert(liveQueueHandoffScanId)
+        inferenceEngine.transitionToQueuedPresentation(
+            scanId: liveQueueHandoffScanId
+        )
+        MerianLog.general.info(
+            "UITestSeedCoordinator published the live queue handoff presentation."
+        )
+        return true
     }
 
     private static func achievementDetailFlowRecords() -> [LocalScanRecord] {
@@ -362,6 +421,28 @@ enum UITestSeedCoordinator {
             weatherCondition: "overcast",
             weatherTemperatureF: 68,
             locationName: "UITest Queue",
+            scanState: .pending
+        )
+    }
+
+    private static func liveQueueHandoffScan() -> OfflineQueuedScan {
+        let mediaItems: [SerializedMediaItem] = [
+            .description(
+                ObservationContext(
+                    freeText: "Small flowering plant beside a walkway"
+                )
+            )
+        ]
+        let capturedMediaJSON = try? JSONEncoder().encode(mediaItems)
+        return OfflineQueuedScan(
+            id: liveQueueHandoffScanId,
+            timestamp: Date(timeIntervalSince1970: 1_778_586_600),
+            capturedMediaJSON: capturedMediaJSON.flatMap {
+                String(data: $0, encoding: .utf8)
+            },
+            weatherCondition: "partly cloudy",
+            weatherTemperatureF: 72,
+            locationName: "UITest Garden",
             scanState: .pending
         )
     }

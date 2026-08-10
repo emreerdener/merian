@@ -19,9 +19,9 @@ import {
 } from "./revenuecat_csv.ts";
 import {
   buildRevenueCatShellCleanupPlan,
-  hasCustomerInfoHistory,
   parseRevenueCatShellCleanupArgs,
   revalidateAndDeleteRevenueCatShell,
+  revalidateRevenueCatShell,
   revenueCatShellCandidateSHA256,
   type RevenueCatShellCleanupCandidate,
 } from "./cleanup_revenuecat_customer_shells.ts";
@@ -99,6 +99,7 @@ Deno.test("RevenueCat customer audit is aggregate-safe and conservative", () => 
   assertEquals(report.summary.classification_counts.revenuecat_anonymous, 1);
   assertEquals(report.summary.classification_counts.linked_alias, 1);
   assertEquals(report.summary.purchase_evidence_count, 1);
+  assertEquals(report.summary.customer_attribute_evidence_count, 1);
   assertEquals(report.summary.custom_attribute_link_count, 1);
   assertEquals(report.summary.supabase_users_with_canonical_customer_count, 1);
   assertEquals(
@@ -188,6 +189,7 @@ Deno.test("RevenueCat shell cleanup plan protects canonical users, cohort, histo
     `recent-shell;${recent};;`,
     `purchased-shell;${old};pro_annual;`,
     `linked-shell;${old};;"{""supabase_user_id"":{""value"":""${canonicalOne}""}}"`,
+    `attributed-shell;${old};;"{""$email"":{""value"":""protected@example.com""}}"`,
     `${USER_THREE.toUpperCase()};${old};;`,
   ].join("\n");
   const authAuditSource = [
@@ -285,10 +287,11 @@ Deno.test("RevenueCat live cleanup revalidates an empty shell before queued dele
         next_page: null,
       }));
     }
-    if (url.includes("/v1/subscribers/")) {
-      return Promise.resolve(
-        jsonResponse(emptyCustomerInfo(candidate.app_user_id)),
-      );
+    if (
+      url.includes("/subscriptions") || url.includes("/purchases") ||
+      url.includes("/events")
+    ) {
+      return Promise.resolve(jsonResponse(emptyV2List()));
     }
     return Promise.resolve(jsonResponse({
       object: "customer",
@@ -315,11 +318,62 @@ Deno.test("RevenueCat live cleanup revalidates an empty shell before queued dele
     "GET",
     "GET",
     "GET",
+    "GET",
+    "GET",
     "DELETE",
   ]);
 });
 
-Deno.test("RevenueCat live cleanup preserves any customer history and never deletes", async () => {
+Deno.test("RevenueCat empty-shell verification is read-only", async () => {
+  const candidate = cleanupCandidate("stale-shell");
+  const methods: string[] = [];
+  const urls: string[] = [];
+  const fakeFetch: typeof fetch = (input, init) => {
+    const url = String(input);
+    urls.push(url);
+    methods.push(init?.method ?? "GET");
+    if (url.includes("/aliases")) {
+      return Promise.resolve(jsonResponse({
+        items: [{ object: "customer.alias", id: candidate.app_user_id }],
+        next_page: null,
+      }));
+    }
+    if (
+      url.includes("/subscriptions") || url.includes("/purchases") ||
+      url.includes("/events")
+    ) {
+      return Promise.resolve(jsonResponse(emptyV2List()));
+    }
+    return Promise.resolve(jsonResponse({
+      object: "customer",
+      id: candidate.app_user_id,
+      project_id: "projtest1234",
+      last_seen_at: Date.parse(candidate.last_seen_at),
+      active_entitlements: { items: [], next_page: null },
+      attributes: { items: [], next_page: null },
+    }));
+  };
+
+  const result = await revalidateRevenueCatShell({
+    candidate,
+    protectedCohort: new Set(),
+    inactiveBeforeMs: Date.parse("2026-08-02T00:00:00Z"),
+    projectID: "projtest1234",
+    apiKey: "sk_fixture",
+    fetcher: fakeFetch,
+    sleep: () => Promise.resolve(),
+  });
+
+  assertEquals(result.status, "verified_empty");
+  assertEquals(methods, ["GET", "GET", "GET", "GET", "GET"]);
+  assert(urls.every((url) => url.startsWith("https://api.revenuecat.com/v2/")));
+  assertEquals(
+    urls.map((url) => new URL(url).pathname.split("/").at(-1)),
+    [candidate.app_user_id, "aliases", "subscriptions", "purchases", "events"],
+  );
+});
+
+Deno.test("RevenueCat live cleanup preserves promotional history and never deletes", async () => {
   const candidate = cleanupCandidate("stale-shell");
   const methods: string[] = [];
   const fakeFetch: typeof fetch = (input, init) => {
@@ -331,12 +385,15 @@ Deno.test("RevenueCat live cleanup preserves any customer history and never dele
         next_page: null,
       }));
     }
-    if (url.includes("/v1/subscribers/")) {
-      const customerInfo = emptyCustomerInfo(candidate.app_user_id);
-      customerInfo.subscriber.subscriptions = {
-        pro_annual: { expires_date: null },
-      };
-      return Promise.resolve(jsonResponse(customerInfo));
+    if (url.includes("/subscriptions")) {
+      return Promise.resolve(jsonResponse({
+        object: "list",
+        items: [{ object: "subscription", store: "promotional" }],
+        next_page: null,
+      }));
+    }
+    if (url.includes("/purchases") || url.includes("/events")) {
+      return Promise.resolve(jsonResponse(emptyV2List()));
     }
     return Promise.resolve(jsonResponse({
       object: "customer",
@@ -360,33 +417,7 @@ Deno.test("RevenueCat live cleanup preserves any customer history and never dele
 
   assertEquals(result.status, "protected_live_evidence");
   assertEquals(methods.includes("DELETE"), false);
-  assert(
-    hasCustomerInfoHistory(
-      { subscriber: customerInfoSubscriber(candidate.app_user_id, true) },
-      candidate.app_user_id,
-    ),
-  );
-});
-
-Deno.test("RevenueCat cleanup treats free-app install metadata as an empty purchase shell", () => {
-  assertEquals(
-    hasCustomerInfoHistory(
-      {
-        subscriber: {
-          entitlements: {},
-          subscriptions: {},
-          non_subscriptions: {},
-          other_purchases: {},
-          original_app_user_id: "stale-shell",
-          original_application_version: "1.0",
-          original_purchase_date: "2026-01-01T00:00:00Z",
-          management_url: null,
-        },
-      },
-      "stale-shell",
-    ),
-    false,
-  );
+  assertEquals(methods, ["GET", "GET", "GET"]);
 });
 
 Deno.test("RevenueCat live cleanup protects a shell seen after its reviewed export", async () => {
@@ -416,12 +447,12 @@ Deno.test("RevenueCat live cleanup protects a shell seen after its reviewed expo
   assertEquals(requestCount, 1);
 });
 
-Deno.test("RevenueCat live cleanup protects newly linked Supabase attributes", async () => {
+Deno.test("RevenueCat live cleanup protects every customer attribute", async () => {
   const candidate = cleanupCandidate("stale-shell");
   let requestCount = 0;
   const result = await revalidateAndDeleteRevenueCatShell({
     candidate,
-    protectedCohort: new Set([USER_ONE.toUpperCase()]),
+    protectedCohort: new Set(),
     inactiveBeforeMs: Date.parse("2026-08-02T00:00:00Z"),
     projectID: "projtest1234",
     apiKey: "sk_fixture",
@@ -436,8 +467,8 @@ Deno.test("RevenueCat live cleanup protects newly linked Supabase attributes", a
         attributes: {
           items: [{
             object: "customer.attribute",
-            name: "supabase_user_id",
-            value: USER_ONE,
+            name: "$email",
+            value: "protected@example.com",
           }],
           next_page: null,
         },
@@ -822,21 +853,10 @@ function jsonResponse(value: unknown): Response {
   });
 }
 
-function customerInfoSubscriber(appUserID: string, withSubscription = false) {
+function emptyV2List() {
   return {
-    entitlements: {},
-    subscriptions: withSubscription ? { pro_annual: {} } : {},
-    non_subscriptions: {},
-    other_purchases: {},
-    original_app_user_id: appUserID,
-    original_application_version: null,
-    original_purchase_date: null,
-    management_url: null,
-  };
-}
-
-function emptyCustomerInfo(appUserID: string) {
-  return {
-    subscriber: customerInfoSubscriber(appUserID),
+    object: "list",
+    items: [],
+    next_page: null,
   };
 }

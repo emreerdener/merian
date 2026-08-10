@@ -1,7 +1,8 @@
 /**
  * Deletes only RevenueCat customer shells that a fresh offline export and live
- * provider revalidation both prove have no purchase, entitlement, receipt, or
- * alias history. Supabase users and app data are never mutated.
+ * provider revalidation both prove have no customer attributes, purchases,
+ * entitlements, receipts, events, or alias history. Supabase users and app data
+ * are never mutated.
  *
  * Dry-run is the default and performs no network requests. Apply requires the
  * exact plan digest and count printed by dry-run plus an identity-bearing
@@ -20,7 +21,6 @@ import {
   serializeDelimitedRows,
 } from "./revenuecat_csv.ts";
 
-const REVENUECAT_V1_BASE_URL = "https://api.revenuecat.com/v1";
 const REVENUECAT_V2_BASE_URL = "https://api.revenuecat.com/v2";
 const MAX_RESPONSE_BYTES = 512 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -86,6 +86,7 @@ export interface RevenueCatShellCleanupSummary {
 
 export type RevenueCatShellCleanupResultStatus =
   | "planned"
+  | "verified_empty"
   | "deleted"
   | "queued"
   | "already_absent"
@@ -96,6 +97,17 @@ export interface RevenueCatShellCleanupResult {
   app_user_id: string;
   status: RevenueCatShellCleanupResultStatus;
   error_code: string;
+}
+
+export interface RevenueCatShellVerificationInput {
+  candidate: RevenueCatShellCleanupCandidate;
+  protectedCohort: Set<string>;
+  activeAuthUserIDs?: Set<string>;
+  inactiveBeforeMs: number;
+  projectID: string;
+  apiKey: string;
+  fetcher: typeof fetch;
+  sleep: (milliseconds: number) => Promise<void>;
 }
 
 interface RevenueCatListResponse {
@@ -110,19 +122,6 @@ interface RevenueCatV2Customer {
   last_seen_at?: number;
   active_entitlements?: RevenueCatListResponse;
   attributes?: RevenueCatListResponse;
-}
-
-interface RevenueCatV1CustomerInfo {
-  subscriber?: {
-    entitlements?: Record<string, unknown>;
-    subscriptions?: Record<string, unknown>;
-    non_subscriptions?: Record<string, unknown>;
-    other_purchases?: Record<string, unknown>;
-    original_app_user_id?: string | null;
-    original_application_version?: string | null;
-    original_purchase_date?: string | null;
-    management_url?: string | null;
-  };
 }
 
 interface CleanupPlan {
@@ -224,15 +223,17 @@ export async function runRevenueCatShellCleanup(
   if (args.apply) {
     validateApplyAuthorization(args, candidateSHA, plan.candidates.length);
     const apiKey = dependencies.apiKey ??
-      Deno.env.get("REVENUECAT_SECRET_API_KEY") ?? null;
+      Deno.env.get("REVENUECAT_CLEANUP_V2_API_KEY") ?? null;
     const projectID = args.projectID ??
       Deno.env.get("REVENUECAT_PROJECT_ID") ?? null;
     if (!apiKey?.trim()) {
-      throw new Error("REVENUECAT_SECRET_API_KEY is required for apply mode.");
+      throw new Error(
+        "REVENUECAT_CLEANUP_V2_API_KEY is required for apply mode.",
+      );
     }
     if (!apiKey.trim().startsWith("sk_")) {
       throw new Error(
-        "REVENUECAT_SECRET_API_KEY must be a server-side secret key.",
+        "REVENUECAT_CLEANUP_V2_API_KEY must be a V2 server-side secret key.",
       );
     }
     if (!projectID || !/^proj[a-zA-Z0-9_-]{4,251}$/.test(projectID)) {
@@ -461,6 +462,7 @@ function candidateFromAuditRow(input: {
 }): RevenueCatShellCleanupCandidate | null {
   const { row } = input;
   if (row.has_purchase_evidence) return null;
+  if (row.has_customer_attributes) return null;
   if (row.last_seen_at === null || row.inactive_days === null) return null;
   if (row.inactive_days < input.inactiveDays) return null;
   if (
@@ -578,6 +580,52 @@ export async function revalidateAndDeleteRevenueCatShell(input: {
   fetcher: typeof fetch;
   sleep: (milliseconds: number) => Promise<void>;
 }): Promise<RevenueCatShellCleanupResult> {
+  const verification = await revalidateRevenueCatShell(input);
+  if (verification.status !== "verified_empty") return verification;
+
+  const customerID = input.candidate.app_user_id;
+  try {
+    const encodedProjectID = encodeURIComponent(input.projectID);
+    const encodedCustomerID = encodeURIComponent(customerID);
+    const headers = {
+      Authorization: `Bearer ${input.apiKey}`,
+      "Content-Type": "application/json",
+    };
+    const deleteResponse = await requestRevenueCat({
+      url:
+        `${REVENUECAT_V2_BASE_URL}/projects/${encodedProjectID}/customers/${encodedCustomerID}`,
+      method: "DELETE",
+      headers,
+      fetcher: input.fetcher,
+      sleep: input.sleep,
+    });
+    if (deleteResponse.status === 200) {
+      return result(customerID, "deleted", "");
+    }
+    if (deleteResponse.status === 202) {
+      return result(customerID, "queued", "");
+    }
+    if (deleteResponse.status === 404) {
+      return result(customerID, "already_absent", "");
+    }
+    return result(
+      customerID,
+      "failed",
+      `delete_http_${deleteResponse.status}`,
+    );
+  } catch (error) {
+    return result(customerID, "failed", stableErrorCode(error));
+  }
+}
+
+/**
+ * Performs the complete live empty-shell proof without issuing DELETE. This is
+ * also used by guarded Supabase cleanup so provider history is preserved until
+ * the durable Supabase deletion has safely detached the account.
+ */
+export async function revalidateRevenueCatShell(
+  input: RevenueCatShellVerificationInput,
+): Promise<RevenueCatShellCleanupResult> {
   const customerID = input.candidate.app_user_id;
   try {
     if (
@@ -626,15 +674,16 @@ export async function revalidateAndDeleteRevenueCatShell(input: {
         input.candidate,
         input.inactiveBeforeMs,
       ) ||
-      !isEmptyCompleteList(customer.active_entitlements) ||
-      !attributesAreSafeForCandidate(
-        customer.attributes,
-        input.candidate,
-        input.protectedCohort,
-        input.activeAuthUserIDs ?? new Set(),
-      )
+      !isEmptyCompleteList(customer.active_entitlements)
     ) {
       return result(customerID, "protected_live_evidence", "customer_state");
+    }
+    if (!isEmptyCompleteList(customer.attributes)) {
+      return result(
+        customerID,
+        "protected_live_evidence",
+        "customer_attributes",
+      );
     }
 
     const aliasesResponse = await requestRevenueCat({
@@ -657,23 +706,42 @@ export async function revalidateAndDeleteRevenueCatShell(input: {
       return result(customerID, "protected_live_evidence", "aliases");
     }
 
-    const infoResponse = await requestRevenueCat({
-      url: `${REVENUECAT_V1_BASE_URL}/subscribers/${encodedCustomerID}`,
-      method: "GET",
-      headers,
-      fetcher: input.fetcher,
-      sleep: input.sleep,
-    });
-    if (infoResponse.status !== 200) {
-      return result(
-        customerID,
-        "failed",
-        `customer_info_http_${infoResponse.status}`,
-      );
+    // Use V2-only list endpoints. RevenueCat documents the V1 subscriber GET
+    // as "Get or Create Customer"; a cleanup proof must never create the shell
+    // it is inspecting. Promotional grants appear as V2 subscriptions,
+    // including after expiry/revocation, so any history item preserves the
+    // customer.
+    const historyEndpoints = [
+      ["subscriptions", "subscriptions"],
+      ["purchases", "purchases"],
+      ["events", "events"],
+    ] as const;
+    for (const [historyType, path] of historyEndpoints) {
+      const historyResponse = await requestRevenueCat({
+        url:
+          `${REVENUECAT_V2_BASE_URL}/projects/${encodedProjectID}/customers/${encodedCustomerID}/${path}?limit=100`,
+        method: "GET",
+        headers,
+        fetcher: input.fetcher,
+        sleep: input.sleep,
+      });
+      if (historyResponse.status !== 200) {
+        return result(
+          customerID,
+          "failed",
+          `${historyType}_http_${historyResponse.status}`,
+        );
+      }
+      const history = parseJSON<RevenueCatListResponse>(historyResponse.body);
+      if (!isEmptyCompleteList(history)) {
+        return result(
+          customerID,
+          "protected_live_evidence",
+          `${historyType}_history`,
+        );
+      }
     }
-    const customerInfo = parseJSON<RevenueCatV1CustomerInfo>(infoResponse.body);
     if (
-      hasCustomerInfoHistory(customerInfo, customerID) ||
       candidateTouchesProtectedIdentity(
         input.candidate,
         input.protectedCohort,
@@ -683,50 +751,13 @@ export async function revalidateAndDeleteRevenueCatShell(input: {
       return result(
         customerID,
         "protected_live_evidence",
-        "customer_info_history",
+        "protected_identity",
       );
     }
-
-    const deleteResponse = await requestRevenueCat({
-      url:
-        `${REVENUECAT_V2_BASE_URL}/projects/${encodedProjectID}/customers/${encodedCustomerID}`,
-      method: "DELETE",
-      headers,
-      fetcher: input.fetcher,
-      sleep: input.sleep,
-    });
-    if (deleteResponse.status === 200) {
-      return result(customerID, "deleted", "");
-    }
-    if (deleteResponse.status === 202) {
-      return result(customerID, "queued", "");
-    }
-    if (deleteResponse.status === 404) {
-      return result(customerID, "already_absent", "");
-    }
-    return result(
-      customerID,
-      "failed",
-      `delete_http_${deleteResponse.status}`,
-    );
+    return result(customerID, "verified_empty", "");
   } catch (error) {
     return result(customerID, "failed", stableErrorCode(error));
   }
-}
-
-export function hasCustomerInfoHistory(
-  customerInfo: RevenueCatV1CustomerInfo,
-  expectedCustomerID: string,
-): boolean {
-  const subscriber = customerInfo.subscriber;
-  if (!subscriber) return true;
-  if (subscriber.original_app_user_id !== expectedCustomerID) return true;
-  if (hasKeys(subscriber.entitlements)) return true;
-  if (hasKeys(subscriber.subscriptions)) return true;
-  if (hasKeys(subscriber.non_subscriptions)) return true;
-  if (hasKeys(subscriber.other_purchases)) return true;
-  if (meaningful(subscriber.management_url)) return true;
-  return false;
 }
 
 function candidateTouchesProtectedIdentity(
@@ -742,35 +773,6 @@ function candidateTouchesProtectedIdentity(
     (directID !== null && protectedCohort.has(directID)) ||
     (candidate.linked_supabase_user_id !== "" &&
       protectedCohort.has(candidate.linked_supabase_user_id));
-}
-
-function attributesAreSafeForCandidate(
-  response: RevenueCatListResponse | undefined,
-  candidate: RevenueCatShellCleanupCandidate,
-  protectedCohort: Set<string>,
-  activeAuthUserIDs: Set<string>,
-): boolean {
-  if (!response || !Array.isArray(response.items) || response.next_page) {
-    return false;
-  }
-  for (const item of response.items) {
-    if (
-      typeof item !== "object" || item === null ||
-      (item as Record<string, unknown>).object !== "customer.attribute"
-    ) return false;
-    const attribute = item as Record<string, unknown>;
-    if (attribute.name !== "supabase_user_id") continue;
-    if (typeof attribute.value !== "string") return false;
-    const linkedID = canonicalUUID(attribute.value);
-    if (!linkedID) return false;
-    if (protectedCohort.has(linkedID)) return false;
-    if (
-      activeAuthUserIDs.has(linkedID) &&
-      !(candidate.classification === "case_variant_supabase_uuid" &&
-        candidate.linked_supabase_user_id === linkedID)
-    ) return false;
-  }
-  return true;
 }
 
 function aliasesAreSelfOnly(
@@ -1048,14 +1050,6 @@ function result(
   errorCode: string,
 ): RevenueCatShellCleanupResult {
   return { app_user_id: appUserID, status, error_code: errorCode };
-}
-
-function hasKeys(value: Record<string, unknown> | undefined): boolean {
-  return value === undefined || Object.keys(value).length > 0;
-}
-
-function meaningful(value: string | null | undefined): boolean {
-  return typeof value === "string" && value.trim().length > 0;
 }
 
 function parseJSON<T>(source: string): T {

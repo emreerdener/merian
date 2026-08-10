@@ -353,6 +353,100 @@ struct MerianNetworkClientTests {
         #expect(probe.wasMarked)
     }
 
+    @Test func queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay() async {
+        let requestProbe = NetworkRequestProbe()
+        let bodySentProbe = SendableCallbackProbe()
+        let scanID = "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            _ = requestProbe.record(
+                idempotencyKey: request.value(
+                    forHTTPHeaderField: "Idempotency-Key"
+                )
+            )
+            throw URLError(.networkConnectionLost)
+        }
+
+        let startedAt = ContinuousClock.now
+        do {
+            _ = try await MerianNetworkClient.shared.identifyMultiModal(
+                base64ImageDatas: ["AA=="],
+                telemetry: CaptureTelemetry(
+                    subjectDistanceInMeters: nil,
+                    gpsLatitude: nil,
+                    gpsLongitude: nil,
+                    gpsElevation: nil,
+                    locationName: nil,
+                    weatherCondition: nil,
+                    weatherTemperatureF: nil,
+                    timeOfDay: nil,
+                    timestamp: nil,
+                    zoomFactor: nil,
+                    estimatedSizeCm: nil
+                ),
+                clientScanId: scanID,
+                allowsInlineTransportRetry: false,
+                onRequestBodySent: { bodySentProbe.mark() }
+            )
+            Issue.record("Expected the first transport failure to reach the queue owner.")
+        } catch let error as URLError {
+            #expect(error.code == .networkConnectionLost)
+        } catch {
+            Issue.record("Expected URLError.networkConnectionLost, got \(error).")
+        }
+        let elapsed = startedAt.duration(to: ContinuousClock.now)
+
+        #expect(requestProbe.count == 1)
+        #expect(requestProbe.recordedIdempotencyKeys == [scanID])
+        #expect(bodySentProbe.wasMarked)
+        #expect(
+            elapsed < .milliseconds(1_500),
+            "Queue-backed transport must return before the two-second inline replay delay."
+        )
+    }
+
+    @Test func queueLessIdentifyRetainsOneReviewedInlineTransportReplay() async throws {
+        let requestProbe = NetworkRequestProbe()
+        let scanID = "019f6650-34cc-7dc0-a31b-e8ec3d8eadd7"
+        MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            let attempt = requestProbe.record(
+                idempotencyKey: request.value(
+                    forHTTPHeaderField: "Idempotency-Key"
+                )
+            )
+            if attempt == 1 {
+                throw URLError(.networkConnectionLost)
+            }
+            let response = HTTPURLResponse(
+                url: try #require(request.url),
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(#"{"success":true}"#.utf8))
+        }
+
+        _ = try await MerianNetworkClient.shared.identifyMultiModal(
+            base64ImageDatas: ["AA=="],
+            telemetry: CaptureTelemetry(
+                subjectDistanceInMeters: nil,
+                gpsLatitude: nil,
+                gpsLongitude: nil,
+                gpsElevation: nil,
+                locationName: nil,
+                weatherCondition: nil,
+                weatherTemperatureF: nil,
+                timeOfDay: nil,
+                timestamp: nil,
+                zoomFactor: nil,
+                estimatedSizeCm: nil
+            ),
+            clientScanId: scanID
+        )
+
+        #expect(requestProbe.count == 2)
+        #expect(requestProbe.recordedIdempotencyKeys == [scanID, scanID])
+    }
+
     @Test func testIdentifyMultiModalStopsBeforeDispatchWhenConsentIsMissing() async throws {
         let probe = SendableCallbackProbe()
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in

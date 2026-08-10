@@ -37,6 +37,7 @@ export type RevenueCatCustomerClassification =
 export type RevenueCatReviewRecommendation =
   | "keep_canonical"
   | "keep_purchase_history"
+  | "keep_customer_attributes"
   | "keep_linked_alias"
   | "keep_recent"
   | "keep_unknown_recency"
@@ -51,6 +52,7 @@ export interface RevenueCatCustomerAuditRow {
   linked_supabase_user_id: string | null;
   identity_group_size: number;
   has_purchase_evidence: boolean;
+  has_customer_attributes: boolean;
   last_seen_at: string | null;
   inactive_days: number | null;
   recommendation: RevenueCatReviewRecommendation;
@@ -63,6 +65,7 @@ export interface RevenueCatCustomerAuditSummary {
   revenuecat_customer_count: number;
   classification_counts: Record<RevenueCatCustomerClassification, number>;
   purchase_evidence_count: number;
+  customer_attribute_evidence_count: number;
   custom_attribute_link_count: number;
   supabase_users_with_canonical_customer_count: number;
   supabase_users_missing_canonical_customer_count: number;
@@ -140,6 +143,7 @@ export async function runRevenueCatCustomerAudit(
           "linked_supabase_user_id",
           "identity_group_size",
           "has_purchase_evidence",
+          "has_customer_attributes",
           "last_seen_at",
           "inactive_days",
           "recommendation",
@@ -252,6 +256,7 @@ export function buildRevenueCatCustomerAudit(input: {
     );
     const inactiveDays = daysSince(lastSeenAt, input.now);
     const hasPurchaseEvidence = revenueCatPurchaseEvidence(row);
+    const hasCustomerAttributes = meaningfulValue(row.custom_attributes);
 
     return {
       app_user_id: appUserID,
@@ -259,11 +264,13 @@ export function buildRevenueCatCustomerAudit(input: {
       linked_supabase_user_id: linkedSupabaseID,
       identity_group_size: 1,
       has_purchase_evidence: hasPurchaseEvidence,
+      has_customer_attributes: hasCustomerAttributes,
       last_seen_at: lastSeenAt,
       inactive_days: inactiveDays,
       recommendation: recommendationForCustomer({
         classification,
         hasPurchaseEvidence,
+        hasCustomerAttributes,
         inactiveDays,
         inactiveThresholdDays: input.inactiveDays,
       }),
@@ -289,6 +296,7 @@ export function buildRevenueCatCustomerAudit(input: {
       ? identityGroupSizes.get(row.linked_supabase_user_id) ?? 1
       : 1,
     has_purchase_evidence: row.has_purchase_evidence,
+    has_customer_attributes: row.has_customer_attributes,
     last_seen_at: row.last_seen_at,
     inactive_days: row.inactive_days,
     recommendation: row.recommendation,
@@ -308,6 +316,8 @@ export function buildRevenueCatCustomerAudit(input: {
       classification_counts: classificationCounts,
       purchase_evidence_count: rows.filter((row) => row.has_purchase_evidence)
         .length,
+      customer_attribute_evidence_count:
+        rows.filter((row) => row.has_customer_attributes).length,
       custom_attribute_link_count:
         stagedRows.filter((row) => row.linkedByAttribute).length,
       supabase_users_with_canonical_customer_count: canonicalCount,
@@ -343,6 +353,7 @@ export function revenueCatPurchaseEvidence(
 export function recommendationForCustomer(input: {
   classification: RevenueCatCustomerClassification;
   hasPurchaseEvidence: boolean;
+  hasCustomerAttributes: boolean;
   inactiveDays: number | null;
   inactiveThresholdDays: number;
 }): RevenueCatReviewRecommendation {
@@ -351,6 +362,7 @@ export function recommendationForCustomer(input: {
   }
   if (input.hasPurchaseEvidence) return "keep_purchase_history";
   if (input.classification === "linked_alias") return "keep_linked_alias";
+  if (input.hasCustomerAttributes) return "keep_customer_attributes";
   if (input.classification === "case_variant_supabase_uuid") {
     return "review_case_variant";
   }
@@ -460,6 +472,9 @@ function printRevenueCatCustomerAuditSummary(
   );
   console.log(
     `duplicate_identity_groups: ${summary.duplicate_identity_group_count}`,
+  );
+  console.log(
+    `customer_attribute_evidence: ${summary.customer_attribute_evidence_count}`,
   );
   console.log(`review_candidates: ${summary.review_candidate_count}`);
   console.log("deletion_performed: false");

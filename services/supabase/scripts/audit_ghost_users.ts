@@ -130,11 +130,14 @@ export interface AuditSnapshotRow {
 }
 
 export interface AuditSummary {
+  audit_contract_version: number;
   generated_at: string;
   counts: Record<string, number>;
   missing_optional_sources: string[];
   recommendations: Record<CleanupRecommendation, number>;
 }
+
+export const GHOST_AUDIT_CONTRACT_VERSION = 2;
 
 export interface GhostUserAuditReport {
   summary: AuditSummary;
@@ -158,6 +161,9 @@ const PUBLIC_USER_SELECT = [
 ].join(",");
 
 const ACTIVITY_SOURCES: ActivitySource[] = [
+  // user_field_trips is intentionally absent: every profile now receives one
+  // untouched Backyard Safari trip and period automatically. The guarded
+  // database inspector distinguishes that exact baseline from real progress.
   { table: "scans", column: "user_id", label: "scans" },
   {
     table: "collections",
@@ -312,9 +318,33 @@ const ACTIVITY_SOURCES: ActivitySource[] = [
     optional: true,
   },
   {
-    table: "user_field_trips",
+    table: "user_terms_acceptance_receipts",
     column: "user_id",
-    label: "user_field_trips",
+    label: "user_terms_acceptance_receipts",
+    optional: true,
+  },
+  {
+    table: "user_ai_consent_events",
+    column: "user_id",
+    label: "user_ai_consent_events",
+    optional: true,
+  },
+  {
+    table: "user_adult_eligibility_receipts",
+    column: "user_id",
+    label: "user_adult_eligibility_receipts",
+    optional: true,
+  },
+  {
+    table: "user_analytics_consent_events",
+    column: "user_id",
+    label: "user_analytics_consent_events",
+    optional: true,
+  },
+  {
+    table: "ai_usage_events",
+    column: "user_id",
+    label: "ai_usage_events",
     optional: true,
   },
   {
@@ -865,6 +895,7 @@ function buildSummary(
   }
 
   return {
+    audit_contract_version: GHOST_AUDIT_CONTRACT_VERSION,
     generated_at: now.toISOString(),
     counts,
     missing_optional_sources: missingOptionalSources,

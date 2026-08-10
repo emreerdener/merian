@@ -176,7 +176,7 @@ Compiled iOS assurance lives in `.github/workflows/ios-build-and-test.yml`. Its
 fail-closed detector (`scripts/ci-detect-ios-build-source-changes.sh`) sends
 every iOS/watch/project build input, merge-queue commit, and manual request to
 pinned Xcode 26.6 jobs that execute the complete unit-test target, then the
-deterministic queued-scan completion UI smoke, and independently create an
+  deterministic live-to-queue and queued-completion UI smokes, and independently create an
 unsigned current-SHA Release archive without allocating a release build.
 Distribution is owned solely by Xcode Organizer after the exact SHA passes the
 full iOS workflow. Operators archive a clean `main` checkout with the Merian

@@ -149,6 +149,46 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
 assert_suite_has_passed_test_case \
+  "Queue-backed first-failure connectivity handoff" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
+assert_suite_has_passed_test_case \
+  "Retired queue owner response handoff" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"
+assert_suite_has_passed_test_case \
+  "Queue-backed server-failure presentation separation" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss"
+assert_suite_has_passed_test_case \
+  "Queue-less transport timeout presentation" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation"
+assert_suite_has_passed_test_case \
+  "Replacement-generation stale-result fence" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "staleAttemptForSameScanCannotOverwriteReplacementGeneration"
+assert_suite_has_passed_test_case \
+  "Background result exact released-attempt handoff" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "recoveredBackgroundResultCanReplaceExactReleasedAttempt"
+assert_suite_has_passed_test_case \
+  "Queued result exact retained-presentation handoff" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "recoveredQueuedResultCanReplaceExactRetainedPresentation"
+assert_suite_has_passed_test_case \
+  "Queued result stale identity rejection" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "recoveredQueuedResultRejectsStaleOrMismatchedScan"
+assert_suite_has_passed_test_case \
   "Terminal observation-rejection UX and circuit isolation" \
   "InferenceEngineTests" \
   "Inference Engine Tests" \
@@ -328,6 +368,16 @@ assert_suite_has_passed_test_case \
   "MerianNetworkClientTests" \
   "Network Client Tests" \
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
+assert_suite_has_passed_test_case \
+  "Queue-backed transport replay suppression" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay"
+assert_suite_has_passed_test_case \
+  "Queue-less reviewed transport replay" \
+  "MerianNetworkClientTests" \
+  "Network Client Tests" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
 assert_suite_has_passed_test_case \
   "Stable auth-session refresh before request replay" \
   "MerianNetworkClientTests" \

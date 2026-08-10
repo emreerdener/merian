@@ -45,12 +45,14 @@ result or error haptic. A direct request with no durable queue owner may still
 use timeout recovery copy. Server/provider failures use **Analysis delayed /
 Scan saved** and remain distinct from connectivity.
 
-**Current source status (2026-08-09):** the post-grace/pre-dispatch branch has
-the required handoff, but the post-dispatch branch is not yet accepted.
-Connectivity monitoring can retire the durable foreground generation before
-the engine receives URLSession's error, causing the catch path to reject its own
-still-current presentation. The network client can also perform one inline
-transport replay before returning the error. See the release-blocking
+**Current source status (2026-08-09): remediated; release acceptance pending.**
+The post-grace/pre-dispatch and post-dispatch branches now converge on the same
+exact-ID queued presentation. The post-dispatch engine may acknowledge queue
+takeover using only its still-current local presentation after connectivity
+monitoring retires durable provider ownership, and queue-backed Identify returns
+its first transport failure without an inline replay. URLSession-level visual
+and nonvisual race tests protect the ordering. Exact-SHA and device validation
+remain release blockers in the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 Gallery images and audio-bearing or video visual submissions retain their

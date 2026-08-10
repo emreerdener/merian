@@ -3959,6 +3959,43 @@ schedule-restoration evidence are defined in the
 check. It reports due/expired counts and oldest due age through the two partial
 indexes; API roles retain no direct queue access.
 
+### Guarded empty-Ghost deletion intake
+
+Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` adds a narrow
+operator intake into the ordinary account-deletion state machine. It does not
+add an Auth-delete shortcut.
+
+`internal.empty_ghost_cleanup_blockers(uuid,integer)` requires an old anonymous
+Auth identity with no email, phone, non-anonymous provider, or recent Auth
+session; a free, expiry-free default public profile; and no active merge or
+deletion. It first asserts complete coverage of
+`internal.ghost_profile_merge_reference_policies`, then treats every reviewed
+current or future user foreign key as a blocker except `public.users.id`, the
+provider reconciliation queue/ordering watermark, and the exact automatically
+created untouched Backyard Safari Level 1 trip. The free public projection and
+recent live provider proof govern the watermark exception; webhook subject
+history still blocks. It separately checks logical references without foreign
+keys. Any changed trip/period, application activity, legal receipt, custom
+identity, provider event history, or schema-policy drift preserves the account.
+
+The service-only RPCs are:
+
+- `inspect_empty_ghost_cleanup_candidate(uuid,integer)`, a read of the exact
+  live blocker function; and
+- `request_empty_ghost_account_deletion(uuid,uuid,integer,text,text,timestamptz,integer)`,
+  which requires a live Ghost-cleanup reservation, reviewed plan SHA-256,
+  RevenueCat project, verification no more than ten minutes old, and bounded
+  checked-customer count.
+
+The intake takes the Ghost-merge advisory lock, locks Auth/profile rows, reruns
+all blockers, creates and claims the durable account-deletion job, and completes
+the relational phase in the same transaction. Success must be
+`storage_pending`; Auth is intentionally retained for delayed R2 verification.
+`internal.empty_ghost_account_deletion_receipts` stores only the deletion job,
+plan hash, provider project, verification timestamp, checked count, and request
+time. It has RLS and no direct API-role access. A merge-handoff trigger rejects
+new prepared/merged handoffs while deletion is active.
+
 ### `internal.account_deletion_jobs`
 
 Migration `20260725030308_durable_account_deletion.sql` adds durable intake;

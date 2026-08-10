@@ -83,7 +83,7 @@ final class ExploreVideoPlaybackCoordinator {
     }
 }
 
-private struct ExploreVideoPresentedOverlayLifecycleModifier: ViewModifier {
+private struct ExploreVideoOverlayLifecycleModifier: ViewModifier {
     let reason: String
 
     @Environment(ExploreVideoPlaybackCoordinator.self) private var coordinator: ExploreVideoPlaybackCoordinator?
@@ -118,6 +118,6 @@ extension View {
     /// Owns an overlay token for the exact lifetime of presented sheet content.
     /// Unlike a source binding, this remains mounted throughout UIKit teardown.
     func exploreVideoPresentedOverlayLifecycle(reason: String) -> some View {
-        modifier(ExploreVideoPresentedOverlayLifecycleModifier(reason: reason))
+        modifier(ExploreVideoOverlayLifecycleModifier(reason: reason))
     }
 }

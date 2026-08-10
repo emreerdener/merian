@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic queued-scan completion UI smoke, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic live-to-queue plus queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -295,7 +295,7 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Run queued-scan completion UI smoke
+      - name: Run critical scan UI smokes
         id: xcode-critical-scan-ui
         timeout-minutes: 10
         run: |
@@ -317,10 +317,11 @@ jobs:
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -resultBundlePath "$XCODE_UI_RESULT_BUNDLE" \
             -parallel-testing-enabled NO \
+            -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue \
             -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff \
             2>&1 | tee "$XCODE_UI_BUILD_LOG"
 
-      - name: Validate and summarize queued-scan completion UI smoke
+      - name: Validate and summarize critical scan UI smokes
         id: validate-critical-scan-ui
         if: always() && steps.xcode-critical-scan-ui.outcome != 'skipped'
         env:
@@ -346,7 +347,8 @@ jobs:
             --arg destination "${IOS_TEST_DESTINATION:-unavailable}" \
             --arg outcome "${TEST_STEP_OUTCOME:-unknown}" \
             --arg suite "merianUITests" \
-            --arg case_name "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
+            --arg live_handoff_case "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
+            --arg completion_case "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
             --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
             '{
               source_sha: $sha,
@@ -354,13 +356,13 @@ jobs:
               simulator_destination: $destination,
               test_step_outcome: $outcome,
               required_suite: $suite,
-              required_case: $case_name,
+              required_cases: [$live_handoff_case, $completion_case],
               xcode: $xcode
             }' > "$XCODE_UI_EVIDENCE"
 
           {
             echo ""
-            echo "### Queued-scan completion UI smoke"
+            echo "### Critical scan UI smokes"
             echo ""
             echo "- Source SHA: \`$GITHUB_SHA\`"
             echo "- Xcode step: \`${TEST_STEP_OUTCOME:-unknown}\`"
@@ -392,8 +394,9 @@ jobs:
               "$XCODE_UI_TEST_SUMMARY" \
               "$XCODE_UI_TEST_TREE" \
               "merianUITests" \
+              "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
               "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
-            echo "- Exact queued-scan UX regression: \`passed\`" \
+            echo "- Exact live-to-queue and completion UX regressions: \`passed\`" \
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -705,6 +708,7 @@ jobs:
             "-seedAchievementDeletionRefreshFlow" \
             "-seedQueuedAudioHandoffFlow" \
             "ui_test_queued_audio_handoff.wav" \
+            "-seedLiveQueueHandoffFlow" \
             "-seedMissingVideoFallbackFlow" \
             "ui_test_video_fallback.png"; do
             if grep -Fq -- "$forbidden_ui_seed_marker" "$release_strings_file"; then
@@ -873,8 +877,8 @@ jobs:
             echo \
               "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "The complete unit target, critical queued-scan UI smoke, and current-SHA Release archive must all pass." >&2
+            echo "The complete unit target, both critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed the complete iOS unit target, critical queued-scan UI smoke, and Release archive validation."
+          echo "The exact workflow SHA passed the complete iOS unit target, both critical scan UI smokes, and Release archive validation."

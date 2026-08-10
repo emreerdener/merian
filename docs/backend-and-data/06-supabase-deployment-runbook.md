@@ -2905,18 +2905,24 @@ can include an inactive `public.users` UUID only when the full audit says
 Apply only the identical reviewed inputs and inactivity threshold:
 
 ```bash
-REVENUECAT_SECRET_API_KEY='<sk_...>' \
+REVENUECAT_CLEANUP_V2_API_KEY='<sk_...>' \
 make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --project-id <proj...> --approved-plan-sha256 <sha256> --confirm-count <count> --results-csv /secure/revenuecat-cleanup-results.csv --summary-json /tmp/revenuecat-cleanup-result.json --apply --confirm-delete-empty-revenuecat-shells'
 ```
 
-Before each exact v2 delete, apply confirms the project/customer response,
+`REVENUECAT_CLEANUP_V2_API_KEY` is a dedicated V2 key with Customers
+read/write, Subscriptions read, and Purchases read. No audience, charts,
+invoice, or project configuration permission is required. Never store this
+temporary operator key in the app, Supabase Edge secrets, or GitHub production
+environment; revoke it after the retained cleanup results are complete.
+
+Before each exact V2 delete, apply confirms the project/customer response,
 requires live `last_seen_at` to be no newer than the reviewed export and still
-inactive, requires no active entitlements, protects a new `supabase_user_id`
-attribute, requires a complete self-only alias list, and requires the v1
-CustomerInfo to have no entitlement, subscription, non-subscription,
-other-purchase, or management history. Any changed, paginated, malformed, or
-ambiguous response becomes `protected_live_evidence`; it is never coerced into
-deletion. The tool does not call Supabase.
+inactive, requires no active entitlements or customer attributes, requires a
+complete self-only alias list, and requires complete empty
+V2 subscription, purchase, and customer-event lists. It deliberately never
+calls the V1 get-or-create subscriber endpoint. Any changed, paginated,
+malformed, or ambiguous response becomes `protected_live_evidence`; it is never
+coerced into deletion. The tool does not call Supabase.
 
 Once the incident exit criteria are green on one exact SHA, use this supervised
 production order:
@@ -4011,6 +4017,47 @@ or reparent data manually. Database correction is a forward migration. A client
 rollback must keep old conflict-capable builds blocked until they can produce a
 source-issued proof.
 
+## Empty Ghost and RevenueCat Prelaunch Cleanup
+
+Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` is required
+before any new Supabase empty-Ghost batch. Release evidence must include the
+static migration/tool contract, `tests/empty_ghost_cleanup_security.sql`, the
+complete pgTAP catalog suite, migration replay, database lint, and a focused
+RevenueCat test proving verification performs only GETs. A source-only pass is
+not enough. Do not deploy or execute the cleanup when the disposable database
+cannot run.
+
+The operation itself is not part of deployment. After the stable-identity build
+has stopped creating shells:
+
+1. Retain a fresh `audit-ghost-users` JSON, RevenueCat Export all artifact, and
+   a reviewed nonempty beta/team cohort. Any unread audit source is a blocker.
+2. Run `cleanup-ghost-users` without `--execute`; retain its identity-bearing
+   output, exact SHA-256, and candidate count.
+3. Review every candidate. Do not approve an account merely because it is
+   anonymous, old, duplicated by case, or absent from one system.
+4. Execute at most five candidates initially using the same artifacts, exact
+   digest/count, project, results path, and dedicated V2 `sk_` key supplied as
+   `REVENUECAT_CLEANUP_V2_API_KEY`. The key needs Customers read/write,
+   Subscriptions read, and Purchases read. The tool may issue RevenueCat GETs
+   but no provider DELETE.
+5. Confirm each accepted job is `storage_pending`, the public profile is gone,
+   Auth remains, and the independent account-deletion health monitor stays
+   green through the 25-hour verification window. Wait for `completed`.
+6. Take fresh Auth/public and RevenueCat exports. Only then use the separate
+   `cleanup-revenuecat-shells` dry-run/apply contract for newly orphaned provider
+   shells.
+
+Stop on any database/provider blocker, digest drift, unexpected alias,
+purchase/promotion, provider customer attribute, recent session, custom
+identity, activity/reference, reservation conflict, or account-deletion
+warning. Preserve the row and
+evidence; investigate before producing a new plan. Never directly delete
+`auth.users` or `public.users`, never delete the RevenueCat customer before the
+Supabase job completes, and never change
+`internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
+`legacy_trial` and manually granted beta Pro are separate access policies.
+
 ## Identification Latency Rollout
 
 The image-analysis latency change is a staged operational rollout, not a reason
@@ -4640,8 +4687,9 @@ The iOS workflow intentionally skips expensive macOS work for an ordinary
 backend-only push. If the final scan remediation SHA has no iOS build input,
 manually dispatch `iOS Build and Test` against that exact revision after the
 backend gate is green. Verify the scope reason identifies manual dispatch, the
-full unit-test target passes, the exact queued-scan completion UI smoke reports
-one passed and zero skipped cases, and the validation-only Release archive
+full unit-test target passes, the exact live-Insight-to-queue and queued-scan
+completion UI smokes report two passed and zero skipped cases, and the
+validation-only Release archive
 succeeds from the same SHA with `privacy_manifest_valid: true` and
 `transport_security: "ats-default"`. A green scope
 job with skipped macOS jobs proves only that changed-file classification
@@ -6153,7 +6201,8 @@ After deployment:
   `14-dwca-and-public-web-release-hold-2026-07-27.md`. Green unit/static suites
   or hidden iOS UI alone are not sign-off. Require the stable hosted
   `iOS Build and Test / Production readiness` result, including the full
-  unit-test target, exact queued-scan completion UI smoke, and independent
+  unit-test target, exact live-Insight-to-queue and queued-scan-completion UI
+  smokes, and independent
   unsigned Release archive with `privacy_manifest_valid: true` and
   `transport_security: "ats-default"`, plus the frozen
   public-web

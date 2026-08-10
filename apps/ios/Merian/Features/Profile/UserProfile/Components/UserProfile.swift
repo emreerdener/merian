@@ -740,8 +740,7 @@ private struct PublicUsernameEditSheet: View {
     private static func isReservedUsername(_ username: String) -> Bool {
         if reservedExactUsernames.contains(username)
             || reservedBrandUsernames.contains(username)
-            || reservedRoleUsernames.contains(username)
-        {
+            || reservedRoleUsernames.contains(username) {
             return true
         }
 

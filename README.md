@@ -230,8 +230,8 @@ steps are tracked in the
 > resource compilation and XCUI execution remain unavailable in the desktop
 > sandbox. The smoke still reports both app and badge rectangles if containment
 > ever fails again. A hosted run on `c7eac9c8f3` or a committed descendant must
-> pass the exact one-case queued-scan UI smoke and its current-SHA archive
-> together. See the
+> pass the queued completion case together with the companion live-Insight
+> connectivity-to-queue case and its current-SHA archive. See the
 > [queued Insight same-ID handoff incident](docs/incidents/2026-07-queued-insight-same-id-handoff-regression.md).
 
 > **App Store export integrity addendum (2026-07-30):** a clean local archive

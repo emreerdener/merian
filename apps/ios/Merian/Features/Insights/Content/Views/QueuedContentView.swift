@@ -312,7 +312,7 @@ struct QueuedContentView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .accessibilityIdentifier(
-                            "QueuedForConnectivityMessage"
+                            "QueuedForConnectivityMessage_\(queuedContext.id)"
                         )
                     }
 

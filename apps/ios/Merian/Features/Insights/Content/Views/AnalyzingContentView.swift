@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Previews
@@ -40,6 +41,7 @@ import SwiftUI
 /// has no awareness of `OfflineQueueManager` or `QueuedScanContext`.
 struct AnalyzingContentView: View {
     @Environment(InferenceEngine.self) var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
 
     @Bindable var viewModel: InsightSheetViewModel
 
@@ -54,10 +56,27 @@ struct AnalyzingContentView: View {
             fallbackCondition: inferenceEngine.activeWeatherCondition,
             fallbackElevation: inferenceEngine.activeElevation,
             fallbackLatitude: inferenceEngine.activeLatitude,
-            fallbackLongitude: inferenceEngine.activeLongitude
+            fallbackLongitude: inferenceEngine.activeLongitude,
+            onAnalyzingBadgeTap: liveQueueHandoffTestAction
         ) {
             EmptyView()
         }
+    }
+
+    private var liveQueueHandoffTestAction: (() -> Void)? {
+        #if DEBUG
+        guard UITestSeedCoordinator.isLiveQueueHandoffTriggerEnabled else {
+            return nil
+        }
+        return {
+            _ = UITestSeedCoordinator.performLiveQueueHandoffIfNeeded(
+                inferenceEngine: inferenceEngine,
+                modelContext: modelContext
+            )
+        }
+        #else
+        return nil
+        #endif
     }
 }
 

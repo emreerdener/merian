@@ -242,8 +242,9 @@ customer journey. Before closing the incident:
 1. run the production Supabase workflow from the reviewed release SHA and
    require all 91 graph-derived route probes plus the ten stricter auth probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
-   for the same SHA, including the complete unit-test target, exact queued-scan
-   completion UI smoke, and independent unsigned Release archive;
+   for the same SHA, including the complete unit-test target, exact
+   live-Insight-to-queue and queued-scan-completion UI smokes, and independent
+   unsigned Release archive;
 3. require the frozen public-web install, audit, test, type-check, and
    production build gate for the same SHA;
 4. perform one authenticated new-scan smoke covering owner status, Field Chat,

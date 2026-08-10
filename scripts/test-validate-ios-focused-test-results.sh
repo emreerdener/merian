@@ -15,6 +15,7 @@ summary_path="$tmp_dir/summary.json"
 test_tree_path="$tmp_dir/tests.json"
 suite_name="merianUITests"
 case_name="testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
+second_case_name="testLiveInsightConnectivityFailureTransitionsToDurableQueue"
 
 write_summary() {
   local result="${1:-Passed}"
@@ -78,6 +79,37 @@ write_test_tree() {
     }' > "$test_tree_path"
 }
 
+write_two_case_test_tree() {
+  local second_result="${1:-Passed}"
+
+  jq -n \
+    --arg suite "$suite_name" \
+    --arg first_case "$case_name" \
+    --arg second_case "$second_case_name" \
+    --arg second_result "$second_result" \
+    '{
+      testNodes: [
+        {
+          nodeType: "Test Suite",
+          name: $suite,
+          result: (if $second_result == "Passed" then "Passed" else "Failed" end),
+          children: [
+            {
+              nodeType: "Test Case",
+              name: ($first_case + "()"),
+              result: "Passed"
+            },
+            {
+              nodeType: "Test Case",
+              name: ($second_case + "()"),
+              result: $second_result
+            }
+          ]
+        }
+      ]
+    }' > "$test_tree_path"
+}
+
 assert_accepted() {
   local label="$1"
   if ! bash "$validator" \
@@ -96,6 +128,30 @@ assert_rejected() {
     "$test_tree_path" \
     "$suite_name" \
     "$case_name" >/dev/null 2>&1; then
+    fail "$label should have been rejected."
+  fi
+}
+
+assert_two_cases_accepted() {
+  local label="$1"
+  if ! bash "$validator" \
+    "$summary_path" \
+    "$test_tree_path" \
+    "$suite_name" \
+    "$case_name" \
+    "$second_case_name" >/dev/null 2>&1; then
+    fail "$label should have been accepted."
+  fi
+}
+
+assert_two_cases_rejected() {
+  local label="$1"
+  if bash "$validator" \
+    "$summary_path" \
+    "$test_tree_path" \
+    "$suite_name" \
+    "$case_name" \
+    "$second_case_name" >/dev/null 2>&1; then
     fail "$label should have been rejected."
   fi
 }
@@ -120,6 +176,28 @@ assert_rejected "A failed focused run"
 write_summary Passed 2 2 0
 write_test_tree
 assert_rejected "A summary reporting more than one test"
+
+write_summary Passed 2 2 0
+write_two_case_test_tree
+assert_two_cases_accepted "An exact two-case pass"
+
+write_summary Passed 2 1 1
+write_two_case_test_tree Failed
+assert_two_cases_rejected "A failed member of an exact two-case run"
+
+write_summary Passed 2 2 0
+write_test_tree
+assert_two_cases_rejected "A two-case summary missing one required case"
+
+write_two_case_test_tree
+if bash "$validator" \
+  "$summary_path" \
+  "$test_tree_path" \
+  "$suite_name" \
+  "$case_name" \
+  "$case_name" >/dev/null 2>&1; then
+  fail "Duplicate required case arguments should have been rejected."
+fi
 
 write_summary Passed 1 0 0 1
 write_test_tree "$suite_name" "$case_name" Skipped

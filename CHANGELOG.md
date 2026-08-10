@@ -29,14 +29,24 @@ TestFlight, App Store, support, and QA.
   **Queued for later** on the first connectivity failure and resume under the
   same scan ID. A direct request without a durable queue owner may still show
   **Network timeout**; server delays use separate **Analysis delayed** copy.
-- Source currently includes exact-ID queued presentation and the final
-  pre-dispatch connectivity check, but this change is not release-ready. The
-  transport/ownership race, inline transport replay, error-placeholder
-  classification, and transport-boundary regression coverage remain open in
-  the [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+- Source now separates the exact open sheet from durable provider ownership,
+  returns the first queue-backed transport failure without an inline replay,
+  releases the live upload hold, and keeps device connectivity failures out of
+  the provider circuit. URLSession-level visual/nonvisual regressions reproduce
+  connectivity retirement before the transport callback; protected controls
+  retain queue-less retry/timeout behavior and server-delay placeholder routing.
+  Exact-SHA and device acceptance remain open in the
+  [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - Do not publish this as a completed TestFlight or App Store improvement until
-  one exact workflow SHA passes the complete unit target, deterministic queued
-  completion UI smoke, Release archive, and physical-device connectivity matrix.
+  one exact workflow SHA passes the complete unit target, deterministic
+  live-to-queue and queued-completion UI smokes, Release archive, and
+  physical-device connectivity matrix.
+- The hosted iOS gate now starts a normal live Insight in analyzing mode,
+  publishes the exact durable queue ID only after an explicit badge tap,
+  verifies **Saved to Scans** replaces the live state without **Network
+  timeout**, dismisses the sheet, and confirms the same row remains visible in
+  Scans. Its focused-result validator now fail-closes over an exact named test
+  set while retaining one-case behavior for existing callers.
 
 ### Sign in with Apple Account Deletion — Release-Gated
 

@@ -95,6 +95,14 @@ write_test_tree() {
               "decodedButUnusableSuccessEnvelopeRemainsRecoverable",
               "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
+              "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual",
+              "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess",
+              "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss",
+              "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation",
+              "staleAttemptForSameScanCannotOverwriteReplacementGeneration",
+              "recoveredBackgroundResultCanReplaceExactReleasedAttempt",
+              "recoveredQueuedResultCanReplaceExactRetainedPresentation",
+              "recoveredQueuedResultRejectsStaleOrMismatchedScan",
               "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual",
               "testConfirmAIIdentificationRejectsChangedPresentationIdentity",
               "testApplyIdentificationOverrideRejectsChangedPresentationIdentity",
@@ -146,6 +154,8 @@ write_test_tree() {
             ]),
             suite("Network Client Tests"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
+              "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay",
+              "queueLessIdentifyRetainsOneReviewedInlineTransportReplay",
               "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry",
               "testDeleteScanRejectsUnconfirmedSuccessResponse",
               "testExploreShareSendsStableAIIdempotencyKey",
@@ -283,6 +293,14 @@ required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+  "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
+  "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"
+  "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss"
+  "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation"
+  "staleAttemptForSameScanCannotOverwriteReplacementGeneration"
+  "recoveredBackgroundResultCanReplaceExactReleasedAttempt"
+  "recoveredQueuedResultCanReplaceExactRetainedPresentation"
+  "recoveredQueuedResultRejectsStaleOrMismatchedScan"
   "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual"
   "testConfirmAIIdentificationRejectsChangedPresentationIdentity"
   "testApplyIdentificationOverrideRejectsChangedPresentationIdentity"
@@ -318,6 +336,8 @@ required_cases=(
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
   "cloudDeletionDrainIsProcessSingleFlight"
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay"
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry"
   "testDeleteScanRejectsUnconfirmedSuccessResponse"
   "testExploreShareSendsStableAIIdempotencyKey"

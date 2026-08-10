@@ -32,8 +32,8 @@ as their permanent engineering identity.
   changes.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
-  execute the complete unit-test target and deterministic queued-scan completion
-  UI smoke, then independently inspect an unsigned Release archive from the
+  execute the complete unit-test target and deterministic live-to-queue plus
+  queued-completion UI smokes, then independently inspect an unsigned Release archive from the
   exact workflow SHA. The main app's source and archived bundle must also carry
   the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence records
   `privacy_manifest_valid: true`. The final main-app plist must retain ATS
@@ -232,10 +232,13 @@ as their permanent engineering identity.
   success; analytics, group tags, and candidate enrichment remain optional
   background work. `/update-scan-context` applies late owner-scoped context
   without a second AI request. Model IDs and all inference-quality and
-  unit-economics settings remain unchanged. The intended first-failure
-  live-to-queue connectivity handoff is not yet release-accepted: durable
-  ownership retirement, generic inline transport replay, placeholder routing,
-  and transport-level regression coverage remain open in the
+  unit-economics settings remain unchanged. Source now implements the intended
+  first-failure live-to-queue connectivity handoff: local presentation survives
+  durable-owner retirement, queue-backed Identify suppresses generic inline
+  transport replay, provider delay remains a placeholder, and URLSession-level
+  race tests are in the protected inventory. The behavior is not yet
+  release-accepted because exact-SHA hosted execution and physical transition
+  QA remain open in the
   [live scan connectivity handoff incident](./incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
@@ -349,10 +352,9 @@ as their permanent engineering identity.
 
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
   — Required first-failure **Queued for later** behavior, the durable-owner
-  versus local-presentation race, inline transport-replay latency,
-  the repaired **Analysis delayed** placeholder mismatch, the remaining
-  transport-boundary test gap, and
-  exact closure gates.
+  versus local-presentation ownership repair, scoped transport-replay policy,
+  **Analysis delayed** placeholder routing, protected URLSession race matrix,
+  and remaining exact-SHA/device closure gates.
 - **[`/incidents/2026-08-first-scan-auth-refresh-gap.md`](./incidents/2026-08-first-scan-auth-refresh-gap.md)**
   — Sanitized Edge-origin Auth evidence, the `invalid_session_token`
   refresh-classification gap, refresh-first account preservation, and

@@ -280,9 +280,9 @@ directly.
 
 ## Queue-backed Identify Retry Ownership
 
-The durable queue, rather than the foreground HTTP helper, must own retry after
-the first transport failure of a queue-backed live Identify request. The client
-needs an explicit per-call retry policy:
+The durable queue, rather than the foreground HTTP helper, owns retry after the
+first transport failure of a queue-backed live Identify request. The client
+uses an explicit per-call retry policy:
 
 - queue-backed `identifyMultiModal` returns the first transient `URLError` to
   `InferenceEngine`, after the idempotent body-sent callback releases the upload
@@ -298,12 +298,14 @@ handler-owned authentication refresh, or Supabase route-propagation recovery.
 A returned handler/provider `5xx` also remains a service failure rather than
 evidence that the device is offline.
 
-**Current source status (2026-08-09):** `performAuthenticatedRequest` still
-replays selected transient transport failures once after two seconds whenever
-the request has a supported idempotency key. `identifyMultiModal` uses a
-90-second timeout and always has such a key, so a black-holed path can delay the
-handoff for approximately `90 + 2 + 90 = 182` seconds. The explicit retry policy
-and request-count regression are release blockers tracked in the
+**Current source status (2026-08-09): remediated; release acceptance pending.**
+`performAuthenticatedRequest` carries `allowsTransientTransportRetry` through
+transport, auth-refresh, route-propagation, and handler retry recursion.
+`identifyMultiModal` exposes the narrower `allowsInlineTransportRetry` policy;
+queue-backed engine calls set it to false while queue-less calls keep the true
+default. Protected request-count regressions prove one immediate queue-backed
+failure and one stable-key queue-less replay. Exact-SHA hosted and physical
+connectivity evidence remain release blockers in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 ## Deferred Context
@@ -336,9 +338,9 @@ into blanket replay for every signer caller.
 
 Queue-backed live Identify is the additional durable-owner exception described
 above: once its first transport attempt fails, immediate UI handoff takes
-priority over generic inline transport replay. Until the per-call policy is
-implemented and validated, the generic helper's current replay remains known
-source behavior rather than the accepted scan UX contract.
+priority over generic inline transport replay. The per-call policy is now
+implemented and protected by transport-boundary request-count/timing tests;
+release acceptance still depends on the incident's exact-SHA and device gates.
 
 Every retry delay is cancellation-propagating. A task canceled while waiting for
 transport, server, route-propagation, or guest-session retry exits with

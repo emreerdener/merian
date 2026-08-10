@@ -209,7 +209,7 @@ two workflow summaries for the same immutable candidate SHA.
 
 | Gate | Required result | Current result |
 | --- | --- | --- |
-| **iOS Build and Test** | Complete unit target, queued-audio UI smoke, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run. |
+| **iOS Build and Test** | Complete unit target, live-to-queue and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run. |
 | **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green. | Pending a new hosted validation-only run. |
 | Production Supabase deployment | Separate operator action after release authorization; it must require the reusable candidate gate first. | Not part of candidate validation and not authorized by a validation-only run. |
 
@@ -223,7 +223,8 @@ result become canonical only after both hosted gates pass on the same SHA.
 
 1. Run the complete hosted **iOS Build and Test** workflow on the exact candidate
    SHA. Require a compiled and executed complete `merianTests` target, the
-   focused UI smoke, and the unsigned Release validation archive.
+   exact live-to-queue and queued-audio-completion UI smokes, and the unsigned
+   Release validation archive.
 2. Run **Supabase Candidate Validation** on that unchanged SHA. Require its
    validation-only disposable replay, all pgTAP fixtures, complete Edge and
    database-concurrency suite, strict lint, and advisors to pass without a
