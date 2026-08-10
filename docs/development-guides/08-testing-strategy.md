@@ -350,11 +350,14 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 81 exact
-   cases; 27 were added by the joined scan-reliability follow-up, five
-   menu/Field Notes regressions exposed by the prior failed hosted run are
-   individually protected, two require the bounded/redacted offline-queue
-   support artifact, one prevents needs-attention and live-path-ineligible rows
+   contradiction is invalid evidence. The current validator protects 91 exact
+   cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten
+   more form the live-connectivity follow-up: eight engine-level ownership,
+   presentation, and exact-generation recovery fences plus two network-client
+   replay-policy controls. Five menu/Field Notes regressions exposed by the
+   prior failed hosted run are individually protected, two require the
+   bounded/redacted offline-queue support artifact, one prevents needs-attention
+   and live-path-ineligible rows
    from driving the Scan Library recovery loop while preserving staged and
    explicit-video-override eligibility, one preserves the current account by
    refreshing an invalid handler-owned session before replay, one fences

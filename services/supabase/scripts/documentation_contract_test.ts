@@ -2154,7 +2154,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 81 exact cases; 27 were added by the joined scan-reliability follow-up, five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one preserves the current account by refreshing an invalid handler-owned session before replay, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, one keeps required consent out of the network circuit while locking the **Approval needed** / **Scan saved** UX across visual and nonvisual inference, one keeps exact `402`/`429` provider-admission UX out of the network circuit across both live pipelines, one keeps exact terminal `400 observation_rejected` UX out of the network circuit across both live pipelines, four protect account-owned funded consent recovery plus lifecycle-gated onboarding resume, and the media-incident compatibility case exercises the actual network-client boundary",
+    "The current validator protects 91 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten more form the live-connectivity follow-up: eight engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "Five menu/Field Notes regressions exposed by the prior failed hosted run are individually protected, two require the bounded/redacted offline-queue support artifact, one prevents needs-attention and live-path-ineligible rows from driving the Scan Library recovery loop while preserving staged and explicit-video-override eligibility, one preserves the current account by refreshing an invalid handler-owned session before replay, one fences attention rows from serialized claims, actor-owned global status selection, and orphan reconciliation, one proves the pending selector pages beyond delayed, locally blocked, and media-less rows instead of starving ready work or spending runnable capacity on quarantine candidates, one proves empty pending quarantine is state/media bound and cannot touch advanced work, one proves upload packing scans beyond empty/non-fitting head rows, admits later work that fits, and locks final constrained/expensive request policy for normal video, its mixed-media siblings, forced video, and standalone image transport, one proves the unsynced count excludes attention-only and non-runnable rows, one rejects empty queued staged media before upload signing, one rejects an empty foreground playback video before signing, one rejects manual retry of a legacy non-runnable import, one keeps required consent out of the network circuit while locking the **Approval needed** / **Scan saved** UX across visual and nonvisual inference, one keeps exact `402`/`429` provider-admission UX out of the network circuit across both live pipelines, one keeps exact terminal `400 observation_rejected` UX out of the network circuit across both live pipelines, four protect account-owned funded consent recovery plus lifecycle-gated onboarding resume, and the media-incident compatibility case exercises the actual network-client boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2178,7 +2182,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 81 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 91 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "execute two deterministic runtime UI smokes: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "exactly those two passed cases and zero failed or skipped cases",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2250,7 +2262,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The smoke requires the native Button's accessibility frame to be fully contained by the application frame before tapping and prints both rectangles on failure",
+    "The queued-completion smoke requires the native Button's accessibility frame to be fully contained by the application frame before tapping and prints both rectangles on failure",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2683,8 +2695,11 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "manually dispatch `iOS Build and Test` on that final SHA",
       "a scope-only success is not release evidence",
       "neither is UI-bundle compilation without execution",
-      "the deterministic queued-scan completion UI smoke",
+      "the deterministic live-Insight-to-queue and queued-scan completion UI smokes",
+      "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
+      "workflow harness requires all 91 protected declarations to resolve uniquely",
+      "exact two-case set: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",
       "must additionally expose identifier-scoped Field Chat and Share toolbar controls",
@@ -2700,7 +2715,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "rejects failed-suite/passed-child contradictions, duplicate matching suites, and duplicate protected cases",
       "Release compiles only a false-returning no-op coordinator",
       "The archive gate scans the main binary and rejects any retained achievement/queued-audio seed argument or queued-audio fixture filename",
-      "duplicate-suite, duplicate-case, and contradictory-suite evidence",
+      "duplicate-suite, duplicate-case, contradictory-suite, missing-member, and duplicate-request evidence for the exact two-case set",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
       "At the retained parser evidence review, `HEAD` and `origin/main` both resolved to `bdf84b52`",
@@ -2766,7 +2781,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "That is a deterministic-fixture race, not evidence of a production queue failure",
       "Release still compiles only the false/no-op coordinator",
       "complete 67-target generic iOS Simulator `build-for-testing` graph for the app, unit-test bundle, and UI-test bundle",
-      "A hosted run on `c7eac9c8f3` or a committed descendant must pass all 1,243 unit tests",
+      "A hosted run on the current remediation SHA or a committed descendant must pass the complete unit target",
       "`399482b649363c820b59fee1967bf94e35a5c0e7`",
       "Hosted Build/Test Run 101 on that exact SHA passed all 1,241 unit tests",
       "current-SHA Release archive independently passed at 239,079,424 bytes",
@@ -2813,7 +2828,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       'binds it to `let scanningStatusBadge = app.buttons["ScanningStatusBadge"]`',
       "compiled and linked the app, complete unit bundle, and UI bundle for arm64 and x86_64",
       "complete Edge test task on the same SHA passed 1,430/1,430 with zero failures",
-      "A hosted run on `c7eac9c8f3` or a committed descendant",
+      "focused UI runtime still requires one fresh immutable-SHA hosted result",
       "110 deployment-tooling and 12 documentation contracts",
       "complete 67-target generic iOS Simulator `build-for-testing` graph",
       "large network test file retains the same 32 whole-file baseline violations",
@@ -2835,7 +2850,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Rebinding an already-presented exact completion is an idempotent no-op",
       "`scanBoundActionGeneration`",
       "Two new exact protected unit regressions cover completed-record precedence",
-      "all 1,243 unit tests, exactly one queued-scan UI smoke",
+      "the exact two-case live-to-queued/completion UI smoke set",
       "Run 105 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `6ed0f557b3`",
       "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 verification rerun against runtime baseline `c7eac9c8f3124437712ee72eeff49d09e6ea55b1` passed the complete Supabase tooling gate",
