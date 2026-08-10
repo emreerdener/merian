@@ -301,6 +301,14 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    private func insightSheetCloseButtonElement(
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        app.otherElements["InsightSheetView"]
+            .buttons["InsightSheetCloseButton"]
+    }
+
+    @MainActor
     func testLiveInsightConnectivityFailureTransitionsToDurableQueue() throws {
         let scanId = "ui_test_live_queue_handoff"
         let app = UITestAppLauncher.launchConfiguredApp(
@@ -342,7 +350,7 @@ final class merianUITests: XCTestCase {
             "A durable live-to-queue handoff rendered Network timeout"
         )
 
-        let closeButton = app.buttons["Close"]
+        let closeButton = insightSheetCloseButtonElement(in: app)
         XCTAssertTrue(closeButton.waitForExistence(timeout: 4.0))
         closeButton.tap()
         XCTAssertFalse(
@@ -545,7 +553,7 @@ final class merianUITests: XCTestCase {
         app.activate()
 
         // 6. Dismiss Insight Sheet by targeting close mechanisms or swiping down natively
-        let closeButton = app.buttons["Close"] // Typically generic dismiss handle
+        let closeButton = insightSheetCloseButtonElement(in: app)
         if closeButton.exists {
             closeButton.tap()
         } else {

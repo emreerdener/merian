@@ -2563,7 +2563,8 @@ Identification latency has focused contract coverage at each boundary:
   already-complete state. `dwca_download_and_scan_finalization_security.sql`
   exercises the same invariants against a fresh PostgreSQL catalog with pgTAP.
 - `MerianNetworkClientTests` verifies pinned-session `OPTIONS` prewarming,
-  idempotent inline request-body completion, and owner-scoped
+  idempotent inline request-body completion, queue-owned 15-second versus
+  direct-caller 90-second Identify deadlines, and owner-scoped
   `/update-scan-context` construction. It also verifies single-status recovery,
   combined Explore recovery/media restoration, and the Ask/Field Chat repair
   seams. Its route-retry coverage also cancels a replayable request after its
@@ -2617,22 +2618,26 @@ then perform this ordering deliberately:
    hold;
 2. observe the first request at the transport boundary through a bounded
    rendezvous;
-3. simulate `releaseAllForegroundInferenceClaims` while the request is still
-   pending;
-4. release a transient transport failure to the engine; and
+3. for path-loss cases, simulate `releaseAllForegroundInferenceClaims` while
+   the request is still pending; for the black-hole timeout case, prove the path
+   and exact durable owner remain active instead;
+4. release the matching transient transport failure to the engine; and
 5. allow durable retirement/replay work to settle without directly deleting
    process-local registries in test cleanup.
 
 The assertions must prove the exact queued presentation ID, retained durable
 row, released upload hold, eventually cleared foreground generation, `.queued`
 Insight mode, no `SpeciesData`, no error haptic/circuit failure, and exactly one
-live transport request. A bounded timing assertion must prove queue-backed
-Identify did not enter the generic two-second replay or another 90-second
-deadline. Separate controls must preserve **Network timeout** for a queue-less
-direct request and classify **Analysis delayed / Scan saved** as an inference
-error placeholder for an exhausted queue-backed server failure. Finally, a
-same-ID background/status completion must replace queued content, while a newer
-scan fences the delayed error.
+live transport request. The `.timedOut` branch must begin with generation
+metadata still present and retire it through the handoff itself. Request-policy
+and timing assertions must prove queue-backed Identify carries the 15-second
+foreground bound, does not enter the generic two-second replay or a 90-second
+deadline, and completes the post-error queued handoff within 1.5 seconds.
+Separate controls must preserve the 90-second window and **Network timeout** for
+a queue-less direct request and classify **Analysis delayed / Scan saved** as an
+inference error placeholder for an exhausted queue-backed server failure.
+Finally, a same-ID background/status completion must replace queued content,
+while a newer scan fences the delayed error.
 
 The current source implements this matrix with the gated
 `queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual`,
@@ -2641,7 +2646,9 @@ the network-client request-count controls
 `queueLessIdentifyRetainsOneReviewedInlineTransportReplay`, the queue-less
 engine presentation control, the server-failure separation test,
 `retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess`, and existing
-background/replacement identity fences. All are exact protected cases in
+background/replacement identity fences. The first engine case now retains the
+owner for `.timedOut`, while the two network cases assert 15- and 90-second
+request bounds respectively. All are exact protected cases in
 `validate-ios-critical-test-results.sh`. The complete matrix remains a release
 closure gate, not merely a compiled test; see the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
@@ -2655,7 +2662,11 @@ the exact `QueuedForConnectivityMessage_<scan-id>` node, **Saved to Scans**
 copy, absence of **Network timeout**, successful sheet dismissal, and the same
 `QueuedScanTile_<scan-id>` in Scans. This complements rather than replaces the
 URLSession regression: the unit test proves transport and ownership ordering;
-the UI smoke proves the open sheet consumes the resulting exact-ID state.
+the UI smoke proves the open sheet consumes the resulting exact-ID state. Sheet
+dismissal must resolve the native `InsightSheetCloseButton` accessibility
+identifier through the current `InsightSheetView`. A global `Close` label query
+is not a valid test contract because layered SwiftUI presentations can expose
+both the active Insight control and an underlying close control.
 
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the

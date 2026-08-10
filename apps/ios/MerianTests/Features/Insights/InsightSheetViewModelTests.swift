@@ -931,6 +931,19 @@ struct InsightSheetViewModelTests {
         #expect(state.communityAction?.title == "Ask the community")
     }
 
+    @Test func testToolbarLeadingControlsExposeStableAccessibilityContracts() {
+        #expect(TopToolbar.LeadingControl.close.accessibilityLabel == "Close")
+        #expect(
+            TopToolbar.LeadingControl.close.accessibilityIdentifier ==
+                "InsightSheetCloseButton"
+        )
+        #expect(TopToolbar.LeadingControl.back.accessibilityLabel == "Back")
+        #expect(
+            TopToolbar.LeadingControl.back.accessibilityIdentifier ==
+                "InsightSheetBackButton"
+        )
+    }
+
     @Test func testFetchLocalRecord() async throws {
         // Validation that the viewmodel gracefully pulls state and assigns local memory
         let ctx = try createIsolatedContext()

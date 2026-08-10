@@ -22,6 +22,7 @@ insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewM
 insight_display_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Display.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
 field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
+top_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
 scans_sheet_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Views/ScansSheetView.swift"
 scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/ScansGrid.swift"
@@ -32,7 +33,10 @@ queue_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManag
 queue_sync_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Sync.swift"
 queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
+network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
+inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
+inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {
@@ -467,6 +471,19 @@ assert_file_count \
   1 \
   'app.buttons["ScanningStatusBadge"]'
 assert_file_count "$ui_test_source" 1 '"ScanningStatusBadge"'
+assert_file_count \
+  "$top_toolbar_source" \
+  1 \
+  'return "InsightSheetCloseButton"'
+assert_file_count \
+  "$ui_test_source" \
+  1 \
+  '.buttons["InsightSheetCloseButton"]'
+assert_file_count "$ui_test_source" 0 'app.buttons["InsightSheetCloseButton"]'
+assert_file_contains \
+  "$ui_test_source" \
+  "insightSheetCloseButtonElement(in: app)"
+assert_file_count "$ui_test_source" 0 'app.buttons["Close"]'
 assert_file_contains \
   "$ui_test_source" \
   "testLiveInsightConnectivityFailureTransitionsToDurableQueue()"
@@ -567,6 +584,55 @@ assert_file_contains \
   "$network_client_test_source" \
   "try await Task.sleep(for: .milliseconds(10))"
 assert_file_count "$network_client_test_source" 0 "for _ in 0..<100 {"
+assert_file_contains \
+  "$network_client_source" \
+  "private static let directIdentifyRequestTimeout: TimeInterval = 90"
+assert_file_contains \
+  "$network_client_source" \
+  "private static let queueBackedForegroundIdentifyRequestTimeout: TimeInterval = 15"
+assert_file_contains \
+  "$network_client_source" \
+  "durableQueueOwnsRecovery: Bool = false"
+assert_file_contains \
+  "$network_client_source" \
+  "allowsTransientTransportRetry: !durableQueueOwnsRecovery"
+assert_file_count \
+  "$network_client_source" \
+  0 \
+  "allowsInlineTransportRetry"
+assert_file_count \
+  "$inference_engine_source" \
+  2 \
+  "durableQueueOwnsRecovery:"
+durable_queue_generation_bindings="$(
+  awk '
+    index($0, "durableQueueOwnsRecovery:") {
+      if (getline > 0 \
+          && index($0, "ownedForegroundInferenceGeneration != nil")) {
+        count += 1
+      }
+    }
+    END { print count + 0 }
+  ' "$inference_engine_source"
+)"
+[[ "$durable_queue_generation_bindings" == "2" ]] \
+  || fail \
+    "Both live Identify call sites must bind durable queue recovery to foreground generation ownership."
+assert_file_contains \
+  "$network_client_test_source" \
+  "request.timeoutInterval == 15"
+assert_file_contains \
+  "$network_client_test_source" \
+  "request.timeoutInterval == 90"
+assert_file_contains \
+  "$inference_engine_test_source" \
+  "errorCode: .timedOut"
+assert_file_contains \
+  "$inference_engine_test_source" \
+  "retiresBeforeFailure: false"
+assert_file_contains \
+  "$inference_engine_test_source" \
+  "The foreground deadline branch must begin with the exact durable owner still active."
 assert_file_contains \
   "$ui_seed_source" \
   "static var isEnabled: Bool { return false }"

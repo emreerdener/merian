@@ -1459,6 +1459,12 @@ struct InferenceEngineTests {
             case nonVisual
         }
 
+        struct ConnectivitySubmission {
+            let kind: SubmissionKind
+            let errorCode: URLError.Code
+            let retiresBeforeFailure: Bool
+        }
+
         let manager = OfflineQueueManager.shared
         let client = MerianNetworkClient.shared
         let circuitBreaker = CircuitBreakerManager.shared
@@ -1476,21 +1482,40 @@ struct InferenceEngineTests {
             circuitBreaker.recordSuccess()
         }
 
-        let submissions: [(SubmissionKind, URLError.Code)] = [
-            (.visual, .networkConnectionLost),
-            (.nonVisual, .notConnectedToInternet),
+        let submissions = [
+            ConnectivitySubmission(
+                kind: .visual,
+                errorCode: .networkConnectionLost,
+                retiresBeforeFailure: true
+            ),
+            ConnectivitySubmission(
+                kind: .nonVisual,
+                errorCode: .notConnectedToInternet,
+                retiresBeforeFailure: true
+            ),
             // Three queue-owned failures would trip the global service circuit
             // if this path accidentally recorded them as provider failures.
-            (.visual, .timedOut),
+            // Keep the durable owner active for the timeout case. This models a
+            // black-holed but path-satisfied connection reaching the bounded
+            // queue-backed foreground deadline without an NWPath retirement.
+            ConnectivitySubmission(
+                kind: .visual,
+                errorCode: .timedOut,
+                retiresBeforeFailure: false
+            ),
             // A URLSession-owned cancellation is not a user cancellation when
             // the enclosing inference task remains current.
-            (.nonVisual, .cancelled)
+            ConnectivitySubmission(
+                kind: .nonVisual,
+                errorCode: .cancelled,
+                retiresBeforeFailure: true
+            )
         ]
-        for (kind, connectivityErrorCode) in submissions {
+        for submission in submissions {
             let scanId = UUID().uuidString.lowercased()
             let generation = UUID()
             let transportFailure = GatedInferenceTransport(
-                errorCode: connectivityErrorCode
+                errorCode: submission.errorCode
             )
             MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
                 try transportFailure.handle(request)
@@ -1504,7 +1529,7 @@ struct InferenceEngineTests {
             defer { clearQueueBackedInferenceAttempt(scanId: scanId) }
 
             let engine = InferenceEngine()
-            switch kind {
+            switch submission.kind {
             case .visual:
                 engine.prepareForNewScan()
                 engine.analyze(
@@ -1536,45 +1561,63 @@ struct InferenceEngineTests {
                 continue
             }
 
-            // Reproduce the production ordering from the NWPathMonitor callback:
-            // the queue releases the upload hold and durably retires foreground
-            // ownership before URLSession delivers its transport error.
-            manager.isOnline = false
-            manager.releaseAllDeferredLiveUploads(
-                reason: "test_connectivity_lost"
-            )
-            manager.releaseAllForegroundInferenceClaims(
-                reason: "test_connectivity_lost"
-            )
-            let didRetire = try await waitForForegroundInferenceRetirement(
-                scanId: scanId,
-                manager: manager
-            )
-            #expect(didRetire)
-            #expect(
-                !manager.deferredLiveUploadScanIds.contains(scanId),
-                "Connectivity retirement must release the exact upload hold."
-            )
-            #expect(
-                !manager.isForegroundInferenceAttemptCurrent(
-                    scanId: scanId,
-                    generation: generation
-                ),
-                "The regression requires transport to fail after durable ownership retires."
-            )
-
             let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
             var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
                 predicate: #Predicate { $0.id == jobId }
             )
             jobDescriptor.fetchLimit = 1
             let job = try #require(context.fetch(jobDescriptor).first)
-            #expect(
-                InferenceGenerationMetadataContract.generation(
-                    in: job.metadataJSON
-                ) == nil,
-                "Production retirement must clear durable generation metadata before the transport callback resumes."
-            )
+
+            if submission.retiresBeforeFailure {
+                // Reproduce the production ordering from the NWPathMonitor
+                // callback: the queue releases the upload hold and durably
+                // retires foreground ownership before URLSession reports its
+                // matching transport error.
+                manager.isOnline = false
+                manager.releaseAllDeferredLiveUploads(
+                    reason: "test_connectivity_lost"
+                )
+                manager.releaseAllForegroundInferenceClaims(
+                    reason: "test_connectivity_lost"
+                )
+                let didRetire = try await waitForForegroundInferenceRetirement(
+                    scanId: scanId,
+                    manager: manager
+                )
+                #expect(didRetire)
+                #expect(
+                    !manager.deferredLiveUploadScanIds.contains(scanId),
+                    "Connectivity retirement must release the exact upload hold."
+                )
+                #expect(
+                    !manager.isForegroundInferenceAttemptCurrent(
+                        scanId: scanId,
+                        generation: generation
+                    ),
+                    "This branch requires transport to fail after durable ownership retires."
+                )
+                #expect(
+                    InferenceGenerationMetadataContract.generation(
+                        in: job.metadataJSON
+                    ) == nil,
+                    "Production retirement must clear durable generation metadata before the transport callback resumes."
+                )
+            } else {
+                #expect(manager.isOnline)
+                #expect(
+                    manager.isForegroundInferenceAttemptCurrent(
+                        scanId: scanId,
+                        generation: generation
+                    ),
+                    "The foreground deadline branch must begin with the exact durable owner still active."
+                )
+                #expect(
+                    InferenceGenerationMetadataContract.generation(
+                        in: job.metadataJSON
+                    ) == generation,
+                    "A black-holed path must not depend on prior path-monitor retirement."
+                )
+            }
 
             let failureReleasedAt = ContinuousClock.now
             transportFailure.releaseFirstResponse()
@@ -1600,6 +1643,19 @@ struct InferenceEngineTests {
             #expect(
                 !circuitBreaker.isCircuitTripped,
                 "Device connectivity loss must not count as an analysis-service circuit failure."
+            )
+            #expect(
+                try await waitForForegroundInferenceRetirement(
+                    scanId: scanId,
+                    manager: manager
+                ),
+                "Every queued handoff must durably retire the foreground owner."
+            )
+            #expect(
+                InferenceGenerationMetadataContract.generation(
+                    in: job.metadataJSON
+                ) == nil,
+                "The durable queue must own recovery after the handoff."
             )
 
             let viewModel = InsightSheetViewModel(

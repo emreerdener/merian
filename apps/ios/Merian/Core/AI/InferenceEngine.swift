@@ -1348,12 +1348,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId,
                     preferredGoal: preferredGoal,
-                    // A durable queue already owns every later transport retry.
-                    // Return its first uplink failure so this sheet can hand off
-                    // immediately instead of waiting through another 90-second
-                    // request deadline.
-                    allowsInlineTransportRetry:
-                        ownedForegroundInferenceGeneration == nil,
+                    // A durable queue already owns every later transport retry
+                    // and receives a bounded foreground deadline. Direct callers
+                    // retain the reviewed long request window and inline replay.
+                    durableQueueOwnsRecovery:
+                        ownedForegroundInferenceGeneration != nil,
                     onRequestBodySent: {
                         Task { @MainActor in
                             OfflineQueueManager.shared.releaseDeferredLiveUpload(
@@ -1816,8 +1815,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: scanId,
-                    allowsInlineTransportRetry:
-                        ownedForegroundInferenceGeneration == nil
+                    durableQueueOwnsRecovery:
+                        ownedForegroundInferenceGeneration != nil
                 )
                 try self.checkLiveInferenceAttempt(
                     scanId: ownedScanId,

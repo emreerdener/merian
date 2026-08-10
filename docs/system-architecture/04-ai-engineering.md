@@ -1072,11 +1072,15 @@ insight sheet display.
   customer contract retires the live provider generation and binds that same
   sheet to the durable queued scan on the first transport failure, where
   **Queued for later** replaces a synthetic network error while background
-  recovery continues. Source now enforces that post-dispatch contract by using
-  exact local presentation identity for the queued acknowledgement after
-  connectivity retirement; provider/result commits still require durable
-  ownership. A gated URLSession regression protects the ordering. Hosted
-  exact-SHA and physical-device acceptance remain open; see the
+  recovery continues. The durable-queue-owned foreground request is capped at
+  15 seconds, more than twice the documented six-second cache-hit p95 target;
+  direct queue-less requests retain the 90-second provider window. Source now
+  enforces that post-dispatch contract by using exact local presentation
+  identity for the queued acknowledgement after connectivity retirement;
+  provider/result commits still require durable ownership. A gated URLSession
+  regression protects both path-retirement ordering and a path-satisfied
+  timeout with the owner still active. Hosted exact-SHA and physical-device
+  acceptance remain open; see the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **First-result commit before secondary work** (`InferenceEngine.swift`): after
   response parsing and local persistence, saved media and `speciesData` are

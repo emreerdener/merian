@@ -30,11 +30,14 @@ TestFlight, App Store, support, and QA.
   same scan ID. A direct request without a durable queue owner may still show
   **Network timeout**; server delays use separate **Analysis delayed** copy.
 - Source now separates the exact open sheet from durable provider ownership,
-  returns the first queue-backed transport failure without an inline replay,
-  releases the live upload hold, and keeps device connectivity failures out of
-  the provider circuit. URLSession-level visual/nonvisual regressions reproduce
-  connectivity retirement before the transport callback; protected controls
-  retain queue-less retry/timeout behavior and server-delay placeholder routing.
+  gives the durable-queue-owned foreground attempt a 15-second safety window,
+  returns its first transport failure without an inline replay, releases the
+  live upload hold, and keeps device connectivity failures out of the provider
+  circuit. URLSession-level visual/nonvisual regressions reproduce both
+  connectivity retirement before the transport callback and a path-satisfied
+  timeout while the durable owner is still active. Protected controls retain
+  the queue-less 90-second window, retry/timeout behavior, and server-delay
+  placeholder routing.
   Exact-SHA and device acceptance remain open in the
   [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - Do not publish this as a completed TestFlight or App Store improvement until
@@ -47,6 +50,12 @@ TestFlight, App Store, support, and QA.
   timeout**, dismisses the sheet, and confirms the same row remains visible in
   Scans. Its focused-result validator now fail-closes over an exact named test
   set while retaining one-case behavior for existing callers.
+- Hosted Run 226 passed all 1,465 unit tests, the queued-completion smoke, and
+  every live-to-queue assertion before dismissal; its Release archive also
+  passed. The remaining smoke failure was an ambiguous global **Close** query,
+  not the queue handoff. The candidate now gives the native Insight close and
+  back controls stable identifiers and resolves the close control through the
+  current Insight before tapping it. A new exact-SHA run is still required.
 
 ### Sign in with Apple Account Deletion — Release-Gated
 

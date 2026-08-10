@@ -53,10 +53,12 @@ durable app-sandbox copy before Capture begins this pipeline:
    correction flow bypasses only its Pro UI gate.
 
    A queue-backed live request must hand presentation to that exact durable row
-   on its first transport failure, showing **Queued for later** while recovery
-   waits for eligible connectivity. Source and protected URLSession regressions
-   now enforce this joined ownership/presentation boundary; exact-SHA and
-   physical-device acceptance remain release-gated. See the
+   on its first transport failure or its 15-second foreground safety deadline,
+   showing **Queued for later** while recovery waits for eligible connectivity.
+   Direct queue-less requests retain the reviewed 90-second window. Source and
+   protected URLSession regressions now enforce this joined
+   ownership/presentation boundary; exact-SHA and physical-device acceptance
+   remain release-gated. See the
    [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 Free inference remains `gemini-2.5-flash` and Pro remains

@@ -358,6 +358,10 @@ struct MerianNetworkClientTests {
         let bodySentProbe = SendableCallbackProbe()
         let scanID = "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            #expect(
+                request.timeoutInterval == 15,
+                "Durable queue ownership must bound the foreground wait."
+            )
             _ = requestProbe.record(
                 idempotencyKey: request.value(
                     forHTTPHeaderField: "Idempotency-Key"
@@ -384,7 +388,7 @@ struct MerianNetworkClientTests {
                     estimatedSizeCm: nil
                 ),
                 clientScanId: scanID,
-                allowsInlineTransportRetry: false,
+                durableQueueOwnsRecovery: true,
                 onRequestBodySent: { bodySentProbe.mark() }
             )
             Issue.record("Expected the first transport failure to reach the queue owner.")
@@ -408,6 +412,10 @@ struct MerianNetworkClientTests {
         let requestProbe = NetworkRequestProbe()
         let scanID = "019f6650-34cc-7dc0-a31b-e8ec3d8eadd7"
         MockURLProtocol.mockEndpoints["/identify-multimodal"] = { request in
+            #expect(
+                request.timeoutInterval == 90,
+                "Queue-less callers must retain the reviewed provider window."
+            )
             let attempt = requestProbe.record(
                 idempotencyKey: request.value(
                     forHTTPHeaderField: "Idempotency-Key"

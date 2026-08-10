@@ -7,7 +7,8 @@ offline replay → open Insight presentation\
 **Repository status:** Remediated in the current working tree; exact-SHA hosted
 and physical-device acceptance remains open\
 **Production status:** Do not describe the handoff as released until every
-closure gate below passes on one exact workflow SHA
+closure gate below passes, including one exact workflow SHA and the physical
+device matrix
 
 ## Summary
 
@@ -19,22 +20,26 @@ scan UUID when transport is eligible.
 
 The current source separates local presentation authority from durable provider
 authority. Queue-backed live Identify disables the generic transient transport
-replay, and the first URLSession connectivity failure moves only the exact
-still-current sheet to queued content even if path monitoring already retired
-the durable generation. That handoff releases the upload hold, does not advance
-the provider/network circuit, retains the same durable row, and leaves
+replay and bounds its one foreground request to 15 seconds. The first URLSession
+connectivity failure—or that deadline on a silently stalled path—moves only the
+exact still-current sheet to queued content even if path monitoring already
+retired the durable generation. That handoff releases the upload hold, does not
+advance the provider/network circuit, retains the same durable row, and leaves
 background recovery as the sole retry owner.
 
 The regression now runs at the URLSession boundary for visual and nonvisual
-submissions. It deliberately retires durable ownership while the request is
-pending, then releases `.networkConnectionLost`,
-`.notConnectedToInternet`, or `.timedOut` and proves exact-ID queued routing,
-one request, bounded handoff timing, durable-row survival, and circuit
-isolation. It also covers a transport-owned cancellation and a successful
-response that becomes ownership-cancelled after the queue has already taken
-over. Separate protected controls retain the reviewed queue-less retry and
-**Network timeout** presentation and keep provider `5xx` failures in
-**Analysis delayed / Scan saved**.
+submissions. It deliberately retires durable ownership while requests are
+pending before releasing `.networkConnectionLost` and
+`.notConnectedToInternet`. Its `.timedOut` branch instead keeps the exact durable
+owner active and the path online, modeling black-holed Wi-Fi reaching the
+foreground deadline without an `NWPathMonitor` callback. Both branches prove
+exact-ID queued routing, one request, bounded handoff timing, eventual durable
+retirement, row survival, and circuit isolation. The matrix also covers a
+transport-owned cancellation and a successful response that becomes
+ownership-cancelled after the queue has already taken over. Separate protected
+controls retain the reviewed queue-less 90-second window, retry, and **Network
+timeout** presentation and keep provider `5xx` failures in **Analysis delayed /
+Scan saved**.
 
 This is source-remediation evidence, not a production-release claim. Closure
 still requires one exact workflow SHA and the physical connectivity matrix
@@ -47,6 +52,7 @@ below.
 | Offline before live dispatch                          | Capture queues the scan and does not start provider transport                                | Durable queue                             |
 | Connectivity changes during the 150 ms context grace  | Open Insight changes to **Queued for later**                                                 | Durable queue                             |
 | First queue-backed transport failure after dispatch   | Same-ID Insight changes to **Queued for later** without an error haptic or synthetic result  | Durable queue; no inline transport replay |
+| Path stays satisfied but transport silently stalls    | Same-ID Insight changes to **Queued for later** by the 15-second foreground deadline          | Durable queue; exact-ID status/replay      |
 | Queue-less direct request loses transport             | **Network timeout / Please try again** may be shown                                          | Caller                                    |
 | Handler/provider returns an exhausted service failure | **Analysis delayed / Scan saved** as an error placeholder, never a biological classification | Durable queue                             |
 | Background or status recovery completes the same UUID | Completed result replaces queued content in place                                            | Completed owner row                       |
@@ -87,16 +93,21 @@ current sheet from acknowledging that the queue took over.
 
 ### Generic transport replay delays durable recovery
 
-`identifyMultiModal` uses a 90-second request timeout and always sends a stable
-idempotency key. The shared authenticated request helper formerly retried every
-eligible transient `URLError` once after two seconds. A black-holed Wi-Fi or
-captive path could therefore keep a queue-backed scan in live analysis for
-approximately 182 seconds before the engine saw the final error.
+`identifyMultiModal` historically used a 90-second request timeout and always
+sent a stable idempotency key. The shared authenticated request helper also
+retried every eligible transient `URLError` once after two seconds. A
+black-holed Wi-Fi or captive path could therefore keep a queue-backed scan in
+live analysis for approximately 182 seconds before the engine saw the final
+error. Removing the replay reduced that worst case to 90 seconds but still left
+the most frustrating path far outside the documented six-second cache-hit
+end-to-end p95 target.
 
-The request helper now accepts an explicit transient-transport retry policy.
-Queue-backed foreground Identify sets it to false and returns the first
-transport failure to the engine because the durable queue owns later retry and
-status recovery. The default remains true for reviewed queue-less callers;
+The request now accepts explicit recovery ownership. Queue-backed foreground
+Identify sets `durableQueueOwnsRecovery`, receives one 15-second request window,
+and returns its first transport failure to the engine. Fifteen seconds is more
+than twice the documented p95 target, while a slow valid completion remains
+recoverable under the same stable scan ID and idempotency key. Queue-less
+callers retain the reviewed 90-second window and inline retry;
 authentication refresh, route-propagation recovery, and handler `5xx` behavior
 remain independently scoped.
 
@@ -124,18 +135,24 @@ uninterrupted ownership.
 The replacement uses `MockURLProtocol` with a bounded gate. It observes the
 first request, invokes the same upload-hold and foreground-claim retirement used
 by the path monitor, waits for durable generation metadata to clear, and only
-then releases the transport error. Companion network-client tests prove
-queue-backed Identify returns after one request while the reviewed queue-less
-path retains one stable-idempotency-key replay.
+then releases path-loss transport errors. The timeout branch deliberately skips
+that retirement, proves the queue owner and generation metadata are still
+current, then releases `.timedOut` and requires the handoff itself to retire
+them. Companion network-client tests prove queue-backed Identify carries the
+15-second request bound and returns after one request, while the reviewed
+queue-less path retains the 90-second bound and one stable-idempotency-key
+replay.
 
 ## Closure Gates
 
 This incident is closed only when one exact workflow SHA supplies all of the
 following:
 
-1. Visual and nonvisual queue-backed tests dispatch a real mocked request,
-   release the body-upload hold, trigger connectivity retirement, and only then
-   deliver `.networkConnectionLost`, `.notConnectedToInternet`, or `.timedOut`.
+1. Visual and nonvisual queue-backed tests dispatch a real mocked request. The
+   path-loss cases release the body-upload hold, trigger connectivity
+   retirement, and only then deliver `.networkConnectionLost` or
+   `.notConnectedToInternet`; a separate `.timedOut` case keeps path and durable
+   ownership active until the transport deadline is delivered.
 2. Both paths publish the exact `queuedPresentationScanId`, bind the matching
    durable row, route the open Insight to `.queued`, stop live processing, and
    emit no error placeholder, error haptic, network-circuit failure, or second
@@ -143,9 +160,10 @@ following:
 3. The durable queued scan survives; its deferred-upload hold and foreground
    generation eventually clear without test-only manual state repair; staged
    recovery can resume under the same scan UUID.
-4. A deterministic request-count/timing assertion proves queue-backed transport
-   failure does not enter the two-second inline replay or another 90-second
-   request deadline.
+4. Deterministic request-policy, count, and timing assertions prove the
+   queue-backed request carries the 15-second foreground bound, does not enter
+   the two-second inline replay or a 90-second deadline, and hands presentation
+   to the queue within 1.5 seconds after URLSession reports failure.
 5. A queue-less direct transport failure still produces the reviewed **Network
    timeout** recovery state.
 6. Exhausted queue-backed `5xx`/provider failure produces **Analysis delayed /
@@ -155,9 +173,11 @@ following:
    replaces queued content in place; a stale failure cannot overwrite that
    completion or a newer scan.
 8. The complete iOS unit-test target, protected critical scan-flow inventory,
-   deterministic live-Insight-to-queue and queued-scan-completion UI smokes,
-   and current-SHA Release archive all pass with zero failures or skipped
-   required cases.
+   deterministic live-Insight-to-queue and queued-scan-completion UI smokes, and
+   current-SHA Release archive all pass with zero failures or skipped required
+   cases. The live-sheet dismissal resolves `InsightSheetCloseButton` through
+   the current `InsightSheetView`; a global `Close` label query is ambiguous
+   when an underlying presentation remains in the accessibility tree.
 9. Physical-device QA covers airplane mode, Wi-Fi with no upstream internet,
    captive portal, Wi-Fi-to-cellular handoff, app backgrounding during upload,
    and reconnect. The saved scan must remain visible and complete exactly once.
@@ -171,44 +191,71 @@ containing these changes and gate 9 requires physical-device evidence.
 ## Validation Status at Review
 
 The current local review checkout is based on HEAD
-`bd9087b566c0e4654f8be3b742d6cd87e035cb19`. The connectivity-handoff source,
-critical-result inventory, and this documentation are still working-tree
-changes, so that base SHA is not evidence for the remediation and cannot close
-this incident.
+`7111b2e56917788971ab798db85b59783d2ba5f0`. Hosted iOS Build and Test Run 226
+passed all 1,465 unit tests and the queued-completion UI smoke. Its
+validation-only Release archive also passed the privacy-manifest, ATS-default,
+dSYM, and Debug-marker checks. The live-to-queue smoke reached the exact queued
+message and every pre-dismissal assertion, then failed because the global
+`app.buttons["Close"]` query matched both the active Insight close control and
+an underlying close control.
 
-The supplied hosted workflow evidence for source SHA
-`5247c6a72606e7cb149fe0377a2b5e0dbe2cd069` reported 1,447 passed tests and one
-failure:
-`InferenceEngineTests/providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual()`.
-Its validation-only Release archive completed with the privacy manifest,
-ATS-default transport posture, dSYM UUIDs, and Debug-marker checks satisfied.
-That archive does not validate the later uncommitted connectivity-handoff work.
+The current working tree assigns `InsightSheetCloseButton` directly to the
+native toolbar button and updates the smoke plus portable workflow contract to
+require that identifier. Those changes still require a new hosted exact-SHA UI
+run; Run 226 validates the behavior before dismissal but cannot validate the
+selector correction.
 
 Local construction evidence for the current working tree is:
 
 - all changed Swift files parse;
-- the complete 418-file app module, 89-file `merianTests` target, and two-file
-  `merianUITests` target type-check against the cached iOS Simulator SDK and
-  package modules;
-- strict lint reports no violation in the changed production files or newly
-  added test lines;
-- the critical-result validator harness and iOS build/workflow contract pass,
-  with 91 exact protected iOS cases; and
-- `git diff --check` and the reviewed Supabase-skill symlink check pass.
+- generated-project membership resolves 418 app target inputs, 89 unit-test
+  sources, and two UI-test sources;
+- the complete 417-file checked-in production Swift source set emits one
+  testable app module against the cached iOS Simulator SDK and locked package
+  modules; the generated-project guard separately accounts for the target's
+  generated source input;
+- the complete 89-file `merianTests` and two-file `merianUITests` source sets
+  type-check against that exact current app module;
+- the focused toolbar accessibility unit contract type-checks independently;
+- strict no-cache lint reports zero violations across every changed production
+  file and the smaller changed test files. The new hunks in the two large test
+  files add no violation; their whole-file runs retain only known baseline debt
+  outside this change (one large tuple in `InferenceEngineTests` and 31 legacy
+  findings in `MerianNetworkClientTests`);
+- the critical-result and focused-result validator harnesses plus the iOS
+  build/workflow contract pass, with all 91 protected unit declarations and the
+  exact two-case UI result requirement retained; and
+- `git diff --check` passes.
 
-The sandbox cannot connect to CoreSimulatorService and SwiftPM's default user
-cache is not writable, so it cannot execute the full Xcode unit target or UI
-smoke locally. Those runs, the current-SHA Release archive, and physical-device
-QA remain acceptance gates 8 and 9. The URLSession-level test now reaches the
-required transport/retirement boundary, but it has not yet produced hosted
-exact-SHA execution evidence.
+Supabase Candidate Validation Run 1676 at
+`fd1eb8dda7ff109ec339960104a49e577fa27f5b` correctly selected complete
+validation because the push changed backend, iOS/schema, documentation, and
+workflow/tooling inputs. It used no production environment, production secret,
+or production mutation. Its disposable validation failed only after the
+repository-tooling phase found two stale documentation expectations: the old
+81-case protected inventory and the former singular queued-completion UI smoke.
+The current tree updates those contracts to 91 cases and the exact two-smoke
+set. The fail-closed candidate scope detector and complete Supabase tooling gate
+now pass locally, including all 18 documentation contracts; all 262 migration
+source assertions across 39 discovered files also pass. This repairs the
+reported source/documentation gate but does not substitute for the workflow's
+fresh disposable-database replay on one committed exact SHA.
+
+The sandbox cannot reliably connect to CoreSimulatorService or apply SwiftPM's
+nested build sandbox, so it cannot run the Xcode test bundle locally. Direct
+compiler construction is not runtime evidence. A new hosted exact-SHA unit/UI
+run and Release archive plus physical-device QA remain acceptance gates 8 and
+9.
 
 The supplied `supabase_logs (1).csv` contains 76 auth/RPC rows, no Identify or
-inference transport row, and no non-zero latency value. It therefore cannot
-support an evidence-based reduction of the provider's first-response deadline.
-The source repair removes the redundant second live transport attempt; the
-no-upstream Wi-Fi and captive-portal device cases remain responsible for
-measuring whether a separate foreground deadline is warranted.
+inference transport row, and no non-zero latency value. It cannot establish a
+production latency distribution. The checked-in rollout contract does provide
+a cache-hit end-to-end p95 target of six seconds, so the current source uses a
+conservative 15-second queue-owned foreground bound while retaining the
+90-second direct-caller window. The no-upstream Wi-Fi and captive-portal device
+cases must still measure actual tap-to-queue timing and verify that legitimate
+slow completions recover under the same scan ID before this policy is released
+or tuned further.
 
 ## Related Contracts
 

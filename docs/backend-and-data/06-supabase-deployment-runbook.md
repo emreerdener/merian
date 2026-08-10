@@ -4155,6 +4155,15 @@ Gemini from required post-Gemini persistence/external resolution. Record the
 remaining floor; do not alter model economics or move owner-row durability back
 behind the response.
 
+Queue-backed iOS foreground Identify uses that durable owner to cap the live
+request at 15 seconds—more than twice the six-second p95 goal—and suppresses
+inline transport replay. A silent stall therefore hands the same scan ID to the
+queue instead of holding the Insight for the direct caller's 90-second window.
+Queue-less direct requests retain that reviewed 90-second window and replay.
+Before release, the physical no-upstream Wi-Fi and captive-portal matrix must
+prove tap-to-queue timing, same-ID eventual completion, and no duplicate
+provider result; a local request-property assertion is not device evidence.
+
 Keep automatic nearest-user Edge execution as the baseline. Compare it with a
 database-region invocation using equivalent traffic, tier/model/image-count/
 payload-size/network segments. Force a region only if p95 improves by at least
@@ -4377,7 +4386,10 @@ Treat these components as one compatibility release:
 Old clients remain compatible with the new backend. Release backend first; never
 require the new app to compensate for an old false-success function. Same-UUID
 duplicates may coalesce for at most 70 seconds so the winner can finalize inside
-the iOS 90-second request bound.
+the legacy/direct iOS 90-second request bound. Current queue-backed clients hand
+foreground presentation to the durable row at 15 seconds; they recover that
+same UUID through status or replay instead of treating the longer server-side
+coalescing window as foreground failure.
 
 Before promotion, retain results for:
 

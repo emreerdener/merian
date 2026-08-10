@@ -1222,9 +1222,12 @@ the latch without waiting for a URLSession delegate callback.
   path monitoring can retire the former before URLSession returns, while the
   exact still-current sheet still needs to acknowledge queue takeover. The
   current catch path separates those checks, and queue-backed Identify returns
-  the first transport failure without generic inline replay. A protected gated
-  transport test reproduces retirement-before-callback ordering. Exact-SHA and
-  device acceptance remain release-blocked in the
+  the first transport failure without generic inline replay. Its foreground
+  request is capped at 15 seconds, while a direct queue-less request retains the
+  90-second window. A protected gated transport test reproduces both
+  retirement-before-callback ordering and a path-satisfied timeout with the
+  durable owner still active. Exact-SHA and device acceptance remain
+  release-blocked in the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
   Same-ID background completion continues to use the result observer
   (`isProcessing == false && speciesData != nil`). Queue takeover instead uses

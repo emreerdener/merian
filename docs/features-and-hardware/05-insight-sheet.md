@@ -171,6 +171,9 @@ fallback handling have no scan ID, preserve their sentence-case title such as
 messaging. That timeout placeholder is reserved for direct work without a
 durable queue owner. An exact queue-backed connectivity failure instead binds
 the matching `OfflineQueuedScan` snapshot and routes the sheet to `.queued`.
+Queue-owned foreground transport has a 15-second safety deadline so a
+path-satisfied but silently stalled connection cannot keep the sheet analyzing
+for the direct caller's 90-second window.
 An exhausted queue-backed service failure uses **Analysis delayed / Scan
 saved** and now satisfies `isInferenceErrorPlaceholder`, so the simple renderer
 cannot apply non-biological success treatment to an operational failure. The
@@ -536,7 +539,9 @@ handoff. If connectivity disappears after the analyzing Insight opens,
 `InferenceEngine.queuedPresentationScanId` keys a bounded exact-ID fetch of the
 already-durable queue row. The sheet changes to **Queued for later** and
 explains that the scan is saved and will resume or is continuing automatically.
-It emits no error haptic and preserves the normal same-ID completed-result
+The same transition occurs when a silently stalled queue-owned foreground
+request reaches 15 seconds even if path monitoring still reports online. It
+emits no error haptic and preserves the normal same-ID completed-result
 promotion path.
 
 The engine half remains release-gated, with its source behavior now remediated.
@@ -1611,6 +1616,13 @@ categories natively via SwiftUI `Section` wrappers. The collection picker lives
 directly below Add/Update field notes in this menu, reusing the same Favorites,
 existing-collection toggles, and New Collection flow previously hosted in the
 bottom toolbar:
+
+Its leading controls retain the visible and VoiceOver labels **Close** and
+**Back**, while exposing the stable automation identifiers
+`InsightSheetCloseButton` and `InsightSheetBackButton`. Tests must use those
+identifiers through the current `InsightSheetView` rather than a global label
+query because an underlying SwiftUI presentation can remain in the
+accessibility tree during a live-to-queue handoff.
 
 1. Base Export (Download photos and videos)
 2. Identification Section (Confirm species, Review alternatives, Reanalyze

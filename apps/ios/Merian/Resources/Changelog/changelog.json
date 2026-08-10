@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-10-live-scan-queue-handoff",
+      "date": "2026-08-10",
+      "title": "Scans stay safe when connection drops",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "A scan whose connection drops or silently stalls while its live Insight is open now changes to Queued for later within a short safety window, confirms that it is saved in Scans, and resumes automatically when eligible instead of showing a Network timeout result."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-07-field-trip-events",
       "date": "2026-08-07",
       "title": "Field trip Events for everyone",

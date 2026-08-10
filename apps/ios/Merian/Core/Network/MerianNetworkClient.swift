@@ -831,6 +831,14 @@ final class MerianNetworkClient {
         2_000_000_000,
         4_000_000_000
     ]
+    /// Direct requests retain the reviewed long provider window because their
+    /// caller owns any retry or recovery UI.
+    private static let directIdentifyRequestTimeout: TimeInterval = 90
+    /// A durable queue can take over safely after this foreground window. The
+    /// 15-second bound is more than twice the documented six-second cache-hit
+    /// end-to-end p95 target while preventing a black-holed path from holding
+    /// the live Insight in analysis for the direct caller's 90-second window.
+    private static let queueBackedForegroundIdentifyRequestTimeout: TimeInterval = 15
     private static let safelyReplayableReadFunctionNames: Set<String> = [
         "check-public-username",
         "check-scan-status",
@@ -2054,7 +2062,7 @@ final class MerianNetworkClient {
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil,
         preferredGoal: FieldTripPreferredGoal? = nil,
-        allowsInlineTransportRetry: Bool = true,
+        durableQueueOwnsRecovery: Bool = false,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
         let request = try await buildMultiModalRequest(
@@ -2080,9 +2088,14 @@ final class MerianNetworkClient {
             url: url,
             method: "POST",
             body: bodyData,
-            timeoutInterval: 90.0,
+            timeoutInterval: durableQueueOwnsRecovery
+                ? Self.queueBackedForegroundIdentifyRequestTimeout
+                : Self.directIdentifyRequestTimeout,
             idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
-            allowsTransientTransportRetry: allowsInlineTransportRetry,
+            // Once the durable queue owns recovery, the foreground request gets
+            // one bounded attempt. Any later provider/status work belongs to the
+            // exact queued scan rather than an inline replay.
+            allowsTransientTransportRetry: !durableQueueOwnsRecovery,
             onRequestBodySent: onRequestBodySent
         )
         return data

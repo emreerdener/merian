@@ -278,15 +278,15 @@ uplink capacity. The caller also installs a two-second fail-safe. Connectivity
 loss and app backgrounding release ownership through `OfflineQueueManager`
 directly.
 
-## Queue-backed Identify Retry Ownership
+## Queue-backed Identify Foreground and Retry Ownership
 
 The durable queue, rather than the foreground HTTP helper, owns retry after the
 first transport failure of a queue-backed live Identify request. The client
-uses an explicit per-call retry policy:
+uses one explicit per-call ownership policy:
 
-- queue-backed `identifyMultiModal` returns the first transient `URLError` to
-  `InferenceEngine`, after the idempotent body-sent callback releases the upload
-  hold;
+- queue-backed `identifyMultiModal` gets one 15-second foreground attempt and
+  returns its first transient `URLError` to `InferenceEngine`, after the
+  idempotent body-sent callback releases the upload hold;
 - `InferenceEngine` changes the exact still-current Insight to **Queued for
   later** and retires durable foreground ownership idempotently; and
 - durable replay or exact-ID status recovery decides when another provider
@@ -298,14 +298,24 @@ handler-owned authentication refresh, or Supabase route-propagation recovery.
 A returned handler/provider `5xx` also remains a service failure rather than
 evidence that the device is offline.
 
-**Current source status (2026-08-09): remediated; release acceptance pending.**
+The 15-second foreground bound is intentionally more than twice the documented
+six-second cache-hit end-to-end p95 target. It prevents black-holed Wi-Fi from
+holding a saved scan in live analysis for the direct caller's 90-second window.
+A slow valid server result remains recoverable under the same idempotency key
+and durable scan ID; the foreground deadline is a presentation/ownership
+handoff, not scan loss.
+
+**Current source status (2026-08-10): remediated; release acceptance pending.**
 `performAuthenticatedRequest` carries `allowsTransientTransportRetry` through
 transport, auth-refresh, route-propagation, and handler retry recursion.
-`identifyMultiModal` exposes the narrower `allowsInlineTransportRetry` policy;
-queue-backed engine calls set it to false while queue-less calls keep the true
-default. Protected request-count regressions prove one immediate queue-backed
-failure and one stable-key queue-less replay. Exact-SHA hosted and physical
-connectivity evidence remain release blockers in the
+`identifyMultiModal` exposes `durableQueueOwnsRecovery`; queue-backed engine
+calls set it to true, coupling the 15-second bound with no inline retry, while
+queue-less calls keep the 90-second/replay default. Protected request-policy
+regressions assert both request deadlines, one immediate queue-backed failure,
+and one stable-key queue-less replay. The engine regression also proves that a
+deadline timeout can retire the active owner without a prior path-monitor
+callback. Exact-SHA hosted and physical connectivity evidence remain release
+blockers in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 ## Deferred Context

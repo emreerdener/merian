@@ -74,6 +74,15 @@ struct TopToolbar: ToolbarContent {
                 return "Back"
             }
         }
+
+        var accessibilityIdentifier: String {
+            switch self {
+            case .close:
+                return "InsightSheetCloseButton"
+            case .back:
+                return "InsightSheetBackButton"
+            }
+        }
     }
 
     @Environment(\.dismiss) var dismiss
@@ -177,6 +186,7 @@ struct TopToolbar: ToolbarContent {
                     .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
             .accessibilityLabel(leadingControl.accessibilityLabel)
+            .accessibilityIdentifier(leadingControl.accessibilityIdentifier)
             .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
         }
         

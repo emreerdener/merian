@@ -140,7 +140,10 @@ The complete evidence and release closure test are in the
    `queuedPresentationScanId`, and stop live processing without `SpeciesData`,
    error haptic, or network-circuit failure. The open Insight binds only that
    durable row and shows **Queued for later**. A first transport failure returns
-   directly to this branch; the durable queue owns later retry.
+   directly to this branch; a silently stalled request reaches the same branch
+   through the queue-owned 15-second foreground deadline. The durable queue owns
+   later retry. A direct queue-less request retains its reviewed 90-second
+   window and timeout presentation.
 7. **`MerianError.decodingFailed`** — Gemini returned a malformed or unreadable
    response. Do **not** refund the token — the scan is already in the offline
    queue and will be retried by the background upload path. Refunding here would

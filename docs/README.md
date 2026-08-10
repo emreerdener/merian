@@ -235,10 +235,11 @@ as their permanent engineering identity.
   unit-economics settings remain unchanged. Source now implements the intended
   first-failure live-to-queue connectivity handoff: local presentation survives
   durable-owner retirement, queue-backed Identify suppresses generic inline
-  transport replay, provider delay remains a placeholder, and URLSession-level
-  race tests are in the protected inventory. The behavior is not yet
-  release-accepted because exact-SHA hosted execution and physical transition
-  QA remain open in the
+  transport replay and uses a 15-second foreground safety deadline, direct
+  queue-less Identify retains its 90-second window, provider delay remains a
+  placeholder, and URLSession-level path-retirement/black-hole tests are in the
+  protected inventory. The behavior is not yet release-accepted because
+  exact-SHA hosted execution and physical transition QA remain open in the
   [live scan connectivity handoff incident](./incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.

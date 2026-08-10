@@ -175,19 +175,22 @@ background completion, or replaced presentation must still fence every delayed
 mutation. Durable retirement alone is not permission to leave the current sheet
 with no result and no queued context.
 
-**Current source status (2026-08-09): remediated; release acceptance pending.**
+**Current source status (2026-08-10): remediated; release acceptance pending.**
 The catch paths now use full durable ownership for provider results and generic
 failures, but retain the exact local presentation UUID solely for the queued
 connectivity acknowledgement. They release queue-backed recovery state
 idempotently and never record device connectivity loss against the provider
-circuit. Queue-backed `identifyMultiModal` returns its first transient transport
-failure; queue-less callers retain the reviewed replay. The protected
-URLSession-level regression retires durable ownership before releasing visual
-and nonvisual transport errors and proves exact queued routing, one request,
-bounded handoff, and durable-row survival. A companion case proves a successful
-transport response that loses durable ownership before the post-request check
-also hands the exact local presentation to the queue; a transport-owned
-cancellation does the same. **Analysis delayed** remains an error placeholder.
+circuit. Queue-backed `identifyMultiModal` has one 15-second foreground window
+and returns its first transient transport failure; queue-less callers retain the
+reviewed 90-second window and replay. The protected URLSession-level regression
+retires durable ownership before releasing visual and nonvisual transport
+errors, and separately delivers `.timedOut` while the exact durable owner and
+path-satisfied state remain active. It proves exact queued routing, one request,
+bounded handoff, eventual durable retirement, and row survival. A companion
+case proves a successful transport response that loses durable ownership before
+the post-request check also hands the exact local presentation to the queue; a
+transport-owned cancellation does the same. **Analysis delayed** remains an
+error placeholder.
 Do not describe this as shipped until the remaining exact-SHA and
 physical-device closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)

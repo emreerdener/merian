@@ -282,11 +282,13 @@ documented states.
 tree, but release acceptance is not. The engine uses local presentation
 authority for the exact queued acknowledgement while durable ownership remains
 mandatory for provider/result commits. Queue-backed Identify suppresses the
-generic transient replay; queue-less Identify preserves it. A gated
+generic transient replay and bounds the queue-owned foreground request to 15
+seconds; queue-less Identify preserves its 90-second window and replay. A gated
 `MockURLProtocol` regression retires the durable generation before delivering
-visual and nonvisual transport errors and proves one request, bounded handoff,
-exact-ID queued binding, released ownership, row survival, and circuit
-isolation. **Analysis delayed** remains in the placeholder whitelist. See the
+path-loss errors, then separately delivers `.timedOut` while the durable owner
+and path remain active. It proves one request, bounded handoff, exact-ID queued
+binding, eventual ownership release, row survival, and circuit isolation.
+**Analysis delayed** remains in the placeholder whitelist. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for the pending exact-SHA workflow and physical-device evidence before making
 any release claim.
