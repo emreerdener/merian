@@ -67,10 +67,21 @@ FROM (VALUES
     ('00000000-0000-4000-8000-00000000e102'::UUID)
 ) AS seed(user_id);
 
-INSERT INTO public.users (id)
-VALUES
+INSERT INTO public.users (
+    id,
+    public_username,
+    public_author_name,
+    public_identity_source
+)
+SELECT
+    seed.user_id,
+    public.build_default_public_username(seed.user_id),
+    public.build_default_public_username(seed.user_id),
+    'alias'
+FROM (VALUES
     ('00000000-0000-4000-8000-00000000e101'::UUID),
     ('00000000-0000-4000-8000-00000000e102'::UUID)
+) AS seed(user_id)
 ON CONFLICT (id) DO NOTHING;
 
 -- A custom identity is sufficient to preserve the second otherwise-empty

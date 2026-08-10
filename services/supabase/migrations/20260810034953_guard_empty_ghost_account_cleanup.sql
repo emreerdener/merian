@@ -477,9 +477,9 @@ BEGIN
     END IF;
 
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
             'ghost-profile-merge:' || p_user_id::TEXT,
-            0
+            0::BIGINT
         )
     );
 

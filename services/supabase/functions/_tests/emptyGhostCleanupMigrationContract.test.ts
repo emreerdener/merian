@@ -8,6 +8,10 @@ const cleanupScriptUrl = new URL(
   "../../scripts/cleanup_ghost_users.ts",
   import.meta.url,
 );
+const catalogFixtureUrl = new URL(
+  "../../tests/empty_ghost_cleanup_security.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -135,6 +139,31 @@ Deno.test("empty Ghost intake atomically enters durable account deletion", async
   assert(
     !/\bRECORD\s*;/i.test(intake),
     "The privileged intake must use statically typed nested-RPC results so plpgsql_check can validate every field.",
+  );
+  assertStringIncludes(
+    intake,
+    "pg_catalog.HASHTEXTEXTENDED( 'ghost-profile-merge:' || p_user_id::TEXT, 0::BIGINT )",
+  );
+  assert(
+    !intake.includes("pg_catalog.HASHTEXTENDED("),
+    "The merge lock must call PostgreSQL's hashtextextended(text, bigint) overload.",
+  );
+});
+
+Deno.test("empty Ghost catalog fixture supplies the mandatory public identity", async () => {
+  const fixture = normalized(await Deno.readTextFile(catalogFixtureUrl));
+
+  assertStringIncludes(
+    fixture,
+    "INSERT INTO public.users ( id, public_username, public_author_name, public_identity_source )",
+  );
+  assertStringIncludes(
+    fixture,
+    "public.build_default_public_username(seed.user_id), public.build_default_public_username(seed.user_id), 'alias'",
+  );
+  assert(
+    !fixture.includes("INSERT INTO public.users (id) VALUES"),
+    "Direct profile fixtures must not omit mandatory public identity columns.",
   );
 });
 
