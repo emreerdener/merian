@@ -132,6 +132,10 @@ Deno.test("empty Ghost intake atomically enters durable account deletion", async
       reservationCompletion > relationalCleanup,
     "Live evidence must precede the durable receipt, relational cleanup, and reservation completion.",
   );
+  assert(
+    !/\bRECORD\s*;/i.test(intake),
+    "The privileged intake must use statically typed nested-RPC results so plpgsql_check can validate every field.",
+  );
 });
 
 Deno.test("empty Ghost cleanup RPCs remain service-only and cataloged", async () => {

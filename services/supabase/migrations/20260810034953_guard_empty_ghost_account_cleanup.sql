@@ -451,9 +451,10 @@ SET search_path = ''
 SET statement_timeout = '30s'
 AS $function$
 DECLARE
-    reservation internal.ghost_user_cleanup_reservations%ROWTYPE;
-    deletion_request RECORD;
-    deletion_claim RECORD;
+    requested_job_id UUID;
+    requested_manual_provider_revocation_required BOOLEAN;
+    claimed_job_id UUID;
+    claimed_token UUID;
     live_blockers TEXT[];
     cleanup_status TEXT;
 BEGIN
@@ -482,8 +483,7 @@ BEGIN
         )
     );
 
-    SELECT active_reservation.*
-    INTO reservation
+    PERFORM active_reservation.ghost_user_id
     FROM internal.ghost_user_cleanup_reservations AS active_reservation
     WHERE active_reservation.ghost_user_id = p_user_id
       AND active_reservation.reservation_token = p_reservation_token
@@ -525,11 +525,15 @@ BEGIN
                   DETAIL = pg_catalog.ARRAY_TO_STRING(live_blockers, ',');
     END IF;
 
-    SELECT deletion.*
-    INTO STRICT deletion_request
+    SELECT
+        deletion.job_id,
+        deletion.manual_provider_revocation_required
+    INTO STRICT
+        requested_job_id,
+        requested_manual_provider_revocation_required
     FROM public.request_account_deletion(p_user_id) AS deletion;
 
-    IF deletion_request.manual_provider_revocation_required IS TRUE THEN
+    IF requested_manual_provider_revocation_required IS TRUE THEN
         RAISE EXCEPTION 'empty_ghost_cleanup_provider_identity_present'
             USING ERRCODE = '55000';
     END IF;
@@ -542,25 +546,25 @@ BEGIN
         revenuecat_checked_customer_count
     )
     VALUES (
-        deletion_request.job_id,
+        requested_job_id,
         p_candidate_plan_sha256,
         p_revenuecat_project_id,
         p_revenuecat_verified_at,
         p_revenuecat_checked_customer_count
     );
 
-    SELECT claim.*
-    INTO STRICT deletion_claim
+    SELECT claim.job_id, claim.claim_token
+    INTO STRICT claimed_job_id, claimed_token
     FROM public.claim_account_deletion_jobs(1, p_user_id) AS claim;
 
-    IF deletion_claim.job_id <> deletion_request.job_id THEN
+    IF claimed_job_id <> requested_job_id THEN
         RAISE EXCEPTION 'empty_ghost_cleanup_claim_mismatch'
             USING ERRCODE = '55000';
     END IF;
 
     SELECT public.complete_account_deletion_cleanup(
-        deletion_claim.job_id,
-        deletion_claim.claim_token
+        claimed_job_id,
+        claimed_token
     )
     INTO STRICT cleanup_status;
 
@@ -584,9 +588,9 @@ BEGIN
 
     RETURN QUERY
     SELECT
-        deletion_request.job_id::UUID,
+        requested_job_id,
         cleanup_status,
-        deletion_request.manual_provider_revocation_required::BOOLEAN;
+        requested_manual_provider_revocation_required;
 END;
 $function$;
 
