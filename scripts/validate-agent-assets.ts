@@ -626,6 +626,7 @@ async function validateWorkflow(): Promise<void> {
     "codex-args: '[\"--ephemeral\"]'",
     "output-schema-file: .github/codex/agent-eval-output.schema.json",
     "openai-api-key: ${{ secrets.OPENAI_API_KEY }}",
+    "name: agent-quality-${{ matrix.suite }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}",
     "continue-on-error: true",
     "make validate-agent-assets",
   ];
