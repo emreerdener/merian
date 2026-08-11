@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# GitHub Actions injects GITHUB_OUTPUT into every step. These tests assert the
+# detector's stdout fallback, so keep the runner channel out of child processes.
+unset GITHUB_OUTPUT
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 scope_script="$repo_root/scripts/ci-detect-agent-quality-source-changes.sh"
 
