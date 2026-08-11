@@ -1351,10 +1351,13 @@ MerianTests/
   temporary `ExternalImageImportStore` and prepared-image loader to prove a
   pending image is staged with the required crop and acknowledged only after
   commit. Separate cases prove a full tray retains the receipt until capacity
-  clears, an exhausted free quota retains the receipt until Pro entitlement is
-  active, and an unreadable file is removed with terminal feedback. Confirmation
-  and crop cancellation continue to be owned by the shared gallery staging tests
-  rather than a second import-only pipeline.
+  clears, an exhausted free quota retains the receipt while the paywall is
+  mounted and through its dismissal, and Pro entitlement retries it only after
+  the matching root-sheet dismissal callback. The retry case also proves a
+  direct worker call cannot stage or present crop behind the paywall. An
+  unreadable file is removed with terminal feedback. Confirmation and crop
+  cancellation continue to be owned by the shared gallery staging tests rather
+  than a second import-only pipeline.
 - **Launch presentation and explicit-route precedence**: `AppDIContainerTests`
   proves `opensExploreOnLaunch` defaults off, persists an enabled value, reloads
   from external `UserDefaults`, and requires both completed onboarding and

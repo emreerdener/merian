@@ -926,10 +926,37 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
 
         RevenueCatManager.shared.isSubscribed = true
         RevenueCatManager.shared.isProActive = true
-        let retriedResult = await viewModel.importNextPendingExternalImage()
+        let prematureRetryResult = await viewModel.importNextPendingExternalImage()
 
-        XCTAssertEqual(retriedResult, .staged)
-        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertEqual(prematureRetryResult, .temporarilyBlocked)
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertNil(viewModel.imageToCrop)
+        let importsRetainedBehindPaywall = await store.pendingImports()
+        XCTAssertEqual(importsRetainedBehindPaywall.count, 1)
+
+        viewModel.importPendingExternalImageIfPossible()
+        try await waitUntil {
+            viewModel.activeSheet == nil && viewModel.isRootPresentationDismissing
+        }
+
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertNil(viewModel.imageToCrop)
+        let importsRetainedDuringDismissal = await store.pendingImports()
+        XCTAssertEqual(importsRetainedDuringDismissal.count, 1)
+
+        viewModel.handleRootSheetDismissed()
+        try await waitUntil {
+            !viewModel.isRootPresentationDismissing &&
+                viewModel.stagedCapture.images.count == 1 &&
+                viewModel.imageToCrop != nil
+        }
+
+        XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
+        XCTAssertEqual(
+            viewModel.imageToCrop?.id,
+            viewModel.stagedCapture.images.first?.original.id
+        )
         let remainingImports = await store.pendingImports()
         XCTAssertTrue(remainingImports.isEmpty)
     }

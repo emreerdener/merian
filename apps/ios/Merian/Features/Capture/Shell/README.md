@@ -210,11 +210,14 @@ capture date. Unsupported or unreadable images are removed from the inbox and
 surface the standard capture feedback toast.
 
 Quota-blocked receipts remain pending while the existing paywall is presented.
-A full capture tray keeps the receipt and shows "Finish your current capture to
-import the shared photo." The workspace retries after staged media clears, the
-scene becomes active, or Pro entitlement changes. Receipt acknowledgement
-happens only after one staged image is committed or a decode failure becomes
-terminal.
+When Pro entitlement changes, the workspace dismisses that paywall, waits for
+the matching root-sheet `onDismiss`, and only then retries admission. A direct
+retry while the paywall is mounted or dismissing remains blocked, so crop can
+never appear behind the paywall. A full capture tray keeps the receipt and
+shows "Finish your current capture to import the shared photo." The workspace
+also retries after staged media clears or the scene becomes active. Receipt
+acknowledgement happens only after one staged image is committed or a decode
+failure becomes terminal.
 
 V1 intentionally supports one photo per Photos share action. It does not add a
 Share Extension or promise availability for multi-photo selections.

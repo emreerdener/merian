@@ -114,8 +114,12 @@ The retry triggers are:
 oldest pending receipt. It snapshots the normal gallery budget before expensive
 work, then awaits `requestImageImportEntryAdmission` before reading metadata or
 decoding the file. A known server denial leaves the receipt untouched and opens
-the paywall with no staged image or crop. An allowed or offline queue-only route
-prepares the image through the shared file-backed
+the paywall with no staged image or crop. If Pro entitlement later changes, the
+workspace dismisses the paywall and waits for its matching root-sheet
+`onDismiss` before retrying the retained receipt. Admission remains blocked
+while that paywall is mounted or dismissing, preventing crop from appearing
+behind it. An allowed or offline queue-only route prepares the image through
+the shared file-backed
 `PreparedStagedImageLoader`, checks capacity and quota again after preparation,
 and commits exactly one item with `requiresCrop: true`. Submission repeats the
 admission preview because the entry check is advisory and reserves no quota.
