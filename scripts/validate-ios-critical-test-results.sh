@@ -164,6 +164,16 @@ assert_suite_has_passed_test_case \
   "StagedCapture" \
   "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
 assert_suite_has_passed_test_case \
+  "Pre-import scan admission" \
+  "StagedCaptureTests" \
+  "StagedCapture" \
+  "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop"
+assert_suite_has_passed_test_case \
+  "Automatic single-capture toolbar suppression" \
+  "StagedCaptureTests" \
+  "StagedCapture" \
+  "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
+assert_suite_has_passed_test_case \
   "Retired queue owner response handoff" \
   "InferenceEngineTests" \
   "Inference Engine Tests" \

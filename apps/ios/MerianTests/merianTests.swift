@@ -840,6 +840,53 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertTrue(remainingImports.isEmpty)
     }
 
+    func testServerDeniedExternalImageImportIsRetainedBeforePreparationAndCrop() async throws {
+        enableUnlimitedFreeScansForTest()
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            ScanAdmissionPreview(
+                decision: .dailyQuotaExhausted,
+                effectivePlan: "free",
+                dailyLimit: 1,
+                dailyRemaining: 0
+            )
+        }
+        let queueManager = OfflineQueueManager.shared
+        let previousOnlineState = queueManager.isOnline
+        queueManager.isOnline = true
+        defer {
+            queueManager.isOnline = previousOnlineState
+            ScanAdmissionManager.shared.resetForTesting()
+            restoreFreeScanLimitForTest()
+        }
+
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("capture-external-import-admission-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+
+        let sourceURL = rootURL.appendingPathComponent("shared-photo.png")
+        try makePNGData().write(to: sourceURL)
+        let store = ExternalImageImportStore(rootURL: rootURL.appendingPathComponent("Inbox"))
+        _ = try await store.stageIncomingImage(at: sourceURL)
+        let preparedImage = makePreparedStagedImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in preparedImage },
+            prewarmHeadersOnInit: false,
+            externalImageImportStore: store
+        )
+
+        let result = await viewModel.importNextPendingExternalImage()
+
+        XCTAssertEqual(result, .temporarilyBlocked)
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertNil(viewModel.imageToCrop)
+        XCTAssertFalse(viewModel.isCheckingScanAdmission)
+        let retainedImports = await store.pendingImports()
+        XCTAssertEqual(retainedImports.count, 1)
+    }
+
     func testQuotaBlockedExternalImportIsRetainedAndProEntitlementRetriesIt() async throws {
         let previousProState = RevenueCatManager.shared.isProActive
         let previousSubscribedState = RevenueCatManager.shared.isSubscribed
@@ -916,6 +963,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let autoSubmitImageId = try! XCTUnwrap(autoSubmitViewModel.stagedCapture.images.first?.original.id)
 
         XCTAssertTrue(autoSubmitViewModel.completeRequiredGalleryCrop(for: autoSubmitImageId))
+        XCTAssertTrue(autoSubmitViewModel.isAutomaticStagedSubmissionPending)
+        XCTAssertFalse(autoSubmitViewModel.shouldPresentActiveScanToolbar)
 
         let confirmationContainer = AppDIContainer.preview
         confirmationContainer.appSettings.requiresScanConfirmation = true
@@ -929,6 +978,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         let confirmationImageId = try! XCTUnwrap(confirmationViewModel.stagedCapture.images.first?.original.id)
 
         XCTAssertFalse(confirmationViewModel.completeRequiredGalleryCrop(for: confirmationImageId))
+        XCTAssertFalse(confirmationViewModel.isAutomaticStagedSubmissionPending)
+        XCTAssertTrue(confirmationViewModel.shouldPresentActiveScanToolbar)
     }
 
     func testExploreDeepLinkSurvivesImmediateSessionTimeoutReset() async throws {
@@ -1263,11 +1314,15 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
                 original: IdentifiableImage(image: uiImage)
             )
         ]
+        XCTAssertTrue(viewModel.beginAutomaticStagedSubmissionIfEligible())
+        XCTAssertFalse(viewModel.shouldPresentActiveScanToolbar)
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
 
         XCTAssertEqual(viewModel.activeSheet, .paywall)
         XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertFalse(viewModel.isAutomaticStagedSubmissionPending)
+        XCTAssertTrue(viewModel.shouldPresentActiveScanToolbar)
         XCTAssertFalse(viewModel.isCheckingScanAdmission)
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertEqual(
@@ -1351,6 +1406,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
                 original: IdentifiableImage(image: uiImage)
             )
         ]
+        XCTAssertTrue(viewModel.beginAutomaticStagedSubmissionIfEligible())
+        XCTAssertFalse(viewModel.shouldPresentActiveScanToolbar)
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
 
@@ -1368,6 +1425,8 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)
         XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertFalse(viewModel.isAutomaticStagedSubmissionPending)
+        XCTAssertFalse(viewModel.shouldPresentActiveScanToolbar)
         XCTAssertTrue(queueManager.isOnline)
 
         let description = ObservationContext(

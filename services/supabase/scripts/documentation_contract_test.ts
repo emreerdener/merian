@@ -2154,11 +2154,31 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 93 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+    "The current validator protects 95 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
     "One additional case protects the pre-queue admission connectivity handoff: a path-satisfied transport failure plus local eligibility selects queue-only, while local ineligibility still paywalls and a non-connectivity preview failure still requires retry.",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` requires pending automatic ownership to suppress `ActiveScanToolbar`, requires a failed attempt to restore the staged retry toolbar, preserves the toolbar when explicit confirmation is enabled, and clears the suppression with the staged buffer.",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid server denial to reach the paywall with no staged image or crop state, while proving the prospective single-image RPC shape remains Flash-eligible.",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "For image imports, iOS runs the preview before presenting the native photo picker and before reading/preparing a pending external Photos/Files receipt.",
+  );
+  assertStringIncludes(
+    compact(imagePipelineSource),
+    "Image-import admission happens before this preparation pipeline starts.",
+  );
+  assertStringIncludes(
+    compact(supabaseReadmeSource),
+    "The iOS image-import entry path calls this preview before presenting the native photo picker and before decoding a durable external Photos/Files receipt.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2186,7 +2206,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 93 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 95 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2714,8 +2734,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "the deterministic live-Insight-to-queue and queued-scan completion UI smokes",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
-      "workflow harness requires all 93 protected declarations to resolve uniquely",
-      "including the pre-queue admission connectivity handoff",
+      "workflow harness requires all 95 protected declarations to resolve uniquely",
+      "including the pre-queue admission connectivity handoff, pre-import paywall admission, automatic single-capture toolbar suppression, and exact durable scan-ID/generation pairing",
       "exact two-case set: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",

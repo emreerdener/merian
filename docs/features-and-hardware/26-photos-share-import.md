@@ -15,6 +15,8 @@ the copy through the same bounded preparation pipeline used by `PhotosPicker`.
 - A required square crop is presented before submission.
 - The existing scan quota, Pro entitlement, confirmation preference, inference,
   and offline-queue rules remain authoritative.
+- The caller-scoped scan-admission preview runs before the durable copy is read
+  or prepared, so a known denial reaches the paywall before crop work.
 - No Share Extension, backend endpoint, database migration, App Group handoff,
   or new Photo Library permission is part of this feature.
 
@@ -110,9 +112,13 @@ The retry triggers are:
 
 `CaptureWorkspaceViewModel.importPendingExternalImageIfPossible()` processes the
 oldest pending receipt. It snapshots the normal gallery budget before expensive
-work, prepares the image through the shared file-backed
+work, then awaits `requestImageImportEntryAdmission` before reading metadata or
+decoding the file. A known server denial leaves the receipt untouched and opens
+the paywall with no staged image or crop. An allowed or offline queue-only route
+prepares the image through the shared file-backed
 `PreparedStagedImageLoader`, checks capacity and quota again after preparation,
-and commits exactly one item with `requiresCrop: true`.
+and commits exactly one item with `requiresCrop: true`. Submission repeats the
+admission preview because the entry check is advisory and reserves no quota.
 
 After the required crop:
 
@@ -165,7 +171,7 @@ coordinates, capture dates, asset identifiers, scan IDs, or user IDs.
 
 | State | User experience | Inbox ownership |
 |---|---|---|
-| Free quota exhausted | Present the existing paywall. | Retain and retry after entitlement changes. |
+| Local or server quota/entitlement denial | Present the existing paywall before metadata extraction, image preparation, or crop. | Retain and retry after entitlement changes. |
 | Capture tray full | Show "Finish your current capture to import the shared photo." | Retain and retry after staged media clears. |
 | Unsupported or unreadable image | Trigger error haptics and show "Naturebook couldn’t import that photo." | Remove as a terminal failure. |
 | Preparation succeeds | Present the required crop. | Remove after the staged item is committed. |
@@ -186,8 +192,9 @@ Automated coverage lives in:
 - `apps/ios/MerianTests/Core/Data/OfflineQueueManagerTests.swift` for durable
   gallery provenance and offline replay with and without an embedded date;
 - `CaptureWorkspaceViewModelRefinementTests` for successful staging and cleanup,
-  capacity retention/retry, quota retention, Pro entitlement retry, and terminal
-  unreadable-image cleanup. Its launch-routing case also starts with generic
+  capacity retention/retry, local and server admission retention before crop,
+  Pro entitlement retry, and terminal unreadable-image cleanup. Its
+  launch-routing case also starts with generic
   Explore presented, injects a pending image and timeout event, and verifies the
   import wins, remains staged, and presents the crop; and
 - `apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift` for the
@@ -206,7 +213,8 @@ git diff --check
 The Photos app row and security-scoped/iCloud handoff require a physical iPhone.
 Before release, share one JPEG, HEIC, PNG, and iCloud-backed photo; confirm Naturebook
 opens, the crop appears, included date/location is preserved, excluded Location
-is absent, quota/capacity blocks retain the import, and both online and offline
+is absent, a known admission denial shows the paywall before crop while retaining
+the receipt, capacity blocks retain the import, and both online and offline
 submission complete. Also confirm Naturebook is not required to appear for a
 multi-photo selection and that `Payload/Merian.app/PlugIns/` contains no Photos
 Share Extension.

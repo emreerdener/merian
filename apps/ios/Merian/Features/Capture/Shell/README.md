@@ -28,6 +28,26 @@ adjustment is disabled. Together these boundaries prevent
 the nested scroll, sheet, and preference feedback that previously formed a
 startup AttributeGraph cycle when Description was the configured first mode.
 
+Automatic single-capture submission owns its chrome transition explicitly.
+Camera, video, and crop-confirmed commits set
+`isAutomaticStagedSubmissionPending` in the same MainActor mutation that adds
+the eligible staged media. While that ownership is active,
+`shouldPresentActiveScanToolbar` keeps the ordinary `MainTabBar` mounted and
+prevents the manual **Identify** tray from flashing before the asynchronous
+admission task begins. Successful submission clears the staged buffer; a failed
+admission attempt releases automatic ownership while retaining the media, so
+the Active Scan toolbar intentionally returns as the user's retry path.
+
+Image imports also cross admission before expensive or user-visible import
+work. `PhotoLibraryButton` and the staged toolbar's add-photo action await
+`requestImageImportEntryAdmission` before presenting the system picker, and a
+pending external Photos/Files receipt runs the same check before metadata
+extraction, image preparation, or required crop.
+Known quota/entitlement denial therefore opens the paywall with no staged image
+or crop sheet; the durable external-import receipt remains available for retry.
+This preview is read-only, so crop confirmation and submission still perform
+the normal admission recheck to catch a concurrent account/quota change.
+
 ## Fresh-launch presentation
 
 The Capture workspace remains the application root. When the default-off

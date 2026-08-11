@@ -137,7 +137,9 @@ write_test_tree() {
               "generationFenceTest"
             ]),
             suite("StagedCapture"; [
-              "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+              "connectivityUnavailableAdmissionSelectsQueueOnlyRoute",
+              "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop",
+              "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
             ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
@@ -298,6 +300,8 @@ required_cases=(
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+  "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop"
+  "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
   "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"

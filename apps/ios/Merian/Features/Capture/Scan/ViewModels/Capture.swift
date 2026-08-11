@@ -753,6 +753,7 @@ extension CaptureWorkspaceViewModel {
                             original: identifiable,
                             focusRegion: preparedCapture.focusRegion
                         ))
+                        self.beginAutomaticStagedSubmissionIfEligible()
                     }
                 }
             } catch {
@@ -873,6 +874,7 @@ extension CaptureWorkspaceViewModel {
                         sampledImages: stagedFrames,
                         audioFilePath: extractedAudioFilePath
                     ))
+                    self.beginAutomaticStagedSubmissionIfEligible()
                     MerianLog.hardware.debug(
                         """
                         Video staged: frames=\(stagedFrames.count, privacy: .public), \

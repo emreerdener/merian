@@ -424,7 +424,7 @@ struct CaptureWorkspaceView: View {
                 VStack {
                     Spacer()
 
-                    if viewModel.stagedCapture.isEmpty && viewModel.baseRefinementContext == nil {
+                    if !viewModel.shouldPresentActiveScanToolbar {
                         MainTabBar(
                             isExploreOpen: $viewModel.activeSheet.mapped(to: .explore),
                             isScansOpen: $viewModel.activeSheet.mapped(to: .scans),
@@ -437,6 +437,11 @@ struct CaptureWorkspaceView: View {
                             isRefining: viewModel.baseRefinementContext != nil,
                             stagedCaptureLimit: viewModel.stagedCaptureLimit,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
+                            onRequestPhotoPickerPresentation: { selectionCount in
+                                await viewModel.requestImageImportEntryAdmission(
+                                    prospectiveImageCount: selectionCount
+                                )
+                            },
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
                             onCancel: {
                                 let isCancelingRefinement = viewModel.baseRefinementContext != nil
@@ -460,7 +465,10 @@ struct CaptureWorkspaceView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.isEmpty)
+                .animation(
+                    .spring(response: 0.35, dampingFraction: 0.8),
+                    value: viewModel.shouldPresentActiveScanToolbar
+                )
                 .opacity(shouldHideBottomChrome ? 0 : 1)
                 .allowsHitTesting(!shouldHideBottomChrome)
         } // ZStack
@@ -640,7 +648,7 @@ struct CaptureWorkspaceView: View {
         }
         .onChange(of: viewModel.stagedCapture.images.count) { _, count in
             guard count == 1 else { return }
-            guard viewModel.shouldAutoSubmitStagedCapture else { return }
+            guard viewModel.isAutomaticStagedSubmissionPending else { return }
 
             Task { @MainActor in
                 await viewModel.submitStagedCapture(
@@ -652,7 +660,7 @@ struct CaptureWorkspaceView: View {
         }
         .onChange(of: viewModel.stagedCapture.videos.count) { _, count in
             guard count == 1 else { return }
-            guard viewModel.shouldAutoSubmitStagedCapture else { return }
+            guard viewModel.isAutomaticStagedSubmissionPending else { return }
 
             Task { @MainActor in
                 await viewModel.submitStagedCapture(

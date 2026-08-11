@@ -7,11 +7,14 @@ struct ActiveScanToolbar: View {
     let isRefining: Bool
     let stagedCaptureLimit: Int
     @Binding var selectedPhotoItems: [PhotosPickerItem]
+    let onRequestPhotoPickerPresentation: @MainActor (Int) async -> Bool
 
     @State private var showTooltip: Bool = !ActiveScanToolbar.hasShownTooltipThisSession
     private static var hasShownTooltipThisSession: Bool = false
     @State private var shimmerPhase: CGFloat = -1.0
     @State private var isPhotoPickerPresented: Bool = false
+    @State private var isCheckingPhotoImportAdmission = false
+    @State private var photoImportAdmissionTask: Task<Void, Never>?
 
     // MARK: - Callbacks
     let onThumbnailTap: (Int) -> Void
@@ -76,27 +79,46 @@ struct ActiveScanToolbar: View {
                 
                 let currentLimit = stagedCaptureLimit
                 if orderedNodes.count < currentLimit {
+                    let selectionCount = max(
+                        1,
+                        stagedCapture.availableSlots(limit: currentLimit)
+                    )
                     // Use isPresented + explicit keyboard resign so iOS cannot restore the
                     // text field as first responder when the picker dismisses — that restoration
                     // fires keyboardWillShow and hides the toolbar behind the keyboard overlay.
                     Button(action: {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        isPhotoPickerPresented = true
+                        requestPhotoPickerPresentation(
+                            selectionCount: selectionCount
+                        )
                     }) {
                         Circle()
                             .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                             .frame(width: 48, height: 48)
                             .overlay(
-                                Image(systemName: "plus")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.5))
+                                Group {
+                                    if isCheckingPhotoImportAdmission {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 20, weight: .medium))
+                                            .foregroundColor(.white.opacity(0.5))
+                                    }
+                                }
+                                .accessibilityHidden(true)
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .disabled(isCheckingPhotoImportAdmission)
+                    .accessibilityLabel(
+                        isCheckingPhotoImportAdmission
+                            ? "Checking scan availability"
+                            : "Add photo"
+                    )
                     .photosPicker(
                         isPresented: $isPhotoPickerPresented,
                         selection: $selectedPhotoItems,
-                        maxSelectionCount: max(1, stagedCapture.availableSlots(limit: currentLimit)),
+                        maxSelectionCount: selectionCount,
                         matching: .images,
                         photoLibrary: .shared()
                     )
@@ -107,6 +129,7 @@ struct ActiveScanToolbar: View {
             .padding(8)
             .background(glassBackground)
             .overlay(glassBorder)
+            .disabled(isCheckingPhotoImportAdmission)
         }
         .environment(\.colorScheme, .dark)
         .padding(.horizontal, 16)
@@ -129,6 +152,34 @@ struct ActiveScanToolbar: View {
                 guard !Task.isCancelled else { return }
                 withAnimation { showTooltip = false }
             }
+        }
+        .onDisappear {
+            photoImportAdmissionTask?.cancel()
+        }
+    }
+
+    private func requestPhotoPickerPresentation(selectionCount: Int) {
+        guard photoImportAdmissionTask == nil else { return }
+
+        isCheckingPhotoImportAdmission = true
+        photoImportAdmissionTask = Task { @MainActor in
+            defer {
+                isCheckingPhotoImportAdmission = false
+                photoImportAdmissionTask = nil
+            }
+
+            let shouldPresent = await onRequestPhotoPickerPresentation(
+                selectionCount
+            )
+            guard shouldPresent, !Task.isCancelled else { return }
+
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
+            isPhotoPickerPresented = true
         }
     }
 }

@@ -52,16 +52,28 @@ struct CaptureControlBar: View {
             // so they stay consistent between body and the photosPicker modifier below.
             let totalStagedItems = viewModel.stagedCapture.totalItemCount
             let isAtCapacity = totalStagedItems >= capacityLimit
+            let photoSelectionCount = capacityLimit > 1
+                ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit))
+                : 1
+            let isPhotoLibraryAvailable = captureMode == .visual
+                && !isAtCapacity
+                && !viewModel.isVideoRecording
 
             HStack(alignment: .center) {
                 ZStack(alignment: .leading) {
                     PhotoLibraryButton(
                         selectedPhotoItems: $viewModel.selectedPhotoItems,
                         latestThumbnail: photoLibraryManager.latestThumbnail,
-                        maxSelectionCount: capacityLimit > 1 ? max(1, viewModel.stagedCapture.availableSlots(limit: capacityLimit)) : 1
+                        maxSelectionCount: photoSelectionCount,
+                        isAvailable: isPhotoLibraryAvailable,
+                        onRequestPickerPresentation: {
+                            await viewModel.requestImageImportEntryAdmission(
+                                prospectiveImageCount: photoSelectionCount
+                            )
+                        }
                     )
                     .opacity(captureMode == .visual && !viewModel.isVideoRecording ? (isAtCapacity ? 0.5 : 1) : 0)
-                    .allowsHitTesting(captureMode == .visual && !isAtCapacity && !viewModel.isVideoRecording)
+                    .allowsHitTesting(isPhotoLibraryAvailable)
 
                     VideoCancelButton(onTap: { viewModel.cancelVideoCapture() })
                         .opacity(captureMode == .visual && viewModel.isVideoRecording ? 1 : 0)

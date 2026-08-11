@@ -350,14 +350,24 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 93 exact
+   contradiction is invalid evidence. The current validator protects 95 exact
    cases. Twenty-seven were added by the joined scan-reliability follow-up.
    Eleven more form the live-connectivity follow-up: nine engine-level ownership,
    presentation, and exact-generation recovery fences plus two network-client
    replay-policy controls. One additional case protects the pre-queue admission
    connectivity handoff: a path-satisfied transport failure plus local
    eligibility selects queue-only, while local ineligibility still paywalls and
-   a non-connectivity preview failure still requires retry. Five menu/Field
+   a non-connectivity preview failure still requires retry. One more protects
+   automatic single-capture chrome:
+   `automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` requires
+   pending automatic ownership to suppress `ActiveScanToolbar`, requires a
+   failed attempt to restore the staged retry toolbar, preserves the toolbar
+   when explicit confirmation is enabled, and clears the suppression with the
+   staged buffer. One final case protects pre-import admission:
+   `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid
+   server denial to reach the paywall with no staged image or crop state, while
+   proving the prospective single-image RPC shape remains Flash-eligible.
+   Five menu/Field
    Notes regressions exposed by the
    prior failed hosted run are individually protected, two require the
    bounded/redacted offline-queue support artifact, one prevents needs-attention
@@ -478,7 +488,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 93
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 95
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -2674,15 +2684,26 @@ fail-closed exclusions at every wrapper depth, the broader post-durability
 secure-connection recovery boundary, certificate-policy veto precedence over a
 broad outer transport error, fail-closed over-depth handling, and the pure route
 policy without mutating process-wide connectivity state.
+`automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` independently
+locks the adjacent presentation boundary: automatic single-capture ownership
+hides `ActiveScanToolbar` before asynchronous admission begins, admission
+recovery can reveal the retained staged media, and confirmation-enabled capture
+continues to present **Identify** normally.
+`exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` locks the import entry
+boundary: a valid exhausted preview receives the prospective one-image Flash
+shape, opens the paywall, and leaves staging, crop state, and the admission
+in-flight flag empty before `PhotosPicker` can be presented. The external-import
+integration additionally requires the durable inbox receipt to survive the same
+server denial without staging or crop.
 `testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference`
 then drives an actual path-satisfied `.timedOut` preview through staged visual
 and direct nonvisual submission and requires both durable rows, no foreground
 generation, no analyzing Insight, no live engine processing, cleared staged
 input, and a still-online path. `testMalformedScanAdmissionPreviewRemainsFailClosed`
-proves an invalid server shape preserves the fail-closed retry path. Only the
-pure policy case is added to the exact protected inventory; the workflow source
-contract also requires all three integration/policy declarations to remain
-present.
+proves an invalid server shape preserves the fail-closed retry path. The pure
+connectivity policy and pre-import boundary cases are in the exact protected
+inventory; the workflow source contract also requires their integration
+declarations to remain present.
 
 The compiled hosted UI gate adds
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only

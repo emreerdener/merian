@@ -294,8 +294,10 @@ Local construction evidence is deliberately split by source state:
 - strict no-cache lint reports zero violations across all seven changed Swift
   production and test files;
 - the critical-result and focused-result validator harnesses plus the iOS
-  build/workflow contract pass, with all 93 protected unit declarations,
+  build/workflow contract pass, with all 95 protected unit declarations,
   including exact durable scan-ID/generation pairing for both engine pipelines,
+  automatic single-capture suppression of the manual **Identify** toolbar,
+  pre-import paywall admission before picker/crop work,
   and the exact two-case UI result requirement retained; and
 - `git diff --check` passes.
 
@@ -317,7 +319,11 @@ The committed descendant base updated those contracts to 91 cases and the exact
 two-smoke set; published HEAD extends the protected inventory to 92 for the
 pre-queue admission connectivity handoff. The current scan-reliability delta
 strengthens that protected case and extends the inventory to 93 by protecting
-the visual/nonvisual durable scan-ID/generation ownership fence. The complete
+the visual/nonvisual durable scan-ID/generation ownership fence. The staged-
+toolbar presentation follow-up extends it to 94 by protecting automatic
+single-capture suppression and failure recovery. The pre-import admission
+follow-up extends it to 95 by protecting paywall denial before picker/crop work.
+The complete
 local candidate/tooling gate now
 passes: 186 standard TypeScript tooling tests, 16 isolated DTO tests, executable
 Identify contract tests, every shell/tooling check, and all 18 documentation

@@ -1252,6 +1252,11 @@ table access remain denied. The boolean describes whether the pending media
 shape is eligible for Flash fallback. This function never inserts, updates, or
 reserves quota, so `reserve_ai_quota(...)` remains the only provider-dispatch
 authorization boundary and may still reject a race after the preview.
+The iOS image-import entry path calls this preview before presenting the native
+photo picker and before decoding a durable external Photos/Files receipt. A
+known denial therefore opens the paywall before selection, preparation, or crop;
+the client repeats admission at submission because the preview creates no
+reservation and cannot eliminate a concurrent-device race.
 Deploy this migration before releasing an iOS build that calls the RPC: online
 Capture intentionally blocks new processing when the preview is unavailable,
 except that a bounded iOS request ending in a classified URL transport failure

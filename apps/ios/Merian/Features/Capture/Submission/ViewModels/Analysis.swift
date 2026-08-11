@@ -113,6 +113,13 @@ extension CaptureWorkspaceViewModel {
         modelContext: ModelContext,
         preferredGoal: FieldTripPreferredGoal? = nil
     ) async {
+        let shouldFinishAutomaticAttempt = isAutomaticStagedSubmissionPending
+        defer {
+            if shouldFinishAutomaticAttempt {
+                finishAutomaticStagedSubmissionAttempt()
+            }
+        }
+
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
         let stagedNodes = stagedCapture.orderedNodes
         let admissionSnapshot = StagedCaptureAdmissionSnapshot(stagedCapture)
@@ -566,6 +573,53 @@ extension CaptureWorkspaceViewModel {
                 }
             }
         )
+    }
+
+    /// Gates image-selection and file-preparation work before the user enters
+    /// the picker or crop flow. Submission still rechecks admission because the
+    /// read-only preview does not reserve quota.
+    func requestImageImportEntryAdmission(
+        prospectiveImageCount: Int
+    ) async -> Bool {
+        guard prospectiveImageCount > 0,
+              prospectiveImageCount <= availableStagedCaptureSlots,
+              !isCheckingScanAdmission,
+              activePresentation == nil,
+              !isRootPresentationDismissing else {
+            return false
+        }
+
+        let existingItemCount = stagedCapture.totalItemCount
+        let isRefining = baseRefinementContext != nil
+        isCheckingScanAdmission = true
+        defer { isCheckingScanAdmission = false }
+
+        let flashFallbackEligible = Self.isImageImportFlashFallbackEligible(
+            existingItemCount: existingItemCount,
+            prospectiveImageCount: prospectiveImageCount,
+            isRefining: isRefining
+        )
+        let route = await requestScanAdmission(
+            flashFallbackEligible: flashFallbackEligible
+        )
+        guard route != nil,
+              !Task.isCancelled,
+              activePresentation == nil,
+              !isRootPresentationDismissing,
+              stagedCapture.totalItemCount == existingItemCount,
+              (baseRefinementContext != nil) == isRefining,
+              prospectiveImageCount <= availableStagedCaptureSlots else {
+            return false
+        }
+        return true
+    }
+
+    nonisolated static func isImageImportFlashFallbackEligible(
+        existingItemCount: Int,
+        prospectiveImageCount: Int,
+        isRefining: Bool
+    ) -> Bool {
+        !isRefining && existingItemCount == 0 && prospectiveImageCount == 1
     }
 
     /// Uses the local meter while offline or when the bounded caller-scoped

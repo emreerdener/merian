@@ -215,6 +215,12 @@ final class CaptureWorkspaceViewModel {
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isTooltipVisible: Bool = false
     var isCheckingScanAdmission = false
+    /// Set in the same MainActor mutation that stages an eligible single capture.
+    /// This keeps the manual Identify toolbar from appearing before the async
+    /// auto-submit observer begins its admission check. A failed attempt clears
+    /// the flag while preserving staged media so the toolbar can become the
+    /// explicit recovery path.
+    private(set) var isAutomaticStagedSubmissionPending = false
     
     // MARK: - Refinement Flow
     /// The historical scan actively chosen by the user to be appended with new photographic context.
@@ -851,6 +857,15 @@ final class CaptureWorkspaceViewModel {
             presentExternalImportQuotaBlock(for: pendingImport)
             return .temporarilyBlocked
         }
+        guard await requestImageImportEntryAdmission(
+            prospectiveImageCount: 1
+        ) else {
+            if activeSheet == .paywall,
+               paywallPresentedExternalImportIds.insert(pendingImport.id).inserted {
+                AppTelemetry.trackExternalImageImport(outcome: "blocked_quota")
+            }
+            return .temporarilyBlocked
+        }
         guard let fileURL = await externalImageImportStore.fileURL(for: pendingImport) else {
             await failExternalImageImport(pendingImport, outcome: "failed_missing_file")
             return .terminalFailure
@@ -1024,6 +1039,10 @@ final class CaptureWorkspaceViewModel {
             committedCount += 1
         }
 
+        if committedCount > 0 {
+            beginAutomaticStagedSubmissionIfEligible()
+        }
+
         if requiresCrop, committedCount > 0 {
             presentNextRequiredGalleryCrop()
         }
@@ -1051,6 +1070,34 @@ final class CaptureWorkspaceViewModel {
         return stagedCapture.images.count + stagedCapture.videos.count == 1 && !hasPendingRequiredGalleryCrop
     }
 
+    var shouldPresentActiveScanToolbar: Bool {
+        Self.shouldPresentActiveScanToolbar(
+            hasStagedContent: !stagedCapture.isEmpty,
+            isRefining: baseRefinementContext != nil,
+            isAutomaticSubmissionPending: isAutomaticStagedSubmissionPending
+        )
+    }
+
+    nonisolated static func shouldPresentActiveScanToolbar(
+        hasStagedContent: Bool,
+        isRefining: Bool,
+        isAutomaticSubmissionPending: Bool
+    ) -> Bool {
+        guard !isAutomaticSubmissionPending else { return false }
+        return hasStagedContent || isRefining
+    }
+
+    @discardableResult
+    func beginAutomaticStagedSubmissionIfEligible() -> Bool {
+        let shouldBegin = shouldAutoSubmitStagedCapture
+        isAutomaticStagedSubmissionPending = shouldBegin
+        return shouldBegin
+    }
+
+    func finishAutomaticStagedSubmissionAttempt() {
+        isAutomaticStagedSubmissionPending = false
+    }
+
     func isRequiredGalleryCrop(_ imageID: UUID) -> Bool {
         requiredGalleryCropImageIds.contains(imageID)
     }
@@ -1064,7 +1111,7 @@ final class CaptureWorkspaceViewModel {
             return false
         }
 
-        return shouldAutoSubmitStagedCapture
+        return beginAutomaticStagedSubmissionIfEligible()
     }
 
     func cancelRequiredGalleryCrop(for imageID: UUID) {
@@ -1081,10 +1128,15 @@ final class CaptureWorkspaceViewModel {
     func clearStagedCaptureAndCropState(discardStagedMediaFiles: Bool = false) {
         activeCropTask?.cancel()
         requiredGalleryCropImageIds.removeAll()
-        if discardStagedMediaFiles {
-            discardLocalMediaFiles(at: stagedCapture.discardableLocalMediaFilePaths)
-        }
+        let discardedMediaPaths = discardStagedMediaFiles
+            ? stagedCapture.discardableLocalMediaFilePaths
+            : []
+        // Clear media while automatic ownership is still active. Releasing the
+        // presentation fence first would briefly make the retained item eligible
+        // for ActiveScanToolbar during this synchronous reset.
         stagedCapture.clearAll()
+        finishAutomaticStagedSubmissionAttempt()
+        discardLocalMediaFiles(at: discardedMediaPaths)
         editingCropIndex = nil
         imageToCrop = nil
     }

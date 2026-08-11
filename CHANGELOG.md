@@ -22,6 +22,12 @@ TestFlight, App Store, support, and QA.
   and reopened.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
+- Instant single captures now move directly into automatic submission without
+  briefly flashing the manual **Identify** tray. If admission genuinely fails,
+  the retained staged photo still exposes **Identify** as an explicit retry.
+- Photo imports now check scan availability before opening the library picker
+  or preparing a shared image, so a known limit opens the paywall before the
+  user selects and crops a photo.
 
 ### Live Scan Queue Handoff — Release-Gated
 

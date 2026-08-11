@@ -162,6 +162,16 @@ while `MediaPreparationActorTests` pins the production budgets directly.
 Refinement staging must never retain the original full-size file bytes in
 `StagedImage.displayData`.
 
+Image-import admission happens before this preparation pipeline starts.
+`PhotoLibraryButton` and the staged toolbar's add-photo action await
+`requestImageImportEntryAdmission` before presenting the native picker, while
+the durable external-import path awaits it before metadata extraction or
+ImageIO decoding. The prospective count plus existing staging/refinement state
+determine the RPC's Flash-eligibility boolean. A known
+denial opens the paywall without allocating image buffers, staging media, or
+presenting crop; external receipts remain durable. Submission intentionally
+rechecks because this entry preview is advisory and non-reserving.
+
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so
 `commitPreparedStagedImages` can build the toolbar thumbnail from an
 already-decoded image instead of calling `UIImage(data:)` on the main actor
@@ -171,11 +181,17 @@ Using the already-decoded `CGImage` directly for camera captures eliminates a
 WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The
 `stagedCapture.images.count` change is what the
 `onChange(of: viewModel.stagedCapture.images.count)` observer in
-`CaptureWorkspaceView` watches to auto-trigger `submitActiveScan`, but the
-observer now delegates the decision to
-`viewModel.shouldAutoSubmitStagedCapture`. That helper preserves the existing
-confirmation, multi-capture, refinement, audio, and describe guards, and
-additionally blocks while `hasPendingRequiredGalleryCrop` is true.
+`CaptureWorkspaceView` watches to auto-trigger staged submission. The camera,
+video, and crop-confirmed commit paths first call
+`beginAutomaticStagedSubmissionIfEligible()` in the same MainActor mutation
+that adds or finalizes the media. That helper preserves the confirmation,
+multi-capture, refinement, audio, describe, and pending-gallery-crop guards and
+sets `isAutomaticStagedSubmissionPending` only for the eligible single-capture
+path. The observer consumes that explicit ownership instead of inferring intent
+one render later. `shouldPresentActiveScanToolbar` suppresses the manual
+**Identify** tray while ownership is pending, preventing a staged-control flash;
+if admission fails, the attempt releases ownership but retains the staged media
+so the toolbar becomes the explicit retry path.
 
 `CameraManager.photoOutput(_:didFinishProcessingPhoto:)` wraps
 `AVCapturePhoto.fileDataRepresentation()` in an `autoreleasepool`, releasing

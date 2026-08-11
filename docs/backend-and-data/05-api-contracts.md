@@ -112,6 +112,15 @@ client opens the existing paywall and preserves staged input for either denial.
 `ai_quota_daily_exceeded` caused by a concurrent device or request must use the
 same paywall fallback.
 
+For image imports, iOS runs the preview before presenting the native photo
+picker and before reading/preparing a pending external Photos/Files receipt.
+The boolean reflects the prospective imported media shape: exactly one image
+with no existing evidence/refinement is Flash-eligible; multiple, mixed, or
+refinement evidence is not. A known denial therefore reaches the paywall before
+selection or crop work. Crop confirmation/submission rechecks admission because
+the preview is non-reserving; a concurrent account/quota change can still deny
+that later boundary.
+
 The iOS preflight uses an isolated ephemeral session with a two-second request
 and resource deadline, `waitsForConnectivity = false`, no URL cache, and no
 PostgREST retry. A valid row is the only online admission proof. A classified
