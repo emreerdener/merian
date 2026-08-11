@@ -3806,6 +3806,14 @@ remaining count. It is intentionally read-only and does not create a hold,
 counter increment, or reservation. Only `authenticated` has execute privilege;
 the later service-only reservation remains authoritative.
 
+The database shape is intentionally independent from iOS reachability. The
+client gives this advisory read a two-second, no-wait/no-retry transport bound.
+Only a classified URL transport failure may select a locally eligible
+queue-only route, which creates no foreground provider attempt; malformed,
+authentication/TLS, and server failures stay blocked. Replay still reaches the
+service-only reservation below, so a local connectivity fallback cannot grant
+or spend quota.
+
 `reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)` locks the
 user before quota or ledger rows, serializes an identical request key, resolves
 paid Pro → complimentary Pro → free under the rollout fence, and consumes all

@@ -154,6 +154,11 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
 assert_suite_has_passed_test_case \
+  "Pre-queue admission connectivity handoff" \
+  "StagedCaptureTests" \
+  "StagedCapture" \
+  "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+assert_suite_has_passed_test_case \
   "Retired queue owner response handoff" \
   "InferenceEngineTests" \
   "Inference Engine Tests" \

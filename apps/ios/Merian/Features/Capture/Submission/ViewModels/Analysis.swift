@@ -9,6 +9,44 @@ struct EnvironmentContextGraceResult: @unchecked Sendable {
     let timedOut: Bool
 }
 
+enum CaptureScanAdmissionRoute: Sendable, Equatable {
+    case foreground
+    case queued
+}
+
+enum CaptureScanAdmissionResolution: Sendable, Equatable {
+    case proceed(CaptureScanAdmissionRoute)
+    case paywall
+    case retryRequired
+}
+
+enum CaptureScanAdmissionPolicy {
+    nonisolated static func resolve(
+        isOnline: Bool,
+        canStartLocally: Bool,
+        previewResult: ScanAdmissionPreviewResult?
+    ) -> CaptureScanAdmissionResolution {
+        guard isOnline else {
+            return canStartLocally ? .proceed(.queued) : .paywall
+        }
+        guard let previewResult else { return .retryRequired }
+
+        switch previewResult {
+        case .available(let preview):
+            switch preview.decision {
+            case .allowed:
+                return .proceed(.foreground)
+            case .dailyQuotaExhausted, .proRequired:
+                return .paywall
+            }
+        case .connectivityUnavailable:
+            return canStartLocally ? .proceed(.queued) : .paywall
+        case .unavailable:
+            return .retryRequired
+        }
+    }
+}
+
 final class EnvironmentContextGraceGate: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<EnvironmentContextGraceResult, Never>?
@@ -149,7 +187,7 @@ extension CaptureWorkspaceViewModel {
             targetEradicationScanId: baseRefinementContext?.scanId
         )
 
-        guard await requestScanAdmission(
+        guard let admissionRoute = await requestScanAdmission(
             flashFallbackEligible: flashFallbackEligible
         ) else {
             return
@@ -169,7 +207,7 @@ extension CaptureWorkspaceViewModel {
                 modelContext: modelContext,
                 targetEradicationScanId: baseRefinementContext?.scanId,
                 userPerceivedStart: analysisTappedAt,
-                admissionWasChecked: true
+                admissionRoute: admissionRoute
             )
             guard didEnqueue else { return }
             clearStagedCaptureAndCropState()
@@ -210,8 +248,12 @@ extension CaptureWorkspaceViewModel {
 
         // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
-        let foregroundInferenceGeneration =
-            diContainer.offlineQueueManager.isOnline ? UUID() : nil
+        let shouldStartForegroundInference =
+            admissionRoute == .foreground &&
+            diContainer.offlineQueueManager.isOnline
+        let foregroundInferenceGeneration = shouldStartForegroundInference
+            ? UUID()
+            : nil
         pendingAnalyzeScanId = scanId
         if let capturedPreferredGoal {
             diContainer.scanMilestoneCoordinator.registerPreferredGoal(
@@ -248,7 +290,8 @@ extension CaptureWorkspaceViewModel {
             captureDate: primaryHistoricalContext?.captureDate ?? Date(),
             foregroundInferenceGeneration:
                 foregroundInferenceGeneration,
-            startSyncImmediately: !shouldOptimizeLiveImageAnalysis,
+            startSyncImmediately:
+                admissionRoute == .queued || !shouldOptimizeLiveImageAnalysis,
             onQueued: { [weak self] didQueue in
                 guard let self else { return }
                 let queueCommittedAt = CFAbsoluteTimeGetCurrent()
@@ -525,11 +568,13 @@ extension CaptureWorkspaceViewModel {
         )
     }
 
-    /// Uses the local meter only while offline; online Capture asks the
-    /// caller-scoped database preview before inference. An online preview
-    /// failure blocks new processing until the app can prove admission; the
+    /// Uses the local meter while offline or when the bounded caller-scoped
+    /// preview proves transport is unavailable. Both fallbacks are queue-only;
+    /// malformed, unauthorized, and server failures remain blocked. The
     /// Identify reservation remains authoritative.
-    func requestScanAdmission(flashFallbackEligible: Bool) async -> Bool {
+    func requestScanAdmission(
+        flashFallbackEligible: Bool
+    ) async -> CaptureScanAdmissionRoute? {
         let canStartLocally: Bool
         if flashFallbackEligible {
             canStartLocally = diContainer.usageManager.canPerformScan(
@@ -539,30 +584,32 @@ extension CaptureWorkspaceViewModel {
             canStartLocally = diContainer.revenueCatManager.canStartProScan
         }
 
-        guard diContainer.offlineQueueManager.isOnline else {
-            guard canStartLocally else {
-                presentScanAdmissionPaywall()
-                return false
-            }
-            return true
+        let isOnline = diContainer.offlineQueueManager.isOnline
+        let previewResult: ScanAdmissionPreviewResult?
+        if isOnline {
+            previewResult = await diContainer.scanAdmissionManager.preview(
+                flashFallbackEligible: flashFallbackEligible
+            )
+        } else {
+            previewResult = nil
         }
-        let preview = await diContainer.scanAdmissionManager.preview(
-            flashFallbackEligible: flashFallbackEligible
-        )
-        guard !Task.isCancelled else { return false }
-        guard let preview else {
+        guard !Task.isCancelled else { return nil }
+
+        switch CaptureScanAdmissionPolicy.resolve(
+            isOnline: isOnline,
+            canStartLocally: canStartLocally,
+            previewResult: previewResult
+        ) {
+        case .proceed(let route):
+            return route
+        case .paywall:
+            presentScanAdmissionPaywall()
+            return nil
+        case .retryRequired:
             offlineToastMessage = .error(
                 "Unable to check scan availability. Please try again."
             )
-            return false
-        }
-
-        switch preview.decision {
-        case .allowed:
-            return true
-        case .dailyQuotaExhausted, .proRequired:
-            presentScanAdmissionPaywall()
-            return false
+            return nil
         }
     }
 

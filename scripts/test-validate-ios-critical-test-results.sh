@@ -135,6 +135,9 @@ write_test_tree() {
             suite("SyncStateManagerTests"; [
               "generationFenceTest"
             ]),
+            suite("StagedCapture"; [
+              "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+            ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
               "generatedConfidenceZeroBackgroundResultIsTerminal",
@@ -293,6 +296,7 @@ required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
+  "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"
   "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss"

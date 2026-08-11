@@ -139,7 +139,7 @@ struct CaptureControlBar: View {
                                         flashFallbackEligible:
                                             viewModel.stagedCapture.isEmpty &&
                                             viewModel.baseRefinementContext == nil
-                                    ) else {
+                                    ) != nil else {
                                         return
                                     }
                                     audioCaptureManager.confirmAndSubmit()
@@ -159,7 +159,7 @@ struct CaptureControlBar: View {
                                             flashFallbackEligible:
                                                 viewModel.stagedCapture.isEmpty &&
                                                 viewModel.baseRefinementContext == nil
-                                        ) else {
+                                        ) != nil else {
                                             return
                                         }
                                         // Ask immediately while the red-button action is still

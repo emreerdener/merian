@@ -77,10 +77,25 @@ untouched; Capture does not start hardware, create a queue row, open Insight,
 or invoke inference. Flash eligibility is true only for one ordinary image,
 standalone audio clip, or description; video, mixed/multiple evidence, and
 refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
-preview, not a reservation. Offline Capture falls back to the local meter, and the later
-`reserve_ai_quota(...)` transaction remains authoritative, so an exact `429`
-from a cross-device race still replaces Insight with the paywall as a recovery
-fallback.
+preview, not a reservation.
+
+The preview uses a dedicated ephemeral transport with an exact two-second
+request/resource bound, no connectivity wait, no cache, and no inline retry. If
+that transport reports a classified connectivity failure while reachability is
+still optimistic, current local eligibility may admit capture only onto a
+queue-only route. Submission persists the normal `OfflineQueuedScan`, starts no
+foreground inference generation, opens no analyzing Insight, and leaves the
+durable scheduler as the sole retry owner. Known-offline Capture uses the same
+local-meter route without calling the RPC. This prevents captive, black-holed,
+or stale-path Wi-Fi from turning an otherwise saveable observation into a
+pre-queue network-timeout failure.
+
+The fallback is intentionally narrow. Cancellation, a missing or malformed
+row, authentication/TLS failure, and server failure preserve staged input and
+show retry feedback; they cannot masquerade as offline admission. A valid
+quota/plan denial still opens the paywall. The later `reserve_ai_quota(...)`
+transaction remains authoritative, so an exact `429` from a cross-device race
+still replaces Insight with the paywall as a recovery fallback.
 
 Actual admission is a synchronous `@MainActor` funding claim keyed by the stable
 scan ID and active account before any source file is written or foreground

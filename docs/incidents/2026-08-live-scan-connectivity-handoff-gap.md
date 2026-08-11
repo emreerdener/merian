@@ -1,9 +1,10 @@
 # Live Scan Connectivity Handoff Gap
 
-**Date:** 2026-08-09\
+**Date:** 2026-08-09 (updated 2026-08-10)\
 **Severity:** Release-blocking scan-reliability risk\
-**Affected boundary:** Queue-backed foreground Identify transport → durable
-offline replay → open Insight presentation\
+**Affected boundary:** Caller-scoped admission preview → durable queue
+acceptance → foreground Identify transport → offline replay → open Insight
+presentation\
 **Repository status:** Remediated in the current working tree; exact-SHA hosted
 and physical-device acceptance remains open\
 **Production status:** Do not describe the handoff as released until every
@@ -13,7 +14,22 @@ device matrix
 ## Summary
 
 Every submitted scan is durably queued before a live provider request begins.
-That durability means a connectivity failure is not a terminal scan failure: the
+The original remediation protected connectivity loss after that durable
+acceptance. A second review found an earlier boundary: online Capture asked
+Supabase for a caller-scoped admission preview before starting hardware or
+creating the queue row. `NWPathMonitor` could still report online on captive,
+black-holed, or no-upstream Wi-Fi, leaving that shared request to fail or stall
+before the observation became durable.
+
+The joined source now bounds that preflight to two seconds with no connectivity
+wait, cache, or retry. A classified URL transport failure plus current local
+eligibility selects a queue-only route. Submission then persists the normal
+queue row without a foreground inference generation or analyzing Insight; the
+durable scheduler and authoritative `reserve_ai_quota(...)` transaction own
+later retry. Missing/malformed data, cancellation, authentication/TLS, server
+failure, and valid plan/quota denials retain their fail-closed behavior.
+
+After durable acceptance, connectivity failure is likewise not terminal: the
 foreground request should relinquish the uplink, the existing Insight should
 change to **Queued for later**, and the durable queue should resume the same
 scan UUID when transport is eligible.
@@ -49,6 +65,10 @@ below.
 
 | Condition                                             | Presentation                                                                                 | Retry owner                               |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Known offline before admission                        | If local eligibility permits, Capture proceeds queue-only and does not call the preview RPC   | Durable queue                             |
+| Path appears online but admission transport fails     | If local eligibility permits, save queue-only with no analyzing Insight or foreground owner   | Durable queue                             |
+| Admission returns a valid plan/quota denial           | Preserve staged input and open the paywall                                                    | User after entitlement change             |
+| Admission is cancelled, malformed, unauthorized, or fails at TLS/server policy | Preserve staged input and show retry feedback; do not infer offline admission | User                                      |
 | Offline before live dispatch                          | Capture queues the scan and does not start provider transport                                | Durable queue                             |
 | Connectivity changes during the 150 ms context grace  | Open Insight changes to **Queued for later**                                                 | Durable queue                             |
 | First queue-backed transport failure after dispatch   | Same-ID Insight changes to **Queued for later** without an error haptic or synthetic result  | Durable queue; no inline transport replay |
@@ -64,6 +84,33 @@ retirement must not erase the still-current local presentation identity before
 the exact-ID queued handoff is published.
 
 ## Root Cause
+
+### A shared pre-queue request treated reachability as transport proof
+
+`CaptureWorkspaceViewModel.requestScanAdmission` formerly chose between a local
+offline meter and an online Supabase RPC solely from
+`OfflineQueueManager.isOnline`. A satisfied network path does not prove DNS,
+upstream internet, a usable captive-portal route, or Supabase reachability. The
+online branch used the shared client transport and collapsed every error into
+one unavailable result. Because this happened before `OfflineQueuedScan`
+creation, a timeout could show **Unable to check scan availability** while no
+durable retry owner existed.
+
+`ScanAdmissionManager` now returns typed `available`,
+`connectivityUnavailable`, or `unavailable` results from an isolated ephemeral
+session. Its request and resource deadlines are exactly two seconds,
+`waitsForConnectivity` is false, URL caching is absent, the explicit request
+timeout is set, and PostgREST retry is disabled. Only a reviewed set of URL
+transport errors—including timeout, no internet, connection loss, DNS/host, and
+data-path failures—maps to `connectivityUnavailable`. Cancellation, TLS,
+authentication, server, and response-shape failures remain `unavailable`.
+
+The Capture policy combines that typed result with current local eligibility.
+Connectivity unavailability may proceed only as queue-only; it cannot create a
+foreground generation or dispatch Identify. Local ineligibility still opens the
+paywall, while generic unavailability still requests retry. The provider-side
+reservation remains authoritative during durable replay, so the fallback grants
+no quota and cannot override a cross-device decision.
 
 ### Durable ownership and local presentation were coupled
 
@@ -148,50 +195,57 @@ replay.
 This incident is closed only when one exact workflow SHA supplies all of the
 following:
 
-1. Visual and nonvisual queue-backed tests dispatch a real mocked request. The
+1. Pre-queue admission uses an exact two-second request/resource bound, no
+   connectivity wait, no cache, and no PostgREST retry. A path-satisfied
+   `.timedOut` preview plus local eligibility persists visual and nonvisual
+   queue rows with no foreground generation, analyzing Insight, or live engine
+   processing;
+   malformed/non-connectivity failure stays blocked and local ineligibility
+   still paywalls.
+2. Visual and nonvisual queue-backed tests dispatch a real mocked request. The
    path-loss cases release the body-upload hold, trigger connectivity
    retirement, and only then deliver `.networkConnectionLost` or
    `.notConnectedToInternet`; a separate `.timedOut` case keeps path and durable
    ownership active until the transport deadline is delivered.
-2. Both paths publish the exact `queuedPresentationScanId`, bind the matching
+3. Both paths publish the exact `queuedPresentationScanId`, bind the matching
    durable row, route the open Insight to `.queued`, stop live processing, and
    emit no error placeholder, error haptic, network-circuit failure, or second
    provider request.
-3. The durable queued scan survives; its deferred-upload hold and foreground
+4. The durable queued scan survives; its deferred-upload hold and foreground
    generation eventually clear without test-only manual state repair; staged
    recovery can resume under the same scan UUID.
-4. Deterministic request-policy, count, and timing assertions prove the
+5. Deterministic request-policy, count, and timing assertions prove the
    queue-backed request carries the 15-second foreground bound, does not enter
    the two-second inline replay or a 90-second deadline, and hands presentation
    to the queue within 1.5 seconds after URLSession reports failure.
-5. A queue-less direct transport failure still produces the reviewed **Network
+6. A queue-less direct transport failure still produces the reviewed **Network
    timeout** recovery state.
-6. Exhausted queue-backed `5xx`/provider failure produces **Analysis delayed /
+7. Exhausted queue-backed `5xx`/provider failure produces **Analysis delayed /
    Scan saved**, is classified as an inference error placeholder, never emits
    non-biological success treatment, and leaves durable retry intact.
-7. A completed background response or status-recovered record for the same ID
+8. A completed background response or status-recovered record for the same ID
    replaces queued content in place; a stale failure cannot overwrite that
    completion or a newer scan.
-8. The complete iOS unit-test target, protected critical scan-flow inventory,
+9. The complete iOS unit-test target, protected critical scan-flow inventory,
    deterministic live-Insight-to-queue and queued-scan-completion UI smokes, and
    current-SHA Release archive all pass with zero failures or skipped required
    cases. The live-sheet dismissal resolves `InsightSheetCloseButton` through
    the current `InsightSheetView`; a global `Close` label query is ambiguous
    when an underlying presentation remains in the accessibility tree.
-9. Physical-device QA covers airplane mode, Wi-Fi with no upstream internet,
+10. Physical-device QA covers airplane mode, Wi-Fi with no upstream internet,
    captive portal, Wi-Fi-to-cellular handoff, app backgrounding during upload,
    and reconnect. The saved scan must remain visible and complete exactly once.
 
-The current working tree addresses gates 1–7 in source and exact protected test
+The current working tree addresses gates 1–8 in source and exact protected test
 declarations. Its hosted workflow now requires both the open-live-sheet queue
 transition and the queued-completion UI smokes as one exact two-case result set.
-The incident remains open because gate 8 has not run from a clean commit
-containing these changes and gate 9 requires physical-device evidence.
+The incident remains open because gate 9 has not run from a clean commit
+containing these changes and gate 10 requires physical-device evidence.
 
 ## Validation Status at Review
 
 The current local review checkout is based on HEAD
-`7111b2e56917788971ab798db85b59783d2ba5f0`. Hosted iOS Build and Test Run 226
+`fc2a55594339827ad2d2402d86da80dfccd67575`. Hosted iOS Build and Test Run 226
 passed all 1,465 unit tests and the queued-completion UI smoke. Its
 validation-only Release archive also passed the privacy-manifest, ATS-default,
 dSYM, and Debug-marker checks. The live-to-queue smoke reached the exact queued
@@ -199,31 +253,31 @@ message and every pre-dismissal assertion, then failed because the global
 `app.buttons["Close"]` query matched both the active Insight close control and
 an underlying close control.
 
-The current working tree assigns `InsightSheetCloseButton` directly to the
-native toolbar button and updates the smoke plus portable workflow contract to
-require that identifier. Those changes still require a new hosted exact-SHA UI
-run; Run 226 validates the behavior before dismissal but cannot validate the
-selector correction.
+The committed base assigns `InsightSheetCloseButton` directly to the native
+toolbar button and updates the smoke plus portable workflow contract to require
+that identifier. The uncommitted admission changes join that earlier repair and
+still require a new hosted exact-SHA UI run; Run 226 validates the behavior
+before dismissal but cannot validate either the later selector correction or
+the new pre-queue boundary.
 
 Local construction evidence for the current working tree is:
 
 - all changed Swift files parse;
 - generated-project membership resolves 418 app target inputs, 89 unit-test
   sources, and two UI-test sources;
-- the complete 417-file checked-in production Swift source set emits one
+- the complete 418-file production Swift source set type-checks and emits one
   testable app module against the cached iOS Simulator SDK and locked package
-  modules; the generated-project guard separately accounts for the target's
-  generated source input;
+  modules;
 - the complete 89-file `merianTests` and two-file `merianUITests` source sets
   type-check against that exact current app module;
 - the focused toolbar accessibility unit contract type-checks independently;
 - strict no-cache lint reports zero violations across every changed production
-  file and the smaller changed test files. The new hunks in the two large test
-  files add no violation; their whole-file runs retain only known baseline debt
-  outside this change (one large tuple in `InferenceEngineTests` and 31 legacy
-  findings in `MerianNetworkClientTests`);
+  file and `StagedCaptureTests`. The new `merianTests` hunk adds no violation;
+  its whole-file run retains only three known baseline findings far outside this
+  change (two legacy long type names and one non-optional String-to-Data
+  conversion);
 - the critical-result and focused-result validator harnesses plus the iOS
-  build/workflow contract pass, with all 91 protected unit declarations and the
+  build/workflow contract pass, with all 92 protected unit declarations and the
   exact two-case UI result requirement retained; and
 - `git diff --check` passes.
 
@@ -234,18 +288,22 @@ workflow/tooling inputs. It used no production environment, production secret,
 or production mutation. Its disposable validation failed only after the
 repository-tooling phase found two stale documentation expectations: the old
 81-case protected inventory and the former singular queued-completion UI smoke.
-The current tree updates those contracts to 91 cases and the exact two-smoke
-set. The fail-closed candidate scope detector and complete Supabase tooling gate
-now pass locally, including all 18 documentation contracts; all 262 migration
-source assertions across 39 discovered files also pass. This repairs the
-reported source/documentation gate but does not substitute for the workflow's
-fresh disposable-database replay on one committed exact SHA.
+The committed descendant base updated those contracts to 91 cases and the exact
+two-smoke set. This working tree extends the protected inventory to 92 for the
+pre-queue admission connectivity handoff and updates its documentation
+contracts in the same change. The complete local candidate/tooling gate now
+passes: 186 standard TypeScript tooling tests, 16 isolated DTO tests, executable
+Identify contract tests, every shell/tooling check, and all 18 documentation
+contracts. All 262 migration source assertions pass across 39 discovered test
+files, including the caller-scoped read-only scan-admission RPC. These source
+results repair the reported contract failure but do not substitute for the
+workflow's fresh disposable-database replay on one committed exact SHA.
 
 The sandbox cannot reliably connect to CoreSimulatorService or apply SwiftPM's
 nested build sandbox, so it cannot run the Xcode test bundle locally. Direct
 compiler construction is not runtime evidence. A new hosted exact-SHA unit/UI
-run and Release archive plus physical-device QA remain acceptance gates 8 and
-9.
+run and Release archive plus physical-device QA remain acceptance gates 9 and
+10.
 
 The supplied `supabase_logs (1).csv` contains 76 auth/RPC rows, no Identify or
 inference transport row, and no non-zero latency value. It cannot establish a
@@ -260,6 +318,7 @@ or tuned further.
 ## Related Contracts
 
 - [Scan Ingestion Reliability and Recovery](../backend-and-data/16-scan-ingestion-reliability-and-recovery.md)
+- [API Contracts](../backend-and-data/05-api-contracts.md)
 - [Offline Sync Pipeline](../backend-and-data/01-offline-sync-pipeline.md)
 - [Error Handling](../development-guides/06-error-handling.md)
 - [AI Engineering](../system-architecture/04-ai-engineering.md)
@@ -267,5 +326,6 @@ or tuned further.
 - [Gamification and Telemetry](../features-and-hardware/03-gamification-and-telemetry.md)
 - [Core AI](../../apps/ios/Merian/Core/AI/README.md)
 - [Core Network](../../apps/ios/Merian/Core/Network/README.md)
+- [Core Security](../../apps/ios/Merian/Core/Security/README.md)
 - [Capture Submission](../../apps/ios/Merian/Features/Capture/Submission/README.md)
 - [Insight Content](../../apps/ios/Merian/Features/Insights/Content/README.md)

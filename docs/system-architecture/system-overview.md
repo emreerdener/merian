@@ -52,6 +52,13 @@ durable app-sandbox copy before Capture begins this pipeline:
    their existing behavior. Successful non-biological results count; the scoped
    correction flow bypasses only its Pro UI gate.
 
+   A satisfied network path is advisory, so the caller-scoped admission preview
+   has an isolated two-second, no-wait/no-cache/no-retry transport. A classified
+   transport failure plus local eligibility selects queue-only and creates no
+   foreground inference generation; malformed, authentication/TLS, server, and
+   valid policy failures remain fail-closed. Authoritative quota reservation
+   still occurs only during provider dispatch or durable replay.
+
    A queue-backed live request must hand presentation to that exact durable row
    on its first transport failure or its 15-second foreground safety deadline,
    showing **Queued for later** while recovery waits for eligible connectivity.

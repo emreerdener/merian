@@ -55,11 +55,11 @@ extension CaptureWorkspaceViewModel {
         modelContext: ModelContext,
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil,
-        admissionWasChecked: Bool = false
+        admissionRoute: CaptureScanAdmissionRoute? = nil
     ) async -> Bool {
         guard !mediaTimeline.isEmpty else { return false }
 
-        let ownsAdmissionCheck = !admissionWasChecked
+        let ownsAdmissionCheck = admissionRoute == nil
         if ownsAdmissionCheck {
             guard !isCheckingScanAdmission else { return false }
             isCheckingScanAdmission = true
@@ -69,8 +69,11 @@ extension CaptureWorkspaceViewModel {
                 isCheckingScanAdmission = false
             }
         }
-        if ownsAdmissionCheck {
-            guard await requestScanAdmission(
+        let resolvedAdmissionRoute: CaptureScanAdmissionRoute
+        if let admissionRoute {
+            resolvedAdmissionRoute = admissionRoute
+        } else {
+            guard let route = await requestScanAdmission(
                 flashFallbackEligible: Self.isFlashFallbackEligible(
                     mediaTimeline,
                     targetEradicationScanId: targetEradicationScanId
@@ -78,6 +81,7 @@ extension CaptureWorkspaceViewModel {
             ) else {
                 return false
             }
+            resolvedAdmissionRoute = route
         }
 
         diContainer.cameraManager.resetZoom()
@@ -86,7 +90,8 @@ extension CaptureWorkspaceViewModel {
         let filteredVideoFileNames = videoFileNames.filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
         let isOnline = diContainer.offlineQueueManager.isOnline
-        let foregroundInferenceGeneration = isOnline ? UUID() : nil
+        let foregroundInferenceGeneration =
+            resolvedAdmissionRoute == .foreground && isOnline ? UUID() : nil
 
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
@@ -129,7 +134,11 @@ extension CaptureWorkspaceViewModel {
         guard let foregroundInferenceGeneration else {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
-            offlineToastMessage = .warning("No network connection. Queued for analysis.")
+            offlineToastMessage = .warning(
+                isOnline
+                    ? "Capture queued for analysis."
+                    : "No network connection. Queued for analysis."
+            )
             return true
         }
         guard diContainer.offlineQueueManager.isOnline else {

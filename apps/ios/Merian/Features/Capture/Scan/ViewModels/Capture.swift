@@ -690,13 +690,14 @@ extension CaptureWorkspaceViewModel {
         isCapturing = true
 
         Task {
-            // 2. Authoritative admission preview. The local meter remains the
-            // offline fallback, while the database preview prevents a stale
-            // device balance from starting camera work that can only paywall.
+            // 2. Advisory admission preview. Known-offline and classified
+            // transport-unavailable states may use the local meter only for a
+            // queue-only route; the database preview prevents other stale
+            // device state from starting camera work that can only paywall.
             guard await requestScanAdmission(
                 flashFallbackEligible: stagedCapture.isEmpty &&
                     baseRefinementContext == nil
-            ) else {
+            ) != nil else {
                 isCapturing = false
                 return
             }
@@ -786,7 +787,7 @@ extension CaptureWorkspaceViewModel {
 
             guard await self.requestScanAdmission(
                 flashFallbackEligible: false
-            ) else {
+            ) != nil else {
                 return
             }
 

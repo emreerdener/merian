@@ -112,9 +112,27 @@ client opens the existing paywall and preserves staged input for either denial.
 `ai_quota_daily_exceeded` caused by a concurrent device or request must use the
 same paywall fallback.
 
+The iOS preflight uses an isolated ephemeral session with a two-second request
+and resource deadline, `waitsForConnectivity = false`, no URL cache, and no
+PostgREST retry. A valid row is the only online admission proof. A classified
+URL transport failure such as no route, DNS/host failure, connection loss, or
+timeout may consult the current local entitlement meter only to choose a
+**queue-only** route: Capture may preserve the observation in the durable queue,
+but it must not create a foreground inference generation or dispatch Identify.
+The authoritative reservation is therefore deferred to queue replay.
+
+This narrow fallback does not turn arbitrary preflight failures into offline
+work. Cancellation, authentication/TLS failure, server response failure,
+malformed or missing rows, and unsupported decisions remain fail-closed with
+retry feedback. A valid `daily_quota_exhausted` or `pro_required` response still
+opens the paywall. Known-offline Capture follows the same local-meter,
+queue-only rule without attempting the RPC.
+
 Release order is database first, iOS second. The iOS client intentionally
-blocks online processing with retry feedback when this RPC is unavailable, so
-shipping the caller before migration `20260809155517` would stop online scans.
+blocks online processing with retry feedback when this RPC is unavailable for
+any reason other than a classified URL transport failure, so shipping the
+caller before migration `20260809155517` would stop online scans rather than
+bypass admission.
 
 Before constructing a first Identify request for a newly onboarded account, an
 iOS client must push pending adult, Terms, and Gemini evidence and verify a

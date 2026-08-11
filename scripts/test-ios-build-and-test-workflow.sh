@@ -35,8 +35,11 @@ queue_url_session_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Offli
 background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor.swift"
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
+scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
+capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/Analysis.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
+capture_workspace_test_source="$repo_root/apps/ios/MerianTests/merianTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {
@@ -634,6 +637,36 @@ assert_file_contains \
   "$inference_engine_test_source" \
   "The foreground deadline branch must begin with the exact durable owner still active."
 assert_file_contains \
+  "$scan_admission_source" \
+  "nonisolated static let previewRequestTimeout: TimeInterval = 2"
+assert_file_contains \
+  "$scan_admission_source" \
+  "configuration.waitsForConnectivity = false"
+assert_file_contains \
+  "$scan_admission_source" \
+  "request.timeoutInterval = Self.previewRequestTimeout"
+assert_file_contains \
+  "$scan_admission_source" \
+  "retryEnabled: false"
+assert_file_contains \
+  "$scan_admission_source" \
+  "case connectivityUnavailable"
+assert_file_contains \
+  "$capture_analysis_source" \
+  "admissionRoute == .foreground &&"
+assert_file_contains \
+  "$capture_analysis_source" \
+  "admissionRoute == .queued || !shouldOptimizeLiveImageAnalysis"
+assert_file_contains \
+  "$capture_workspace_test_source" \
+  "testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference"
+assert_file_contains \
+  "$capture_workspace_test_source" \
+  "testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy"
+assert_file_contains \
+  "$capture_workspace_test_source" \
+  "testMalformedScanAdmissionPreviewRemainsFailClosed"
+assert_file_contains \
   "$ui_seed_source" \
   "static var isEnabled: Bool { return false }"
 assert_file_count "$ui_seed_source" 2 "enum UITestSeedCoordinator {"
@@ -806,9 +839,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "91" ]] \
+[[ "$protected_case_count" == "92" ]] \
   || fail \
-    "Expected 91 exact protected iOS test cases; found $protected_case_count."
+    "Expected 92 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \

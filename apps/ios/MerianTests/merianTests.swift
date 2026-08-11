@@ -1276,6 +1276,165 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         )
     }
 
+    func testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy() {
+        let configuration = ScanAdmissionManager.previewSessionConfiguration()
+
+        XCTAssertEqual(
+            configuration.timeoutIntervalForRequest,
+            ScanAdmissionManager.previewRequestTimeout
+        )
+        XCTAssertEqual(
+            configuration.timeoutIntervalForResource,
+            ScanAdmissionManager.previewRequestTimeout
+        )
+        XCTAssertFalse(configuration.waitsForConnectivity)
+        XCTAssertNil(configuration.urlCache)
+        XCTAssertEqual(
+            configuration.requestCachePolicy,
+            .reloadIgnoringLocalCacheData
+        )
+    }
+
+    func testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference() async throws {
+        enableUnlimitedFreeScansForTest()
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            throw URLError(.timedOut)
+        }
+
+        let defaultsSuite = "merian.tests.capture-admission.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuite))
+        defaults.removePersistentDomain(forName: defaultsSuite)
+        let appSettings = AppSettings(
+            userDefaults: defaults,
+            observeExternalChanges: false
+        )
+        appSettings.isExpeditionModeActive = true
+        let queueOrchestrator = HardwareOrchestrator(
+            appSettings: appSettings,
+            observeSystemChanges: false,
+            functionalProAccessProvider: { true }
+        )
+        queueOrchestrator.evaluateConstraints(thermalState: .nominal)
+        XCTAssertTrue(queueOrchestrator.isExpeditionModeActive)
+
+        let diContainer = AppDIContainer.preview
+        let queueManager = OfflineQueueManager.shared
+        let originalContext = queueManager.modelContext
+        let originalOnline = queueManager.isOnline
+        let originalOrchestrator = queueManager.hardwareOrchestrator
+        let modelContext = try makeModelContext()
+        queueManager.modelContext = modelContext
+        queueManager.isOnline = true
+        queueManager.hardwareOrchestrator = queueOrchestrator
+        defer {
+            cleanupQueuedScans(in: modelContext)
+            queueManager.modelContext = originalContext
+            queueManager.isOnline = originalOnline
+            queueManager.hardwareOrchestrator = originalOrchestrator
+            appSettings.isExpeditionModeActive = false
+            defaults.removePersistentDomain(forName: defaultsSuite)
+            ScanAdmissionManager.shared.resetForTesting()
+            restoreFreeScanLimitForTest()
+        }
+
+        let uiImage = makeUIImage()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.images = [
+            StagedImage(
+                compressedData: makePNGData(),
+                displayData: makePNGData(color: .systemBlue),
+                uiImage: uiImage,
+                original: IdentifiableImage(image: uiImage)
+            )
+        ]
+
+        await viewModel.submitStagedCapture(modelContext: modelContext)
+
+        try await waitUntil {
+            let queueCount = try? modelContext.fetch(
+                FetchDescriptor<OfflineQueuedScan>()
+            ).count
+            return queueCount == 1 &&
+                viewModel.offlineToastMessage?.title == "Scan queued for later."
+        }
+        let queuedScan = try XCTUnwrap(
+            modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).first
+        )
+        XCTAssertNil(queueManager.foregroundInferenceGenerations[queuedScan.id])
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertTrue(queueManager.isOnline)
+
+        let description = ObservationContext(
+            freeText: "A small bird calling from a nearby tree"
+        )
+        let didEnqueueNonVisual = await viewModel.submitNonVisualCapture(
+            audioFileNames: [],
+            observationContexts: [description],
+            mediaTimeline: [.description(description)],
+            modelContext: modelContext
+        )
+
+        XCTAssertTrue(didEnqueueNonVisual)
+        try await waitUntil {
+            let queueCount = try? modelContext.fetch(
+                FetchDescriptor<OfflineQueuedScan>()
+            ).count
+            return queueCount == 2 &&
+                viewModel.offlineToastMessage?.title ==
+                    "Capture queued for analysis."
+        }
+        let queuedScans = try modelContext.fetch(
+            FetchDescriptor<OfflineQueuedScan>()
+        )
+        XCTAssertEqual(queuedScans.count, 2)
+        XCTAssertTrue(queuedScans.allSatisfy {
+            queueManager.foregroundInferenceGenerations[$0.id] == nil
+        })
+        XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertTrue(queueManager.isOnline)
+    }
+
+    func testMalformedScanAdmissionPreviewRemainsFailClosed() async {
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            ScanAdmissionPreview(
+                decision: .allowed,
+                effectivePlan: "unexpected_plan",
+                dailyLimit: nil,
+                dailyRemaining: nil
+            )
+        }
+        let queueManager = OfflineQueueManager.shared
+        let originalOnline = queueManager.isOnline
+        queueManager.isOnline = true
+        defer {
+            queueManager.isOnline = originalOnline
+            ScanAdmissionManager.shared.resetForTesting()
+        }
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: AppDIContainer.preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        let route = await viewModel.requestScanAdmission(
+            flashFallbackEligible: true
+        )
+
+        XCTAssertNil(route)
+        XCTAssertEqual(
+            viewModel.offlineToastMessage?.title,
+            "Unable to check scan availability. Please try again."
+        )
+        XCTAssertNil(viewModel.activeSheet)
+    }
+
     func testScanAdmissionPreviewUsesServerMediaEligibilityShape() {
         XCTAssertTrue(
             CaptureWorkspaceViewModel.isFlashFallbackEligible([

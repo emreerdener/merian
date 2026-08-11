@@ -7,6 +7,24 @@ import UIKit
 @Suite("StagedCapture", .serialized)
 struct StagedCaptureTests {
 
+    @Test func connectivityUnavailableAdmissionSelectsQueueOnlyRoute() {
+        #expect(CaptureScanAdmissionPolicy.resolve(
+            isOnline: true,
+            canStartLocally: true,
+            previewResult: .connectivityUnavailable
+        ) == .proceed(.queued))
+        #expect(CaptureScanAdmissionPolicy.resolve(
+            isOnline: true,
+            canStartLocally: false,
+            previewResult: .connectivityUnavailable
+        ) == .paywall)
+        #expect(CaptureScanAdmissionPolicy.resolve(
+            isOnline: true,
+            canStartLocally: true,
+            previewResult: .unavailable
+        ) == .retryRequired)
+    }
+
     @Test func liveImageLatencyOptimizationExcludesGalleryAudioAndVideo() {
         #expect(CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
             hasStillImage: true,

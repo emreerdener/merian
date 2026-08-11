@@ -70,8 +70,12 @@ audio recorder, or staged submission begins; an exhausted allowance opens the
 root `PaywallView` while preserving staged input. Insight's exact
 `ai_quota_daily_exceeded` handler is retained only for authoritative
 post-preview races, and it replaces the sheet without publishing a synthetic
-result. An online preview outage blocks new processing in Capture with a retry
-message instead of allowing an unverified request to reach Insight.
+result. The preview has a two-second no-wait/no-retry transport bound. A
+classified connectivity failure plus local eligibility selects queue-only, so
+the observation is saved without opening an analyzing Insight or creating a
+foreground inference generation. Cancellation, malformed data,
+authentication/TLS, and server failure block new processing with retry feedback
+instead of allowing an unverified request to reach Insight.
 
 ## Embedded Field-trip Completion Route
 

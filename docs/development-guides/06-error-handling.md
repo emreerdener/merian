@@ -108,6 +108,16 @@ The complete evidence and release closure test are in the
 
 ## Inference Error Routing
 
+Scan-admission preflight occurs before this inference taxonomy. Its isolated
+request is capped at two seconds, does not wait for connectivity, and does not
+retry. Only a classified URL transport failure may consult current local
+eligibility and return a queue-only route; that route persists the observation
+without a foreground generation, so it never becomes an inference
+`networkTimeout`. A valid plan/quota denial opens the paywall. Cancellation,
+missing or malformed preview data, authentication/TLS failure, and server
+failure preserve staged input and show retry feedback instead of bypassing
+admission.
+
 `InferenceEngine.analyze` handles errors in this priority order:
 
 1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled
@@ -257,6 +267,8 @@ write.
 | Error scenario                                                                                                                  | UI outcome                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Inference decoding failure (`MerianError.decodingFailed`)                                                                       | InsightSheet opens with "Analysis Failed" / "Data Unreadable" placeholder result                                                                                                                                                                                                                                          |
+| Admission preview reaches its two-second deadline or reports another classified URL transport failure while local eligibility permits | Persist the capture queue-only, show queued confirmation, and start no foreground inference even if reachability still reports online                                                                                                                                                                                     |
+| Admission preview is cancelled, malformed, unauthorized, or fails at TLS/server policy                                         | Preserve staged input and show scan-availability retry feedback; do not create a queue row or infer offline admission                                                                                                                                                                                                     |
 | Known offline before queue-backed provider dispatch                                                                             | Keep the exact durable row and show queued confirmation; do not start live provider transport                                                                                                                                                                                                                            |
 | First queue-backed connectivity failure after dispatch                                                                          | Source result is same-ID **Queued for later** with automatic-resume copy, no synthetic result/haptic/circuit failure, and exactly one live request. Exact-SHA and physical-device acceptance remain release-gated by the live scan connectivity incident.                                                                |
 | Queue-less direct connectivity failure                                                                                          | InsightSheet may show **Network timeout / Please try again** as an inference error placeholder; never show non-biological collection/retention copy                                                                                                                                                                       |

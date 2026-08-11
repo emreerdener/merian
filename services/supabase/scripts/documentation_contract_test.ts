@@ -2154,7 +2154,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 91 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten more form the live-connectivity follow-up: eight engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+    "The current validator protects 92 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten more form the live-connectivity follow-up: eight engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "One additional case protects the pre-queue admission connectivity handoff: a path-satisfied transport failure plus local eligibility selects queue-only, while local ineligibility still paywalls and a non-connectivity preview failure still requires retry.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2182,7 +2186,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 91 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 92 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` protects the pure route policy without mutating process-wide connectivity state",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference` then drives an actual path-satisfied `.timedOut` preview through staged visual and direct nonvisual submission and requires both durable rows, no foreground generation, no analyzing Insight, no live engine processing, cleared staged input, and a still-online path",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2698,7 +2710,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "the deterministic live-Insight-to-queue and queued-scan completion UI smokes",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
-      "workflow harness requires all 91 protected declarations to resolve uniquely",
+      "workflow harness requires all 92 protected declarations to resolve uniquely",
+      "including the pre-queue admission connectivity handoff",
       "exact two-case set: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",

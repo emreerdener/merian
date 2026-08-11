@@ -1253,7 +1253,13 @@ shape is eligible for Flash fallback. This function never inserts, updates, or
 reserves quota, so `reserve_ai_quota(...)` remains the only provider-dispatch
 authorization boundary and may still reject a race after the preview.
 Deploy this migration before releasing an iOS build that calls the RPC: online
-Capture intentionally blocks new processing when the preview is unavailable.
+Capture intentionally blocks new processing when the preview is unavailable,
+except that a bounded iOS request ending in a classified URL transport failure
+may use local eligibility only to save the observation onto the durable queue.
+That route creates no foreground provider attempt; replay still requires the
+authoritative `reserve_ai_quota(...)` transaction. Missing/malformed rows,
+authentication/TLS failures, server failures, and valid plan/quota denials
+remain fail-closed rather than being relabeled as offline.
 
 Migrations `20260804020351_record_legal_consent_receipts.sql` and
 `20260804033307_add_adult_and_analytics_consent.sql` add the legal prerequisite

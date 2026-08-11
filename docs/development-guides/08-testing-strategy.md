@@ -350,11 +350,15 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 91 exact
+   contradiction is invalid evidence. The current validator protects 92 exact
    cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten
    more form the live-connectivity follow-up: eight engine-level ownership,
    presentation, and exact-generation recovery fences plus two network-client
-   replay-policy controls. Five menu/Field Notes regressions exposed by the
+   replay-policy controls. One additional case protects the pre-queue admission
+   connectivity handoff: a path-satisfied transport failure plus local
+   eligibility selects queue-only, while local ineligibility still paywalls and
+   a non-connectivity preview failure still requires retry. Five menu/Field
+   Notes regressions exposed by the
    prior failed hosted run are individually protected, two require the
    bounded/redacted offline-queue support artifact, one prevents needs-attention
    and live-path-ineligible rows
@@ -474,7 +478,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 91
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 92
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -2652,6 +2656,22 @@ request bounds respectively. All are exact protected cases in
 `validate-ios-critical-test-results.sh`. The complete matrix remains a release
 closure gate, not merely a compiled test; see the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
+The preceding pre-queue boundary has separate deterministic coverage.
+`testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy` locks the exact
+two-second request/resource deadline, disabled connectivity wait, absent cache,
+and source contract disables PostgREST retry.
+`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` protects the pure
+route policy without mutating process-wide connectivity state.
+`testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference`
+then drives an actual path-satisfied `.timedOut` preview through staged visual
+and direct nonvisual submission and requires both durable rows, no foreground
+generation, no analyzing Insight, no live engine processing, cleared staged
+input, and a still-online path. `testMalformedScanAdmissionPreviewRemainsFailClosed`
+proves an invalid server shape preserves the fail-closed retry path. Only the
+pure policy case is added to the exact protected inventory; the workflow source
+contract also requires all three integration/policy declarations to remain
+present.
 
 The compiled hosted UI gate adds
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only

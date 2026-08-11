@@ -40,9 +40,15 @@ remote URLs before network/media frameworks see them. See the
 - `ScanAdmissionManager` reads the authenticated account's prospective scan
   plan and UTC-day allowance immediately before Capture starts hardware or
   submission work. Preview responses are never cached, because even a short
-  cache could outlive a concurrent scan's final daily allowance. The manager
-  never reserves quota; the provider-side `reserve_ai_quota(...)` transaction
-  remains the authorization boundary and can still reject a concurrent race.
+  cache could outlive a concurrent scan's final daily allowance. Its isolated
+  ephemeral request waits at most two seconds, never waits for connectivity,
+  never retries, and returns a typed distinction between a valid preview,
+  classified transport unavailability, and every other failure. Only the
+  transport-unavailable result may use current local eligibility to select a
+  queue-only Capture route; cancellation, malformed data, authentication/TLS,
+  and server failures remain fail-closed. The manager never reserves quota;
+  the provider-side `reserve_ai_quota(...)` transaction remains the
+  authorization boundary and can still reject a concurrent race.
 - `ConsentManager` owns the append-only local ledger for adult confirmation,
   Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
   grant/revocation. `ConsentLedgerStore` persists that ledger as an atomically

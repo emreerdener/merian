@@ -21,6 +21,12 @@ struct ScanAdmissionPreview: Decodable, Sendable, Equatable {
     }
 }
 
+enum ScanAdmissionPreviewResult: Sendable, Equatable {
+    case available(ScanAdmissionPreview)
+    case connectivityUnavailable
+    case unavailable
+}
+
 private struct ScanAdmissionPreviewParameters: Encodable, Sendable {
     let pFlashFallbackEligible: Bool
 
@@ -35,6 +41,8 @@ private struct ScanAdmissionPreviewParameters: Encodable, Sendable {
 final class ScanAdmissionManager {
     static let shared = ScanAdmissionManager()
 
+    nonisolated static let previewRequestTimeout: TimeInterval = 2
+
     private static let allowedPlans = Set([
         "free",
         "pro_paid",
@@ -43,31 +51,65 @@ final class ScanAdmissionManager {
     ])
 
 #if DEBUG
-    var overridingPreview: ((Bool) async -> ScanAdmissionPreview?)?
+    var overridingPreview: ((Bool) async throws -> ScanAdmissionPreview?)?
 #endif
 
     private init() {}
 
-    func preview(flashFallbackEligible: Bool) async -> ScanAdmissionPreview? {
+    func preview(flashFallbackEligible: Bool) async -> ScanAdmissionPreviewResult {
 #if DEBUG
         if let overridingPreview {
-            return await overridingPreview(flashFallbackEligible)
+            do {
+                guard let preview = try await overridingPreview(flashFallbackEligible),
+                      !Task.isCancelled,
+                      Self.isValid(preview) else {
+                    return .unavailable
+                }
+                return .available(preview)
+            } catch {
+                return Self.result(for: error)
+            }
         }
         if TestExecutionCoordinator.isRunningTests {
-            return ScanAdmissionPreview(
+            return .available(ScanAdmissionPreview(
                 decision: .allowed,
                 effectivePlan: "pro_paid",
                 dailyLimit: nil,
                 dailyRemaining: nil
-            )
+            ))
         }
 #endif
 
         let supabaseManager = SupabaseManager.shared
-        guard let userID = supabaseManager.currentUser?.id else { return nil }
+        guard let userID = supabaseManager.currentUser?.id,
+              let session = supabaseManager.client.auth.currentSession,
+              session.user.id == userID,
+              let supabaseURL = SecureTransportPolicy.httpsURL(
+                from: MerianEnvironment.supabaseUrl
+              ) else {
+            return .unavailable
+        }
+
+        let urlSession = URLSession(configuration: Self.previewSessionConfiguration())
+        defer { urlSession.invalidateAndCancel() }
+        let postgrest = PostgrestClient(
+            url: supabaseURL
+                .appendingPathComponent("rest")
+                .appendingPathComponent("v1"),
+            headers: [
+                "Authorization": "Bearer \(session.accessToken)",
+                "apikey": MerianEnvironment.supabaseAnonKey
+            ],
+            fetch: { request in
+                var request = request
+                request.timeoutInterval = Self.previewRequestTimeout
+                return try await urlSession.data(for: request)
+            },
+            retryEnabled: false
+        )
 
         do {
-            let rows: [ScanAdmissionPreview] = try await supabaseManager.client
+            let rows: [ScanAdmissionPreview] = try await postgrest
                 .rpc(
                     "get_my_scan_admission_preview",
                     params: ScanAdmissionPreviewParameters(
@@ -78,17 +120,28 @@ final class ScanAdmissionManager {
                 .value
             guard !Task.isCancelled,
                   supabaseManager.currentUser?.id == userID,
+                  supabaseManager.client.auth.currentSession?.user.id == userID,
                   rows.count == 1,
                   Self.isValid(rows[0]) else {
-                return nil
+                return .unavailable
             }
-            return rows[0]
+            return .available(rows[0])
         } catch {
             MerianLog.auth.debug(
                 "Scan admission preview unavailable: \(error.localizedDescription, privacy: .private)"
             )
-            return nil
+            return Self.result(for: error)
         }
+    }
+
+    nonisolated static func previewSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = previewRequestTimeout
+        configuration.timeoutIntervalForResource = previewRequestTimeout
+        return configuration
     }
 
 #if DEBUG
@@ -118,4 +171,46 @@ final class ScanAdmissionManager {
             return preview.dailyLimit == nil && preview.dailyRemaining == nil
         }
     }
+
+    nonisolated private static func result(for error: Error) -> ScanAdmissionPreviewResult {
+        guard !Task.isCancelled, !(error is CancellationError) else {
+            return .unavailable
+        }
+        return isConnectivityUnavailable(error)
+            ? .connectivityUnavailable
+            : .unavailable
+    }
+
+    nonisolated private static func isConnectivityUnavailable(
+        _ error: Error,
+        depth: Int = 0
+    ) -> Bool {
+        guard depth < 4 else { return false }
+
+        let nsError = error as NSError
+        let urlErrorCode = URLError.Code(rawValue: nsError.code)
+        if nsError.domain == NSURLErrorDomain,
+           connectivityUnavailableCodes.contains(urlErrorCode) {
+            return true
+        }
+
+        guard let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? Error else {
+            return false
+        }
+        return isConnectivityUnavailable(underlyingError, depth: depth + 1)
+    }
+
+    nonisolated private static let connectivityUnavailableCodes: Set<URLError.Code> = [
+        .timedOut,
+        .cannotFindHost,
+        .cannotConnectToHost,
+        .networkConnectionLost,
+        .dnsLookupFailed,
+        .notConnectedToInternet,
+        .internationalRoamingOff,
+        .callIsActive,
+        .dataNotAllowed,
+        .backgroundSessionWasDisconnected,
+        .cannotLoadFromNetwork
+    ]
 }

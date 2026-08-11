@@ -59,6 +59,34 @@ workflow declares this reusable gate as a required predecessor; only its
 subsequent `deploy` job enters the Production environment. A green candidate run
 proves the reviewed source and disposable catalog, not that production changed.
 
+### Scan admission preview release order
+
+Migration `20260809155517_add_scan_admission_preview.sql` must reach the target
+database before any iOS build that calls
+`get_my_scan_admission_preview(boolean)` is distributed. Disposable candidate
+validation must prove the exact signature, caller-bound `auth.uid()` behavior,
+single-row decision shape, `authenticated`-only execute grant, privileged-routine
+allowlist entry, and the absence of any quota reservation or counter mutation.
+Production release evidence must then show the migration applied before the iOS
+binary is promoted; never treat an iOS fallback as permission to reverse this
+order.
+
+The client request itself is deliberately shorter than the database function's
+five-second statement limit: an isolated two-second request/resource deadline,
+no wait for connectivity, no cache, and no PostgREST retry. Only classified URL
+transport failure plus current local eligibility may select queue-only, and that
+route creates no foreground provider attempt. Missing/malformed data,
+authentication/TLS and server failures, and valid plan/quota denials remain
+fail-closed. Queue replay must still pass the authoritative
+`reserve_ai_quota(...)` transaction before provider dispatch.
+
+Candidate validation is the required place to prove these source, migration,
+documentation, and protected-test contracts without production access. A failed
+candidate readiness summary means the SHA is not releasable; it does not imply
+that the production environment, production secrets, or production data were
+used. Those remain confined to the later Production job after a successful
+reusable candidate gate.
+
 The deploy workflow is a backend production gate only. It must not wait for the
 iOS simulator startup-safety lane, and the iOS lane must not be treated as proof
 that Supabase migrations or Edge Functions deployed. The deployment and iOS

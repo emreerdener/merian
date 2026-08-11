@@ -25,6 +25,12 @@ TestFlight, App Store, support, and QA.
 
 ### Live Scan Queue Handoff — Release-Gated
 
+- Capture's pre-scan availability check now has a two-second fail-fast boundary
+  with no connectivity wait or retry. When Wi-Fi still appears connected but
+  the request reaches a classified transport failure, a locally eligible scan
+  takes a queue-only route: it is saved without starting live analysis and the
+  durable scheduler resumes it later. Malformed, authentication, TLS, server,
+  and authoritative plan/quota failures remain fail-closed.
 - The accepted customer behavior is for a saved, queue-backed scan to change to
   **Queued for later** on the first connectivity failure and resume under the
   same scan ID. A direct request without a durable queue owner may still show

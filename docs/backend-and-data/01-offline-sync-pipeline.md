@@ -52,10 +52,19 @@ can persist a different media order than the user staged.
 
 When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
-1. A stable `scanId` UUID and, when online, a foreground inference-generation
-   UUID are generated. The scan ID identifies the durable capture; the
-   generation identifies only the live attempt that currently owns it.
-2. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:)`
+1. Capture resolves a typed admission route before clearing staged input. Known
+   offline state uses current local eligibility and selects queue-only. When
+   reachability is satisfied, a no-cache/no-retry admission preview has an exact
+   two-second deadline. A classified URL transport failure may also select
+   queue-only when local eligibility permits; a valid denial opens the paywall,
+   while cancellation, malformed/authentication/TLS, and server failures remain
+   fail-closed with staged input preserved.
+2. A stable `scanId` UUID and, only for a still-online foreground route, a
+   foreground inference-generation UUID are generated. The scan ID identifies
+   the durable capture; the generation identifies only the live attempt that
+   currently owns it. A queue-only route deliberately has no foreground
+   generation even if `NWPathMonitor` still reports online.
+3. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:)`
    is called **synchronously on the main actor**, before any `async` boundary is
    crossed. It wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
@@ -69,21 +78,22 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    `OfflineQueuedScan` and submitted to `/update-scan-context`; background
    replay can still backfill missing historical context before its own inference
    dispatch.
-3. The visual submit path waits for `onQueued` before presenting queued/offline
+4. The visual submit path waits for `onQueued` before presenting queued/offline
    success or starting live analysis. A durable-queue rejection rolls back the
    pending live scan, shows an error, and deletes orphaned source video/audio
    files because neither the live path nor the queue now owns them.
-4. **Immediate Offline Network Interceptor**: `submitActiveScan` then
+5. **Immediate Offline/Queue-Only Network Interceptor**: `submitActiveScan` then
    synchronously evaluates `OfflineQueueManager.shared.isOnline`. If the device
-   currently lacks network connectivity, the function completely drops the
+   currently lacks network connectivity, or admission already selected the
+   queue-only route after its bounded transport failure, the function drops the
    execution thread. It blocks the UI router from presenting the
    `"Analyzing..."` skeleton `InsightSheetView` overlay and completely skips the
    creation of the live analysis `Task` below, returning control to the
    viewfinder immediately. A non-intrusive `ToastBanner` natively informs the
-   user that there is no network connection and the scan is queued for upload,
-   saving battery and tokens by recognizing that live inference would inevitably
-   result in a network timeout.
-5. Concurrently (if online and the submission is an eligible live-camera still
+   user that the scan is queued for upload, saving battery and tokens by
+   recognizing that live inference would otherwise result in a network timeout.
+6. Concurrently (if online, admission selected foreground, and the submission is
+   an eligible live-camera still
    with no audio or video), a `Task {}` gives the pre-fetched
    `EnvironmentContext` (GPS + WeatherKit/geocoding, started at shutter press)
    at most **150 ms** to finish. If that grace period expires, it fires

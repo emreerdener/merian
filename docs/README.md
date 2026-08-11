@@ -352,10 +352,11 @@ as their permanent engineering identity.
 ### Incidents
 
 - **[`/incidents/2026-08-live-scan-connectivity-handoff-gap.md`](./incidents/2026-08-live-scan-connectivity-handoff-gap.md)**
-  — Required first-failure **Queued for later** behavior, the durable-owner
-  versus local-presentation ownership repair, scoped transport-replay policy,
-  **Analysis delayed** placeholder routing, protected URLSession race matrix,
-  and remaining exact-SHA/device closure gates.
+  — Bounded pre-queue admission fallback, required first-failure **Queued for
+  later** behavior, the durable-owner versus local-presentation ownership
+  repair, scoped transport-replay policy, **Analysis delayed** placeholder
+  routing, protected URLSession race matrix, and remaining exact-SHA/device
+  closure gates.
 - **[`/incidents/2026-08-first-scan-auth-refresh-gap.md`](./incidents/2026-08-first-scan-auth-refresh-gap.md)**
   — Sanitized Edge-origin Auth evidence, the `invalid_session_token`
   refresh-classification gap, refresh-first account preservation, and
