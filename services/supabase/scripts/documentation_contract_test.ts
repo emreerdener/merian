@@ -3913,9 +3913,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
       "Required to start scanning",
       "Optional — change anytime in Settings",
       "Naturebook sends observation data to Google Gemini for AI-powered identification.",
-      "I confirm I am 18 or older.",
-      "I accept the terms and allow this data sharing.",
-      "Share usage and diagnostics to help improve Naturebook.",
+      "I confirm I am 18 or older",
+      "I accept the terms and allow this data sharing",
+      "Share usage and diagnostics to help improve Naturebook",
       "adult policy and Terms versions are `2026-08-03`",
       "Gemini disclosure version is `2026-08-04.1`",
       "Apple App Review Guideline 5.1.2(i)",
@@ -3931,6 +3931,18 @@ Deno.test("production consent documentation preserves the release hold and exit 
     ]
   ) {
     assertStringIncludes(canonicalCompact, fragment);
+  }
+  for (
+    const terminatedSwitchLabel of [
+      "I confirm I am 18 or older.",
+      "I accept the terms and allow this data sharing.",
+      "Share usage and diagnostics to help improve Naturebook.",
+    ]
+  ) {
+    assert(
+      !canonical.includes(terminatedSwitchLabel),
+      `Ready-step switch labels must omit terminal periods: ${terminatedSwitchLabel}`,
+    );
   }
   for (let index = 1; index <= 12; index += 1) {
     assertStringIncludes(
@@ -3957,8 +3969,6 @@ Deno.test("production consent documentation preserves the release hold and exit 
       codebaseMap,
       backend,
       releaseVersioning,
-      testflightEntry,
-      edgeDeploymentEntry,
     ]
   ) {
     assertStringIncludes(source, "Supabase Candidate Validation");
@@ -3978,14 +3988,12 @@ Deno.test("production consent documentation preserves the release hold and exit 
     assertStringIncludes(compact(source), "synchronization generation");
   }
   for (const source of [testflightEntry, edgeDeploymentEntry]) {
-    assertStringIncludes(
-      compact(source),
-      "`CONSENT-001` through `CONSENT-012` are closed in source",
-    );
+    assertStringIncludes(source, "$merian-release");
+    assertStringIncludes(source, "compatibility");
     assert(
-      !source.includes("CONSENT-001` through `CONSENT-010") &&
-        !source.includes("CONSENT-001` through `CONSENT-011"),
-      "Agent release entry points must not restore a superseded consent status.",
+      !source.includes("CONSENT-") &&
+        !source.includes("production-consent-readiness-"),
+      "Compatibility pointers must not duplicate dated release status.",
     );
   }
 
@@ -4066,8 +4074,6 @@ Deno.test("production consent documentation preserves the release hold and exit 
       runbook,
       backend,
       releaseVersioning,
-      testflightEntry,
-      edgeDeploymentEntry,
     ]
   ) {
     assertStringIncludes(source, readinessPath);

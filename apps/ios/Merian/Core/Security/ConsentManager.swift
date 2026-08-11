@@ -11,7 +11,7 @@ enum ConsentPolicy {
     static let analyticsProvider = "posthog"
 
     static let adultConfirmationText = """
-    I confirm I am 18 or older.
+    I confirm I am 18 or older
     """
 
     static let geminiDisclosureText = """
@@ -19,7 +19,7 @@ enum ConsentPolicy {
     """
 
     static let combinedAcceptanceText = """
-    I accept the terms and allow this data sharing.
+    I accept the terms and allow this data sharing
     """
 
     static let geminiWithdrawalText = """
@@ -27,7 +27,7 @@ enum ConsentPolicy {
     """
 
     static let analyticsDisclosureText = """
-    Share usage and diagnostics to help improve Naturebook.
+    Share usage and diagnostics to help improve Naturebook
     """
 
     static let analyticsWithdrawalText = """

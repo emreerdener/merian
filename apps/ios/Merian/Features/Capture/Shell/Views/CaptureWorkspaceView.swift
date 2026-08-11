@@ -118,7 +118,6 @@ struct CaptureWorkspaceView: View {
     @State private var describePromptManager = DescribePromptManager()
     @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
-    @State private var isCropPresentationTransitionActive = false
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
@@ -255,7 +254,6 @@ struct CaptureWorkspaceView: View {
             || stagedVideoReviewIndex != nil
             || showFeedbackSurvey
             || viewModel.imageToCrop != nil
-            || isCropPresentationTransitionActive
     }
 
     // MARK: - View Hierarchy
@@ -265,11 +263,9 @@ struct CaptureWorkspaceView: View {
 
     private var workspaceContent: some View {
         let orderedModes = CaptureMode.userOrder(from: appSettings.captureModeOrderRaw)
-        let shouldShieldForCrop = viewModel.shouldSuppressCaptureChromeForCrop
-            || isCropPresentationTransitionActive
         let shouldHideBottomChrome =
             (isKeyboardVisible && captureMode == .describe)
-            || shouldShieldForCrop
+            || viewModel.shouldSuppressCaptureChromeForCrop
 
         return ZStack {
                 // Paged capture mode switcher.
@@ -477,22 +473,6 @@ struct CaptureWorkspaceView: View {
                 )
                 .opacity(shouldHideBottomChrome ? 0 : 1)
                 .allowsHitTesting(!shouldHideBottomChrome)
-
-                // A fullScreenCover mounts one presentation frame after its
-                // binding changes. Match the cropper's black canvas during that
-                // handoff so no staged thumbnail or control transition can show
-                // through, even if a child animation is already in flight.
-                if shouldShieldForCrop {
-                    Color.black
-                        .ignoresSafeArea()
-                        .contentShape(Rectangle())
-                        .accessibilityHidden(true)
-                        .transition(.identity)
-                        .transaction { transaction in
-                            transaction.animation = nil
-                        }
-                        .zIndex(100)
-                }
         } // ZStack
     }
 
@@ -608,10 +588,7 @@ struct CaptureWorkspaceView: View {
                     cameraManager.resetZoom()
                 }
             },
-            onDismiss: {
-                isCropPresentationTransitionActive = false
-                handleFeaturePresentationDismissed()
-            }
+            onDismiss: handleFeaturePresentationDismissed
         ))
     }
 
@@ -890,7 +867,6 @@ struct CaptureWorkspaceView: View {
 
     private func handleCropPresentationChange(isCropPresented: Bool) {
         if isCropPresented {
-            isCropPresentationTransitionActive = true
             cameraManager.stopSession()
         }
     }

@@ -38,6 +38,7 @@ inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swif
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
 capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/Analysis.swift"
 image_cropper_source="$repo_root/apps/ios/Merian/Features/Capture/Scan/PostProcessing/ImageCropperView.swift"
+capture_workspace_source="$repo_root/apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
 capture_workspace_test_source="$repo_root/apps/ios/MerianTests/merianTests.swift"
@@ -549,6 +550,13 @@ assert_file_contains \
 assert_file_count "$image_cropper_source" 0 "safeAreaInsets.top"
 assert_file_count "$image_cropper_source" 0 ".safeAreaPadding(.top"
 assert_file_count "$image_cropper_source" 0 "ImageCropperLayout.topToolbarInset"
+assert_file_contains "$image_cropper_source" ".tint(.accentColor)"
+assert_file_count "$image_cropper_source" 0 ".tint(.white)"
+assert_file_count \
+  "$capture_workspace_source" \
+  0 \
+  "isCropPresentationTransitionActive"
+assert_file_count "$capture_workspace_source" 0 "shouldShieldForCrop"
 assert_file_contains \
   "$queued_content_source" \
   "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("

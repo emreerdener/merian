@@ -37,12 +37,14 @@ owns native permission delegates such as `LocationPermissionDelegate`.
     free users.
 - **Final consent surface (`ReadyStepView`)**: Uses the title **One last step**,
   states, “Naturebook sends observation data to Google Gemini for AI-powered
-  identification,” and presents left-aligned, initially-off switches in two
-  explicit groups. **Required to start scanning** contains 18+
-  self-attestation and the inline-linked Terms/data-sharing permission;
-  **Optional — change anytime in Settings** contains usage/diagnostics. Only the
-  required pair enables **Start scanning**. PostHog is the documented analytics
-  provider, but its name remains absent from the UI label.
+  identification,” and presents three horizontally centered, initially-off
+  switch-and-label rows in one continuous stack without visual section titles
+  or a divider. The labels omit terminal periods. The 18+ self-attestation and
+  inline-linked Terms/data-sharing permission are required; usage/diagnostics
+  remains optional and changeable in Settings. Only the required pair enables
+  **Start scanning**. VoiceOver hints preserve the required/optional
+  distinction. PostHog is the documented analytics provider, but its name
+  remains absent from the UI label.
 - **Root View Handoff (`MerianApp`)**: `AppRootPresentationPolicy` combines the
   injected onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
   `ConsentManager.isRestoringRequiredConsent`. When the user completes Step 4
@@ -1474,8 +1476,11 @@ on gesture-driven layout abstractions.
   navigation-toolbar placements, letting UIKit clear the status bar, Dynamic
   Island, rotation, and resized windows even when a full-screen cover reports a
   zero geometry inset. Required-crop ownership also suppresses the bottom capture
-  controls and places a black crop-canvas shield over the workspace before the
-  cover animation begins, preventing the staged **Identify** tray from flashing.
+  controls before the cover animation begins. The crop cover remains the sole
+  full-screen owner; the workspace does not add a black transition canvas that
+  can become stranded across background/foreground scene changes. The confirm
+  action uses the app accent fill with an explicit white label for reliable
+  contrast.
   Cancel/remove/replace hooks call the staged-media
   discard helper so temporary video/audio files are deleted, while submit uses
   reference-only staging reset after queue acceptance so the durable owner

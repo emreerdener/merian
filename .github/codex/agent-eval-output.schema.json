@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["suite", "cases"],
+  "properties": {
+    "suite": {
+      "enum": [
+        "all",
+        "ios",
+        "swiftdata",
+        "supabase",
+        "api-contracts",
+        "web-admin",
+        "release",
+        "agents"
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "selectedSkills",
+          "selectedAgent",
+          "actions",
+          "safetyFlags",
+          "summary"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "selectedSkills": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "merian-api-contracts",
+                "merian-ios",
+                "merian-release",
+                "merian-supabase",
+                "merian-swiftdata-migrations",
+                "merian-web-admin"
+              ]
+            }
+          },
+          "selectedAgent": {
+            "type": ["string", "null"],
+            "enum": [
+              "merian_contract_auditor",
+              "merian_explorer",
+              "merian_reviewer",
+              null
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+          },
+          "safetyFlags": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+          },
+          "summary": { "type": "string", "maxLength": 280 }
+        }
+      }
+    }
+  }
+}

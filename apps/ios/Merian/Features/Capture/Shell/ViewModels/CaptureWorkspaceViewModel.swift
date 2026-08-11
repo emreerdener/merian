@@ -1061,9 +1061,9 @@ final class CaptureWorkspaceViewModel {
     /// Required imports enter staging before their full-screen crop cover can
     /// animate on screen. Keep the capture controls hidden from that ownership
     /// transfer into the mounted cover so the staged Identify tray cannot
-    /// appear in its first frame. The view retains its own transition fence
-    /// through actual cover dismissal; manual recrops use that presentation
-    /// half of the policy as well.
+    /// appear in its first frame. The crop cover remains the only full-screen
+    /// presentation owner; manual recrops use the presentation half of this
+    /// nonblocking chrome policy as well.
     var shouldSuppressCaptureChromeForCrop: Bool {
         Self.shouldSuppressCaptureChromeForCrop(
             hasPendingRequiredGalleryCrop: hasPendingRequiredGalleryCrop,

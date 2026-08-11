@@ -83,9 +83,12 @@ contribution rows.
 - `reference_species` is template-detail-only public species metadata for the
   private Goals presentation. It contains a reviewed illustrative species and at
   most one sanitized normalized image per Naturebook (`source: "merian"`),
-  Wikipedia, and GBIF source. It contains no scan, owner, field-note, or
-  location provenance and is absent from catalog, capture context, Events,
-  profile, publication/challenge, and Explore payloads.
+  Wikipedia, and GBIF source. When the normalized species cache has no usable
+  image for a current-level goal, the database layer uses the shared bounded
+  Wikipedia/GBIF enrichment helper for up to six active goals with at most three
+  lookups in flight. This optional public-media fallback contains no scan,
+  owner, field-note, or location provenance and is absent from catalog, capture
+  context, Events, profile, publication/challenge, and Explore payloads.
 - First Field trip achievement evidence is available only through a
   `service_role` RPC. Public Explore author awards expose its binary count and
   earliest completion date, never a template slug, challenge ID, or scan ID.
@@ -282,7 +285,11 @@ illustrative species against `species_dictionary` and
 `species_reference_images`, emitting at most one candidate per provider in
 Naturebook, Wikipedia, then GBIF order. This visual example does not change the
 checklist matcher; a broad Bird goal remains broad when House Sparrow is its
-reference. Start and lifecycle responses use the same hydrated detail shape.
+reference. If a current-level goal has no cached candidate, the layer invokes
+the shared deadline- and response-bounded external enrichment helper, capped at
+six active goals and three concurrent lookups, and uses its public Wikipedia or
+GBIF images without persisting private evidence. Provider failure is non-fatal.
+Start and lifecycle responses use the same hydrated detail shape.
 
 ```json
 { "action": "start", "template_id": "uuid" }

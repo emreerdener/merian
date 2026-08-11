@@ -31,8 +31,10 @@ TestFlight, App Store, support, and QA.
 - Photo imports now check scan availability before opening the library picker
   or preparing a shared image, so a known limit opens the paywall before the
   user selects and crops a photo. Allowed imports now transition directly into
-  the crop editor without flashing the staged **Identify** tray, and crop
-  controls stay below the status bar and Dynamic Island.
+  the crop editor without flashing the staged **Identify** tray. Crop no longer
+  adds a separate black handoff layer that can remain after app switching, its
+  controls stay below the status bar and Dynamic Island, and **Confirm crop**
+  keeps readable blue-and-white contrast.
 - The **Open collection** action on a non-biological Insight now opens its
   collection through a stable library navigation route instead of freezing
   during the sheet transition.

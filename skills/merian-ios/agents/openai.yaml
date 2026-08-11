@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian iOS"
+  short_description: "Merian iOS and watchOS implementation rules"
+  default_prompt: "Use $merian-ios to implement and verify this Merian iOS or watchOS change."

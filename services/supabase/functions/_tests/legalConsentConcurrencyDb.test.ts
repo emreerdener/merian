@@ -135,7 +135,7 @@ async function appendConsent(
         '2026-08-04',
         $2,
         $3::TIMESTAMPTZ,
-        'Share usage and diagnostics to help improve Naturebook.',
+        'Share usage and diagnostics to help improve Naturebook',
         $4,
         'ios',
         'concurrency-test',

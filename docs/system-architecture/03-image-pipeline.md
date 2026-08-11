@@ -129,9 +129,10 @@ in `requiredGalleryCropImageIds` and presents the square crop editor before any
 analysis submission can start. Because SwiftUI mounts the full-screen cover
 after observing that state, `shouldSuppressCaptureChromeForCrop` hides both
 bottom capture-chrome layers from the required-ID commit through crop dismissal.
-A black, nonanimated workspace shield matching the crop canvas bridges the
-one-frame `fullScreenCover` mount boundary, so the staged **Identify** tray
-cannot appear during the presentation transition.
+The bottom layers are hidden without adding a workspace-level transition canvas;
+`CropSheetModifier`'s `fullScreenCover` is the sole full-screen owner. This keeps
+the staged **Identify** tray out of the handoff without leaving an input-blocking
+overlay behind after a background/foreground transition.
 This preserves Swift 6 isolation rules while removing repeated `MainActor.run`
 hops during gallery imports.
 

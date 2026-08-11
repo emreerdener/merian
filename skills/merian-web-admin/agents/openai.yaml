@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Web and Admin"
+  short_description: "Protect Merian public and internal web boundaries"
+  default_prompt: "Use $merian-web-admin to implement and verify this Merian web or admin change."

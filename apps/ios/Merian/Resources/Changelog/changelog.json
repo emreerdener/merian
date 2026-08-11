@@ -12,7 +12,7 @@
             "If Wi-Fi appears connected but cannot reach the internet, or a connection drops or silently stalls while live Insight is open, an eligible scan is saved within a short safety window and resumes automatically instead of showing a Network timeout result.",
             "Online scan recovery now keeps the status focused on identification and removes the redundant saved/continuing explanation; offline recovery still shows when a scan is waiting for connection.",
             "Instant single-photo scans now move directly into automatic submission without briefly showing the manual Identify tray when confirmation is disabled.",
-            "Photo imports now check scan availability before selection and cropping, then open crop directly without flashing staged controls; crop actions also stay clear of the status area."
+            "Photo imports now check scan availability before selection and cropping, then open crop directly without flashing staged controls or adding a separate black handoff layer; crop actions stay clear of the status area and the confirmation action remains readable."
           ]
         }
       ]

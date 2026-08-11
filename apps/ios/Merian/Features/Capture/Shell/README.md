@@ -50,9 +50,10 @@ the normal admission recheck to catch a concurrent account/quota change.
 Once an import is allowed, `shouldSuppressCaptureChromeForCrop` owns the visual
 handoff from the staged commit through the required crop's dismissal. Both the
 capture row and bottom navigation/Identify tray remain hidden while that fence
-is active. A nonanimated black transition shield matches the crop canvas during
-the render before SwiftUI mounts the full-screen cover and remains until actual
-cover dismissal.
+is active. `CropSheetModifier` is the only full-screen presentation owner; the
+workspace does not add a transition canvas or input-blocking overlay during the
+handoff. This keeps background/foreground scene changes from stranding a cover
+above the app.
 
 ## Fresh-launch presentation
 

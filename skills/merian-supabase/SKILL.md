@@ -12,7 +12,7 @@ generic guidance differs.
 
 ## Start safely
 
-1. Read `.agents/CLAUDE.md` before proposing or making changes.
+1. Read `AGENTS.md` before proposing or making changes.
 2. Inspect `git status` and preserve unrelated or concurrent user changes.
 3. Read the relevant section of `services/supabase/README.md`, the affected
    function README, and the linked canonical document under `docs/`.

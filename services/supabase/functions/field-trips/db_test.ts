@@ -80,6 +80,128 @@ Deno.test("template reference hydration returns one candidate per provider in fa
   );
 });
 
+Deno.test("template reference hydration fills missing active goals from bounded external sources", async () => {
+  const fetchedScientificNames: string[] = [];
+  const supabase = {
+    from: (table: string) => {
+      const data = table === "species_dictionary"
+        ? [{
+          id: "species-flower",
+          scientific_name: "Taraxacum officinale",
+          common_names: { en: "Common Dandelion" },
+          wikipedia_url: "https://en.wikipedia.org/wiki/Taraxacum_officinale",
+          reference_image_url: null,
+        }]
+        : [{
+          id: "flower-image",
+          species_id: "species-flower",
+          url: "https://upload.wikimedia.org/dandelion.jpg",
+          source: "wikipedia",
+          sort_order: 0,
+        }];
+      const query = {
+        select: () => query,
+        in: () => query,
+        order: () => query,
+        limit: () => Promise.resolve({ data, error: null }),
+      };
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  const hydrated = await hydrateFieldTripReferenceMedia(
+    {
+      slug: "park_pollinators",
+      levels: [
+        {
+          level_number: 1,
+          items: [
+            { item_id: "flower", prompt: "Flowering plant" },
+            { item_id: "butterfly", prompt: "Butterfly or moth" },
+          ],
+        },
+        {
+          level_number: 2,
+          items: [{ item_id: "bee", prompt: "Bee or wasp" }],
+        },
+      ],
+    },
+    supabase,
+    (scientificName) => {
+      fetchedScientificNames.push(scientificName);
+      return Promise.resolve({
+        wikipediaUrl: "https://en.wikipedia.org/wiki/Monarch_butterfly",
+        wikiExtract: null,
+        gbifKey: 5139790,
+        referenceImageUrl:
+          "https://upload.wikimedia.org/monarch.jpg,https://api.gbif.org/media/monarch.jpg",
+        alternativeCommonNames: [],
+        wikiTitle: "Monarch butterfly",
+        gbifTaxonomy: null,
+        gbifMatchStatus: "matched",
+      });
+    },
+  ) as {
+    levels: Array<{
+      items: Array<{
+        prompt: string;
+        reference_species?: {
+          common_name: string;
+          reference_images: Array<{ source: string; url: string }>;
+        };
+      }>;
+    }>;
+  };
+
+  assertEquals(fetchedScientificNames, ["Danaus plexippus"]);
+  assertEquals(
+    hydrated.levels[0].items.map((item) => [
+      item.prompt,
+      item.reference_species?.common_name,
+      item.reference_species?.reference_images.map((image) => image.source),
+    ]),
+    [
+      ["Flowering plant", "Common Dandelion", ["wikipedia"]],
+      ["Butterfly or moth", "Monarch", ["wikipedia", "gbif"]],
+    ],
+  );
+  assertEquals(hydrated.levels[1].items[0].reference_species, undefined);
+});
+
+Deno.test("template reference hydration remains available when the optional provider fallback fails", async () => {
+  const tableCalls: string[] = [];
+  const supabase = {
+    from: (table: string) => {
+      tableCalls.push(table);
+      if (table !== "species_dictionary") {
+        throw new Error(`Unexpected table ${table}`);
+      }
+      const query = {
+        select: () => query,
+        in: () => query,
+        limit: () => Promise.resolve({ data: [], error: null }),
+      };
+      return query;
+    },
+  } as unknown as SupabaseClient;
+  const template = {
+    slug: "park_pollinators",
+    levels: [{
+      level_number: 1,
+      items: [{ item_id: "butterfly", prompt: "Butterfly or moth" }],
+    }],
+  };
+
+  const hydrated = await hydrateFieldTripReferenceMedia(
+    template,
+    supabase,
+    () => Promise.reject(new Error("provider unavailable")),
+  );
+
+  assertEquals(hydrated, template);
+  assertEquals(tableCalls, ["species_dictionary"]);
+});
+
 Deno.test("achievement progress scopes the service RPC to the verified user", async () => {
   let capturedName = "";
   let capturedArgs: Record<string, unknown> = {};

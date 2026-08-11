@@ -36,6 +36,26 @@ Before contributing, please review our core architectural tenets. Refactoring co
     validators, fixtures, and documentation together under the
     [`iOS App Transport Security Contract`](./development-guides/17-ios-transport-security.md).
 
+## Codex Repository Setup
+
+Codex is the only supported repository development agent. Universal rules live
+in root `AGENTS.md`; six focused `$merian-*` skills are canonical under
+`skills/` and discovered through `.agents/skills/`. Three project-scoped,
+read-only specialist agents under `.codex/agents/` support evidence gathering
+and independent review, never parallel edits.
+
+Run this before submitting any change to agent instructions, skills, custom
+agents, compatibility workflow pointers, or evaluation infrastructure:
+
+```bash
+make validate-agent-assets
+```
+
+Use `$merian-release` only for an explicit operation and target. Successful
+implementation or validation never authorizes TestFlight/App Store actions,
+Supabase production mutation, RevenueCat changes, or other external release
+work.
+
 ## Setting Up the Development Environment
 
 1.  **Xcode**: Use Xcode 26.6 on macOS Tahoe 26.2 or later to match the
@@ -78,14 +98,15 @@ Before contributing, please review our core architectural tenets. Refactoring co
     contract](./backend-and-data/13-server-credentials-and-database-release-safety.md)
     before changing keys, RLS, grants, defaults, migrations, user FKs, or
     destructive queues.
-    Codex contributors are routed by the root `AGENTS.md` through
-    `skills/merian-supabase/SKILL.md`; keep that project workflow and its
+    Codex contributors follow the root `AGENTS.md` skill-loading order through
+    `skills/merian-supabase/SKILL.md`; keep that project overlay and its
     CI-discovered contract test synchronized when these backend rules change.
     The reviewed general Supabase and Postgres skill sources live separately
     under `skills/user/`. Run `bash skills/user/install.sh --check` to audit the
     user installation or `--apply` to replace conflicts with tracked symlinks;
-    the installer moves prior `.agents/skills` and `.codex/skills` copies into
-    recoverable backups rather than deleting them.
+    the user-level installer moves conflicting prior copies into recoverable
+    backups rather than deleting them. Project skills remain separate under
+    `skills/` and are linked only into the repository `.agents/skills/` catalog.
 6.  **TestFlight Distribution**: After **iOS Build and Test** is green for the
     exact intended SHA, archive a clean `main` checkout with Xcode and upload
     through Organizer **TestFlight & App Store**. Keep automatic signing and

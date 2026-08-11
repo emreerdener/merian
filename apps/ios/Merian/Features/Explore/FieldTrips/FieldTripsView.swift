@@ -772,6 +772,7 @@ struct FieldTripTemplateDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .padding(.vertical, 16)
 
                 FieldTripLevelsSection(
                     template: template,
@@ -1519,6 +1520,7 @@ private struct FieldTripDetailPrimaryActionBar: View {
         .controlSize(.large)
         .tint(backgroundColor)
         .frame(maxWidth: .infinity)
+        .shadow(color: shadowColor, radius: 12, x: 0, y: 6)
         .disabled(!isEnabled || isLoading)
         .accessibilityLabel(title)
         .accessibilityValue(isLoading ? "In progress" : "")
@@ -1539,6 +1541,15 @@ private struct FieldTripDetailPrimaryActionBar: View {
             .accentColor
         case .status:
             Color(uiColor: .secondarySystemGroupedBackground)
+        }
+    }
+
+    private var shadowColor: Color {
+        switch style {
+        case .primary:
+            .black.opacity(0.24)
+        case .status:
+            .clear
         }
     }
 }
@@ -1817,6 +1828,7 @@ private struct FieldTripTemplateCard: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
+                    .contentShape(Capsule())
             }
             .buttonStyle(.plain)
             .foregroundColor(.blue)
@@ -2591,12 +2603,6 @@ private struct FieldTripActiveLevelTipsSection: View {
         let guidedItems = Array(level.items.enumerated()).filter { $0.element.hasGuide }
 
         VStack(alignment: .leading, spacing: 10) {
-            Divider()
-
-            Label("Tips", systemImage: "lightbulb")
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.primary)
-
             ForEach(guidedItems, id: \.element.id) { index, item in
                 FieldTripObjectiveGuideCard(
                     item: item,

@@ -558,9 +558,13 @@ source of truth and must change with this table.
 
 Template detail batches these scientific names through the normalized public
 species layer and returns at most one image for each provider in Naturebook,
-Wikipedia, then GBIF order. A missing species row or source candidate is simply
-omitted; release content QA must keep at least one usable candidate available
-for every active curated goal so the default hero remains populated.
+Wikipedia, then GBIF order. When that cache has no usable image for a goal in
+the current level, the Field trips data layer calls the shared bounded external
+enrichment helper and adds its public Wikipedia/GBIF candidates. Runtime
+fallback is capped at the six carousel-eligible active goals and three
+concurrent provider lookups; a provider outage never fails the otherwise valid
+detail response. Release content QA should still keep normalized candidates
+warm so the fallback remains exceptional rather than adding routine latency.
 
 ## Challenge Progress Rules
 
@@ -979,7 +983,9 @@ so a completed third slot replaces only the third slot rather than the first
 `FieldTripChecklistItem.referenceSpecies` is also optional so an older Edge
 deployment remains decodable. Template detail supplies a reviewed illustrative
 species and up to one sanitized image per Naturebook, Wikipedia, and GBIF
-source; catalog cards do not carry this media payload.
+source; catalog cards do not carry this media payload. Missing normalized media
+for a current-level goal is filled by the Edge layer's bounded public
+Wikipedia/GBIF fallback before iOS builds the carousel.
 
 `FieldTripFeaturedMediaBuilder` creates one candidate per goal rather than per
 scan. Its stable ID is derived from the checklist item, so the selected page

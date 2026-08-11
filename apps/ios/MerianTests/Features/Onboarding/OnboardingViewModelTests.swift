@@ -774,18 +774,16 @@ final class OnboardingViewModelTests: XCTestCase {
         let analytics = ReadyStepView.analyticsStatement
 
         XCTAssertEqual(ReadyStepView.title, "One last step")
-        XCTAssertEqual(
-            ReadyStepView.requiredSectionTitle,
-            "Required to start scanning"
-        )
-        XCTAssertEqual(
-            ReadyStepView.optionalSectionTitle,
-            "Optional — change anytime in Settings"
-        )
         XCTAssertEqual(disclosure, ConsentPolicy.geminiDisclosureText)
         XCTAssertEqual(consent, ConsentPolicy.combinedAcceptanceText)
         XCTAssertEqual(adult, ConsentPolicy.adultConfirmationText)
         XCTAssertEqual(analytics, ConsentPolicy.analyticsDisclosureText)
+        for switchStatement in [adult, consent, analytics] {
+            XCTAssertFalse(
+                switchStatement.hasSuffix("."),
+                "Ready-step switch statements must not end with periods"
+            )
+        }
 
         let completeSurface = [disclosure, consent, adult, analytics].joined(separator: " ")
         for requiredDisclosure in [

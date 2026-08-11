@@ -9,11 +9,13 @@ The `Steps` directory contains the individual, user-facing screens that make up 
 - **LocationPermission**: The screen explaining the need for location access to provide accurate ecological context.
 - **Ready**: The final **One last step** screen names Google Gemini as the
   recipient of observation data for AI-powered identification. Three
-  left-aligned switches appear in two explicit groups: **Required to start
-  scanning** contains the 18+ self-attestation and Terms/data-sharing
-  permission with an inline Terms link. **Optional — change anytime in
-  Settings** contains the usage/diagnostics choice. Only the two required
-  switches gate **Start scanning**. Completion first appends exact, versioned
+  horizontally centered switch-and-label rows appear in one continuous stack
+  without section titles or a divider. The three labels omit terminal periods.
+  The 18+ self-attestation and Terms/data-sharing permission with an inline
+  Terms link are required; usage/diagnostics remains optional and changeable in
+  Settings. Only the two required switches gate **Start scanning**, and
+  VoiceOver hints preserve that distinction. Completion first appends exact,
+  versioned
   adult, Terms, Gemini, and optional analytics evidence locally, then
   synchronizes immutable rows to the active Supabase account. Before the first
   Identify request, the app must fetch back the same account's current adult and

@@ -61,7 +61,7 @@ Deno.test("Merian Supabase skill has valid discoverable packaging", async () => 
   assertStringIncludes(interfaceSource, 'display_name: "Merian Supabase"');
   assertStringIncludes(interfaceSource, "$merian-supabase");
   assertStringIncludes(agentSource, "skills/merian-supabase/SKILL.md");
-  assertStringIncludes(agentSource, ".agents/CLAUDE.md");
+  assertStringIncludes(skill, "Do not treat implementation authorization");
   assert(!skill.includes("TODO"), "The shipped skill must not contain TODOs.");
 });
 

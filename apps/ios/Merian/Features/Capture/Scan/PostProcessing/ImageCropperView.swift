@@ -126,11 +126,13 @@ struct ImageCropperView: View {
                         Button(action: { generateCrop(displaySize: displaySize) }) {
                             Text("Confirm crop")
                                 .font(.headline.weight(.semibold))
+                                .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.capsule)
                         .controlSize(.large)
+                        .tint(.accentColor)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 32)
                     }
@@ -142,7 +144,6 @@ struct ImageCropperView: View {
             .toolbar { cropToolbar }
         }
         .background(Color.black.ignoresSafeArea())
-        .tint(.white)
         .preferredColorScheme(.dark)
     }
 

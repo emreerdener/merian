@@ -686,15 +686,16 @@ Current onboarding contains four steps:
 4. Ready / **One last step**.
 
 The internal-testing screen discloses: “Naturebook sends observation data to
-Google Gemini for AI-powered identification.” It presents three left-aligned,
-initially-off switches grouped by consequence:
+Google Gemini for AI-powered identification.” It presents three initially-off,
+horizontally centered switch-and-label rows in one continuous stack without
+section titles or a divider. The labels omit terminal periods:
 
-1. **Required to start scanning:** “I confirm I am 18 or older.”
-2. **Required to start scanning:** “I accept the terms and allow this data
-   sharing.” The word **terms** links
+1. “I confirm I am 18 or older” — required.
+2. “I accept the terms and allow this data sharing” — required; the word
+   **terms** links
    inline to the Terms of Service.
-3. Under **Optional — change anytime in Settings:** “Share usage and diagnostics
-   to help improve Naturebook.”
+3. “Share usage and diagnostics to help improve Naturebook” — optional and
+   changeable in Settings.
 
 Only age confirmation and Terms/Gemini permission enable **Start scanning**.
 Analytics never blocks onboarding or core functionality. Existing beta users

@@ -3,6 +3,7 @@ import type { PublicSpeciesReferenceImage } from "../_shared/publicSpeciesProjec
 import {
   attachFieldTripReferenceSpecies,
   FIELD_TRIP_REFERENCE_SPECIES_BY_GOAL,
+  fieldTripActiveReferenceTargets,
   fieldTripReferenceTargets,
   oneReferenceImagePerSource,
 } from "./referenceMedia.ts";
@@ -50,12 +51,65 @@ Deno.test("reference targets preserve checklist order and ignore unknown goals",
   });
 
   assertEquals(targets, [
-    { itemId: "bird", scientificName: "Passer domesticus" },
-    { itemId: "dog", scientificName: "Canis lupus familiaris" },
+    {
+      itemId: "bird",
+      scientificName: "Passer domesticus",
+      commonName: "House Sparrow",
+    },
+    {
+      itemId: "dog",
+      scientificName: "Canis lupus familiaris",
+      commonName: "Domestic Dog",
+    },
   ]);
   assertEquals(
     fieldTripReferenceTargets({ slug: "future_trip", levels: [] }),
     [],
+  );
+  assertEquals(
+    fieldTripReferenceTargets({
+      slug: "backyard_safari",
+      levels: [{ items: [{ item_id: "bird", prompt: "Bird" }] }],
+    }, 0),
+    [],
+  );
+});
+
+Deno.test("active reference targets use viewer progress and fall back to the first level", () => {
+  const template = {
+    slug: "park_pollinators",
+    levels: [
+      {
+        level_number: 2,
+        items: [{ item_id: "bee", prompt: "Bee or wasp" }],
+      },
+      {
+        level_number: 1,
+        items: [
+          { item_id: "flower", prompt: "Flowering plant" },
+          { item_id: "butterfly", prompt: "Butterfly or moth" },
+        ],
+      },
+    ],
+  };
+
+  assertEquals(
+    fieldTripActiveReferenceTargets(template).map((target) => target.itemId),
+    ["flower", "butterfly"],
+  );
+  assertEquals(
+    fieldTripActiveReferenceTargets({
+      ...template,
+      active_progress: { current_level_number: 2 },
+    }).map((target) => target.itemId),
+    ["bee"],
+  );
+  assertEquals(
+    fieldTripActiveReferenceTargets({
+      ...template,
+      stopped_progress: { current_level_number: 2 },
+    }).map((target) => target.itemId),
+    ["bee"],
   );
 });
 

@@ -71,10 +71,14 @@ Current onboarding has welcome, camera, location, and ready steps:
 
 The product-owner-approved internal-testing disclosure is: “Naturebook sends observation
 data to Google Gemini for AI-powered identification.” The **One last step** screen
-presents three initially-off switches grouped by consequence: **Required to start
-scanning** contains 18+ self-attestation and agreement to the inline-linked Terms plus
-permission for that data sharing; **Optional — change anytime in Settings** contains
-usage and diagnostics. Only the required pair enables **Start scanning**. The UI
+presents three initially-off switches in one continuous stack without section titles or a
+divider. Each switch-and-label row is horizontally centered, and the three labels omit
+terminal periods. The 18+ self-attestation and agreement to the inline-linked Terms plus
+permission for that data sharing are required; usage and diagnostics is optional and
+changeable in Settings. Only the required pair enables **Start scanning**, and
+accessibility hints retain the required/optional distinction. The punctuation-only label
+revision does not increment the substantive policy versions; new immutable evidence stores
+the displayed no-period copy while prior current-version evidence remains valid. The UI
 does not name PostHog; PostHog remains the documented analytics provider in the Terms and
 Privacy Policy. There is no separate Decline action because the app has no non-AI
 operating mode; withholding required permission keeps scanning unavailable and prevents

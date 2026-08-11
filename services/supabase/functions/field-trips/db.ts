@@ -1,4 +1,9 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { mapWithConcurrencyLimit } from "../_shared/concurrency.ts";
+import {
+  type ExternalEnrichmentData,
+  fetchExternalEnrichment,
+} from "../_shared/external.ts";
 import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 import {
   type PublicSpeciesReferenceImageRow,
@@ -8,6 +13,7 @@ import {
 } from "../_shared/publicSpeciesProjection.ts";
 import {
   attachFieldTripReferenceSpecies,
+  fieldTripActiveReferenceTargets,
   type FieldTripReferenceSpeciesPayload,
   fieldTripReferenceTargets,
   oneReferenceImagePerSource,
@@ -112,6 +118,12 @@ interface FieldTripReferenceSpeciesRow {
 
 const MAX_FIELD_TRIP_REFERENCE_SPECIES = 60;
 const MAX_FIELD_TRIP_REFERENCE_IMAGE_ROWS = 500;
+const MAX_ACTIVE_FIELD_TRIP_REFERENCE_FALLBACKS = 6;
+const FIELD_TRIP_REFERENCE_FALLBACK_CONCURRENCY = 3;
+
+export type FieldTripReferenceEnrichmentFetcher = (
+  scientificName: string,
+) => Promise<ExternalEnrichmentData>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -140,6 +152,8 @@ function mergeStoppedFieldTripProgress(
 export async function hydrateFieldTripReferenceMedia(
   template: unknown,
   supabaseAdmin: SupabaseClient,
+  enrichmentFetcher: FieldTripReferenceEnrichmentFetcher =
+    fetchExternalEnrichment,
 ): Promise<unknown> {
   const targets = fieldTripReferenceTargets(
     template,
@@ -167,29 +181,31 @@ export async function hydrateFieldTripReferenceMedia(
   }
 
   const speciesRows = (speciesData ?? []) as FieldTripReferenceSpeciesRow[];
-  if (speciesRows.length === 0) return template;
+  let imageRows: PublicSpeciesReferenceImageRow[] = [];
+  if (speciesRows.length > 0) {
+    const speciesIds = speciesRows.map((row) => row.id);
+    const { data: imageData, error: imageError } = await supabaseAdmin
+      .from("species_reference_images")
+      .select(
+        "id, species_id, url, source, license, attribution, width, height, sort_order, created_at",
+      )
+      .in("species_id", speciesIds)
+      .order("species_id", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(MAX_FIELD_TRIP_REFERENCE_IMAGE_ROWS);
 
-  const speciesIds = speciesRows.map((row) => row.id);
-  const { data: imageData, error: imageError } = await supabaseAdmin
-    .from("species_reference_images")
-    .select(
-      "id, species_id, url, source, license, attribution, width, height, sort_order, created_at",
-    )
-    .in("species_id", speciesIds)
-    .order("species_id", { ascending: true })
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(MAX_FIELD_TRIP_REFERENCE_IMAGE_ROWS);
-
-  if (imageError) {
-    throw new Error(
-      `Failed to fetch Field trip reference images: ${imageError.message}`,
-    );
+    if (imageError) {
+      throw new Error(
+        `Failed to fetch Field trip reference images: ${imageError.message}`,
+      );
+    }
+    imageRows = (imageData ?? []) as PublicSpeciesReferenceImageRow[];
   }
 
   const imagesBySpeciesId = new Map<string, PublicSpeciesReferenceImageRow[]>();
-  for (const row of (imageData ?? []) as PublicSpeciesReferenceImageRow[]) {
+  for (const row of imageRows) {
     if (typeof row.species_id !== "string") continue;
     const rows = imagesBySpeciesId.get(row.species_id) ?? [];
     rows.push(row);
@@ -225,7 +241,67 @@ export async function hydrateFieldTripReferenceMedia(
     });
   }
 
+  await hydrateMissingActiveFieldTripReferences(
+    template,
+    speciesByScientificName,
+    enrichmentFetcher,
+  );
+
   return attachFieldTripReferenceSpecies(template, speciesByScientificName);
+}
+
+async function hydrateMissingActiveFieldTripReferences(
+  template: unknown,
+  speciesByScientificName: Map<string, FieldTripReferenceSpeciesPayload>,
+  enrichmentFetcher: FieldTripReferenceEnrichmentFetcher,
+): Promise<void> {
+  const seenScientificNames = new Set<string>();
+  const missingTargets = fieldTripActiveReferenceTargets(
+    template,
+    MAX_ACTIVE_FIELD_TRIP_REFERENCE_FALLBACKS,
+  ).filter((target) => {
+    if (
+      speciesByScientificName.has(target.scientificName) ||
+      seenScientificNames.has(target.scientificName)
+    ) {
+      return false;
+    }
+    seenScientificNames.add(target.scientificName);
+    return true;
+  });
+
+  const fallbackSpecies = await mapWithConcurrencyLimit(
+    missingTargets,
+    FIELD_TRIP_REFERENCE_FALLBACK_CONCURRENCY,
+    async (target) => {
+      try {
+        const enrichment = await enrichmentFetcher(target.scientificName);
+        const referenceImages = oneReferenceImagePerSource(
+          referenceImagesFromLegacyCache(
+            enrichment.referenceImageUrl,
+            enrichment.wikipediaUrl,
+          ),
+        );
+        if (referenceImages.length === 0) return null;
+
+        return {
+          scientificName: target.scientificName,
+          payload: {
+            scientific_name: target.scientificName,
+            common_name: target.commonName,
+            reference_images: referenceImages,
+          } satisfies FieldTripReferenceSpeciesPayload,
+        };
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  for (const fallback of fallbackSpecies) {
+    if (fallback == null) continue;
+    speciesByScientificName.set(fallback.scientificName, fallback.payload);
+  }
 }
 
 async function fetchStoppedFieldTripProgress(

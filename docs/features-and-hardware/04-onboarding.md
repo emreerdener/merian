@@ -54,7 +54,7 @@ enum OnboardingStep: Int, CaseIterable {
 | `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
 | `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
 | `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate` |
-| `.ready` | `ReadyStepView` | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and groups three initially-off, left-aligned switches by consequence. **Required to start scanning** contains the 18+ self-attestation and Terms/data-sharing permission with an inline Terms link; **Optional — change anytime in Settings** contains usage/diagnostics. **Start scanning** requires the two required switches only. |
+| `.ready` | `ReadyStepView` | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and places three initially-off, horizontally centered switch-and-label rows in one continuous stack without section titles or a divider. The labels omit terminal periods. The 18+ self-attestation and Terms/data-sharing permission with an inline Terms link are required; usage/diagnostics remains optional and changeable in Settings. **Start scanning** requires the two required switches only. |
 
 The first three step views use `OnboardingStepWrapper` for consistent layout
 and action chrome. The ready step uses a dedicated layout so the disclosure,

@@ -450,12 +450,18 @@ The Edge layer maps broad goals to a reviewed illustrative species without
 changing the database matching rule, batches the corresponding
 `species_dictionary` and `species_reference_images` reads, and returns at most
 one sanitized image per source in `merian` (displayed as Naturebook),
-Wikipedia, then GBIF order. The iOS client treats that order as a load-failure
-waterfall. A completed goal's private local scan visual replaces its reference
-inside the same stable goal slot; the API still never constructs or returns a
-private evidence URL. `reference_species` is absent from catalog, capture
-context, Events, public profiles, publication/challenge snapshots, and Explore
-payloads. Start, stop, reset, and resume responses use this same detail shape.
+Wikipedia, then GBIF order. If the normalized cache has no usable candidate for
+a current-level goal, the same database layer uses the shared external
+enrichment helper to obtain public Wikipedia/GBIF candidates. This fallback is
+capped at six active goals, runs at most three provider lookups concurrently,
+inherits the shared 2.5-second request deadline and 256 KiB JSON response
+ceiling, and fails open to the otherwise valid template detail. The iOS client
+treats the resulting source order as a load-failure waterfall. A completed
+goal's private local scan visual replaces its reference inside the same stable
+goal slot; the API still never constructs or returns a private evidence URL.
+`reference_species` is absent from catalog, capture context, Events, public
+profiles, publication/challenge snapshots, and Explore payloads. Start, stop,
+reset, and resume responses use this same detail shape.
 
 For template detail only, a published outing's progress includes:
 

@@ -168,7 +168,7 @@ BEGIN
         '2026-08-03',
         pg_catalog.NOW(),
         'self_attestation',
-        'I confirm I am 18 or older.',
+        'I confirm I am 18 or older',
         'ios',
         '1.0.3',
         '275'
@@ -189,7 +189,7 @@ BEGIN
         source_user_id,
         '2026-08-03',
         pg_catalog.NOW(),
-        'I accept the terms and allow this data sharing.',
+        'I accept the terms and allow this data sharing',
         'ios',
         '1.0.3',
         '275'
@@ -216,7 +216,7 @@ BEGIN
         'granted',
         pg_catalog.NOW(),
         'Naturebook sends your scan data to Google Gemini, a third-party AI service, for identification.',
-        'I accept the terms and allow this data sharing.',
+        'I accept the terms and allow this data sharing',
         'ios',
         '1.0.3',
         '275'

@@ -74,14 +74,23 @@ controls:
 > Naturebook sends observation data to Google Gemini for AI-powered
 > identification.
 
-It presents three initially-off, left-aligned switches grouped by consequence:
+It presents three initially-off, horizontally centered switch-and-label rows in
+one continuous stack without section titles or a divider. The labels omit
+terminal periods:
 
-1. Under **Required to start scanning:** “I confirm I am 18 or older.”
-2. Under **Required to start scanning:** “I accept the terms and allow this data
-   sharing.” The word
+The formerly rendered **Required to start scanning** and **Optional — change
+anytime in Settings** headings are intentionally absent. Button gating and
+VoiceOver hints retain the required/optional distinction.
+
+1. “I confirm I am 18 or older” — required.
+2. “I accept the terms and allow this data sharing” — required; the word
    “terms” links to the full Terms of Service.
-3. Under **Optional — change anytime in Settings:** “Share usage and diagnostics
-   to help improve Naturebook.”
+3. “Share usage and diagnostics to help improve Naturebook” — optional and
+   changeable in Settings.
+
+This punctuation-only copy revision does not increment the substantive policy
+versions. New immutable evidence stores the same no-period label text shown by
+the Ready screen; prior current-version evidence remains valid.
 
 Only the two required switches gate **Start scanning**. Withholding or withdrawing
 analytics permission must never block core functionality. Existing beta users

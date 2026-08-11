@@ -25,6 +25,9 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+# Archived personal Claude permission history; never reactivate or commit it.
+.agents/.claude/settings.local.legacy-*.json
+
 # Xcode
 #
 # build/ is the default output folder

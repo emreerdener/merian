@@ -369,7 +369,10 @@ HTTP request is dispatched. See the
    source contract separately requires native leading/trailing crop toolbar
    placements and rejects manual `GeometryProxy.safeAreaInsets.top` or
    `.safeAreaPadding(.top, ...)` positioning, whose zero-inset context caused
-   controls to overlap the status bar. One final case
+   controls to overlap the status bar. It also rejects a workspace-owned crop
+   transition shield or persistent transition-state flag and requires the crop
+   confirmation button to use the accent tint instead of an illegible white
+   prominent fill. One final case
    protects pre-import admission:
    `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid
    server denial to reach the paywall with no staged image or crop state, while
@@ -2704,7 +2707,9 @@ mounts the full-screen cover. The workflow source guard requires
 `ImageCropperView` to keep Close and Delete in native `.topBarLeading` and
 `.topBarTrailing` toolbar placements, with deterministic accessibility IDs, and
 forbids manual top positioning from `GeometryProxy.safeAreaInsets.top` or
-`.safeAreaPadding(.top, ...)`.
+`.safeAreaPadding(.top, ...)`. It also forbids a workspace-owned black crop
+shield or persistent transition flag and locks an accent-tinted, white-label
+confirmation action.
 `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` locks the import entry
 boundary: a valid exhausted preview receives the prospective one-image Flash
 shape, opens the paywall, and leaves staging, crop state, and the admission

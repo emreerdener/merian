@@ -1,9 +1,10 @@
-.PHONY: help xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro db-push functions-deploy
+.PHONY: help validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
 help:
 	@printf "Available targets:\n"
+	@printf "  make validate-agent-assets            Validate Codex skills, agents, pointers, and eval infrastructure\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
 	@printf "  iOS release: Product > Archive, then Organizer > Distribute App\n"
 	@printf "  make validate-ios-project             Check generated iOS project guardrails\n"
@@ -35,6 +36,29 @@ help:
 	@printf "  make grant-beta-pro ARGS='...'        Dry-run or apply guarded RevenueCat beta grants\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
+
+validate-agent-assets:
+	deno fmt --check \
+		scripts/validate-agent-assets.ts \
+		scripts/render-agent-eval-input.ts \
+		scripts/score-agent-evals.ts \
+		scripts/score-agent-evals_test.ts \
+		skills/evals/agent-quality.json \
+		.github/codex/agent-eval-output.schema.json
+	deno lint \
+		scripts/validate-agent-assets.ts \
+		scripts/render-agent-eval-input.ts \
+		scripts/score-agent-evals.ts \
+		scripts/score-agent-evals_test.ts
+	deno run --allow-read=. scripts/validate-agent-assets.ts
+	bash scripts/test-ci-detect-agent-quality-source-changes.sh
+	deno test --allow-read=. scripts/score-agent-evals_test.ts
+	deno test --frozen \
+		--config services/supabase/functions/deno.json \
+		--allow-read=. \
+		services/supabase/scripts/merian_supabase_skill_contract_test.ts \
+		services/supabase/scripts/codex_user_supabase_skills_contract_test.ts
+	bash scripts/test-ios-xcode-release-workflow.sh
 
 xcodegen:
 	xcodegen generate

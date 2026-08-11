@@ -31,7 +31,8 @@ Required gallery crop presentation has a separate chrome fence. The image must
 enter `StagedCapture` before `CropSheetModifier` can edit it, but
 `shouldSuppressCaptureChromeForCrop` becomes true from that commit until the
 required crop is completed or cancelled. `CaptureWorkspaceView` therefore
-hides both bottom-control layers before the full-screen cover begins animating,
-and places a nonanimated black shield matching the crop canvas above the
-workspace until cover dismissal. The staged thumbnail and **Identify** action
-are never an intermediate frame.
+hides both bottom-control layers before the full-screen cover begins animating.
+The cover itself is the only full-screen owner: the workspace must not add a
+transition canvas or input-blocking overlay that can outlive presentation when
+the app changes scene phase. The staged thumbnail and **Identify** action remain
+suppressed without covering the workspace.

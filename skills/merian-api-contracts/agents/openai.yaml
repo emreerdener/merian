@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian API Contracts"
+  short_description: "Synchronize Deno, Swift, and web payloads"
+  default_prompt: "Use $merian-api-contracts to update and verify this cross-client API contract."

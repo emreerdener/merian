@@ -1,0 +1,6 @@
+interface:
+  display_name: "Merian Release"
+  short_description: "Run explicitly authorized Merian releases safely"
+  default_prompt: "Use $merian-release to prepare or execute the explicitly authorized Merian release task."
+policy:
+  allow_implicit_invocation: false

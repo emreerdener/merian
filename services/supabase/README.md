@@ -1327,7 +1327,10 @@ and release closure gates are recorded in the
 
 Keep Swift policy versions, causal RPC payload/result shapes, the SQL gate,
 migration contracts, quota fixtures, and `legal_consent_security.sql`
-synchronized. The pgTAP fixture must retain both inverse cross-device cases:
+synchronized. The three Ready-step switch labels omit terminal periods, and
+new immutable evidence plus current-copy fixtures use those exact strings
+without changing the policy versions. The pgTAP fixture must retain both
+inverse cross-device cases:
 an older offline AI/analytics grant reconnects after another device's
 revocation and is rejected; an older offline revocation reconnects after a
 newer grant and is accepted, rebased, and remains idempotent on retry. The latter
@@ -2035,7 +2038,10 @@ lifecycle detail responses with a bounded public species-reference projection.
 Its reviewed goal catalog maps broad objectives to illustrative scientific
 names without changing SQL matching, batches `species_dictionary` and
 `species_reference_images`, and emits at most one Naturebook, Wikipedia, and
-GBIF candidate per goal. Catalog, capture, Event, profile, publication, and
+GBIF candidate per goal. A normalized-cache miss for one of the six
+carousel-eligible current-level goals uses the shared bounded external
+enrichment helper with at most three lookups in flight; provider failure does
+not fail template detail. Catalog, capture, Event, profile, publication, and
 Explore responses remain unchanged.
 `fieldTripCaptureContextDb.test.ts` additionally executes the
 filtering/order/privacy contract, while `fieldTripProgressDb.test.ts` exercises

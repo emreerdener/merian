@@ -458,156 +458,57 @@ dependency audit, tests, type-check, and production build; preserve the required
 
 ## 10. Agent Workflows
 
-Merian maintains reproducible, automated workflows inside the
-`.agents/workflows/` directory. AI Agents **MUST** execute these runbooks (e.g.
-via slash commands or manually reading and running) for critical operations
-instead of guessing:
+Codex is the only supported repository development agent. Root `AGENTS.md`
+contains universal safety, authorization, synchronization, verification, and
+delegation rules. Task procedures use progressive disclosure: canonical skills
+live under `skills/` and their repository discovery links live only under
+`.agents/skills/`.
 
-- `schema_update.md`: Bumping SwiftData schema versions and snapshotting global
-  active models.
+The six project skills are:
 
-No `freeze_schema.py` helper is currently checked in. When bumping schemas,
-follow `.agents/workflows/schema_update.md` manually and freeze the outgoing
-schema before changing any global model in `ActiveSchema/`.
+| Skill | Responsibility |
+| --- | --- |
+| `$merian-ios` | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, hardware limits, and safe Debug/UI-test fixtures |
+| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery |
+| `$merian-supabase` | Merian database, RLS, Edge, security, client, and candidate-validation overlay |
+| `$merian-api-contracts` | Deno, generated Swift, and web payload coordination through generate → review diff → validate |
+| `$merian-web-admin` | Public web/internal admin trust boundaries and package-local verification |
+| `$merian-release` | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures |
+
+`$merian-release` cannot be invoked implicitly. Implementation, preparation,
+candidate validation, or green CI never authorizes a deployment or publication.
+Legacy files under `.agents/workflows/` and `apps/ios/.agents/workflows/` are
+compatibility pointers only; the skills own the procedures.
+
+Three read-only project agents live under `.codex/agents/`:
+
+- `merian_explorer` traces unknown ownership and execution paths.
+- `merian_reviewer` independently reviews correctness, security, concurrency,
+  migrations, release safety, and test gaps.
+- `merian_contract_auditor` checks implementation, DTO, documentation, CI, and
+  release-control drift.
+
+Use them only under the delegation conditions in `AGENTS.md`; the primary agent
+owns every edit. Run `make validate-agent-assets` after any change to these
+instructions, skills, agents, compatibility pointers, or Agent Quality workflow.
+Deterministic validation is the required check. Live Codex evaluations are
+non-blocking during their documented calibration window and are scored from
+enumerated expectations rather than a second model judge.
 
 ## 11. SwiftData Schema Migration Safety
 
-**CRITICAL — read `.agents/workflows/schema_update.md` before touching any
-schema.**
+**CRITICAL — load `$merian-swiftdata-migrations` and read
+`skills/merian-swiftdata-migrations/references/schema-update.md` before touching
+any schema.** The skill is the canonical procedure; this section documents why
+the model-shape invariants exist.
 
-Two invariants govern every schema file:
+The durable invariant is concise: retired schemas reference fully qualified,
+frozen snapshot types; only the current schema references global active types;
+and relationship-bearing snapshots preserve matching Swift type identity. On
+iOS 26 and later, every custom stage must also resolve distinct from/to model
+references.
 
-| Schema state          | `models` array must reference                                  | Reason                                                                                       |
-| --------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Retired (V1 … V(N-1)) | Frozen snapshot types: `MerianSchemaV{K}.LocalScanRecord.self` | Stable checksum forever — never drifts with global model changes                             |
-| Current (V(N))        | Global types: `LocalScanRecord.self`                           | App code (`@Query`, `context.insert`, etc.) must operate on the same entity as the container |
-
-**The single rule that prevents `NSStagedMigrationManager` crashes:**
-
-> Freeze the outgoing schema (V(N)) manually **BEFORE** modifying any global
-> model in `ActiveSchema/`. Never add fields to a global model first.
-
-**Compile-time enforcement**: Retired schemas MUST use fully-qualified type
-names in their `models` array (e.g., `MerianSchemaV26.LocalScanRecord.self`). A
-missing snapshot causes a build error rather than a runtime crash at a user's
-device.
-
-**iOS 26 additional constraint — custom stages must have distinct model
-references**: On iOS 26+, when ANY migration runs (even a lightweight one),
-SwiftData iterates ALL custom stages in the migration plan and calls
-`NSCustomMigrationStage.init(migratingFrom:to:)` for each. If any stage's
-`fromVersion` and `toVersion` resolve to the same
-`NSManagedObjectModelReference`, the app crashes:
-
-```
-'NSInvalidArgumentException', reason: 'The current model reference and the next model reference cannot be equal.'
-```
-
-This means a user upgrading from V26 (lightweight migration V26→V27) will still
-crash if V24→V25 or any other custom stage has equal model references.
-
-**Two root causes of equal model references (both have been fixed as of
-V24–V26):**
-
-1. **Extension-pattern name resolution**: When `@Model` inner classes are
-   declared via `extension MerianSchemaV{K}` (not directly in the enum body),
-   the Swift compiler may silently resolve `LocalScanRecord.self` in the
-   generated `@Model` metadata to the global `ActiveSchema` type, causing all
-   extension-declared frozen snapshots to produce the same entity shape. Fix:
-   declare all frozen `@Model` classes in the enum body (not extensions).
-
-2. **ScanCollection typealias carries relationship by type identity**: If schema
-   V(N) uses `typealias ScanCollection = MerianSchemaV{N-1}.ScanCollection`, the
-   aliased class has a `@Relationship(inverse: \LocalScanRecord.collections)`
-   that was compiled pointing to `MerianSchemaV{N-1}.LocalScanRecord` by Swift
-   type identity. When SwiftData builds the V(N) schema, it may resolve the
-   relationship's destination by Swift class type rather than entity name —
-   auto-including `V{N-1}.LocalScanRecord` and making V(N) schema identical to
-   V(N-1). Fix: always redeclare `ScanCollection` in the enum body for each
-   schema version that changes `LocalScanRecord`, so the relationship key path
-   `\LocalScanRecord.collections` captures the current schema's
-   `LocalScanRecord`.
-
-**Preferred frozen snapshot pattern — always declare in enum body:**
-
-```swift
-// SchemaV{N}.swift — CORRECT (retired schema)
-enum MerianSchemaV26: VersionedSchema {
-    static var models: [any PersistentModel.Type] {
-        [MerianSchemaV26.LocalScanRecord.self, MerianSchemaV26.ScanCollection.self, ...]
-    }
-    typealias PendingCloudDeletionTask = MerianSchemaV25.PendingCloudDeletionTask
-    typealias OfflineQueuedScan        = MerianSchemaV25.OfflineQueuedScan
-
-    // ScanCollection redeclared (not typealias) so relationship captures V26.LocalScanRecord
-    @Model final class ScanCollection {
-        @Relationship(inverse: \LocalScanRecord.collections) var scans: [LocalScanRecord]? = []
-        // ...
-    }
-    @Model final class LocalScanRecord { /* frozen snapshot */ }
-}
-```
-
-Only use `typealias` for models that are **unchanged AND not referenced by any
-relationship inside the schema** (e.g., `OfflineQueuedScan`,
-`PendingCloudDeletionTask`). Any model with a relationship to `LocalScanRecord`
-must be redeclared in each schema's enum body.
-
-**Migration regression tests**:
-`apps/ios/MerianTests/Models/MigrationPlanTests.swift` must pass on an iOS 26
-simulator on every schema bump. It covers fresh-store initialization, historical
-disk-store migrations, V42/V43/V44/V45/V46/V47 source-isolated recent plans,
-direct V42/V43/V44/V45/V46/V47→V49 queue repairs followed by the shared V49→V50
-lightweight stage, and source scans for migration safety invariants: no silent
-custom-stage saves, no active/global fetch descriptors or active model
-convenience helpers in `MerianMigrationPlan`, and no bare active
-`CapturedMediaEntry` relationship targets in retired schemas. The full
-historical plan must skip the duplicate-prone V44/V45/V46/V47 recent cluster by
-jumping V42→V49 or V43→V49; V42/V43 use source-isolated startup plans to avoid
-validating older full-historical custom stages before the real source is
-reached, and the source-isolated V44/V45/V46 recent plans also jump directly to
-V49. Because V46 is a no-op checksum twin of V45, the V45 and V46 recent plans
-must keep those sources isolated from each other and never route through V47.
-V47 must not alias its local-scan, captured-media, or collection representatives
-back through active models or the V45/V42 chain, because that can pull stale
-queued-scan metadata into V47 stores. Keep those models frozen inside V47. V47
-queued scans intentionally keep queued media scalar-only: do not add a
-`capturedMediaEntries` relationship there. V49 rebuilds those relationship rows
-from `capturedMediaJSON` after snapshotting and replacing the V47 queued rows.
-
-**Custom migration save rule**: Never use `try? context.save()` inside
-`MerianMigrationPlan` custom stages. Every custom `didMigrate` save must call
-the shared migration save helper, rollback on failure, and rethrow so SwiftData
-aborts the migration rather than opening a store with missing backfilled fields.
-Scratchpad namespaces are cleared only after the save succeeds, and migration
-fetch failures must propagate instead of being logged and ignored.
-Migration-stage fetches must use the concrete source/target schema type for that
-stage, never `CurrentSchema`, active global model classes, or active-only
-convenience helpers, because SwiftData can trap while casting historical
-migration objects. Any relationship model introduced in a retired schema must be
-frozen in that schema too, even if the active model has the same fields. When a
-source schema uses the same entity name with a distinct Swift type, follow the
-V47 queued-scan pattern: snapshot every source field needed to recreate the row,
-keep relationship mirrors out of the source model when scalar mirrors already
-preserve the same data, delete the source row inside `willMigrate`, then insert
-a clean target-schema row from that snapshot in `didMigrate` instead of fetching
-the just-migrated row as the target type. Custom migrations that create
-relationship rows must insert those rows into the migration `ModelContext`
-before assigning the relationship; relying on relationship assignment alone can
-crash during SwiftData store migration.
-
-**Startup recovery rule**: `ModelContainer` creation may raise Objective-C
-`NSException`s before Swift can throw. Merian routes those exceptions through
-`MerianObjCExceptionBridge`, but startup first asks
-`ModelStoreRecoveryCoordinator` for a store-aware migration hint so
-fresh/current stores open without a migration plan and known recent stores use a
-source-isolated V48/V47/V46/V45/V44/V43/V42 plan; V42 and V43 jump directly to
-V49, and the V45 and V46 plans use one matching source representative each with
-a direct V49 target internally before advancing to V50. Quarantine remains
-corruption-gated: only verified SQLite/Core Data corruption signatures may
-quarantine `default.store` artifacts. Non-corrupt failures on legacy migration
-strategies may archive those artifacts under `store-rescue/` before rebuilding a
-fresh persistent store. Each quarantine or rescue writes a sanitized
-`recovery-manifest.json`, and recovery must not clear Keychain, Supabase auth
-state, or device identity. `ModelStoreRecoveryCoordinatorTests` source-scan this
-isolation rule and cover the metadata parser.
+The skill owns the ordered freeze procedure, relationship rules, custom-stage
+requirements, disk-backed tests, startup recovery checks, and documentation
+criteria. Keep version-specific recovery topology in source, focused tests, and
+the canonical database guide rather than copying it into this agent overview.

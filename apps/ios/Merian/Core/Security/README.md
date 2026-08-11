@@ -319,6 +319,9 @@ the strict server cutover or a production submission.
 - Every user-facing consent mutation must build a candidate ledger and install
   it in memory only after the throwing storage boundary verifies the complete
   atomic write. Onboarding cannot set its completion flag after a failed write.
+  The three Ready-step switch labels omit terminal periods, and new adult,
+  Terms, Gemini, and analytics evidence persists that exact displayed copy;
+  this punctuation-only revision does not change the policy versions.
   Analytics withdrawal closes capture before storage, writes its Keychain
   journal before the primary ledger, and remains off while either recovery or
   journal cleanup is pending.

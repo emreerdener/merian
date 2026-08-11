@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian SwiftData Migrations"
+  short_description: "Freeze and migrate Merian SwiftData schemas safely"
+  default_prompt: "Use $merian-swiftdata-migrations to plan and verify this SwiftData schema change."

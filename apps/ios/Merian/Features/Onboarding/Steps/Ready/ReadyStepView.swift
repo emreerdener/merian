@@ -17,8 +17,6 @@ struct ReadyStepView: View {
     static let adultStatement = ConsentPolicy.adultConfirmationText
     static let consentStatement = ConsentPolicy.combinedAcceptanceText
     static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
-    static let requiredSectionTitle = "Required to start scanning"
-    static let optionalSectionTitle = "Optional — change anytime in Settings"
     static let termsURL = PublicBrand.websiteURL(path: "terms")
     static let requiredIndicator = " *"
 
@@ -116,26 +114,16 @@ struct ReadyStepView: View {
 
     // MARK: - Consent
     private var consentControls: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            consentSectionTitle(Self.requiredSectionTitle)
+        VStack(alignment: .center, spacing: 18) {
+            consentRow(
+                isOn: $hasConfirmedAdultEligibility,
+                statement: Self.adultStatement,
+                isRequired: true,
+                accessibilityHint: "Required to start scanning",
+                accessibilityIdentifier: "Ready_AgeSwitch"
+            )
 
-            VStack(alignment: .leading, spacing: 18) {
-                consentRow(
-                    isOn: $hasConfirmedAdultEligibility,
-                    statement: Self.adultStatement,
-                    isRequired: true,
-                    accessibilityHint: "Required to start scanning",
-                    accessibilityIdentifier: "Ready_AgeSwitch"
-                )
-
-                linkedGeminiConsentRow
-            }
-            .padding(.top, 12)
-
-            Divider()
-                .padding(.vertical, 18)
-
-            consentSectionTitle(Self.optionalSectionTitle)
+            linkedGeminiConsentRow
 
             consentRow(
                 isOn: $hasAllowedAnalytics,
@@ -143,16 +131,8 @@ struct ReadyStepView: View {
                 accessibilityHint: "Optional, does not affect scanning, and can be changed later in Settings",
                 accessibilityIdentifier: "Ready_AnalyticsSwitch"
             )
-            .padding(.top, 12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func consentSectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Color.secondary)
-            .accessibilityAddTraits(.isHeader)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func consentRow(
@@ -183,7 +163,7 @@ struct ReadyStepView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var linkedGeminiConsentRow: some View {
@@ -206,7 +186,7 @@ struct ReadyStepView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     // MARK: - Actions

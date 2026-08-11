@@ -6,6 +6,7 @@ import type {
 export interface FieldTripReferenceTarget {
   itemId: string;
   scientificName: string;
+  commonName: string;
 }
 
 export interface FieldTripReferenceSpeciesPayload {
@@ -52,11 +53,35 @@ export const FIELD_TRIP_REFERENCE_SPECIES_BY_GOAL: Readonly<
   },
 };
 
+const FIELD_TRIP_REFERENCE_COMMON_NAME_BY_SCIENTIFIC_NAME: Readonly<
+  Record<string, string>
+> = {
+  "Passer domesticus": "House Sparrow",
+  "Canis lupus familiaris": "Domestic Dog",
+  "Danaus plexippus": "Monarch",
+  "Felis catus": "Domestic Cat",
+  "Araneus diadematus": "Cross Orbweaver",
+  "Bellis perennis": "Common Daisy",
+  "Trametes versicolor": "Turkey Tail",
+  "Coccinella septempunctata": "Seven-spotted Lady Beetle",
+  "Sciurus carolinensis": "Eastern Gray Squirrel",
+  "Bryum argenteum": "Silvergreen Bryum Moss",
+  "Taraxacum officinale": "Common Dandelion",
+  "Apis mellifera": "Western Honey Bee",
+  "Eristalis tenax": "Common Drone Fly",
+  "Fragaria vesca": "Wild Strawberry",
+  "Achillea millefolium": "Common Yarrow",
+  "Trifolium pratense": "Red Clover",
+};
+
 export function fieldTripReferenceTargets(
   template: unknown,
   maximumCount = 60,
 ): FieldTripReferenceTarget[] {
   if (!isRecord(template)) return [];
+
+  const limit = Math.max(0, Math.trunc(maximumCount));
+  if (limit === 0) return [];
 
   const slug = stringValue(template.slug);
   const mapping = slug == null
@@ -78,12 +103,51 @@ export function fieldTripReferenceTargets(
       if (!itemId || !scientificName || seenItemIds.has(itemId)) continue;
 
       seenItemIds.add(itemId);
-      targets.push({ itemId, scientificName });
-      if (targets.length >= Math.max(0, maximumCount)) return targets;
+      targets.push({
+        itemId,
+        scientificName,
+        commonName:
+          FIELD_TRIP_REFERENCE_COMMON_NAME_BY_SCIENTIFIC_NAME[scientificName] ??
+            scientificName,
+      });
+      if (targets.length >= limit) return targets;
     }
   }
 
   return targets;
+}
+
+export function fieldTripActiveReferenceTargets(
+  template: unknown,
+  maximumCount = 6,
+): FieldTripReferenceTarget[] {
+  if (!isRecord(template) || !Array.isArray(template.levels)) return [];
+
+  const progress = isRecord(template.active_progress)
+    ? template.active_progress
+    : isRecord(template.stopped_progress)
+    ? template.stopped_progress
+    : null;
+  const progressLevelNumber = positiveInteger(progress?.current_level_number);
+  const firstLevelNumber = template.levels.reduce<number | null>(
+    (minimum, level) => {
+      if (!isRecord(level)) return minimum;
+      const levelNumber = positiveInteger(level.level_number);
+      if (levelNumber == null) return minimum;
+      return minimum == null ? levelNumber : Math.min(minimum, levelNumber);
+    },
+    null,
+  );
+  const activeLevelNumber = progressLevelNumber ?? firstLevelNumber;
+  if (activeLevelNumber == null) return [];
+
+  return fieldTripReferenceTargets({
+    ...template,
+    levels: template.levels.filter((level) =>
+      isRecord(level) &&
+      positiveInteger(level.level_number) === activeLevelNumber
+    ),
+  }, maximumCount);
 }
 
 export function oneReferenceImagePerSource(
@@ -141,4 +205,10 @@ function stringValue(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0
+    ? value
+    : null;
 }
