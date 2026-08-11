@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 @testable import Merian
 import Testing
 
@@ -242,6 +243,14 @@ struct AchievementToastPresenterTests {
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 5) == 2)
     }
 
+    @Test func stackedToastBackingSurfaceStaysVisibleWhenForegroundDismisses() {
+        let stackedAlpha = renderedToastCenterAlpha(pendingItemCount: 1)
+        let singleAlpha = renderedToastCenterAlpha(pendingItemCount: 0)
+
+        #expect(stackedAlpha > 80)
+        #expect(singleAlpha < 8)
+    }
+
     @Test func milestoneStackPresentationKeepsOnlyTheActivePayloadAndReportsQueueDepth() {
         let presenter = systemPresenter
         presenter.previewMilestoneStack()
@@ -328,6 +337,51 @@ struct AchievementToastPresenterTests {
         #expect(offset.height == 0)
         #expect(abs(MilestoneToastDismissalGesture.distance(for: offset)
             - MilestoneToastDismissalGesture.offscreenDistance) < 0.001)
+    }
+
+    private func renderedToastCenterAlpha(pendingItemCount: Int) -> UInt8 {
+        let size = CGSize(width: 320, height: 140)
+        let view = ToastBanner(
+            onDismiss: nil,
+            pendingItemCount: pendingItemCount,
+            foregroundTransform: ToastBannerForegroundTransform(
+                offset: CGSize(width: 1_000, height: 0),
+                opacity: 0
+            )
+        ) {
+            Color.clear.frame(width: 120, height: 60)
+        }
+        .frame(width: size.width, height: size.height)
+
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 1
+        guard let image = renderer.uiImage?.cgImage,
+              let centerPixel = image.cropping(to: CGRect(
+                  x: CGFloat(image.width / 2),
+                  y: CGFloat(image.height / 2),
+                  width: 1,
+                  height: 1
+              )) else {
+            Issue.record("Expected the toast renderer to produce a center pixel")
+            return 0
+        }
+
+        var pixel = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            Issue.record("Expected a pixel-sampling context")
+            return 0
+        }
+
+        context.draw(centerPixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return pixel[3]
     }
 
     @Test func completedAchievementUnlockReturnsTypedPresentationPayloadWhenEnabled() {

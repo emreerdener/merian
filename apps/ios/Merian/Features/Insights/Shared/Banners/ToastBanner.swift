@@ -34,6 +34,22 @@ enum ToastStackPresentation {
     }
 }
 
+struct ToastBannerForegroundTransform: Equatable {
+    let offset: CGSize
+    let scale: CGFloat
+    let opacity: Double
+
+    init(
+        offset: CGSize = .zero,
+        scale: CGFloat = 1,
+        opacity: Double = 1
+    ) {
+        self.offset = offset
+        self.scale = scale
+        self.opacity = opacity
+    }
+}
+
 /// Shared adaptive chrome for transient in-app feedback.
 ///
 /// Toasts intentionally use the inverse of the surrounding appearance so they
@@ -47,29 +63,12 @@ private struct AdaptiveToastSurfaceModifier<SurfaceShape: InsettableShape>: View
     let pendingItemCount: Int
     let shadowRadius: CGFloat
     let shadowY: CGFloat
+    let foregroundTransform: ToastBannerForegroundTransform
 
     func body(content: Content) -> some View {
         content
             .background {
-                ZStack {
-                    if visibleBackingLayerCount > 0 {
-                        ForEach((1...visibleBackingLayerCount).reversed(), id: \.self) { layer in
-                            surfaceLayer
-                                .scaleEffect(
-                                    x: ToastStackPresentation.horizontalScale(for: layer),
-                                    y: 1,
-                                    anchor: .center
-                                )
-                                .offset(y: ToastStackPresentation.verticalOffset(for: layer))
-                                .opacity(ToastStackPresentation.opacity(for: layer))
-                                .transition(.opacity.combined(with: .offset(y: -4)))
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
-                    }
-
-                    surfaceLayer
-                }
+                surfaceLayer
             }
             .shadow(
                 color: .black.opacity(0.15),
@@ -77,6 +76,18 @@ private struct AdaptiveToastSurfaceModifier<SurfaceShape: InsettableShape>: View
                 x: 0,
                 y: shadowY
             )
+            .offset(
+                x: foregroundTransform.offset.width,
+                y: foregroundTransform.offset.height
+            )
+            .scaleEffect(foregroundTransform.scale)
+            .opacity(foregroundTransform.opacity)
+            // Keep backplates outside the active surface's render transform.
+            // Offset and scale preserve the foreground's layout bounds, so this
+            // outer background stays sized and anchored to the resting card.
+            .background {
+                backingLayers
+            }
             .environment(\.colorScheme, inverseColorScheme)
             .animation(
                 .spring(response: 0.36, dampingFraction: 0.86),
@@ -86,6 +97,32 @@ private struct AdaptiveToastSurfaceModifier<SurfaceShape: InsettableShape>: View
 
     private var visibleBackingLayerCount: Int {
         ToastStackPresentation.visibleBackingLayerCount(for: pendingItemCount)
+    }
+
+    @ViewBuilder private var backingLayers: some View {
+        if visibleBackingLayerCount > 0 {
+            ZStack {
+                ForEach((1...visibleBackingLayerCount).reversed(), id: \.self) { layer in
+                    surfaceLayer
+                        .scaleEffect(
+                            x: ToastStackPresentation.horizontalScale(for: layer),
+                            y: 1,
+                            anchor: .center
+                        )
+                        .offset(y: ToastStackPresentation.verticalOffset(for: layer))
+                        .opacity(ToastStackPresentation.opacity(for: layer))
+                        .transition(.opacity.combined(with: .offset(y: -4)))
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .shadow(
+                color: .black.opacity(0.15),
+                radius: shadowRadius,
+                x: 0,
+                y: shadowY
+            )
+        }
     }
 
     @ViewBuilder private var surfaceLayer: some View {
@@ -134,13 +171,15 @@ extension View {
         in shape: SurfaceShape,
         pendingItemCount: Int = 0,
         shadowRadius: CGFloat = 30,
-        shadowY: CGFloat = 15
+        shadowY: CGFloat = 15,
+        foregroundTransform: ToastBannerForegroundTransform = .init()
     ) -> some View {
         modifier(AdaptiveToastSurfaceModifier(
             shape: shape,
             pendingItemCount: pendingItemCount,
             shadowRadius: shadowRadius,
-            shadowY: shadowY
+            shadowY: shadowY,
+            foregroundTransform: foregroundTransform
         ))
     }
 }
@@ -167,6 +206,7 @@ extension View {
 struct ToastBanner<Content: View>: View {
     var onDismiss: (() -> Void)?
     var pendingItemCount = 0
+    var foregroundTransform = ToastBannerForegroundTransform()
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -192,7 +232,8 @@ struct ToastBanner<Content: View>: View {
         .frame(maxWidth: 560, alignment: .leading)
         .adaptiveToastSurface(
             in: RoundedRectangle(cornerRadius: 32, style: .continuous),
-            pendingItemCount: pendingItemCount
+            pendingItemCount: pendingItemCount,
+            foregroundTransform: foregroundTransform
         )
         .padding(.horizontal, 16)
     }

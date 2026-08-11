@@ -85,7 +85,12 @@ struct MilestoneToastBanner: View {
     var body: some View {
         ToastBanner(
             onDismiss: dismissManually,
-            pendingItemCount: pendingItemCount
+            pendingItemCount: pendingItemCount,
+            foregroundTransform: ToastBannerForegroundTransform(
+                offset: dragOffset,
+                scale: dragScale,
+                opacity: dragOpacity * dismissalOpacity
+            )
         ) {
             HStack(spacing: 14) {
                 milestoneIcon
@@ -121,9 +126,6 @@ struct MilestoneToastBanner: View {
                 open()
             }
         }
-        .offset(x: dragOffset.width, y: dragOffset.height)
-        .scaleEffect(dragScale)
-        .opacity(dragOpacity * dismissalOpacity)
         .gesture(
             DragGesture(minimumDistance: 10, coordinateSpace: .local)
                 .onChanged(handleDragChanged)

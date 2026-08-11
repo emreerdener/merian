@@ -6,6 +6,20 @@ enum ScansTab {
     case collections
 }
 
+enum ScansNavigationRoute: Hashable {
+    case nonBiologicalScans
+}
+
+struct ScansSheetInitialNavigation: Equatable {
+    let activeTab: ScansTab
+    let routes: [ScansNavigationRoute]
+
+    init(initiallyShowsNonBiologicalScans: Bool) {
+        activeTab = initiallyShowsNonBiologicalScans ? .collections : .library
+        routes = initiallyShowsNonBiologicalScans ? [.nonBiologicalScans] : []
+    }
+}
+
 struct ScansSheetView: View {
     let recoveryContext: ExploreMediaRecoveryRouteContext?
 
@@ -14,8 +28,13 @@ struct ScansSheetView: View {
         initiallyShowsNonBiologicalScans: Bool = false
     ) {
         self.recoveryContext = recoveryContext
-        _activeTab = State(initialValue: initiallyShowsNonBiologicalScans ? .collections : .library)
-        _isNonBiologicalScansPresented = State(initialValue: initiallyShowsNonBiologicalScans)
+        let initialNavigation = ScansSheetInitialNavigation(
+            initiallyShowsNonBiologicalScans: initiallyShowsNonBiologicalScans
+        )
+        _navigationPath = State(
+            initialValue: NavigationPath(initialNavigation.routes)
+        )
+        _activeTab = State(initialValue: initialNavigation.activeTab)
     }
 
     // MARK: - App State Engines
@@ -75,7 +94,6 @@ struct ScansSheetView: View {
     @State private var showBatchDeleteConfirmation = false
     @State private var showSelectionLimitAlert = false
     @State private var isSearchFocused = false
-    @State private var isNonBiologicalScansPresented = false
     
     private var filterCategories: [String] {
         searchManager.orderedCategoryFilters
@@ -170,8 +188,11 @@ struct ScansSheetView: View {
                     showsCloseButton: false
                 )
             }
-            .navigationDestination(isPresented: $isNonBiologicalScansPresented) {
-                NonBiologicalScansView()
+            .navigationDestination(for: ScansNavigationRoute.self) { route in
+                switch route {
+                case .nonBiologicalScans:
+                    NonBiologicalScansView()
+                }
             }
         }
     }

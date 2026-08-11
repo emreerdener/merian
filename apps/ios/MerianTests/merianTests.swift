@@ -679,6 +679,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertTrue(viewModel.hasPendingRequiredGalleryCrop)
         XCTAssertEqual(viewModel.imageToCrop?.id, stagedImage?.original.id)
         XCTAssertTrue(viewModel.isRequiredGalleryCrop(stagedImage?.original.id ?? UUID()))
+        XCTAssertTrue(viewModel.shouldSuppressCaptureChromeForCrop)
     }
 
     func testPreparedImageWithoutRequiredCropDoesNotPresentCropSheet() {
@@ -962,9 +963,11 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         autoSubmitViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
         let autoSubmitImageId = try! XCTUnwrap(autoSubmitViewModel.stagedCapture.images.first?.original.id)
 
+        autoSubmitViewModel.imageToCrop = nil
         XCTAssertTrue(autoSubmitViewModel.completeRequiredGalleryCrop(for: autoSubmitImageId))
         XCTAssertTrue(autoSubmitViewModel.isAutomaticStagedSubmissionPending)
         XCTAssertFalse(autoSubmitViewModel.shouldPresentActiveScanToolbar)
+        XCTAssertFalse(autoSubmitViewModel.shouldSuppressCaptureChromeForCrop)
 
         let confirmationContainer = AppDIContainer.preview
         confirmationContainer.appSettings.requiresScanConfirmation = true
@@ -977,9 +980,11 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         confirmationViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
         let confirmationImageId = try! XCTUnwrap(confirmationViewModel.stagedCapture.images.first?.original.id)
 
+        confirmationViewModel.imageToCrop = nil
         XCTAssertFalse(confirmationViewModel.completeRequiredGalleryCrop(for: confirmationImageId))
         XCTAssertFalse(confirmationViewModel.isAutomaticStagedSubmissionPending)
         XCTAssertTrue(confirmationViewModel.shouldPresentActiveScanToolbar)
+        XCTAssertFalse(confirmationViewModel.shouldSuppressCaptureChromeForCrop)
     }
 
     func testExploreDeepLinkSurvivesImmediateSessionTimeoutReset() async throws {

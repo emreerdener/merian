@@ -1470,7 +1470,13 @@ on gesture-driven layout abstractions.
   overlays hide `MediaModeToggle`, `CaptureButton`, `FlashButton`, and
   `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
   individual processing sequences per image without keeping full 12 MP buffers
-  in background memory. Cancel/remove/replace hooks call the staged-media
+  in background memory. Its close/delete controls use native leading/trailing
+  navigation-toolbar placements, letting UIKit clear the status bar, Dynamic
+  Island, rotation, and resized windows even when a full-screen cover reports a
+  zero geometry inset. Required-crop ownership also suppresses the bottom capture
+  controls and places a black crop-canvas shield over the workspace before the
+  cover animation begins, preventing the staged **Identify** tray from flashing.
+  Cancel/remove/replace hooks call the staged-media
   discard helper so temporary video/audio files are deleted, while submit uses
   reference-only staging reset after queue acceptance so the durable owner
   retains media; both paths clear pending crop state and keep

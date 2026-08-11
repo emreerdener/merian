@@ -132,13 +132,6 @@ struct QueuedContentView: View {
             .caseInsensitiveCompare(queuedContext.id) == .orderedSame
     }
 
-    private var liveQueueHandoffMessage: String {
-        if offlineQueueManager.isOnline {
-            return "Saved to Scans. Analysis is continuing automatically."
-        }
-        return "Saved to Scans. Analysis will resume automatically when your connection is back."
-    }
-
     private var phaseRotationID: PhaseRotationID {
         PhaseRotationID(
             scanId: queuedContext.id,
@@ -154,9 +147,9 @@ struct QueuedContentView: View {
     /// by foreground analysis.
     private var scanningPhasePhrases: [String] {
         if isLiveQueueHandoff {
-            return offlineQueueManager.isOnline
-                ? ["Queued for later", "Continuing automatically"]
-                : ["Queued for later", "Waiting for connection"]
+            return Self.liveQueueHandoffPhrases(
+                isOnline: offlineQueueManager.isOnline
+            )
         }
         guard offlineQueueManager.isOnline else {
             return ["Waiting for connection"]
@@ -211,6 +204,18 @@ struct QueuedContentView: View {
         case .failed:
             return ["Scan needs attention"]
         }
+    }
+
+    /// An online durable handoff is still active analysis from the user's
+    /// perspective. Keep the ordinary AI phrase deck instead of exposing queue
+    /// orchestration. Offline handoffs retain the only state change the user can
+    /// act on: the scan is waiting for connectivity.
+    nonisolated static func liveQueueHandoffPhrases(
+        isOnline: Bool
+    ) -> [String] {
+        isOnline
+            ? InferenceEngine.genericScanningPhasePhrases
+            : ["Queued for later", "Waiting for connection"]
     }
 
     private var badgePhrase: String {
@@ -298,24 +303,10 @@ struct QueuedContentView: View {
                 #endif
             }
         ) {
-            if isLiveQueueHandoff ||
-                retryDetail != nil ||
+            if retryDetail != nil ||
                 friendlyErrorText != nil ||
                 queuedContext.canRetryNow {
                 VStack(spacing: 12) {
-                    if isLiveQueueHandoff {
-                        Label(
-                            liveQueueHandoffMessage,
-                            systemImage: "checkmark.icloud"
-                        )
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier(
-                            "QueuedForConnectivityMessage_\(queuedContext.id)"
-                        )
-                    }
-
                     if let retryDetail {
                         Text(retryDetail)
                             .font(.footnote)
@@ -344,6 +335,21 @@ struct QueuedContentView: View {
                 .padding(.horizontal, 8)
             }
         }
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            if UITestSeedCoordinator.isEnabled && isLiveQueueHandoff {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Queued presentation")
+                    .accessibilityIdentifier(
+                        "QueuedPresentation_\(queuedContext.id)"
+                    )
+            }
+        }
+        #endif
         .task(id: queuedContext.id) {
             OfflineJobScheduler.shared.scheduleNextPersistedWake(
                 using: offlineQueueManager

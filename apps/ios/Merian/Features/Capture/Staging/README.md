@@ -26,3 +26,12 @@ consumes the staging buffer or fails. On failure, the pending flag clears while
 the media remains staged, making **Identify** available for an explicit retry.
 Confirmation-enabled, multi-capture, mixed-media, and refinement flows never
 arm this suppression and continue to present the toolbar normally.
+
+Required gallery crop presentation has a separate chrome fence. The image must
+enter `StagedCapture` before `CropSheetModifier` can edit it, but
+`shouldSuppressCaptureChromeForCrop` becomes true from that commit until the
+required crop is completed or cancelled. `CaptureWorkspaceView` therefore
+hides both bottom-control layers before the full-screen cover begins animating,
+and places a nonanimated black shield matching the crop canvas above the
+workspace until cover dismissal. The staged thumbnail and **Identify** action
+are never an intermediate frame.

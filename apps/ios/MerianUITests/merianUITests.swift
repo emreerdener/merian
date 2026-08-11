@@ -332,18 +332,26 @@ final class merianUITests: XCTestCase {
         )
         liveScanningStatusBadge.tap()
 
-        let exactQueuedMessage = app.descendants(matching: .any)
+        let exactQueuedPresentation = app.descendants(matching: .any)
             .matching(
-                identifier: "QueuedForConnectivityMessage_\(scanId)"
+                identifier: "QueuedPresentation_\(scanId)"
             )
             .firstMatch
         XCTAssertTrue(
-            exactQueuedMessage.waitForExistence(timeout: 8.0),
+            exactQueuedPresentation.waitForExistence(timeout: 8.0),
             "The open live Insight did not bind the exact durable queued row"
         )
-        XCTAssertTrue(
-            exactQueuedMessage.label.contains("Saved to Scans"),
-            "The queued handoff did not explain that the scan is safe"
+        XCTAssertFalse(
+            liveScanningStatusBadge.label.localizedCaseInsensitiveContains(
+                "Continuing automatically"
+            ),
+            "Queue orchestration replaced the user-facing analysis phrase"
+        )
+        XCTAssertFalse(
+            app.staticTexts[
+                "Saved to Scans. Analysis is continuing automatically."
+            ].exists,
+            "The online handoff rendered redundant queue implementation copy"
         )
         XCTAssertFalse(
             app.staticTexts["Network timeout"].exists,

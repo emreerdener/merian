@@ -541,12 +541,14 @@ remain internal routing and diagnostic data.
 This view also owns the presentation half of the required live-to-queue
 handoff. If connectivity disappears after the analyzing Insight opens,
 `InferenceEngine.queuedPresentationScanId` keys a bounded exact-ID fetch of the
-already-durable queue row. The sheet changes to **Queued for later** and
-explains that the scan is saved and will resume or is continuing automatically.
-The same transition occurs when a silently stalled queue-owned foreground
-request reaches 15 seconds even if path monitoring still reports online. It
-emits no error haptic and preserves the normal same-ID completed-result
-promotion path.
+already-durable queue row. When connectivity is available, the sheet keeps the
+ordinary rotating AI-analysis phrases and adds no saved/continuing explanation;
+queue ownership is an implementation detail, not a new user task. Only a truly
+offline handoff changes the pill to **Queued for later** / **Waiting for
+connection**. The same durable transition occurs when a silently stalled
+queue-owned foreground request reaches 15 seconds even if path monitoring still
+reports online. It emits no error haptic and preserves the normal same-ID
+completed-result promotion path.
 
 The engine half remains release-gated, with its source behavior now remediated.
 The queue manager can retire durable foreground ownership as soon as the path
@@ -665,10 +667,12 @@ deterministic completion and reports both rectangles on failure.
 The companion live-connectivity smoke starts from an analyzing Insight whose
 exact durable queue row already exists. Its Debug-only trigger calls the same
 production queue-presentation transition used after a transport handoff. The
-test requires the identifier-scoped **Queued for later** message, rejects any
-**Network timeout** card, dismisses the sheet, and verifies that the same scan
-ID remains queued in Scans. The hosted gate accepts only the exact two-case set
-containing this transition and the queued-audio completion smoke.
+test requires an invisible identifier-scoped queued-presentation marker, keeps
+the visible pill on ordinary AI-analysis copy, rejects the removed
+saved/continuing explanation and any **Network timeout** card, dismisses the
+sheet, and verifies that the same scan ID remains queued in Scans. The hosted
+gate accepts only the exact two-case set containing this transition and the
+queued-audio completion smoke.
 
 The handoff single-flight is subject-aware rather than one global busy Boolean.
 A request for a different queued scan advances its generation and replaces the

@@ -38,10 +38,12 @@ generic engine phrases during active inference.
 When a live request loses connectivity after this sheet opens, the required
 contract is for the engine to publish the exact durable scan ID and for the
 sheet to snapshot that queued row. Existing queued content then replaces
-analyzing content with **Queued for later**, plus a saved/automatic-resume
-message. This handoff must not create a synthetic **Network timeout** result or
-an error haptic, and normal same-ID queued completion must still replace it in
-place.
+analyzing content without exposing queue orchestration: while online, the pill
+keeps ordinary AI-analysis phrases and no saved/automatic-resume message is
+shown. A truly offline handoff may show **Queued for later** and **Waiting for
+connection**. This handoff must not create a synthetic **Network timeout**
+result or an error haptic, and normal same-ID queued completion must still
+replace it in place.
 
 This behavior remains release-gated, but the source boundary is remediated. The
 catch path now retains exact local presentation authority after durable
@@ -75,7 +77,8 @@ The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight
 in analyzing mode with its exact queue row already committed. UI automation
 must observe that live state before tapping the shared badge. The Debug-only
 action then calls the production `transitionToQueuedPresentation` boundary;
-the sheet's exact-ID task must bind the row, expose
-`QueuedForConnectivityMessage_<scan-id>`, avoid **Network timeout**, and leave
-the same tile present in Scans after dismissal. The trigger is absent from
-Release and ordinary Debug sessions.
+the sheet's exact-ID task must bind the row, expose only the invisible
+`QueuedPresentation_<scan-id>` marker under that UI-test seed, keep the visible
+pill on normal AI-analysis copy, omit the saved/continuing explanation, avoid
+**Network timeout**, and leave the same tile present in Scans after dismissal.
+The trigger and marker are absent from Release and ordinary Debug sessions.

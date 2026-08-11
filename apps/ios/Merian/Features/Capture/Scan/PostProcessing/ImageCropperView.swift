@@ -39,166 +39,161 @@ struct ImageCropperView: View {
     }
     
     var body: some View {
-        GeometryReader { geometry in
-            // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
-            let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
+        NavigationStack {
+            GeometryReader { geometry in
+                // Calculate a perfect 1:1 square viewport dynamically inset from screen edges
+                let displaySize = max(0, min(geometry.size.width, geometry.size.height) - 32)
 
-            ZStack {
-                // 1. Immutable Canvas
-                Color.black.ignoresSafeArea()
+                ZStack {
+                    // 1. Immutable Canvas
+                    Color.black.ignoresSafeArea()
 
-                VStack {
-                    // 2. Top Toolbar — dismiss (X) left, delete (trash) right
-                    HStack {
-                        Button(action: { onCancel() }) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
-                                )
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(
-                                            LinearGradient(
-                                                colors: [
-                                                    Color.white.opacity(0.5),
-                                                    Color.white.opacity(0.1),
-                                                    Color.white.opacity(0.3)
-                                                ],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ),
-                                            lineWidth: 0.5
-                                        )
+                    VStack {
+                        // The native navigation toolbar owns the top safe-area geometry.
+                        // Keeping it outside this custom layout prevents a zero inset from
+                        // placing destructive controls beneath system status content.
+                        Spacer()
+
+                        // 2. Optical Scaler Plane (Image Layer)
+                        ZStack {
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: displaySize, height: displaySize)
+                                .scaleEffect(scale * currentScale)
+                                .offset(
+                                    x: offset.width + currentOffset.width,
+                                    y: offset.height + currentOffset.height
                                 )
                         }
+                        .frame(width: displaySize, height: displaySize)
+                        .clipShape(Rectangle())
+                        .overlay(
+                            Rectangle()
+                                .stroke(Color.white.opacity(0.8), lineWidth: 1)
+                        )
+                        .contentShape(Rectangle())
+                        // MARK: - Gesture Tracking
+                        // Drag and Magnification simultaneously manipulate the affine geometry
+                        // but they are strictly clamped to NEVER allow white space inside the box!
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    let proposed = CGSize(
+                                        width: offset.width + value.translation.width,
+                                        height: offset.height + value.translation.height
+                                    )
+                                    let clamped = getClampedOffset(proposedOffset: proposed, displaySize: displaySize, activeScale: scale * currentScale)
+                                    currentOffset = CGSize(
+                                        width: clamped.width - offset.width,
+                                        height: clamped.height - offset.height
+                                    )
+                                }
+                                .onEnded { _ in
+                                    offset.width += currentOffset.width
+                                    offset.height += currentOffset.height
+                                    currentOffset = .zero
+                                }
+                        )
+                        .simultaneousGesture(
+                            MagnificationGesture()
+                                .onChanged { value in
+                                    let proposedScale = scale * value
+                                    if proposedScale < 1.0 {
+                                        currentScale = 1.0 / scale
+                                    } else {
+                                        currentScale = value
+                                    }
+                                }
+                                .onEnded { _ in
+                                    scale = max(1.0, scale * currentScale)
+                                    currentScale = 1.0
+
+                                    withAnimation(.spring()) {
+                                        offset = getClampedOffset(proposedOffset: offset, displaySize: displaySize, activeScale: scale)
+                                    }
+                                }
+                        )
+
+                        Text("Pinch to zoom, drag to move")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding(.bottom, 24)
 
                         Spacer()
 
-                        if let deleteAction = onDelete {
-                            Button(action: { deleteAction() }) {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 20, weight: .semibold))
-                                    .foregroundColor(.red) // Icon stays red to indicate destructive action
-                                    .frame(width: 44, height: 44)
-                                    .background(
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
-                                    )
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(
-                                                LinearGradient(
-                                                    colors: [
-                                                        Color.white.opacity(0.5),
-                                                        Color.white.opacity(0.1),
-                                                        Color.white.opacity(0.3)
-                                                    ],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                ),
-                                                lineWidth: 0.5
-                                            )
-                                    )
-                            }
+                        // 3. Confirm Button
+                        Button(action: { generateCrop(displaySize: displaySize) }) {
+                            Text("Confirm crop")
+                                .font(.headline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.large)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 32)
                     }
-                    .environment(\.colorScheme, .dark)
-                    .padding(.horizontal, 24)
-                    // Cropper covers are hosted from multiple view hierarchies. Some
-                    // begin at the physical screen edge; others are already constrained
-                    // to the safe area, so delegate the effective inset to SwiftUI.
-                    .safeAreaPadding(.top, 12)
-
-                    Spacer()
-
-                    // 3. Optical Scaler Plane (Image Layer)
-                    ZStack {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: displaySize, height: displaySize)
-                            .scaleEffect(scale * currentScale)
-                            .offset(
-                                x: offset.width + currentOffset.width,
-                                y: offset.height + currentOffset.height
-                            )
-                    }
-                    .frame(width: displaySize, height: displaySize)
-                    .clipShape(Rectangle())
-                    .overlay(
-                        Rectangle()
-                            .stroke(Color.white.opacity(0.8), lineWidth: 1)
-                    )
-                    .contentShape(Rectangle())
-                    // MARK: - Gesture Tracking
-                    // Drag and Magnification simultaneously manipulate the affine geometry
-                    // but they are strictly clamped to NEVER allow white space inside the box!
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                let proposed = CGSize(
-                                    width: offset.width + value.translation.width,
-                                    height: offset.height + value.translation.height
-                                )
-                                let clamped = getClampedOffset(proposedOffset: proposed, displaySize: displaySize, activeScale: scale * currentScale)
-                                currentOffset = CGSize(
-                                    width: clamped.width - offset.width,
-                                    height: clamped.height - offset.height
-                                )
-                            }
-                            .onEnded { _ in
-                                offset.width += currentOffset.width
-                                offset.height += currentOffset.height
-                                currentOffset = .zero
-                            }
-                    )
-                    .simultaneousGesture(
-                        MagnificationGesture()
-                            .onChanged { value in
-                                let proposedScale = scale * value
-                                if proposedScale < 1.0 {
-                                    currentScale = 1.0 / scale
-                                } else {
-                                    currentScale = value
-                                }
-                            }
-                            .onEnded { _ in
-                                scale = max(1.0, scale * currentScale)
-                                currentScale = 1.0
-
-                                withAnimation(.spring()) {
-                                    offset = getClampedOffset(proposedOffset: offset, displaySize: displaySize, activeScale: scale)
-                                }
-                            }
-                    )
-
-                    Text("Pinch to zoom, drag to move")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .padding(.bottom, 24)
-
-                    Spacer()
-
-                    // 4. Confirm Button
-                    Button(action: { generateCrop(displaySize: displaySize) }) {
-                        Text("Confirm crop")
-                            .font(.headline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.large)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 32)
                 }
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar { cropToolbar }
         }
+        .background(Color.black.ignoresSafeArea())
+        .tint(.white)
+        .preferredColorScheme(.dark)
+    }
+
+    @ToolbarContentBuilder
+    private var cropToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button(action: onCancel) {
+                cropToolbarIcon(
+                    systemName: "xmark",
+                    foregroundColor: .white,
+                    weight: .bold
+                )
+            }
+            .imageOverlayToolbarButtonChrome(
+                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground
+            )
+            .accessibilityLabel("Cancel crop")
+            .accessibilityIdentifier("ImageCropperCloseButton")
+        }
+
+        if let onDelete {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: onDelete) {
+                    cropToolbarIcon(
+                        systemName: "trash",
+                        foregroundColor: .red,
+                        weight: .semibold
+                    )
+                }
+                .imageOverlayToolbarButtonChrome(
+                    isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground
+                )
+                .accessibilityLabel("Delete image")
+                .accessibilityIdentifier("ImageCropperDeleteButton")
+            }
+        }
+    }
+
+    private func cropToolbarIcon(
+        systemName: String,
+        foregroundColor: Color,
+        weight: Font.Weight
+    ) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: weight))
+            .frame(width: 32, height: 32)
+            .imageOverlayToolbarIconChrome(
+                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
+                foregroundColor: foregroundColor
+            )
+            .foregroundStyle(foregroundColor)
     }
     
     // MARK: - Output Generation

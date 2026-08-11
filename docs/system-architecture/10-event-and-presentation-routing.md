@@ -214,6 +214,12 @@ foreground timeout reset that would otherwise immediately close their sheet.
 Explore, achievement detail, and the post-identification notification prompt
 all share that host. Do not add a sibling root `.sheet` for a new alert or route.
 
+The `nonBiologicalScans` route presents the Scans root with a typed,
+pre-seeded `NavigationPath` whose first destination is the non-biological
+collection. Do not initialize a Boolean `navigationDestination(isPresented:)`
+as true while constructing the Scans sheet: the navigation host must own the
+initial route, and Back must return to the Collections tab.
+
 Local follow-up sheets use `pendingLocalSheet` and mount only after the current
 root sheet's `onDismiss`, provided no queued `AppRoute` has precedence.
 Delivery-critical routes defer through the coordinator rather than sleeping for

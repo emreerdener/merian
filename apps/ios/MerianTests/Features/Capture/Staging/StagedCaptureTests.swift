@@ -249,6 +249,22 @@ struct StagedCaptureTests {
             viewModel.clearStagedCaptureAndCropState()
             #expect(!viewModel.isAutomaticStagedSubmissionPending)
             #expect(!viewModel.shouldPresentActiveScanToolbar)
+
+            // Required gallery media is staged before SwiftUI mounts the crop
+            // cover. That pending state must suppress the capture chrome even
+            // in the render before imageToCrop becomes visible.
+            #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
+                hasPendingRequiredGalleryCrop: true,
+                isCropPresented: false
+            ))
+            #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
+                hasPendingRequiredGalleryCrop: false,
+                isCropPresented: true
+            ))
+            #expect(!CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
+                hasPendingRequiredGalleryCrop: false,
+                isCropPresented: false
+            ))
         }
     }
 

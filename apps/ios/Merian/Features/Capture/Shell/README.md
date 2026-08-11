@@ -47,6 +47,12 @@ Known quota/entitlement denial therefore opens the paywall with no staged image
 or crop sheet; the durable external-import receipt remains available for retry.
 This preview is read-only, so crop confirmation and submission still perform
 the normal admission recheck to catch a concurrent account/quota change.
+Once an import is allowed, `shouldSuppressCaptureChromeForCrop` owns the visual
+handoff from the staged commit through the required crop's dismissal. Both the
+capture row and bottom navigation/Identify tray remain hidden while that fence
+is active. A nonanimated black transition shield matches the crop canvas during
+the render before SwiftUI mounts the full-screen cover and remains until actual
+cover dismissal.
 
 ## Fresh-launch presentation
 

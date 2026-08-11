@@ -25,7 +25,7 @@ struct CaptureControlBar: View {
     @Bindable var viewModel: CaptureWorkspaceViewModel
     let captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
-    let isKeyboardVisible: Bool
+    let isSuppressed: Bool
     let coordinator: CaptureActionCoordinator
 
     @Environment(CameraManager.self) private var cameraManager
@@ -264,8 +264,8 @@ struct CaptureControlBar: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.videos.count)
-        .opacity(isKeyboardVisible ? 0 : 1)
-        .allowsHitTesting(!isKeyboardVisible)
+        .opacity(isSuppressed ? 0 : 1)
+        .allowsHitTesting(!isSuppressed)
     }
 }
 

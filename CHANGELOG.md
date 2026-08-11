@@ -22,12 +22,20 @@ TestFlight, App Store, support, and QA.
   and reopened.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
+- Online scan recovery now keeps the status pill focused on identification and
+  removes the redundant saved/continuing explanation. Offline recovery still
+  clearly shows when a scan is waiting for connection.
 - Instant single captures now move directly into automatic submission without
   briefly flashing the manual **Identify** tray. If admission genuinely fails,
   the retained staged photo still exposes **Identify** as an explicit retry.
 - Photo imports now check scan availability before opening the library picker
   or preparing a shared image, so a known limit opens the paywall before the
-  user selects and crops a photo.
+  user selects and crops a photo. Allowed imports now transition directly into
+  the crop editor without flashing the staged **Identify** tray, and crop
+  controls stay below the status bar and Dynamic Island.
+- The **Open collection** action on a non-biological Insight now opens its
+  collection through a stable library navigation route instead of freezing
+  during the sheet transition.
 
 ### Live Scan Queue Handoff — Release-Gated
 
@@ -37,10 +45,11 @@ TestFlight, App Store, support, and QA.
   takes a queue-only route: it is saved without starting live analysis and the
   durable scheduler resumes it later. Malformed, authentication, TLS, server,
   and authoritative plan/quota failures remain fail-closed.
-- The accepted customer behavior is for a saved, queue-backed scan to change to
-  **Queued for later** on the first connectivity failure and resume under the
-  same scan ID. A direct request without a durable queue owner may still show
-  **Network timeout**; server delays use separate **Analysis delayed** copy.
+- The accepted customer behavior is for a saved, queue-backed scan to keep
+  normal analysis copy while online, show queued/waiting copy only when truly
+  offline, and resume under the same scan ID. A direct request without a durable
+  queue owner may still show **Network timeout**; server delays use separate
+  **Analysis delayed** copy.
 - Source now separates the exact open sheet from durable provider ownership,
   gives the durable-queue-owned foreground attempt a 15-second safety window,
   returns its first transport failure without an inline replay, releases the
@@ -69,10 +78,11 @@ TestFlight, App Store, support, and QA.
   physical-device connectivity matrix.
 - The hosted iOS gate now starts a normal live Insight in analyzing mode,
   publishes the exact durable queue ID only after an explicit badge tap,
-  verifies **Saved to Scans** replaces the live state without **Network
-  timeout**, dismisses the sheet, and confirms the same row remains visible in
-  Scans. Its focused-result validator now fail-closes over an exact named test
-  set while retaining one-case behavior for existing callers.
+  verifies a Debug-only exact-ID handoff marker while normal AI analysis copy
+  remains visible without **Network timeout** or the removed saved/continuing
+  explanation, dismisses the sheet, and confirms the same row remains visible
+  in Scans. Its focused-result validator now fail-closes over an exact named
+  test set while retaining one-case behavior for existing callers.
 - Hosted Run 226 passed all 1,465 unit tests, the queued-completion smoke, and
   every live-to-queue assertion before dismissal; its Release archive also
   passed. The remaining smoke failure was an ambiguous global **Close** query,

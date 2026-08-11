@@ -347,6 +347,10 @@ presenting a sibling sheet or reaching into the production DI singleton. The
 ordinary system toast unmounts only when it shares the milestone stack's
 alignment, preventing a single Z-plane collision without hiding independent
 top/bottom feedback.
+The active card's drag offset, scale, and dismissal opacity apply only to its
+foreground surface. Decorative backplates are laid out from the card's stable
+bounds outside that transform, so they remain anchored while a swipe reveals
+the queue beneath instead of leaving with the dismissed card and jumping back.
 Account and app-session generations clear the visual queue and reject stale
 async enqueues. Presentation effects are claimed once per item, and a remounted
 host receives only the remaining lifetime rather than replaying haptics,

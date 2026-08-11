@@ -126,8 +126,14 @@ sendable metadata + budget metrics). A single main-actor commit then appends the
 final `StagedImage` array entries. For user-selected photo-library imports, that
 commit passes `requiresCrop: true`; the view model tracks the staged image IDs
 in `requiredGalleryCropImageIds` and presents the square crop editor before any
-analysis submission can start. This preserves Swift 6 isolation rules while
-removing repeated `MainActor.run` hops during gallery imports.
+analysis submission can start. Because SwiftUI mounts the full-screen cover
+after observing that state, `shouldSuppressCaptureChromeForCrop` hides both
+bottom capture-chrome layers from the required-ID commit through crop dismissal.
+A black, nonanimated workspace shield matching the crop canvas bridges the
+one-frame `fullScreenCover` mount boundary, so the staged **Identify** tray
+cannot appear during the presentation transition.
+This preserves Swift 6 isolation rules while removing repeated `MainActor.run`
+hops during gallery imports.
 
 Photos share-sheet files join the same preparation seam through a separate
 durability boundary. `MerianApp.onOpenURL` validates that the incoming file's
@@ -325,6 +331,11 @@ finish before calling `completeRequiredGalleryCrop(for:)`; if the 2048 px
 display crop fails, it falls back to the confirmed inference crop bytes rather
 than leaving the original display payload in place. Only after the final
 required gallery crop is complete can the default single-image flow auto-submit.
+`ImageCropperView` places its close/delete controls in a native
+`NavigationStack` toolbar using `.topBarLeading` and `.topBarTrailing`. UIKit
+therefore owns the status-bar, Dynamic Island, rotation, and window-size safe
+area instead of trusting a full-screen cover's `GeometryProxy`, which can report
+a zero top inset while its content still begins at the physical screen edge.
 
 **Implementation**: Uses `CGImageSourceCreateThumbnailAtIndex` with
 `kCGImageSourceCreateThumbnailFromImageAlways: true` and

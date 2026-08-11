@@ -31,8 +31,9 @@ failure, and valid plan/quota denials retain their fail-closed behavior.
 
 After durable acceptance, connectivity failure is likewise not terminal: the
 foreground request should relinquish the uplink, the existing Insight should
-change to **Queued for later**, and the durable queue should resume the same
-scan UUID when transport is eligible.
+keep ordinary analysis copy while online or show queued/waiting copy while
+offline, and the durable queue should resume the same scan UUID when transport
+is eligible.
 
 The current source separates local presentation authority from durable provider
 authority. Queue-backed live Identify disables the generic transient transport
@@ -76,9 +77,9 @@ below.
 | Admission returns a valid plan/quota denial           | Preserve staged input and open the paywall                                                    | User after entitlement change             |
 | Admission is cancelled, malformed, unauthorized, or fails at TLS/server policy | Preserve staged input and show retry feedback; do not infer offline admission | User                                      |
 | Offline before live dispatch                          | Capture queues the scan and does not start provider transport                                | Durable queue                             |
-| Connectivity changes during the 150 ms context grace  | Open Insight changes to **Queued for later**                                                 | Durable queue                             |
-| First queue-backed transport failure after dispatch   | Same-ID Insight changes to **Queued for later** without an error haptic or synthetic result  | Durable queue; no inline transport replay |
-| Path stays satisfied but transport silently stalls    | Same-ID Insight changes to **Queued for later** by the 15-second foreground deadline          | Durable queue; exact-ID status/replay      |
+| Connectivity changes during the 150 ms context grace  | Offline Insight shows queued/waiting; an online durable handoff keeps ordinary analysis copy | Durable queue                             |
+| First queue-backed transport failure after dispatch   | Same-ID Insight keeps normal analysis copy online, or queued/waiting offline, without an error haptic or synthetic result | Durable queue; no inline transport replay |
+| Path stays satisfied but transport silently stalls    | Same-ID Insight keeps ordinary analysis copy after the 15-second durable handoff              | Durable queue; exact-ID status/replay      |
 | Queue-less direct request loses transport             | **Network timeout / Please try again** may be shown                                          | Caller                                    |
 | Handler/provider returns an exhausted service failure | **Analysis delayed / Scan saved** as an error placeholder, never a biological classification | Durable queue                             |
 | Background or status recovery completes the same UUID | Completed result replaces queued content in place                                            | Completed owner row                       |
@@ -261,7 +262,7 @@ and 92-case protected inventory. Hosted iOS Build and Test Run 226 ran on the
 earlier ancestor `fc2a55594339827ad2d2402d86da80dfccd67575`: it passed all
 1,465 unit tests and the queued-completion UI smoke, and its validation-only
 Release archive passed the privacy-manifest, ATS-default, dSYM, and Debug-marker
-checks. The live-to-queue smoke reached the exact queued message and every
+checks. The live-to-queue smoke reached the exact queued presentation and every
 pre-dismissal assertion, then failed because the old global
 `app.buttons["Close"]` query matched both the active Insight close control and
 an underlying close control.

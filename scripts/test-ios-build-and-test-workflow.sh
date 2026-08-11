@@ -37,6 +37,7 @@ network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClie
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
 capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/Analysis.swift"
+image_cropper_source="$repo_root/apps/ios/Merian/Features/Capture/Scan/PostProcessing/ImageCropperView.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
 capture_workspace_test_source="$repo_root/apps/ios/MerianTests/merianTests.swift"
@@ -492,7 +493,16 @@ assert_file_contains \
   "testLiveInsightConnectivityFailureTransitionsToDurableQueue()"
 assert_file_contains \
   "$ui_test_source" \
-  'identifier: "QueuedForConnectivityMessage_\(scanId)"'
+  'identifier: "QueuedPresentation_\(scanId)"'
+assert_file_contains \
+  "$ui_test_source" \
+  'localizedCaseInsensitiveContains('
+assert_file_contains \
+  "$ui_test_source" \
+  '"Continuing automatically"'
+assert_file_contains \
+  "$ui_test_source" \
+  '"Saved to Scans. Analysis is continuing automatically."'
 assert_file_contains "$ui_test_source" "scanningStatusBadge.tap()"
 assert_file_contains \
   "$ui_test_source" \
@@ -523,12 +533,33 @@ assert_file_contains \
   "$confidence_badge_source" \
   ".accessibilityLabel(Text(data.label))"
 assert_file_contains "$confidence_badge_source" ".contentTransition(.opacity)"
+assert_file_contains "$image_cropper_source" "NavigationStack {"
+assert_file_contains \
+  "$image_cropper_source" \
+  "ToolbarItem(placement: .topBarLeading)"
+assert_file_contains \
+  "$image_cropper_source" \
+  "ToolbarItem(placement: .topBarTrailing)"
+assert_file_contains \
+  "$image_cropper_source" \
+  'accessibilityIdentifier("ImageCropperCloseButton")'
+assert_file_contains \
+  "$image_cropper_source" \
+  'accessibilityIdentifier("ImageCropperDeleteButton")'
+assert_file_count "$image_cropper_source" 0 "safeAreaInsets.top"
+assert_file_count "$image_cropper_source" 0 ".safeAreaPadding(.top"
+assert_file_count "$image_cropper_source" 0 "ImageCropperLayout.topToolbarInset"
 assert_file_contains \
   "$queued_content_source" \
   "UITestSeedCoordinator.completeQueuedAudioHandoffIfNeeded("
 assert_file_contains \
   "$queued_content_source" \
-  '"QueuedForConnectivityMessage_\(queuedContext.id)"'
+  '"QueuedPresentation_\(queuedContext.id)"'
+assert_file_count "$queued_content_source" 0 '"Continuing automatically"'
+assert_file_count "$queued_content_source" 0 '"Saved to Scans'
+assert_file_contains \
+  "$queued_content_source" \
+  '? InferenceEngine.genericScanningPhasePhrases'
 assert_file_contains "$queued_content_source" "modelContext: modelContext"
 assert_file_count "$queued_content_source" 0 "container: modelContext.container"
 assert_file_contains \

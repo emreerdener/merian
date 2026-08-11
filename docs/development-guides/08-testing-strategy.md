@@ -363,7 +363,14 @@ HTTP request is dispatched. See the
    pending automatic ownership to suppress `ActiveScanToolbar`, requires a
    failed attempt to restore the staged retry toolbar, preserves the toolbar
    when explicit confirmation is enabled, and clears the suppression with the
-   staged buffer. One final case protects pre-import admission:
+   staged buffer. The same protected case also requires a pending required crop
+   to suppress capture chrome before the crop cover is mounted. The XCTest
+   gallery-flow coverage verifies that runtime ownership. The iOS workflow
+   source contract separately requires native leading/trailing crop toolbar
+   placements and rejects manual `GeometryProxy.safeAreaInsets.top` or
+   `.safeAreaPadding(.top, ...)` positioning, whose zero-inset context caused
+   controls to overlap the status bar. One final case
+   protects pre-import admission:
    `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid
    server denial to reach the paywall with no staged image or crop state, while
    proving the prospective single-image RPC shape remains Flash-eligible.
@@ -2688,7 +2695,13 @@ policy without mutating process-wide connectivity state.
 locks the adjacent presentation boundary: automatic single-capture ownership
 hides `ActiveScanToolbar` before asynchronous admission begins, admission
 recovery can reveal the retained staged media, and confirmation-enabled capture
-continues to present **Identify** normally.
+continues to present **Identify** normally. It also locks the distinct pre-crop
+boundary: a required crop suppresses capture chrome even before `imageToCrop`
+mounts the full-screen cover. The workflow source guard requires
+`ImageCropperView` to keep Close and Delete in native `.topBarLeading` and
+`.topBarTrailing` toolbar placements, with deterministic accessibility IDs, and
+forbids manual top positioning from `GeometryProxy.safeAreaInsets.top` or
+`.safeAreaPadding(.top, ...)`.
 `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` locks the import entry
 boundary: a valid exhausted preview receives the prospective one-image Flash
 shape, opens the paywall, and leaves staging, crop state, and the admission
@@ -2710,11 +2723,13 @@ The compiled hosted UI gate adds
 fixture commits an exact description-backed queue row, opens the standard live
 Insight in analyzing mode, and waits for an explicit `ScanningStatusBadge` tap
 before invoking the production queue-presentation boundary. The test requires
-the exact `QueuedForConnectivityMessage_<scan-id>` node, **Saved to Scans**
-copy, absence of **Network timeout**, successful sheet dismissal, and the same
-`QueuedScanTile_<scan-id>` in Scans. This complements rather than replaces the
-URLSession regression: the unit test proves transport and ownership ordering;
-the UI smoke proves the open sheet consumes the resulting exact-ID state. Sheet
+the Debug-only exact `QueuedPresentation_<scan-id>` marker, continued normal AI
+analysis copy, absence of the removed saved/continuing explanation and **Network
+timeout**, successful sheet dismissal, and the same `QueuedScanTile_<scan-id>`
+in Scans. The marker exists only under the UI-test seed and contributes no
+visible layout or release accessibility element. This complements rather than
+replaces the URLSession regression: the unit test proves transport and ownership
+ordering; the UI smoke proves the open sheet consumes the resulting exact-ID state. Sheet
 dismissal must resolve the native `InsightSheetCloseButton` accessibility
 identifier through the current `InsightSheetView`. A global `Close` label query
 is not a valid test contract because layered SwiftUI presentations can expose

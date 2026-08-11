@@ -1802,6 +1802,23 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.showBottomBarTools)
     }
 
+    @Test func liveQueueHandoffKeepsAnalysisCopyUserFacing() {
+        let onlinePhrases = QueuedContentView.liveQueueHandoffPhrases(
+            isOnline: true
+        )
+
+        #expect(onlinePhrases == InferenceEngine.genericScanningPhasePhrases)
+        #expect(!onlinePhrases.contains { phrase in
+            phrase.localizedCaseInsensitiveContains("automatically")
+        })
+        #expect(!onlinePhrases.contains { phrase in
+            phrase.localizedCaseInsensitiveContains("saved to scans")
+        })
+        #expect(QueuedContentView.liveQueueHandoffPhrases(
+            isOnline: false
+        ) == ["Queued for later", "Waiting for connection"])
+    }
+
     @Test func testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent() throws {
         let context = try createIsolatedContext()
         let queuedRoute = QueuedScanContext(
