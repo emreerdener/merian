@@ -43,7 +43,18 @@ TestFlight, App Store, support, and QA.
   connectivity retirement before the transport callback and a path-satisfied
   timeout while the durable owner is still active. Protected controls retain
   the queue-less 90-second window, retry/timeout behavior, and server-delay
-  placeholder routing.
+  placeholder routing. Error-versus-result presentation is now explicit rather
+  than inferred from its displayed title, so future copy changes cannot turn a
+  saved recovery state into a non-biological success result. Admission and
+  post-durable recovery now share one wrapped URL-error classifier, preventing
+  data-path and session-disconnect failures from drifting back to terminal UI
+  while specific certificate, authentication, and ATS policy errors veto both
+  decisions at every wrapper depth so a broad transport error cannot weaken the
+  fail-closed boundary; over-depth wrapper chains also fail closed instead of
+  accepting an incompletely inspected prefix. The exact protected inventory now
+  also requires both visual and nonvisual engine calls to reject a durable scan
+  ID without its matching queue-generation token before any request or timeout
+  UI can start.
   Exact-SHA and device acceptance remain open in the
   [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - Do not publish this as a completed TestFlight or App Store improvement until

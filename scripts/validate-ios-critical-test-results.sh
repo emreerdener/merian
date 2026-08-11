@@ -154,6 +154,11 @@ assert_suite_has_passed_test_case \
   "Inference Engine Tests" \
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
 assert_suite_has_passed_test_case \
+  "Queue-backed scan ownership requires exact foreground generation" \
+  "InferenceEngineTests" \
+  "Inference Engine Tests" \
+  "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
+assert_suite_has_passed_test_case \
   "Pre-queue admission connectivity handoff" \
   "StagedCaptureTests" \
   "StagedCapture" \

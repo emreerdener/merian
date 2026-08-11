@@ -176,41 +176,8 @@ final class ScanAdmissionManager {
         guard !Task.isCancelled, !(error is CancellationError) else {
             return .unavailable
         }
-        return isConnectivityUnavailable(error)
+        return ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(error)
             ? .connectivityUnavailable
             : .unavailable
     }
-
-    nonisolated private static func isConnectivityUnavailable(
-        _ error: Error,
-        depth: Int = 0
-    ) -> Bool {
-        guard depth < 4 else { return false }
-
-        let nsError = error as NSError
-        let urlErrorCode = URLError.Code(rawValue: nsError.code)
-        if nsError.domain == NSURLErrorDomain,
-           connectivityUnavailableCodes.contains(urlErrorCode) {
-            return true
-        }
-
-        guard let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? Error else {
-            return false
-        }
-        return isConnectivityUnavailable(underlyingError, depth: depth + 1)
-    }
-
-    nonisolated private static let connectivityUnavailableCodes: Set<URLError.Code> = [
-        .timedOut,
-        .cannotFindHost,
-        .cannotConnectToHost,
-        .networkConnectionLost,
-        .dnsLookupFailed,
-        .notConnectedToInternet,
-        .internationalRoamingOff,
-        .callIsActive,
-        .dataNotAllowed,
-        .backgroundSessionWasDisconnected,
-        .cannotLoadFromNetwork
-    ]
 }

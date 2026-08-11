@@ -96,6 +96,7 @@ write_test_tree() {
               "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual",
               "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual",
+              "queueBackedAttemptRequiresForegroundGenerationForAllMedia",
               "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess",
               "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss",
               "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation",
@@ -298,6 +299,7 @@ required_cases=(
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
+  "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"
   "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss"
   "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation"

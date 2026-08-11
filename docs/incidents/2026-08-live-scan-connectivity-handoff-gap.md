@@ -51,11 +51,17 @@ owner active and the path online, modeling black-holed Wi-Fi reaching the
 foreground deadline without an `NWPathMonitor` callback. Both branches prove
 exact-ID queued routing, one request, bounded handoff timing, eventual durable
 retirement, row survival, and circuit isolation. The matrix also covers a
-transport-owned cancellation and a successful response that becomes
-ownership-cancelled after the queue has already taken over. Separate protected
-controls retain the reviewed queue-less 90-second window, retry, and **Network
-timeout** presentation and keep provider `5xx` failures in **Analysis delayed /
-Scan saved**.
+transport-owned cancellation, the reviewed cannot-load-from-network and
+background-session-disconnect variants, and a successful response that becomes
+ownership-cancelled after the queue has already taken over. Admission and
+post-durable recovery share one bounded recursive URL-error classifier while
+TLS/authentication remain excluded from queue-only admission. Specific
+certificate, authentication, and ATS policy codes veto both decisions at every
+inspected wrapper depth, so a broad outer transport error cannot hide them; a
+chain exceeding the reviewed bound also fails closed. Separate
+protected controls retain the reviewed queue-less 90-second window, retry, and
+**Network timeout** presentation and keep provider `5xx` failures in **Analysis
+delayed / Scan saved**.
 
 This is source-remediation evidence, not a production-release claim. Closure
 still requires one exact workflow SHA and the physical connectivity matrix
@@ -158,18 +164,22 @@ callers retain the reviewed 90-second window and inline retry;
 authentication refresh, route-propagation recovery, and handler `5xx` behavior
 remain independently scoped.
 
-### Error placeholder classification was string-fragile
+### Error presentation no longer depends on display copy
 
 The generic saved-service fallback constructs non-biological-shaped
 `SpeciesData` titled **Analysis delayed**. The former placeholder whitelist did
 not recognize that title, so the row could be classified as a genuine
 non-biological result and receive the wrong pill, retention copy, haptic, or
-success lifecycle. The current source whitelist includes it.
+success lifecycle.
 
-The long-term contract should use typed presentation state. The minimum safe
-repair now classifies **Analysis delayed** as an inference error placeholder,
-and the protected queue-backed server-failure test locks that routing. Exact-SHA
-workflow and device acceptance still apply to the joined source repair.
+The current contract uses explicit typed presentation state instead of a title
+whitelist. `InferenceEngine.makeErrorSpeciesData(...)` marks every transient
+failure and policy presentation as `.inferenceError`; decoded and persisted
+classifications default to `.inferenceResult`. `isInferenceErrorPlaceholder`
+therefore cannot change when customer-facing copy changes. A direct role test
+and the protected queue-backed server/provider tests lock both sides of this
+boundary. Exact-SHA workflow and device acceptance still apply to the joined
+source repair.
 
 ### The former test stopped before the transport boundary
 
@@ -244,42 +254,57 @@ containing these changes and gate 10 requires physical-device evidence.
 
 ## Validation Status at Review
 
-The current local review checkout is based on HEAD
-`fc2a55594339827ad2d2402d86da80dfccd67575`. Hosted iOS Build and Test Run 226
-passed all 1,465 unit tests and the queued-completion UI smoke. Its
-validation-only Release archive also passed the privacy-manifest, ATS-default,
-dSYM, and Debug-marker checks. The live-to-queue smoke reached the exact queued
-message and every pre-dismissal assertion, then failed because the global
+The current local review checkout is based on published HEAD
+`1dc9c587a32bdcccf6ef6c6a40e19caf17df6fb8`. That commit contains the bounded
+admission route, queue-backed transport handoff, stable Insight close selector,
+and 92-case protected inventory. Hosted iOS Build and Test Run 226 ran on the
+earlier ancestor `fc2a55594339827ad2d2402d86da80dfccd67575`: it passed all
+1,465 unit tests and the queued-completion UI smoke, and its validation-only
+Release archive passed the privacy-manifest, ATS-default, dSYM, and Debug-marker
+checks. The live-to-queue smoke reached the exact queued message and every
+pre-dismissal assertion, then failed because the old global
 `app.buttons["Close"]` query matched both the active Insight close control and
 an underlying close control.
 
-The committed base assigns `InsightSheetCloseButton` directly to the native
-toolbar button and updates the smoke plus portable workflow contract to require
-that identifier. The uncommitted admission changes join that earlier repair and
-still require a new hosted exact-SHA UI run; Run 226 validates the behavior
-before dismissal but cannot validate either the later selector correction or
-the new pre-queue boundary.
+Published HEAD assigns `InsightSheetCloseButton` directly to the native toolbar
+button and requires that identifier in the smoke and portable workflow
+contract. Run 226 validates the queue handoff before dismissal but cannot
+validate that later selector correction or the later pre-queue admission
+boundary. A separate 22-file local delta replaces title-derived inference-error
+routing with explicit `SpeciesData.presentationRole` and centralizes wrapped
+URL-failure classification across pre-queue admission and post-durable recovery;
+this environment exposes `.git` read-only, so that final hardening does not yet
+have a commit SHA.
 
-Local construction evidence for the current working tree is:
+Local construction evidence is deliberately split by source state:
 
-- all changed Swift files parse;
+- published HEAD's complete 418-file production module, 89-file unit target,
+  and two-file UI target type-checked against the cached iOS Simulator SDK and
+  locked package modules before the current delta;
+- all seven Swift files changed by the current delta parse;
+- the exact current `SpeciesData` and Identify DTO sources type-check together
+  for the iOS Simulator target, and a focused executable using those real model
+  sources passes both copy-independence directions;
+- the exact current `ScanAdmissionManager`, `MerianError`, and locked Supabase
+  module type-check together for the iOS Simulator target, while a second
+  focused executable using the real connectivity policy passes its complete
+  queue-only, wrapped-error, TLS/auth exclusion, and post-durable matrix;
 - generated-project membership resolves 418 app target inputs, 89 unit-test
   sources, and two UI-test sources;
-- the complete 418-file production Swift source set type-checks and emits one
-  testable app module against the cached iOS Simulator SDK and locked package
-  modules;
-- the complete 89-file `merianTests` and two-file `merianUITests` source sets
-  type-check against that exact current app module;
-- the focused toolbar accessibility unit contract type-checks independently;
-- strict no-cache lint reports zero violations across every changed production
-  file and `StagedCaptureTests`. The new `merianTests` hunk adds no violation;
-  its whole-file run retains only three known baseline findings far outside this
-  change (two legacy long type names and one non-optional String-to-Data
-  conversion);
+- strict no-cache lint reports zero violations across all seven changed Swift
+  production and test files;
 - the critical-result and focused-result validator harnesses plus the iOS
-  build/workflow contract pass, with all 92 protected unit declarations and the
-  exact two-case UI result requirement retained; and
+  build/workflow contract pass, with all 93 protected unit declarations,
+  including exact durable scan-ID/generation pairing for both engine pipelines,
+  and the exact two-case UI result requirement retained; and
 - `git diff --check` passes.
+
+The full current app module cannot be reconstructed again inside this sandbox:
+the standalone compiler reaches SwiftData but the platform macro plugin server
+is denied, while Xcode/SwiftPM remain blocked by CoreSimulator and nested build
+sandbox policy. The narrower current-source check above is real compile/runtime
+evidence, but it does not upgrade the current uncommitted delta to full-target
+or simulator evidence.
 
 Supabase Candidate Validation Run 1676 at
 `fd1eb8dda7ff109ec339960104a49e577fa27f5b` correctly selected complete
@@ -289,9 +314,11 @@ or production mutation. Its disposable validation failed only after the
 repository-tooling phase found two stale documentation expectations: the old
 81-case protected inventory and the former singular queued-completion UI smoke.
 The committed descendant base updated those contracts to 91 cases and the exact
-two-smoke set. This working tree extends the protected inventory to 92 for the
-pre-queue admission connectivity handoff and updates its documentation
-contracts in the same change. The complete local candidate/tooling gate now
+two-smoke set; published HEAD extends the protected inventory to 92 for the
+pre-queue admission connectivity handoff. The current scan-reliability delta
+strengthens that protected case and extends the inventory to 93 by protecting
+the visual/nonvisual durable scan-ID/generation ownership fence. The complete
+local candidate/tooling gate now
 passes: 186 standard TypeScript tooling tests, 16 isolated DTO tests, executable
 Identify contract tests, every shell/tooling check, and all 18 documentation
 contracts. All 262 migration source assertions pass across 39 discovered test

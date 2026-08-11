@@ -3,6 +3,20 @@
 The `Utilities` directory owns lightweight cross-cutting helpers and the typed
 process-local coordination primitives used across feature boundaries.
 
+## Scan transport classification
+
+`MerianError.swift` owns `ScanConnectivityFailurePolicy`, the shared bounded
+classifier used before and after a scan becomes durable. Queue-only admission
+accepts only reviewed offline and data-path URL failures, including wrapped
+underlying errors; cancellation, authentication, TLS, certificate policy,
+server, and malformed-response failures stay fail-closed. Once the normal queue
+row exists, the durable-recovery policy additionally permits a generic secure
+connection failure to relinquish foreground ownership to that queue. Specific
+certificate, authentication, and ATS policy failures anywhere in the bounded
+wrapper chain veto both recovery decisions; a broad outer transport error cannot
+hide them. A chain that exceeds the reviewed depth also fails closed rather than
+accepting only its inspected prefix.
+
 ## Typed event and route coordination
 
 - `AppEventPublisher` is a DI-owned, synchronous `@MainActor` bus for

@@ -137,9 +137,17 @@ struct PetIdentification: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+enum SpeciesDataPresentationRole: Sendable, Equatable {
+    case inferenceResult
+    case inferenceError
+}
+
 /// Parsed result from the AI edge function, representing a single identified biological observation.
 struct SpeciesData {
     let scanId: String?
+    /// Explicit UI semantics for this transient value. Error routing must never
+    /// be inferred from user-facing copy such as `commonName`.
+    let presentationRole: SpeciesDataPresentationRole
     var commonName: String
     var scientificName: String
     var insightData: InsightData
@@ -247,23 +255,12 @@ enum ReferenceImageVisibilityPolicy {
 }
 
 extension SpeciesData {
-    /// True for local, non-persisted inference fallback rows such as network timeouts.
-    /// These placeholders use `isBiological == false` only to avoid biological result UI;
-    /// they are not model classifications and should not be treated as non-biological scans.
+    /// True for transient inference failures such as network timeouts and
+    /// provider-admission decisions. These values use `isBiological == false`
+    /// only to avoid biological result UI; they are not model classifications.
+    /// The explicit role keeps presentation semantics independent of display copy.
     var isInferenceErrorPlaceholder: Bool {
-        guard scanId == nil else { return false }
-        let normalizedCommonName = commonName
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return normalizedCommonName == "network timeout"
-            || normalizedCommonName == "analysis failed"
-            || normalizedCommonName == "analysis delayed"
-            || normalizedCommonName == "restoring scan"
-            || normalizedCommonName == "approval needed"
-            || normalizedCommonName == "upgrade needed"
-            || normalizedCommonName == "daily limit reached"
-            || normalizedCommonName == "retrying shortly"
-            || normalizedCommonName == "try another capture"
+        presentationRole == .inferenceError
     }
 
     var isClassifiedNonBiological: Bool {
@@ -336,6 +333,7 @@ extension SpeciesData {
         )
 
         self.scanId = edgeRes.scan_id
+        self.presentationRole = .inferenceResult
         
         let primaryRawNames = edgeRes.common_name?.components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -419,6 +417,7 @@ extension SpeciesData {
     /// Full memberwise initializer, used for local construction and offline mocking.
     init(
         scanId: String? = nil,
+        presentationRole: SpeciesDataPresentationRole = .inferenceResult,
         commonName: String,
         scientificName: String,
         insightData: InsightData,
@@ -472,6 +471,7 @@ extension SpeciesData {
         videoFilePaths: [String]? = nil
     ) {
         self.scanId = scanId
+        self.presentationRole = presentationRole
         self.commonName = commonName
         self.scientificName = scientificName
         self.insightData = insightData

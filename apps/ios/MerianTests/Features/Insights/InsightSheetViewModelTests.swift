@@ -430,6 +430,7 @@ struct InsightSheetViewModelTests {
         let engine = InferenceEngine()
         let species = SpeciesData(
             scanId: nil,
+            presentationRole: .inferenceError,
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(
@@ -456,6 +457,7 @@ struct InsightSheetViewModelTests {
         let engine = InferenceEngine()
         let species = SpeciesData(
             scanId: nil,
+            presentationRole: .inferenceError,
             commonName: "Restoring scan",
             scientificName: "Safely saved",
             insightData: InsightData(
@@ -476,12 +478,43 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.resolvedHeaderTitle == "Restoring scan")
     }
 
+    @Test func testInferenceErrorPresentationRoleDoesNotDependOnDisplayCopy() {
+        let errorPresentation = SpeciesData(
+            presentationRole: .inferenceError,
+            commonName: "Service paused",
+            scientificName: "Scan saved",
+            insightData: InsightData(
+                aiReasoning: "Naturebook will resume this scan automatically.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0,
+            isBiological: false
+        )
+        let similarlyNamedResult = SpeciesData(
+            scanId: "network-timeout-species",
+            commonName: "Network timeout",
+            scientificName: "Example species",
+            insightData: InsightData(
+                aiReasoning: "A completed classification with unusual source copy.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.9,
+            isBiological: false
+        )
+
+        #expect(errorPresentation.isInferenceErrorPlaceholder)
+        #expect(!errorPresentation.isClassifiedNonBiological)
+        #expect(!similarlyNamedResult.isInferenceErrorPlaceholder)
+        #expect(similarlyNamedResult.isClassifiedNonBiological)
+    }
+
     @Test func testNetworkTimeoutPlaceholderDoesNotShowNonBiologicalSuccessToast() throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
             scanId: nil,
+            presentationRole: .inferenceError,
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(
@@ -672,6 +705,7 @@ struct InsightSheetViewModelTests {
         HapticManager.shared.triggerSelectionPulse(source: "test.error-completion-baseline")
         engine.speciesData = SpeciesData(
             scanId: nil,
+            presentationRole: .inferenceError,
             commonName: "Network timeout",
             scientificName: "Offline mode",
             insightData: InsightData(

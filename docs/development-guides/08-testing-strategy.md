@@ -350,9 +350,9 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 92 exact
-   cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten
-   more form the live-connectivity follow-up: eight engine-level ownership,
+   contradiction is invalid evidence. The current validator protects 93 exact
+   cases. Twenty-seven were added by the joined scan-reliability follow-up.
+   Eleven more form the live-connectivity follow-up: nine engine-level ownership,
    presentation, and exact-generation recovery fences plus two network-client
    replay-policy controls. One additional case protects the pre-queue admission
    connectivity handoff: a path-satisfied transport failure plus local
@@ -478,7 +478,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 92
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 93
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -2640,11 +2640,18 @@ deadline, and completes the post-error queued handoff within 1.5 seconds.
 Separate controls must preserve the 90-second window and **Network timeout** for
 a queue-less direct request and classify **Analysis delayed / Scan saved** as an
 inference error placeholder for an exhausted queue-backed server failure.
+`testInferenceErrorPresentationRoleDoesNotDependOnDisplayCopy` separately proves
+that this classification comes from `SpeciesData.presentationRole`, not the
+localized title: arbitrary error copy remains an error, while result-role data
+cannot become an error merely by sharing legacy fallback text.
 Finally, a same-ID background/status completion must replace queued content,
 while a newer scan fences the delayed error.
 
 The current source implements this matrix with the gated
 `queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual`,
+`queueBackedAttemptRequiresForegroundGenerationForAllMedia`, which rejects a
+durable scan ID without its exact queue-generation token before either pipeline
+can start,
 the network-client request-count controls
 `queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay` and
 `queueLessIdentifyRetainsOneReviewedInlineTransportReplay`, the queue-less
@@ -2661,8 +2668,12 @@ The preceding pre-queue boundary has separate deterministic coverage.
 `testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy` locks the exact
 two-second request/resource deadline, disabled connectivity wait, absent cache,
 and source contract disables PostgREST retry.
-`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` protects the pure
-route policy without mutating process-wide connectivity state.
+`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` locks every reviewed
+offline/data-path URL code, bounded underlying-error recognition, TLS/auth
+fail-closed exclusions at every wrapper depth, the broader post-durability
+secure-connection recovery boundary, certificate-policy veto precedence over a
+broad outer transport error, fail-closed over-depth handling, and the pure route
+policy without mutating process-wide connectivity state.
 `testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference`
 then drives an actual path-satisfied `.timedOut` preview through staged visual
 and direct nonvisual submission and requires both durable rows, no foreground

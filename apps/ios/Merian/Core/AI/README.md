@@ -184,13 +184,18 @@ circuit. Queue-backed `identifyMultiModal` has one 15-second foreground window
 and returns its first transient transport failure; queue-less callers retain the
 reviewed 90-second window and replay. The protected URLSession-level regression
 retires durable ownership before releasing visual and nonvisual transport
-errors, and separately delivers `.timedOut` while the exact durable owner and
-path-satisfied state remain active. It proves exact queued routing, one request,
+errors, including data-path and session-disconnect variants, and separately
+delivers `.timedOut` while the exact durable owner and path-satisfied state
+remain active. The shared scan connectivity policy recursively recognizes
+wrapped URL failures while keeping certificate, authentication, and ATS policy
+errors out of both decisions even when a broader outer error would otherwise be
+eligible. It proves exact queued routing, one request,
 bounded handoff, eventual durable retirement, and row survival. A companion
 case proves a successful transport response that loses durable ownership before
 the post-request check also hands the exact local presentation to the queue; a
 transport-owned cancellation does the same. **Analysis delayed** remains an
-error placeholder.
+error placeholder through the explicit `.inferenceError` presentation role;
+customer-facing title changes cannot alter that routing.
 Do not describe this as shipped until the remaining exact-SHA and
 physical-device closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)

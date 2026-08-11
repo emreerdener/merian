@@ -171,8 +171,10 @@ release evidence. The catch path now preserves exact local presentation
 authority after connectivity monitoring retires the durable generation, and
 queue-backed Identify disables the shared helper's inline transient replay.
 Protected URLSession-level race, request-count, queue-less timeout, provider
-failure, and stale-result controls cover the joined boundary. **Analysis
-delayed** remains in the placeholder whitelist. See the
+failure, and stale-result controls cover the joined boundary. Error producers
+set `SpeciesData.presentationRole` to `.inferenceError`; decoded and persisted
+classifications use `.inferenceResult`. `isInferenceErrorPlaceholder` therefore
+does not depend on display copy such as **Analysis delayed**. See the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for the ownership split, no-inline-replay rule, regression matrix, and remaining
 hosted/device closure status.

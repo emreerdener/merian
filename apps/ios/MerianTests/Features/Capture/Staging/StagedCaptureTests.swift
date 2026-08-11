@@ -8,6 +8,135 @@ import UIKit
 struct StagedCaptureTests {
 
     @Test func connectivityUnavailableAdmissionSelectsQueueOnlyRoute() {
+        func wrapped(_ error: Error, layers: Int) -> Error {
+            (0..<layers).reduce(error) { underlyingError, layer in
+                NSError(
+                    domain: "ScanAdmissionTransportWrapper.\(layer)",
+                    code: layer,
+                    userInfo: [NSUnderlyingErrorKey: underlyingError]
+                )
+            }
+        }
+
+        let reviewedConnectivityCodes: [URLError.Code] = [
+            .timedOut,
+            .cannotFindHost,
+            .cannotConnectToHost,
+            .networkConnectionLost,
+            .dnsLookupFailed,
+            .notConnectedToInternet,
+            .internationalRoamingOff,
+            .callIsActive,
+            .dataNotAllowed,
+            .backgroundSessionWasDisconnected,
+            .cannotLoadFromNetwork
+        ]
+        for code in reviewedConnectivityCodes {
+            #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+                URLError(code)
+            ))
+        }
+
+        let wrappedOfflineError = NSError(
+            domain: "ScanAdmissionTransportWrapper",
+            code: 1,
+            userInfo: [
+                NSUnderlyingErrorKey: URLError(.notConnectedToInternet)
+            ]
+        )
+        #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+            wrappedOfflineError
+        ))
+        #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+            wrapped(URLError(.notConnectedToInternet), layers: 3)
+        ))
+        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+            wrapped(URLError(.notConnectedToInternet), layers: 4)
+        ))
+
+        let policyFailureCodes: [URLError.Code] = [
+            .userCancelledAuthentication,
+            .userAuthenticationRequired,
+            .appTransportSecurityRequiresSecureConnection,
+            .serverCertificateHasBadDate,
+            .serverCertificateUntrusted,
+            .serverCertificateHasUnknownRoot,
+            .serverCertificateNotYetValid,
+            .clientCertificateRejected,
+            .clientCertificateRequired
+        ]
+        let admissionVetoCodes: [URLError.Code] = [
+            .cancelled,
+            .secureConnectionFailed
+        ] + policyFailureCodes
+        for failClosedCode in admissionVetoCodes {
+            #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+                URLError(failClosedCode)
+            ))
+        }
+        #expect(ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+            URLError(.secureConnectionFailed)
+        ))
+        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+            URLError(.serverCertificateUntrusted)
+        ))
+
+        let wrappedAdmissionTLSFailure = NSError(
+            domain: NSURLErrorDomain,
+            code: URLError.Code.secureConnectionFailed.rawValue,
+            userInfo: [
+                NSUnderlyingErrorKey: URLError(.notConnectedToInternet)
+            ]
+        )
+        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+            wrappedAdmissionTLSFailure
+        ))
+        #expect(ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+            wrappedAdmissionTLSFailure
+        ))
+
+        for policyCode in policyFailureCodes {
+            let wrappedPolicyFailure = NSError(
+                domain: NSURLErrorDomain,
+                code: URLError.Code.timedOut.rawValue,
+                userInfo: [NSUnderlyingErrorKey: URLError(policyCode)]
+            )
+            #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+                wrappedPolicyFailure
+            ))
+            #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+                wrappedPolicyFailure
+            ))
+        }
+
+        let deepestInspectedPolicyFailure = NSError(
+            domain: NSURLErrorDomain,
+            code: URLError.Code.timedOut.rawValue,
+            userInfo: [
+                NSUnderlyingErrorKey: wrapped(
+                    URLError(.serverCertificateUntrusted),
+                    layers: 2
+                )
+            ]
+        )
+        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
+            deepestInspectedPolicyFailure
+        ))
+        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+            deepestInspectedPolicyFailure
+        ))
+
+        let wrappedCertificateFailure = NSError(
+            domain: NSURLErrorDomain,
+            code: URLError.Code.secureConnectionFailed.rawValue,
+            userInfo: [
+                NSUnderlyingErrorKey: URLError(.serverCertificateUntrusted)
+            ]
+        )
+        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
+            wrappedCertificateFailure
+        ))
+
         #expect(CaptureScanAdmissionPolicy.resolve(
             isOnline: true,
             canStartLocally: true,

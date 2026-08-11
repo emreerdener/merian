@@ -155,7 +155,9 @@ never publishes a **Daily limit reached** result; and stable user/IP rate limits
 show **Retrying shortly / Scan saved**. None are labeled as network timeouts or
 advance the device network circuit. The queued observation remains the recovery
 owner behind the paywall, with `402` becoming explicit attention and `429`
-honoring the server retry delay.
+honoring the server retry delay. These transient values carry the explicit
+`.inferenceError` `SpeciesData.presentationRole`; UI routing never derives their
+meaning from the displayed title.
 
 Exact `400 observation_rejected` requires different source media. It presents
 **Try another capture / Scan not processed**, does not advance the network

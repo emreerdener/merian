@@ -2154,7 +2154,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 92 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Ten more form the live-connectivity follow-up: eight engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+    "The current validator protects 93 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2186,11 +2186,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 92 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 93 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` protects the pure route policy without mutating process-wide connectivity state",
+    "`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` locks every reviewed offline/data-path URL code, bounded underlying-error recognition, TLS/auth fail-closed exclusions at every wrapper depth, the broader post-durability secure-connection recovery boundary, certificate-policy veto precedence over a broad outer transport error, fail-closed over-depth handling, and the pure route policy without mutating process-wide connectivity state",
+  );
+  assertStringIncludes(
+    compact(testingStrategySource),
+    "`queueBackedAttemptRequiresForegroundGenerationForAllMedia`, which rejects a durable scan ID without its exact queue-generation token before either pipeline can start",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2710,7 +2714,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "the deterministic live-Insight-to-queue and queued-scan completion UI smokes",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
-      "workflow harness requires all 92 protected declarations to resolve uniquely",
+      "workflow harness requires all 93 protected declarations to resolve uniquely",
       "including the pre-queue admission connectivity handoff",
       "exact two-case set: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",

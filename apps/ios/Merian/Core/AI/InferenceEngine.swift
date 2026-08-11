@@ -2131,21 +2131,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         if (error as? MerianError) == .networkTimeout {
             return true
         }
-        guard let code = (error as? URLError)?.code else {
-            return false
-        }
-        return [
-            .timedOut,
-            .cannotFindHost,
-            .cannotConnectToHost,
-            .networkConnectionLost,
-            .dnsLookupFailed,
-            .notConnectedToInternet,
-            .internationalRoamingOff,
-            .callIsActive,
-            .dataNotAllowed,
-            .secureConnectionFailed
-        ].contains(code)
+        return ScanConnectivityFailurePolicy.isDurableRecoveryFailure(error)
     }
 
     @discardableResult
@@ -2402,6 +2388,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     ) -> SpeciesData {
         SpeciesData(
             scanId: nil,
+            presentationRole: .inferenceError,
             commonName: title,
             scientificName: subtitle,
             insightData: InsightData(aiReasoning: reasoning, hazardType: "none"),

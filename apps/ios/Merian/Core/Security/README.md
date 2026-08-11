@@ -46,7 +46,12 @@ remote URLs before network/media frameworks see them. See the
   classified transport unavailability, and every other failure. Only the
   transport-unavailable result may use current local eligibility to select a
   queue-only Capture route; cancellation, malformed data, authentication/TLS,
-  and server failures remain fail-closed. The manager never reserves quota;
+  and server failures remain fail-closed. `ScanConnectivityFailurePolicy`
+  centralizes that reviewed URL-code set, recognizes bounded underlying-error
+  wrappers, gives certificate/authentication/ATS policy codes veto precedence
+  over broader outer transport errors, and separately defines the broader
+  post-durability recovery set so the two ownership boundaries cannot drift. The
+  manager never reserves quota;
   the provider-side `reserve_ai_quota(...)` transaction remains the
   authorization boundary and can still reject a concurrent race.
 - `ConsentManager` owns the append-only local ledger for adult confirmation,

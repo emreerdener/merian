@@ -839,14 +839,15 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "92" ]] \
+[[ "$protected_case_count" == "93" ]] \
   || fail \
-    "Expected 92 exact protected iOS test cases; found $protected_case_count."
+    "Expected 93 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual" \
+  "queueBackedAttemptRequiresForegroundGenerationForAllMedia" \
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess" \
   "queueBackedServerFailureDoesNotMasqueradeAsConnectivityLoss" \
   "queueLessTransportFailureKeepsReviewedNetworkTimeoutPresentation" \

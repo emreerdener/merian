@@ -331,12 +331,12 @@ struct InferenceEngineTests {
         #expect(result.savedPaths.isEmpty)
     }
 
-    @Test func queueBackedNonVisualAttemptRequiresForegroundGeneration() {
-        let engine = InferenceEngine()
+    @Test func queueBackedAttemptRequiresForegroundGenerationForAllMedia() {
         let scanId =
             "nonvisual-missing-generation-\(UUID().uuidString.lowercased())"
+        let nonVisualEngine = InferenceEngine()
 
-        engine.analyzeNonVisual(
+        nonVisualEngine.analyzeNonVisual(
             scanId: scanId,
             observationContexts: [
                 ObservationContext(freeText: "Small orange butterfly")
@@ -345,9 +345,25 @@ struct InferenceEngineTests {
             modelContext: nil
         )
 
-        #expect(engine.inferenceTask == nil)
-        #expect(engine.activeScanId == nil)
-        #expect(!engine.isProcessing)
+        #expect(nonVisualEngine.inferenceTask == nil)
+        #expect(nonVisualEngine.activeScanId == nil)
+        #expect(!nonVisualEngine.isProcessing)
+
+        // A durable visual request has the same ownership requirement. Without
+        // this guard, a scan ID without its queue generation could reach the
+        // queue-less timeout fallback and recreate “Network timeout / Scan
+        // saved” instead of handing the same row to queued presentation.
+        let visualEngine = InferenceEngine()
+        visualEngine.analyze(
+            scanId: "visual-missing-generation-\(UUID().uuidString.lowercased())",
+            imageDatas: [Data([0x01])],
+            telemetry: makeTelemetry(),
+            modelContext: nil
+        )
+
+        #expect(visualEngine.inferenceTask == nil)
+        #expect(visualEngine.activeScanId == nil)
+        #expect(!visualEngine.isProcessing)
     }
 
     @Test func testLoadFromLocalScanRecord() throws {
@@ -1493,7 +1509,17 @@ struct InferenceEngineTests {
                 errorCode: .notConnectedToInternet,
                 retiresBeforeFailure: true
             ),
-            // Three queue-owned failures would trip the global service circuit
+            ConnectivitySubmission(
+                kind: .visual,
+                errorCode: .cannotLoadFromNetwork,
+                retiresBeforeFailure: true
+            ),
+            ConnectivitySubmission(
+                kind: .nonVisual,
+                errorCode: .backgroundSessionWasDisconnected,
+                retiresBeforeFailure: true
+            ),
+            // Repeated queue-owned failures would trip the global service circuit
             // if this path accidentally recorded them as provider failures.
             // Keep the durable owner active for the timeout case. This models a
             // black-holed but path-satisfied connection reaching the bounded
@@ -1903,12 +1929,34 @@ struct InferenceEngineTests {
     }
 
     @Test func providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual() async {
+        struct ProviderAdmissionCase {
+            let statusCode: Int
+            let code: String
+            let title: String
+            let reason: String
+        }
+
         let client = MerianNetworkClient.shared
         let circuitBreaker = CircuitBreakerManager.shared
-        let cases: [(statusCode: Int, code: String, title: String, reason: String)] = [
-            (402, "pro_required", "Upgrade needed", "requires Pro access"),
-            (429, "ai_user_rate_limit_exceeded", "Retrying shortly", "short safety pause"),
-            (429, "ai_ip_rate_limit_exceeded", "Retrying shortly", "short safety pause")
+        let cases = [
+            ProviderAdmissionCase(
+                statusCode: 402,
+                code: "pro_required",
+                title: "Upgrade needed",
+                reason: "requires Pro access"
+            ),
+            ProviderAdmissionCase(
+                statusCode: 429,
+                code: "ai_user_rate_limit_exceeded",
+                title: "Retrying shortly",
+                reason: "short safety pause"
+            ),
+            ProviderAdmissionCase(
+                statusCode: 429,
+                code: "ai_ip_rate_limit_exceeded",
+                title: "Retrying shortly",
+                reason: "short safety pause"
+            )
         ]
         defer {
             client.overridingInferenceConsentCheck = {}
@@ -2768,6 +2816,7 @@ struct InferenceEngineTests {
         engine.recoverablePresentationScanId = scanId
         engine.isProcessing = false
         engine.speciesData = SpeciesData(
+            presentationRole: .inferenceError,
             commonName: "Restoring scan",
             scientificName: "",
             insightData: InsightData(
