@@ -202,7 +202,7 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
       "account_grant_update_applied := FALSE",
       "account_grant_update_applied := account_grant_mode_value = 'dual_read'",
       "p_event_type = 'TRANSFER'",
-      "helper_result.account_grant_update_applied",
+      "snapshot_account_grant_update_applied",
       "SET provider_account_grant_frozen = TRUE",
       "principal.provider_account_grant_frozen IS FALSE",
       "CREATE OR REPLACE FUNCTION internal.prepare_purchase_principals_for_account_deletion",
@@ -311,14 +311,14 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
       "ORDER BY principal.id FOR UPDATE OF principal",
       "ORDER BY users.id FOR UPDATE OF users",
       "CREATE OR REPLACE FUNCTION public.apply_revenuecat_customer_state",
-      "IF resolved.identity_kind <> 'legacy_user' THEN",
+      "IF resolved_identity_kind <> 'legacy_user' THEN",
       "RAISE EXCEPTION 'revenuecat_legacy_identity_conflict' USING ERRCODE = '55000'",
       "IF SQLERRM = 'revenuecat_identity_mapping_ambiguous'",
       "RAISE EXCEPTION 'revenuecat_user_mapping_ambiguous' USING ERRCODE = 'P0001'",
       "PERFORM internal.lock_legacy_revenuecat_compatibility_users( legacy_user_ids )",
       "FROM public.apply_revenuecat_identity_state",
       "CREATE OR REPLACE FUNCTION public.schedule_revenuecat_reconciliation",
-      "source_subject := p_subjects -> (resolved.subject_position - 1)",
+      "source_subject := p_subjects -> (resolved_subject_position - 1)",
       "'lookup_app_user_id', source_subject ->> 'lookup_app_user_id'",
       "RETURN public.schedule_revenuecat_identity_reconciliation( identity_subjects )",
       "REVOKE ALL ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB)",
@@ -336,6 +336,31 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
     ]
   ) {
     assertStringIncludes(sql, fragment);
+  }
+  const recordVariables = new Set(
+    [...migrationSource.matchAll(/\b([a-z_]\w*)\s+RECORD\s*;/gi)]
+      .map((match) => match[1]),
+  );
+  for (const recordVariable of recordVariables) {
+    const escapedRecordVariable = recordVariable.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
+    const dynamicResultPatterns = [
+      new RegExp(
+        `\\bINTO\\s+(?:STRICT\\s+)?${escapedRecordVariable}\\b`,
+        "i",
+      ),
+      new RegExp(
+        `\\bFOR\\s+${escapedRecordVariable}\\s+IN\\s+` +
+          "SELECT\\s+[a-z_]\\w*[.]\\*",
+        "i",
+      ),
+    ];
+    assert(
+      dynamicResultPatterns.every((pattern) => !pattern.test(migrationSource)),
+      "Nested RPC results must use statically typed scalar targets so plpgsql_check can validate every referenced field.",
+    );
   }
   assertStringIncludes(
     revenueCatFixture,
@@ -460,6 +485,24 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "service_role fixture phases must exercise guarded RPCs, not private tables",
     );
   }
+
+  const passRefundStart = fixture.indexOf(
+    "'purchase-principal-pass-refund-test'",
+  );
+  const passRefundEnd = fixture.indexOf(
+    "SELECT public.schedule_revenuecat_identity_reconciliation",
+    passRefundStart,
+  );
+  const passRefund = fixture.slice(passRefundStart, passRefundEnd);
+  const passRefundSnapshotCount = passRefund.split(
+    "(EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT + 1000",
+  ).length - 1;
+  assert(
+    passRefundStart >= 0 &&
+      passRefundEnd > passRefundStart &&
+      passRefundSnapshotCount === 2,
+    "The pass-refund event and authoritative snapshot must be newer than the fixture's earlier +30 ms principal snapshot.",
+  );
 });
 
 Deno.test("legacy compatibility mutation loses a concurrent stable activation", async () => {

@@ -27,8 +27,18 @@ printf '%s\n' \
   '  for argument in "$@"; do' \
   '    if [[ "$argument" == services/supabase/tests/*.sql ]]; then' \
   '      file_count=$((file_count + 1))' \
+  '      last_catalog_test="$argument"' \
   '    fi' \
   '  done' \
+  '  if [ "$mode" = "fixture_failure" ]; then' \
+  '    if [ "$file_count" -gt 1 ]; then' \
+  '      printf "/tmp/work/services/supabase/tests/purchase_principal_security.sql (Wstat: 768 (exited 3) Tests: 0 Failed: 0)\n"' \
+  '      printf "/tmp/work/services/supabase/tests/../migrations/20260812144948_introduce_stable_purchase_principals.sql (Wstat: 768 (exited 3) Tests: 0 Failed: 0)\n"' \
+  '    else' \
+  '      printf "psql:%s:42: ERROR: isolated fixture diagnostic\n" "$last_catalog_test"' \
+  '    fi' \
+  '    exit 1' \
+  '  fi' \
   '  printf "Files=%s, Tests=%s, 1 wallclock secs\n" "$file_count" "$file_count"' \
   '  if [ "$mode" != "files_only" ]; then' \
   '    printf "Result: PASS\n"' \
@@ -74,6 +84,44 @@ if PATH="$catalog_test_fake_bin:$PATH" \
   FAKE_CATALOG_MODE=files_only \
   bash "$catalog_test_script_dir/test_database_catalogs.sh" >/dev/null 2>&1; then
   echo "Catalog runner accepted incomplete pg_prove summary evidence." >&2
+  exit 1
+fi
+
+: > "$catalog_test_fake_log"
+set +e
+catalog_failure_output="$({
+  PATH="$catalog_test_fake_bin:$PATH" \
+    FAKE_SUPABASE_LOG="$catalog_test_fake_log" \
+    FAKE_CATALOG_MODE=fixture_failure \
+    bash "$catalog_test_script_dir/test_database_catalogs.sh"
+} 2>&1)"
+catalog_failure_status=$?
+set -e
+
+if [ "$catalog_failure_status" -eq 0 ]; then
+  echo "Catalog runner converted a failed aggregate run into success." >&2
+  exit 1
+fi
+
+if ! grep -q \
+  'Rerunning failed catalog fixture services/supabase/tests/purchase_principal_security.sql' \
+  <<< "$catalog_failure_output" || \
+  ! grep -q \
+  'Refusing to rerun a catalog path outside the discovered suite: services/supabase/tests/../migrations/20260812144948_introduce_stable_purchase_principals.sql' \
+  <<< "$catalog_failure_output" || \
+  ! grep -q 'ERROR: isolated fixture diagnostic' \
+  <<< "$catalog_failure_output"; then
+  echo "Catalog runner did not isolate a failed fixture for actionable diagnostics." >&2
+  exit 1
+fi
+
+if grep -q 'tests/../migrations' "$catalog_test_fake_log"; then
+  echo "Catalog runner executed an out-of-suite path recovered from output." >&2
+  exit 1
+fi
+
+if [ "$(grep -c 'purchase_principal_security.sql' "$catalog_test_fake_log")" -ne 2 ]; then
+  echo "Catalog runner did not execute exactly one aggregate and one isolated fixture call." >&2
   exit 1
 fi
 

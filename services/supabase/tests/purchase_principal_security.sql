@@ -1045,10 +1045,13 @@ WHERE purchase_principal_id = (
 );
 
 SET LOCAL ROLE service_role;
+-- NOW() is transaction-stable. Earlier fixture phases advanced the same
+-- principal through a +30 ms snapshot, so this refund must use a strictly newer
+-- synthetic timestamp or it correctly remains stale and cannot revoke the pass.
 SELECT *
 FROM public.apply_revenuecat_identity_state(
   'purchase-principal-pass-refund-test',
-  (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+  (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT + 1000,
   'REFUND',
   REPEAT('f', 64),
   EXTRACT(EPOCH FROM NOW())::BIGINT,
@@ -1063,7 +1066,7 @@ FROM public.apply_revenuecat_identity_state(
         (SELECT purchase_principal_id
          FROM purchase_principal_resolution_fixture),
       'authoritative_snapshot_at_ms',
-        (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
+        (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT + 1000,
       'target_store_tier', 'free',
       'target_store_expires_at', NULL,
       'target_account_grant_tier', 'free',

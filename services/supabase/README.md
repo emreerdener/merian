@@ -99,6 +99,12 @@ fixture exposed only `planned 1, ran 0`. The identity fixture now follows this
 diagnostic contract. The warning must never include credentials, raw media,
 provider bodies, or nondeterministic private user data.
 
+If the aggregate pg_prove run still aborts a fixture, the catalog runner reruns
+only the failed repository fixtures against the same disposable database and
+prints their isolated PostgreSQL diagnostics before exiting nonzero. An isolated
+pass is reported as ordering/shared-state dependence and never converts the
+failed aggregate run into passing evidence.
+
 The next exact-SHA catalog run localized that identity failure to fixture setup:
 a PL/pgSQL variable named `scan_id` was ambiguous beside `jobs.scan_id` in an
 `INSERT ... SELECT`. Use a role-prefixed name such as `fixture_scan_id` for

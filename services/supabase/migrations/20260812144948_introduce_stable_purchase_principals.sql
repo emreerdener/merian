@@ -2229,7 +2229,6 @@ DECLARE
     existing_event internal.revenuecat_webhook_events%ROWTYPE;
     legacy_state internal.legacy_revenuecat_entitlement_state%ROWTYPE;
     subject RECORD;
-    helper_result RECORD;
     identity_kinds TEXT[] := ARRAY[]::TEXT[];
     identity_ids UUID[] := ARRAY[]::UUID[];
     subject_kinds TEXT[] := ARRAY[]::TEXT[];
@@ -2260,6 +2259,10 @@ DECLARE
     resulting_stale_count INTEGER := 0;
     resulting_outcome TEXT;
     resolved_entitlement_version BIGINT;
+    snapshot_state_applied BOOLEAN;
+    snapshot_account_grant_update_applied BOOLEAN;
+    snapshot_projected_auth_user_id UUID;
+    snapshot_projected_entitlement_version BIGINT;
     event_inserted BOOLEAN;
     incoming_is_newer BOOLEAN;
 BEGIN
@@ -2631,8 +2634,14 @@ BEGIN
         grant_expiry := grant_expiries[subject_index];
 
         IF identity_kind_value = 'purchase_principal' THEN
-            SELECT result.*
-            INTO STRICT helper_result
+            SELECT result.state_applied,
+                   result.account_grant_update_applied,
+                   result.projected_auth_user_id,
+                   result.projected_entitlement_version
+            INTO STRICT snapshot_state_applied,
+                        snapshot_account_grant_update_applied,
+                        snapshot_projected_auth_user_id,
+                        snapshot_projected_entitlement_version
             FROM internal.apply_purchase_principal_snapshot(
                 identity_id,
                 p_event_id,
@@ -2645,7 +2654,7 @@ BEGIN
                 grant_tier::TEXT,
                 grant_expiry
             ) AS result;
-            incoming_is_newer := helper_result.state_applied;
+            incoming_is_newer := snapshot_state_applied;
 
             INSERT INTO internal.purchase_principal_webhook_event_subjects (
                 event_id,
@@ -2672,10 +2681,10 @@ BEGIN
                 pass_grant_policy_update,
                 grant_tier,
                 grant_expiry,
-                helper_result.account_grant_update_applied,
+                snapshot_account_grant_update_applied,
                 CASE WHEN incoming_is_newer THEN 'applied' ELSE 'stale' END,
-                helper_result.projected_auth_user_id,
-                helper_result.projected_entitlement_version
+                snapshot_projected_auth_user_id,
+                snapshot_projected_entitlement_version
             );
         ELSE
             SELECT states.*
@@ -2951,7 +2960,6 @@ AS $function$
 DECLARE
     existing_event internal.revenuecat_webhook_events%ROWTYPE;
     subject RECORD;
-    resolved RECORD;
     source_subject JSONB;
     resolver_subjects JSONB := '[]'::JSONB;
     identity_subjects JSONB := '[]'::JSONB;
@@ -2963,6 +2971,10 @@ DECLARE
     snapshot_time BIGINT;
     target_tier public.subscription_tier_enum;
     target_expiry TIMESTAMPTZ;
+    resolved_subject_position INTEGER;
+    resolved_subject_kind TEXT;
+    resolved_identity_kind TEXT;
+    resolved_identity_id UUID;
 BEGIN
     PERFORM internal.require_service_role();
 
@@ -3118,31 +3130,37 @@ BEGIN
     END LOOP;
 
     BEGIN
-        FOR resolved IN
-            SELECT result.*
+        FOR resolved_subject_position,
+            resolved_subject_kind,
+            resolved_identity_kind,
+            resolved_identity_id IN
+            SELECT result.subject_position,
+                   result.subject_kind,
+                   result.identity_kind,
+                   result.identity_id
             FROM public.resolve_revenuecat_identity_subjects(
                 resolver_subjects
             ) AS result
             ORDER BY result.subject_position
         LOOP
-            IF resolved.identity_kind <> 'legacy_user' THEN
+            IF resolved_identity_kind <> 'legacy_user' THEN
                 RAISE EXCEPTION 'revenuecat_legacy_identity_conflict'
                     USING ERRCODE = '55000';
             END IF;
             legacy_user_ids := pg_catalog.ARRAY_APPEND(
                 legacy_user_ids,
-                resolved.identity_id
+                resolved_identity_id
             );
-            source_subject := p_subjects -> (resolved.subject_position - 1);
+            source_subject := p_subjects -> (resolved_subject_position - 1);
             identity_subjects := identity_subjects ||
                 pg_catalog.JSONB_BUILD_ARRAY(
                     pg_catalog.JSONB_BUILD_OBJECT(
-                        'subject_kind', resolved.subject_kind,
+                        'subject_kind', resolved_subject_kind,
                         'identity_kind', 'legacy_user',
-                        'identity_id', resolved.identity_id,
+                        'identity_id', resolved_identity_id,
                         'lookup_app_user_id',
                             internal.canonical_revenuecat_app_user_id(
-                                resolved.identity_id
+                                resolved_identity_id
                             ),
                         'authoritative_snapshot_at_ms',
                             source_subject -> 'authoritative_snapshot_at_ms',
@@ -3333,7 +3351,6 @@ SET statement_timeout = '5s'
 AS $function$
 DECLARE
     subject RECORD;
-    resolved RECORD;
     source_subject JSONB;
     resolver_subjects JSONB := '[]'::JSONB;
     identity_subjects JSONB := '[]'::JSONB;
@@ -3342,6 +3359,10 @@ DECLARE
     subject_kind_value TEXT;
     lookup_app_user_id_value TEXT;
     distinct_candidate_count INTEGER;
+    resolved_subject_position INTEGER;
+    resolved_subject_kind TEXT;
+    resolved_identity_kind TEXT;
+    resolved_identity_id UUID;
 BEGIN
     PERFORM internal.require_service_role();
     IF pg_catalog.JSONB_TYPEOF(p_subjects) IS DISTINCT FROM 'array'
@@ -3421,28 +3442,34 @@ BEGIN
     END LOOP;
 
     BEGIN
-        FOR resolved IN
-            SELECT result.*
+        FOR resolved_subject_position,
+            resolved_subject_kind,
+            resolved_identity_kind,
+            resolved_identity_id IN
+            SELECT result.subject_position,
+                   result.subject_kind,
+                   result.identity_kind,
+                   result.identity_id
             FROM public.resolve_revenuecat_identity_subjects(
                 resolver_subjects
             ) AS result
             ORDER BY result.subject_position
         LOOP
-            IF resolved.identity_kind <> 'legacy_user' THEN
+            IF resolved_identity_kind <> 'legacy_user' THEN
                 RAISE EXCEPTION 'revenuecat_legacy_identity_conflict'
                     USING ERRCODE = '55000';
             END IF;
             legacy_user_ids := pg_catalog.ARRAY_APPEND(
                 legacy_user_ids,
-                resolved.identity_id
+                resolved_identity_id
             );
-            source_subject := p_subjects -> (resolved.subject_position - 1);
+            source_subject := p_subjects -> (resolved_subject_position - 1);
             identity_subjects := identity_subjects ||
                 pg_catalog.JSONB_BUILD_ARRAY(
                     pg_catalog.JSONB_BUILD_OBJECT(
-                        'subject_kind', resolved.subject_kind,
+                        'subject_kind', resolved_subject_kind,
                         'identity_kind', 'legacy_user',
-                        'identity_id', resolved.identity_id,
+                        'identity_id', resolved_identity_id,
                         'lookup_app_user_id',
                             source_subject ->> 'lookup_app_user_id'
                     )
@@ -3595,7 +3622,7 @@ AS $function$
 DECLARE
     principal internal.purchase_principals%ROWTYPE;
     queue_row internal.purchase_principal_reconciliation_queue%ROWTYPE;
-    helper_result RECORD;
+    snapshot_state_applied BOOLEAN;
 BEGIN
     PERFORM internal.require_service_role();
     IF p_purchase_principal_id IS NULL OR p_claim_token IS NULL THEN
@@ -3630,8 +3657,8 @@ BEGIN
       AND queue.claim_expires_at > pg_catalog.CLOCK_TIMESTAMP()
     FOR UPDATE;
 
-    SELECT result.*
-    INTO STRICT helper_result
+    SELECT result.state_applied
+    INTO STRICT snapshot_state_applied
     FROM internal.apply_purchase_principal_snapshot(
         principal.id,
         'principal-reconcile:' || principal.id::TEXT || ':' ||
@@ -3670,7 +3697,7 @@ BEGIN
         RAISE EXCEPTION 'purchase_principal_reconciliation_claim_lost'
             USING ERRCODE = '55000';
     END IF;
-    RETURN helper_result.state_applied;
+    RETURN snapshot_state_applied;
 END;
 $function$;
 

@@ -597,7 +597,10 @@ When this gate fails, use the first PostgreSQL exception as the root cause. The
 ordinary-routine and trigger diagnostics include the exact signature, source
 line, SQLSTATE, statement, query, detail, and hint. The later pg_prove output
 (`Dubious`, `Bad plan`, or `planned 1 tests but ran 0`) only means the exception
-aborted the pgTAP block before its planned assertion.
+aborted the pgTAP block before its planned assertion. The catalog runner then
+reruns each failed repository fixture in isolation against the same disposable
+catalog so the log retains its first PostgreSQL diagnostic; these reruns are
+diagnostic only and cannot turn the aggregate failure into passing evidence.
 
 Every `plpgsql_check` call for a trigger routine must pass the trigger table OID
 as its second argument. In a mixed routine registry, carry

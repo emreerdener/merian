@@ -2476,8 +2476,11 @@ The reusable candidate gate—and the production workflow that requires it—app
 all migrations to a disposable database and run
 `bash services/supabase/scripts/test_database_catalogs.sh`. That gate discovers
 every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
-prevents a new catalog contract from being omitted by a selected CI list. Do not
-replace executable catalog coverage with source inspection alone.
+prevents a new catalog contract from being omitted by a selected CI list. When
+the aggregate run fails, it reruns only pg_prove's failed repository fixtures to
+surface isolated PostgreSQL diagnostics, then still exits nonzero; an isolated
+pass is ordering/shared-state evidence, not a recovered candidate. Do not replace
+executable catalog coverage with source inspection alone.
 
 Focused source-inspection lanes have a separate Deno permission contract. Every
 repository root read through an explicit filesystem API must appear in that

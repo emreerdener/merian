@@ -25,6 +25,8 @@ DECLARE
     reconciliation_claim RECORD;
     reconciliation_health RECORD;
     reconciliation_applied BOOLEAN;
+    ledger_event_count INTEGER;
+    destination_subject_count INTEGER;
     expired_claim_token UUID;
     claim_expiry_index_definition TEXT;
     claim_expiry_index_predicate TEXT;
@@ -752,15 +754,18 @@ BEGIN
             'stale periodic snapshot restored an older entitlement';
     END IF;
 
-    IF (
-        SELECT pg_catalog.COUNT(*)
-        FROM internal.revenuecat_webhook_events AS events
-    ) <> 6 OR (
-        SELECT pg_catalog.COUNT(*)
-        FROM internal.revenuecat_webhook_event_subjects AS subjects
-        WHERE subjects.merian_user_id = destination_user_id
-    ) <> 6 THEN
-        RAISE EXCEPTION 'RevenueCat event ledger lost idempotency';
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO STRICT ledger_event_count
+    FROM internal.revenuecat_webhook_events AS events;
+    SELECT pg_catalog.COUNT(*)::INTEGER
+    INTO STRICT destination_subject_count
+    FROM internal.revenuecat_webhook_event_subjects AS subjects
+    WHERE subjects.merian_user_id = destination_user_id;
+    IF ledger_event_count <> 6 OR destination_subject_count <> 6 THEN
+        RAISE EXCEPTION
+            'RevenueCat event ledger lost idempotency (events %, destination subjects %)',
+            ledger_event_count,
+            destination_subject_count;
     END IF;
 
     IF EXISTS (
