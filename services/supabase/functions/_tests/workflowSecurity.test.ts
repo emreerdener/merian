@@ -9,6 +9,10 @@ const workflowsDirectory = new URL(
   "../../../../.github/workflows/",
   import.meta.url,
 );
+const setupDenoActionUrl = new URL(
+  "../../../../.github/actions/setup-deno/action.yml",
+  import.meta.url,
+);
 const functionsDenoConfig = new URL("../deno.json", import.meta.url);
 const REMOTE_ACTION_PATTERN =
   /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}(?:\s+#\s+v?\S+)?$/;
@@ -49,6 +53,65 @@ Deno.test("production workflows pin remote actions and declare permissions", asy
         `${name} uses a mutable or malformed remote action reference: ${action}`,
       );
     }
+  }
+
+  const setupDenoAction = await Deno.readTextFile(setupDenoActionUrl);
+  for (const line of setupDenoAction.split("\n")) {
+    const action = line.match(/^\s*uses:\s*(\S.*)$/)?.[1];
+    if (!action || action.startsWith("./")) continue;
+    assertMatch(
+      action,
+      REMOTE_ACTION_PATTERN,
+      `setup-deno/action.yml uses a mutable or malformed remote action reference: ${action}`,
+    );
+  }
+});
+
+Deno.test("every Deno workflow uses the bounded exact-version installer", async () => {
+  const sources = await workflowSources();
+  const setupDenoAction = await Deno.readTextFile(setupDenoActionUrl);
+  let localSetupCount = 0;
+  let versionInputCount = 0;
+
+  for (const [name, source] of sources) {
+    assert(
+      !source.includes("uses: denoland/setup-deno@"),
+      `${name} bypasses the repository's bounded Deno installer`,
+    );
+    localSetupCount += source.match(/uses: \.\/\.github\/actions\/setup-deno/g)
+      ?.length ?? 0;
+    versionInputCount += source.match(/deno-version: v2\.9\.4/g)?.length ?? 0;
+  }
+
+  assert(localSetupCount > 0, "No workflow uses the pinned Deno installer.");
+  assertEquals(
+    versionInputCount,
+    localSetupCount,
+    "Every Deno installer invocation must request the exact reviewed version.",
+  );
+  assertEquals(
+    setupDenoAction.match(
+      /uses: denoland\/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed/g,
+    )
+      ?.length ?? 0,
+    3,
+    "The shared installer must make exactly three bounded attempts with the reviewed action SHA.",
+  );
+  assertEquals(
+    setupDenoAction.match(/continue-on-error: true/g)?.length ?? 0,
+    2,
+    "Only the first two Deno installation attempts may tolerate failure.",
+  );
+  for (
+    const fragment of [
+      "steps.setup_deno_attempt_1.outcome == 'failure'",
+      "steps.setup_deno_attempt_2.outcome == 'failure'",
+      'expected_version="${EXPECTED_DENO_VERSION#v}"',
+      'actual_version="$(deno --version | awk',
+      'if [ "$actual_version" != "$expected_version" ]; then',
+    ]
+  ) {
+    assertStringIncludes(setupDenoAction, fragment);
   }
 });
 

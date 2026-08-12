@@ -63,6 +63,9 @@ the complete Function dependency graph and tooling contracts, replays every
 migration into a disposable database, discovers every pgTAP catalog, executes
 the complete Edge/database-concurrency suite, and runs database lint plus
 security/performance advisors.
+The repository-local Deno setup action retries the immutable reviewed installer
+at most three times for transient GitHub release-download failures, verifies the
+installed runtime is exactly `2.9.4`, and fails closed after the final attempt.
 
 The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or

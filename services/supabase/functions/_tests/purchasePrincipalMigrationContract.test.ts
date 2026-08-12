@@ -222,6 +222,27 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
   );
 });
 
+Deno.test("purchase-principal identity bounds use PostgreSQL-safe predicates", async () => {
+  const sql = compact(await Deno.readTextFile(migrationUrl));
+
+  assert(
+    !sql.includes("NOT BETWEEN 1 AND CASE"),
+    "PostgreSQL does not accept a CASE expression as the upper BETWEEN bound in this migration",
+  );
+  for (
+    const fragment of [
+      "identity_kind_value IS NULL OR identity_kind_value NOT IN",
+      "identity_kind_value = 'legacy_user' AND pg_catalog.CHAR_LENGTH(lookup_app_user_id_value) NOT BETWEEN 1 AND 1500",
+      "identity_kind_value = 'purchase_principal' AND pg_catalog.CHAR_LENGTH(lookup_app_user_id_value) NOT BETWEEN 1 AND 255",
+      "IF identity_kind IS NULL OR identity_kind NOT IN",
+      "identity_kind = 'legacy_user' AND pg_catalog.CHAR_LENGTH(lookup_id_value) NOT BETWEEN 1 AND 1500",
+      "identity_kind = 'purchase_principal' AND pg_catalog.CHAR_LENGTH(lookup_id_value) NOT BETWEEN 1 AND 255",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+});
+
 Deno.test("legacy reconciliation replacement preserves claim and seed contracts", async () => {
   const sql = compact(await Deno.readTextFile(migrationUrl));
   const start = sql.indexOf(

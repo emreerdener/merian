@@ -92,7 +92,7 @@ jobs:
           echo "Verified clean candidate revision $actual_sha"
 
       - name: Setup Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
 
@@ -139,7 +139,7 @@ jobs:
       - name: Test production workflow security
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/deno.json,../.github/workflows \
+            --allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno \
             supabase/functions/_tests/workflowSecurity.test.ts
 
       - name: Validate Supabase migration contracts

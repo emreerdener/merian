@@ -3,6 +3,7 @@ name: iOS Project Guardrails
 on:
   pull_request:
     paths:
+      - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
@@ -62,6 +63,7 @@ on:
     branches:
       - main
     paths:
+      - ".github/actions/setup-deno/**"
       - ".github/workflows/ios-project-guardrails.yml"
       - ".github/workflows/ios-build-and-test.yml"
       - ".github/workflows/ios-startup-safety.yml"
@@ -139,7 +141,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
 

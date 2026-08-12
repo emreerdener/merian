@@ -4,6 +4,10 @@ const workflowsDirectory = new URL(
   "../../../.github/workflows/",
   import.meta.url,
 );
+const setupDenoActionUrl = new URL(
+  "../../../.github/actions/setup-deno/action.yml",
+  import.meta.url,
+);
 
 interface WorkflowRunScript {
   line: number;
@@ -98,6 +102,15 @@ Deno.test("every workflow run script is valid Bash", async () => {
   const violations: string[] = [];
   let scriptCount = 0;
 
+  const validateSource = async (name: string, url: URL) => {
+    const source = await Deno.readTextFile(url);
+    for (const script of extractRunScripts(source)) {
+      scriptCount++;
+      const error = await bashSyntaxError(script.source);
+      if (error) violations.push(`${name}:${script.line}: ${error}`);
+    }
+  };
+
   for await (const entry of Deno.readDir(workflowsDirectory)) {
     if (
       !entry.isFile ||
@@ -106,15 +119,9 @@ Deno.test("every workflow run script is valid Bash", async () => {
       continue;
     }
 
-    const workflow = await Deno.readTextFile(
-      new URL(entry.name, workflowsDirectory),
-    );
-    for (const script of extractRunScripts(workflow)) {
-      scriptCount++;
-      const error = await bashSyntaxError(script.source);
-      if (error) violations.push(`${entry.name}:${script.line}: ${error}`);
-    }
+    await validateSource(entry.name, new URL(entry.name, workflowsDirectory));
   }
+  await validateSource("actions/setup-deno/action.yml", setupDenoActionUrl);
 
   assert(scriptCount > 0, "No workflow run scripts were discovered.");
   assert(

@@ -206,6 +206,8 @@ work.
   Edge/database-concurrency test, and finishes with lint plus advisors. It has
   no production secrets or deployment step. Do not dispatch
   `.github/workflows/deploy.yml` merely to obtain candidate evidence.
+  Deno setup retries the immutable reviewed installer at most three times,
+  verifies exact version `2.9.4`, and still fails closed if all attempts fail.
 - **Internal Admin**: Before opening a pull request that changes `apps/admin`,
   and before deploying it, run the complete frozen production gate:
   ```bash

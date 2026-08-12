@@ -2349,6 +2349,7 @@ BEGIN
         ) OR subject_kind_value = ANY(subject_kinds)
            OR (p_event_type = 'TRANSFER' AND subject_kind_value = 'customer')
            OR (p_event_type <> 'TRANSFER' AND subject_kind_value <> 'customer')
+           OR identity_kind_value IS NULL
            OR identity_kind_value NOT IN (
                'legacy_user',
                'purchase_principal'
@@ -2362,11 +2363,16 @@ BEGIN
            OR subject.value ->> 'identity_id' !~*
                 '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
            OR lookup_app_user_id_value IS NULL
-           OR pg_catalog.CHAR_LENGTH(lookup_app_user_id_value)
-                NOT BETWEEN 1 AND CASE
-                    WHEN identity_kind_value = 'legacy_user' THEN 1500
-                    ELSE 255
-                END
+           OR (
+               identity_kind_value = 'legacy_user'
+               AND pg_catalog.CHAR_LENGTH(lookup_app_user_id_value)
+                    NOT BETWEEN 1 AND 1500
+           )
+           OR (
+               identity_kind_value = 'purchase_principal'
+               AND pg_catalog.CHAR_LENGTH(lookup_app_user_id_value)
+                    NOT BETWEEN 1 AND 255
+           )
            OR lookup_app_user_id_value ~ '[[:cntrl:]]' THEN
             RAISE EXCEPTION 'revenuecat_invalid_identity_state'
                 USING ERRCODE = '22023';
@@ -3221,15 +3227,21 @@ BEGIN
     LOOP
         identity_kind := subject ->> 'identity_kind';
         lookup_id_value := subject ->> 'lookup_app_user_id';
-        IF identity_kind NOT IN ('legacy_user', 'purchase_principal')
+        IF identity_kind IS NULL
+           OR identity_kind NOT IN ('legacy_user', 'purchase_principal')
            OR subject ->> 'identity_id' !~*
                 '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
            OR lookup_id_value IS NULL
-           OR pg_catalog.CHAR_LENGTH(lookup_id_value)
-                NOT BETWEEN 1 AND CASE
-                    WHEN identity_kind = 'legacy_user' THEN 1500
-                    ELSE 255
-                END
+           OR (
+               identity_kind = 'legacy_user'
+               AND pg_catalog.CHAR_LENGTH(lookup_id_value)
+                    NOT BETWEEN 1 AND 1500
+           )
+           OR (
+               identity_kind = 'purchase_principal'
+               AND pg_catalog.CHAR_LENGTH(lookup_id_value)
+                    NOT BETWEEN 1 AND 255
+           )
            OR lookup_id_value ~ '[[:cntrl:]]' THEN
             RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
                 USING ERRCODE = '22023';

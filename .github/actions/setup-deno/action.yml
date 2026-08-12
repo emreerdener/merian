@@ -1,0 +1,47 @@
+name: Setup pinned Deno with bounded retries
+description: Install and verify the reviewed Deno runtime while tolerating transient release-download failures.
+
+inputs:
+  deno-version:
+    description: Exact reviewed Deno version, with or without a leading v.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install Deno (attempt 1 of 3)
+      id: setup_deno_attempt_1
+      continue-on-error: true
+      uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      with:
+        deno-version: ${{ inputs.deno-version }}
+
+    - name: Install Deno (attempt 2 of 3)
+      id: setup_deno_attempt_2
+      if: ${{ steps.setup_deno_attempt_1.outcome == 'failure' }}
+      continue-on-error: true
+      uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      with:
+        deno-version: ${{ inputs.deno-version }}
+
+    - name: Install Deno (attempt 3 of 3)
+      if: >-
+        ${{ steps.setup_deno_attempt_1.outcome == 'failure' &&
+            steps.setup_deno_attempt_2.outcome == 'failure' }}
+      uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+      with:
+        deno-version: ${{ inputs.deno-version }}
+
+    - name: Verify exact Deno version
+      shell: bash
+      env:
+        EXPECTED_DENO_VERSION: ${{ inputs.deno-version }}
+      run: |
+        set -euo pipefail
+        expected_version="${EXPECTED_DENO_VERSION#v}"
+        actual_version="$(deno --version | awk 'NR == 1 { print $2 }')"
+        if [ "$actual_version" != "$expected_version" ]; then
+          echo "Expected Deno $expected_version, installed $actual_version." >&2
+          exit 1
+        fi
+        echo "Validated Deno $actual_version."

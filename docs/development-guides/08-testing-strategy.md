@@ -109,6 +109,9 @@ production smoke. A green candidate run is therefore database/runtime evidence,
 not proof of deployment. Repository rules should require `Supabase Candidate
 Validation / Candidate readiness`, not the conditionally executed validation
 job.
+The shared Deno setup action makes at most three attempts with the same
+immutable installer SHA, then verifies exact version `2.9.4`; exhausted retries
+remain a failed candidate rather than being treated as passing evidence.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 

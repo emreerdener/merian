@@ -399,7 +399,11 @@ ad-hoc repair SQL merely to turn a monitor green.
 ## Workflow and Supply-Chain Contract
 
 - Third-party actions are pinned to reviewed 40-character SHAs. Dependabot
-  checks GitHub Actions weekly; updates still require review.
+  checks action references in workflow files weekly; updates still require
+  review. The repository contract separately scans the nested Deno installer
+  pin in `.github/actions/setup-deno/action.yml`, which must be advanced through
+  the same upstream review because GitHub documents the automated scan for
+  workflow files.
 - Workflow permissions default to `contents: read`. The only reviewed write
   grant is the taxonomy checklist's isolated five-minute writer job. The
   taxonomy import itself cannot read a checkout credential and passes only a

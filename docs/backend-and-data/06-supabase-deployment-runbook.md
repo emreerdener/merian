@@ -118,6 +118,9 @@ steps:
    Organizer and requests no repository write access.
 3. Installs the exact reviewed Deno `2.9.4` runtime and Supabase CLI `2.109.1`,
    then executes the repository pin guard before any config parse or mutation.
+   The repository-local Deno setup action retries the immutable installer at
+   most three times for transient GitHub release-download failures, verifies
+   the exact runtime, and fails closed after the final attempt.
 4. Fails fast if required deployment, RevenueCat, DwC-A pseudonym, or dedicated
    R2 Object Read credentials are missing; if either webhook credential is
    shorter than 32 characters; if the DwC-A key is invalid Base64 or decodes

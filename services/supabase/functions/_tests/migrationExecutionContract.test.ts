@@ -165,6 +165,13 @@ function usesMisspelledHashTextExtended(sql: string): boolean {
   );
 }
 
+function usesCaseAsBetweenUpperBound(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  return /\b(?:NOT\s+)?BETWEEN\b[^;]{0,256}?\bAND\s+CASE\b/i.test(
+    executableSql,
+  );
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -401,6 +408,43 @@ Deno.test(
       violations.length === 0,
       "PostgreSQL exposes hashtextextended(text,bigint), not " +
         "hashtextended: " + violations.join(", "),
+    );
+  },
+);
+
+Deno.test(
+  "BETWEEN upper bounds avoid the fresh-catalog CASE parser seam",
+  async () => {
+    assert(
+      usesCaseAsBetweenUpperBound(
+        "SELECT value NOT BETWEEN 1 AND CASE WHEN stable THEN 255 ELSE 1500 END;",
+      ),
+    );
+    assert(
+      !usesCaseAsBetweenUpperBound(
+        "SELECT CASE WHEN stable THEN value BETWEEN 1 AND 255 " +
+          "ELSE value BETWEEN 1 AND 1500 END;",
+      ),
+    );
+    assert(
+      !usesCaseAsBetweenUpperBound(
+        "-- value NOT BETWEEN 1 AND CASE WHEN stable THEN 255 END\n" +
+          "SELECT 'value BETWEEN 1 AND CASE';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesCaseAsBetweenUpperBound(sql)) violations.push(fileName);
+    }
+
+    assert(
+      violations.length === 0,
+      "Fresh catalog parsing rejects CASE as a BETWEEN upper bound; split " +
+        "the identity-specific predicates instead: " + violations.join(", "),
     );
   },
 );

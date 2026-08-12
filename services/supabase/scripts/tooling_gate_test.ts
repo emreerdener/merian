@@ -134,7 +134,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,\.github\/dependabot\.yml,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/actions\/setup-deno,\.github\/dependabot\.yml,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh/,
   );
   assertMatch(gate, /--allow-run=bash/);
 });
@@ -236,7 +236,7 @@ Deno.test("focused species stats tests can read their catalog contract", async (
   );
 });
 
-Deno.test("GitHub Actions SHA pins receive weekly dependency updates", async () => {
+Deno.test("workflow action SHA pins receive weekly dependency updates", async () => {
   const dependabot = await Deno.readTextFile(dependabotPath);
 
   assertMatch(dependabot, /package-ecosystem: "github-actions"/);
@@ -363,7 +363,7 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
   );
   assertMatch(
     workflow,
-    /uses: denoland\/setup-deno@[0-9a-f]{40}/,
+    /uses: \.\/\.github\/actions\/setup-deno/,
   );
   assertMatch(
     workflow,
