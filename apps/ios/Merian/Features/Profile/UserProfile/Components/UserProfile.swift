@@ -2,8 +2,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Abstracted Profile identity component natively interpreting both Ghost mode states
-/// and dynamically rendering high-fidelity Auth provider payloads seamlessly.
+/// Profile identity component for anonymous and linked account states.
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(RevenueCatManager.self) private var revenueCatManager: RevenueCatManager?
@@ -13,6 +12,8 @@ struct UserProfile: View {
     @State private var avatarImageToCrop: IdentifiableImage?
     @State private var selectedAvatarItem: PhotosPickerItem?
     @State private var isShowingAvatarError = false
+    @State private var isRetryingPurchaseContinuity = false
+    @State private var purchaseContinuityRetryFailed = false
     var totalScans: Int = 0
     var completedAchievements: Int = 0
     var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
@@ -103,6 +104,11 @@ struct UserProfile: View {
         revenueCatManager?.isSubscribed ?? RevenueCatManager.shared.isSubscribed
     }
 
+    private var isPurchaseContinuityPending: Bool {
+        revenueCatManager?.isPurchaseIdentityHandoffPending
+            ?? RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+    }
+
     private var identityHeader: some View {
         HStack(spacing: 12) {
             avatarPicker
@@ -133,60 +139,92 @@ struct UserProfile: View {
 
     private var signInButtons: some View {
         VStack(spacing: 12) {
-            if profileViewModel.canResumeLinkedAccount {
-                Button {
-                    _ = profileViewModel.resumeLinkedAccount()
-                } label: {
-                    HStack {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                        Text("Resume linked account")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.primary)
-                    .foregroundColor(Color(UIColor.systemBackground))
-                    .clipShape(Capsule())
-                }
-            } else {
-                Button(action: {
-                    Task {
-                        await profileViewModel.signInWithApple()
-                    }
-                }) {
-                    HStack {
-                        Image(systemName: "applelogo")
-                        Text("Sign in with Apple")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.primary)
-                    .foregroundColor(Color(UIColor.systemBackground))
-                    .clipShape(Capsule())
-                }
+            if isPurchaseContinuityPending {
+                VStack(spacing: 8) {
+                    Text("Finish signing out before changing accounts or making purchases.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
 
-                Button(action: {
-                    Task {
-                        await profileViewModel.signInWithGoogle()
+                    Button {
+                        Task { await retryPurchaseContinuity() }
+                    } label: {
+                        HStack {
+                            if isRetryingPurchaseContinuity {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            Text("Finish sign out")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
                     }
-                }) {
-                    HStack {
-                        Image("google-logo")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 18, height: 18)
-                        Text("Sign in with Google")
-                            .fontWeight(.semibold)
+                    .disabled(isRetryingPurchaseContinuity)
+
+                    if purchaseContinuityRetryFailed {
+                        Text("Purchase access is still syncing. Check your connection and try again.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color(UIColor.secondarySystemGroupedBackground))
-                    .foregroundColor(.primary)
-                    .clipShape(Capsule())
                 }
             }
+
+            Button(action: {
+                Task {
+                    await profileViewModel.signInWithApple()
+                }
+            }) {
+                HStack {
+                    Image(systemName: "applelogo")
+                    Text("Continue with Apple")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color.primary)
+                .foregroundColor(Color(UIColor.systemBackground))
+                .clipShape(Capsule())
+            }
+            .disabled(isPurchaseContinuityPending)
+
+            Button(action: {
+                Task {
+                    await profileViewModel.signInWithGoogle()
+                }
+            }) {
+                HStack {
+                    Image("google-logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                    Text("Continue with Google")
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(Color(UIColor.secondarySystemGroupedBackground))
+                .foregroundColor(.primary)
+                .clipShape(Capsule())
+            }
+            .disabled(isPurchaseContinuityPending)
         }
+    }
+
+    @MainActor
+    private func retryPurchaseContinuity() async {
+        isRetryingPurchaseContinuity = true
+        purchaseContinuityRetryFailed = false
+        let completed = await profileViewModel
+            .retryPendingSignOutPurchaseHandoff()
+        purchaseContinuityRetryFailed = !completed
+        isRetryingPurchaseContinuity = false
     }
 
     private var avatarPicker: some View {

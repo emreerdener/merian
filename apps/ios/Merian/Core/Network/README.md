@@ -565,17 +565,53 @@ then clears the local session for revoked, missing, transferred, unknown, or
 failed state resolution. An authoritative `.authorized` result preserves the
 session. This client transition does not fabricate a server revocation receipt.
 
-## Ghost mode and true sign-out
+## Sign-out and anonymous account transition
 
-User-facing logout is `continueAsGhost()`. For a linked account it persists the
-current UUID under `KeychainKeys.ghostModeUserID` and changes account
-presentation only. The Supabase session, database owner, RevenueCat custom ID,
-entitlements, offline queue, and app data remain unchanged. The marker is
-restored only when it matches the active UUID; a different account cannot inherit
-it. A genuinely anonymous session is already Ghost and needs no marker. A
-linked Ghost sees **Resume linked account** instead of provider sign-in buttons;
-`resumeLinkedAccount()` removes only the matching marker, without OAuth or an
-account switch.
+User-facing logout is **Sign out**. `ProfileViewModel.signOut()` and the Settings
+danger-zone action call `transitionToGhostSession()`. For a linked account, the
+client first calls `/transfer-signout-purchases` to snapshot authoritative
+StoreKit-backed access and persists its one-use proof under
+`Merian_PendingSignOutPurchaseHandoff_v1` with
+`whenUnlockedThisDeviceOnly`. A preparation or verified-Keychain-write failure
+leaves the linked session untouched. Only then does the client close the local
+Supabase session and create one fresh anonymous identity. A linked SDK session
+is always presented as linked; the retired
+`Merian_GhostModeUserID_v1` presentation marker is deleted during startup and
+can no longer hide an authenticated account. The anonymous Profile state offers
+**Continue with Apple** and **Continue with Google**.
+
+The fresh anonymous identity binds the proof before RevenueCat is linked to its
+uppercase UUID. The client then calls `Purchases.syncPurchases()` under the
+project's required **Transfer to new App User ID** restore behavior, asks the
+server to verify authoritative destination CustomerInfo, refreshes the Merian
+entitlement projection, verifies that the same anonymous session remains
+active, and removes the proof last. Purchase/restore/redeem admission remains
+disabled while that proof exists. Temporary failures retain it and auth-state
+restoration retries the same destination. The anonymous Profile also exposes a
+visible **Finish sign out** action, so recovery does not depend on a relaunch or
+another provider attempt. A restored source account can cancel only a still-
+unbound proof; the server refuses cancellation once receipt movement may have
+begun. If a finite prepared purchase expires before first completion, the
+server refreshes the source before accepting the destination's current
+StoreKit state, so natural expiry can finish free without overlooking a source
+renewal. Completed replay uses the immutable attested state and snapshot.
+
+While a proof is unresolved, generic auth-state bootstrap and refresh must not
+link the anonymous RevenueCat identity early. A confirmed-missing-session `401`
+also preserves the exact Auth session instead of rotating or locally clearing
+it; an unreadable Keychain proof is treated as pending. Account deletion is
+disabled in the UI while any local proof is unresolved. The server rejects
+deletion of either side after binding; if deletion wins before binding, bind
+fails before RevenueCat is mutated. The database also prevents anonymous
+cleanup or profile merge from deleting a bound destination.
+
+Only StoreKit-backed access moves. RevenueCat promotional/beta grants are
+account-bound and remain on the linked source rather than being cloned onto a
+second customer. The server requires an explicit RevenueCat v1
+`store: app_store` purchase record; `store: promotional` and unknown/missing
+stores fail closed. Active detached seven-day pass history is accepted only
+when the durable database projection confirms the same expiry, preventing
+refunded historical purchases from being resurrected.
 
 `SupabaseManager` closes the authenticated-request gate and clears observable
 account state before asking Supabase Auth to invalidate the local session. It
@@ -587,13 +623,18 @@ session-refresh retries cannot reopen authenticated state. Explore, Field trip,
 and profile Edge requests therefore cannot launch with a token that is being
 invalidated.
 
-True `signOut()` cannot later recover the same Supabase anonymous account and is
-reserved for account deletion or authoritative credential invalidation.
-`transitionToGhostSession()` is only the last-resort recovery path after a
-stable missing/invalid-session response and failed SDK refresh; it creates a
-replacement identity after sign-out and external cleanup. A generic `401` never
-reaches it. Account deletion intentionally calls `signOut()` alone so it does
-not recreate an identity during deletion. The
+Low-level `signOut()` cannot later recover the same Supabase anonymous account.
+Ordinary user logout therefore calls `transitionToGhostSession()` to request one
+replacement anonymous identity after the durable handoff is prepared. Success
+means the anonymous Supabase identity, exact custom RevenueCat identity, receipt
+sync, server verification/reconciliation, and current Merian entitlement read
+all completed; an anonymous-session result by itself is not success. The same
+identity rotation remains available for stable missing/invalid-session recovery
+after SDK refresh fails only when no purchase handoff is pending; a generic
+`401` never reaches it. Account deletion intentionally calls `signOut()` alone
+so it does not recreate an identity during deletion.
+`/safe-delete` returns `409 purchase_continuity_pending` if either side of an
+active handoff is targeted; the user must use **Finish sign out** first. The
 `/safe-delete` call may return immediate `200` completion or `202` durable
 acceptance. The shared request layer strictly decodes the matching status plus
 the required `manual_provider_revocation_required` boolean; missing or

@@ -14,6 +14,10 @@ export interface RevenueCatReconciliationHealth {
   expiredClaimCount: number;
   oldestDueAt: string | null;
   oldestDueAgeSeconds: number | null;
+  signoutPreparedCount: number;
+  signoutBoundCount: number;
+  oldestSignoutPendingAt: string | null;
+  oldestSignoutPendingAgeSeconds: number | null;
 }
 
 interface ClaimRow {
@@ -30,6 +34,10 @@ interface HealthRow {
   expired_claim_count?: unknown;
   oldest_due_at?: unknown;
   oldest_due_age_seconds?: unknown;
+  signout_prepared_count?: unknown;
+  signout_bound_count?: unknown;
+  oldest_signout_pending_at?: unknown;
+  oldest_signout_pending_age_seconds?: unknown;
 }
 
 export class RevenueCatReconciliationDatabaseError extends Error {
@@ -94,27 +102,54 @@ export async function claimRevenueCatReconciliations(
     );
   }
 
-  return data.map((value) => {
-    const row = value as ClaimRow;
-    if (typeof row.allow_non_subscription_pass_grant !== "boolean") {
-      throw new RevenueCatReconciliationDatabaseError(
-        "RevenueCat reconciliation claim has invalid pass grant fence.",
-      );
-    }
-    return {
-      userId: requiredString(row.user_id, "user_id"),
-      lookupAppUserId: requiredString(
-        row.lookup_app_user_id,
-        "lookup_app_user_id",
-      ),
-      claimToken: requiredString(row.claim_token, "claim_token"),
-      claimExpiresAt: requiredString(
-        row.claim_expires_at,
-        "claim_expires_at",
-      ),
-      allowNonSubscriptionPassGrant: row.allow_non_subscription_pass_grant,
-    };
-  });
+  return data.map(parseClaimRow);
+}
+
+/** Leases only the requested due customer for a foreground identity handoff. */
+export async function claimRevenueCatReconciliationForUser(
+  supabaseAdmin: SupabaseClient,
+  userId: string,
+): Promise<RevenueCatReconciliationClaim> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_revenuecat_reconciliation_for_user",
+    { p_user_id: userId },
+  );
+  if (error) {
+    throw new RevenueCatReconciliationDatabaseError(
+      `RevenueCat exact reconciliation claim failed: ${error.message}`,
+    );
+  }
+  if (!Array.isArray(data) || data.length !== 1) {
+    throw new RevenueCatReconciliationDatabaseError(
+      "RevenueCat exact reconciliation claim was unavailable.",
+    );
+  }
+  const claim = parseClaimRow(data[0]);
+  if (claim.userId.toLowerCase() !== userId.toLowerCase()) {
+    throw new RevenueCatReconciliationDatabaseError(
+      "RevenueCat exact reconciliation claim returned the wrong user.",
+    );
+  }
+  return claim;
+}
+
+function parseClaimRow(value: unknown): RevenueCatReconciliationClaim {
+  const row = value as ClaimRow;
+  if (typeof row.allow_non_subscription_pass_grant !== "boolean") {
+    throw new RevenueCatReconciliationDatabaseError(
+      "RevenueCat reconciliation claim has invalid pass grant fence.",
+    );
+  }
+  return {
+    userId: requiredString(row.user_id, "user_id"),
+    lookupAppUserId: requiredString(
+      row.lookup_app_user_id,
+      "lookup_app_user_id",
+    ),
+    claimToken: requiredString(row.claim_token, "claim_token"),
+    claimExpiresAt: requiredString(row.claim_expires_at, "claim_expires_at"),
+    allowNonSubscriptionPassGrant: row.allow_non_subscription_pass_grant,
+  };
 }
 
 export async function getRevenueCatReconciliationHealth(
@@ -159,12 +194,49 @@ export async function getRevenueCatReconciliationHealth(
       row.oldest_due_age_seconds,
       "oldest_due_age_seconds",
     );
+  const hasSignoutHealth = [
+    row.signout_prepared_count,
+    row.signout_bound_count,
+    row.oldest_signout_pending_at,
+    row.oldest_signout_pending_age_seconds,
+  ].some((value) => value !== undefined);
+  const signoutPreparedCount = hasSignoutHealth
+    ? nonnegativeSafeInteger(
+      row.signout_prepared_count,
+      "signout_prepared_count",
+    )
+    : 0;
+  const signoutBoundCount = hasSignoutHealth
+    ? nonnegativeSafeInteger(row.signout_bound_count, "signout_bound_count")
+    : 0;
+  const oldestSignoutPendingAt = !hasSignoutHealth ||
+      row.oldest_signout_pending_at === null
+    ? null
+    : requiredString(
+      row.oldest_signout_pending_at,
+      "oldest_signout_pending_at",
+      "health",
+    );
+  const oldestSignoutPendingAgeSeconds = !hasSignoutHealth ||
+      row.oldest_signout_pending_age_seconds === null
+    ? null
+    : nonnegativeSafeInteger(
+      row.oldest_signout_pending_age_seconds,
+      "oldest_signout_pending_age_seconds",
+    );
+  const signoutPendingCount = signoutPreparedCount + signoutBoundCount;
 
   if (
     (oldestDueAt === null) !== (oldestDueAgeSeconds === null) ||
     (oldestDueAt !== null && !Number.isFinite(Date.parse(oldestDueAt))) ||
     (dueCount === 0 && oldestDueAt !== null) ||
-    (dueCount > 0 && oldestDueAt === null)
+    (dueCount > 0 && oldestDueAt === null) ||
+    (oldestSignoutPendingAt !== null &&
+      !Number.isFinite(Date.parse(oldestSignoutPendingAt))) ||
+    (oldestSignoutPendingAt === null) !==
+      (oldestSignoutPendingAgeSeconds === null) ||
+    (signoutPendingCount === 0 && oldestSignoutPendingAt !== null) ||
+    (signoutPendingCount > 0 && oldestSignoutPendingAt === null)
   ) {
     throw new RevenueCatReconciliationDatabaseError(
       "RevenueCat reconciliation health returned inconsistent backlog state.",
@@ -177,6 +249,10 @@ export async function getRevenueCatReconciliationHealth(
     expiredClaimCount,
     oldestDueAt,
     oldestDueAgeSeconds,
+    signoutPreparedCount,
+    signoutBoundCount,
+    oldestSignoutPendingAt,
+    oldestSignoutPendingAgeSeconds,
   };
 }
 

@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-11-sign-out-purchase-continuity",
+      "date": "2026-08-11",
+      "title": "Clearer account sign-in and sign-out",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Profile now uses Sign out and offers Continue with Apple or Continue with Google when you are using Naturebook without a linked account.",
+            "App Store purchase access is secured before sign-out and verified on the fresh local account, while account-issued beta or promotional access remains with the linked account."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-10-live-scan-queue-handoff",
       "date": "2026-08-10",
       "title": "Scans stay safe when connection drops",
@@ -568,7 +582,7 @@
         {
           "title": "Fixed",
           "items": [
-            "Newly empty scan libraries now show the first-scan empty state instead of a blank screen, including after switching from a previously signed-in account to a ghost session."
+            "Newly empty scan libraries now show the first-scan empty state instead of a blank screen, including after signing out to an anonymous session."
           ]
         }
       ]

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { AccountDeletionClaim } from "../safe-delete/db.ts";
 import { handleSafeDelete } from "../safe-delete/handler.ts";
+import { AccountDeletionIntakeError } from "../safe-delete/db.ts";
 import { processAccountDeletionJobs } from "../safe-delete/worker.ts";
 
 const supabaseAdmin = {} as SupabaseClient;
@@ -269,6 +270,41 @@ Deno.test("safe-delete does no destructive work if durable intake fails", async 
     "intake failed",
   );
   assert(!processCalled);
+});
+
+Deno.test("safe-delete rejects deletion while sign-out purchase continuity is pending", async () => {
+  let processCalled = false;
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: () =>
+        Promise.reject(
+          new AccountDeletionIntakeError(
+            "purchase_continuity_pending",
+            409,
+            "Finish signing out before deleting this account.",
+          ),
+        ),
+      process: () => {
+        processCalled = true;
+        return Promise.resolve({
+          claimed: 0,
+          completed: 0,
+          deferred: 0,
+          waitingForStorage: 0,
+          failures: [],
+        });
+      },
+    },
+  );
+
+  assertEquals(response.status, 409);
+  assertEquals(await response.json(), {
+    code: "purchase_continuity_pending",
+    error: "Finish signing out before deleting this account.",
+  });
+  assertEquals(processCalled, false);
 });
 
 Deno.test("storage_pending cleanup never removes the Auth identity", async () => {

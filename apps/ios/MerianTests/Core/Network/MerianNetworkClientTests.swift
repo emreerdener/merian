@@ -267,27 +267,38 @@ struct MerianNetworkClientTests {
         #expect(MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
             responseProvesMissingSession: true,
             hasAuthenticatedOAuth: false,
-            isGuestUser: true
+            isGuestUser: true,
+            purchaseIdentityHandoffPending: false
         ))
         #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
             responseProvesMissingSession: false,
             hasAuthenticatedOAuth: false,
-            isGuestUser: true
+            isGuestUser: true,
+            purchaseIdentityHandoffPending: false
         ))
         #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
             responseProvesMissingSession: true,
             hasAuthenticatedOAuth: true,
-            isGuestUser: true
+            isGuestUser: true,
+            purchaseIdentityHandoffPending: false
         ))
         #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
             responseProvesMissingSession: true,
             hasAuthenticatedOAuth: false,
-            isGuestUser: false
+            isGuestUser: false,
+            purchaseIdentityHandoffPending: false
         ))
         #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
             responseProvesMissingSession: false,
             hasAuthenticatedOAuth: true,
-            isGuestUser: false
+            isGuestUser: false,
+            purchaseIdentityHandoffPending: false
+        ))
+        #expect(!MerianNetworkClient.shouldRegenerateSessionAfterUnauthorized(
+            responseProvesMissingSession: true,
+            hasAuthenticatedOAuth: false,
+            isGuestUser: true,
+            purchaseIdentityHandoffPending: true
         ))
     }
 

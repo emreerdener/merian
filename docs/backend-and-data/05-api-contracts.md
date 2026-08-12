@@ -6561,6 +6561,144 @@ endpoint rounds `gps_lat_public` coordinates to 11km tiles.
 
 ---
 
+## Deno `/transfer-signout-purchases` Edge Node
+
+Preserves StoreKit-backed access when a linked account explicitly signs out to
+one fresh anonymous Supabase account. The route accepts `POST` only, limits JSON
+to 2 KiB, and never accepts a source or destination UUID. `config.toml` uses
+`verify_jwt = false` so the gateway does not couple this route to one JWT signing
+scheme; `withEdgeHandler` still requires the Authorization header and resolves
+the live Supabase Auth user before the handler runs.
+
+### Prepare
+
+```json
+{ "operation": "prepare" }
+```
+
+Only a non-anonymous session may prepare. The handler fetches authoritative
+RevenueCat CustomerInfo for the caller's canonical uppercase UUID, excludes
+account-issued promotional/beta access, and snapshots only active
+StoreKit-backed access. A matching entitlement/product is insufficient:
+subscriptions and non-subscription transactions must carry RevenueCat v1's
+explicit `store: app_store` discriminator. Promotional subscription records use
+`store: promotional`; unknown or missing stores fail closed. A detached
+seven-day-pass history item is eligible only when the existing server projection
+confirms its exact active expiry, which prevents a refunded historical purchase
+from being resurrected.
+
+The server generates the 256-bit bearer secret and passes only its SHA-256 hash
+to the service-role issue RPC. The `201` response is `Cache-Control: no-store`:
+
+```json
+{
+  "success": true,
+  "handoff_id": "UUID",
+  "handoff_secret": "43-character base64url secret",
+  "expires_at": "RFC 3339 timestamp"
+}
+```
+
+iOS must persist that proof with
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and verify the write before
+closing the linked session. A prepare or Keychain failure leaves that session
+unchanged.
+
+### Bind and cancel
+
+```json
+{
+  "operation": "bind",
+  "handoff_id": "UUID returned by prepare",
+  "handoff_secret": "One-time URL-safe secret"
+}
+```
+
+Bind requires an anonymous JWT. The database derives the destination from
+`auth.uid()`, requires it to have been created no earlier than the proof, locks
+source and destination Auth rows in UUID order, rejects an active account-
+deletion job for either identity, and permits exactly one destination.
+Same-destination replay is idempotent. The capability
+expiry limits only the initial bind; a bound proof remains completable after
+that timestamp because the receipt may already have moved.
+
+`operation: "cancel"` uses the same proof fields and is allowed only while the
+restored linked source still owns an unbound `prepared` handoff. Cancellation is
+same-source idempotent. Bound or completed handoffs fail closed and cannot be
+discarded.
+
+Both operations return `200`, `success`, the same `handoff_id`, their operation
+timestamp, and an `already_bound` or `already_cancelled` replay flag.
+Bind also returns the database-derived `destination_user_id`; iOS must compare
+it with a freshly read anonymous session before any RevenueCat identity or
+receipt mutation.
+
+### Complete
+
+After bind, iOS links RevenueCat to the anonymous account's canonical uppercase
+UUID and calls `Purchases.syncPurchases()`. It then submits the same proof with
+`operation: "complete"`. The handler independently fetches destination
+CustomerInfo and requires its StoreKit horizon to cover the prepared horizon.
+If a finite prepared horizon elapsed while completion was pending, it also
+refreshes source CustomerInfo: a source renewal must be covered by the
+destination, while a source that is now free permits completion as free. The
+service-only completion RPC records the authenticated Edge boundary's
+authoritative destination snapshot and exact verified StoreKit tier/expiry in
+an idempotent receipt and makes the canonical source and destination
+reconciliation rows due; clients cannot mark a handoff verified directly. It
+never changes profile ownership, deletes the source, or grants entitlement. The
+service boundary then claims only the destination queue row and applies the
+prepared StoreKit horizon, or the exact destination state after that guarded
+natural-expiry check, through the existing lease-fenced reconciliation RPC.
+Detached pass history is excluded after expiry because passes cannot renew and
+purchase mutations remain fenced. If the response is lost, replay uses the
+immutable attested state and snapshot instead of depending on later mutable CustomerInfo; newer webhook/reconciliation
+watermarks still prevent stale access from being restored.
+
+Successful response: HTTP 200.
+
+```json
+{
+  "success": true,
+  "handoff_id": "UUID",
+  "completed_at": "RFC 3339 timestamp",
+  "already_completed": false
+}
+```
+
+The client removes the Keychain proof only after this response, a successful
+fresh entitlement read, and verification that the same anonymous session is
+still active. Temporary failure retains the proof and disables
+purchase/restore/redeem until relaunch or retry completes it.
+
+Error bodies use `{ "code": "...", "error": "..." }`.
+
+| HTTP | Code | Meaning / client action |
+| ---- | ---- | ----------------------- |
+| 400/413 | `invalid_request` | Malformed, oversized, or non-exact payload; do not retry unchanged |
+| 401 | shared auth error | Missing, invalid, expired, or non-live user JWT |
+| 403 | `linked_session_required` | Prepare/cancel requires the linked source |
+| 403 | `anonymous_session_required` | Bind/complete requires the anonymous destination |
+| 403 | `handoff_forbidden` | Authenticated caller does not own this transition |
+| 404 | `handoff_invalid` | Unknown, superseded, or wrong-destination proof; remove only this terminal proof |
+| 409 | `handoff_not_cancelable` | Receipt continuity is already bound; retain and complete on that destination |
+| 410 | `handoff_expired` | Unbound capability expired; remove the terminal proof |
+| 503 | `purchase_projection_pending` | Source pass/projection evidence is not yet safe; leave the linked session unchanged |
+| 503 | `purchase_transfer_pending` | Destination receipt state does not cover the active prepared horizon or a current source renewal; retain and retry |
+| 503 | `purchase_continuity_unavailable` / `handoff_temporarily_unavailable` | Provider, configuration, lock, or database dependency unavailable; retain and retry |
+
+The RevenueCat project must use **Transfer to new App User ID** restore behavior
+before a client with this route is released. This route transfers store receipt
+access only. Promotional and beta grants stay on the linked source account.
+
+The compatibility route must not be replaced with a direct RevenueCat V2
+customer transfer. That action cannot filter subscriptions by StoreKit versus
+promotion provenance and documents no idempotency key. The accepted long-term
+separation of Auth, purchase, and account-grant identity is in
+[`purchase-principal-auth-separation.md`](../rfcs/purchase-principal-auth-separation.md).
+
+---
+
 ## Deno `/merge-ghost-profile` Edge Node
 
 Securely transfers a Ghost profile only when direct OAuth identity linking
@@ -6809,6 +6947,12 @@ original `public.users` row. Auth metadata synchronization and trusted backend
 upserts therefore cannot restore a profile after cleanup but before the external
 Auth call. `/generate-upload-urls` also returns
 `409 account_deletion_in_progress`, preventing new signed writes during erasure.
+Deletion intake locks the Auth user and rejects either side of a bound handoff.
+An unbound proof has not authorized a RevenueCat mutation, so deletion may win
+without forcing a user who lost the originating device to wait for proof
+expiry. The reciprocal bind path locks the same Auth rows and rejects an active
+deletion job, so whichever transition wins is visible to the other without a
+destructive race.
 
 ### Responses
 
@@ -6823,6 +6967,9 @@ Auth call. `/generate-upload-urls` also returns
   removal notice before sign-out. This is a successful deletion request, not a
   prompt to submit another target.
 - `405 Method Not Allowed`: any method except `POST`.
+- `409 Conflict`, `{ "code": "purchase_continuity_pending", ... }`: this
+  identity participates in a bound, unresolved sign-out purchase handoff. No
+  deletion job or destructive work began; finish sign-out first.
 - `500 Internal Server Error`: durable intake itself failed, so no destructive
   work began.
 

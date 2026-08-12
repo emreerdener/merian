@@ -22,6 +22,10 @@ const HEALTHY_QUEUE: RevenueCatReconciliationHealth = {
   expiredClaimCount: 0,
   oldestDueAt: null,
   oldestDueAgeSeconds: null,
+  signoutPreparedCount: 0,
+  signoutBoundCount: 0,
+  oldestSignoutPendingAt: null,
+  oldestSignoutPendingAgeSeconds: null,
 };
 
 function pagedClaims(
@@ -302,5 +306,14 @@ Deno.test("oldest due age and expired leases drive health severity", () => {
       oldestDueAgeSeconds: 60 * 60,
     }),
     "critical",
+  );
+  assertEquals(
+    revenueCatReconciliationHealthStatus({
+      ...HEALTHY_QUEUE,
+      signoutBoundCount: 1,
+      oldestSignoutPendingAt: "2026-07-25T04:30:00.000Z",
+      oldestSignoutPendingAgeSeconds: 30 * 60,
+    }),
+    "warning",
   );
 });

@@ -880,7 +880,7 @@ Deno.test("fleet review inventory exactly matches configured Edge Functions", as
   assert(inventoryBlock, "Fleet review entrypoint inventory is missing.");
   const documented = inventoryBlock[1].trim().split(/\s+/).sort();
 
-  assertEquals(configured.length, 91);
+  assertEquals(configured.length, 92);
   assertEquals(documented, configured);
   assertStringIncludes(
     compact(reviewSource),
@@ -3512,6 +3512,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`insight-chat`",
       "`explore-post-chat`",
       "`request-community-identification`",
+      "`transfer-signout-purchases`",
       "`delete-scan`",
     ]
   ) {
@@ -3527,6 +3528,10 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`get_media_abandoned_scan_recovery_proofs`",
       "`reserve_field_chat_send`",
       "`recover_stale_field_chat_quota`",
+      "`issue_signout_purchase_handoff`",
+      "`complete_signout_purchase_handoff`",
+      "`claim_revenuecat_reconciliation_for_user`",
+      "`get_revenuecat_reconciliation_health`",
     ]
   ) {
     assertStringIncludes(runbook, routineName);
@@ -3538,7 +3543,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     backend,
-    "proving every real anon/publishable project credential remains denied from all seven routines.",
+    "proves every real anon/publishable project credential remains denied from all eleven routines.",
   );
   assertStringIncludes(
     runbook,
@@ -3546,15 +3551,15 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     runbook,
-    "separately probes eleven customer-critical routes",
+    "separately probes twelve customer-critical routes",
   );
   assertStringIncludes(
     backend,
-    "all eleven customer-critical scan, signing, share-state, Explore, Field Chat, Community, and deletion routes",
+    "all twelve customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
   );
   assertStringIncludes(
     incident,
-    "The following eleven customer-critical routes",
+    "The following twelve customer-critical routes",
   );
   assertStringIncludes(
     backend,
@@ -4219,6 +4224,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/species-dictionary/README.md",
     "services/supabase/functions/sync-collections/README.md",
     "services/supabase/functions/sync-community-taxonomy-index/README.md",
+    "services/supabase/functions/transfer-signout-purchases/README.md",
   ];
   const failures: string[] = [];
 

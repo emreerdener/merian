@@ -129,6 +129,21 @@ RevenueCat approval, while beta access is an explicit finite promotional `pro`
 grant. Once authoritative state is projected to Supabase, it includes Field
 Chat for the active period.
 
+Explicit linked-account sign-out uses the separate
+`transfer-signout-purchases` protocol. The authenticated source prepares a
+server-issued hashed capability before local sign-out; one fresh anonymous
+destination binds it, iOS synchronizes the App Store receipt under RevenueCat's
+**Transfer to new App User ID** behavior, and the server verifies and projects
+the prepared StoreKit horizon before the device removes its proof. If a finite
+horizon expires while synchronization is pending, the server rechecks the
+source and safely completes with the destination's current StoreKit state only
+after ruling out a missing renewal. Store
+purchases follow the signed-out identity. Promotional/beta access stays on the
+linked source, and the protocol never moves profile data or deletes that source.
+Deploy migration `20260812011914_add_signout_purchase_handoffs.sql` and the Edge
+Function before releasing a client that invokes it. Repository preparation does
+not authorize either deployment or a RevenueCat project mutation.
+
 Use the export-only comparison first:
 
 ```bash
@@ -138,9 +153,10 @@ make audit-revenuecat-customers ARGS='--supabase-users-csv /path/users.csv --rev
 The default console and JSON output contain counts only. `--review-csv` is an
 explicit identity-bearing local artifact and must be handled accordingly.
 
-After the stable-identity build has stopped creating new shells, generate an
-exact cleanup plan from a fresh users export, full Auth audit, RevenueCat export,
-and nonempty reviewed protected cohort:
+After the stable-identity build has stopped creating accidental shells outside
+explicit user sign-out, generate an exact cleanup plan from a fresh users
+export, full Auth audit, RevenueCat export, and nonempty reviewed protected
+cohort:
 
 ```bash
 make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --summary-json /tmp/revenuecat-cleanup-plan.json --review-csv /secure/revenuecat-cleanup-review.csv'
@@ -1502,11 +1518,12 @@ sweep repairs missed deliveries without granting a historical seven-day pass
 after a refund.
 
 The service-only `get_revenuecat_reconciliation_health()` RPC reports due and
-expired-claim counts plus oldest due age. A separate pinned-action GitHub
-monitor checks it every 15 minutes, fails on a 30-minute warning by default, and
-marks 60 minutes critical. It uses the existing Production
-`SUPABASE_ACCESS_TOKEN` to resolve the service-role key; no additional monitor
-secret is required.
+expired-claim counts, oldest queue age, unexpired prepared and all bound sign-out
+purchase handoffs, and oldest pending-handoff age. A separate pinned-action
+GitHub monitor checks both durable paths every 15 minutes, fails on a 30-minute
+warning by default, and marks 60 minutes critical. It uses the existing
+Production `SUPABASE_ACCESS_TOKEN` to resolve the service-role key; no additional
+monitor secret is required.
 
 Keep `revenueCatWebhookCoverage.test.ts`,
 `revenueCatWebhookMigrationContract.test.ts`, the route's focused unit tests,
@@ -1602,13 +1619,14 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls
-all eleven customer-critical scan, signing, share-state, Explore, Field Chat,
-Community, and deletion routes without Authorization until each returns
+all twelve customer-critical scan, signing, share-state, Explore, Field Chat,
+Community, identity-handoff, and deletion routes without Authorization until each returns
 fail-closed `401` with the fixed handler marker:
 `generate-upload-urls`, `identify-multimodal`, `check-scan-status`,
 `share-scan-to-explore`, `get-scan-explore-share-state`,
 `get-explore-composer-media`, `get-explore-media-incidents`, `insight-chat`,
-`explore-post-chat`, `request-community-identification`, and `delete-scan`. A
+`explore-post-chat`, `request-community-identification`,
+`transfer-signout-purchases`, and `delete-scan`. A
 platform `404` therefore cannot be mistaken for an application-level missing
 scan or a successful rollout. The RevenueCat reconciliation-health monitor uses
 that resolver and transport too. Do not replace the resolver with the CLI
@@ -2211,16 +2229,19 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for eleven
+followed by stricter fail-closed authorization probes for twelve
 customer-critical scan, signing, share-state, Explore media-incident, Field
-Chat, Community, and deletion routes.
+Chat, Community, identity-handoff, and deletion routes.
 It then reaches the exact no-write SQLSTATE `22023` boundary in
 `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
 `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
-`recover_stale_field_chat_quota` with server authority, while proving every
-real anon/publishable project credential remains denied from all seven
-routines.
+`recover_stale_field_chat_quota` with server authority. It also reaches the
+no-write validation boundaries for `issue_signout_purchase_handoff`,
+`complete_signout_purchase_handoff`, and
+`claim_revenuecat_reconciliation_for_user`, validates the aggregate-only
+`get_revenuecat_reconciliation_health` response, and proves every real
+anon/publishable project credential remains denied from all eleven routines.
 
 This verifies PostgREST schema-cache readiness and production grants without
 creating a fixture or logging a response body. Database migrations still run

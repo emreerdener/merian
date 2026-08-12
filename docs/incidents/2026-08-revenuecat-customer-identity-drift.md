@@ -7,6 +7,23 @@ run from this workspace: the current RevenueCat export, full Supabase Auth
 audit, frozen beta/protected cohort, exact dry-run digest/count, project ID, and
 server credential are still required as operation evidence.
 
+That focused-test statement records the 2026-08-09 correction set. It predates
+the account UX change below and is not evidence for its live sign-out,
+RevenueCat, Apple, or Google paths.
+
+**Account UX update (2026-08-11):** The presentation-only **Continue as Ghost**
+flow is retired. User-facing **Sign out** prepares and device-persists a
+server-issued StoreKit handoff before closing the linked session, binds exactly
+one fresh anonymous identity, synchronizes the receipt, and succeeds only after
+authoritative destination verification and server entitlement refresh. The
+anonymous Profile offers **Continue with Apple** and **Continue with Google**.
+Receipt-backed access follows sign-out; account-issued beta/promotional access
+stays on the linked source and is not cloned. That explicit action is an
+authorized rotation and does not weaken the generic-`401`
+identity-preservation rule. The migration, Edge route, and iOS code are source
+changes only until candidate validation, deployment, Restore-behavior review,
+and live provider smokes are recorded.
+
 ## Summary
 
 An active RevenueCat Pro entitlement and `public.users.subscription_tier =
@@ -29,11 +46,11 @@ replacement UUID to RevenueCat. Repeated route failures could therefore
 manufacture a chain of empty customers. Customer-count parity is not a
 correctness invariant.
 
-The long-term correction is one durable, case-exact customer identity per
-logical Merian user; provider-owned Pro entitlement state; optional login that
-does not require abandoning Ghost mode; an explicit beta cohort; and exact
-cleanup of only provider shells proven empty after new identity creation has
-stopped.
+The long-term correction is one durable, case-exact customer identity per active
+Supabase user; provider-owned Pro entitlement state; identity rotation only
+after explicit user sign-out or authoritative session loss; an explicit beta
+cohort; and exact cleanup of only provider shells proven empty after accidental
+identity creation has stopped.
 
 ## User-visible impact
 
@@ -97,14 +114,19 @@ The invariant applies to signed-in and Supabase-anonymous Ghost sessions. A
 Ghost UUID is still a custom RevenueCat ID; it is not a RevenueCat-generated
 anonymous ID.
 
-Login is optional presentation and credential linkage, not customer creation.
-`Continue as Ghost` keeps the private Supabase session and UUID underneath the
-UI, so logging in and later returning to Ghost mode leaves database ownership,
-offline state, and the RevenueCat customer unchanged. That presentation shows a
-local **Resume linked account** action instead of Apple/Google account-switch
-buttons; resuming removes only the same-UUID marker. A true Supabase sign-out
-cannot recover the same anonymous Auth account and is reserved for account
-deletion, revoked credentials, or authoritative invalid-session recovery.
+Login is optional credential linkage. User-facing **Sign out** performs a local
+Supabase sign-out only after its one-use purchase proof is durably prepared.
+One fresh anonymous UUID binds the proof; RevenueCat is linked to that custom
+UUID, `syncPurchases()` reposts the StoreKit receipt, and the server verifies
+the prepared horizon before the client clears the proof. A finite horizon that
+expires while pending is revalidated against current source and destination
+StoreKit state, so natural expiry can finish without masking a renewal.
+Temporary failures survive relaunch and disable purchase mutations until completion. The anonymous
+Profile offers **Continue with Apple** and **Continue with Google**. First-time
+linkage retains the active anonymous UUID. When the provider already belongs to
+another account, the provider-bound conflict flow merges the signed-out
+activity into that account and restores its identity. Generic `401` responses
+still cannot rotate identity.
 
 - iOS configures RevenueCat only after a Supabase UUID exists and passes the
   uppercase UUID to `Purchases.configure` or `Purchases.logIn`.
@@ -597,9 +619,19 @@ The incident can be closed only when:
 - Supabase projection and RevenueCat CustomerInfo agree for the sampled and
   aggregate cohort;
 - Field Chat succeeds for an entitled completed-scan and completed-post fixture;
-- Ghost purchasing works without account creation, normal OAuth linking retains
-  the same UUID, generic `401` responses do not rotate it, and the
-  existing-account conflict path has a proven provider handoff;
+- Ghost purchasing works without account creation; with Supabase and RevenueCat
+  reachable and RevenueCat Restore behavior set to **Transfer to new App User
+  ID**, explicit sign-out of an active StoreKit subscriber completes with
+  exactly one replacement anonymous identity and matching custom RevenueCat ID,
+  never a `$RCAnonymousID`, and preserves the prepared entitlement horizon in
+  Supabase; a promo-only source does not clone access; forced prepare,
+  Keychain-persist, anonymous-bootstrap, receipt-sync, completion, and
+  entitlement-refresh failures retain the correct session/proof and surface an
+  incomplete transition; relaunch resumes a bound proof even after its pre-bind
+  expiry timestamp; normal first-time OAuth linking retains the same UUID;
+  generic `401` responses do not rotate it; and both Apple and Google
+  existing-account conflict paths have a proven provider handoff in separate
+  clean sign-out cycles;
 - the reconciliation cron is restored and health remains normal through the
   agreed observation window; and
 - every normal cleanup candidate has a retained terminal result, with no

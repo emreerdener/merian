@@ -9,9 +9,13 @@ struct DeleteAccountSheet: View {
     @State private var confirmationText: String = ""
     @State private var isDeleting: Bool = false
     @State private var errorMessage: String?
+
+    private var purchaseContinuityPending: Bool {
+        RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+    }
     
     var isDeleteEnabled: Bool {
-        confirmationText == "DELETE"
+        confirmationText == "DELETE" && !purchaseContinuityPending
     }
 
     var body: some View {
@@ -60,6 +64,9 @@ struct DeleteAccountSheet: View {
                 } footer: {
                     if let errorMessage = errorMessage {
                         Text(errorMessage)
+                            .foregroundColor(.red)
+                    } else if purchaseContinuityPending {
+                        Text("Finish signing out before deleting this account.")
                             .foregroundColor(.red)
                     } else {
                         Text("Type the word DELETE in all caps to enable account deletion.")
@@ -114,6 +121,10 @@ struct DeleteAccountSheet: View {
     }
     
     private func performDeletion() async {
+        guard !supabase.hasPendingPurchaseIdentityHandoffFailClosed() else {
+            errorMessage = "Finish signing out before deleting this account."
+            return
+        }
         isDeleting = true
         errorMessage = nil
         
@@ -127,7 +138,12 @@ struct DeleteAccountSheet: View {
             dismiss() // the parent view will catch the sign out and pop out to root
         } catch {
             MerianLog.general.error("Account deletion failed: \(error.localizedDescription, privacy: .public)")
-            errorMessage = "Failed to delete account. Please try again or contact support."
+            if MerianNetworkClient.stableEdgeErrorCode(from: error)
+                == "purchase_continuity_pending" {
+                errorMessage = "Finish signing out before deleting this account."
+            } else {
+                errorMessage = "Failed to delete account. Please try again or contact support."
+            }
             isDeleting = false
         }
     }

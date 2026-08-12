@@ -5,7 +5,12 @@ struct DangerZone: View {
     @Binding var showDeleteConfirmation: Bool
     var onCacheCleared: ((Bool) -> Void)?
 
-    @State private var showGhostModeConfirmation = false
+    @State private var showSignOutConfirmation = false
+    @State private var showSignOutError = false
+
+    private var purchaseContinuityPending: Bool {
+        RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+    }
 
     var body: some View {
         Section {
@@ -18,22 +23,25 @@ struct DangerZone: View {
 
             if !supabase.isGuestUser {
                 Button {
-                    showGhostModeConfirmation = true
+                    showSignOutConfirmation = true
                 } label: {
-                    Label("Continue as Ghost", systemImage: "theatermasks")
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .foregroundColor(.red)
                 .confirmationDialog(
-                    "Continue as Ghost on this device?",
-                    isPresented: $showGhostModeConfirmation,
+                    "Are you sure you want to sign out?",
+                    isPresented: $showSignOutConfirmation,
                     titleVisibility: .visible
                 ) {
-                    Button("Continue as Ghost") {
-                        performContinueAsGhost()
+                    Button("Sign out", role: .destructive) {
+                        Task { await performSignOut() }
                     }
                     Button("Cancel", role: .cancel) { }
+                }
+                .alert("Sign out incomplete", isPresented: $showSignOutError) {
+                    Button("OK", role: .cancel) { }
                 } message: {
-                    Text("Your Naturebook user, scans, Pro access, and purchases stay with the same private account. This does not delete data or revoke the linked sign-in provider.")
+                    Text("Naturebook couldn't finish signing you out. Check your connection and try again.")
                 }
             }
 
@@ -42,7 +50,19 @@ struct DangerZone: View {
             } label: {
                 Label("Delete account & data", systemImage: "trash.fill")
             }
+            .disabled(purchaseContinuityPending)
             .foregroundColor(.red)
+            .accessibilityHint(
+                purchaseContinuityPending
+                    ? "Finish signing out before deleting this account."
+                    : "Permanently deletes this account and its account-owned data."
+            )
+
+            if purchaseContinuityPending {
+                Text("Finish signing out before deleting this account.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -82,7 +102,9 @@ struct DangerZone: View {
         }
     }
 
-    private func performContinueAsGhost() {
-        _ = supabase.continueAsGhost()
+    private func performSignOut() async {
+        if !(await supabase.transitionToGhostSession()) {
+            showSignOutError = true
+        }
     }
 }

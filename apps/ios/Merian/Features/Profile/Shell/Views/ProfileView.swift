@@ -16,6 +16,7 @@ struct ProfileView: View {
     @State private var isShowingAvatarPicker = false
     @State private var isShowingDisplayNameEditor = false
     @State private var isShowingUsernameEditor = false
+    @State private var isShowingSignOutError = false
 
     /// Maps `ProfileTab` into the optional binding required by `.scrollPosition(id:)`.
     private var tabSelectionBinding: Binding<ProfileTab?> {
@@ -46,6 +47,11 @@ struct ProfileView: View {
             .scrollPosition(id: tabSelectionBinding)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { profileToolbar }
+            .alert("Sign out incomplete", isPresented: $isShowingSignOutError) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Naturebook couldn't finish signing you out. Check your connection and try again.")
+            }
             .onAppear {
                 viewModel.fetchGeoprivacy()
             }
@@ -103,10 +109,14 @@ struct ProfileView: View {
             }
 
             if !viewModel.isGuestUser {
-                Button {
-                    _ = viewModel.continueAsGhost()
+                Button(role: .destructive) {
+                    Task {
+                        if !(await viewModel.signOut()) {
+                            isShowingSignOutError = true
+                        }
+                    }
                 } label: {
-                    Label("Continue as Ghost", systemImage: "theatermasks")
+                    Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
             }
         } label: {

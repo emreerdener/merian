@@ -3964,8 +3964,76 @@ schedule-restoration evidence are defined in the
 
 `public.get_revenuecat_reconciliation_health()` is a service-role-only
 `SECURITY DEFINER` routine with an empty search path and an in-body caller
-check. It reports due/expired counts and oldest due age through the two partial
-indexes; API roles retain no direct queue access.
+check. It reports due/expired queue counts and oldest due age through the two
+queue partial indexes. The sign-out handoff migration extends the same aggregate
+row with unexpired prepared and all bound handoff counts plus oldest pending age
+through the pending-age partial index. API roles retain no direct queue or proof
+access, and the monitor receives no user or handoff IDs.
+
+### `internal.signout_purchase_handoffs`
+
+Migration `20260812011914_add_signout_purchase_handoffs.sql` adds the private
+purchase-continuity capability used only by explicit linked-account sign-out.
+It does not reparent application data, merge profiles, delete Auth users, or
+mirror account-issued promotional access.
+
+Each row stores the linked `source_user_id`, one nullable anonymous
+`destination_user_id`, a unique SHA-256 `secret_hash`, the authoritative source
+snapshot time, the exact expected StoreKit tier/expiry, status and transition
+timestamps, and—after completion—the exact verified destination StoreKit
+tier/expiry alongside its provider snapshot time. Status is `prepared`,
+`bound`, `completed`, `superseded`, or `expired`. Partial unique indexes permit
+one active source proof and one bound or completed receipt per destination. The
+30-day expiry limits only an unbound capability; after bind, completion remains
+retryable because receipt ownership may already have changed.
+
+The table has RLS enabled and no direct privilege for `PUBLIC`, `anon`,
+`authenticated`, or `service_role`. Public-schema RPC names are Data API
+entrypoints with `SECURITY DEFINER`, an empty search path, finite statement
+timeouts, explicit grants, and privileged-routine catalog entries:
+
+- `issue_signout_purchase_handoff(...)` is service-role-only. The authenticated
+  Edge boundary supplies its already-derived linked source and authoritative
+  RevenueCat snapshot; the client cannot forge either.
+- `bind_signout_purchase_handoff(uuid,text)` and
+  `cancel_signout_purchase_handoff(uuid,text)` are authenticated. Bind derives
+  its anonymous destination from `auth.uid()`; cancel derives and verifies the
+  restored linked source and works only before bind.
+- `complete_signout_purchase_handoff(uuid,text,uuid,bigint,text,timestamptz)` is
+  service-role-only.
+  The authenticated Edge boundary supplies its live-user-derived destination
+  and authoritative RevenueCat snapshot plus exact verified StoreKit tier and
+  expiry. For an active prepared horizon, Edge caps this attestation to that
+  horizon. If a finite prepared horizon has already elapsed, Edge first
+refreshes the source and requires the destination to cover its current state,
+allowing either a verified renewal or natural expiry to free. Detached pass
+history is excluded from this post-expiry comparison because passes cannot
+renew while purchase mutations are fenced. The RPC locks both surviving
+`public.users` parents before RevenueCat queue rows in sorted
+  UUID order, records that immutable attestation in an idempotent receipt, and
+  resets canonical source/destination reconciliation rows to immediately due.
+  It never grants entitlement itself.
+- `claim_revenuecat_reconciliation_for_user(uuid)` is service-role-only and
+  leases exactly one due customer for the foreground Edge completion. The
+  existing claim-token-fenced apply/fail routines remain the only entitlement
+  mutation boundary.
+
+Issue, bind/cancel, and complete serialize on the same per-source advisory key.
+Bind additionally locks both Auth identities in UUID order and requires the
+anonymous destination's Auth creation timestamp to be no earlier than the
+proof. External
+RevenueCat calls and StoreKit synchronization occur outside these database
+transactions.
+
+Forward migration
+`20260812032543_harden_signout_purchase_handoff_interlocks.sql` serializes bind
+against durable account deletion on the same Auth rows. Either side of a bound
+handoff is not a deletion candidate. Before binding, deletion may win without
+stranding a device-lost proof; bind then observes the active deletion job and
+performs no RevenueCat identity mutation. The bound destination is also an explicit
+`signout_purchase_handoff_active` blocker for empty-anonymous inspection, and a
+database trigger rejects guest-profile merge preparation or consumption until
+handoff completion. These interlocks do not delete, reparent, or grant data.
 
 ### Guarded empty-Ghost deletion intake
 

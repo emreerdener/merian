@@ -253,3 +253,27 @@ Deno.test("ghost merge database errors expose guarded schema drift as 503", () =
     assertStringIncludes(mapped.message, "guest data is unchanged");
   }
 });
+
+Deno.test("ghost merge cannot consume a bound sign-out purchase destination", () => {
+  const mapped = mapDatabaseError(
+    {
+      code: "55P03",
+      message: "signout_purchase_handoff_pending",
+      details: "",
+      hint: "",
+      name: "PostgrestError",
+      toJSON: () => ({
+        name: "PostgrestError",
+        code: "55P03",
+        message: "signout_purchase_handoff_pending",
+        details: "",
+        hint: "",
+      }),
+    },
+    "fallback",
+  );
+
+  assertEquals(mapped.code, "purchase_handoff_pending");
+  assertEquals(mapped.status, 409);
+  assertStringIncludes(mapped.message, "Finish signing out");
+});

@@ -61,6 +61,11 @@ means relational cleanup, delayed R2 verification, and Auth removal were already
 fully complete; a new request normally returns `202` because the durable
 server-side reaper must sweep and later verify storage before deleting Auth.
 Both responses are safe points for local sign-out and device-data cleanup.
+While sign-out purchase continuity is pending, the Settings action and
+confirmation button remain disabled. The server independently returns
+`409 purchase_continuity_pending` so a stale or second client cannot delete the
+source or exact bound anonymous destination; the user must finish sign-out
+first.
 
 Every successful response must also contain
 `manual_provider_revocation_required`. When true, `DeleteAccountSheet` records

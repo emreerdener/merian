@@ -185,6 +185,19 @@ final class merianUITests: XCTestCase {
         let profileOptions = app.navigationBars.buttons["ProfileToolbarOptions"]
         XCTAssertTrue(profileOptions.waitForExistence(timeout: 8.0), "Profile options did not appear in the top toolbar")
 
+        XCTAssertTrue(
+            app.buttons["Continue with Apple"].waitForExistence(timeout: 4.0),
+            "Anonymous Profile did not offer Continue with Apple"
+        )
+        XCTAssertTrue(
+            app.buttons["Continue with Google"].exists,
+            "Anonymous Profile did not offer Continue with Google"
+        )
+        XCTAssertFalse(
+            app.buttons["Continue as Ghost"].exists,
+            "Retired Ghost copy must not return to the user-facing account UI"
+        )
+
         let settingsTab = app.segmentedControls.buttons["Settings"]
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 4.0), "Settings tab did not appear")
         settingsTab.tap()

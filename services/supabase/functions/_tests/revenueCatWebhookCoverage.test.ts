@@ -152,6 +152,7 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       'values.get("fail-on") ?? "warning"',
       "expired_claim_count > 0",
       "oldestDueAgeSeconds >= criticalAfterMinutes * 60",
+      "oldest_signout_pending_age_seconds",
     ]
   ) {
     assertStringIncludes(script, fragment);

@@ -15,6 +15,10 @@ const HEALTHY: RevenueCatReconciliationHealth = {
   expired_claim_count: 0,
   oldest_due_at: null,
   oldest_due_age_seconds: null,
+  signout_prepared_count: 0,
+  signout_bound_count: 0,
+  oldest_signout_pending_at: null,
+  oldest_signout_pending_age_seconds: null,
 };
 
 Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
@@ -71,6 +75,17 @@ Deno.test("assertRevenueCatReconciliationHealth validates one consistent row", (
     oldest_due_age_seconds: 2_700,
   };
   assertEquals(assertRevenueCatReconciliationHealth([backlog]), backlog);
+  const {
+    signout_prepared_count: _prepared,
+    signout_bound_count: _bound,
+    oldest_signout_pending_at: _pendingAt,
+    oldest_signout_pending_age_seconds: _pendingAge,
+    ...legacyHealth
+  } = HEALTHY;
+  assertEquals(
+    assertRevenueCatReconciliationHealth([legacyHealth]),
+    HEALTHY,
+  );
   assertThrows(() => assertRevenueCatReconciliationHealth([]));
   assertThrows(() =>
     assertRevenueCatReconciliationHealth([{
@@ -82,6 +97,12 @@ Deno.test("assertRevenueCatReconciliationHealth validates one consistent row", (
     assertRevenueCatReconciliationHealth([{
       ...HEALTHY,
       due_count: -1,
+    }])
+  );
+  assertThrows(() =>
+    assertRevenueCatReconciliationHealth([{
+      ...legacyHealth,
+      signout_bound_count: 1,
     }])
   );
 });
@@ -122,6 +143,19 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
     ),
     "critical",
   );
+  assertEquals(
+    revenueCatBacklogStatus(
+      {
+        ...HEALTHY,
+        signout_bound_count: 1,
+        oldest_signout_pending_at: "2026-07-26T03:00:00.000Z",
+        oldest_signout_pending_age_seconds: 30 * 60,
+      },
+      30,
+      60,
+    ),
+    "warning",
+  );
 });
 
 Deno.test("shouldFailRevenueCatMonitor honors the configured severity", () => {
@@ -153,5 +187,7 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
   assertStringIncludes(markdown, "- Due rows: `7`");
   assertStringIncludes(markdown, "- Expired claims: `1`");
   assertStringIncludes(markdown, "- Oldest due age: `2700s`");
-  assertStringIncludes(markdown, "Do not edit subscription tiers directly");
+  assertStringIncludes(markdown, "- Bound sign-out handoffs: `0`");
+  assertStringIncludes(markdown, "Do not edit subscription tiers");
+  assertStringIncludes(markdown, "discard bound proofs");
 });

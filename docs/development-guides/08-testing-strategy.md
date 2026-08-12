@@ -3544,15 +3544,40 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   advancement. Keep this test in the disposable-database deployment gate
   alongside `privileged_routine_security.sql` and `ai_quota_security.sql`.
 
-The source-level grant, stable-purchase-identity, and unauthorized-recovery P1
-matrix above is implemented.
+The source-level grant, stable-purchase-identity, unauthorized-recovery, and
+user-sign-out ordering matrix above is implemented. iOS unit seams prove
+prepare-and-Keychain persistence precedes local sign-out, failure before that
+point leaves the linked session intact, post-sign-out order is bind → canonical
+RevenueCat link → `syncPurchases()` → server completion → entitlement refresh →
+session verification → proof removal, and temporary failure retains the proof.
+RevenueCat policy tests prove purchase mutations stay disabled while that proof
+is pending. Edge tests prove StoreKit-only snapshotting, explicit
+`store: app_store` admission, `store: promotional` and missing-store exclusion,
+pass-history fencing, destination coverage, guarded natural expiry, source-
+renewal blocking, immutable completed replay, cancellation, and foreground
+reconciliation order. The static migration contract and
+`tests/signout_purchase_handoff_security.sql` cover grants, caller-derived
+identities, one-destination replay, source-only unbound cancellation, bound
+completion after the pre-bind expiry, fresh-destination enforcement, deletion
+and anonymous-cleanup interlocks, profile-merge rejection, deletion-before-bind
+serialization, canonical queueing, and absence of profile movement or direct
+entitlement grant. Unauthorized-recovery policy tests require a pending proof
+to preserve the exact Auth session, and auth-listener policy tests require bind
+before external identity linking. These tests do not prove a live StoreKit
+receipt transfer, RevenueCat project Restore behavior, or either OAuth provider.
 The canonical-ID/beta rollout remains release-evidence-blocked until one exact
 revision also supplies both of the following:
 
 1. A staged Ghost purchase plus normal OAuth link proving the UUID and Pro state
-   remain stable, a generic-`401` case proving no identity rotation, and an
-   existing-account conflict pair proving the configured store-transfer
-   behavior. Beta promotion remains limited to the reviewed permanent cohort.
+   remain stable; a generic-`401` case proving no identity rotation; a healthy
+   active-paid **Sign out** producing exactly one fresh
+   Supabase-anonymous/custom-RevenueCat UUID pair, no `$RCAnonymousID`, and the
+   same StoreKit entitlement horizon; a promo-only sign-out proving no grant is
+   cloned; forced prepare/bootstrap/sync/complete failures proving durable retry
+   and mutation fencing; relaunch completion; and separate **Continue with
+   Apple** and **Continue with Google** existing-account conflict cycles proving
+   the configured store-transfer behavior. Beta promotion remains limited to
+   the reviewed permanent cohort.
 2. A complete disposable PostgreSQL replay and all catalog tests under the
    pinned Supabase CLI. Static migration contracts and green iOS/TypeScript unit
    tests do not replace this evidence.

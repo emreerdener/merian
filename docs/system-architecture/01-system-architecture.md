@@ -441,12 +441,17 @@ single-responsibility functions under `/services/supabase/functions/`.
   - The source path now uses explicit-cohort selection, accepts successful GET
     `200|201`, permits provider mutation only on the exact linked stable Ghost
     or permanent custom ID, and preserves that ID on generic `401` responses.
-    Ghosts may purchase and receive beta grants. User-facing Continue as Ghost
-    retains the same linked UUID, while an existing-account conflict preserves
-    and verifies provider access before source Auth cleanup. Prelaunch provider
-    cleanup is limited to an exact digest/count batch of live-revalidated empty
-    shells and never deletes Supabase data. Grant and cleanup apply still require
-    the exact provider-operation evidence in the
+    Ghosts may purchase and receive beta grants. User-facing **Sign out** first
+    persists a server-issued, hashed-capability StoreKit handoff, then binds one
+    new anonymous UUID and succeeds only after receipt synchronization and
+    authoritative destination reconciliation. Store purchases follow the
+    signed-out identity; beta/promotional grants stay on the linked source.
+    **Continue with Apple** or **Continue with Google** links the anonymous UUID
+    or enters the existing-account conflict flow, which preserves and verifies
+    provider access before source Auth
+    cleanup. Prelaunch provider cleanup is limited to an exact digest/count batch
+    of live-revalidated empty shells and never deletes Supabase data. Grant and
+    cleanup apply still require the exact provider-operation evidence in the
     [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### 6. Continuous Gamification Ecosystem (`GamificationManager`)

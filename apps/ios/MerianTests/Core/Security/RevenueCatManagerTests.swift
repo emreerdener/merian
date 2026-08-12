@@ -8,10 +8,12 @@ final class RevenueCatManagerTests: XCTestCase {
 
     override func setUp() async throws {
         revenueCatManager = RevenueCatManager.shared
+        revenueCatManager.setPurchaseIdentityHandoffPending(false)
         EntitlementManager.shared.resetForTesting()
     }
 
     override func tearDown() async throws {
+        revenueCatManager.setPurchaseIdentityHandoffPending(false)
         revenueCatManager = nil
     }
 
@@ -143,6 +145,27 @@ final class RevenueCatManagerTests: XCTestCase {
                 identityReady: true,
                 requestedAccountKind: "anonymous",
                 linkedAccountKind: "authenticated"
+            )
+        )
+    }
+
+    func testRevenueCatPurchaseMutationPolicyFailsClosedDuringIdentityHandoff() {
+        XCTAssertTrue(
+            RevenueCatPurchaseMutationPolicy.isReady(
+                providerIdentityReady: true,
+                identityHandoffPending: false
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatPurchaseMutationPolicy.isReady(
+                providerIdentityReady: true,
+                identityHandoffPending: true
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatPurchaseMutationPolicy.isReady(
+                providerIdentityReady: false,
+                identityHandoffPending: false
             )
         )
     }

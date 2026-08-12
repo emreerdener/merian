@@ -3,7 +3,9 @@ import { SEVEN_DAY_PASS_PRODUCT_ID } from "../_shared/subscriptionPass.ts";
 import { RevenueCatWebhookEvent } from "./protocol.ts";
 import {
   deriveRevenueCatEntitlementState,
+  deriveRevenueCatStoreEntitlementState,
   fetchRevenueCatCustomerInfo,
+  revenueCatAccessCovers,
   RevenueCatApiError,
   RevenueCatCustomerInfo,
 } from "./subscriber.ts";
@@ -216,6 +218,137 @@ Deno.test("periodic repair cannot restore a pass after a free watermark", () => 
   );
 
   assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
+Deno.test("store access includes a matching active subscription product", () => {
+  const state = deriveRevenueCatStoreEntitlementState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "pro_annual",
+          expires_date: "2026-08-23T12:00:00.000Z",
+        },
+      },
+      subscriptions: {
+        pro_annual: {
+          expires_date: "2026-08-23T12:00:00.000Z",
+          store: "app_store",
+        },
+      },
+      non_subscriptions: {},
+    }),
+  );
+
+  assertEquals(state, {
+    targetTier: "pro",
+    expiresAt: "2026-08-23T12:00:00.000Z",
+  });
+});
+
+Deno.test("store access excludes a promotional subscription record", () => {
+  const state = deriveRevenueCatStoreEntitlementState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "rc_promo_pro_lifetime",
+          expires_date: null,
+        },
+      },
+      subscriptions: {
+        rc_promo_pro_lifetime: {
+          expires_date: null,
+          store: "promotional",
+        },
+      },
+      non_subscriptions: {},
+    }),
+  );
+
+  assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
+Deno.test("store access fails closed when the purchase store is absent", () => {
+  const state = deriveRevenueCatStoreEntitlementState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "pro_annual",
+          expires_date: "2026-08-23T12:00:00.000Z",
+        },
+      },
+      subscriptions: {
+        pro_annual: {
+          expires_date: "2026-08-23T12:00:00.000Z",
+        },
+      },
+      non_subscriptions: {},
+    }),
+  );
+
+  assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
+Deno.test("store access includes a matching lifetime non-subscription", () => {
+  const state = deriveRevenueCatStoreEntitlementState(
+    customerInfo({
+      entitlements: {
+        "Naturalist Tier": {
+          product_identifier: "naturalist_lifetime",
+          expires_date: null,
+        },
+      },
+      subscriptions: {},
+      non_subscriptions: {
+        naturalist_lifetime: [{
+          id: "lifetime-transaction",
+          purchase_date: "2026-07-20T12:00:00.000Z",
+          store: "app_store",
+        }],
+      },
+    }),
+  );
+
+  assertEquals(state, { targetTier: "pro", expiresAt: null });
+});
+
+Deno.test("store access can exclude detached pass history pending a database fence", () => {
+  const info = customerInfo({
+    entitlements: {},
+    subscriptions: {},
+    non_subscriptions: {
+      pro_week: [{
+        id: "pass-transaction",
+        purchase_date: "2026-07-22T12:00:00.000Z",
+        store: "app_store",
+      }],
+    },
+  });
+
+  assertEquals(
+    deriveRevenueCatStoreEntitlementState(info, false),
+    { targetTier: "free", expiresAt: null },
+  );
+  assertEquals(
+    deriveRevenueCatStoreEntitlementState(info, true),
+    { targetTier: "pro", expiresAt: "2026-07-29T12:00:00.000Z" },
+  );
+});
+
+Deno.test("access coverage compares finite and lifetime horizons", () => {
+  assertEquals(
+    revenueCatAccessCovers(
+      { targetTier: "pro", expiresAt: null },
+      { targetTier: "pro", expiresAt: "2026-08-23T12:00:00.000Z" },
+    ),
+    true,
+  );
+  assertEquals(
+    revenueCatAccessCovers(
+      { targetTier: "pro", expiresAt: "2026-08-22T12:00:00.000Z" },
+      { targetTier: "pro", expiresAt: "2026-08-23T12:00:00.000Z" },
+    ),
+    false,
+  );
 });
 
 Deno.test("CustomerInfo fetch uses the server API key and validates the snapshot", async () => {

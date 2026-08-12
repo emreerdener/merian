@@ -457,6 +457,7 @@ Deno.test("production smoke proves every Edge route reaches a Merian handler", a
       "get-explore-media-incidents",
       "insight-chat",
       "request-community-identification",
+      "transfer-signout-purchases",
     ]
   ) {
     assertStringIncludes(deployWorkflow, criticalRoute);

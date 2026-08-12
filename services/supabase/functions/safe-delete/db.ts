@@ -47,6 +47,17 @@ type AccountDeletionClaimRow = {
   claim_expires_at: string;
 };
 
+export class AccountDeletionIntakeError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AccountDeletionIntakeError";
+  }
+}
+
 export async function requestAccountDeletion(
   userId: string,
   supabaseAdmin: SupabaseClient,
@@ -57,6 +68,17 @@ export async function requestAccountDeletion(
   );
 
   if (error) {
+    if (
+      error.message.toLowerCase().includes(
+        "signout_handoff_destination_deletion_blocked",
+      )
+    ) {
+      throw new AccountDeletionIntakeError(
+        "purchase_continuity_pending",
+        409,
+        "Finish signing out before deleting this account.",
+      );
+    }
     throw new Error(`Could not persist account deletion: ${error.message}`);
   }
 

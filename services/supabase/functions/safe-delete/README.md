@@ -46,7 +46,12 @@ dispatches another AI request for it.
 1. `request_account_deletion(user_id)` inserts or returns the active `pending`
    job. This durable receipt is always the first mutation. It records Apple
    provider work as `pending`, `manual_required`, or `not_required` and returns
-   the durable manual-fallback disposition.
+   the durable manual-fallback disposition. It first locks the Auth user and
+   rejects either side of a bound sign-out purchase handoff with
+   `409 purchase_continuity_pending`; no deletion job is written in that case.
+   An unbound proof does not strand deletion if its device is lost: deletion
+   may win before binding, and the reciprocal bind path then rejects the active
+   deletion job before any RevenueCat identity mutation.
 2. `claim_account_deletion_jobs(...)` assigns a five-minute UUID lease using
    `FOR UPDATE SKIP LOCKED`.
 3. Every account claim, including a later `auth_pending` retry, calls

@@ -32,8 +32,9 @@ Merian.
 | `SUPABASE_PUBLISHABLE_KEYS`                        | Supabase Edge server env                                                       | Hosted JSON dictionary for user-scoped project clients; its keys are public but its shape is server runtime config |
 | `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
 | `Merian_HasAuthenticatedOAuth`                     | `KeychainManager` (`kSecClassGenericPassword`)                                | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                            |
-| `Merian_GhostModeUserID_v1`                        | `KeychainManager` (`kSecClassGenericPassword`)                                | Same-UUID app presentation marker; keeps the private linked session and billing identity while the UI returns to Ghost mode |
+| `Merian_GhostModeUserID_v1`                        | `KeychainManager` (`kSecClassGenericPassword`)                                | Retired presentation-only logout marker; upgraded clients delete it during startup and never use it to shape account UI     |
 | `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
+| `Merian_PendingSignOutPurchaseHandoff_v1`          | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes |
 | `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
 | Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
 | Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
@@ -392,12 +393,21 @@ UUID is passed to RevenueCat and PostHog; RevenueCat also receives subscriber
 attributes such as auth email, public username, public display name, and account
 kind for manual support lookup.
 
-After OAuth linkage, `Merian_GhostModeUserID_v1` may hold that same Supabase UUID
-when the user chooses **Continue as Ghost**. It does not contain a token and does
-not revoke or replace the SDK-managed Supabase session. It is accepted only when
-it matches the current session UUID, and true sign-out/deletion removes it. This
-is what allows login to remain optional without changing the database or
-RevenueCat owner.
+Older builds could store the linked Supabase UUID in
+`Merian_GhostModeUserID_v1` to mask an authenticated session as anonymous in the
+UI. That presentation-only flow is retired. Supporting builds delete the marker
+during `SupabaseManager` startup and never consult it for account presentation.
+User-facing **Sign out** now performs the local Auth transition before requesting
+a fresh anonymous session only after a one-use purchase handoff has been written
+and read back from `Merian_PendingSignOutPurchaseHandoff_v1`. The server stores
+only the SHA-256 secret hash; the raw 256-bit verifier never leaves the device
+and authenticated handoff requests. The client removes it only after the fresh
+anonymous Supabase UUID is the exact linked RevenueCat custom ID, StoreKit
+receipt synchronization succeeds, the server verifies and projects the
+destination CustomerInfo, and the current entitlement read succeeds. Temporary
+failures and app termination retain the proof and keep purchase mutations
+disabled. A restored source session asks the server to cancel the proof and may
+clear it only if no anonymous destination was bound.
 
 ---
 

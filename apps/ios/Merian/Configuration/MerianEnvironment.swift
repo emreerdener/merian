@@ -17,7 +17,7 @@ enum MerianEnvironment {
                 return "SUPABASE_URL is invalid: \(value)"
             case .productionSupabaseInDebugSimulator(let host):
                 return "Debug simulator is using production Supabase; avoid fresh installs or " +
-                "cleared sessions unless you intend to create a test ghost user: \(host)."
+                "cleared sessions unless you intend to create a test anonymous user: \(host)."
             }
         }
     }

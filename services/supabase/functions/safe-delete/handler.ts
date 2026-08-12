@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { jsonResponse, logStructuredError } from "../_shared/edgeHandler.ts";
-import { requestAccountDeletion } from "./db.ts";
+import { AccountDeletionIntakeError, requestAccountDeletion } from "./db.ts";
 import {
   type AccountDeletionWorkerResult,
   processAccountDeletionJobs,
@@ -33,7 +33,19 @@ export async function handleSafeDelete(
 
   // This durable write is the first mutation. If it fails, neither relational
   // cleanup nor Auth deletion is attempted.
-  const deletion = await request(userId, supabaseAdmin);
+  let deletion: Awaited<ReturnType<typeof requestAccountDeletion>>;
+  try {
+    deletion = await request(userId, supabaseAdmin);
+  } catch (error) {
+    if (error instanceof AccountDeletionIntakeError) {
+      return jsonResponse(
+        { code: error.code, error: error.message },
+        error.status,
+        { "Cache-Control": "private, no-store" },
+      );
+    }
+    throw error;
+  }
   if (deletion.status === "completed") {
     return completedResponse(deletion.manualProviderRevocationRequired);
   }

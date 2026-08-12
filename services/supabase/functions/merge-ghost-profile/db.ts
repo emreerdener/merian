@@ -225,6 +225,15 @@ export function mapDatabaseError(
     );
   }
 
+  if (normalized.includes("signout_purchase_handoff_pending")) {
+    return new GhostMergeDatabaseError(
+      "purchase_handoff_pending",
+      409,
+      "Finish signing out before upgrading this account.",
+      internalMessage,
+    );
+  }
+
   if (
     normalized.includes("ghost_merge_schema_") ||
     normalized.includes("ghost_merge_unhandled_reference") ||

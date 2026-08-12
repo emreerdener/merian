@@ -88,6 +88,7 @@ const EXPECTED_DIRECT_SUPABASE_CLIENT_BOUNDARIES = [
   "_shared/claimsAuth.ts",
   "_shared/serviceRoleClient.ts",
   "merge-ghost-profile/db.ts",
+  "transfer-signout-purchases/db.ts",
 ];
 
 const EXPECTED_PUBLIC_KEY_CONSUMERS = [
@@ -95,6 +96,7 @@ const EXPECTED_PUBLIC_KEY_CONSUMERS = [
   "_shared/claimsAuth.ts",
   "merge-ghost-profile/db.ts",
   "species-observation-stats/security.ts",
+  "transfer-signout-purchases/db.ts",
 ];
 
 function isProductionTypeScript(path: string): boolean {

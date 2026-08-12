@@ -22,8 +22,8 @@ struct ProfileViewModelTests {
         #expect(viewModel.displayName == "River Wren")
     }
 
-    @Test("Ghost presentation hides provider-derived names")
-    func testGhostPresentationHidesProviderName() async throws {
+    @Test("Guest accounts hide provider-derived names")
+    func testGuestAccountHidesProviderName() async throws {
         let viewModel = ProfileViewModel()
         viewModel.publicAuthorName = "Provider Name"
         viewModel.publicIdentitySource = "oauth"

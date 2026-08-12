@@ -1417,9 +1417,13 @@ final class MerianNetworkClient {
     static func shouldRegenerateSessionAfterUnauthorized(
         responseProvesMissingSession: Bool,
         hasAuthenticatedOAuth: Bool,
-        isGuestUser: Bool
+        isGuestUser: Bool,
+        purchaseIdentityHandoffPending: Bool
     ) -> Bool {
-        responseProvesMissingSession && !hasAuthenticatedOAuth && isGuestUser
+        responseProvesMissingSession &&
+            !hasAuthenticatedOAuth &&
+            isGuestUser &&
+            !purchaseIdentityHandoffPending
     }
 
     #if DEBUG
@@ -1670,12 +1674,16 @@ final class MerianNetworkClient {
 
                     let hasAuthenticatedOAuth = KeychainManager.shared.bool(forKey: KeychainKeys.hasAuthenticatedOAuth)
                     let isGuest = await SupabaseManager.shared.isGuestUser
+                    let purchaseIdentityHandoffPending = await SupabaseManager
+                        .shared.hasPendingPurchaseIdentityHandoffFailClosed()
                     if Self.shouldRegenerateSessionAfterUnauthorized(
                         responseProvesMissingSession: true,
                         hasAuthenticatedOAuth: hasAuthenticatedOAuth,
-                        isGuestUser: isGuest
+                        isGuestUser: isGuest,
+                        purchaseIdentityHandoffPending:
+                            purchaseIdentityHandoffPending
                     ) {
-                        MerianLog.network.debug("Missing anonymous auth session detected — regenerating ghost session.")
+                        MerianLog.network.debug("Missing anonymous auth session detected — regenerating anonymous session.")
                         if await SupabaseManager.shared.resetGhostSessionForRetry() {
                             try await Task.sleep(nanoseconds: 1_500_000_000)
                             return try await performAuthenticatedRequest(
@@ -1692,7 +1700,14 @@ final class MerianNetworkClient {
                             )
                         }
 
-                        await SupabaseManager.shared.clearLocalSessionAfterAuthFailure()
+                        // Re-read after the reset attempt. A handoff may have
+                        // become durable between the policy check and the
+                        // attempted rotation; never clear that exact session.
+                        if !(await SupabaseManager.shared
+                            .hasPendingPurchaseIdentityHandoffFailClosed()) {
+                            await SupabaseManager.shared
+                                .clearLocalSessionAfterAuthFailure()
+                        }
                     } else {
                         MerianLog.network.debug("Auth session recovery failed for authenticated user; preserving local session.")
                     }

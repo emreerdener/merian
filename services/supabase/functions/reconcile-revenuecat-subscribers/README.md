@@ -64,10 +64,12 @@ lookup before making it immediately due.
 
 The independent `.github/workflows/revenuecat-reconciliation-health-monitor.yml`
 check runs every 15 minutes. It fails by default when the oldest
-unclaimed/expired due row is at least 30 minutes old or any lease has expired,
-and marks 60 minutes as critical. It writes JSON and Markdown artifacts without
-exposing subscriber identities. A failed RPC or network check also fails the
-monitor.
+unclaimed/expired due row or pending sign-out purchase handoff is at least 30
+minutes old, or any lease has expired, and marks 60 minutes as critical. It
+writes JSON and Markdown artifacts without exposing subscriber, handoff, source,
+or destination identities. A failed RPC or network check also fails the monitor.
+Sign-out telemetry counts unexpired prepared proofs and every bound proof;
+expired unbound bearer capabilities are terminal and do not alert forever.
 
 For an alert, inspect the worker's structured `revenuecat_reconciliation_health`
 event and the queue's bounded `last_error_code`/attempt state with the

@@ -33,6 +33,10 @@ export interface RevenueCatReconciliationHealth {
   expired_claim_count: number;
   oldest_due_at: string | null;
   oldest_due_age_seconds: number | null;
+  signout_prepared_count: number;
+  signout_bound_count: number;
+  oldest_signout_pending_at: string | null;
+  oldest_signout_pending_age_seconds: number | null;
 }
 
 export interface RevenueCatMonitorSummary {
@@ -118,11 +122,45 @@ export function assertRevenueCatReconciliationHealth(
       row.oldest_due_age_seconds,
       "oldest_due_age_seconds",
     );
+  const hasSignoutHealth = [
+    "signout_prepared_count",
+    "signout_bound_count",
+    "oldest_signout_pending_at",
+    "oldest_signout_pending_age_seconds",
+  ].some((field) => row[field] !== undefined);
+  const signoutPreparedCount = hasSignoutHealth
+    ? nonnegativeInteger(
+      row.signout_prepared_count,
+      "signout_prepared_count",
+    )
+    : 0;
+  const signoutBoundCount = hasSignoutHealth
+    ? nonnegativeInteger(row.signout_bound_count, "signout_bound_count")
+    : 0;
+  const oldestSignoutPendingAt = !hasSignoutHealth ||
+      row.oldest_signout_pending_at === null
+    ? null
+    : timestamp(
+      row.oldest_signout_pending_at,
+      "oldest_signout_pending_at",
+    );
+  const oldestSignoutPendingAgeSeconds = !hasSignoutHealth ||
+      row.oldest_signout_pending_age_seconds === null
+    ? null
+    : nonnegativeInteger(
+      row.oldest_signout_pending_age_seconds,
+      "oldest_signout_pending_age_seconds",
+    );
+  const signoutPendingCount = signoutPreparedCount + signoutBoundCount;
 
   if (
     (oldestDueAt === null) !== (oldestDueAgeSeconds === null) ||
     (dueCount === 0 && oldestDueAt !== null) ||
-    (dueCount > 0 && oldestDueAt === null)
+    (dueCount > 0 && oldestDueAt === null) ||
+    (oldestSignoutPendingAt === null) !==
+      (oldestSignoutPendingAgeSeconds === null) ||
+    (signoutPendingCount === 0 && oldestSignoutPendingAt !== null) ||
+    (signoutPendingCount > 0 && oldestSignoutPendingAt === null)
   ) {
     throw new Error(
       "RevenueCat reconciliation health response is inconsistent.",
@@ -135,6 +173,10 @@ export function assertRevenueCatReconciliationHealth(
     expired_claim_count: expiredClaimCount,
     oldest_due_at: oldestDueAt,
     oldest_due_age_seconds: oldestDueAgeSeconds,
+    signout_prepared_count: signoutPreparedCount,
+    signout_bound_count: signoutBoundCount,
+    oldest_signout_pending_at: oldestSignoutPendingAt,
+    oldest_signout_pending_age_seconds: oldestSignoutPendingAgeSeconds,
   };
 }
 
@@ -143,7 +185,10 @@ export function revenueCatBacklogStatus(
   warningAfterMinutes: number,
   criticalAfterMinutes: number,
 ): RevenueCatBacklogStatus {
-  const oldestDueAgeSeconds = health.oldest_due_age_seconds ?? 0;
+  const oldestDueAgeSeconds = Math.max(
+    health.oldest_due_age_seconds ?? 0,
+    health.oldest_signout_pending_age_seconds ?? 0,
+  );
   if (oldestDueAgeSeconds >= criticalAfterMinutes * 60) {
     return "critical";
   }
@@ -196,6 +241,10 @@ export function renderRevenueCatMonitorMarkdown(
   const oldestDueAge = summary.health.oldest_due_age_seconds === null
     ? "none"
     : `${summary.health.oldest_due_age_seconds}s`;
+  const oldestSignoutAge = summary.health
+      .oldest_signout_pending_age_seconds === null
+    ? "none"
+    : `${summary.health.oldest_signout_pending_age_seconds}s`;
   return [
     "# RevenueCat Reconciliation Health",
     "",
@@ -213,6 +262,12 @@ export function renderRevenueCatMonitorMarkdown(
     `- Expired claims: \`${summary.health.expired_claim_count}\``,
     `- Oldest due at: \`${summary.health.oldest_due_at ?? "none"}\``,
     `- Oldest due age: \`${oldestDueAge}\``,
+    `- Prepared sign-out handoffs: \`${summary.health.signout_prepared_count}\``,
+    `- Bound sign-out handoffs: \`${summary.health.signout_bound_count}\``,
+    `- Oldest pending sign-out at: \`${
+      summary.health.oldest_signout_pending_at ?? "none"
+    }\``,
+    `- Oldest pending sign-out age: \`${oldestSignoutAge}\``,
     "",
     "## Thresholds",
     "",
@@ -223,7 +278,7 @@ export function renderRevenueCatMonitorMarkdown(
     "",
     summary.status === "ok"
       ? "No action required."
-      : "Inspect the reconciliation Edge logs and queue error codes; repair provider/database configuration and let claim-fenced retries drain the queue. Do not edit subscription tiers directly.",
+      : "Inspect the reconciliation and sign-out purchase-handoff Edge logs, queue error codes, and pending handoff age; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers or discard bound proofs directly.",
     "",
   ].join("\n");
 }

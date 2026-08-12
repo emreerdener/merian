@@ -6,6 +6,17 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Account & Pro Access
+
+- Restored a real **Sign out** action and the anonymous Profile's **Continue
+  with Apple** and **Continue with Google** choices, with no internal identity
+  terminology exposed in the UI.
+- Signing out now secures StoreKit purchase continuity before replacing the
+  local account, verifies the receipt and server entitlement on the fresh
+  anonymous identity, and keeps retries durable across relaunches. Account-issued
+  beta or promotional access stays with the linked account instead of being
+  duplicated.
+
 ### More Reliable Links, Notifications, and Sheets
 
 - Shared links, notification taps, Siri actions, Field trip destinations, and
@@ -1907,8 +1918,7 @@ TestFlight, App Store, support, and QA.
 ### Scans
 
 - Fixed newly empty scan libraries showing a blank screen instead of the
-  first-scan empty state, including after switching from a previously signed-in
-  account to a ghost session.
+  first-scan empty state, including after signing out to an anonymous session.
 - Improved offline queue reliability so image, video, audio, and description
   scans keep retry state across app restarts, show retry/needs-attention status,
   and no longer discard user media after a fixed number of transient failures.

@@ -977,9 +977,9 @@ authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`,
 and `KeychainManager` migration logic. Do not inline
 `"Merian_HasAuthenticatedOAuth"`.
 
-`KeychainKeys.ghostModeUserID` is the single source of truth for the same-UUID
-Ghost presentation marker. It never replaces the Supabase SDK session and is
-valid only for the currently active UUID.
+`KeychainKeys.legacyGhostModeUserID` names the retired same-UUID presentation
+marker only so upgraded clients can delete it. Account presentation no longer
+consults that Keychain entry.
 
 ### `FieldNotesRepository`
 
@@ -1307,11 +1307,20 @@ valid only for the currently active UUID.
   on the destination, then synchronizes the store receipt under the tested
   RevenueCat transfer behavior.
 - **`ghostSessionTask` single-flight**:
-  `@ObservationIgnored private var ghostSessionTask: Task<Void, Never>?` —
-  serializes anonymous session creation across all callers. This closes the
+  `@ObservationIgnored private var ghostSessionTask: Task<User?, Never>?` —
+  serializes anonymous session creation across all callers and returns the
+  resolved Supabase user to each waiter. This closes the
   suspension-window race where multiple `getValidAuthHeaders()` calls could each
   enter `initializeGhostSession()` and perform overlapping `signInAnonymously()`
   requests.
+- **Sign-out purchase handoff single-flight**:
+  `signOutPurchaseHandoffTask` converges the interactive flow and auth-listener
+  relaunch recovery on one anonymous destination. The exact order is bind →
+  RevenueCat link → `syncPurchases()` → authoritative server verification and
+  reconciliation → Merian entitlement refresh → same-session verification →
+  verified Keychain removal. `isPurchaseIdentityHandoffPending` keeps
+  purchase/restore/redeem disabled until the final removal. The source-side
+  cancel path succeeds only while the database receipt is still `prepared`.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -1361,14 +1370,19 @@ valid only for the currently active UUID.
   Pro horizon, and blocks source Auth deletion on any failure. The durable client
   calls `syncPurchases()` before local evidence rebind and proof removal. Ghosts
   may purchase, restore, redeem, and receive reviewed beta grants.
-- `continueAsGhost()` is ordinary login-optional UX. It keeps the current private
-  Supabase session and UUID while presenting the account as Ghost, preserving
-  RevenueCat, PostHog ownership, app data, and purchases. In that state the UI
-  calls `resumeLinkedAccount()` rather than a provider sign-in, preventing an
-  accidental account switch. True local-scope `signOut()` clears those fences
-  only for account deletion or authoritative credential invalidation; global
-  sign-out remains inappropriate for a local transition because it revokes other
-  active devices too.
+- User-facing **Sign out** calls `transitionToGhostSession()`: local-scope
+  `signOut()` closes authenticated request admission only after
+  `/transfer-signout-purchases` snapshots StoreKit-backed access and the client
+  persists its device-only proof. One fresh anonymous identity binds that proof,
+  becomes the exact RevenueCat custom UUID, synchronizes the StoreKit receipt,
+  receives server-verified reconciliation, and refreshes Merian entitlement
+  state before the proof is removed. The proof and a RevenueCat purchase fence
+  survive temporary failure or relaunch. A restored source may cancel only an
+  unbound proof. Promotional/beta access stays account-bound and is never cloned.
+  The anonymous Profile offers **Continue with Apple** and **Continue with
+  Google**. Account deletion calls low-level `signOut()` without replacement or
+  purchase transfer. Global sign-out remains inappropriate because it would
+  revoke other active devices.
 
 ### `DetachedWork`
 

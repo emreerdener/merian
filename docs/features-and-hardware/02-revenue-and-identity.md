@@ -42,15 +42,13 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   missing/invalid-session contract after a Supabase SDK refresh also fails.
   This prevents a failing route from creating a chain of Supabase Ghost users
   and matching RevenueCat customer shells.
-- Exposes `isGuestUser` through `AccountPresentationPolicy`. It is true for a
-  Supabase-anonymous session and for a linked session whose same UUID is in
-  app-level Ghost mode. This lets login remain optional without revoking the
-  private session that owns the user's scans, preferences, and RevenueCat
-  customer.
+- Exposes `isGuestUser` through `AccountPresentationPolicy`. It is true only
+  when the active Supabase session is anonymous or no session is available. A
+  linked session is always presented as linked.
 - **Identity Resolution & OAuth**: Merian uses standard Apple
   (`ASAuthorizationAppleIDProvider`) and Google (`GIDSignIn`) iOS libraries to
   authenticate without web-view redirects.
-  - When a user taps "Sign in with Apple", iOS acquires the raw
+  - When a user taps **Continue with Apple**, iOS acquires the raw
     cryptographically signed `.idToken` and the one-use authorization code.
     After Supabase installs the permanent session, the authenticated
     `register-apple-revocation-token` route verifies both Apple identity tokens,
@@ -78,7 +76,7 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     generate a nonce, cannot find a presentation anchor yet, or receives a
     callback after the nonce was cleared, `SupabaseManager` logs the failure and
     cancels the auth attempt instead of crashing the app.
-  - When a user taps "Sign in with Google", iOS boots the
+  - When a user taps **Continue with Google**, iOS boots the
     ASWebAuthenticationSession. The application intercepts the callback scheme
     inside `<MerianApp>.onOpenURL` via `GIDSignIn.sharedInstance.handle(url)`,
     preventing Google deep-links from being consumed by Supabase Magic Link
@@ -145,20 +143,41 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
     scan history and loads it into local SwiftData structures.
-  - User-facing **Continue as Ghost** calls `continueAsGhost()`. It records the
-    same linked UUID in `Merian_GhostModeUserID_v1` and changes presentation only;
-    Supabase, RevenueCat, app data, and purchase access keep the same owner. True
-    linked Ghost mode exposes only **Resume linked account**, which removes that
-    marker locally instead of offering a provider action that could switch
-    users. `signOut()` uses Supabase `.local` scope and clears provider fences
-    without calling `Purchases.logOut()`; it is reserved for account deletion,
-    revoked credentials, or authoritative invalid-session recovery, not ordinary
-    login-optional UX.
+  - User-facing **Sign out** calls `transitionToGhostSession()`. It uses Supabase
+    `.local` scope only after `/transfer-signout-purchases` has read
+    authoritative RevenueCat CustomerInfo, intersected StoreKit-backed access
+    with the current server projection, and the client has durably persisted a
+    one-use proof. One fresh anonymous Supabase identity binds the proof, becomes
+    the exact uppercase RevenueCat custom ID, calls `syncPurchases()`, and waits
+    for authoritative destination verification/reconciliation plus a fresh
+    Merian entitlement read. The Keychain proof is removed last; temporary
+    failure is retryable across relaunch and purchase mutations remain disabled.
+    A restored linked source can cancel only an unbound proof. The Profile then
+    offers **Continue with Apple** and **Continue with Google**. Account deletion
+    calls low-level `signOut()` without replacement or purchase transfer, but is
+    disabled and server-rejected while a proof remains pending. Confirmed-
+    missing-session recovery also preserves the exact bound destination rather
+    than rotating it. Anonymous bootstrap cannot link RevenueCat before bind.
+  - Sign-out transfers only receipt-backed StoreKit access under RevenueCat's
+    required **Transfer to new App User ID** behavior. Account-issued
+    promotional/beta grants remain attached to the linked source and are not
+    duplicated. The server requires RevenueCat v1's explicit
+    `store: app_store` purchase discriminator; promotional subscription records
+    use `store: promotional`, and unknown or missing stores fail closed. A
+    detached seven-day pass must match the database's authoritative expiry;
+    stale/refunded purchase history cannot establish a handoff.
+  - This custom-ID handoff is a compatibility boundary. The accepted long-term
+    design separates Supabase authentication identity, a stable StoreKit
+    purchase principal, and Supabase-owned account grants; see
+    [`purchase-principal-auth-separation.md`](../rfcs/purchase-principal-auth-separation.md).
+    RevenueCat V2 customer transfer is not an allowed shortcut because it cannot
+    isolate mixed promotional and StoreKit subscription history and has no
+    documented request idempotency key.
   - The authenticated-session marker is centralized under
     `KeychainKeys.hasAuthenticatedOAuth`. Do not inline the legacy string key in
-    auth or network code. The Ghost presentation marker is centralized under
-    `KeychainKeys.ghostModeUserID` and is valid only when it matches the current
-    Supabase UUID.
+    auth or network code. The retired presentation-only marker is referenced as
+    `KeychainKeys.legacyGhostModeUserID` solely so upgraded clients can delete it
+    during startup.
 
 ## Paywalls and Entitlements (`RevenueCatManager`)
 

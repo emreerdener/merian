@@ -35,8 +35,35 @@ export interface RevenueCatEntitlementState {
   expiresAt: string | null;
 }
 
+/**
+ * Returns whether one active access horizon fully covers another. A null Pro
+ * expiration is lifetime; a free source requires no destination access.
+ */
+export function revenueCatAccessCovers(
+  target: RevenueCatEntitlementState,
+  source: RevenueCatEntitlementState,
+): boolean {
+  if (source.targetTier === "free") return true;
+  if (target.targetTier !== "pro") return false;
+  if (target.expiresAt === null) return true;
+  if (source.expiresAt === null) return false;
+  const targetExpiration = Date.parse(target.expiresAt);
+  const sourceExpiration = Date.parse(source.expiresAt);
+  return Number.isFinite(targetExpiration) &&
+    Number.isFinite(sourceExpiration) &&
+    targetExpiration >= sourceExpiration;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAppStorePurchaseRecord(value: unknown): boolean {
+  // RevenueCat v1 uses the lowercase `app_store` discriminator. Promotional
+  // grants are represented as subscription records with `store: promotional`,
+  // so presence in `subscriptions` alone is not evidence of a StoreKit receipt.
+  // Unknown or missing stores fail closed at the sign-out transfer boundary.
+  return isRecord(value) && value.store === "app_store";
 }
 
 /**
@@ -118,6 +145,7 @@ function activePassExpiration(
   subscriber: Record<string, unknown>,
   snapshotAtMs: number,
   event: RevenueCatWebhookEvent | undefined,
+  requireAppStoreTransaction = false,
 ): number | null {
   const nonSubscriptions = subscriber.non_subscriptions;
   if (!isRecord(nonSubscriptions)) return null;
@@ -139,6 +167,11 @@ function activePassExpiration(
 
   for (const transaction of transactions) {
     if (!isRecord(transaction)) continue;
+    if (
+      requireAppStoreTransaction && !isAppStorePurchaseRecord(transaction)
+    ) {
+      continue;
+    }
     const transactionId = typeof transaction.id === "string"
       ? transaction.id
       : null;
@@ -280,6 +313,92 @@ export function deriveRevenueCatEntitlementState(
   }
 
   return { targetTier: "free", expiresAt: null };
+}
+
+/**
+ * Derives only active access backed by an App Store/StoreKit transaction.
+ * RevenueCat promotional grants can appear in both `entitlements` and
+ * `subscriptions`, but their subscription record uses `store: promotional`.
+ * Requiring an explicit `store: app_store` purchase record prevents a normal
+ * app sign-out from cloning account-bound beta/operator access onto a second
+ * customer. Unknown or missing stores fail closed. The detached `pro_week`
+ * StoreKit purchase remains eligible only with the same App Store evidence.
+ */
+export function deriveRevenueCatStoreEntitlementState(
+  customerInfo: RevenueCatCustomerInfo,
+  allowNonSubscriptionPassGrant = true,
+): RevenueCatEntitlementState {
+  const subscriptions = isRecord(customerInfo.subscriber.subscriptions)
+    ? customerInfo.subscriber.subscriptions
+    : {};
+  const nonSubscriptions = isRecord(
+      customerInfo.subscriber.non_subscriptions,
+    )
+    ? customerInfo.subscriber.non_subscriptions
+    : {};
+  const entitlements = customerInfo.subscriber.entitlements;
+  let latestExpiration: number | undefined;
+
+  if (isRecord(entitlements)) {
+    for (const [entitlementId, entitlement] of Object.entries(entitlements)) {
+      if (!PAID_ENTITLEMENT_IDS.has(entitlementId) || !isRecord(entitlement)) {
+        continue;
+      }
+      const productIdentifier = entitlement.product_identifier;
+      const subscription = typeof productIdentifier === "string"
+        ? subscriptions[productIdentifier]
+        : undefined;
+      const nonSubscriptionPurchases = typeof productIdentifier === "string"
+        ? nonSubscriptions[productIdentifier]
+        : undefined;
+      const hasAppStorePurchase = isAppStorePurchaseRecord(subscription) ||
+        (Array.isArray(nonSubscriptionPurchases) &&
+          nonSubscriptionPurchases.some(isAppStorePurchaseRecord));
+      if (
+        typeof productIdentifier !== "string" ||
+        productIdentifier.length === 0 ||
+        !hasAppStorePurchase
+      ) {
+        continue;
+      }
+
+      const expiration = activeEntitlementExpiration(
+        entitlement,
+        customerInfo.requestDateMs,
+      );
+      if (expiration === null) {
+        return { targetTier: "pro", expiresAt: null };
+      }
+      if (
+        expiration !== undefined &&
+        (latestExpiration === undefined || expiration > latestExpiration)
+      ) {
+        latestExpiration = expiration;
+      }
+    }
+  }
+
+  const passExpiration = allowNonSubscriptionPassGrant
+    ? activePassExpiration(
+      customerInfo.subscriber,
+      customerInfo.requestDateMs,
+      undefined,
+      true,
+    )
+    : null;
+  if (
+    passExpiration !== null &&
+    (latestExpiration === undefined || passExpiration > latestExpiration)
+  ) {
+    latestExpiration = passExpiration;
+  }
+
+  return latestExpiration === undefined
+    ? { targetTier: "free", expiresAt: null }
+    : {
+      targetTier: "pro",
+      expiresAt: new Date(latestExpiration).toISOString(),
+    };
 }
 
 export async function fetchRevenueCatCustomerInfo(

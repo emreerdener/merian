@@ -1,8 +1,13 @@
 import { fetchWithDeadline } from "../_shared/outbound.ts";
 import {
+  canonicalRevenueCatAppUserID as canonicalRevenueCatAppUserIDShared,
+  RevenueCatIdentityError,
+} from "../_shared/revenuecatIdentity.ts";
+import {
   deriveRevenueCatEntitlementState,
   fetchRevenueCatCustomerInfo,
   readRevenueCatCustomerInfoResponse,
+  revenueCatAccessCovers,
   RevenueCatApiError,
   type RevenueCatCustomerInfo,
   type RevenueCatEntitlementState,
@@ -11,8 +16,6 @@ import {
 const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
 const REVENUECAT_REQUEST_TIMEOUT_MS = 10_000;
 const PRO_ENTITLEMENT_ID = "pro";
-const CANONICAL_UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type RevenueCatGhostMergeAccessStatus =
   | "source_free"
@@ -36,19 +39,16 @@ export class RevenueCatGhostMergeError extends Error {
   }
 }
 
-/**
- * RevenueCat App User IDs are case-sensitive. Database UUIDs are emitted in
- * lowercase by Postgres, while Merian's only provider identity is uppercase.
- */
 export function canonicalRevenueCatAppUserID(value: string): string {
-  const normalized = value.trim();
-  if (!CANONICAL_UUID_PATTERN.test(normalized)) {
+  try {
+    return canonicalRevenueCatAppUserIDShared(value);
+  } catch (error) {
+    if (!(error instanceof RevenueCatIdentityError)) throw error;
     throw new RevenueCatGhostMergeError(
       "revenuecat_invalid_app_user_id",
       "Ghost merge contained an invalid RevenueCat App User ID.",
     );
   }
-  return normalized.toUpperCase();
 }
 
 export async function preserveRevenueCatAccessForGhostMerge(
@@ -122,7 +122,7 @@ export async function transferRevenueCatAccessForGhostMerge(
     fetcher,
   );
   const targetAccess = deriveRevenueCatEntitlementState(targetInfo);
-  if (accessCovers(targetAccess, sourceAccess)) {
+  if (revenueCatAccessCovers(targetAccess, sourceAccess)) {
     return "target_already_covers";
   }
 
@@ -133,28 +133,13 @@ export async function transferRevenueCatAccessForGhostMerge(
     fetcher,
   });
   const grantedAccess = deriveRevenueCatEntitlementState(grantedInfo);
-  if (!accessCovers(grantedAccess, sourceAccess)) {
+  if (!revenueCatAccessCovers(grantedAccess, sourceAccess)) {
     throw new RevenueCatGhostMergeError(
       "revenuecat_grant_not_preserved",
       "RevenueCat did not confirm the Ghost account's Pro horizon on the target.",
     );
   }
   return "granted";
-}
-
-function accessCovers(
-  target: RevenueCatEntitlementState,
-  source: RevenueCatEntitlementState,
-): boolean {
-  if (source.targetTier === "free") return true;
-  if (target.targetTier !== "pro") return false;
-  if (target.expiresAt === null) return true;
-  if (source.expiresAt === null) return false;
-  const targetExpiration = Date.parse(target.expiresAt);
-  const sourceExpiration = Date.parse(source.expiresAt);
-  return Number.isFinite(targetExpiration) &&
-    Number.isFinite(sourceExpiration) &&
-    targetExpiration >= sourceExpiration;
 }
 
 async function grantMatchingProHorizon(input: {

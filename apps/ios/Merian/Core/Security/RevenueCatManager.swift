@@ -81,6 +81,15 @@ enum RevenueCatAccountMutationPolicy {
     }
 }
 
+enum RevenueCatPurchaseMutationPolicy {
+    static func isReady(
+        providerIdentityReady: Bool,
+        identityHandoffPending: Bool
+    ) -> Bool {
+        providerIdentityReady && !identityHandoffPending
+    }
+}
+
 enum RevenueCatManagerError: LocalizedError {
     case identityNotReady
 
@@ -171,6 +180,10 @@ struct RevenueCatIdentityContext: Equatable {
     private var requestedAppUserID: String?
     private(set) var linkedAccountKind: String?
     private var requestedAccountKind: String?
+    /// A device-durable StoreKit identity transfer is unresolved. RevenueCat
+    /// may already be linked to the destination, but user-initiated provider
+    /// mutations remain disabled until the server verifies continuity.
+    private(set) var isPurchaseIdentityHandoffPending = false
 
     /// RevenueCat and the active Supabase session agree on the exact canonical
     /// custom identity. This includes both Ghost and permanent accounts.
@@ -184,7 +197,14 @@ struct RevenueCatIdentityContext: Equatable {
     /// permanent accounts may purchase.
     var isPurchaseIdentityReady: Bool {
         guard let linkedAppUserID else { return false }
-        return isCurrentProviderMutationIdentity(linkedAppUserID)
+        return RevenueCatPurchaseMutationPolicy.isReady(
+            providerIdentityReady: isCurrentProviderMutationIdentity(linkedAppUserID),
+            identityHandoffPending: isPurchaseIdentityHandoffPending
+        )
+    }
+
+    func setPurchaseIdentityHandoffPending(_ pending: Bool) {
+        isPurchaseIdentityHandoffPending = pending
     }
 
     private func isCurrentIdentity(_ appUserID: String) -> Bool {
@@ -430,7 +450,8 @@ struct RevenueCatIdentityContext: Equatable {
 
     private func providerMutationAppUserID() throws -> String {
         guard let appUserID = linkedAppUserID,
-              isCurrentProviderMutationIdentity(appUserID) else {
+              isCurrentProviderMutationIdentity(appUserID),
+              !isPurchaseIdentityHandoffPending else {
             throw RevenueCatManagerError.identityNotReady
         }
         return appUserID
@@ -452,18 +473,34 @@ struct RevenueCatIdentityContext: Equatable {
         updateEntitlements(with: info)
     }
 
-    /// Reposts the current App Store receipt after a durable Ghost-profile
-    /// merge. Under Merian's required RevenueCat `Transfer` restore behavior,
-    /// this moves store ownership to the already-linked target UUID without a
-    /// user-facing restore prompt. Promotional and pass access are also
-    /// mirrored server-side before the old Ghost Auth identity is retired.
-    func synchronizePurchasesAfterAccountMerge() async throws {
-        let appUserID = try providerMutationAppUserID()
+    /// Reposts the current App Store receipt during a trusted, device-durable
+    /// identity handoff. This deliberately bypasses only the user-purchase
+    /// mutation fence; the exact canonical RevenueCat identity and account
+    /// kind must already match the active Supabase session.
+    func synchronizePurchasesAfterIdentityHandoff(
+        expectedUserId: UUID? = nil
+    ) async throws {
+        guard let appUserID = linkedAppUserID,
+              isCurrentProviderMutationIdentity(appUserID),
+              (expectedUserId.map({
+                  RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
+              }) ?? true) else {
+            throw RevenueCatManagerError.identityNotReady
+        }
         let info = try await Purchases.shared.syncPurchases()
-        guard isCurrentProviderMutationIdentity(appUserID) else {
+        guard isCurrentProviderMutationIdentity(appUserID),
+              (expectedUserId.map({
+                  RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
+              }) ?? true) else {
             throw RevenueCatManagerError.identityNotReady
         }
         updateEntitlements(with: info)
+    }
+
+    /// Backward-compatible name for the guest-profile merge caller. The merge
+    /// and sign-out protocols share only this exact-identity StoreKit sync.
+    func synchronizePurchasesAfterAccountMerge() async throws {
+        try await synchronizePurchasesAfterIdentityHandoff()
     }
 
     /// Presents Apple's offer-code redemption sheet only for the exact linked

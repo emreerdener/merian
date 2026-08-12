@@ -632,14 +632,20 @@ of provider truth, not beta-membership data or a support toggle. Customer totals
 need not match Supabase profiles, and provider history is never deleted merely
 to normalize counts.
 
-A Ghost UUID is a first-class lifetime customer identity. It can purchase,
-restore, redeem, and receive reviewed beta Pro without login. OAuth normally
-links credentials to that same UUID. Returning to Ghost presentation keeps the
-private linked Supabase session and UUID, so app ownership and billing do not
-change. If the provider identity already belongs to a different UUID, the
-conflict merge mirrors and verifies active Pro before source Auth deletion and
-then synchronizes the real store receipt under RevenueCat's **Transfer to new App
-User ID** behavior.
+A signed-out anonymous UUID is a first-class customer identity. It can purchase,
+restore, redeem, and receive reviewed beta Pro without login. OAuth normally links
+credentials to that same UUID. Explicit **Sign out** closes the linked local
+session only after securing a durable StoreKit purchase handoff, requests a
+fresh anonymous UUID, and reports completion only after RevenueCat receipt
+transfer and server entitlement verification. Receipt-backed purchases follow
+the signed-out session; account-issued beta/promotional access stays with the
+linked account and is never duplicated. **Continue with Apple** or **Continue
+with Google** later links that anonymous account or returns through the
+existing-account conflict flow. That conflict merge mirrors and verifies
+active Pro before source Auth deletion and then synchronizes the real store
+receipt under RevenueCat's **Transfer to new App User ID** behavior.
+Product copy calls this state signed out or anonymous and never exposes the
+internal legacy term “Ghost.”
 
 During prelaunch, an exact guarded cleanup may delete inactive provider shells
 created by the historical identity-rotation bug, but only when fresh exports and
@@ -766,10 +772,10 @@ identity protected through Keychain-based storage. A person can later link or
 merge with Apple or Google authentication. RevenueCat and PostHog identities
 transition to the authenticated Supabase UUID when appropriate.
 
-The normal provider link preserves the Ghost UUID. The existing-account
+The normal provider link preserves the anonymous UUID. The existing-account
 conflict path changes from one custom RevenueCat UUID to another, and RevenueCat
 does not transfer purchases or promotions during that custom-to-custom login.
-Naturebook intentionally allows an exactly linked stable Ghost account to
+Naturebook intentionally allows an exactly linked stable anonymous account to
 purchase, restore, and redeem. Generic `401` responses preserve that UUID rather
 than creating another account, and the normal provider link keeps its purchase
 identity. The existing-account conflict path separately requires tested store

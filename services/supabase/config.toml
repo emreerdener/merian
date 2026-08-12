@@ -491,6 +491,13 @@ entrypoint = "./functions/merge-ghost-profile/index.ts"
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/merge-ghost-profile/*.html" ]
 
+[functions.transfer-signout-purchases]
+enabled = true
+# The handler owns live-user verification so current publishable keys and
+# asymmetric user JWTs do not depend on the legacy gateway verifier.
+verify_jwt = false
+entrypoint = "./functions/transfer-signout-purchases/index.ts"
+
 
 
 [functions.audio-spec]

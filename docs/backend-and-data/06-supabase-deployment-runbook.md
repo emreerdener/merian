@@ -2911,10 +2911,11 @@ a store entitlement and includes Field Chat for the grant period. A direct
 database-only Pro edit is not beta authority and is intentionally reverted when
 RevenueCat reports no active entitlement.
 
-After new identity creation has stopped, retain a fourth independent artifact:
-`/secure/protected-cohort.csv`, a nonempty exact one-column `id` list of every
-beta or otherwise protected customer, including Ghosts. Plan the historical
-empty-shell cleanup with all four fresh sources:
+After accidental identity creation outside explicit user sign-out has stopped,
+retain a fourth independent artifact: `/secure/protected-cohort.csv`, a nonempty
+exact one-column `id` list of every beta or otherwise protected customer,
+including Ghosts. Plan the historical empty-shell cleanup with all four fresh
+sources:
 
 ```bash
 make cleanup-revenuecat-shells ARGS='--supabase-users-csv /secure/users.csv --auth-audit-csv /secure/ghost-audit.csv --revenuecat-customers-csv /secure/revenuecat-customers.csv.gz --protected-cohort-csv /secure/protected-cohort.csv --inactive-days 7 --summary-json /tmp/revenuecat-cleanup-plan.json --review-csv /secure/revenuecat-cleanup-review.csv'
@@ -3024,18 +3025,44 @@ production order:
    Field Chat customer path without writing identities into release artifacts.
 7. Restore the exact reconciliation schedule and require the due backlog and
    oldest-due age to return below monitor thresholds.
-8. Release the custom-ID-only iOS build containing the exact stable-identity
-   mutation fence only after the backend is healthy. On a clean test device,
-   **Continue as Ghost** after OAuth must retain the same uppercase custom UUID
-   and create no new Supabase or RevenueCat customer. Purchase/restore/redeem
-   must work on the stable Ghost UUID, a generic `401` must preserve it, normal
-   OAuth linking must retain it, and the existing-account conflict path must
-   mirror access, synchronize the receipt, and emit/project the expected
-   transfer evidence.
-9. Generate the fresh cleanup plan only after step 8 proves new duplication has
+8. Apply `20260812011914_add_signout_purchase_handoffs.sql` followed by
+   `20260812032543_harden_signout_purchase_handoff_interlocks.sql`, deploy
+   `/transfer-signout-purchases`, and prove their exact ACL/catalog suite before
+   any iOS build that invokes them. Confirm the RevenueCat project uses **Transfer
+   to new App User ID** Restore behavior. This repository change does not itself
+   authorize any of those production operations.
+9. Release the custom-ID-only iOS build containing the stable-identity and
+   purchase-handoff fences only after the backend is healthy. On a clean test
+   device with an active StoreKit subscription, **Sign out** must produce exactly
+   one fresh Supabase-anonymous UUID and matching custom RevenueCat ID, never a
+   `$RCAnonymousID`, and the destination's CustomerInfo and Supabase projection
+   must cover the prepared horizon. A promo-only source must retain its grant
+   without granting the anonymous destination. Force prepare, proof-persist,
+   anonymous-bootstrap, receipt-sync, completion, and entitlement-refresh
+   failures; require the linked session or device-only proof to be retained as
+   appropriate, purchase/restore/redeem to stay fenced, and relaunch to resume
+   safely. Backdate a bound proof past its pre-bind expiry and confirm it still
+   completes. In the disposable/provider-fixture suite, expire the prepared
+   finite purchase horizon before first completion: a now-free source and
+   destination must finish free, while a renewed source must remain pending
+   until the destination covers that renewal. While a proof is bound, require confirmed-missing-session recovery
+   to preserve the same UUID and require account deletion, empty-anonymous
+   cleanup, and direct guest-profile merge to fail without mutation. In separate
+   clean cycles, both **Continue with Apple** and
+   **Continue with Google** must return through the provider-bound merge when
+   the identity already exists, preserve access, synchronize the receipt, and
+   emit expected transfer evidence. A generic `401` must preserve identity and
+   normal first-time OAuth linking must retain it.
+10. Generate the fresh cleanup plan only after step 9 proves new duplication has
    stopped. Apply the exact reviewed digest/count, retain the results ledger,
    and require zero unexplained failures or deletions of protected live
    evidence.
+
+Do not introduce RevenueCat V2 customer transfer as a sign-out shortcut. It
+cannot select StoreKit history independently from promotional subscription
+history and documents no idempotency key. The staged replacement is the
+[purchase-principal/auth separation RFC](../rfcs/purchase-principal-auth-separation.md);
+its provider cutover has independent migration and release gates.
 
 If apply partially fails, reconcile only failed IDs from the retained results
 ledger. If the maintenance window cannot finish, restore the worker so ordinary
@@ -5720,18 +5747,19 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes eleven
+an unmarked gateway response. The workflow then separately probes twelve
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
 `get-scan-explore-share-state`, `get-explore-composer-media`,
 `get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
-`request-community-identification`, and `delete-scan`. Each critical route must
+`request-community-identification`, `transfer-signout-purchases`, and
+`delete-scan`. Each critical route must
 return `401` with the marker, additionally proving user-scoped access fails
 closed. A gateway `404` with no handler marker never counts as a missing scan
 and never permits the production workflow to report success. Do not run the
 matching iOS smoke while either gate is still retrying.
 
-The workflow next proves seven critical database boundaries are present in the
+The workflow next proves eleven critical database boundaries are present in the
 production PostgREST schema cache and executable only with server authority. It
 calls `ensure_scan_user_profile` with the zero UUID,
 `publish_scan_to_explore_atomically` with an empty media array,
@@ -5741,12 +5769,17 @@ calls `ensure_scan_user_profile` with the zero UUID,
 `reserve_field_chat_send` with a null admission tuple, and
 `recover_stale_field_chat_quota` with a null recovery tuple. All inputs are
 syntactically valid JSON but raise their exact SQLSTATE `22023` message before
-any advisory lock, row lock, or write. A successful readiness probe therefore
+any advisory lock, row lock, or write. It exercises the same exact no-write
+boundary for `issue_signout_purchase_handoff`,
+`complete_signout_purchase_handoff`, and
+`claim_revenuecat_reconciliation_for_user`, then reads and validates the
+aggregate-only `get_revenuecat_reconciliation_health` shape. A successful
+readiness probe therefore
 requires HTTP `400`, code `22023`, and the pinned message; an arbitrary `400`
 does not pass. Missing-schema and transient statuses receive the same bounded
 propagation treatment as route probes. Every retrieved anon/publishable
 credential must separately receive `401`, `403`, or hidden-routine `404` from
-all seven RPCs. HTTP `400` on that public path means the role reached a
+all eleven RPCs. HTTP `400` or `200` on that public path means the role reached a
 service-only routine body and fails the deployment security gate. Probe response
 bodies and request identifiers are never printed.
 
@@ -5881,12 +5914,14 @@ only the aggregate `get_revenuecat_reconciliation_health()` RPC. No subscriber
 identity is written to logs or artifacts.
 
 Scheduled runs warn and fail at an oldest due age of 30 minutes, become critical
-at 60 minutes, and warn immediately on any expired lease. A monitor request has
-a 15-second deadline and 64 KiB response ceiling. A failed run therefore means
-the queue is overdue, a worker lease expired, or the monitor could not read
-health. Start with the structured reconciliation health event and queue error
-codes described in the RevenueCat release gate; preserve claim fencing and let
-the durable worker recover.
+at 60 minutes, and warn immediately on any expired lease. The same thresholds
+apply to the oldest unexpired prepared handoff or any bound sign-out purchase
+handoff. A monitor request has a 15-second deadline and 64 KiB response ceiling. A failed run
+therefore means the queue or purchase handoff is overdue, a worker lease
+expired, or the monitor could not read health. Start with the structured
+reconciliation and sign-out handoff logs plus queue error codes; preserve claim
+fencing and device proofs, and let idempotent recovery finish. Do not cancel or
+delete a bound proof manually.
 
 ## DwC-A Export and Archive Health Automation
 
@@ -6327,8 +6362,19 @@ After deployment:
   profile, or database availability; never bypass reconciliation to clear the
   retry queue. Confirm every database-generated UUID lookup equals
   `internal.canonical_revenuecat_app_user_id(merian_user_id)`, run the offline
-  customer export audit, and verify **Continue as Ghost** preserves the same
-  Supabase/RevenueCat UUID and creates no new customer. For the
+  customer export audit, and verify explicit **Sign out** completes with exactly
+  one Supabase-anonymous/custom-RevenueCat UUID pair and no `$RCAnonymousID`
+  when Supabase and RevenueCat are reachable. Use an active StoreKit
+  subscriber, verify the prepared horizon on destination CustomerInfo and in
+  Supabase, and verify source reconciliation reflects the provider after
+  transfer. A promo-only source must not clone Pro to the anonymous destination.
+  Force every prepare/persist/bootstrap/sync/complete/refresh boundary, retain
+  the linked session or durable proof as appropriate, keep purchase mutations
+  fenced, relaunch, and finish the same handoff. Confirm a bound proof completes
+  after its pre-bind expiry, and run the guarded finite-horizon expiry fixtures
+  for both natural expiry and a source renewal. Then, in separate clean cycles, verify both
+  **Continue with Apple** and **Continue with Google** return through the
+  reviewed provider-bound merge without losing access. For the
   beta/canonical-ID cutover, this smoke does not waive the exact operation gate:
   also require the explicit cohort checksum/count, GET `200|201` and promotional
   POST `201` coverage, zero unexplained grant failures, restored reconciliation
@@ -6511,9 +6557,11 @@ After deployment:
   `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
   `request_community_identification_atomically`, `recover_missing_owned_scan`,
   `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
-  `recover_stale_field_chat_quota` with server authority. Confirm every
+  `recover_stale_field_chat_quota` with server authority. Also confirm the three
+  no-write sign-out/reconciliation validation probes and the aggregate
+  `get_revenuecat_reconciliation_health` read succeeded. Confirm every
   retrieved anon/publishable credential instead received `401`, `403`, or
-  hidden-routine `404` from all seven. Never accept a generic `400`, log a
+  hidden-routine `404` from all eleven. Never accept a generic `400` or `200`, log a
   response body, or replace these checks with a production fixture write.
 - Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before

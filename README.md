@@ -564,11 +564,11 @@ and synced to Supabase. **Notifications** — species discovery alerts,
 achievement milestone alerts. **Changelog** — bundled feature notes, release
 notes, and selected in-progress work. **Export** — staged Darwin Core Archive
 (DwC-A) data export for academic/research use; hidden and server-disabled for
-the initial production launch. **Account** — Sign in with Apple or Google,
-anonymous Ghost Sessions, and durable account deletion that detaches retained
-scientific observations from the account, queues media cleanup, and removes
-the backend Auth identity only after database, storage, and any stored Apple
-provider credential are verified complete. Pre-rollout Apple accounts receive
+the initial production launch. **Account** — Continue with Apple or Google,
+local sign-out to an anonymous session, and durable account deletion that
+detaches retained scientific observations from the account, queues media
+cleanup, and removes the backend Auth identity only after database, storage, and
+any stored Apple provider credential are verified complete. Pre-rollout Apple accounts receive
 a durable manual-revocation notice because no server token exists to revoke.
 An independent scheduled
 health check alerts when the reaper is unconfigured, work is overdue, leases
@@ -636,9 +636,12 @@ expire, or the deletion backlog breaches its SLA. See the
 
 ### Identity & Monetization
 
-- Anonymous IDFV-backed Ghost Sessions (zero-friction, no sign-up required at
-  launch).
-- Sign in with Apple / Google OAuth preserves the Ghost UUID through
+- Anonymous IDFV-backed sessions (zero-friction, no sign-up required at launch).
+- User-facing **Sign out** creates one fresh anonymous Supabase identity only
+  after a device-durable StoreKit handoff is prepared. RevenueCat receipt access
+  follows that identity and is verified server-side before the proof is cleared;
+  account-issued beta/promotional access remains with the linked account.
+- Continue with Apple / Google OAuth preserves the anonymous UUID through
   `linkIdentityWithIdToken`; existing-account conflicts use a provider-bound,
   one-use `/merge-ghost-profile` handoff, an atomic database merge, and durable
   Auth cleanup. Pending proofs survive restarts in a device-only Keychain queue
@@ -1024,6 +1027,7 @@ Extended architecture documentation lives in `docs/`:
 | `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
 | `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
 | `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |
+| `docs/rfcs/purchase-principal-auth-separation.md`                 | Long-term separation of authentication, StoreKit purchase, and account-grant identity                           |
 
 ---
 

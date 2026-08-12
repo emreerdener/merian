@@ -224,6 +224,7 @@ submit-feedback-survey
 sync-collections
 sync-community-taxonomy-index
 toggle-explore-comment-reaction
+transfer-signout-purchases
 unshare-explore-post
 update-community-identification-request
 update-explore-field-notes
@@ -240,7 +241,7 @@ Repository checks cannot prove hosted regional routing or an authenticated
 customer journey. Before closing the incident:
 
 1. run the production Supabase workflow from the reviewed release SHA and
-   require all 91 graph-derived route probes plus the ten stricter auth probes;
+   require all 92 graph-derived route probes plus the twelve stricter auth probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
    for the same SHA, including the complete unit-test target, exact
    live-Insight-to-queue and queued-scan-completion UI smokes, and independent

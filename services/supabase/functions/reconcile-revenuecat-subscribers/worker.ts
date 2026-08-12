@@ -119,7 +119,10 @@ async function reconcileOne(
 export function revenueCatReconciliationHealthStatus(
   health: RevenueCatReconciliationHealth,
 ): RevenueCatReconciliationHealthStatus {
-  const oldestDueAgeSeconds = health.oldestDueAgeSeconds ?? 0;
+  const oldestDueAgeSeconds = Math.max(
+    health.oldestDueAgeSeconds ?? 0,
+    health.oldestSignoutPendingAgeSeconds ?? 0,
+  );
   if (oldestDueAgeSeconds >= BACKLOG_CRITICAL_AGE_SECONDS) {
     return "critical";
   }
@@ -147,6 +150,10 @@ function logReconciliationHealth(
     due_count: result.health.dueCount,
     expired_claim_count: result.health.expiredClaimCount,
     oldest_due_age_seconds: result.health.oldestDueAgeSeconds,
+    signout_prepared_count: result.health.signoutPreparedCount,
+    signout_bound_count: result.health.signoutBoundCount,
+    oldest_signout_pending_age_seconds:
+      result.health.oldestSignoutPendingAgeSeconds,
     generated_at: result.health.generatedAt,
   });
   if (result.healthStatus === "critical") {

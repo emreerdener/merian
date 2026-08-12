@@ -55,65 +55,48 @@ final class SupabaseManagerTests: XCTestCase {
         )
     }
 
-    func testAccountPresentationPolicyKeepsOneUserAcrossGhostMode() {
-        let userID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
-
+    func testAnonymousExternalIdentityLinkWaitsForPurchaseHandoffBinding() {
         XCTAssertTrue(
-            AccountPresentationPolicy.isGhost(
-                userID: userID,
-                authIsAnonymous: true,
-                storedGhostModeUserID: nil
-            )
-        )
-        XCTAssertTrue(
-            AccountPresentationPolicy.isGhost(
-                userID: userID,
-                authIsAnonymous: false,
-                storedGhostModeUserID: userID.uuidString.lowercased()
+            SupabaseManager.shouldDeferExternalIdentityLink(
+                isAnonymous: true,
+                purchaseIdentityHandoffPending: true
             )
         )
         XCTAssertFalse(
-            AccountPresentationPolicy.isGhost(
-                userID: userID,
-                authIsAnonymous: false,
-                storedGhostModeUserID: UUID().uuidString
+            SupabaseManager.shouldDeferExternalIdentityLink(
+                isAnonymous: true,
+                purchaseIdentityHandoffPending: false
             )
         )
-        XCTAssertEqual(
-            AccountPresentationPolicy.persistedGhostModeUserID(
-                userID: userID,
-                authIsAnonymous: false
-            ),
-            userID.uuidString.lowercased()
+        XCTAssertFalse(
+            SupabaseManager.shouldDeferExternalIdentityLink(
+                isAnonymous: false,
+                purchaseIdentityHandoffPending: true
+            )
         )
-        XCTAssertNil(
-            AccountPresentationPolicy.persistedGhostModeUserID(
+    }
+
+    func testAccountPresentationPolicyShowsOnlyAnonymousUsersAsGuests() {
+        let userID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
+
+        XCTAssertTrue(
+            AccountPresentationPolicy.isGuest(
                 userID: userID,
                 authIsAnonymous: true
             )
         )
         XCTAssertFalse(
-            AccountPresentationPolicy.canResumeLinkedAccount(
+            AccountPresentationPolicy.isGuest(
                 userID: userID,
-                authIsAnonymous: true,
-                isUsingGhostMode: true
-            ),
-            "A true anonymous Ghost must see account-linking actions."
+                authIsAnonymous: false
+            )
         )
         XCTAssertTrue(
-            AccountPresentationPolicy.canResumeLinkedAccount(
-                userID: userID,
-                authIsAnonymous: false,
-                isUsingGhostMode: true
+            AccountPresentationPolicy.isGuest(
+                userID: nil,
+                authIsAnonymous: false
             ),
-            "Only a linked user in Ghost presentation can resume the linked UI."
-        )
-        XCTAssertFalse(
-            AccountPresentationPolicy.canResumeLinkedAccount(
-                userID: userID,
-                authIsAnonymous: false,
-                isUsingGhostMode: false
-            )
+            "A missing session must use the anonymous account presentation."
         )
     }
 
@@ -155,6 +138,229 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertTrue(requestWasBlockedDuringRemoteCall)
         XCTAssertFalse(manager.isSigningOut)
         XCTAssertFalse(manager.isAuthenticated)
+    }
+
+    func testUserSignOutTransitionInitializesOneAnonymousSessionAfterSignOut() async {
+        var steps: [String] = []
+        var initializationCount = 0
+
+        let isReady = await SupabaseManager.performUserSignOutTransition(
+            performSignOut: {
+                steps.append("signOut")
+            },
+            initializeAnonymousSession: {
+                steps.append("initializeAnonymousSession")
+                initializationCount += 1
+                return true
+            }
+        )
+
+        XCTAssertTrue(isReady)
+        XCTAssertEqual(initializationCount, 1)
+        XCTAssertEqual(steps, ["signOut", "initializeAnonymousSession"])
+    }
+
+    func testUserSignOutTransitionPropagatesAnonymousSessionFailure() async {
+        let isReady = await SupabaseManager.performUserSignOutTransition(
+            performSignOut: {},
+            initializeAnonymousSession: { false }
+        )
+
+        XCTAssertFalse(isReady)
+    }
+
+    func testPurchaseSafeSignOutPersistsBeforeClosingAndCompletingIdentity() async {
+        var steps: [String] = []
+
+        let isReady = await SupabaseManager.performPurchaseSafeSignOutTransition(
+            prepareAndPersistHandoff: {
+                steps.append("prepareAndPersist")
+            },
+            performSignOut: {
+                steps.append("signOut")
+            },
+            initializeAnonymousSession: {
+                steps.append("initializeAnonymousSession")
+                return true
+            },
+            completeHandoff: {
+                steps.append("completeHandoff")
+            }
+        )
+
+        XCTAssertTrue(isReady)
+        XCTAssertEqual(
+            steps,
+            [
+                "prepareAndPersist",
+                "signOut",
+                "initializeAnonymousSession",
+                "completeHandoff"
+            ]
+        )
+    }
+
+    func testPurchaseSafeSignOutNeverClosesSessionWhenPreparationFails() async {
+        var didSignOut = false
+        var didInitialize = false
+
+        let isReady = await SupabaseManager.performPurchaseSafeSignOutTransition(
+            prepareAndPersistHandoff: {
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseHandoffPersistenceFailed
+            },
+            performSignOut: {
+                didSignOut = true
+            },
+            initializeAnonymousSession: {
+                didInitialize = true
+                return true
+            },
+            completeHandoff: {}
+        )
+
+        XCTAssertFalse(isReady)
+        XCTAssertFalse(didSignOut)
+        XCTAssertFalse(didInitialize)
+    }
+
+    func testPurchaseSafeSignOutPropagatesDurableCompletionFailure() async {
+        var didComplete = false
+
+        let isReady = await SupabaseManager.performPurchaseSafeSignOutTransition(
+            prepareAndPersistHandoff: {},
+            performSignOut: {},
+            initializeAnonymousSession: { true },
+            completeHandoff: {
+                didComplete = true
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseContinuityPending
+            }
+        )
+
+        XCTAssertFalse(isReady)
+        XCTAssertTrue(didComplete)
+    }
+
+    func testSignOutPurchaseFinalizationClearsProofOnlyAfterEveryCheck() async throws {
+        var steps: [String] = []
+
+        try await SupabaseManager.finalizeSignOutPurchaseHandoff(
+            bindDestination: { steps.append("bind") },
+            verifyBoundDestinationSession: {
+                steps.append("verifyBoundSession")
+            },
+            linkProviderIdentity: { steps.append("link") },
+            verifyLinkedDestinationSession: {
+                steps.append("verifyLinkedSession")
+            },
+            synchronizeStorePurchases: { steps.append("syncPurchases") },
+            completeServerHandoff: { steps.append("complete") },
+            refreshServerEntitlement: {
+                steps.append("refreshEntitlement")
+                return true
+            },
+            verifyFinalDestinationSession: {
+                steps.append("verifyFinalSession")
+            },
+            clearPendingHandoff: { steps.append("clearProof") }
+        )
+
+        XCTAssertEqual(
+            steps,
+            [
+                "bind",
+                "verifyBoundSession",
+                "link",
+                "verifyLinkedSession",
+                "syncPurchases",
+                "complete",
+                "refreshEntitlement",
+                "verifyFinalSession",
+                "clearProof"
+            ]
+        )
+    }
+
+    func testSignOutPurchaseFinalizationRetainsProofAfterSyncFailure() async {
+        var steps: [String] = []
+
+        do {
+            try await SupabaseManager.finalizeSignOutPurchaseHandoff(
+                bindDestination: { steps.append("bind") },
+                verifyBoundDestinationSession: {
+                    steps.append("verifyBoundSession")
+                },
+                linkProviderIdentity: { steps.append("link") },
+                verifyLinkedDestinationSession: {
+                    steps.append("verifyLinkedSession")
+                },
+                synchronizeStorePurchases: {
+                    steps.append("syncPurchases")
+                    throw URLError(.networkConnectionLost)
+                },
+                completeServerHandoff: { steps.append("complete") },
+                refreshServerEntitlement: {
+                    steps.append("refreshEntitlement")
+                    return true
+                },
+                verifyFinalDestinationSession: {
+                    steps.append("verifyFinalSession")
+                },
+                clearPendingHandoff: { steps.append("clearProof") }
+            )
+            XCTFail("Expected receipt synchronization failure")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .networkConnectionLost)
+        }
+
+        XCTAssertEqual(
+            steps,
+            [
+                "bind",
+                "verifyBoundSession",
+                "link",
+                "verifyLinkedSession",
+                "syncPurchases"
+            ]
+        )
+        XCTAssertFalse(steps.contains("clearProof"))
+    }
+
+    func testSignOutPurchaseFinalizationRefusesStaleSessionBeforeProviderLink() async {
+        var steps: [String] = []
+
+        do {
+            try await SupabaseManager.finalizeSignOutPurchaseHandoff(
+                bindDestination: { steps.append("bind") },
+                verifyBoundDestinationSession: {
+                    steps.append("verifyBoundSession")
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                },
+                linkProviderIdentity: { steps.append("link") },
+                verifyLinkedDestinationSession: {
+                    steps.append("verifyLinkedSession")
+                },
+                synchronizeStorePurchases: {
+                    steps.append("syncPurchases")
+                },
+                completeServerHandoff: { steps.append("complete") },
+                refreshServerEntitlement: { true },
+                verifyFinalDestinationSession: {},
+                clearPendingHandoff: { steps.append("clearProof") }
+            )
+            XCTFail("Expected stale destination rejection")
+        } catch {
+            guard let transitionError = error as? SupabaseAuthTransitionError
+            else {
+                return XCTFail("Expected an auth-transition error")
+            }
+            guard case .signOutSessionChanged = transitionError else {
+                return XCTFail("Expected stale destination rejection")
+            }
+        }
+
+        XCTAssertEqual(steps, ["bind", "verifyBoundSession"])
     }
 
     func testOAuthProviderSubjectReadsBase64URLJWTSubject() throws {
@@ -345,6 +551,60 @@ final class SupabaseManagerTests: XCTestCase {
             SupabaseManager.shouldDiscardPendingGhostProfileMerge(
                 after: URLError(.timedOut)
             )
+        )
+    }
+
+    func testPendingSignOutPurchaseProofIsDiscardedOnlyForTerminalCodes() {
+        let expired = FunctionsError.httpError(
+            code: 410,
+            data: Data(#"{"code":"handoff_expired"}"#.utf8)
+        )
+        let invalid = FunctionsError.httpError(
+            code: 404,
+            data: Data(#"{"code":"handoff_invalid"}"#.utf8)
+        )
+        let pending = FunctionsError.httpError(
+            code: 503,
+            data: Data(#"{"code":"purchase_transfer_pending"}"#.utf8)
+        )
+
+        XCTAssertTrue(
+            SupabaseManager.shouldDiscardPendingSignOutPurchaseHandoff(
+                after: expired
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldDiscardPendingSignOutPurchaseHandoff(
+                after: invalid
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldDiscardPendingSignOutPurchaseHandoff(
+                after: pending
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldDiscardPendingSignOutPurchaseHandoff(
+                after: URLError(.timedOut)
+            )
+        )
+    }
+
+    func testPendingSignOutPurchaseProofRoundTripsWithoutIdentityMutation() throws {
+        let pending = SupabaseManager.PendingSignOutPurchaseHandoff(
+            sourceUserId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            handoffId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            handoffSecret: String(repeating: "s", count: 43),
+            expiresAt: "2026-09-10T12:00:00Z"
+        )
+
+        let encoded = try JSONEncoder().encode(pending)
+        XCTAssertEqual(
+            try JSONDecoder().decode(
+                SupabaseManager.PendingSignOutPurchaseHandoff.self,
+                from: encoded
+            ),
+            pending
         )
     }
 

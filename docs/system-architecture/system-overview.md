@@ -131,9 +131,14 @@ plan and an iOS-only entitlement display are not server authorization.
 
 The RevenueCat customer key is the uppercase Supabase Auth UUID for both Ghost
 and linked sessions. Ghost is a durable, purchasable identity; login normally
-links credentials to the same UUID, and Continue as Ghost later changes only UI
-presentation. The existing-account conflict merge preserves active provider
-access before source Auth deletion and synchronizes the store receipt. Exact
+links credentials to the same UUID. Explicit **Sign out** secures a durable
+StoreKit handoff before requesting a fresh anonymous identity and reports
+completion only after RevenueCat receipt transfer and server reconciliation.
+Account-bound beta/promotional access remains on the linked source. A later
+**Continue with Apple** or **Continue with Google** either links the anonymous
+identity or enters the existing-account conflict merge. That
+merge preserves active provider access before source Auth deletion and
+synchronizes the store receipt. Exact
 prelaunch cleanup can delete only live-revalidated empty RevenueCat shells and
 never deletes Supabase users or app data.
 

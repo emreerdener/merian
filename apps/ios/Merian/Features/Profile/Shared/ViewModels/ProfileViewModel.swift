@@ -57,10 +57,6 @@ final class ProfileViewModel {
         supabase.isGuestUser
     }
 
-    var canResumeLinkedAccount: Bool {
-        supabase.canResumeLinkedAccount
-    }
-
     var currentUserId: String? {
         supabase.currentUser?.id.uuidString
     }
@@ -102,8 +98,8 @@ final class ProfileViewModel {
                !publicAuthorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return publicAuthorName
             }
-            // A provider-derived name remains private when a linked account is
-            // presented in Ghost mode. Explicit public names remain above.
+            // Provider-derived names remain private for anonymous accounts.
+            // Explicit public names remain above.
             return "Explorer"
         }
         return userName ?? publicAuthorName ?? "Explorer"
@@ -119,13 +115,13 @@ final class ProfileViewModel {
     }
     
     @discardableResult
-    func continueAsGhost() -> Bool {
-        supabase.continueAsGhost()
+    func signOut() async -> Bool {
+        await supabase.transitionToGhostSession()
     }
 
     @discardableResult
-    func resumeLinkedAccount() -> Bool {
-        supabase.resumeLinkedAccount()
+    func retryPendingSignOutPurchaseHandoff() async -> Bool {
+        await supabase.retryPendingSignOutPurchaseHandoff()
     }
     
     /// Establishes a secure TCP/IP connection to the Supabase Edge natively pulling dynamic cloud-bound preferences 

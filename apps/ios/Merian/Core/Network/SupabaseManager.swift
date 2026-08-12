@@ -27,6 +27,9 @@ enum SupabaseAuthTransitionError: LocalizedError {
     case invalidOAuthIdentityToken
     case guestMergeSessionChanged
     case guestMergeHandoffPersistenceFailed
+    case signOutPurchaseHandoffPersistenceFailed
+    case signOutPurchaseContinuityPending
+    case signOutSessionChanged
 
     var errorDescription: String? {
         switch self {
@@ -38,36 +41,22 @@ enum SupabaseAuthTransitionError: LocalizedError {
             return "The guest session changed before the account upgrade could be secured."
         case .guestMergeHandoffPersistenceFailed:
             return "The account upgrade could not be secured on this device. Your guest session is unchanged."
+        case .signOutPurchaseHandoffPersistenceFailed:
+            return "Purchase access could not be secured on this device. Your account is still signed in."
+        case .signOutPurchaseContinuityPending:
+            return "Purchase access is still syncing after sign-out. Please try again."
+        case .signOutSessionChanged:
+            return "The signed-out session changed before purchase access finished syncing."
         }
     }
 }
 
 enum AccountPresentationPolicy {
-    static func isGhost(
-        userID: UUID?,
-        authIsAnonymous: Bool,
-        storedGhostModeUserID: String?
-    ) -> Bool {
-        guard let userID else { return true }
-        if authIsAnonymous { return true }
-        return storedGhostModeUserID?.lowercased()
-            == userID.uuidString.lowercased()
-    }
-
-    static func persistedGhostModeUserID(
+    static func isGuest(
         userID: UUID?,
         authIsAnonymous: Bool
-    ) -> String? {
-        guard let userID, !authIsAnonymous else { return nil }
-        return userID.uuidString.lowercased()
-    }
-
-    static func canResumeLinkedAccount(
-        userID: UUID?,
-        authIsAnonymous: Bool,
-        isUsingGhostMode: Bool
     ) -> Bool {
-        userID != nil && !authIsAnonymous && isUsingGhostMode
+        userID == nil || authIsAnonymous
     }
 }
 
@@ -152,6 +141,45 @@ enum AccountPresentationPolicy {
         let code: String?
     }
 
+    private struct SignOutPurchasePreparePayload: Encodable {
+        let operation = "prepare"
+    }
+
+    private struct SignOutPurchasePrepareResponse: Decodable {
+        let success: Bool
+        let handoff_id: String
+        let handoff_secret: String
+        let expires_at: String
+    }
+
+    private struct SignOutPurchaseContinuePayload: Encodable {
+        let operation: String
+        let handoff_id: String
+        let handoff_secret: String
+    }
+
+    private struct SignOutPurchaseOperationResponse: Decodable {
+        let success: Bool
+        let handoff_id: String
+    }
+
+    private struct SignOutPurchaseBindResponse: Decodable {
+        let success: Bool
+        let handoff_id: String
+        let destination_user_id: String
+    }
+
+    private struct SignOutPurchaseErrorPayload: Decodable {
+        let code: String?
+    }
+
+    struct PendingSignOutPurchaseHandoff: Codable, Equatable {
+        let sourceUserId: String
+        let handoffId: String
+        let handoffSecret: String
+        let expiresAt: String
+    }
+
     // MARK: - Singleton Architecture
     static let shared = SupabaseManager()
 
@@ -161,23 +189,11 @@ enum AccountPresentationPolicy {
     // MARK: - State
     var currentUser: User?
     var isAuthenticated: Bool = false
-    private(set) var isUsingGhostMode = false
 
     var isGuestUser: Bool {
-        AccountPresentationPolicy.isGhost(
+        AccountPresentationPolicy.isGuest(
             userID: currentUser?.id,
-            authIsAnonymous: currentUser?.isAnonymous ?? true,
-            storedGhostModeUserID: isUsingGhostMode
-                ? currentUser?.id.uuidString
-                : nil
-        )
-    }
-
-    var canResumeLinkedAccount: Bool {
-        AccountPresentationPolicy.canResumeLinkedAccount(
-            userID: currentUser?.id,
-            authIsAnonymous: currentUser?.isAnonymous ?? true,
-            isUsingGhostMode: isUsingGhostMode
+            authIsAnonymous: currentUser?.isAnonymous ?? true
         )
     }
 
@@ -206,7 +222,7 @@ enum AccountPresentationPolicy {
     /// Single-flight guard for anonymous session creation. Multiple callers can reach
     /// `initializeGhostSession()` while the first network round-trip is suspended; without this
     /// handle they each attempt a fresh anonymous sign-in and race to replace the active session.
-    @ObservationIgnored private var ghostSessionTask: Task<Void, Never>?
+    @ObservationIgnored private var ghostSessionTask: Task<User?, Never>?
     /// Single-flight completion for a persisted provider-bound guest merge.
     /// Auth callbacks and the interactive login path can observe the same new
     /// permanent session; both converge on this task rather than racing cleanup.
@@ -215,9 +231,16 @@ enum AccountPresentationPolicy {
     /// later cannot clear the handle for a newer auth session's merge.
     @ObservationIgnored private var ghostProfileMergeTaskId: UUID?
     @ObservationIgnored private var ghostProfileMergeTaskTargetUserId: String?
+    /// Single-flight completion for a durable signed-out purchase handoff.
+    /// The interactive transition and restored-session callback can observe
+    /// the same anonymous destination and must converge on one receipt sync.
+    @ObservationIgnored private var signOutPurchaseHandoffTask: Task<Bool, Never>?
+    @ObservationIgnored private var signOutPurchaseHandoffTaskId: UUID?
+    @ObservationIgnored private var signOutPurchaseHandoffTargetUserId: String?
     /// Single-flight sign-out handle. Authenticated request creation is closed as
     /// soon as this transition begins, before the SDK invalidates the session.
     @ObservationIgnored private var signOutTask: Task<Void, Never>?
+    @ObservationIgnored private var isUserSignOutTransitionInProgress = false
     @ObservationIgnored private var publicAuthorIdentityRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var appleCredentialRevocationObserver: NSObjectProtocol?
     @ObservationIgnored private weak var appRouteSessionController: (any AppRouteSessionControlling)?
@@ -237,6 +260,19 @@ enum AccountPresentationPolicy {
 
         super.init()
 
+        // Remove the retired presentation-only logout marker. Linked sessions
+        // must restore as linked accounts; ordinary logout creates a new
+        // anonymous session instead of masking an authenticated one.
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
+        do {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
+                try loadPendingSignOutPurchaseHandoff() != nil
+            )
+        } catch {
+            // Keychain uncertainty is not evidence that a purchase handoff is
+            // absent. Keep provider mutations fail-closed until it is resolved.
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+        }
         self.setupAuthStateListener()
         self.appleCredentialRevocationObserver = NotificationCenter.default.addObserver(
             forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
@@ -253,6 +289,7 @@ enum AccountPresentationPolicy {
         authListenerTask?.cancel()
         ghostSessionTask?.cancel()
         ghostProfileMergeTask?.cancel()
+        signOutPurchaseHandoffTask?.cancel()
         signOutTask?.cancel()
         publicAuthorIdentityRefreshTask?.cancel()
         if let appleCredentialRevocationObserver {
@@ -369,6 +406,16 @@ enum AccountPresentationPolicy {
                         "Could not read the guest handoff queue; analytics remains suppressed: \(error.localizedDescription, privacy: .private)"
                     )
                 }
+                do {
+                    RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
+                        try loadPendingSignOutPurchaseHandoff() != nil
+                    )
+                } catch {
+                    RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+                    MerianLog.auth.error(
+                        "Could not read the sign-out purchase handoff; purchase mutations remain disabled: \(error.localizedDescription, privacy: .private)"
+                    )
+                }
                 let sessionAdoption = Self.authSessionAdoption(
                     userId: state.session?.user.id,
                     isExpired: state.session?.isExpired ?? false
@@ -385,13 +432,6 @@ enum AccountPresentationPolicy {
                     guard let session = state.session else { continue }
                     self.currentUser = session.user
                     self.isAuthenticated = true
-                    self.isUsingGhostMode = AccountPresentationPolicy.isGhost(
-                        userID: session.user.id,
-                        authIsAnonymous: false,
-                        storedGhostModeUserID: KeychainManager.shared.string(
-                            forKey: KeychainKeys.ghostModeUserID
-                        )
-                    )
                     appRouteSessionController?.beginAccountSession(
                         accountID: session.user.id.uuidString,
                         origin: accountSessionOrigin,
@@ -409,8 +449,23 @@ enum AccountPresentationPolicy {
                     )
                     schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
-                    if !TestExecutionCoordinator.isRunningTests,
-                       await self.ensureTelemetryLinkedIfNeeded(for: session.user) {
+                    var didLinkExternalIdentity = false
+                    if !TestExecutionCoordinator.isRunningTests {
+                        if session.user.isAnonymous,
+                           RevenueCatManager.shared
+                            .isPurchaseIdentityHandoffPending {
+                            // A sign-out handoff binds the exact anonymous
+                            // destination before RevenueCat is allowed to
+                            // switch identities or restore a receipt.
+                            _ = await completePendingSignOutPurchaseHandoffIfNeeded(
+                                expectedDestinationUserId: session.user.id.uuidString
+                            )
+                        } else {
+                            didLinkExternalIdentity = await self
+                                .ensureTelemetryLinkedIfNeeded(for: session.user)
+                        }
+                    }
+                    if didLinkExternalIdentity {
                         // Trigger historical sync only when the active user identity changes.
                         // The Supabase SDK fires two auth events on cold start (local cache +
                         // server validation), both with the same user. A same-user event may
@@ -426,6 +481,13 @@ enum AccountPresentationPolicy {
                                 await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
                             }
                         }
+                    }
+                    if !TestExecutionCoordinator.isRunningTests,
+                       !session.user.isAnonymous,
+                       !isUserSignOutTransitionInProgress {
+                            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+                                sourceUserId: session.user.id.uuidString
+                            )
                     }
                 case .awaitingRefresh(let userId):
                     guard !isSigningOut else {
@@ -457,7 +519,6 @@ enum AccountPresentationPolicy {
                 case .signedOut:
                     self.currentUser = nil
                     self.isAuthenticated = false
-                    self.isUsingGhostMode = false
                     appRouteSessionController?.beginAccountSession(
                         accountID: nil,
                         origin: accountSessionOrigin,
@@ -553,42 +614,68 @@ enum AccountPresentationPolicy {
         return identityChanged
     }
 
+    static func shouldDeferExternalIdentityLink(
+        isAnonymous: Bool,
+        purchaseIdentityHandoffPending: Bool
+    ) -> Bool {
+        isAnonymous && purchaseIdentityHandoffPending
+    }
+
+    @discardableResult
+    private func ensureTelemetryLinkedWhenSafe(for user: User) async -> Bool {
+        guard !Self.shouldDeferExternalIdentityLink(
+            isAnonymous: user.isAnonymous,
+            purchaseIdentityHandoffPending: RevenueCatManager.shared
+                .isPurchaseIdentityHandoffPending
+        ) else {
+            MerianLog.auth.debug(
+                "Deferred external identity linking until the sign-out purchase destination is bound."
+            )
+            return false
+        }
+        return await ensureTelemetryLinkedIfNeeded(for: user)
+    }
+
     // MARK: - Ghost Session
 
     /// Creates an anonymous session for new users. Skips creation if a session exists or
     /// if the error is network/expiry — preserving any existing Apple Sign-In identity.
-    func initializeGhostSession() async {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
+    @discardableResult
+    func initializeGhostSession() async -> User? {
+        guard !TestExecutionCoordinator.isRunningTests else { return nil }
 
         if let signOutTask {
             await signOutTask.value
         }
 
         if let existingTask = ghostSessionTask {
-            await existingTask.value
-            return
+            return await existingTask.value
         }
 
-        let task = Task { [weak self] in
-            guard let self else { return }
-            await self.performGhostSessionInitialization()
+        let task = Task { [weak self] () -> User? in
+            guard let self else { return nil }
+            let user = await self.performGhostSessionInitialization()
             await MainActor.run { [weak self] in
                 self?.ghostSessionTask = nil
             }
+            return user
         }
         ghostSessionTask = task
-        await task.value
+        return await task.value
     }
 
-    private func performGhostSessionInitialization() async {
-        guard !Task.isCancelled else { return }
+    private func performGhostSessionInitialization() async -> User? {
+        guard !Task.isCancelled else { return nil }
 
         do {
             let session = try await client.auth.session
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return nil }
+            currentUser = session.user
+            isAuthenticated = true
             MerianLog.auth.debug("Existing session resolved on device.")
             schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            _ = await ensureTelemetryLinkedWhenSafe(for: session.user)
+            return session.user
         } catch {
             let errString = String(describing: error)
 
@@ -600,79 +687,27 @@ enum AccountPresentationPolicy {
             }()
 
             if isSessionMissing {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else { return nil }
                 do {
                     let authResponse = try await client.auth.signInAnonymously()
-                    guard !Task.isCancelled else { return }
-                    MerianLog.auth.debug("Ghost session established: \(authResponse.user.id.uuidString, privacy: .private)")
-                    _ = await ensureTelemetryLinkedIfNeeded(for: authResponse.user)
+                    guard !Task.isCancelled else { return nil }
+                    currentUser = authResponse.user
+                    isAuthenticated = true
+                    MerianLog.auth.debug("Anonymous session established: \(authResponse.user.id.uuidString, privacy: .private)")
+                    _ = await ensureTelemetryLinkedWhenSafe(for: authResponse.user)
+                    return authResponse.user
                 } catch {
-                    MerianLog.auth.debug("Failed to establish ghost session: \(error.localizedDescription, privacy: .private)")
+                    MerianLog.auth.debug("Failed to establish anonymous session: \(error.localizedDescription, privacy: .private)")
+                    return nil
                 }
             } else {
                 MerianLog.auth.debug("Skipped anonymous sign-in — preserving existing identity despite network or expiration error.")
+                return nil
             }
         }
     }
 
     // MARK: - Session Utilities
-
-    /// Returns the linked account to Naturebook's Ghost presentation without
-    /// invalidating its private Supabase session or changing its canonical UUID.
-    /// This is the user-facing logout contract. A true Auth sign-out cannot later
-    /// recover the same Supabase anonymous user, so it is reserved for account
-    /// deletion and authoritative credential failure.
-    @discardableResult
-    func continueAsGhost() -> Bool {
-        guard let user = currentUser else { return false }
-        guard let storedUserID = AccountPresentationPolicy.persistedGhostModeUserID(
-            userID: user.id,
-            authIsAnonymous: user.isAnonymous
-        ) else {
-            isUsingGhostMode = user.isAnonymous
-            return user.isAnonymous
-        }
-
-        guard KeychainManager.shared.set(
-            storedUserID,
-            forKey: KeychainKeys.ghostModeUserID
-        ) else {
-            MerianLog.auth.error(
-                "Could not persist Ghost mode; preserving the linked-account presentation."
-            )
-            return false
-        }
-
-        isUsingGhostMode = true
-        MerianLog.auth.debug(
-            "Continued as Ghost without changing the Supabase or RevenueCat identity."
-        )
-        return true
-    }
-
-    /// Leaves same-UUID Ghost presentation without running OAuth or replacing
-    /// the private linked session that continued to own the account.
-    @discardableResult
-    func resumeLinkedAccount() -> Bool {
-        guard let user = currentUser,
-              canResumeLinkedAccount else {
-            return false
-        }
-        leaveGhostMode(for: user.id)
-        return !isUsingGhostMode
-    }
-
-    private func leaveGhostMode(for userID: UUID) {
-        let storedUserID = KeychainManager.shared.string(
-            forKey: KeychainKeys.ghostModeUserID
-        )
-        guard storedUserID?.lowercased() == userID.uuidString.lowercased()
-                || isUsingGhostMode else {
-            return
-        }
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
-        isUsingGhostMode = false
-    }
 
     func signOut() async {
         await signOut(
@@ -721,15 +756,218 @@ enum AccountPresentationPolicy {
         await task.value
     }
 
-    /// Replaces the active account with a fresh anonymous identity only after
-    /// local cleanup and remote sign-out have completed.
-    func transitionToGhostSession() async {
-        await signOut()
-        await initializeGhostSession()
+    /// Replaces the active account with a fresh anonymous identity. Linked
+    /// accounts first persist a one-use purchase-continuity proof; the proof is
+    /// removed only after RevenueCat and the server verify the new identity.
+    @discardableResult
+    func transitionToGhostSession() async -> Bool {
+        guard !isUserSignOutTransitionInProgress else { return false }
+        isUserSignOutTransitionInProgress = true
+        defer { isUserSignOutTransitionInProgress = false }
+
+        let pendingHandoff: PendingSignOutPurchaseHandoff?
+        do {
+            pendingHandoff = try loadPendingSignOutPurchaseHandoff()
+        } catch {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            MerianLog.auth.error(
+                "Refused sign-out because the purchase handoff proof is unreadable."
+            )
+            return false
+        }
+
+        let startingUser: User?
+        do {
+            let session = try await client.auth.session
+            startingUser = session.user
+        } catch {
+            // A known linked identity must never be closed without first
+            // securing its authoritative RevenueCat snapshot.
+            if currentUser?.isAnonymous == false
+                || KeychainManager.shared.bool(
+                    forKey: KeychainKeys.hasAuthenticatedOAuth
+                ) {
+                MerianLog.auth.debug(
+                    "Refused sign-out because the linked session could not be verified."
+                )
+                return false
+            }
+            startingUser = currentUser
+        }
+
+        if let pendingHandoff {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            if let startingUser, startingUser.isAnonymous {
+                return await completePendingSignOutPurchaseHandoffIfNeeded(
+                    expectedDestinationUserId: startingUser.id.uuidString
+                )
+            }
+            if startingUser == nil {
+                guard let destination = await initializeGhostSession(),
+                      destination.isAnonymous else {
+                    return false
+                }
+                return await completePendingSignOutPurchaseHandoffIfNeeded(
+                    expectedDestinationUserId: destination.id.uuidString
+                )
+            }
+            guard startingUser?.id.uuidString.lowercased()
+                    == pendingHandoff.sourceUserId.lowercased() else {
+                MerianLog.auth.error(
+                    "Refused to replace an unrelated account while purchase continuity is pending."
+                )
+                return false
+            }
+            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+                sourceUserId: pendingHandoff.sourceUserId
+            )
+            do {
+                guard try loadPendingSignOutPurchaseHandoff() == nil else {
+                    return false
+                }
+            } catch {
+                RevenueCatManager.shared
+                    .setPurchaseIdentityHandoffPending(true)
+                return false
+            }
+        }
+
+        guard let startingUser, !startingUser.isAnonymous else {
+            return await Self.performUserSignOutTransition(
+                performSignOut: { [weak self] in
+                    await self?.signOut()
+                },
+                initializeAnonymousSession: { [weak self] in
+                    guard let user = await self?.initializeGhostSession() else {
+                        return false
+                    }
+                    return user.isAnonymous
+                }
+            )
+        }
+
+        let sourceUserId = startingUser.id.uuidString.lowercased()
+        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+        let completed = await Self.performPurchaseSafeSignOutTransition(
+            prepareAndPersistHandoff: { [weak self] in
+                guard let self else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                try await self.prepareSignOutPurchaseHandoff(
+                    sourceUserId: sourceUserId
+                )
+            },
+            performSignOut: { [weak self] in
+                await self?.signOut()
+            },
+            initializeAnonymousSession: { [weak self] in
+                guard let user = await self?.initializeGhostSession() else {
+                    return false
+                }
+                return user.isAnonymous
+            },
+            completeHandoff: { [weak self] in
+                guard let self,
+                      await self.completePendingSignOutPurchaseHandoffIfNeeded()
+                else {
+                    throw SupabaseAuthTransitionError
+                        .signOutPurchaseContinuityPending
+                }
+            }
+        )
+
+        if !completed {
+            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+                sourceUserId: sourceUserId
+            )
+        }
+        return completed
+    }
+
+    /// Explicit foreground retry for an anonymous session whose device-durable
+    /// purchase handoff did not finish during the original sign-out.
+    @discardableResult
+    func retryPendingSignOutPurchaseHandoff() async -> Bool {
+        guard let session = try? await client.auth.session,
+              session.user.isAnonymous else {
+            return false
+        }
+        return await completePendingSignOutPurchaseHandoffIfNeeded(
+            expectedDestinationUserId: session.user.id.uuidString
+        )
+    }
+
+    /// Test seam for the user-facing composite transition. The lower-level
+    /// sign-out and anonymous-session routines retain their own single-flight
+    /// guards; this boundary proves their order and propagates readiness.
+    static func performUserSignOutTransition(
+        performSignOut: @MainActor () async -> Void,
+        initializeAnonymousSession: @MainActor () async -> Bool
+    ) async -> Bool {
+        await performSignOut()
+        return await initializeAnonymousSession()
+    }
+
+    /// Testable ordering contract for linked-account sign-out. Preparation is
+    /// the commit point: if it fails, the original session is never closed; if
+    /// any later step fails, the persisted proof is deliberately retained.
+    static func performPurchaseSafeSignOutTransition(
+        prepareAndPersistHandoff: @MainActor () async throws -> Void,
+        performSignOut: @MainActor () async -> Void,
+        initializeAnonymousSession: @MainActor () async -> Bool,
+        completeHandoff: @MainActor () async throws -> Void
+    ) async -> Bool {
+        do {
+            try await prepareAndPersistHandoff()
+            await performSignOut()
+            guard await initializeAnonymousSession() else { return false }
+            try await completeHandoff()
+            return true
+        } catch {
+            MerianLog.auth.debug(
+                "Purchase-safe sign-out remains incomplete: \(error.localizedDescription, privacy: .private)"
+            )
+            return false
+        }
+    }
+
+    /// Exact post-sign-out ordering. The durable proof is the final mutation;
+    /// every provider/server/session check must succeed before it is removed.
+    static func finalizeSignOutPurchaseHandoff(
+        bindDestination: @MainActor () async throws -> Void,
+        verifyBoundDestinationSession: @MainActor () async throws -> Void,
+        linkProviderIdentity: @MainActor () async throws -> Void,
+        verifyLinkedDestinationSession: @MainActor () async throws -> Void,
+        synchronizeStorePurchases: @MainActor () async throws -> Void,
+        completeServerHandoff: @MainActor () async throws -> Void,
+        refreshServerEntitlement: @MainActor () async throws -> Bool,
+        verifyFinalDestinationSession: @MainActor () async throws -> Void,
+        clearPendingHandoff: @MainActor () throws -> Void
+    ) async throws {
+        try await bindDestination()
+        try Task.checkCancellation()
+        try await verifyBoundDestinationSession()
+        try Task.checkCancellation()
+        try await linkProviderIdentity()
+        try Task.checkCancellation()
+        try await verifyLinkedDestinationSession()
+        try Task.checkCancellation()
+        try await synchronizeStorePurchases()
+        try Task.checkCancellation()
+        try await completeServerHandoff()
+        try Task.checkCancellation()
+        guard try await refreshServerEntitlement() else {
+            throw SupabaseAuthTransitionError
+                .signOutPurchaseContinuityPending
+        }
+        try Task.checkCancellation()
+        try await verifyFinalDestinationSession()
+        try Task.checkCancellation()
+        try clearPendingHandoff()
     }
 
     @discardableResult
-    private func beginLocalSignOutTransition() -> Task<Void, Never>? {
+    private func beginLocalSignOutTransition() -> Task<User?, Never>? {
         isSigningOut = true
         currentUser = nil
         isAuthenticated = false
@@ -744,8 +982,7 @@ enum AccountPresentationPolicy {
         publicAuthorIdentityRefreshTask = nil
         cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
-        isUsingGhostMode = false
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         PostHogManager.shared.reset()
         return cancelledGhostSessionTask
     }
@@ -768,7 +1005,7 @@ enum AccountPresentationPolicy {
             currentUser = session.user
             isAuthenticated = true
             schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
-            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            _ = await ensureTelemetryLinkedWhenSafe(for: session.user)
             MerianLog.auth.debug("Supabase session refreshed after auth failure.")
             return true
         } catch {
@@ -780,21 +1017,34 @@ enum AccountPresentationPolicy {
     /// Clears a broken anonymous session and creates a fresh ghost identity.
     @discardableResult
     func resetGhostSessionForRetry() async -> Bool {
-        await transitionToGhostSession()
+        guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
+            MerianLog.auth.error(
+                "Refused to rotate an anonymous session while purchase continuity is pending."
+            )
+            return false
+        }
+        guard await transitionToGhostSession() else { return false }
 
         do {
             let session = try await client.auth.session
             currentUser = session.user
             isAuthenticated = true
-            MerianLog.auth.debug("Ghost session regenerated after auth failure.")
+            MerianLog.auth.debug("Anonymous session regenerated after auth failure.")
             return true
         } catch {
-            MerianLog.auth.debug("Ghost session regeneration after auth failure failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.auth.debug("Anonymous session regeneration after auth failure failed: \(error.localizedDescription, privacy: .private)")
             return false
         }
     }
 
     func clearLocalSessionAfterAuthFailure() async {
+        guard !hasPendingPurchaseIdentityHandoffFailClosed() else {
+            MerianLog.auth.error(
+                "Preserved the exact local auth session because purchase continuity is pending."
+            )
+            return
+        }
+
         do {
             try await client.auth.signOut(scope: .local)
         } catch {
@@ -809,8 +1059,7 @@ enum AccountPresentationPolicy {
         publicAuthorIdentityRefreshTask = nil
         cancelGhostProfileMergeTask()
         KeychainManager.shared.removeObject(forKey: KeychainKeys.hasAuthenticatedOAuth)
-        KeychainManager.shared.removeObject(forKey: KeychainKeys.ghostModeUserID)
-        isUsingGhostMode = false
+        KeychainManager.shared.removeObject(forKey: KeychainKeys.legacyGhostModeUserID)
         PostHogManager.shared.reset()
         await RevenueCatManager.shared.handleSupabaseSignOut()
         MerianLog.auth.debug("Cleared local Supabase session after auth failure.")
@@ -880,8 +1129,7 @@ enum AccountPresentationPolicy {
             let session = try await client.auth.session
             currentUser = session.user
             isAuthenticated = true
-            leaveGhostMode(for: session.user.id)
-            _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
+            _ = await ensureTelemetryLinkedWhenSafe(for: session.user)
             if didPersistGoogleMetadata {
                 _ = await refreshPublicAuthorIdentity()
             }
@@ -945,6 +1193,12 @@ enum AccountPresentationPolicy {
         let previousUserId = previousSession?.user.id.uuidString
 
         if previousSession?.user.isAnonymous == true {
+            guard await completePendingSignOutPurchaseHandoffIfNeeded(
+                expectedDestinationUserId: previousUserId
+            ) else {
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseContinuityPending
+            }
             let credentials = OpenIDConnectCredentials(
                 provider: provider,
                 idToken: idToken,
@@ -1316,6 +1570,363 @@ enum AccountPresentationPolicy {
             )
             return false
         }
+    }
+
+    private func prepareSignOutPurchaseHandoff(
+        sourceUserId: String
+    ) async throws {
+        let normalizedSourceUserId = sourceUserId.lowercased()
+        let startingSession = try await client.auth.session
+        guard !startingSession.user.isAnonymous,
+              startingSession.user.id.uuidString.lowercased()
+                == normalizedSourceUserId else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+
+        let response: SignOutPurchasePrepareResponse = try await client.functions.invoke(
+            "transfer-signout-purchases",
+            options: .init(body: SignOutPurchasePreparePayload())
+        )
+        guard response.success,
+              UUID(uuidString: response.handoff_id) != nil,
+              response.handoff_secret.range(
+                of: #"^[A-Za-z0-9_-]{43}$"#,
+                options: .regularExpression
+              ) != nil,
+              ISO8601DateFormatter().date(from: response.expires_at) != nil else {
+            throw SupabaseAuthTransitionError
+                .signOutPurchaseHandoffPersistenceFailed
+        }
+
+        let pending = PendingSignOutPurchaseHandoff(
+            sourceUserId: normalizedSourceUserId,
+            handoffId: response.handoff_id.lowercased(),
+            handoffSecret: response.handoff_secret,
+            expiresAt: response.expires_at
+        )
+        try persistPendingSignOutPurchaseHandoff(pending)
+
+        let verifiedSession = try await client.auth.session
+        guard !verifiedSession.user.isAnonymous,
+              verifiedSession.user.id.uuidString.lowercased()
+                == normalizedSourceUserId else {
+            // The durable proof remains available if a concurrent session
+            // transition already reached the anonymous destination.
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        MerianLog.auth.debug("Secured purchase continuity before sign-out.")
+    }
+
+    @discardableResult
+    private func completePendingSignOutPurchaseHandoffIfNeeded(
+        expectedDestinationUserId: String? = nil
+    ) async -> Bool {
+        let normalizedExpected = expectedDestinationUserId?.lowercased()
+        if let existingTask = signOutPurchaseHandoffTask {
+            if signOutPurchaseHandoffTargetUserId == normalizedExpected
+                || signOutPurchaseHandoffTargetUserId == nil
+                || normalizedExpected == nil {
+                return await existingTask.value
+            }
+            cancelSignOutPurchaseHandoffTask()
+        }
+
+        let taskId = UUID()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return false }
+            return await self.performPendingSignOutPurchaseHandoff(
+                expectedDestinationUserId: normalizedExpected
+            )
+        }
+        signOutPurchaseHandoffTaskId = taskId
+        signOutPurchaseHandoffTargetUserId = normalizedExpected
+        signOutPurchaseHandoffTask = task
+        let result = await task.value
+        if signOutPurchaseHandoffTaskId == taskId {
+            signOutPurchaseHandoffTask = nil
+            signOutPurchaseHandoffTaskId = nil
+            signOutPurchaseHandoffTargetUserId = nil
+        }
+        return result
+    }
+
+    private func performPendingSignOutPurchaseHandoff(
+        expectedDestinationUserId: String?
+    ) async -> Bool {
+        guard !Task.isCancelled, !isSigningOut else { return false }
+
+        let pending: PendingSignOutPurchaseHandoff
+        do {
+            guard let loaded = try loadPendingSignOutPurchaseHandoff() else {
+                RevenueCatManager.shared.setPurchaseIdentityHandoffPending(false)
+                return true
+            }
+            pending = loaded
+        } catch {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            MerianLog.auth.error(
+                "Purchase continuity remains pending because its device proof is unreadable: \(error.localizedDescription, privacy: .private)"
+            )
+            return false
+        }
+        RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+
+        do {
+            let session = try await client.auth.session
+            let destinationUserId = session.user.id.uuidString.lowercased()
+            guard session.user.isAnonymous else {
+                if destinationUserId == pending.sourceUserId.lowercased() {
+                    await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+                        sourceUserId: pending.sourceUserId
+                    )
+                }
+                return false
+            }
+            if let expectedDestinationUserId,
+               destinationUserId != expectedDestinationUserId {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+
+            try await Self.finalizeSignOutPurchaseHandoff(
+                bindDestination: {
+                    let bound: SignOutPurchaseBindResponse = try await self.client.functions.invoke(
+                        "transfer-signout-purchases",
+                        options: .init(
+                            body: SignOutPurchaseContinuePayload(
+                                operation: "bind",
+                                handoff_id: pending.handoffId,
+                                handoff_secret: pending.handoffSecret
+                            )
+                        )
+                    )
+                    guard bound.success,
+                          bound.handoff_id.caseInsensitiveCompare(
+                            pending.handoffId
+                          ) == .orderedSame,
+                          bound.destination_user_id.lowercased()
+                            == destinationUserId else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                },
+                verifyBoundDestinationSession: {
+                    try await self.verifyActiveAnonymousSession(
+                        userId: destinationUserId
+                    )
+                },
+                linkProviderIdentity: {
+                    _ = await self.ensureTelemetryLinkedIfNeeded(
+                        for: session.user
+                    )
+                },
+                verifyLinkedDestinationSession: {
+                    try await self.verifyActiveAnonymousSession(
+                        userId: destinationUserId
+                    )
+                },
+                synchronizeStorePurchases: {
+                    try await RevenueCatManager.shared
+                        .synchronizePurchasesAfterIdentityHandoff(
+                            expectedUserId: session.user.id
+                        )
+                },
+                completeServerHandoff: {
+                    let completed: SignOutPurchaseOperationResponse = try await self.client.functions.invoke(
+                        "transfer-signout-purchases",
+                        options: .init(
+                            body: SignOutPurchaseContinuePayload(
+                                operation: "complete",
+                                handoff_id: pending.handoffId,
+                                handoff_secret: pending.handoffSecret
+                            )
+                        )
+                    )
+                    guard completed.success,
+                          completed.handoff_id.caseInsensitiveCompare(
+                            pending.handoffId
+                          ) == .orderedSame else {
+                        throw SupabaseAuthTransitionError
+                            .signOutSessionChanged
+                    }
+                },
+                refreshServerEntitlement: {
+                    await EntitlementManager.shared.refreshCurrentSession()
+                },
+                verifyFinalDestinationSession: {
+                    try await self.verifyActiveAnonymousSession(
+                        userId: destinationUserId
+                    )
+                },
+                clearPendingHandoff: {
+                    try self.clearPendingSignOutPurchaseHandoff()
+                }
+            )
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(false)
+            MerianLog.auth.debug(
+                "Verified purchase continuity for the signed-out session."
+            )
+            return true
+        } catch {
+            if Self.shouldDiscardPendingSignOutPurchaseHandoff(after: error) {
+                do {
+                    try clearPendingSignOutPurchaseHandoff()
+                    RevenueCatManager.shared
+                        .setPurchaseIdentityHandoffPending(false)
+                } catch {
+                    RevenueCatManager.shared
+                        .setPurchaseIdentityHandoffPending(true)
+                }
+            }
+            MerianLog.auth.debug(
+                "Purchase continuity retry remains pending: \(error.localizedDescription, privacy: .private)"
+            )
+            return false
+        }
+    }
+
+    /// Re-reads the device proof before any operation that could replace the
+    /// active Auth identity. An unreadable Keychain value is treated as an
+    /// unresolved handoff so a transient device-access failure cannot strand
+    /// the one destination already bound on the server.
+    func hasPendingPurchaseIdentityHandoffFailClosed() -> Bool {
+        do {
+            let pending = try loadPendingSignOutPurchaseHandoff() != nil
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(pending)
+            return pending
+        } catch {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            MerianLog.auth.error(
+                "Could not verify the purchase handoff proof; preserving the active identity."
+            )
+            return true
+        }
+    }
+
+    private func loadPendingSignOutPurchaseHandoff() throws
+        -> PendingSignOutPurchaseHandoff? {
+        guard let data = try KeychainManager.shared.dataOrThrow(
+            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
+        ) else {
+            return nil
+        }
+        guard let pending = try? JSONDecoder().decode(
+            PendingSignOutPurchaseHandoff.self,
+            from: data
+        ),
+        UUID(uuidString: pending.sourceUserId) != nil,
+        UUID(uuidString: pending.handoffId) != nil,
+        pending.handoffSecret.range(
+            of: #"^[A-Za-z0-9_-]{43}$"#,
+            options: .regularExpression
+        ) != nil,
+        ISO8601DateFormatter().date(from: pending.expiresAt) != nil else {
+            throw SupabaseAuthTransitionError
+                .signOutPurchaseHandoffPersistenceFailed
+        }
+        return pending
+    }
+
+    private func persistPendingSignOutPurchaseHandoff(
+        _ pending: PendingSignOutPurchaseHandoff
+    ) throws {
+        let encoded = try JSONEncoder().encode(pending)
+        guard KeychainManager.shared.set(
+            encoded,
+            forKey: KeychainKeys.pendingSignOutPurchaseHandoff,
+            accessibility: .whenUnlockedThisDeviceOnly
+        ),
+        try KeychainManager.shared.dataOrThrow(
+            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
+        ) == encoded else {
+            throw SupabaseAuthTransitionError
+                .signOutPurchaseHandoffPersistenceFailed
+        }
+    }
+
+    private func clearPendingSignOutPurchaseHandoff() throws {
+        try KeychainManager.shared.removeObjectVerified(
+            forKey: KeychainKeys.pendingSignOutPurchaseHandoff
+        )
+    }
+
+    private func abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+        sourceUserId: String
+    ) async {
+        let normalizedSourceUserId = sourceUserId.lowercased()
+        guard let session = try? await client.auth.session,
+              !session.user.isAnonymous,
+              session.user.id.uuidString.lowercased()
+                == normalizedSourceUserId else {
+            return
+        }
+
+        do {
+            guard let pending = try loadPendingSignOutPurchaseHandoff() else {
+                RevenueCatManager.shared
+                    .setPurchaseIdentityHandoffPending(false)
+                return
+            }
+            guard pending.sourceUserId.lowercased()
+                    == normalizedSourceUserId else {
+                return
+            }
+            let cancelled: SignOutPurchaseOperationResponse = try await client.functions.invoke(
+                "transfer-signout-purchases",
+                options: .init(
+                    body: SignOutPurchaseContinuePayload(
+                        operation: "cancel",
+                        handoff_id: pending.handoffId,
+                        handoff_secret: pending.handoffSecret
+                    )
+                )
+            )
+            guard cancelled.success,
+                  cancelled.handoff_id.caseInsensitiveCompare(
+                    pending.handoffId
+                  ) == .orderedSame else {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            try clearPendingSignOutPurchaseHandoff()
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(false)
+            MerianLog.auth.debug(
+                "Abandoned an unused sign-out purchase proof after the source account was restored."
+            )
+        } catch {
+            RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
+            MerianLog.auth.error(
+                "Could not clear an unused sign-out purchase proof: \(error.localizedDescription, privacy: .private)"
+            )
+        }
+    }
+
+    private func cancelSignOutPurchaseHandoffTask() {
+        signOutPurchaseHandoffTask?.cancel()
+        signOutPurchaseHandoffTask = nil
+        signOutPurchaseHandoffTaskId = nil
+        signOutPurchaseHandoffTargetUserId = nil
+    }
+
+    private func verifyActiveAnonymousSession(userId: String) async throws {
+        let session = try await client.auth.session
+        guard session.user.isAnonymous,
+              session.user.id.uuidString.lowercased() == userId.lowercased()
+        else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+    }
+
+    nonisolated static func shouldDiscardPendingSignOutPurchaseHandoff(
+        after error: Error
+    ) -> Bool {
+        guard case let FunctionsError.httpError(_, data) = error,
+              let payload = try? JSONDecoder().decode(
+                SignOutPurchaseErrorPayload.self,
+                from: data
+              ) else {
+            return false
+        }
+        return payload.code == "handoff_expired"
+            || payload.code == "handoff_invalid"
     }
 
     private func loadPendingGhostProfileMergeQueue() throws -> [PendingGhostProfileMerge] {
@@ -1746,7 +2357,6 @@ extension SupabaseManager: ASAuthorizationControllerDelegate, ASAuthorizationCon
                 let session = try await client.auth.session
                 currentUser = session.user
                 isAuthenticated = true
-                leaveGhostMode(for: session.user.id)
                 _ = await ensureTelemetryLinkedIfNeeded(for: session.user)
                 if didPersistAppleMetadata {
                     _ = await refreshPublicAuthorIdentity()
