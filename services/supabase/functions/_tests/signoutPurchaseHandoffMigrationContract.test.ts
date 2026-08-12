@@ -4,6 +4,10 @@ const migrationUrl = new URL(
   "../../migrations/20260812011914_add_signout_purchase_handoffs.sql",
   import.meta.url,
 );
+const securityFixtureUrl = new URL(
+  "../../tests/signout_purchase_handoff_security.sql",
+  import.meta.url,
+);
 
 function compact(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -196,4 +200,33 @@ Deno.test("sign-out purchase grants match the reviewed role allowlist", async ()
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("sign-out service-role fixture uses RPCs without private-table grants", async () => {
+  const fixture = await Deno.readTextFile(securityFixtureUrl);
+  const serviceRoleBlocks = [...fixture.matchAll(
+    /SET LOCAL ROLE service_role;([\s\S]*?)RESET ROLE;/gi,
+  )];
+
+  assert(
+    serviceRoleBlocks.length > 0,
+    "service-role fixture coverage is missing",
+  );
+  for (const match of serviceRoleBlocks) {
+    assert(
+      !/\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+internal\.[a-z_]+\b(?!\s*\()/i
+        .test(match[1]),
+      "service_role fixture phases must not bypass private handoff-table ACLs",
+    );
+  }
+
+  const sql = compact(fixture);
+  assertStringIncludes(
+    sql,
+    "expected_store_expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '1 year')",
+  );
+  assertStringIncludes(
+    sql,
+    "SELECT expected_store_expires_at FROM signout_transfer_fixture",
+  );
 });

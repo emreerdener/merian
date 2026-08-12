@@ -198,7 +198,9 @@ CREATE TEMP TABLE signout_transfer_fixture (
   handoff_id UUID NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   destination_snapshot_at_ms BIGINT NOT NULL DEFAULT
-    ((EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT)
+    ((EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT),
+  expected_store_expires_at TIMESTAMPTZ NOT NULL DEFAULT
+    (NOW() + INTERVAL '1 year')
 );
 CREATE TEMP TABLE signout_deletion_race_fixture (
   handoff_id UUID NOT NULL,
@@ -577,11 +579,7 @@ FROM public.complete_signout_purchase_handoff(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
   (SELECT destination_snapshot_at_ms FROM signout_transfer_fixture),
   'pro',
-  (
-    SELECT expected_store_expires_at
-    FROM internal.signout_purchase_handoffs
-    WHERE id = (SELECT handoff_id FROM signout_transfer_fixture)
-  )
+  (SELECT expected_store_expires_at FROM signout_transfer_fixture)
 );
 
 DO $$
@@ -596,11 +594,7 @@ BEGIN
     'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
     (SELECT destination_snapshot_at_ms FROM signout_transfer_fixture),
     'pro',
-    (
-      SELECT expected_store_expires_at
-      FROM internal.signout_purchase_handoffs
-      WHERE id = (SELECT handoff_id FROM signout_transfer_fixture)
-    )
+    (SELECT expected_store_expires_at FROM signout_transfer_fixture)
   ) AS receipt;
   IF replay_was_idempotent IS DISTINCT FROM TRUE THEN
     RAISE EXCEPTION 'same-destination completion was not idempotent';
@@ -682,10 +676,7 @@ DECLARE
   health RECORD;
   expected_oldest TIMESTAMPTZ;
 BEGIN
-  SELECT handoff.created_at
-  INTO STRICT expected_oldest
-  FROM internal.signout_purchase_handoffs AS handoff
-  WHERE handoff.secret_hash = REPEAT('d', 64);
+  expected_oldest := NOW() - INTERVAL '3 days';
 
   SELECT * INTO STRICT health
   FROM public.get_revenuecat_reconciliation_health();

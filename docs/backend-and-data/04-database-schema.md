@@ -4052,7 +4052,9 @@ The private identity boundary consists of:
   unique SHA-256 installation-capability digest. Raw capabilities are never
   stored. `latest_binding_intent_generation` is monotonic and completion must
   match it, preventing late older Auth requests from winning by response order.
-  Lifecycle is `pending`, `active`, or `revoked`.
+  Lifecycle is `pending`, `active`, or `revoked`. Its nullable fixed grant-owner
+  foreign key has a non-partial leading index so account deletion does not scan
+  the principal table.
 - `internal.purchase_principal_bindings`: one current Auth user per purchase
   principal, with a monotonically increasing binding generation. Multiple
   installation principals may be bound to one account; an Auth UUID is not a
@@ -4073,7 +4075,9 @@ The private identity boundary consists of:
   `internal.account_access_grant_audit`: account-owned beta, promotion, and
   support access, including start/expiry/revocation and hashed operator or
   migration provenance. Account deletion cascades the grant and its identifying
-  audit evidence; purchase-principal StoreKit history remains independent.
+  audit evidence; purchase-principal StoreKit history remains independent. A
+  full leading account-user index supports that foreign key, while the separate
+  partial `(account_user_id, expires_at)` index serves active-grant projection.
 
 `internal.recompute_purchase_principal_entitlement(uuid)` is the only common
 projection helper. It takes the exact `public.users` lock and combines active
@@ -4151,6 +4155,12 @@ Free abandoned principals do not create permanent operational alerts. In `accoun
 authoritative`, provider promotional records are observed but forced to free;
 the private grant ledger is the only account-grant authority. That flag may be
 changed only after the runbook's migration and dual-read gates.
+
+During coexistence, the legacy reconciliation apply routine remains
+claim-token fenced. It locks the exact live lease without retaining a lint-only
+row value, returns stable SQLSTATE `55000` when the claim is absent or expired,
+and represents a synthetic zero-subject reconciliation seed with event outcome
+`ignored` so the immutable event-ledger CHECK remains valid.
 
 Every new table has RLS enabled and revokes all direct access from `PUBLIC`,
 `anon`, `authenticated`, and `service_role`. Every public RPC has an empty

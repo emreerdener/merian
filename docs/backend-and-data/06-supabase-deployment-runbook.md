@@ -623,6 +623,26 @@ fresh-replaying the stable purchase-principal migration at this exact parser
 boundary; the fleet contract now rejects schema-qualified `EXTRACT` before
 disposable startup.
 
+Workflow run 1688 proved that parser repair by replaying the full migration
+fleet, then failed only after entering the 37-file pgTAP catalog. The first
+concrete defects were final-definition and fixture drift: the stable-principal
+migration had reintroduced the legacy reconciler's constraint-invalid
+zero-subject `applied` seed, an unread queue row plus uncontrolled
+`INTO STRICT` claim failure, and two user foreign keys backed only by partial
+indexes. The new purchase-principal fixture also repeated a trigger-created
+`public.users` insert, while service-role fixture phases read private handoff
+and principal tables despite the catalogs correctly requiring no such grant.
+
+For this failure shape, preserve the product ACLs. Carry the prior reconciler
+repairs into the final replacement (`PERFORM 1 ... FOR UPDATE`, explicit
+SQLSTATE `55000`, and `ignored` for a zero-subject seed), add non-partial leading
+indexes for the complete foreign-key domains, make Auth-triggered profile setup
+conflict-safe, and move private-state assertions back to the catalog owner.
+Service-role phases should retain expected arguments in narrowly granted
+temporary fixtures and exercise only guarded RPCs. The later `Dubious` and
+`Bad plan` summaries are consequences of those PostgreSQL exceptions, not
+evidence that production was contacted.
+
 Do not combine schema qualification with PostgreSQL's keyword-separated
 `SUBSTRING` expression forms. `SUBSTRING(value FROM pattern)`,
 `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)` are

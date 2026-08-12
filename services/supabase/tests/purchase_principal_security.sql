@@ -135,7 +135,14 @@ VALUES
     'alias',
     'free',
     NULL
-  );
+  )
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source,
+    subscription_tier = EXCLUDED.subscription_tier,
+    subscription_expires_at = EXCLUDED.subscription_expires_at;
 
 UPDATE internal.purchase_identity_rollout_config
 SET principal_mode = 'stable',
@@ -976,19 +983,30 @@ DECLARE
 BEGIN
   SELECT * INTO STRICT claim
   FROM public.claim_purchase_principal_reconciliations(1);
-  IF claim.allow_non_subscription_pass_grant IS DISTINCT FROM FALSE
-     OR EXISTS (
-       SELECT 1
-       FROM internal.purchase_principal_store_state AS state
-       WHERE state.purchase_principal_id = claim.purchase_principal_id
-         AND state.allow_non_subscription_pass_grant
-     ) THEN
+  IF claim.allow_non_subscription_pass_grant IS DISTINCT FROM FALSE THEN
     RAISE EXCEPTION
-      'refunded pass policy was not durable through reconciliation claim';
+      'refunded pass policy was not returned by reconciliation claim';
   END IF;
 END;
 $durable_pass_revocation$;
 RESET ROLE;
+
+DO $durable_pass_state$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM internal.purchase_principal_store_state AS state
+    WHERE state.purchase_principal_id = (
+      SELECT purchase_principal_id
+      FROM purchase_principal_resolution_fixture
+    )
+      AND state.allow_non_subscription_pass_grant
+  ) THEN
+    RAISE EXCEPTION
+      'refunded pass policy was not durable in principal state';
+  END IF;
+END;
+$durable_pass_state$;
 
 SET LOCAL ROLE service_role;
 DO $unbound_free_health$

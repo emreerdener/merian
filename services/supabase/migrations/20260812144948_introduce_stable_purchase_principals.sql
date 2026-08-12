@@ -74,8 +74,7 @@ CREATE TABLE internal.purchase_principals (
 );
 
 CREATE INDEX purchase_principals_grant_owner_idx
-    ON internal.purchase_principals (account_grant_owner_user_id)
-    WHERE account_grant_owner_user_id IS NOT NULL;
+    ON internal.purchase_principals (account_grant_owner_user_id);
 
 ALTER TABLE internal.purchase_principals ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE internal.purchase_principals
@@ -321,6 +320,9 @@ CREATE TABLE internal.account_access_grants (
 CREATE INDEX account_access_grants_active_account_idx
     ON internal.account_access_grants (account_user_id, expires_at)
     WHERE revoked_at IS NULL;
+
+CREATE INDEX account_access_grants_account_user_idx
+    ON internal.account_access_grants (account_user_id);
 
 ALTER TABLE internal.account_access_grants ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE internal.account_access_grants
@@ -3275,7 +3277,6 @@ SET search_path = ''
 SET statement_timeout = '5s'
 AS $function$
 DECLARE
-    queue_row internal.revenuecat_reconciliation_queue%ROWTYPE;
     legacy_state internal.legacy_revenuecat_entitlement_state%ROWTYPE;
     target_tier public.subscription_tier_enum;
     seed_event_id TEXT;
@@ -3311,13 +3312,16 @@ BEGIN
             USING ERRCODE = 'P0001';
     END IF;
 
-    SELECT queue.*
-    INTO STRICT queue_row
+    PERFORM 1
     FROM internal.revenuecat_reconciliation_queue AS queue
     WHERE queue.merian_user_id = p_user_id
       AND queue.claim_token = p_claim_token
       AND queue.claim_expires_at > pg_catalog.CLOCK_TIMESTAMP()
     FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'revenuecat_reconciliation_claim_lost'
+            USING ERRCODE = '55000';
+    END IF;
 
     SELECT state.*
     INTO legacy_state
@@ -3372,7 +3376,7 @@ BEGIN
                 pg_catalog.FLOOR(
                     p_authoritative_snapshot_at_ms::NUMERIC / 1000
                 )::BIGINT,
-                'applied',
+                'ignored',
                 0,
                 0,
                 0

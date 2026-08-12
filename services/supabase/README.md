@@ -77,6 +77,16 @@ plain insert. Conflict handling does not bypass immediate username or identity
 CHECKs. Keep fixture identities deterministic, catalog-wide unique, and inside
 `BEGIN` / `ROLLBACK`.
 
+The same real-role rule applies to private backend state. A fixture running as
+`service_role` must reach an `internal` table only through its reviewed guarded
+RPC; it must not grant itself or assume direct table access merely to inspect an
+expected value. Persist expected inputs in a granted temporary fixture before
+switching roles, then return to the catalog owner for private-state assertions.
+Every single-column foreign key to `public.users` or `auth.users` also needs a
+valid, ready, non-partial leading index. A partial operational index remains
+useful for active rows, but it cannot support the complete parent-delete/update
+domain by itself.
+
 A multi-phase fixture must not hide its PostgreSQL exception behind a pgTAP
 `Bad plan`. Catch the outer exception, emit a bounded deterministic warning
 containing phase, SQLSTATE, message, detail, and hint, and emit every planned
@@ -1248,6 +1258,14 @@ When an `INSERT ... ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`
 statement returns no row, PL/pgSQL leaves `event_inserted` null; branch on
 `event_inserted IS NOT TRUE` so both null and false take the durable-duplicate
 path. The catalog gate validates this routine body after migration replay.
+
+When a later migration replaces a previously repaired routine, it owns the
+installed final definition and must carry every intervening repair forward. In
+particular, the legacy RevenueCat reconciler uses a lock-only `PERFORM 1 ... FOR
+UPDATE`, maps a missing or expired lease to stable SQLSTATE `55000`, and records
+its zero-subject synthetic seed as `ignored`. Reintroducing an unread row holder,
+`INTO STRICT`, or the constraint-invalid `applied` outcome breaks the lint,
+retry, or event-ledger contracts even though the replacement DDL parses.
 
 ```bash
 make validate-supabase-migrations

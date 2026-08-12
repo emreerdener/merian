@@ -25,6 +25,12 @@ const securityFixtureUrl = new URL(
   import.meta.url,
 );
 
+function serviceRoleBlocks(sql: string): string[] {
+  return [...sql.matchAll(
+    /SET LOCAL ROLE service_role;([\s\S]*?)RESET ROLE;/gi,
+  )].map((match) => match[1]);
+}
+
 function compact(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
 }
@@ -37,6 +43,7 @@ Deno.test("purchase principals are private, capability-bound, and disabled by de
       "principal_mode TEXT NOT NULL DEFAULT 'legacy'",
       "account_grant_mode TEXT NOT NULL DEFAULT 'dual_read'",
       "CREATE TABLE internal.purchase_principals",
+      "CREATE INDEX purchase_principals_grant_owner_idx ON internal.purchase_principals (account_grant_owner_user_id)",
       "capability_hash TEXT NOT NULL UNIQUE",
       "latest_binding_intent_generation BIGINT NOT NULL DEFAULT 0",
       "latest_binding_intent_generation BETWEEN 0 AND 9007199254740991",
@@ -155,6 +162,7 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
       "provider_account_grant_frozen BOOLEAN NOT NULL DEFAULT FALSE",
       "allow_non_subscription_pass_grant BOOLEAN NOT NULL DEFAULT FALSE",
       "CREATE TABLE internal.account_access_grants",
+      "CREATE INDEX account_access_grants_account_user_idx ON internal.account_access_grants (account_user_id)",
       "grant_kind IN ('beta', 'promotion', 'support')",
       "source_kind IN ('revenuecat_legacy', 'operator', 'migration')",
       "CREATE TABLE internal.account_access_grant_audit",
@@ -186,6 +194,36 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
       "UPDATE internal.purchase_principal_bindings SET auth_user_id = p_account_user_id",
     ),
     "an account grant must never choose or move the purchase-principal binding",
+  );
+});
+
+Deno.test("legacy reconciliation replacement preserves claim and seed contracts", async () => {
+  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const start = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.apply_revenuecat_reconciliation",
+  );
+  const end = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.merge_ghost_legacy_purchase_state",
+    start,
+  );
+  assert(start >= 0 && end > start, "legacy reconciliation must be replaced");
+  const reconciliation = sql.slice(start, end);
+
+  for (
+    const fragment of [
+      "PERFORM 1 FROM internal.revenuecat_reconciliation_queue AS queue",
+      "IF NOT FOUND THEN RAISE EXCEPTION 'revenuecat_reconciliation_claim_lost' USING ERRCODE = '55000'",
+      "'RECONCILIATION', pg_catalog.REPEAT('0', 64)",
+      "'ignored', 0, 0, 0",
+    ]
+  ) {
+    assertStringIncludes(reconciliation, fragment);
+  }
+  assert(
+    !reconciliation.includes(
+      "queue_row internal.revenuecat_reconciliation_queue%ROWTYPE",
+    ),
+    "the queue lock must not reintroduce a lint-only row holder",
   );
 });
 
@@ -308,7 +346,8 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
 });
 
 Deno.test("disposable database coverage exercises rotation and grant separation", async () => {
-  const fixture = compact(await Deno.readTextFile(securityFixtureUrl));
+  const fixtureSource = await Deno.readTextFile(securityFixtureUrl);
+  const fixture = compact(fixtureSource);
 
   for (
     const fragment of [
@@ -326,15 +365,25 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "stable identity did not win before UUID fallback",
       "unbound paid purchase principal was not reported",
       "unbound free purchase principal created a permanent alert",
-      "refunded pass policy was not durable through reconciliation claim",
+      "refunded pass policy was not returned by reconciliation claim",
+      "refunded pass policy was not durable in principal state",
       "provider transfer moved, extended, revoked, or created an account grant",
       "provider transfer grant freeze was not preserved or audited",
       "authoritative snapshot ordering yielded to event delivery time",
       "provider transfer did not freeze later grant imports",
       "deleted Auth UUID remained in purchase identity evidence",
+      "ON CONFLICT (id) DO UPDATE",
       "ROLLBACK",
     ]
   ) {
     assertStringIncludes(fixture, fragment);
+  }
+
+  for (const block of serviceRoleBlocks(fixtureSource)) {
+    assert(
+      !/\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+internal\.[a-z_]+\b(?!\s*\()/i
+        .test(block),
+      "service_role fixture phases must exercise guarded RPCs, not private tables",
+    );
   }
 });
