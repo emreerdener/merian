@@ -8,10 +8,11 @@ import {
   timingSafeCompare,
 } from "../_shared/http.ts";
 import {
-  applyRevenueCatCustomerState,
+  applyRevenueCatIdentityState,
   getRevenueCatWebhookEventResult,
+  resolveRevenueCatIdentitySubjects,
   RevenueCatDatabaseError,
-  scheduleRevenueCatReconciliation,
+  scheduleRevenueCatIdentityReconciliation,
 } from "./db.ts";
 import {
   MAX_REVENUECAT_WEBHOOK_BYTES,
@@ -25,10 +26,16 @@ import {
   verifyRevenueCatSignature,
 } from "./signature.ts";
 import {
+  deriveRevenueCatAccountGrantState,
   deriveRevenueCatEntitlementState,
+  deriveRevenueCatStoreEntitlementState,
   fetchRevenueCatCustomerInfo,
+  hasActiveRevenueCatAppStorePass,
   RevenueCatApiError,
+  revenueCatNonSubscriptionPassGrantDecision,
 } from "./subscriber.ts";
+
+const MAX_CUSTOMER_INFO_AGE_MS = 15 * 60 * 1_000;
 
 export interface RevenueCatWebhookConfig {
   authorizationSecret: string;
@@ -176,6 +183,10 @@ export function createRevenueCatWebhookHandler(
       }
       const payloadSha256 = await sha256Hex(rawBytes);
       const subjects = revenueCatWebhookSubjects(event);
+      const identitySubjects = subjects.map((subject) => ({
+        kind: subject.kind,
+        identifiers: subject.identifiers,
+      }));
 
       const existingResult = await getRevenueCatWebhookEventResult(
         event.id,
@@ -188,10 +199,25 @@ export function createRevenueCatWebhookHandler(
         // The first delivery may have committed the entitlement transaction and
         // crashed before queuing periodic reconciliation. Repair that gap on
         // every durable duplicate before acknowledging it.
-        await scheduleRevenueCatReconciliation(
-          subjects,
-          dependencies.supabaseAdmin,
-        );
+        try {
+          const duplicateSubjects = await resolveRevenueCatIdentitySubjects(
+            identitySubjects,
+            dependencies.supabaseAdmin,
+          );
+          await scheduleRevenueCatIdentityReconciliation(
+            duplicateSubjects,
+            dependencies.supabaseAdmin,
+          );
+        } catch (error) {
+          if (
+            !(error instanceof RevenueCatDatabaseError) ||
+            !error.message.includes("revenuecat_user_not_found")
+          ) {
+            throw error;
+          }
+          // A committed event remains a valid duplicate after its profile was
+          // deleted; there is no live reconciliation destination to repair.
+        }
         console.info(
           `[revenuecat-webhook] duplicate event ${event.id}; ${existingResult.subjectCount} subject(s).`,
         );
@@ -208,41 +234,104 @@ export function createRevenueCatWebhookHandler(
         );
       }
 
+      const resolvedSubjects = await resolveRevenueCatIdentitySubjects(
+        identitySubjects,
+        dependencies.supabaseAdmin,
+      );
+
       // RevenueCat recommends fetching CustomerInfo after each webhook. The
       // event itself is a synchronization signal, never the entitlement truth.
-      // A committed duplicate and an event with no Merian UUID are the only
+      // A committed duplicate and an event with no resolved Merian identity are the only
       // safe provider-lookup bypasses. TRANSFER reconciles both sides before
       // one database transaction so it can never half-move access.
-      const stateSubjects = await Promise.all(subjects.map(async (subject) => {
-        const customerInfo = await fetchRevenueCatCustomerInfo(
-          subject.lookupAppUserId,
-          dependencies.config.apiKey,
-          fetchImpl,
-        );
-        if (
-          customerInfo.requestDateMs >
-            now() + REVENUECAT_SIGNATURE_TOLERANCE_SECONDS * 1_000
-        ) {
-          throw new RevenueCatApiError(
-            "RevenueCat CustomerInfo snapshot timestamp is in the future.",
-            true,
+      const fetchedSubjects = await Promise.all(
+        resolvedSubjects.map(async (subject) => {
+          const customerInfo = await fetchRevenueCatCustomerInfo(
+            subject.lookupAppUserId,
+            dependencies.config.apiKey,
+            fetchImpl,
           );
-        }
-        const entitlement = deriveRevenueCatEntitlementState(
-          customerInfo,
-          event,
-        );
-        return {
-          kind: subject.kind,
-          lookupAppUserId: subject.lookupAppUserId,
-          candidateUserIds: subject.candidateUserIds,
-          authoritativeSnapshotAtMs: customerInfo.requestDateMs,
-          targetTier: entitlement.targetTier,
-          targetExpiresAt: entitlement.expiresAt,
-        };
-      }));
+          const observedAtMs = now();
+          if (
+            customerInfo.requestDateMs >
+              observedAtMs +
+                REVENUECAT_SIGNATURE_TOLERANCE_SECONDS * 1_000 ||
+            customerInfo.requestDateMs <
+              observedAtMs - MAX_CUSTOMER_INFO_AGE_MS
+          ) {
+            throw new RevenueCatApiError(
+              "RevenueCat CustomerInfo snapshot timestamp is outside the accepted window.",
+              true,
+            );
+          }
+          return { subject, customerInfo };
+        }),
+      );
+      const transferSource = event.type === "TRANSFER"
+        ? fetchedSubjects.find(({ subject }) =>
+          subject.kind === "transfer_source" &&
+          subject.identityKind === "purchase_principal"
+        ) ?? null
+        : null;
+      const transferSourcePassPolicy =
+        transferSource?.subject.allowNonSubscriptionPassGrant ?? null;
+      const transferSourceHasActivePass = transferSourcePassPolicy === true &&
+        transferSource !== null &&
+        hasActiveRevenueCatAppStorePass(transferSource.customerInfo);
+      const stateSubjects = fetchedSubjects.map(
+        ({ subject, customerInfo }) => {
+          let passGrantPolicyUpdate =
+            subject.identityKind === "purchase_principal"
+              ? revenueCatNonSubscriptionPassGrantDecision(
+                customerInfo,
+                event,
+                subject.kind,
+              )
+              : null;
+          if (
+            event.type === "TRANSFER" &&
+            subject.identityKind === "purchase_principal" &&
+            subject.kind === "transfer_destination" &&
+            transferSourcePassPolicy === true &&
+            (transferSourceHasActivePass ||
+              hasActiveRevenueCatAppStorePass(customerInfo))
+          ) {
+            if (!hasActiveRevenueCatAppStorePass(customerInfo)) {
+              // RevenueCat may deliver TRANSFER before the destination's
+              // CustomerInfo projection catches up. Retrying is safer than
+              // granting permission to unrelated historical pass records.
+              throw new RevenueCatApiError(
+                "RevenueCat transfer destination did not include the active App Store pass.",
+                true,
+              );
+            }
+            passGrantPolicyUpdate = true;
+          }
+          const storeState = subject.identityKind === "purchase_principal"
+            ? deriveRevenueCatStoreEntitlementState(
+              customerInfo,
+              passGrantPolicyUpdate ??
+                subject.allowNonSubscriptionPassGrant ?? false,
+              event,
+            )
+            : deriveRevenueCatEntitlementState(customerInfo, event);
+          const accountGrantState =
+            subject.identityKind === "purchase_principal"
+              ? deriveRevenueCatAccountGrantState(customerInfo)
+              : { targetTier: "free" as const, expiresAt: null };
+          return {
+            ...subject,
+            authoritativeSnapshotAtMs: customerInfo.requestDateMs,
+            targetStoreTier: storeState.targetTier,
+            targetStoreExpiresAt: storeState.expiresAt,
+            targetAccountGrantTier: accountGrantState.targetTier,
+            targetAccountGrantExpiresAt: accountGrantState.expiresAt,
+            passGrantPolicyUpdate,
+          };
+        },
+      );
 
-      const result = await applyRevenueCatCustomerState(
+      const result = await applyRevenueCatIdentityState(
         {
           eventId: event.id,
           eventTimestampMs: event.eventTimestampMs,
@@ -253,8 +342,8 @@ export function createRevenueCatWebhookHandler(
         },
         dependencies.supabaseAdmin,
       );
-      await scheduleRevenueCatReconciliation(
-        subjects,
+      await scheduleRevenueCatIdentityReconciliation(
+        resolvedSubjects,
         dependencies.supabaseAdmin,
       );
 
@@ -318,7 +407,10 @@ export function createRevenueCatWebhookHandler(
             "Event identifier conflict.",
           );
         }
-        if (error.message.includes("revenuecat_user_mapping_ambiguous")) {
+        if (
+          error.message.includes("revenuecat_user_mapping_ambiguous") ||
+          error.message.includes("revenuecat_identity_mapping_ambiguous")
+        ) {
           return publicErrorResponse(
             request,
             409,

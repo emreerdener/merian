@@ -107,12 +107,33 @@ alone is not relational authorization evidence.
 ## RevenueCat Identity Operations
 
 RevenueCat App User IDs are case-sensitive, and `GET /v1/subscribers/{id}` is a
-get-or-create operation. Merian's only database-generated customer ID is the
-uppercase Supabase UUID returned by
-`internal.canonical_revenuecat_app_user_id(...)`, matching iOS. Never repair
+get-or-create operation. The legacy lane's database-generated customer ID is
+the uppercase Supabase UUID returned by
+`internal.canonical_revenuecat_app_user_id(...)`, matching legacy iOS. Stable
+mode uses the immutable server-owned ID returned by the additive
+`resolve-purchase-principal` route and resolves it before UUID fallback in the
+webhook and reconciliation paths. Never repair
 entitlement drift by editing `public.users.subscription_tier`; authoritative
 reconciliation correctly overwrites it. Provider shell cleanup is a separate,
 exact operation and never mutates Supabase.
+
+Migration `20260812144948_introduce_stable_purchase_principals.sql` separates
+three authorities: disposable Supabase authentication, a device-capability-
+bound StoreKit purchase principal, and account-owned beta/promotion/support
+grants. Raw installation capabilities never enter Postgres. Stable customers
+receive no account PII attributes, ordinary Auth rotation uses the same provider
+ID without receipt sync or customer transfer, and the two private reconciliation
+queues remain claim-fenced. The rollout row defaults to `legacy` / `dual_read`;
+deploying this source does not authorize a mode change. Returning to `legacy`
+stops new adoption but deliberately keeps every active capability on its exact
+stable provider ID. Old clients and the unchanged
+`/transfer-signout-purchases` contract remain supported through the reviewed
+rollback window.
+
+Stable StoreKit state also persists a signed-event-controlled detached-pass
+policy. First adoption requires an exact locked projection match, and a refund
+remains revoked through unrelated webhooks and scheduled reconciliation even
+when RevenueCat retains the old non-renewing transaction.
 
 The scheduled Ghost-merge health monitor can execute repository code before a
 blocked candidate migration reaches production. Its read-only queue comparison

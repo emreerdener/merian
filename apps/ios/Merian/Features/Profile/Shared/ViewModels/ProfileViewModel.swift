@@ -1,6 +1,15 @@
 import Observation
 import SwiftUI
 
+enum SignOutPresentationPolicy {
+    static func incompleteMessage(isAnonymousSession: Bool) -> String {
+        if isAnonymousSession {
+            return "You're signed out. Purchase access is still syncing. Use Finish sign out on your profile to retry."
+        }
+        return "Naturebook couldn't sign you out. Check your connection and try again."
+    }
+}
+
 struct ProfileSocialStats: Equatable {
     let followerCount: Int
     let followingCount: Int

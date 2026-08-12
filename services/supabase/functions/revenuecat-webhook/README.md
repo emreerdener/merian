@@ -43,12 +43,13 @@ After ingress verification, the handler:
 1. Requires a bounded `event.id`, `event.event_timestamp_ms`, and event type. An
    event timestamp more than five minutes ahead of the signed delivery timestamp
    is rejected so it cannot poison the ordering watermark.
-2. Resolves ordered Supabase UUID candidates from `app_user_id`,
-   `original_app_user_id`, and `aliases`. A `TRANSFER` event has no
-   `app_user_id`; its `transferred_from` and `transferred_to` arrays become
-   independent source/destination subjects. Purely anonymous or otherwise
-   unmappable events are written to the durable ledger as `ignored` without a
-   provider lookup; a later alias event carries its own durable event ID.
+2. Resolves the ordered provider identifiers against an active stable purchase
+   principal before the uppercase Supabase-UUID compatibility fallback. A
+   `TRANSFER` event has no `app_user_id`; its `transferred_from` and
+   `transferred_to` arrays become independent source/destination subjects.
+   Purely anonymous or otherwise unmappable events are written to the durable
+   ledger as `ignored` without a provider lookup; a later alias event carries
+   its own durable event ID.
 3. Checks the private event ledger through a service-only read RPC. A committed
    duplicate with the same event timestamp, type, and payload SHA-256 returns
    immediately, preventing at-least-once retries or a captured in-window replay
@@ -61,6 +62,9 @@ After ingress verification, the handler:
    (created) are both successful CustomerInfo responses. A newly created empty
    customer still projects free; success status is not entitlement proof.
 5. Derives standard Pro from the active `pro` or `Naturalist Tier` entitlement.
+   Store-only projection also recognizes the reviewed `pro_annual` App Store
+   subscription record directly, because a longer promotion can otherwise hide
+   that receipt-backed product on RevenueCat's single winning entitlement row.
    Recurring access persists the later of its authoritative expiration and
    grace-period expiration; `NULL` is reserved for genuinely non-expiring
    lifetime access. The detached `pro_week` purchase remains a seven-day timed
@@ -68,14 +72,26 @@ After ingress verification, the handler:
    refund/revocation removes the affected transaction and fails closed if
    identifiers cannot be matched. Future-dated pass purchases and future-dated
    CustomerInfo snapshots also fail closed.
-6. Calls `public.apply_revenuecat_customer_state(...)` once with zero, one, or
-   two authoritative subjects.
+6. Calls `public.apply_revenuecat_identity_state(...)` once with zero, one, or
+   two authoritative subjects. Stable subjects keep StoreKit and account-grant
+   state separate. Their nullable pass-policy update is enabled by signed
+   purchase evidence or by a transfer destination only when the resolved stable
+   source already carries that durable policy and the destination snapshot
+   contains an active App Store pass. Revocation and transfer-source evidence
+   disable it; unrelated events preserve it. Destination history alone is never
+   authority, and provider lag returns a retryable failure.
 
 An API timeout, rate limit, malformed CustomerInfo response, missing current or
 destination public profile, ambiguous mapping to multiple live Merian UUIDs, or
 database error returns a non-2xx response so RevenueCat retries. A transfer
 source whose account was already deleted is safely omitted so it cannot block
-the live destination. No failure becomes a free or Pro write by inference.
+the live destination. No failure becomes a free or Pro write by inference. For
+stable principals, `TRANSFER` applies StoreKit state only. Promotional records
+observed as disappearing from the source or appearing at the destination are
+audited but cannot revoke, extend, create, or move the Supabase-owned account
+grant. Both stable principals are durably fenced from later dual-read promotion
+import, preventing scheduled reconciliation or a resolver retry from moving the
+grant after the webhook transaction.
 
 ## Idempotency and monotonic ordering
 
@@ -110,6 +126,9 @@ resolved subject compares this tuple independently:
 1. authoritative CustomerInfo `request_date_ms`
 2. `event_timestamp_ms`
 3. event ID as a deterministic final tie-breaker
+
+CustomerInfo more than 15 minutes old, or beyond the existing five-minute
+future-skew allowance, is rejected before this ordering can mutate state.
 
 Only a newer tuple can update `subscription_tier` and `subscription_expires_at`.
 The existing user trigger advances `entitlement_version` only when those values
@@ -160,7 +179,10 @@ CustomerInfo retains historical non-renewing purchases after refund. To avoid
 restoring a revoked `pro_week`, a periodic claim may grant a detached pass only
 when the current database state or absence of any customer watermark proves that
 it is not overwriting a prior free/refunded state. Webhook refund context
-remains authoritative for that product.
+remains authoritative for that product. Stable-principal state persists the
+decision as `allow_non_subscription_pass_grant`; its reconciliation claim
+carries that flag and the apply routine preserves it, so a later unrelated
+CustomerInfo read cannot resurrect refunded history.
 
 ## Secrets and RevenueCat dashboard setup
 

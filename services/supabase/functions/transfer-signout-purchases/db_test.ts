@@ -102,6 +102,13 @@ Deno.test("database errors distinguish terminal, conflict, and retryable proofs"
   );
   assertEquals(
     mapDatabaseError(
+      error("signout_handoff_fresh_anonymous_destination_required"),
+      "fallback",
+    ).code,
+    "handoff_invalid",
+  );
+  assertEquals(
+    mapDatabaseError(
       error("signout_handoff_not_cancelable", "55000"),
       "fallback",
     ).code,

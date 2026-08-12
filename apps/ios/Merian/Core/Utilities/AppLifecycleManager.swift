@@ -8,9 +8,23 @@ import SwiftUI
 final class AppLifecycleManager {
 
     private let container: AppDIContainer
+    private let retryPurchaseIdentityReadiness: @MainActor () async -> Void
 
     init(container: AppDIContainer) {
         self.container = container
+        let supabaseManager = container.supabaseManager
+        self.retryPurchaseIdentityReadiness = { [weak supabaseManager] in
+            _ = await supabaseManager?
+                .retryPurchaseIdentityReadinessIfNeeded()
+        }
+    }
+
+    init(
+        container: AppDIContainer,
+        retryPurchaseIdentityReadiness: @escaping @MainActor () async -> Void
+    ) {
+        self.container = container
+        self.retryPurchaseIdentityReadiness = retryPurchaseIdentityReadiness
     }
 
     /// Handles application transition to active foreground.
@@ -22,6 +36,14 @@ final class AppLifecycleManager {
         // users discover account evidence without repeating onboarding.
         Task {
             try? await container.consentManager.synchronizeWithCurrentSession()
+        }
+
+        // Auth listeners normally resolve billing identity. A transient server,
+        // Keychain, or provider failure may not emit a later Auth event, so
+        // foreground activation retries the same durable identity. This repair
+        // must also run while the current consent gate is closed.
+        Task {
+            await retryPurchaseIdentityReadiness()
         }
 
         // Do not initialize hardware or drain provider work until the current

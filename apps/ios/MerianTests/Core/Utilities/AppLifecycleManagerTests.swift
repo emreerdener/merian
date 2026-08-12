@@ -95,6 +95,37 @@ struct AppLifecycleManagerTests {
         )
     }
 
+    @Test("handleActivePhase retries the exact purchase identity while consent is closed")
+    func testHandleActivePhaseRetriesPurchaseIdentityWithoutConsent() async throws {
+        let diContainer = AppDIContainer.preview
+        let consentFixture = try makeConsentFixture(granted: false)
+        let originalConsentManager = diContainer.consentManager
+        let originalOnboarding = diContainer.appSettings.hasCompletedOnboarding
+        var retryCount = 0
+        let manager = AppLifecycleManager(
+            container: diContainer,
+            retryPurchaseIdentityReadiness: {
+                retryCount += 1
+            }
+        )
+        defer {
+            diContainer.appSettings.hasCompletedOnboarding = originalOnboarding
+            diContainer.consentManager = originalConsentManager
+            consentFixture.removePersistentState()
+        }
+
+        diContainer.consentManager = consentFixture.manager
+        diContainer.appSettings.hasCompletedOnboarding = true
+        manager.handleActivePhase()
+
+        let deadline = Date().addingTimeInterval(1)
+        while retryCount == 0, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(retryCount == 1)
+    }
+
     @Test("handleBackgroundPhase is a no-op on the inference engine — scan durability is handled at submission time")
     func testHandleBackgroundPhaseDoesNotMutateEngine() async {
         // Arrange

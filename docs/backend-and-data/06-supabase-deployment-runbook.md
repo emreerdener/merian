@@ -2807,11 +2807,13 @@ Populate and configure the credentials before merging the first deployment:
 
 RevenueCat project billing being Pro enables integrations such as webhooks; it
 does not grant Merian Pro to any customer. RevenueCat App User IDs are
-case-sensitive, and `GET /v1/subscribers/{app_user_id}` is get-or-create. Merian
-therefore uses the uppercase RFC 4122 Supabase UUID everywhere. The GET returns
-`200` for an existing customer and `201` for a customer created by that request;
-both are successful CustomerInfo responses. The promotional grant POST returns
-`201`.
+case-sensitive, and `GET /v1/subscribers/{app_user_id}` is get-or-create. The
+legacy compatibility lane therefore uses the uppercase RFC 4122 Supabase UUID
+everywhere. The stable lane uses only the immutable server-issued App User ID
+returned by `/resolve-purchase-principal`; it never derives a new customer ID
+from an Auth UUID. The GET returns `200` for an existing customer and `201` for
+a customer created by that request; both are successful CustomerInfo responses.
+The promotional grant POST returns `201`.
 
 The forward migration canonicalizes only queue lookups already proven to be the
 same UUID, clears their outstanding claim leases, makes those rows immediately
@@ -3064,6 +3066,99 @@ history and documents no idempotency key. The staged replacement is the
 [purchase-principal/auth separation RFC](../rfcs/purchase-principal-auth-separation.md);
 its provider cutover has independent migration and release gates.
 
+### Stable purchase-principal staged rollout
+
+Migration `20260812144948_introduce_stable_purchase_principals.sql`, the
+additive `/resolve-purchase-principal` route, stable webhook resolution, the
+two reconciliation queues, and the iOS stable branch are prepared in source.
+The migration intentionally inserts `principal_mode = legacy` and
+`account_grant_mode = dual_read`; landing it does not activate stable identity.
+No source change, green CI run, or database deployment implicitly authorizes a
+mode flip or a RevenueCat mutation.
+
+Use this order for a separately authorized rollout on one reviewed exact SHA:
+
+1. Replay the migration into a disposable database and run
+   `purchase_principal_security.sql` plus all existing privilege, webhook,
+   handoff, merge, and deletion fixtures. Require exact RLS/grants, capability
+   replay, same-install Auth rotation, grant-owner immobility, stable-before-
+   UUID webhook resolution, locked detached-pass adoption, durable refund
+   revocation through a later reconciliation claim, and `authoritative`-mode
+   promo exclusion.
+2. Deploy the additive route and worker changes while the database remains in
+   `legacy` / `dual_read`. The hosted smoke must validate every new service RPC,
+   deny all of them to the public credential, validate both aggregate health
+   schemas, and prove the resolver's unauthenticated boundary. Old apps and new
+   apps must still use the unchanged legacy path at this point.
+3. Inventory active StoreKit and promotional state from fresh provider and
+   Supabase evidence. Import every approved beta/promotion/support grant into
+   `internal.account_access_grants` through the service-only audited boundary;
+   compare the legacy-provider, stable-StoreKit, account-grant, and effective
+   projections until divergence is zero. Do not make the grant ledger
+   authoritative while any operational process can still issue a RevenueCat
+   promotional grant without the matching ledger write.
+4. Review adopted RevenueCat customers for legacy subscriber attributes. A
+   stable purchase principal may survive account switching, so email, username,
+   avatar, display name, Auth UUID, and similar account attributes must not
+   remain on a shared customer. The stable client deletes the legacy keys and
+   synchronizes attributes before opening paid readiness, but the staged
+   provider fixture must verify the deletion and operators must retain aggregate
+   results. The app never writes new account PII in stable mode.
+5. Enforce a minimum iOS build or complete the old-client retirement window.
+   An older build can still log in to an Auth-UUID customer and invoke the
+   legacy transfer path, so stable mode is not safe while such a build remains
+   admitted. New clients must continue to interpret explicit `mode: legacy`
+   and a definite missing route as compatibility only before first stable
+   activation. After activation, the device-only monotonic fingerprint must
+   reject both responses without changing provider identity. Treat auth,
+   timeout, configuration, and provider failures as fail-closed.
+6. Canary `principal_mode = stable` only after steps 1–5 are retained as release
+   evidence. Confirm the RevenueCat project uses **Transfer to new App User
+   ID**, not legacy **Share between App User IDs**; cross-install restore must
+   emit distinct source/destination `TRANSFER` subjects rather than aliasing two
+   stable principals into one ambiguous customer. On clean physical
+   StoreKit/RevenueCat sandbox devices, exercise
+   linked account → **Sign out** → cold relaunch → anonymous session →
+   **Continue with Apple**, repeat with **Continue with Google**, and repeat for
+   account switch, deletion, offline recovery, Keychain unavailable before
+   first unlock, reinstall/new capability, refund, renewal, finite pass,
+   lifetime purchase, promo-only, and mixed StoreKit/promo customers. The same
+   installation must keep one stable provider ID through ordinary Auth rotation,
+   emit no `$RCAnonymousID`, make no receipt-sync or customer-transfer call,
+   and never move an account grant. A new installation may require explicit
+   App Store restore and must never recover a prior principal from sign-in alone.
+   For the pass case, retain historical refunded CustomerInfo, deliver an
+   unrelated later webhook, and run scheduled reconciliation; all three paths
+   must remain free after the signed refund. Also refund an older pass while a
+   newer pass is active and require only the newer horizon to remain eligible.
+7. Keep `account_grant_mode = dual_read` through the canary and rollback window.
+   Require both reconciliation queues to drain, zero expired claims, zero stale
+   pending principals, and zero unbound active principals with current StoreKit
+   access. Investigate every dual-read divergence and webhook identity mismatch;
+   require each stable claim's pass-policy value to match the latest signed pass
+   event, and do not repair any mismatch by moving a binding or editing
+   `public.users` directly.
+8. Change `account_grant_mode` to `authoritative` only after all provider promos
+   are represented in the private ledger, provider promo issuance is disabled
+   or atomically dual-written, the old-client window is closed, and rollback is
+   rehearsed. In this mode provider promo records are observed for evidence but
+   cannot recreate account access. StoreKit state remains purchase-principal
+   scoped.
+9. Retain the legacy UUID resolver, `/transfer-signout-purchases`, its tables,
+   DTOs, and tests throughout the documented client and rollback window. Remove
+   them only in a later reviewed migration after telemetry proves no supported
+   client invokes them.
+
+Rollback before `authoritative` means returning `principal_mode` to `legacy`
+and preserving every principal, binding, state, queue, and audit row for
+diagnosis. That switch stops new or pending adoption, but every already active
+capability must still resolve and rebind the exact same stable provider ID;
+verify both behaviors with the disposable fixture and hosted resolver before
+calling rollback complete. It never means switching an active device to an
+Auth-UUID customer, deleting provider customers, or deleting capabilities.
+After `authoritative`, rollback also requires restoring the exact account-grant
+issuance and dual-read assumptions—do not improvise it during an incident.
+
 If apply partially fails, reconcile only failed IDs from the retained results
 ledger. If the maintenance window cannot finish, restore the worker so ordinary
 subscription correctness resumes and leave the beta rollout incomplete. Never
@@ -3077,7 +3172,11 @@ deno test --frozen \
   --config services/supabase/functions/deno.json \
   --allow-read=services/supabase/functions,services/supabase/scripts,services/supabase/config.toml,.github/workflows \
   services/supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+  services/supabase/functions/_tests/purchasePrincipalMigrationContract.test.ts \
   services/supabase/functions/_shared/subscriptionPass_test.ts \
+  services/supabase/functions/resolve-purchase-principal/protocol_test.ts \
+  services/supabase/functions/resolve-purchase-principal/db_test.ts \
+  services/supabase/functions/resolve-purchase-principal/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/handler_test.ts \
   services/supabase/functions/revenuecat-webhook/index_test.ts \
   services/supabase/functions/revenuecat-webhook/signature_test.ts \
@@ -3098,6 +3197,7 @@ supabase --workdir services db push --local
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/ai_quota_security.sql \
+  services/supabase/tests/purchase_principal_security.sql \
   services/supabase/tests/revenuecat_webhook_security.sql \
   services/supabase/tests/species_observation_stats_security.sql
 ```
@@ -3223,8 +3323,11 @@ roughly 24 hours.
 
 Confirm the `RevenueCat Reconciliation Health Monitor` workflow is enabled for
 the Production environment. Dispatch it once with the default 30/60-minute
-thresholds and `fail_on=warning`; the summary artifact should be `ok` with no
-expired claim. During an alert, inspect the structured
+thresholds and `fail_on=warning`; it reads both
+`get_revenuecat_reconciliation_health()` and
+`get_purchase_principal_health()`. The summary artifact should be `ok` with no
+expired claim, stale pending principal, or unbound active principal carrying
+current StoreKit access. During an alert, inspect the structured
 `revenuecat_reconciliation_health` Edge event, `last_error_code`, and
 `attempt_count`. Restore RevenueCat/database availability and let claim-fenced
 retries drain the queue. Never clear leases or edit user tiers manually.

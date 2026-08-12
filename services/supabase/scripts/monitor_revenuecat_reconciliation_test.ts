@@ -1,8 +1,10 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
+  assertPurchasePrincipalHealth,
   assertRevenueCatReconciliationHealth,
   buildRevenueCatMonitorSummary,
   parseRevenueCatMonitorArgs,
+  type PurchasePrincipalHealth,
   renderRevenueCatMonitorMarkdown,
   revenueCatBacklogStatus,
   type RevenueCatReconciliationHealth,
@@ -19,6 +21,19 @@ const HEALTHY: RevenueCatReconciliationHealth = {
   signout_bound_count: 0,
   oldest_signout_pending_at: null,
   oldest_signout_pending_age_seconds: null,
+};
+
+const PRINCIPAL_HEALTHY: PurchasePrincipalHealth = {
+  generated_at: "2026-07-26T03:30:00.000Z",
+  active_principal_count: 4,
+  pending_principal_count: 0,
+  unbound_active_principal_count: 0,
+  due_reconciliation_count: 0,
+  expired_claim_count: 0,
+  oldest_due_at: null,
+  oldest_due_age_seconds: null,
+  oldest_pending_at: null,
+  oldest_pending_age_seconds: null,
 };
 
 Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
@@ -107,6 +122,26 @@ Deno.test("assertRevenueCatReconciliationHealth validates one consistent row", (
   );
 });
 
+Deno.test("assertPurchasePrincipalHealth validates bounded aggregate health", () => {
+  assertEquals(
+    assertPurchasePrincipalHealth([PRINCIPAL_HEALTHY]),
+    PRINCIPAL_HEALTHY,
+  );
+  assertThrows(() => assertPurchasePrincipalHealth([]));
+  assertThrows(() =>
+    assertPurchasePrincipalHealth([{
+      ...PRINCIPAL_HEALTHY,
+      unbound_active_principal_count: 5,
+    }])
+  );
+  assertThrows(() =>
+    assertPurchasePrincipalHealth([{
+      ...PRINCIPAL_HEALTHY,
+      pending_principal_count: 1,
+    }])
+  );
+});
+
 Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
   assertEquals(revenueCatBacklogStatus(HEALTHY, 30, 60), "ok");
   assertEquals(
@@ -156,6 +191,29 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
     ),
     "warning",
   );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      { ...PRINCIPAL_HEALTHY, unbound_active_principal_count: 1 },
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      {
+        ...PRINCIPAL_HEALTHY,
+        pending_principal_count: 1,
+        oldest_pending_at: "2026-07-26T02:30:00.000Z",
+        oldest_pending_age_seconds: 60 * 60,
+      },
+    ),
+    "critical",
+  );
 });
 
 Deno.test("shouldFailRevenueCatMonitor honors the configured severity", () => {
@@ -178,6 +236,7 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
     health,
     parseRevenueCatMonitorArgs([]),
     new Date("2026-07-26T03:30:00.000Z"),
+    PRINCIPAL_HEALTHY,
   );
   const markdown = renderRevenueCatMonitorMarkdown(summary);
 
@@ -188,6 +247,12 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
   assertStringIncludes(markdown, "- Expired claims: `1`");
   assertStringIncludes(markdown, "- Oldest due age: `2700s`");
   assertStringIncludes(markdown, "- Bound sign-out handoffs: `0`");
+  assertStringIncludes(markdown, "## Stable Purchase Principals");
+  assertStringIncludes(markdown, "- Active principals: `4`");
+  assertStringIncludes(
+    markdown,
+    "- Unbound active principals with current StoreKit access: `0`",
+  );
   assertStringIncludes(markdown, "Do not edit subscription tiers");
   assertStringIncludes(markdown, "discard bound proofs");
 });

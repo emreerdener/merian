@@ -6561,6 +6561,119 @@ endpoint rounds `gps_lat_public` coordinates to 11km tiles.
 
 ---
 
+## Deno `/resolve-purchase-principal` Edge Node
+
+Additive authenticated resolver for the stable StoreKit purchase identity. The
+route accepts `POST` only, limits JSON to 2 KiB, sends `Cache-Control: no-store`,
+and rejects unknown or missing fields. `config.toml` uses `verify_jwt = false`
+only to keep JWT validation inside the shared handler; `withEdgeHandler` still
+requires a live user from `supabaseAdmin.auth.getUser()`.
+
+Exact protocol-v1 request:
+
+```json
+{
+  "operation": "resolve",
+  "installation_capability": "43-character base64url value",
+  "client_protocol": 1,
+  "binding_intent_generation": 42
+}
+```
+
+The installation capability is 256 random bits generated with
+`SecRandomCopyBytes`, written to
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, and read back before first use.
+It authorizes possession of one installation purchase identity; it is not a
+caller-selected user or provider ID. Edge hashes it with SHA-256 before any RPC,
+passes only the authenticated user's ID, and never logs either value.
+`binding_intent_generation` is a positive, device-persisted monotonic counter.
+iOS advances and read-verifies it before each resolver request. Postgres accepts
+only a value newer than the latest value for that capability, and completion
+must present that exact accepted value. A delayed request from an older Auth
+session therefore cannot overwrite a newer binding even if its HTTP work
+finishes last. The maximum is JavaScript's exact-integer limit
+(`9007199254740991`) across Swift, Edge, and Postgres.
+
+The resolver first calls `begin_purchase_principal_resolution`. While rollout
+is disabled—or when the client protocol is below the server minimum—a new or
+pending capability receives the successful compatibility response:
+
+```json
+{
+  "success": true,
+  "mode": "legacy",
+  "minimum_client_protocol": 1
+}
+```
+
+No RevenueCat request is made in legacy mode. A new client may also use this
+legacy branch only when the additive route is definitively absent (`404`); auth,
+configuration, timeout, and other service failures remain fail-closed. That
+missing-route fallback is available only before the exact device capability has
+ever activated stable mode. iOS persists a device-only activation fingerprint;
+after activation, both `404` and `mode: legacy` fail closed without changing the
+RevenueCat identity.
+An already active capability never falls back to an Auth-UUID customer during
+rollback: it continues to receive `mode: stable` and may rebind. If that active
+principal requires a newer protocol, the endpoint fails closed with `426`
+instead of rotating provider identity.
+
+In stable mode, begin returns a server-owned pending or active principal. Edge
+fetches authoritative RevenueCat v1 CustomerInfo for that immutable App User
+ID, rejects stale/future snapshots, derives StoreKit state only from explicit
+`store: app_store` records, and derives account-grant compatibility state only
+from explicit `store: promotional` records. The service-only completion RPC
+atomically stores those separate states and binds the principal to the exact
+JWT user. A detached `pro_week` history record is admitted on first adoption only
+when the existing Supabase Pro projection has the exact same finite expiry;
+Postgres rechecks that evidence under the locked user row before activation. An
+active principal reuses its durable pass-policy flag instead of inferring from
+RevenueCat history. Success is:
+
+```json
+{
+  "success": true,
+  "mode": "stable",
+  "purchase_principal_id": "UUID",
+  "revenuecat_app_user_id": "server-owned custom ID",
+  "binding_generation": 2,
+  "account_grants_allowed": false,
+  "minimum_client_protocol": 1
+}
+```
+
+iOS must compare all stable fields with its current Auth-event generation
+before changing RevenueCat. `RevenueCatManager` serializes SDK identity
+mutations, binds readiness to the returned provider ID, Auth UUID, and binding
+generation, and writes no email, display name, avatar, username, or Auth UUID
+attribute to a stable customer. When a legacy customer is first adopted, iOS
+deletes those legacy attributes and synchronizes the deletion before declaring
+the stable identity ready. Ordinary stable-mode sign-out, anonymous Auth
+rotation, Apple continuation, and Google continuation resolve the same
+principal and do not call `syncPurchases()` or a RevenueCat customer-transfer
+API. The legacy sign-out proof remains unchanged while mode is `legacy`.
+
+Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
+
+| HTTP | Code | Meaning / client action |
+| ---- | ---- | ----------------------- |
+| 400/413 | `invalid_request` | Malformed, oversized, non-exact, or invalid capability payload |
+| 401 | shared auth error | Missing, expired, invalid, or non-live JWT |
+| 409 | `purchase_principal_capability_revoked` | Terminal device capability; block paid mutations and require reviewed recovery |
+| 426 | `purchase_principal_client_upgrade_required` | Active stable identity requires a newer supported protocol; retain its provider identity and require an app update |
+| 503 | `purchase_principal_rollout_changed` | Mode changed between begin and completion; retry resolution from the current session |
+| 503 | `purchase_principal_binding_intent_stale` | An older Auth request lost the monotonic ordering race; ignore it and let the newest current-session resolution finish |
+| 503 | `purchase_principal_entitlement_projection_changed` | The pass-adoption projection changed between read and locked completion; retry from current authoritative state |
+| 503 | `purchase_principal_account_deletion_in_progress` | Account deletion won the lifecycle race; do not mutate provider identity and retry only while the current Auth session remains live |
+| 503 | `purchase_principal_user_not_available` | Auth/profile lifecycle race; retain the session and retry |
+| 503 | `purchase_principal_unavailable` | Provider, secret, timeout, lock, or database dependency unavailable; retain the session and retry |
+
+The checked-in endpoint is not a rollout authorization. The database defaults to
+`legacy` / `dual_read`; stable activation requires the release runbook's exact-
+SHA, database replay, provider, old-client, monitoring, and account-grant gates.
+
+---
+
 ## Deno `/transfer-signout-purchases` Edge Node
 
 Preserves StoreKit-backed access when a linked account explicitly signs out to
@@ -6690,6 +6803,10 @@ Error bodies use `{ "code": "...", "error": "..." }`.
 The RevenueCat project must use **Transfer to new App User ID** restore behavior
 before a client with this route is released. This route transfers store receipt
 access only. Promotional and beta grants stay on the linked source account.
+An issued proof remains bound to the legacy destination UUID even if purchase-
+principal rollout mode changes before completion. The client must finish this
+route on that exact RevenueCat UUID and may adopt a stable principal only after
+the device proof is durably cleared.
 
 The compatibility route must not be replaced with a direct RevenueCat V2
 customer transfer. That action cannot filter subscriptions by StoreKit versus
@@ -6904,8 +7021,12 @@ prevent IDOR vulnerabilities.
    durable `202` response rather than duplicate work.
 4. For every `pending`, `storage_pending`, or `auth_pending` claim,
    `complete_account_deletion_cleanup` atomically writes the idempotent storage
-   job, invokes `apply_user_tombstone`, and verifies no public user or scan
-   still references the UUID. Retained scans become ownerless tombstones and
+   job, detaches any stable purchase principal from the deleting Auth user,
+   freezes further provider-promotion import, invokes `apply_user_tombstone`,
+   and verifies no public user or scan still references the UUID. Account-owned
+   grants are erased with the account; the installation's non-identifying
+   StoreKit principal remains for later signed-out resolution. Retained scans
+   become ownerless tombstones and
    clear compatibility media URLs, structured captured-media references,
    semantic/public location labels, device locale/time-zone context, free-form
    notes, and custom tags. Exact coordinates, elevation, time, taxonomy,

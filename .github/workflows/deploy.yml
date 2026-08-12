@@ -1142,6 +1142,7 @@ jobs:
             explore-post-chat
             request-community-identification
             transfer-signout-purchases
+            resolve-purchase-principal
             delete-scan
           )
           for function_name in "${critical_user_functions[@]}"; do
@@ -1188,6 +1189,42 @@ jobs:
             "claim_revenuecat_reconciliation_for_user" \
             '{"p_user_id":null}' \
             "revenuecat_invalid_reconciliation_user"
+          probe_server_rpc_validation_boundary \
+            "begin_purchase_principal_resolution" \
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_client_protocol":null,"p_binding_intent_generation":null}' \
+            "purchase_principal_invalid_resolution"
+          probe_server_rpc_validation_boundary \
+            "complete_purchase_principal_resolution" \
+            '{"p_auth_user_id":null,"p_purchase_principal_id":null,"p_capability_hash":null,"p_binding_intent_generation":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_allow_non_subscription_pass_grant":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}' \
+            "purchase_principal_invalid_resolution"
+          probe_server_rpc_validation_boundary \
+            "record_account_access_grant" \
+            '{"p_account_user_id":null,"p_grant_kind":null,"p_expires_at":null,"p_source_reference_hash":null}' \
+            "account_access_grant_invalid"
+          probe_server_rpc_validation_boundary \
+            "resolve_revenuecat_identity_subjects" \
+            '{"p_subjects":null}' \
+            "revenuecat_invalid_identity_subjects"
+          probe_server_rpc_validation_boundary \
+            "apply_revenuecat_identity_state" \
+            '{"p_event_id":null,"p_event_timestamp_ms":null,"p_event_type":null,"p_payload_sha256":null,"p_signature_timestamp_s":null,"p_subjects":null}' \
+            "revenuecat_invalid_identity_state"
+          probe_server_rpc_validation_boundary \
+            "schedule_revenuecat_identity_reconciliation" \
+            '{"p_subjects":null}' \
+            "revenuecat_invalid_reconciliation_subjects"
+          probe_server_rpc_validation_boundary \
+            "claim_purchase_principal_reconciliations" \
+            '{"p_limit":0}' \
+            "purchase_principal_invalid_reconciliation_limit"
+          probe_server_rpc_validation_boundary \
+            "apply_purchase_principal_reconciliation" \
+            '{"p_purchase_principal_id":null,"p_claim_token":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}' \
+            "purchase_principal_invalid_reconciliation_state"
+          probe_server_rpc_validation_boundary \
+            "fail_purchase_principal_reconciliation" \
+            '{"p_purchase_principal_id":null,"p_claim_token":null,"p_error_code":null}' \
+            "purchase_principal_invalid_reconciliation_failure"
 
           signout_health_response="$(
             post_server_json \
@@ -1204,6 +1241,28 @@ jobs:
             )
           ' > /dev/null
 
+          purchase_principal_health_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_purchase_principal_health" \
+              '{}'
+          )"
+          echo "$purchase_principal_health_response" | jq -e '
+            length == 1
+            and (.[0].active_principal_count | type) == "number"
+            and (.[0].pending_principal_count | type) == "number"
+            and (.[0].unbound_active_principal_count | type) == "number"
+            and (.[0].due_reconciliation_count | type) == "number"
+            and (.[0].expired_claim_count | type) == "number"
+            and (
+              .[0].oldest_due_age_seconds == null
+              or (.[0].oldest_due_age_seconds | type) == "number"
+            )
+            and (
+              .[0].oldest_pending_age_seconds == null
+              or (.[0].oldest_pending_age_seconds | type) == "number"
+            )
+          ' > /dev/null
+
           critical_service_rpc_names=(
             ensure_scan_user_profile
             publish_scan_to_explore_atomically
@@ -1216,6 +1275,17 @@ jobs:
             complete_signout_purchase_handoff
             claim_revenuecat_reconciliation_for_user
             get_revenuecat_reconciliation_health
+            begin_purchase_principal_resolution
+            complete_purchase_principal_resolution
+            record_account_access_grant
+            revoke_account_access_grant
+            resolve_revenuecat_identity_subjects
+            apply_revenuecat_identity_state
+            schedule_revenuecat_identity_reconciliation
+            claim_purchase_principal_reconciliations
+            apply_purchase_principal_reconciliation
+            fail_purchase_principal_reconciliation
+            get_purchase_principal_health
           )
           critical_service_rpc_payloads=(
             '{"p_user_id":"00000000-0000-0000-0000-000000000000"}'
@@ -1228,6 +1298,17 @@ jobs:
             '{"p_source_user_id":null,"p_secret_hash":null,"p_source_snapshot_at_ms":null,"p_expected_store_tier":null,"p_expected_store_expires_at":null}'
             '{"p_handoff_id":null,"p_secret_hash":null,"p_destination_user_id":null,"p_destination_snapshot_at_ms":null,"p_destination_store_tier":null,"p_destination_store_expires_at":null}'
             '{"p_user_id":null}'
+            '{}'
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_client_protocol":null,"p_binding_intent_generation":null}'
+            '{"p_auth_user_id":null,"p_purchase_principal_id":null,"p_capability_hash":null,"p_binding_intent_generation":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_allow_non_subscription_pass_grant":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}'
+            '{"p_account_user_id":null,"p_grant_kind":null,"p_expires_at":null,"p_source_reference_hash":null}'
+            '{"p_grant_id":null}'
+            '{"p_subjects":null}'
+            '{"p_event_id":null,"p_event_timestamp_ms":null,"p_event_type":null,"p_payload_sha256":null,"p_signature_timestamp_s":null,"p_subjects":null}'
+            '{"p_subjects":null}'
+            '{"p_limit":0}'
+            '{"p_purchase_principal_id":null,"p_claim_token":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}'
+            '{"p_purchase_principal_id":null,"p_claim_token":null,"p_error_code":null}'
             '{}'
           )
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"

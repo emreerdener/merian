@@ -35,10 +35,13 @@ Deno.test("RevenueCat webhook verifies ingress before authoritative state mutati
   const duplicateLookupIndex = handler.indexOf(
     "getRevenueCatWebhookEventResult(",
   );
+  const identityResolutionIndex = handler.lastIndexOf(
+    "resolveRevenueCatIdentitySubjects(",
+  );
   const customerInfoIndex = handler.indexOf("fetchRevenueCatCustomerInfo(");
-  const transactionIndex = handler.indexOf("applyRevenueCatCustomerState(");
+  const transactionIndex = handler.indexOf("applyRevenueCatIdentityState(");
   const scheduleIndex = handler.lastIndexOf(
-    "scheduleRevenueCatReconciliation(",
+    "scheduleRevenueCatIdentityReconciliation(",
   );
 
   for (
@@ -46,6 +49,7 @@ Deno.test("RevenueCat webhook verifies ingress before authoritative state mutati
       signatureIndex,
       parseIndex,
       duplicateLookupIndex,
+      identityResolutionIndex,
       customerInfoIndex,
       transactionIndex,
       scheduleIndex,
@@ -59,7 +63,8 @@ Deno.test("RevenueCat webhook verifies ingress before authoritative state mutati
   assert(
     signatureIndex < parseIndex &&
       parseIndex < duplicateLookupIndex &&
-      duplicateLookupIndex < customerInfoIndex &&
+      duplicateLookupIndex < identityResolutionIndex &&
+      identityResolutionIndex < customerInfoIndex &&
       customerInfoIndex < transactionIndex,
     "RevenueCat webhook must verify, parse, deduplicate, reconcile, then transact in that order.",
   );
@@ -71,7 +76,8 @@ Deno.test("RevenueCat webhook verifies ingress before authoritative state mutati
     handler,
     "first delivery may have committed the entitlement transaction",
   );
-  assertStringIncludes(handler, "Promise.all(subjects.map(");
+  assertStringIncludes(handler, "Promise.all(");
+  assertStringIncludes(handler, "resolvedSubjects.map(async (subject)");
   assertStringIncludes(
     handler,
     "TRANSFER reconciles both sides before",
@@ -103,18 +109,23 @@ Deno.test("RevenueCat has a deadline-draining leased periodic CustomerInfo sweep
   );
   for (
     const fragment of [
-      "CLAIM_BATCH_SIZE = 6",
+      "CLAIM_BATCH_SIZE_PER_IDENTITY = 3",
       "FETCH_CONCURRENCY = 3",
       "RUNTIME_BUDGET_MS = 90_000",
       "FINAL_WAVE_AND_HEALTH_RESERVE_MS = 30_000",
       "while (runtime.monotonicNow() < claimCutoffAt)",
       "claimRevenueCatReconciliations",
+      "claimPurchasePrincipalReconciliations",
       "fetchRevenueCatCustomerInfo",
       "deriveRevenueCatEntitlementState(",
+      "deriveRevenueCatStoreEntitlementState(",
       "allowNonSubscriptionPassGrant",
       "applyRevenueCatReconciliation",
+      "applyPurchasePrincipalReconciliation",
       "failRevenueCatReconciliation",
+      "failPurchasePrincipalReconciliation",
       "getRevenueCatReconciliationHealth",
+      "getPurchasePrincipalHealth",
       "revenueCatReconciliationHealthStatus",
       'event: "revenuecat_reconciliation_health"',
     ]
@@ -146,6 +157,7 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
   for (
     const fragment of [
       '"get_revenuecat_reconciliation_health"',
+      '"get_purchase_principal_health"',
       "createServiceRoleClientFromEnvironment",
       'values.get("warning-after-minutes") ?? "30"',
       'values.get("critical-after-minutes") ?? "60"',
@@ -153,6 +165,8 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "expired_claim_count > 0",
       "oldestDueAgeSeconds >= criticalAfterMinutes * 60",
       "oldest_signout_pending_age_seconds",
+      "purchasePrincipalHealth.expired_claim_count",
+      "purchasePrincipalHealth.unbound_active_principal_count",
     ]
   ) {
     assertStringIncludes(script, fragment);

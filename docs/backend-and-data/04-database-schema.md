@@ -4035,6 +4035,133 @@ performs no RevenueCat identity mutation. The bound destination is also an expli
 database trigger rejects guest-profile merge preparation or consumption until
 handoff completion. These interlocks do not delete, reparent, or grant data.
 
+### Stable purchase principals and account grants
+
+Migration `20260812144948_introduce_stable_purchase_principals.sql` adds the
+disabled-by-default replacement for Auth-UUID-keyed RevenueCat ownership. It is
+additive: `internal.purchase_identity_rollout_config` starts at
+`principal_mode = legacy` and `account_grant_mode = dual_read`, so applying the
+migration does not itself switch released clients or retire the sign-out
+handoff. `legacy` disables new principal adoption; an already `active`
+capability still resolves and rebinds its exact stable principal so rollback
+cannot rotate a RevenueCat customer back to an Auth-UUID identity.
+
+The private identity boundary consists of:
+
+- `internal.purchase_principals`: one immutable RevenueCat App User ID and one
+  unique SHA-256 installation-capability digest. Raw capabilities are never
+  stored. `latest_binding_intent_generation` is monotonic and completion must
+  match it, preventing late older Auth requests from winning by response order.
+  Lifecycle is `pending`, `active`, or `revoked`.
+- `internal.purchase_principal_bindings`: one current Auth user per purchase
+  principal, with a monotonically increasing binding generation. Multiple
+  installation principals may be bound to one account; an Auth UUID is not a
+  purchase-identity selector.
+- `internal.purchase_principal_binding_history`: append-only binding-change
+  evidence with no provider body or capability. A `public.users` before-delete
+  trigger nulls either Auth UUID reference (and any webhook projection UUID)
+  while retaining non-identifying operational evidence. The same trigger
+  permanently freezes provider-promotion import for a deleted grant owner.
+- `internal.purchase_principal_store_state`: StoreKit-only tier/expiry,
+  authoritative provider watermarks, and the durable
+  `allow_non_subscription_pass_grant` policy. That policy is the signed-event
+  authority for whether retained non-renewing `pro_week` history may contribute
+  access; a periodic CustomerInfo read cannot enable it by itself.
+- `internal.legacy_revenuecat_entitlement_state`: compatibility input for an
+  existing Auth-UUID customer while old apps remain supported.
+- `internal.account_access_grants` and
+  `internal.account_access_grant_audit`: account-owned beta, promotion, and
+  support access, including start/expiry/revocation and hashed operator or
+  migration provenance. Account deletion cascades the grant and its identifying
+  audit evidence; purchase-principal StoreKit history remains independent.
+
+`internal.recompute_purchase_principal_entitlement(uuid)` is the only common
+projection helper. It takes the exact `public.users` lock and combines active
+legacy state, every StoreKit state currently bound to the account, and active
+account grants. Moving a binding recomputes both old and new Auth users; it does
+not move the grant owner.
+
+Resolution is split into two service-role-only transactions invoked by the
+authenticated Edge route. `begin_purchase_principal_resolution(...)` serializes
+the capability, validates the supplied Edge-derived Auth user against
+`auth.users` and `public.users`, and returns either explicit `legacy` mode or a
+server-selected stable principal. The first unclaimed installation may adopt
+the existing uppercase UUID customer; collisions receive an opaque
+`MERIAN_PP_…` ID. `complete_purchase_principal_resolution(...)` revalidates the
+rollout, capability, principal, and Auth user, locks principal then every
+affected user in deterministic order, stores the authoritative StoreKit and
+dual-read promotion snapshot, advances the binding, and schedules principal
+reconciliation. A rollback refuses completion for a merely pending principal
+but continues completion for an already active one. Callers cannot select a
+provider ID or write these tables. First adoption enables detached-pass history
+only when the current Supabase Pro expiry exactly matches the StoreKit pass
+horizon, and completion repeats that comparison while holding the user row lock.
+An active principal returns its existing pass policy during begin; re-resolution
+cannot infer or overwrite it from historical CustomerInfo.
+
+An active account-deletion job rejects both resolver phases before a binding can
+move. `complete_account_deletion_cleanup` first locks related principals in the
+same principal-then-user order as resolver completion, detaches the deleting
+Auth binding, clears its fixed grant owner, and permanently freezes provider
+promotion import. Account-owned grant rows then cascade with the account, while
+the non-identifying StoreKit principal remains available to the same installation
+after signed-out resolution. This prevents a later account from claiming a
+deleted account's provider promotion and prevents cleanup/resolution deadlocks.
+
+Stable RevenueCat delivery uses
+`resolve_revenuecat_identity_subjects(jsonb)` before legacy UUID fallback and
+commits with `apply_revenuecat_identity_state(...)`. The latter locks every
+stable principal in UUID order before affected user rows, so a two-sided
+`TRANSFER`, resolver completion, and reconciliation cannot acquire the same
+objects in opposite order. Stable webhook evidence is stored in
+`internal.purchase_principal_webhook_event_subjects`; old event receipts remain
+the global idempotency boundary. A signed pass purchase may enable detached-pass
+inference directly. A transfer destination may inherit it only from a resolved
+stable source whose durable policy is enabled and only after its authoritative
+snapshot contains an active App Store pass; destination history alone cannot
+enable it. Refund/revocation or transfer source disables it. Unrelated events
+persist a null policy decision and preserve the existing flag.
+Each stable subject also records `account_grant_update_applied`. It is true only
+when a newer, non-transfer snapshot actually updates the temporary dual-read
+provider grant. It is false for every `TRANSFER`, stale event, authoritative-mode
+snapshot, and post-transfer frozen principal: promotional CustomerInfo observed
+on either side cannot create, extend, revoke, or move the private account-owned
+grant. Unfrozen non-transfer webhook and reconciliation snapshots retain the
+reviewed dual-read behavior until the account-grant ledger becomes authoritative.
+The transfer also sets
+`purchase_principals.provider_account_grant_frozen` on every resolved stable
+side, so later resolver/reconciliation reads cannot import the provider-moved
+promotion; StoreKit reconciliation continues normally.
+
+`internal.purchase_principal_reconciliation_queue` is a separate two-minute,
+claim-token-fenced queue keyed by purchase principal. Service-only claim,
+apply, fail, and health RPCs mirror the legacy worker boundary without
+reinterpreting a principal ID as a user UUID. Each claim carries the durable
+pass-policy flag, and reconciliation preserves rather than derives that flag, so
+retained refunded transaction history cannot restore access. Provider snapshots
+outside the 15-minute-past/five-minute-future window fail without mutation. A
+claim also deletes at most 100 unbound, state-free pending principals with no
+activity for 24 hours. A begin retry refreshes `updated_at` while holding the
+principal lock, so cleanup cannot delete live work between begin and completion.
+Those abandoned preparations never mutated RevenueCat and cannot reserve an
+identity or alert indefinitely. The aggregate health row reports
+active, pending, unbound-active-with-current-StoreKit-access, due,
+expired-claim, oldest-due, and oldest-pending values and exposes no identities.
+Free abandoned principals do not create permanent operational alerts. In `account_grant_mode =
+authoritative`, provider promotional records are observed but forced to free;
+the private grant ledger is the only account-grant authority. That flag may be
+changed only after the runbook's migration and dual-read gates.
+
+Every new table has RLS enabled and revokes all direct access from `PUBLIC`,
+`anon`, `authenticated`, and `service_role`. Every public RPC has an empty
+search path, finite statement timeout, in-body service-role check, exact grant,
+and `internal.privileged_routine_grants` entry. Ghost-profile merge policy rows
+explicitly cover the legacy state, binding, fixed account-grant owner, and grant
+foreign keys. Its consumer pre-locks every principal related to the source or
+destination before the existing Auth/public user locks, matching resolver,
+webhook, reconciliation, and deletion order. The migration re-runs the catalog
+coverage assertion before it can commit.
+
 ### Guarded empty-Ghost deletion intake
 
 Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` adds a narrow

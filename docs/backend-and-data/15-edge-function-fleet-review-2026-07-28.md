@@ -13,7 +13,7 @@ not silently waived.
 
 ## Scope
 
-This review now inventories all 90 deployable Supabase Edge Function entrypoints, their
+This review inventories every configured deployable Supabase Edge Function entrypoint, its
 `config.toml` records, isolated deployment graphs, shared authentication/error/
 request-size/outbound/quota boundaries, database migration contracts, and static
 production callers across every application target, workflows, Edge workers,
@@ -70,13 +70,13 @@ the privileged-routine catalog audit and migration/security contract suites.
 
 ## Boundary Review
 
-- **63 user or hybrid routes:** `withEdgeHandler` authenticates the Supabase
+- **User or hybrid routes:** `withEdgeHandler` authenticates the Supabase
   user before route logic. `identify-multimodal` additionally permits the exact
   service-key replay boundary before entering the same owner-scoped handler.
-- **21 internal workers:** exact environment-backed server-key comparison runs
+- **Internal workers:** exact environment-backed server-key comparison runs
   before body parsing and privileged client construction. Current opaque keys
   use `apikey`; only validated legacy service-role JWTs also use Bearer.
-- **5 deliberate custom routes:** while enabled, `download-dwca` uses an opaque
+- **Deliberate custom routes:** while enabled, `download-dwca` uses an opaque
   hashed capability with click-time privacy checks; during the initial launch it
   returns `410` from canonical release state before signing.
   `ingest-r2-media-events` verifies its dedicated secret before parsing;
@@ -207,6 +207,7 @@ report-explore-post
 report-user
 request-community-identification
 request-export-dwca
+resolve-purchase-principal
 restore-community-identification
 revenuecat-webhook
 safe-delete
@@ -241,7 +242,8 @@ Repository checks cannot prove hosted regional routing or an authenticated
 customer journey. Before closing the incident:
 
 1. run the production Supabase workflow from the reviewed release SHA and
-   require all 92 graph-derived route probes plus the twelve stricter auth probes;
+   require every graph-derived route probe plus the customer-critical stricter
+   auth and service-RPC probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
    for the same SHA, including the complete unit-test target, exact
    live-Insight-to-queue and queued-scan-completion UI smokes, and independent

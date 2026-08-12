@@ -186,8 +186,12 @@ Deno.test("complete verifies destination StoreKit horizon before durable complet
         order.push("bind");
         return Promise.resolve(bound(expected));
       },
-      fetchCustomerInfo: () => {
-        order.push("fetch-destination");
+      fetchCustomerInfo: (appUserId) => {
+        order.push(
+          appUserId === SOURCE_ID.toUpperCase()
+            ? "fetch-source"
+            : "fetch-destination",
+        );
         return Promise.resolve(
           customerInfo({ product: true, expiresAt: expected.expiresAt }),
         );
@@ -227,10 +231,102 @@ Deno.test("complete verifies destination StoreKit horizon before durable complet
   assertEquals(order, [
     "bind",
     "fetch-destination",
+    "fetch-source",
     "complete-database",
     "claim-destination",
     "apply-destination",
   ]);
+});
+
+Deno.test("pre-expiry completion waits for a renewal that landed after prepare", async () => {
+  const preparedAccess = {
+    targetTier: "pro" as const,
+    expiresAt: new Date(NOW_MS + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+  };
+  const renewedAccess = {
+    targetTier: "pro" as const,
+    expiresAt: new Date(NOW_MS + 30 * 24 * 60 * 60 * 1_000).toISOString(),
+  };
+  let completeCount = 0;
+  const response = await handleSignoutPurchaseHandoff(
+    request("complete"),
+    user(DESTINATION_ID, true),
+    supabaseAdmin,
+    {
+      apiKey: "sk_test",
+      now: () => NOW_MS,
+      bindHandoff: () => Promise.resolve(bound(preparedAccess)),
+      fetchCustomerInfo: (appUserId) =>
+        Promise.resolve(
+          customerInfo({
+            product: true,
+            expiresAt: appUserId === SOURCE_ID.toUpperCase()
+              ? renewedAccess.expiresAt
+              : preparedAccess.expiresAt,
+          }),
+        ),
+      completeHandoff: () => {
+        completeCount += 1;
+        return Promise.resolve(completed());
+      },
+    },
+  );
+  const payload = await response.json();
+
+  assertEquals(response.status, 503);
+  assertEquals(payload.code, "purchase_transfer_pending");
+  assertEquals(completeCount, 0);
+});
+
+Deno.test("pre-expiry completion persists the destination's renewed horizon", async () => {
+  const preparedAccess = {
+    targetTier: "pro" as const,
+    expiresAt: new Date(NOW_MS + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+  };
+  const renewedExpiresAt = new Date(
+    NOW_MS + 30 * 24 * 60 * 60 * 1_000,
+  ).toISOString();
+  let completedStoreAccess: unknown;
+  const response = await handleSignoutPurchaseHandoff(
+    request("complete"),
+    user(DESTINATION_ID, true),
+    supabaseAdmin,
+    {
+      apiKey: "sk_test",
+      now: () => NOW_MS,
+      bindHandoff: () => Promise.resolve(bound(preparedAccess)),
+      fetchCustomerInfo: () =>
+        Promise.resolve(
+          customerInfo({ product: true, expiresAt: renewedExpiresAt }),
+        ),
+      completeHandoff: (
+        _admin,
+        _handoffId,
+        _secretHash,
+        _destinationUserId,
+        _snapshotAtMs,
+        destinationStoreAccess,
+      ) => {
+        completedStoreAccess = destinationStoreAccess;
+        return Promise.resolve(completed());
+      },
+      claimReconciliation: () =>
+        Promise.resolve({
+          userId: DESTINATION_ID,
+          lookupAppUserId: DESTINATION_ID.toUpperCase(),
+          claimToken: "550e8400-e29b-41d4-a716-446655440004",
+          claimExpiresAt: "2026-08-12T00:02:00.000Z",
+          allowNonSubscriptionPassGrant: false,
+        }),
+      applyReconciliation: () => Promise.resolve(true),
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(completedStoreAccess, {
+    targetTier: "pro",
+    expiresAt: renewedExpiresAt,
+  });
 });
 
 Deno.test("completed replay uses its attested snapshot after finite access expires", async () => {

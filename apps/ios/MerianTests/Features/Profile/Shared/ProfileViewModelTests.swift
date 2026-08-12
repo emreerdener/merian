@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import Merian
+import Testing
 
 @Suite("ProfileViewModel Tests")
 @MainActor
@@ -29,6 +29,20 @@ struct ProfileViewModelTests {
         viewModel.publicIdentitySource = "oauth"
 
         #expect(viewModel.displayName == "Explorer")
+    }
+
+    @Test("Sign-out messaging distinguishes auth closure from purchase sync")
+    func testSignOutPresentationPolicy() {
+        #expect(
+            SignOutPresentationPolicy.incompleteMessage(
+                isAnonymousSession: true
+            ) == "You're signed out. Purchase access is still syncing. Use Finish sign out on your profile to retry."
+        )
+        #expect(
+            SignOutPresentationPolicy.incompleteMessage(
+                isAnonymousSession: false
+            ) == "Naturebook couldn't sign you out. Check your connection and try again."
+        )
     }
 
 }

@@ -80,9 +80,9 @@ canonical reconciliation for source and destination. Ordinarily it applies the
 exact prepared horizon; after natural expiry it applies the exact current
 StoreKit state attested on the destination. Detached non-subscription pass
 history is excluded from this post-expiry check because a pass cannot renew and
-purchase mutations remain fenced during the handoff. Completion stores both
-the verified destination snapshot and that StoreKit tier/expiry. If the
-response is lost, replay uses the immutable pair rather than depending on later mutable
+purchase mutations remain fenced during the handoff. Completion stores both the
+verified destination snapshot and that StoreKit tier/expiry. If the response is
+lost, replay uses the immutable pair rather than depending on later mutable
 CustomerInfo; newer provider watermarks still win.
 
 The client deletes the Keychain proof only after server completion and a fresh
@@ -119,8 +119,11 @@ Deploy the migration and this function before releasing an iOS client that calls
 it. Deployment and RevenueCat project changes remain separately approved
 operations.
 
-This handoff is the compatibility path, not the target identity architecture.
-The accepted long-term boundary is documented in
+This handoff is the compatibility path, not the target identity architecture. An
+already-issued proof remains immutable if stable-principal rollout is enabled
+mid-transition: iOS must link/sync/verify the exact legacy destination UUID,
+clear the proof, and only then resolve a stable principal. The accepted
+long-term boundary is documented in
 [`purchase-principal-auth-separation.md`](../../../../docs/rfcs/purchase-principal-auth-separation.md).
 Do not substitute RevenueCat V2 customer transfer: it cannot filter mixed
 StoreKit and promotional subscription history by provenance and documents no

@@ -49,20 +49,25 @@ dispatches another AI request for it.
    the durable manual-fallback disposition. It first locks the Auth user and
    rejects either side of a bound sign-out purchase handoff with
    `409 purchase_continuity_pending`; no deletion job is written in that case.
-   An unbound proof does not strand deletion if its device is lost: deletion
-   may win before binding, and the reciprocal bind path then rejects the active
+   An unbound proof does not strand deletion if its device is lost: deletion may
+   win before binding, and the reciprocal bind path then rejects the active
    deletion job before any RevenueCat identity mutation.
 2. `claim_account_deletion_jobs(...)` assigns a five-minute UUID lease using
    `FOR UPDATE SKIP LOCKED`.
 3. Every account claim, including a later `auth_pending` retry, calls
    `complete_account_deletion_cleanup(job_id, claim_token)`. It writes the
-   idempotent storage job, calls `apply_user_tombstone`, and verifies that no
-   public profile or scan still references the user. Tombstoning clears every
-   scan media URL/manifest, semantic location and public label, device context,
-   custom tag, and free-form intervention field before making the retained
-   observation ownerless. Exact coordinates and all other scientific facts are
-   left unchanged. Until storage is verified the job is `storage_pending`, with
-   no account-worker lease.
+   idempotent storage job, first locks and detaches any stable purchase
+   principal in the resolver's principal-first order, clears the deleting
+   account as grant owner, and permanently freezes provider-promotion import.
+   Account-owned grants are erased; the non-identifying StoreKit principal
+   remains available to the same installation after signed-out resolution.
+   Cleanup then calls `apply_user_tombstone` and verifies that no public profile
+   or scan still references the user. Tombstoning clears every scan media
+   URL/manifest, semantic location and public label, device context, custom tag,
+   and free-form intervention field before making the retained observation
+   ownerless. Exact coordinates and all other scientific facts are left
+   unchanged. Until storage is verified the job is `storage_pending`, with no
+   account-worker lease.
 4. `claim_pending_storage_deletions(...)` leases bounded R2 prefix pages. The
    worker claims at most four rows per Edge invocation, deletes at most 50 keys
    per page with eight deletes in flight, and traverses the user's free/pro

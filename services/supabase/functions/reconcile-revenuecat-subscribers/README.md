@@ -10,10 +10,15 @@ is not a browser or iOS API.
   function. The handler accepts `POST` and timing-safely compares one exact
   platform-managed server key. Opaque keys use `apikey` only; legacy
   service-role JWTs use matching `apikey` and Bearer headers.
-- Each claim RPC leases one six-row private queue wave for two minutes with
-  `FOR UPDATE SKIP LOCKED`. The worker keeps claiming small waves until the
-  queue is empty or its monotonic start-work cutoff is reached; there is no
-  fixed per-invocation record ceiling.
+- Each claim RPC leases at most three rows per identity lane for two minutes
+  with `FOR UPDATE SKIP LOCKED`. A combined legacy-plus-principal wave is
+  therefore capped at six provider lookups. The worker keeps claiming small
+  waves until the queue is empty or its monotonic start-work cutoff is reached;
+  there is no fixed per-invocation record ceiling.
+- The invocation drains two purpose-specific queues: legacy rows keyed by a
+  Supabase user UUID and stable rows keyed by a purchase-principal UUID. Stable
+  lookup IDs are immutable server-owned values; they are never canonicalized as
+  Auth UUIDs or used directly as account IDs.
 - At most three RevenueCat `GET /v1/subscribers/{app_user_id}` requests run
   concurrently. They use `REVENUECAT_SECRET_API_KEY`, a ten-second deadline, and
   a 2 MiB streamed response ceiling.
@@ -27,14 +32,28 @@ is not a browser or iOS API.
   reserving 30 seconds for the final bounded provider wave, database writes, and
   queue-health read. The cron dispatch uses a 120-second `pg_net` response
   timeout.
-- `apply_revenuecat_reconciliation(...)` changes access only for a strictly
-  newer authoritative `request_date_ms` while holding the queue, user, and
-  customer-watermark locks. Every write is claim-fenced.
+- `apply_revenuecat_reconciliation(...)` and
+  `apply_purchase_principal_reconciliation(...)` change their respective input
+  state only for a strictly newer authoritative `request_date_ms` while holding
+  the queue, user, and customer-watermark locks. Every write is claim-fenced.
+  CustomerInfo must be no more than 15 minutes old and no more than five minutes
+  in the future; an out-of-window response is failed and retried without
+  changing either entitlement lane.
+- A principal claim removes at most 100 unbound, state-free `pending` principals
+  with no activity for 24 hours. Each begin attempt refreshes the activity time
+  under the principal lock, so cleanup cannot delete a live retry between begin
+  and completion. Those abandoned preparations never mutated RevenueCat and
+  cannot reserve an identity or alert forever after a lost installation.
 - Successful Pro rows are due again in six hours; free rows in 24 hours.
   Failures release their claim with durable bounded backoff.
 - Periodic repair cannot restore a historical refunded detached `pro_week`
-  purchase over a free/refunded customer watermark. Webhook event context owns
-  that revocation decision.
+  purchase over a free/refunded customer watermark. Each stable-principal claim
+  carries a durable pass-policy flag. Signed webhook purchase evidence may
+  enable it; a transfer destination can inherit it only from a resolved stable
+  source whose policy is already enabled and only after the destination snapshot
+  shows an active App Store pass. Refund/revocation/source evidence disables it,
+  and unrelated events plus reconciliation preserve it rather than deriving
+  policy from retained CustomerInfo history.
 
 The projected Pro/free labels in this worker refer only to RevenueCat-backed Pro
 state. The legacy `pro_paid` policy name includes store trials and approved
@@ -60,16 +79,24 @@ expiration index, deadline-draining cron timeout, and service-only
 until identity upgrade. Migration
 `20260809055035_canonicalize_revenuecat_app_user_ids.sql` aligns PostgreSQL with
 the case-sensitive iOS customer ID and invalidates any claimed lowercase UUID
-lookup before making it immediately due.
+lookup before making it immediately due. Migration
+`20260812144948_introduce_stable_purchase_principals.sql` adds the separate
+stable-principal queue and service-only claim/apply/fail/health RPCs. The same
+worker drains both queues with independent claims and uses stable-first identity
+resolution. `account_grant_mode = authoritative` causes provider promo records
+to remain evidence-only; only the private account-grant ledger can then
+contribute that access.
 
 The independent `.github/workflows/revenuecat-reconciliation-health-monitor.yml`
-check runs every 15 minutes. It fails by default when the oldest
-unclaimed/expired due row or pending sign-out purchase handoff is at least 30
-minutes old, or any lease has expired, and marks 60 minutes as critical. It
-writes JSON and Markdown artifacts without exposing subscriber, handoff, source,
-or destination identities. A failed RPC or network check also fails the monitor.
-Sign-out telemetry counts unexpired prepared proofs and every bound proof;
-expired unbound bearer capabilities are terminal and do not alert forever.
+check runs every 15 minutes and reads both aggregate health RPCs. It fails by
+default when the oldest unclaimed/expired due row, pending sign-out handoff, or
+pending purchase principal is at least 30 minutes old, when any lease has
+expired, or when an active principal with current StoreKit access has no Auth
+binding; 60 minutes is critical. It writes JSON and Markdown artifacts without
+exposing subscriber, handoff, source, or destination identities. A failed RPC or
+network check also fails the monitor. Sign-out telemetry counts unexpired
+prepared proofs and every bound proof; expired unbound bearer capabilities are
+terminal and do not alert forever.
 
 For an alert, inspect the worker's structured `revenuecat_reconciliation_health`
 event and the queue's bounded `last_error_code`/attempt state with the

@@ -1,13 +1,15 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { SEVEN_DAY_PASS_PRODUCT_ID } from "../_shared/subscriptionPass.ts";
 import { RevenueCatWebhookEvent } from "./protocol.ts";
 import {
+  deriveRevenueCatAccountGrantState,
   deriveRevenueCatEntitlementState,
   deriveRevenueCatStoreEntitlementState,
   fetchRevenueCatCustomerInfo,
   revenueCatAccessCovers,
   RevenueCatApiError,
   RevenueCatCustomerInfo,
+  revenueCatNonSubscriptionPassGrantDecision,
 } from "./subscriber.ts";
 
 const SNAPSHOT_MS = Date.parse("2026-07-23T12:00:00.000Z");
@@ -267,6 +269,108 @@ Deno.test("store access excludes a promotional subscription record", () => {
   assertEquals(state, { targetTier: "free", expiresAt: null });
 });
 
+Deno.test("store access survives a promotion hiding the annual entitlement", () => {
+  const state = deriveRevenueCatStoreEntitlementState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "rc_promo_pro_lifetime",
+          expires_date: null,
+        },
+      },
+      subscriptions: {
+        rc_promo_pro_lifetime: {
+          expires_date: null,
+          store: "promotional",
+        },
+        pro_annual: {
+          expires_date: "2026-08-23T12:00:00.000Z",
+          store: "app_store",
+        },
+      },
+      non_subscriptions: {},
+    }),
+  );
+
+  assertEquals(state, {
+    targetTier: "pro",
+    expiresAt: "2026-08-23T12:00:00.000Z",
+  });
+});
+
+Deno.test("account grants include only an active promotional subscription", () => {
+  const state = deriveRevenueCatAccountGrantState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "rc_beta_pro",
+          expires_date: "2026-08-23T12:00:00.000Z",
+        },
+      },
+      subscriptions: {
+        rc_beta_pro: {
+          expires_date: "2026-08-23T12:00:00.000Z",
+          store: "promotional",
+        },
+      },
+    }),
+  );
+
+  assertEquals(state, {
+    targetTier: "pro",
+    expiresAt: "2026-08-23T12:00:00.000Z",
+  });
+});
+
+Deno.test("account grants preserve a lifetime promotional horizon", () => {
+  const state = deriveRevenueCatAccountGrantState(
+    customerInfo({
+      entitlements: {
+        "Naturalist Tier": {
+          product_identifier: "rc_support_lifetime",
+          expires_date: null,
+        },
+      },
+      subscriptions: {
+        rc_support_lifetime: {
+          expires_date: null,
+          store: "promotional",
+        },
+      },
+    }),
+  );
+
+  assertEquals(state, { targetTier: "pro", expiresAt: null });
+});
+
+Deno.test("account grants reject StoreKit and unknown provenance", () => {
+  const state = deriveRevenueCatAccountGrantState(
+    customerInfo({
+      entitlements: {
+        pro: {
+          product_identifier: "pro_annual",
+          expires_date: "2026-08-23T12:00:00.000Z",
+        },
+        "Naturalist Tier": {
+          product_identifier: "unknown_support",
+          expires_date: null,
+        },
+      },
+      subscriptions: {
+        pro_annual: {
+          expires_date: "2026-08-23T12:00:00.000Z",
+          store: "app_store",
+        },
+        unknown_support: {
+          expires_date: null,
+        },
+      },
+    }),
+  );
+
+  assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
 Deno.test("store access fails closed when the purchase store is absent", () => {
   const state = deriveRevenueCatStoreEntitlementState(
     customerInfo({
@@ -286,6 +390,140 @@ Deno.test("store access fails closed when the purchase store is absent", () => {
   );
 
   assertEquals(state, { targetTier: "free", expiresAt: null });
+});
+
+Deno.test("pass grant policy follows signed purchase and revocation evidence", () => {
+  const info = customerInfo({
+    entitlements: {},
+    non_subscriptions: {
+      [SEVEN_DAY_PASS_PRODUCT_ID]: [{
+        id: "pass-transaction",
+        purchase_date: "2026-07-20T12:00:00.000Z",
+        store: "app_store",
+      }],
+    },
+  });
+
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      info,
+      event({
+        type: "NON_RENEWING_PURCHASE",
+        productId: SEVEN_DAY_PASS_PRODUCT_ID,
+        transactionId: "pass-transaction",
+      }),
+      "customer",
+    ),
+    true,
+  );
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      info,
+      event({
+        type: "REFUND",
+        productId: SEVEN_DAY_PASS_PRODUCT_ID,
+        transactionId: "pass-transaction",
+      }),
+      "customer",
+    ),
+    false,
+  );
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      info,
+      event({ type: "RENEWAL", productId: "merian_pro_annual" }),
+      "customer",
+    ),
+    null,
+  );
+});
+
+Deno.test("pass revocation preserves a newer App Store pass", () => {
+  const info = customerInfo({
+    entitlements: {},
+    non_subscriptions: {
+      [SEVEN_DAY_PASS_PRODUCT_ID]: [
+        {
+          id: "refunded-pass",
+          purchase_date: "2026-07-19T12:00:00.000Z",
+          store: "app_store",
+        },
+        {
+          id: "newer-pass",
+          purchase_date: "2026-07-22T12:00:00.000Z",
+          store: "app_store",
+        },
+      ],
+    },
+  });
+
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      info,
+      event({
+        type: "REFUND",
+        productId: SEVEN_DAY_PASS_PRODUCT_ID,
+        transactionId: "refunded-pass",
+      }),
+      "customer",
+    ),
+    true,
+  );
+});
+
+Deno.test("pass purchase without authoritative transaction remains retryable", () => {
+  assertThrows(
+    () => {
+      revenueCatNonSubscriptionPassGrantDecision(
+        customerInfo({ entitlements: {}, non_subscriptions: {} }),
+        event({
+          type: "NON_RENEWING_PURCHASE",
+          productId: SEVEN_DAY_PASS_PRODUCT_ID,
+          transactionId: "missing-pass",
+        }),
+        "customer",
+      );
+    },
+    RevenueCatApiError,
+    "did not include the purchased pass",
+  );
+});
+
+Deno.test("pass transfer policy disables the source without trusting destination history", () => {
+  const destination = customerInfo({
+    entitlements: {},
+    non_subscriptions: {
+      [SEVEN_DAY_PASS_PRODUCT_ID]: [{
+        id: "transferred-pass",
+        purchase_date: "2026-07-20T12:00:00.000Z",
+        store: "app_store",
+      }],
+    },
+  });
+  const transfer = event({
+    type: "TRANSFER",
+    productId: null,
+    appUserId: null,
+    transferredFrom: ["source"],
+    transferredTo: ["destination"],
+  });
+
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      destination,
+      transfer,
+      "transfer_source",
+    ),
+    false,
+  );
+  assertEquals(
+    revenueCatNonSubscriptionPassGrantDecision(
+      destination,
+      transfer,
+      "transfer_destination",
+    ),
+    null,
+  );
 });
 
 Deno.test("store access includes a matching lifetime non-subscription", () => {

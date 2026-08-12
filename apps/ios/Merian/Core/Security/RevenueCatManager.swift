@@ -90,6 +90,29 @@ enum RevenueCatPurchaseMutationPolicy {
     }
 }
 
+enum RevenueCatEntitlementProvenancePolicy {
+    static func hasActiveStoreBackedSubscription(
+        productIdentifiers: Set<String>
+    ) -> Bool {
+        productIdentifiers.contains(
+            RevenueCatOfferingPolicy.annualProductIdentifier
+        )
+    }
+
+    static func allowsStoreBackedAccess(
+        store: Store,
+        accountGrantsAllowed: Bool
+    ) -> Bool {
+        if accountGrantsAllowed { return true }
+        switch store {
+        case .appStore, .macAppStore, .testStore:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 enum RevenueCatManagerError: LocalizedError {
     case identityNotReady
 
@@ -157,6 +180,25 @@ struct RevenueCatIdentityContext: Equatable {
     }
 }
 
+enum RevenueCatStableIdentityPrivacyPolicy {
+    static let legacyAccountAttributeKeys = [
+        "supabase_user_id",
+        "auth_email",
+        "display_name",
+        "avatar_url",
+        "public_username",
+        "public_author_name",
+        "public_identity_source",
+        "account_kind"
+    ]
+
+    static var deletionAttributes: [String: String] {
+        Dictionary(uniqueKeysWithValues: legacyAccountAttributeKeys.map {
+            ($0, "")
+        })
+    }
+}
+
 @MainActor
 @Observable final class RevenueCatManager {
     static let shared = RevenueCatManager()
@@ -178,8 +220,17 @@ struct RevenueCatIdentityContext: Equatable {
 
     private(set) var linkedAppUserID: String?
     private var requestedAppUserID: String?
+    private(set) var linkedAuthUserID: UUID?
+    private var requestedAuthUserID: UUID?
+    private(set) var linkedBindingGeneration: Int64?
+    private var requestedBindingGeneration: Int64?
+    private(set) var usesStablePurchasePrincipal = false
+    private var accountGrantsAllowed = true
     private(set) var linkedAccountKind: String?
     private var requestedAccountKind: String?
+    @ObservationIgnored private var identityLinkTask: Task<Void, Never>?
+    @ObservationIgnored private var identityLinkTaskId: UUID?
+    private var identityRequestGeneration: UInt64 = 0
     /// A device-durable StoreKit identity transfer is unresolved. RevenueCat
     /// may already be linked to the destination, but user-initiated provider
     /// mutations remain disabled until the server verifies continuity.
@@ -207,11 +258,34 @@ struct RevenueCatIdentityContext: Equatable {
         isPurchaseIdentityHandoffPending = pending
     }
 
+    /// Closes provider mutation readiness before an asynchronous server mode
+    /// decision. A resolver timeout, rollback response, or stale Auth result
+    /// must not leave the previous RevenueCat customer usable merely because
+    /// the SDK is still configured to it. The next successful exact binding
+    /// reopens readiness without creating an anonymous provider customer.
+    func beginPurchaseIdentityResolution() {
+        identityRequestGeneration &+= 1
+        requestedAppUserID = nil
+        requestedAuthUserID = nil
+        requestedBindingGeneration = nil
+        requestedAccountKind = nil
+        linkedAuthUserID = nil
+        linkedBindingGeneration = nil
+        linkedAccountKind = nil
+        accountGrantsAllowed = false
+        isSubscribed = false
+        currentOfferings = nil
+        isFetchingOfferings = false
+        synchronizeFunctionalEntitlement()
+    }
+
     private func isCurrentIdentity(_ appUserID: String) -> Bool {
         guard !TestExecutionCoordinator.isRunningTests,
               Purchases.isConfigured,
               requestedAppUserID == appUserID,
-              linkedAppUserID == appUserID else {
+              linkedAppUserID == appUserID,
+              requestedAuthUserID == linkedAuthUserID,
+              requestedBindingGeneration == linkedBindingGeneration else {
             return false
         }
 
@@ -259,25 +333,8 @@ struct RevenueCatIdentityContext: Equatable {
         publicIdentitySource: String? = nil,
         accountKind: String? = nil
     ) async {
-        guard !TestExecutionCoordinator.isRunningTests else { return }
-
         let appUserID = RevenueCatAppUserIDPolicy.canonicalID(for: userId)
         let normalizedAccountKind = RevenueCatAccountMutationPolicy.normalizedAccountKind(accountKind)
-        requestedAppUserID = appUserID
-        requestedAccountKind = normalizedAccountKind
-
-        if linkedAppUserID != appUserID {
-            linkedAppUserID = nil
-            linkedAccountKind = nil
-            isSubscribed = false
-            currentOfferings = nil
-            synchronizeFunctionalEntitlement()
-        } else if linkedAccountKind != normalizedAccountKind {
-            // Fail closed while the same Supabase UUID changes from a Ghost to
-            // a permanent account (or vice versa).
-            linkedAccountKind = nil
-        }
-
         let identity = RevenueCatIdentityContext(
             userId: appUserID,
             email: email,
@@ -288,6 +345,131 @@ struct RevenueCatIdentityContext: Equatable {
             publicIdentitySource: publicIdentitySource,
             accountKind: normalizedAccountKind
         )
+
+        await linkIdentity(
+            appUserID: appUserID,
+            authUserID: userId,
+            bindingGeneration: 0,
+            accountKind: normalizedAccountKind,
+            accountGrantsAllowed: true,
+            stablePurchasePrincipal: false,
+            legacyIdentityAttributes: identity
+        )
+    }
+
+    /// Links the server-resolved stable purchase principal to one exact Auth
+    /// session. No account PII or Auth UUID is written onto the shared
+    /// RevenueCat customer; the private server binding owns that relationship.
+    func linkResolvedPurchasePrincipal(
+        _ binding: PurchasePrincipalBinding,
+        authUserID: UUID,
+        accountKind: String
+    ) async {
+        guard binding.mode == .stable,
+              let appUserID = binding.revenueCatAppUserId,
+              let generation = binding.bindingGeneration else {
+            return
+        }
+        await linkIdentity(
+            appUserID: appUserID,
+            authUserID: authUserID,
+            bindingGeneration: generation,
+            accountKind: accountKind,
+            accountGrantsAllowed: binding.accountGrantsAllowed,
+            stablePurchasePrincipal: true,
+            legacyIdentityAttributes: nil
+        )
+    }
+
+    private func linkIdentity(
+        appUserID: String,
+        authUserID: UUID,
+        bindingGeneration: Int64,
+        accountKind: String?,
+        accountGrantsAllowed: Bool,
+        stablePurchasePrincipal: Bool,
+        legacyIdentityAttributes: RevenueCatIdentityContext?
+    ) async {
+        guard !TestExecutionCoordinator.isRunningTests else { return }
+
+        let normalizedAccountKind = RevenueCatAccountMutationPolicy
+            .normalizedAccountKind(accountKind)
+        identityRequestGeneration &+= 1
+        let requestGeneration = identityRequestGeneration
+        requestedAppUserID = appUserID
+        requestedAuthUserID = authUserID
+        requestedBindingGeneration = bindingGeneration
+        requestedAccountKind = normalizedAccountKind
+
+        if linkedAppUserID != appUserID {
+            linkedAppUserID = nil
+            linkedAuthUserID = nil
+            linkedBindingGeneration = nil
+            linkedAccountKind = nil
+            isSubscribed = false
+            currentOfferings = nil
+            synchronizeFunctionalEntitlement()
+        } else if linkedAuthUserID != authUserID
+                    || linkedBindingGeneration != bindingGeneration
+                    || linkedAccountKind != normalizedAccountKind {
+            // Fail closed while the same provider customer is rebound to a new
+            // Auth session or account kind.
+            linkedAuthUserID = nil
+            linkedBindingGeneration = nil
+            linkedAccountKind = nil
+        }
+
+        // RevenueCat SDK identity mutations are asynchronous and are not
+        // guaranteed to stop when their caller is cancelled. Serialize them so
+        // an older login cannot finish after a newer Auth event and leave the
+        // SDK on the stale customer. The newest request always runs last.
+        let previousTask = identityLinkTask
+        let taskId = UUID()
+        let task = Task { @MainActor [weak self] in
+            if let previousTask {
+                await previousTask.value
+            }
+            guard let self,
+                  self.identityRequestGeneration == requestGeneration else {
+                return
+            }
+            await self.performIdentityLink(
+                appUserID: appUserID,
+                authUserID: authUserID,
+                bindingGeneration: bindingGeneration,
+                accountKind: normalizedAccountKind,
+                accountGrantsAllowed: accountGrantsAllowed,
+                stablePurchasePrincipal: stablePurchasePrincipal,
+                legacyIdentityAttributes: legacyIdentityAttributes,
+                requestGeneration: requestGeneration
+            )
+        }
+        identityLinkTask = task
+        identityLinkTaskId = taskId
+        await task.value
+        if identityLinkTaskId == taskId {
+            identityLinkTask = nil
+            identityLinkTaskId = nil
+        }
+    }
+
+    private func performIdentityLink(
+        appUserID: String,
+        authUserID: UUID,
+        bindingGeneration: Int64,
+        accountKind normalizedAccountKind: String?,
+        accountGrantsAllowed: Bool,
+        stablePurchasePrincipal: Bool,
+        legacyIdentityAttributes: RevenueCatIdentityContext?,
+        requestGeneration: UInt64
+    ) async {
+        guard identityRequestGeneration == requestGeneration,
+              requestedAppUserID == appUserID,
+              requestedAuthUserID == authUserID,
+              requestedBindingGeneration == bindingGeneration,
+              requestedAccountKind == normalizedAccountKind else {
+            return
+        }
 
         Purchases.logLevel = .warn
         guard let apiKey = validatedAPIKey() else { return }
@@ -305,15 +487,44 @@ struct RevenueCatIdentityContext: Equatable {
             }
 
             guard requestedAppUserID == appUserID,
+                  requestedAuthUserID == authUserID,
+                  requestedBindingGeneration == bindingGeneration,
                   requestedAccountKind == normalizedAccountKind,
+                  identityRequestGeneration == requestGeneration,
                   Purchases.shared.appUserID == appUserID,
                   !Purchases.shared.isAnonymous else {
                 MerianLog.general.warning("RevenueCat identity changed before linking completed; ignoring stale result.")
                 return
             }
 
+            if stablePurchasePrincipal {
+                // A principal adopted from a legacy Auth-UUID customer may
+                // already contain account metadata. Clear it before declaring
+                // the shared purchase identity ready for another Auth session.
+                Purchases.shared.attribution.setEmail("")
+                Purchases.shared.attribution.setDisplayName("")
+                Purchases.shared.attribution.setAttributes(
+                    RevenueCatStableIdentityPrivacyPolicy.deletionAttributes
+                )
+                _ = try await Purchases.shared
+                    .syncAttributesAndOfferingsIfNeeded()
+                guard requestedAppUserID == appUserID,
+                      requestedAuthUserID == authUserID,
+                      requestedBindingGeneration == bindingGeneration,
+                      requestedAccountKind == normalizedAccountKind,
+                      identityRequestGeneration == requestGeneration,
+                      Purchases.shared.appUserID == appUserID,
+                      !Purchases.shared.isAnonymous else {
+                    return
+                }
+            }
+
             linkedAppUserID = appUserID
+            linkedAuthUserID = authUserID
+            linkedBindingGeneration = bindingGeneration
             linkedAccountKind = normalizedAccountKind
+            usesStablePurchasePrincipal = stablePurchasePrincipal
+            self.accountGrantsAllowed = accountGrantsAllowed
 
             if let customerInfo {
                 updateEntitlements(with: customerInfo)
@@ -322,20 +533,28 @@ struct RevenueCatIdentityContext: Equatable {
             }
 
             guard isCurrentIdentity(appUserID),
+                  linkedAuthUserID == authUserID,
+                  linkedBindingGeneration == bindingGeneration,
+                  identityRequestGeneration == requestGeneration,
                   requestedAccountKind == normalizedAccountKind,
                   linkedAccountKind == normalizedAccountKind else {
                 MerianLog.general.warning("RevenueCat identity changed before profile sync completed; ignoring stale result.")
                 return
             }
 
-            // Sync optional profile attributes.
-            if let email = identity.normalizedEmail {
+            // Legacy UUID customers retain their existing metadata behavior.
+            // Stable principals deliberately carry no account PII.
+            if let email = legacyIdentityAttributes?.normalizedEmail {
                 Purchases.shared.attribution.setEmail(email)
             }
-            if let displayName = identity.normalizedDisplayName {
+            if let displayName = legacyIdentityAttributes?.normalizedDisplayName {
                 Purchases.shared.attribution.setDisplayName(displayName)
             }
-            Purchases.shared.attribution.setAttributes(identity.subscriberAttributes)
+            if let legacyIdentityAttributes {
+                Purchases.shared.attribution.setAttributes(
+                    legacyIdentityAttributes.subscriberAttributes
+                )
+            }
 
             await fetchOfferings()
             MerianLog.general.debug("RevenueCat identity linked for user \(appUserID, privacy: .private)")
@@ -361,19 +580,42 @@ struct RevenueCatIdentityContext: Equatable {
     }
 
     private func updateEntitlements(with info: CustomerInfo) {
-        let isNaturalist = info.entitlements.all["Naturalist Tier"]?.isActive == true
-        let isPro        = info.entitlements.all["pro"]?.isActive == true
+        let isNaturalist = entitlementIsAllowed(
+            info.entitlements.all["Naturalist Tier"]
+        )
+        let isPro = entitlementIsAllowed(info.entitlements.all["pro"])
+        let hasActiveStoreBackedSubscription =
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: info.activeSubscriptions
+                )
         let isActive7DayPass = SevenDayPassAccessPolicy.isActive(
-            purchases: info.nonSubscriptions.map {
-                SevenDayPassPurchase(
+            purchases: info.nonSubscriptions.compactMap {
+                guard RevenueCatEntitlementProvenancePolicy
+                    .allowsStoreBackedAccess(
+                        store: $0.store,
+                        accountGrantsAllowed: accountGrantsAllowed
+                    ) else {
+                    return nil
+                }
+                return SevenDayPassPurchase(
                     productIdentifier: $0.productIdentifier,
                     purchaseDate: $0.purchaseDate
                 )
             }
         )
         
-        isSubscribed = isNaturalist || isPro || isActive7DayPass
+        isSubscribed = isNaturalist || isPro ||
+            hasActiveStoreBackedSubscription || isActive7DayPass
         synchronizeFunctionalEntitlement()
+    }
+
+    private func entitlementIsAllowed(_ entitlement: EntitlementInfo?) -> Bool {
+        guard let entitlement, entitlement.isActive else { return false }
+        return RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+            store: entitlement.store,
+            accountGrantsAllowed: accountGrantsAllowed
+        )
     }
 
     /// Functional Pro is paid RevenueCat access plus current-session server
@@ -432,17 +674,18 @@ struct RevenueCatIdentityContext: Equatable {
         }
     }
 
-    /// Clears local entitlement state without asking RevenueCat to generate an
-    /// anonymous customer. The next Supabase session switches IDs directly.
+    /// Clears Auth-session readiness without asking RevenueCat to create an
+    /// anonymous customer. Stable purchase principals remain configured and
+    /// are rebound by the server for the next Supabase session.
     func handleSupabaseSignOut() async {
-        requestedAppUserID = nil
-        requestedAccountKind = nil
-        linkedAppUserID = nil
-        linkedAccountKind = nil
+        // Invalidate an in-flight SDK mutation. It is deliberately not
+        // cancelled: a subsequent identity request queues behind it and repairs
+        // the SDK deterministically if the provider call still completes.
+        beginPurchaseIdentityResolution()
+        if !usesStablePurchasePrincipal {
+            linkedAppUserID = nil
+        }
         isProActive = false
-        isSubscribed = false
-        currentOfferings = nil
-        isFetchingOfferings = false
         EntitlementManager.shared.handleSignOut()
     }
 
@@ -481,17 +724,22 @@ struct RevenueCatIdentityContext: Equatable {
         expectedUserId: UUID? = nil
     ) async throws {
         guard let appUserID = linkedAppUserID,
-              isCurrentProviderMutationIdentity(appUserID),
-              (expectedUserId.map({
-                  RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
-              }) ?? true) else {
+              !usesStablePurchasePrincipal,
+              isCurrentProviderMutationIdentity(appUserID) else {
+            throw RevenueCatManagerError.identityNotReady
+        }
+        let matchesExpectedUser = expectedUserId.map {
+            RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
+        } ?? true
+        guard matchesExpectedUser else {
             throw RevenueCatManagerError.identityNotReady
         }
         let info = try await Purchases.shared.syncPurchases()
+        let stillMatchesExpectedUser = expectedUserId.map {
+            RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
+        } ?? true
         guard isCurrentProviderMutationIdentity(appUserID),
-              (expectedUserId.map({
-                  RevenueCatAppUserIDPolicy.canonicalID(for: $0) == appUserID
-              }) ?? true) else {
+              stillMatchesExpectedUser else {
             throw RevenueCatManagerError.identityNotReady
         }
         updateEntitlements(with: info)
@@ -500,6 +748,14 @@ struct RevenueCatIdentityContext: Equatable {
     /// Backward-compatible name for the guest-profile merge caller. The merge
     /// and sign-out protocols share only this exact-identity StoreKit sync.
     func synchronizePurchasesAfterAccountMerge() async throws {
+        if usesStablePurchasePrincipal {
+            guard let appUserID = linkedAppUserID,
+                  isCurrentProviderMutationIdentity(appUserID),
+                  !isPurchaseIdentityHandoffPending else {
+                throw RevenueCatManagerError.identityNotReady
+            }
+            return
+        }
         try await synchronizePurchasesAfterIdentityHandoff()
     }
 

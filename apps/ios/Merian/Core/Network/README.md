@@ -41,13 +41,15 @@ classifies the initial value before mutating observable auth state:
 - a non-expired session is `.authenticated` and may start entitlement,
   identity, and synchronization work; and
 - an expired session with a user is `.awaitingRefresh`. Authenticated request
-  state remains closed and `currentUser` remains unset, but the known user ID is
-  passed to `ConsentManager` so a completed user stays on the launch-matched
-  restoration root.
+  and RevenueCat mutation readiness remain closed and `currentUser` remains
+  unset, but the known user ID is passed to `ConsentManager` so a completed user
+  stays on the launch-matched restoration root.
 
 The SDK's later `tokenRefreshed` event adopts the valid session through the
-normal authenticated path. A terminal refresh-token cleanup emits `signedOut`
-and only then establishes that no active account remains. Never route an
+normal authenticated path and re-resolves the purchase identity. A terminal
+refresh-token cleanup emits `signedOut`, immediately closes RevenueCat session
+readiness without creating a provider-anonymous customer, and only then
+establishes that no active account remains. Never route an
 expired cached session through sign-out cleanup: doing so can briefly resolve
 restoration and mount the Ready approval screen before refresh completes.
 
@@ -568,8 +570,41 @@ session. This client transition does not fabricate a server revocation receipt.
 ## Sign-out and anonymous account transition
 
 User-facing logout is **Sign out**. `ProfileViewModel.signOut()` and the Settings
-danger-zone action call `transitionToGhostSession()`. For a linked account, the
-client first calls `/transfer-signout-purchases` to snapshot authoritative
+danger-zone action call `transitionToGhostSession()`; user-facing copy does not
+expose the internal Ghost name. Every usable session first calls the additive
+`/resolve-purchase-principal` route. Its explicit `mode` selects the stable or
+legacy branch; only a definite missing route may use legacy fallback, while
+auth, timeout, provider, and database failures remain fail-closed.
+Once an installation has activated a stable principal, server rollback keeps
+returning that exact principal; it never instructs iOS to rotate back to the
+current Auth UUID. A response requiring a newer stable protocol also fails
+closed until the app is updated. A verified device-only activation fingerprint
+makes that transition monotonic: later `404` or `mode: legacy` responses are
+rejected rather than used as compatibility fallback.
+
+In stable mode, the client read-verifies a device-only installation capability
+and advances/read-verifies its device-monotonic binding intent before each
+resolver request. The server rejects any older intent, so a cancelled Auth
+request that finishes late cannot replace the current binding. The client also
+persists a write-ahead Auth-rotation marker before closing the local linked
+session.
+One fresh anonymous identity resolves the same server-owned purchase principal,
+`RevenueCatManager` serially links the unchanged App User ID, Merian entitlement
+refreshes, the same Auth generation is verified, and the marker is removed last.
+If a transient resolver, account-cleanup, Keychain, or provider failure finishes
+without another Auth event, foreground activation retries that exact durable
+capability or handoff. It never rotates Auth or creates a replacement provider
+customer, and paid readiness remains closed until the same session and server
+entitlement are verified.
+If local Supabase sign-out fails and the source account remains active, the
+unused marker is cleared only after verification and the exact source
+RevenueCat/entitlement session is restored before the transition returns.
+There is no `syncPurchases()` or RevenueCat customer-transfer call. Email,
+username, display name, avatar, account kind, and Auth UUID are never written to
+the shared stable provider customer; adoption deletes any legacy values and
+synchronizes that deletion before stable paid readiness opens.
+
+In legacy mode, the client first calls `/transfer-signout-purchases` to snapshot authoritative
 StoreKit-backed access and persists its one-use proof under
 `Merian_PendingSignOutPurchaseHandoff_v1` with
 `whenUnlockedThisDeviceOnly`. A preparation or verified-Keychain-write failure
@@ -580,7 +615,7 @@ is always presented as linked; the retired
 can no longer hide an authenticated account. The anonymous Profile state offers
 **Continue with Apple** and **Continue with Google**.
 
-The fresh anonymous identity binds the proof before RevenueCat is linked to its
+The fresh legacy anonymous identity binds the proof before RevenueCat is linked to its
 uppercase UUID. The client then calls `Purchases.syncPurchases()` under the
 project's required **Transfer to new App User ID** restore behavior, asks the
 server to verify authoritative destination CustomerInfo, refreshes the Merian
@@ -591,7 +626,12 @@ restoration retries the same destination. The anonymous Profile also exposes a
 visible **Finish sign out** action, so recovery does not depend on a relaunch or
 another provider attempt. A restored source account can cancel only a still-
 unbound proof; the server refuses cancellation once receipt movement may have
-begun. If a finite prepared purchase expires before first completion, the
+begun. An already-issued compatibility proof always finishes against
+its exact uppercase destination UUID even if `principal_mode` changes to
+`stable` while the transition is in flight. Only after the proof is cleared may
+the resolver adopt/rebind that installation to a stable principal; this prevents
+receipt sync and server verification from targeting different customers.
+If a finite prepared purchase expires before first completion, the
 server refreshes the source before accepting the destination's current
 StoreKit state, so natural expiry can finish free without overlooking a source
 renewal. Completed replay uses the immutable attested state and snapshot.
@@ -625,10 +665,12 @@ invalidated.
 
 Low-level `signOut()` cannot later recover the same Supabase anonymous account.
 Ordinary user logout therefore calls `transitionToGhostSession()` to request one
-replacement anonymous identity after the durable handoff is prepared. Success
-means the anonymous Supabase identity, exact custom RevenueCat identity, receipt
-sync, server verification/reconciliation, and current Merian entitlement read
-all completed; an anonymous-session result by itself is not success. The same
+replacement anonymous identity after the mode-specific durable boundary is
+prepared. Stable success means the replacement Auth session resolves and links
+the same purchase principal, then refreshes entitlement. Legacy success means
+the anonymous Supabase identity, exact custom RevenueCat identity, receipt sync,
+server verification/reconciliation, and current entitlement read all completed.
+An anonymous-session result by itself is not success. The same
 identity rotation remains available for stable missing/invalid-session recovery
 after SDK refresh fails only when no purchase handoff is pending; a generic
 `401` never reaches it. Account deletion intentionally calls `signOut()` alone

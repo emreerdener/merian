@@ -13,7 +13,7 @@ Merian.
 | Supabase JWT (access token)                        | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
 | Supabase anonymous session                         | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
 | Extension cache                                    | App Group `group.app.merian.shared`                                           | Non-secret coordination data shared by the app, Messages extension, and Explore widget                             |
-| RevenueCat customer ID                             | RevenueCat SDK (internal)                                                     | Logged in with the Supabase Auth UUID; SDK-managed locally                                                         |
+| RevenueCat customer ID                             | RevenueCat SDK (internal)                                                     | Stable mode uses the server-issued purchase-principal ID; legacy mode uses the uppercase Supabase Auth UUID. Neither is persisted by the app as authority |
 | `SUPABASE_ANON_KEY`                                | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
 | `REVENUECAT_API_KEY`                               | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift`       | Read-only build config, not secret; production export should use an iOS `appl_` key                                |
 | `POSTHOG_API_KEY`                                  | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
@@ -35,6 +35,10 @@ Merian.
 | `Merian_GhostModeUserID_v1`                        | `KeychainManager` (`kSecClassGenericPassword`)                                | Retired presentation-only logout marker; upgraded clients delete it during startup and never use it to shape account UI     |
 | `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
 | `Merian_PendingSignOutPurchaseHandoff_v1`          | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes |
+| `Merian_PurchasePrincipalInstallationCapability_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                            | Random 256-bit device capability for resolving the same server-owned stable purchase principal across local Auth rotation; Postgres stores only SHA-256 |
+| `Merian_PurchasePrincipalBindingIntentGeneration_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                         | Positive monotonic resolver intent; advanced/read-verified before network I/O so an older Auth request cannot overwrite a newer server binding |
+| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                       | Monotonic lowercase SHA-256 fingerprint of the local capability after first stable activation; prevents later legacy or missing-route identity fallback |
+| `Merian_PendingPurchasePrincipalAuthRotation_v1`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Write-ahead marker proving a stable-principal Auth rotation has not yet been rebound; paid mutations fail closed until verified removal |
 | `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
 | Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
 | Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
@@ -329,6 +333,11 @@ Currently stored keys:
 | --------------------------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; only a stable missing/invalid-session response plus failed refresh may use it when deciding whether authoritative Ghost regeneration is allowed |
 | `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades          |
+| `Merian_PendingSignOutPurchaseHandoff_v1` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Legacy-mode one-use proof that fences receipt transfer from a linked UUID customer to the exact fresh anonymous UUID customer until server verification completes |
+| `Merian_PurchasePrincipalInstallationCapability_v1` | 32-byte `Data` | `WhenUnlockedThisDeviceOnly` | Stable-mode possession capability. The app verifies each write, sends its base64url form only to the authenticated resolver, and never persists the returned provider ID as authority |
+| `Merian_PurchasePrincipalBindingIntentGeneration_v1` | canonical positive decimal `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic Auth-binding intent paired with the capability. It is advanced/read-verified before each resolver request and must already exist after stable activation; missing or malformed state fails closed |
+| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | lowercase SHA-256 `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic evidence that the exact local capability has activated stable mode; it is not a provider-ID cache and is never sent as identity authority |
+| `Merian_PendingPurchasePrincipalAuthRotation_v1` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Stable-mode write-ahead marker containing the source Auth UUID, expected principal/provider IDs, and a non-secret local capability fingerprint needed to finish or safely retry one local Auth rotation |
 | `Merian_AnalyticsRevocationIntent_v1` | JSON `Data` | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                               |
 
 The merge queue is persisted and read back successfully before the app switches
@@ -387,27 +396,52 @@ which means the IDFV survives app reinstall as long as another app from the same
 vendor group is installed. This is intentional: it preserves anonymous user
 identity across reinstalls for Ghost Session continuity.
 
-The IDFV seeds the anonymous Ghost Session path (`signInAnonymously`) but is not
-the durable billing identifier. Once Supabase returns a user, the Supabase Auth
-UUID is passed to RevenueCat and PostHog; RevenueCat also receives subscriber
-attributes such as auth email, public username, public display name, and account
-kind for manual support lookup.
+The IDFV seeds the anonymous session path (`signInAnonymously`) but is not a
+billing identifier. In stable mode, a separate random installation capability
+resolves one server-owned purchase principal. The server response—not the IDFV,
+capability, Auth UUID, or a cached provider ID—is the authority for the current
+RevenueCat link. The same readable capability resolves the same principal after
+ordinary local Auth rotation. The app sends no account email, username, display
+name, avatar, or Auth UUID attribute to that shared provider customer. PostHog
+continues to follow its own analytics identity and consent contract.
 
 Older builds could store the linked Supabase UUID in
 `Merian_GhostModeUserID_v1` to mask an authenticated session as anonymous in the
 UI. That presentation-only flow is retired. Supporting builds delete the marker
 during `SupabaseManager` startup and never consult it for account presentation.
-User-facing **Sign out** now performs the local Auth transition before requesting
-a fresh anonymous session only after a one-use purchase handoff has been written
-and read back from `Merian_PendingSignOutPurchaseHandoff_v1`. The server stores
-only the SHA-256 secret hash; the raw 256-bit verifier never leaves the device
-and authenticated handoff requests. The client removes it only after the fresh
-anonymous Supabase UUID is the exact linked RevenueCat custom ID, StoreKit
-receipt synchronization succeeds, the server verifies and projects the
-destination CustomerInfo, and the current entitlement read succeeds. Temporary
-failures and app termination retain the proof and keep purchase mutations
-disabled. A restored source session asks the server to cancel the proof and may
-clear it only if no anonymous destination was bound.
+In stable mode, user-facing **Sign out** first writes and verifies
+`Merian_PendingPurchasePrincipalAuthRotation_v1`, rotates the local Supabase
+session, resolves the existing capability under the replacement session, links
+the returned unchanged purchase principal, refreshes entitlement, verifies the
+same Auth generation, and removes the marker last. It does not call RevenueCat
+receipt sync or customer transfer. A temporarily unreadable Keychain is
+fail-closed: the app must not create another capability, switch provider
+identity, or admit purchase mutations until the item is readable again.
+While this marker exists, the resolver requires its exact lowercase SHA-256
+fingerprint of the local 32-byte capability and disables capability creation.
+An absent or replaced capability is rejected before any server binding or
+RevenueCat identity call, so partial secure-storage loss cannot strand access on
+a newly created principal.
+The first successful stable response also writes and verifies the monotonic
+activation fingerprint. Once present, neither an endpoint `404` nor a later
+`mode: legacy` response is accepted for that capability. The marker is retained
+through sign-out, account deletion, and rollback because it prevents provider
+identity downgrade; it does not select or cache a RevenueCat App User ID.
+
+In legacy mode, the same UX uses the one-use proof in
+`Merian_PendingSignOutPurchaseHandoff_v1`. The server stores only its SHA-256
+secret hash; the raw verifier remains on the device and in authenticated
+handoff requests. The client removes the proof only after the fresh anonymous
+Supabase UUID is the exact linked RevenueCat custom ID, StoreKit receipt sync,
+server destination verification/projection, and a current entitlement read.
+A restored source may cancel only an unbound proof.
+
+The installation capability is `ThisDeviceOnly`: restoring a backup, moving to
+another device, or a true Keychain loss must not let sign-in claim the previous
+principal. The new installation resolves a new principal and uses explicit App
+Store restore for StoreKit ownership. Capability revocation is terminal and
+requires a reviewed recovery flow; the client must never silently generate a
+replacement to bypass it.
 
 ---
 

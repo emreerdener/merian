@@ -39,6 +39,32 @@ export interface RevenueCatReconciliationHealth {
   oldest_signout_pending_age_seconds: number | null;
 }
 
+export interface PurchasePrincipalHealth {
+  generated_at: string;
+  active_principal_count: number;
+  pending_principal_count: number;
+  unbound_active_principal_count: number;
+  due_reconciliation_count: number;
+  expired_claim_count: number;
+  oldest_due_at: string | null;
+  oldest_due_age_seconds: number | null;
+  oldest_pending_at: string | null;
+  oldest_pending_age_seconds: number | null;
+}
+
+const EMPTY_PURCHASE_PRINCIPAL_HEALTH: PurchasePrincipalHealth = {
+  generated_at: "1970-01-01T00:00:00.000Z",
+  active_principal_count: 0,
+  pending_principal_count: 0,
+  unbound_active_principal_count: 0,
+  due_reconciliation_count: 0,
+  expired_claim_count: 0,
+  oldest_due_at: null,
+  oldest_due_age_seconds: null,
+  oldest_pending_at: null,
+  oldest_pending_age_seconds: null,
+};
+
 export interface RevenueCatMonitorSummary {
   generated_at: string;
   status: RevenueCatBacklogStatus;
@@ -51,6 +77,7 @@ export interface RevenueCatMonitorSummary {
     should_fail: boolean;
   };
   health: RevenueCatReconciliationHealth;
+  purchase_principal_health: PurchasePrincipalHealth;
 }
 
 if (import.meta.main) {
@@ -67,8 +94,16 @@ export async function runRevenueCatMonitor(
     maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
   });
 
-  const health = await fetchRevenueCatReconciliationHealth(supabase);
-  const summary = buildRevenueCatMonitorSummary(health, args, new Date());
+  const [health, purchasePrincipalHealth] = await Promise.all([
+    fetchRevenueCatReconciliationHealth(supabase),
+    fetchPurchasePrincipalHealth(supabase),
+  ]);
+  const summary = buildRevenueCatMonitorSummary(
+    health,
+    args,
+    new Date(),
+    purchasePrincipalHealth,
+  );
 
   printSummary(summary);
   await writeSummaryFiles(summary, args);
@@ -96,6 +131,18 @@ async function fetchRevenueCatReconciliationHealth(
   }
 
   return assertRevenueCatReconciliationHealth(data);
+}
+
+async function fetchPurchasePrincipalHealth(
+  supabase: SupabaseClient,
+): Promise<PurchasePrincipalHealth> {
+  const { data, error } = await supabase.rpc("get_purchase_principal_health");
+  if (error) {
+    throw new Error(
+      `Purchase principal health returned an error: ${error.message} (Code: ${error.code})`,
+    );
+  }
+  return assertPurchasePrincipalHealth(data);
 }
 
 export function assertRevenueCatReconciliationHealth(
@@ -180,20 +227,94 @@ export function assertRevenueCatReconciliationHealth(
   };
 }
 
+export function assertPurchasePrincipalHealth(
+  value: unknown,
+): PurchasePrincipalHealth {
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error("Purchase principal health response must contain one row.");
+  }
+  const row = value[0] as Record<string, unknown>;
+  const health: PurchasePrincipalHealth = {
+    generated_at: timestamp(row.generated_at, "generated_at"),
+    active_principal_count: nonnegativeInteger(
+      row.active_principal_count,
+      "active_principal_count",
+    ),
+    pending_principal_count: nonnegativeInteger(
+      row.pending_principal_count,
+      "pending_principal_count",
+    ),
+    unbound_active_principal_count: nonnegativeInteger(
+      row.unbound_active_principal_count,
+      "unbound_active_principal_count",
+    ),
+    due_reconciliation_count: nonnegativeInteger(
+      row.due_reconciliation_count,
+      "due_reconciliation_count",
+    ),
+    expired_claim_count: nonnegativeInteger(
+      row.expired_claim_count,
+      "expired_claim_count",
+    ),
+    oldest_due_at: row.oldest_due_at === null
+      ? null
+      : timestamp(row.oldest_due_at, "oldest_due_at"),
+    oldest_due_age_seconds: row.oldest_due_age_seconds === null
+      ? null
+      : nonnegativeInteger(
+        row.oldest_due_age_seconds,
+        "oldest_due_age_seconds",
+      ),
+    oldest_pending_at: row.oldest_pending_at === null
+      ? null
+      : timestamp(row.oldest_pending_at, "oldest_pending_at"),
+    oldest_pending_age_seconds: row.oldest_pending_age_seconds === null
+      ? null
+      : nonnegativeInteger(
+        row.oldest_pending_age_seconds,
+        "oldest_pending_age_seconds",
+      ),
+  };
+  if (
+    health.unbound_active_principal_count > health.active_principal_count ||
+    (health.oldest_due_at === null) !==
+      (health.oldest_due_age_seconds === null) ||
+    (health.due_reconciliation_count === 0 &&
+      health.oldest_due_at !== null) ||
+    (health.due_reconciliation_count > 0 &&
+      health.oldest_due_at === null) ||
+    (health.oldest_pending_at === null) !==
+      (health.oldest_pending_age_seconds === null) ||
+    (health.pending_principal_count === 0 &&
+      health.oldest_pending_at !== null) ||
+    (health.pending_principal_count > 0 &&
+      health.oldest_pending_at === null)
+  ) {
+    throw new Error("Purchase principal health response is inconsistent.");
+  }
+  return health;
+}
+
 export function revenueCatBacklogStatus(
   health: RevenueCatReconciliationHealth,
   warningAfterMinutes: number,
   criticalAfterMinutes: number,
+  purchasePrincipalHealth: PurchasePrincipalHealth =
+    EMPTY_PURCHASE_PRINCIPAL_HEALTH,
 ): RevenueCatBacklogStatus {
   const oldestDueAgeSeconds = Math.max(
     health.oldest_due_age_seconds ?? 0,
     health.oldest_signout_pending_age_seconds ?? 0,
+    purchasePrincipalHealth.oldest_due_age_seconds ?? 0,
+    purchasePrincipalHealth.oldest_pending_age_seconds ?? 0,
   );
   if (oldestDueAgeSeconds >= criticalAfterMinutes * 60) {
     return "critical";
   }
   if (
     health.expired_claim_count > 0 ||
+    purchasePrincipalHealth.expired_claim_count > 0 ||
+    purchasePrincipalHealth.unbound_active_principal_count > 0 ||
     oldestDueAgeSeconds >= warningAfterMinutes * 60
   ) {
     return "warning";
@@ -205,11 +326,14 @@ export function buildRevenueCatMonitorSummary(
   health: RevenueCatReconciliationHealth,
   args: RevenueCatMonitorArgs,
   now: Date,
+  purchasePrincipalHealth: PurchasePrincipalHealth =
+    EMPTY_PURCHASE_PRINCIPAL_HEALTH,
 ): RevenueCatMonitorSummary {
   const status = revenueCatBacklogStatus(
     health,
     args.warningAfterMinutes,
     args.criticalAfterMinutes,
+    purchasePrincipalHealth,
   );
   return {
     generated_at: now.toISOString(),
@@ -223,6 +347,7 @@ export function buildRevenueCatMonitorSummary(
       should_fail: shouldFailRevenueCatMonitor(status, args.failOn),
     },
     health,
+    purchase_principal_health: purchasePrincipalHealth,
   };
 }
 
@@ -245,6 +370,14 @@ export function renderRevenueCatMonitorMarkdown(
       .oldest_signout_pending_age_seconds === null
     ? "none"
     : `${summary.health.oldest_signout_pending_age_seconds}s`;
+  const oldestPrincipalDueAge = summary.purchase_principal_health
+      .oldest_due_age_seconds === null
+    ? "none"
+    : `${summary.purchase_principal_health.oldest_due_age_seconds}s`;
+  const oldestPrincipalPendingAge = summary.purchase_principal_health
+      .oldest_pending_age_seconds === null
+    ? "none"
+    : `${summary.purchase_principal_health.oldest_pending_age_seconds}s`;
   return [
     "# RevenueCat Reconciliation Health",
     "",
@@ -269,6 +402,16 @@ export function renderRevenueCatMonitorMarkdown(
     }\``,
     `- Oldest pending sign-out age: \`${oldestSignoutAge}\``,
     "",
+    "## Stable Purchase Principals",
+    "",
+    `- Active principals: \`${summary.purchase_principal_health.active_principal_count}\``,
+    `- Pending principals: \`${summary.purchase_principal_health.pending_principal_count}\``,
+    `- Unbound active principals with current StoreKit access: \`${summary.purchase_principal_health.unbound_active_principal_count}\``,
+    `- Due reconciliations: \`${summary.purchase_principal_health.due_reconciliation_count}\``,
+    `- Expired claims: \`${summary.purchase_principal_health.expired_claim_count}\``,
+    `- Oldest due age: \`${oldestPrincipalDueAge}\``,
+    `- Oldest pending age: \`${oldestPrincipalPendingAge}\``,
+    "",
     "## Thresholds",
     "",
     `- Warning after: \`${summary.thresholds.warning_after_minutes}m\``,
@@ -278,7 +421,7 @@ export function renderRevenueCatMonitorMarkdown(
     "",
     summary.status === "ok"
       ? "No action required."
-      : "Inspect the reconciliation and sign-out purchase-handoff Edge logs, queue error codes, and pending handoff age; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers or discard bound proofs directly.",
+      : "Inspect the reconciliation, stable purchase-principal, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly.",
     "",
   ].join("\n");
 }
@@ -450,6 +593,12 @@ function printSummary(summary: RevenueCatMonitorSummary): void {
     `oldest_due_age_seconds: ${
       summary.health.oldest_due_age_seconds ?? "none"
     }`,
+  );
+  console.log(
+    `purchase_principal_due_count: ${summary.purchase_principal_health.due_reconciliation_count}`,
+  );
+  console.log(
+    `purchase_principal_unbound_active_count: ${summary.purchase_principal_health.unbound_active_principal_count}`,
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);
 }

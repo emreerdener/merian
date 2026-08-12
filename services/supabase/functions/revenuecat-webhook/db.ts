@@ -24,6 +24,27 @@ export interface RevenueCatReconciliationSubject {
   candidateUserIds: string[];
 }
 
+export type RevenueCatIdentityKind = "legacy_user" | "purchase_principal";
+
+export interface ResolvedRevenueCatIdentitySubject {
+  position: number;
+  kind: RevenueCatStateSubject["kind"];
+  lookupAppUserId: string;
+  identityKind: RevenueCatIdentityKind;
+  identityId: string;
+  allowNonSubscriptionPassGrant: boolean | null;
+}
+
+export interface RevenueCatIdentityStateSubject
+  extends ResolvedRevenueCatIdentitySubject {
+  authoritativeSnapshotAtMs: number;
+  targetStoreTier: "free" | "pro";
+  targetStoreExpiresAt: string | null;
+  targetAccountGrantTier: "free" | "pro";
+  targetAccountGrantExpiresAt: string | null;
+  passGrantPolicyUpdate: boolean | null;
+}
+
 export interface RevenueCatStateResult {
   outcome: "applied" | "duplicate" | "ignored" | "mixed" | "stale";
   subjectCount: number;
@@ -44,6 +65,18 @@ interface RevenueCatRpcRow {
   applied_count?: unknown;
   stale_count?: unknown;
 }
+
+interface ResolvedIdentityRow {
+  subject_position?: unknown;
+  subject_kind?: unknown;
+  lookup_app_user_id?: unknown;
+  identity_kind?: unknown;
+  identity_id?: unknown;
+  allow_non_subscription_pass_grant?: unknown;
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseRevenueCatRpcRow(
   row: RevenueCatRpcRow | undefined,
@@ -114,6 +147,150 @@ export async function getRevenueCatWebhookEventResult(
 
   if (!Array.isArray(data) || data.length === 0) return null;
   return parseRevenueCatRpcRow(data[0] as RevenueCatRpcRow);
+}
+
+export async function resolveRevenueCatIdentitySubjects(
+  subjects: Array<{
+    kind: RevenueCatStateSubject["kind"];
+    identifiers: string[];
+  }>,
+  supabaseAdmin: SupabaseClient,
+): Promise<ResolvedRevenueCatIdentitySubject[]> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "resolve_revenuecat_identity_subjects",
+    {
+      p_subjects: subjects.map((subject) => ({
+        subject_kind: subject.kind,
+        identifiers: subject.identifiers,
+      })),
+    },
+  );
+  if (error) {
+    throw new RevenueCatDatabaseError(
+      `RevenueCat identity resolution failed: ${error.message}`,
+      typeof error.code === "string" ? error.code : null,
+    );
+  }
+  if (!Array.isArray(data) || data.length > subjects.length) {
+    throw new RevenueCatDatabaseError(
+      "RevenueCat identity resolution returned an invalid response.",
+      null,
+    );
+  }
+
+  const seenPositions = new Set<number>();
+  return data.map((value) => {
+    const row = value as ResolvedIdentityRow;
+    const position = row.subject_position;
+    const kind = row.subject_kind;
+    const lookupAppUserId = row.lookup_app_user_id;
+    const identityKind = row.identity_kind;
+    const identityId = row.identity_id;
+    const allowNonSubscriptionPassGrant = row.allow_non_subscription_pass_grant;
+    if (
+      typeof position !== "number" || !Number.isSafeInteger(position) ||
+      position < 1 || position > subjects.length ||
+      seenPositions.has(position) || kind !== subjects[position - 1].kind ||
+      typeof lookupAppUserId !== "string" || lookupAppUserId.length < 1 ||
+      lookupAppUserId.length > 255 ||
+      (identityKind !== "legacy_user" &&
+        identityKind !== "purchase_principal") ||
+      typeof identityId !== "string" || !UUID_RE.test(identityId) ||
+      (identityKind === "legacy_user" &&
+        allowNonSubscriptionPassGrant !== null) ||
+      (identityKind === "purchase_principal" &&
+        typeof allowNonSubscriptionPassGrant !== "boolean")
+    ) {
+      throw new RevenueCatDatabaseError(
+        "RevenueCat identity resolution returned an invalid row.",
+        null,
+      );
+    }
+    seenPositions.add(position);
+    return {
+      position,
+      kind: kind as ResolvedRevenueCatIdentitySubject["kind"],
+      lookupAppUserId,
+      identityKind,
+      identityId: identityId.toLowerCase(),
+      allowNonSubscriptionPassGrant: identityKind === "purchase_principal"
+        ? allowNonSubscriptionPassGrant as boolean
+        : null,
+    };
+  });
+}
+
+export async function applyRevenueCatIdentityState(
+  transition: Omit<RevenueCatStateTransition, "subjects"> & {
+    subjects: RevenueCatIdentityStateSubject[];
+  },
+  supabaseAdmin: SupabaseClient,
+): Promise<RevenueCatStateResult> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "apply_revenuecat_identity_state",
+    {
+      p_event_id: transition.eventId,
+      p_event_timestamp_ms: transition.eventTimestampMs,
+      p_event_type: transition.eventType,
+      p_payload_sha256: transition.payloadSha256,
+      p_signature_timestamp_s: transition.signatureTimestampSeconds,
+      p_subjects: transition.subjects.map((subject) => ({
+        subject_kind: subject.kind,
+        lookup_app_user_id: subject.lookupAppUserId,
+        identity_kind: subject.identityKind,
+        identity_id: subject.identityId,
+        authoritative_snapshot_at_ms: subject.authoritativeSnapshotAtMs,
+        target_store_tier: subject.targetStoreTier,
+        target_store_expires_at: subject.targetStoreExpiresAt,
+        target_account_grant_tier: subject.targetAccountGrantTier,
+        target_account_grant_expires_at: subject.targetAccountGrantExpiresAt,
+        allow_non_subscription_pass_grant: subject.passGrantPolicyUpdate,
+      })),
+    },
+  );
+  if (error) {
+    throw new RevenueCatDatabaseError(
+      `RevenueCat identity state transaction failed: ${error.message}`,
+      typeof error.code === "string" ? error.code : null,
+    );
+  }
+  const row = Array.isArray(data)
+    ? data[0] as RevenueCatRpcRow | undefined
+    : undefined;
+  return parseRevenueCatRpcRow(row);
+}
+
+export async function scheduleRevenueCatIdentityReconciliation(
+  subjects: ResolvedRevenueCatIdentitySubject[],
+  supabaseAdmin: SupabaseClient,
+): Promise<number> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "schedule_revenuecat_identity_reconciliation",
+    {
+      p_subjects: subjects.map((subject) => ({
+        subject_kind: subject.kind,
+        lookup_app_user_id: subject.lookupAppUserId,
+        identity_kind: subject.identityKind,
+        identity_id: subject.identityId,
+      })),
+    },
+  );
+  if (error) {
+    throw new RevenueCatDatabaseError(
+      `RevenueCat identity reconciliation scheduling failed: ${error.message}`,
+      typeof error.code === "string" ? error.code : null,
+    );
+  }
+  if (
+    typeof data !== "number" || !Number.isSafeInteger(data) || data < 0 ||
+    data > subjects.length
+  ) {
+    throw new RevenueCatDatabaseError(
+      "RevenueCat identity reconciliation scheduling returned an invalid response.",
+      null,
+    );
+  }
+  return data;
 }
 
 export async function applyRevenueCatCustomerState(

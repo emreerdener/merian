@@ -7,6 +7,8 @@ struct DangerZone: View {
 
     @State private var showSignOutConfirmation = false
     @State private var showSignOutError = false
+    @State private var signOutErrorMessage = SignOutPresentationPolicy
+        .incompleteMessage(isAnonymousSession: false)
 
     private var purchaseContinuityPending: Bool {
         RevenueCatManager.shared.isPurchaseIdentityHandoffPending
@@ -41,7 +43,7 @@ struct DangerZone: View {
                 .alert("Sign out incomplete", isPresented: $showSignOutError) {
                     Button("OK", role: .cancel) { }
                 } message: {
-                    Text("Naturebook couldn't finish signing you out. Check your connection and try again.")
+                    Text(signOutErrorMessage)
                 }
             }
 
@@ -104,6 +106,9 @@ struct DangerZone: View {
 
     private func performSignOut() async {
         if !(await supabase.transitionToGhostSession()) {
+            signOutErrorMessage = SignOutPresentationPolicy.incompleteMessage(
+                isAnonymousSession: supabase.isGuestUser
+            )
             showSignOutError = true
         }
     }

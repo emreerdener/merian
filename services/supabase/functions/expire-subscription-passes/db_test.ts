@@ -49,38 +49,15 @@ function fetchClient(
 }
 
 function updateClient(
-  result: { data?: unknown[] | null; error?: { message: string } | null },
+  result: { data?: boolean | null; error?: { message: string } | null },
   calls: Call[] = [],
 ) {
-  const query = {
-    update: (...args: unknown[]) => {
-      calls.push({ method: "update", args });
-      return query;
-    },
-    eq: (...args: unknown[]) => {
-      calls.push({ method: "eq", args });
-      return query;
-    },
-    not: (...args: unknown[]) => {
-      calls.push({ method: "not", args });
-      return query;
-    },
-    lte: (...args: unknown[]) => {
-      calls.push({ method: "lte", args });
-      return query;
-    },
-    select: (...args: unknown[]) => {
-      calls.push({ method: "select", args });
-      return Promise.resolve(result);
-    },
-  };
-
   return {
     calls,
     client: {
-      from: (...args: unknown[]) => {
-        calls.push({ method: "from", args });
-        return query;
+      rpc: (...args: unknown[]) => {
+        calls.push({ method: "rpc", args });
+        return Promise.resolve(result);
       },
     },
   };
@@ -134,7 +111,7 @@ Deno.test("fetchExpiredSubscriptionPassUsers: surfaces database errors", async (
 Deno.test("downgradeExpiredSubscriptionPass: downgrades only if the row is still expired timed pro", async () => {
   const boundaryIso = "2026-06-16T12:00:00.000Z";
   const { client, calls } = updateClient({
-    data: [{ id: "expired-user" }],
+    data: true,
     error: null,
   });
 
@@ -146,24 +123,18 @@ Deno.test("downgradeExpiredSubscriptionPass: downgrades only if the row is still
 
   assertEquals(didDowngrade, true);
   assertEquals(calls, [
-    { method: "from", args: ["users"] },
     {
-      method: "update",
-      args: [{
-        subscription_tier: "free",
-        subscription_expires_at: null,
+      method: "rpc",
+      args: ["refresh_expired_entitlement_projection", {
+        p_user_id: "expired-user",
+        p_boundary: boundaryIso,
       }],
     },
-    { method: "eq", args: ["id", "expired-user"] },
-    { method: "eq", args: ["subscription_tier", "pro"] },
-    { method: "not", args: ["subscription_expires_at", "is", null] },
-    { method: "lte", args: ["subscription_expires_at", boundaryIso] },
-    { method: "select", args: ["id"] },
   ]);
 });
 
 Deno.test("downgradeExpiredSubscriptionPass: returns false when the guarded update matches no rows", async () => {
-  const { client } = updateClient({ data: [], error: null });
+  const { client } = updateClient({ data: false, error: null });
 
   assertEquals(
     await downgradeExpiredSubscriptionPass(

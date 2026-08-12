@@ -1427,23 +1427,23 @@ actual import, and permission-denial UI require the physical-device checklist in
     this test fails. `testPinnedHashesAreNonEmptyValidBase64` guards against the
     `pinnedCertHashes` set accidentally being cleared (which would silently
     disable pinning in Release builds).
-- **`DeviceIdentityManagerTests.swift`, `EntitlementManagerTests.swift`,
-  `RevenueCatManagerTests.swift`**:
+- **`DeviceIdentityManagerTests.swift`, `PurchasePrincipalResolverTests.swift`,
+  `EntitlementManagerTests.swift`, `RevenueCatManagerTests.swift`**:
   Isolates authentication loops away from live production identifiers.
   `DeviceIdentityManagerTests` reads `DeviceIdentityManager.shared.deviceId`
   (the public `@Observable` property) — it does **not** call the private
   `getOrGeneratePersistentIDFV()` method directly. The test wipes the relevant
   Keychain item via `SecItemDelete` before and after the assertion to prevent
   cross-run contamination. `RevenueCatManagerTests` also locks the required
-  current-offering product set to `pro_week` plus `pro_annual` and the pure
-  provider-mutation policy: matching normalized `anonymous` and `authenticated`
-  identities are allowed, while missing, unknown, or mismatched account kinds
-  fail closed. `MerianNetworkClientTests` separately proves that a generic `401`
-  cannot rotate a Ghost UUID. This does not replace dashboard/App Store smoke
-  testing or prove provider state transfers between two custom App User IDs;
-  staging must verify that the compiled purchase, restore, and redemption entry
-  points enforce the policy during both normal Ghost upgrade and an
-  existing-account conflict. `EntitlementManagerTests` lock
+  current-offering product set to `pro_week` plus `pro_annual`, pending-identity
+  mutation fences, and stable-versus-legacy identity policy. Resolver tests lock
+  exact DTO decoding and reject malformed or RevenueCat-anonymous IDs; source
+  contracts require serialized SDK identity mutation and no stable-mode account
+  PII attributes or receipt sync. `MerianNetworkClientTests` separately proves
+  that a generic `401` cannot rotate an anonymous UUID or discard pending
+  identity evidence. This does not replace dashboard/App Store smoke testing or
+  prove either stable principal continuity or legacy provider transfer on a
+  physical device. `EntitlementManagerTests` lock
   current-launch verification, buffered replay metadata, stale-version
   rejection, account isolation, balance validation, exhaustion, and the
   difference between functional access and new-scan capacity.
@@ -3497,6 +3497,9 @@ deployment runbook; it is not inferred from the launch-disabled posture.
 - **`subscriber_test.ts`**: Covers active and expired standard entitlements,
   recurring/grace-period expiry persistence, explicit lifetime null expiry,
   exact seven-day pass expiry, pass-refund exclusion with a later purchase,
+  signed pass-policy purchase/revocation decisions, stable-source-only transfer
+  inheritance, destination-history rejection, provider-lag retry,
+  transfer-side promotion preservation/audit,
   server API authentication/URL encoding, and fail-closed CustomerInfo errors.
 - **`handler_test.ts`**: Uses mocked RevenueCat and database boundaries to prove
   the order is signature verification → payload validation → durable duplicate
@@ -3505,7 +3508,9 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   make no external calls; a future event cannot poison the database watermark;
   subscriber-API failure makes no mutation call; purely anonymous events skip
   the provider but receive a durable ignored receipt; and both sides of a
-  transfer are reconciled before one mutation call.
+  transfer are reconciled before one mutation call. Stable-principal cases also
+  prove a refund persists a false pass-policy update and an unrelated later
+  event cannot resurrect retained transaction history.
 - **`_tests/revenueCatWebhookCoverage.test.ts`**: Source contract that keeps the
   processing order, deadline-driven reconciliation route/configuration,
   independent backlog monitor, and all three GitHub/Supabase secret bindings
@@ -3522,7 +3527,8 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   drain beyond the former ten-record ceiling, stop at the monotonic cutoff,
   retain the three-fetch concurrency bound, apply newer snapshots, release
   durable failures, and prevent a background sweep from newly granting
-  historical non-renewing pass history.
+  historical non-renewing pass history in both legacy and stable-principal
+  queues.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
   CLI safety, and operator summary.
@@ -3544,43 +3550,69 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   advancement. Keep this test in the disposable-database deployment gate
   alongside `privileged_routine_security.sql` and `ai_quota_security.sql`.
 
-The source-level grant, stable-purchase-identity, unauthorized-recovery, and
-user-sign-out ordering matrix above is implemented. iOS unit seams prove
-prepare-and-Keychain persistence precedes local sign-out, failure before that
-point leaves the linked session intact, post-sign-out order is bind → canonical
-RevenueCat link → `syncPurchases()` → server completion → entitlement refresh →
-session verification → proof removal, and temporary failure retains the proof.
-RevenueCat policy tests prove purchase mutations stay disabled while that proof
-is pending. Edge tests prove StoreKit-only snapshotting, explicit
-`store: app_store` admission, `store: promotional` and missing-store exclusion,
-pass-history fencing, destination coverage, guarded natural expiry, source-
-renewal blocking, immutable completed replay, cancellation, and foreground
-reconciliation order. The static migration contract and
-`tests/signout_purchase_handoff_security.sql` cover grants, caller-derived
-identities, one-destination replay, source-only unbound cancellation, bound
-completion after the pre-bind expiry, fresh-destination enforcement, deletion
-and anonymous-cleanup interlocks, profile-merge rejection, deletion-before-bind
-serialization, canonical queueing, and absence of profile movement or direct
-entitlement grant. Unauthorized-recovery policy tests require a pending proof
-to preserve the exact Auth session, and auth-listener policy tests require bind
-before external identity linking. These tests do not prove a live StoreKit
-receipt transfer, RevenueCat project Restore behavior, or either OAuth provider.
-The canonical-ID/beta rollout remains release-evidence-blocked until one exact
-revision also supplies both of the following:
+The identity test matrix now has two explicit lanes:
 
-1. A staged Ghost purchase plus normal OAuth link proving the UUID and Pro state
-   remain stable; a generic-`401` case proving no identity rotation; a healthy
-   active-paid **Sign out** producing exactly one fresh
-   Supabase-anonymous/custom-RevenueCat UUID pair, no `$RCAnonymousID`, and the
-   same StoreKit entitlement horizon; a promo-only sign-out proving no grant is
-   cloned; forced prepare/bootstrap/sync/complete failures proving durable retry
-   and mutation fencing; relaunch completion; and separate **Continue with
-   Apple** and **Continue with Google** existing-account conflict cycles proving
-   the configured store-transfer behavior. Beta promotion remains limited to
-   the reviewed permanent cohort.
-2. A complete disposable PostgreSQL replay and all catalog tests under the
-   pinned Supabase CLI. Static migration contracts and green iOS/TypeScript unit
-   tests do not replace this evidence.
+- **Legacy compatibility**: iOS seams prove prepare and verified Keychain
+  persistence precede local sign-out, then bind → uppercase UUID RevenueCat link
+  → `syncPurchases()` → server completion → entitlement refresh → same-session
+  verification → proof removal. Edge tests prove StoreKit-only snapshotting,
+  `store: app_store` admission, promo/missing-store exclusion, pass-history
+  fencing, destination coverage, natural expiry, source renewal, immutable
+  completed replay, cancellation, and foreground reconciliation. The static
+  migration contract and `signout_purchase_handoff_security.sql` cover caller-
+  derived identities, one-destination replay, bound completion after pre-bind
+  expiry, deletion/cleanup/merge interlocks, lock order, and no profile movement.
+- **Stable purchase principal**: `PurchasePrincipalResolverTests.swift` proves
+  strict legacy/stable DTO decoding and rejects malformed or anonymous provider
+  IDs. Source contracts prove the client generates and verifies a 256-bit
+  `WhenUnlockedThisDeviceOnly` capability, serializes RevenueCat identity
+  mutations, advances a persisted monotonic binding intent, clears legacy
+  account attributes before stable readiness, writes no new account PII in
+  stable mode, and makes no receipt-sync call
+  for ordinary Auth rotation. Resolver protocol/DB/handler tests cover exact
+  body shape, hash-only database input, route-missing-only fallback, provider
+  fetch, StoreKit/promo separation, rollout changes, and public error mapping.
+  They also require exact current-projection evidence before first pass adoption,
+  locked completion revalidation, and reuse of an active principal's durable pass
+  policy.
+  Webhook/reconciliation tests cover stable-first identity resolution, separate
+  stable and UUID queues, claim fencing, and authoritative promo exclusion.
+  `purchasePrincipalMigrationContract.test.ts` plus
+  `purchase_principal_security.sql` cover RLS/grants, capability replay, same-
+  install Auth rotation, fixed grant ownership, stable-before-UUID delivery,
+  authoritative cutover, deletion-time audit UUID scrubbing, and rollback-only
+  catalog execution. Source review also requires a failed local sign-out to
+  clear only an unused proof and restore the exact linked provider/entitlement
+  session rather than waiting for a later Auth event. Lifecycle coverage proves
+  foreground activation invokes exact-identity recovery even while the current
+  consent gate is closed; device testing must still prove the live retry.
+
+Neither lane's unit/static coverage proves a live RevenueCat/StoreKit identity
+transition or either OAuth provider. The rollout remains release-evidence-
+blocked until one exact revision also supplies all of the following:
+
+1. A complete disposable PostgreSQL replay under the pinned Supabase CLI,
+   including both purchase-identity fixtures and all privilege, webhook, merge,
+   deletion, and concurrency suites. Static contracts do not replace catalog
+   execution.
+2. While `mode: legacy`, the existing staged purchase, generic-401, healthy paid
+   **Sign out**, promo-only, forced-failure/relaunch, and separate **Continue
+   with Apple**/**Continue with Google** conflict cycles. Require one exact
+   anonymous/custom-UUID pair, no `$RCAnonymousID`, the configured RevenueCat
+   restore/transfer behavior, and no account-grant clone.
+3. While `mode: stable`, a clean physical-device matrix for linked account →
+   **Sign out** → cold relaunch → anonymous session → each provider, account
+   switch, deletion, offline retry, first-unlock Keychain unavailability,
+   reinstall/new capability, refund, renewal, pass, lifetime, promo-only, and
+   mixed StoreKit/promo state. One installation must retain the same server-
+   issued provider ID through ordinary Auth changes, perform zero receipt syncs
+   or provider transfers, and leave beta/promotion/support access on the owning
+   account. A new installation must require explicit store restore rather than
+   recovering a principal from account sign-in.
+4. Old-client compatibility, adopted-customer PII scrub, dual-read projection
+   comparison, account-grant migration/issuance, aggregate health, canary,
+   rollback, and explicit production authorization evidence from the stable
+   rollout runbook.
 
 The complete production hold and customer-path smoke matrix are in the
 [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).

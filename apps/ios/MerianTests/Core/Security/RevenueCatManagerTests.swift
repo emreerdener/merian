@@ -63,6 +63,41 @@ final class RevenueCatManagerTests: XCTestCase {
         )
     }
 
+    func testKnownStoreSubscriptionCannotBeHiddenByPromotion() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: ["pro_annual", "rc_promo_pro_lifetime"]
+                )
+        )
+        XCTAssertFalse(
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: ["rc_promo_pro_lifetime"]
+                )
+        )
+    }
+
+    func testStablePurchasePrincipalDeletesEveryLegacyAccountAttribute() {
+        XCTAssertEqual(
+            Set(RevenueCatStableIdentityPrivacyPolicy.deletionAttributes.keys),
+            Set([
+                "supabase_user_id",
+                "auth_email",
+                "display_name",
+                "avatar_url",
+                "public_username",
+                "public_author_name",
+                "public_identity_source",
+                "account_kind"
+            ])
+        )
+        XCTAssertTrue(
+            RevenueCatStableIdentityPrivacyPolicy.deletionAttributes.values
+                .allSatisfy(\.isEmpty)
+        )
+    }
+
     func testRevenueCatAccountMutationPolicyAcceptsStableGhostAndPermanentAccounts() {
         XCTAssertEqual(
             RevenueCatAccountMutationPolicy.accountKind(isAnonymous: true),
@@ -166,6 +201,36 @@ final class RevenueCatManagerTests: XCTestCase {
             RevenueCatPurchaseMutationPolicy.isReady(
                 providerIdentityReady: false,
                 identityHandoffPending: false
+            )
+        )
+    }
+
+    func testStablePurchasePrincipalRejectsAccountScopedPromotions() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .appStore,
+                accountGrantsAllowed: false
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .testStore,
+                accountGrantsAllowed: false
+            )
+        )
+        XCTAssertFalse(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .promotional,
+                accountGrantsAllowed: false
+            )
+        )
+    }
+
+    func testAccountOwnerCanUseAccountScopedRevenueCatGrantDuringDualRead() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .promotional,
+                accountGrantsAllowed: true
             )
         )
     }

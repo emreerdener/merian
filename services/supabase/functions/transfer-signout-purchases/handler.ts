@@ -307,12 +307,12 @@ export async function handleSignoutPurchaseHandoff(
           const preparedFiniteHorizonElapsed = preparedExpiresAtMs !== null &&
             preparedExpiresAtMs <= destinationInfo.requestDateMs;
 
-          // A finite prepared horizon can expire naturally while the durable
-          // handoff is waiting for StoreKit/RevenueCat. In that case, compare
-          // against a fresh source snapshot: a source renewal must also appear
-          // on the destination, while a now-free source permits the handoff to
-          // finish free. Persist the exact provider-attested destination state
-          // so a later replay never depends on mutable CustomerInfo.
+          // Re-read the source on every first completion. A renewal can land
+          // after prepare but before the original horizon expires, and the
+          // destination must cover that newer StoreKit state before completion.
+          // The prepared horizon remains the floor until it naturally expires:
+          // RevenueCat may retire the source customer as part of the receipt
+          // move, which is not evidence that the purchase was refunded.
           let requiredStoreAccess = bound.expectedStoreAccess;
           if (preparedFiniteHorizonElapsed) {
             // A pass cannot renew, and purchase mutations are fenced while the
@@ -332,6 +332,22 @@ export async function handleSignoutPurchaseHandoff(
               sourceInfo,
               false,
             );
+          } else {
+            const sourceInfo = await fetchCustomerInfo(
+              canonicalRevenueCatAppUserID(bound.sourceUserId),
+              apiKey,
+            );
+            validateSnapshotTime(sourceInfo, now());
+            const currentSourceStoreAccess =
+              deriveRevenueCatStoreEntitlementState(sourceInfo);
+            if (
+              !revenueCatAccessCovers(
+                requiredStoreAccess,
+                currentSourceStoreAccess,
+              )
+            ) {
+              requiredStoreAccess = currentSourceStoreAccess;
+            }
           }
 
           if (
@@ -345,9 +361,7 @@ export async function handleSignoutPurchaseHandoff(
             );
           }
           destinationSnapshotAtMs = destinationInfo.requestDateMs;
-          destinationVerifiedStoreAccess = preparedFiniteHorizonElapsed
-            ? destinationStoreAccess
-            : bound.expectedStoreAccess;
+          destinationVerifiedStoreAccess = destinationStoreAccess;
         }
 
         if (
@@ -382,11 +396,9 @@ export async function handleSignoutPurchaseHandoff(
               "Sign-out reconciliation selected a non-canonical destination.",
             );
           }
-          // Usually apply no more than the prepared StoreKit horizon. If that
-          // finite horizon elapsed before first completion, use the immutable
-          // destination state attested above after re-checking the live source.
-          // Only explicit App Store state reaches this point; promotions are
-          // never cloned by this handoff.
+          // Apply the immutable destination snapshot attested above. Freshness
+          // and source-coverage checks ensure this is the receipt that was just
+          // synchronized, while Store provenance excludes promotions.
           const entitlement = destinationVerifiedStoreAccess;
           await applyReconciliation(
             claim,

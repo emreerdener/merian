@@ -32,17 +32,10 @@ export async function downgradeExpiredSubscriptionPass(
   boundaryIso: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<boolean> {
-  const { data, error } = await supabaseAdmin
-    .from("users")
-    .update({
-      subscription_tier: "free",
-      subscription_expires_at: null,
-    })
-    .eq("id", userId)
-    .eq("subscription_tier", "pro")
-    .not("subscription_expires_at", "is", null)
-    .lte("subscription_expires_at", boundaryIso)
-    .select("id");
+  const { data, error } = await supabaseAdmin.rpc(
+    "refresh_expired_entitlement_projection",
+    { p_user_id: userId, p_boundary: boundaryIso },
+  );
 
   if (error) {
     throw new Error(
@@ -50,5 +43,10 @@ export async function downgradeExpiredSubscriptionPass(
     );
   }
 
-  return (data ?? []).length > 0;
+  if (typeof data !== "boolean") {
+    throw new Error(
+      "Failed to downgrade expired subscription pass: invalid database response",
+    );
+  }
+  return data;
 }

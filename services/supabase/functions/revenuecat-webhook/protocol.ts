@@ -24,6 +24,7 @@ export interface RevenueCatWebhookEvent {
 export interface RevenueCatWebhookSubject {
   kind: "customer" | "transfer_source" | "transfer_destination";
   lookupAppUserId: string;
+  identifiers: string[];
   candidateUserIds: string[];
 }
 
@@ -188,15 +189,15 @@ function subjectFromIdentifiers(
   kind: RevenueCatWebhookSubject["kind"],
   identifiers: string[],
 ): RevenueCatWebhookSubject | null {
-  const candidateUserIds = candidateMerianUserIdsFromIdentifiers(identifiers);
-  if (candidateUserIds.length === 0) return null;
-
-  const lookupAppUserId =
-    identifiers.find((identifier) => UUID_REGEX.test(identifier)) ??
-      identifiers[0];
+  const uniqueIdentifiers = Array.from(new Set(identifiers));
+  const lookupAppUserId = uniqueIdentifiers[0];
   if (!lookupAppUserId) return null;
-
-  return { kind, lookupAppUserId, candidateUserIds };
+  return {
+    kind,
+    lookupAppUserId,
+    identifiers: uniqueIdentifiers,
+    candidateUserIds: candidateMerianUserIdsFromIdentifiers(uniqueIdentifiers),
+  };
 }
 
 export function revenueCatWebhookSubjects(

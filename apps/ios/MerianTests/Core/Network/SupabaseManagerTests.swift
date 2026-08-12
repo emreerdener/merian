@@ -76,6 +76,51 @@ final class SupabaseManagerTests: XCTestCase {
         )
     }
 
+    func testFailedSignOutRestoresOnlyTheExactUnfencedSourceAccount() {
+        let sourceUserID = UUID()
+
+        XCTAssertTrue(
+            SupabaseManager.shouldRestoreSourceIdentityAfterFailedSignOut(
+                activeUserId: sourceUserID,
+                activeUserIsAnonymous: false,
+                sourceUserId: sourceUserID,
+                purchaseContinuityPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldRestoreSourceIdentityAfterFailedSignOut(
+                activeUserId: UUID(),
+                activeUserIsAnonymous: false,
+                sourceUserId: sourceUserID,
+                purchaseContinuityPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldRestoreSourceIdentityAfterFailedSignOut(
+                activeUserId: sourceUserID,
+                activeUserIsAnonymous: true,
+                sourceUserId: sourceUserID,
+                purchaseContinuityPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldRestoreSourceIdentityAfterFailedSignOut(
+                activeUserId: sourceUserID,
+                activeUserIsAnonymous: false,
+                sourceUserId: sourceUserID,
+                purchaseContinuityPending: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldRestoreSourceIdentityAfterFailedSignOut(
+                activeUserId: nil,
+                activeUserIsAnonymous: false,
+                sourceUserId: sourceUserID,
+                purchaseContinuityPending: false
+            )
+        )
+    }
+
     func testAccountPresentationPolicyShowsOnlyAnonymousUsersAsGuests() {
         let userID = UUID(uuidString: "123E4567-E89B-12D3-A456-426614174000")!
 

@@ -391,6 +391,9 @@ export function mapDatabaseError(
     normalized.includes("signout_handoff_invalid") ||
     normalized.includes("signout_handoff_source_not_available") ||
     normalized.includes("signout_handoff_destination_not_available") ||
+    normalized.includes(
+      "signout_handoff_fresh_anonymous_destination_required",
+    ) ||
     normalized.includes("signout_handoff_profile_not_available")
   ) {
     return new SignoutPurchaseHandoffDatabaseError(

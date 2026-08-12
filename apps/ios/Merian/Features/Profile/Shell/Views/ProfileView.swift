@@ -17,6 +17,8 @@ struct ProfileView: View {
     @State private var isShowingDisplayNameEditor = false
     @State private var isShowingUsernameEditor = false
     @State private var isShowingSignOutError = false
+    @State private var signOutErrorMessage = SignOutPresentationPolicy
+        .incompleteMessage(isAnonymousSession: false)
 
     /// Maps `ProfileTab` into the optional binding required by `.scrollPosition(id:)`.
     private var tabSelectionBinding: Binding<ProfileTab?> {
@@ -50,7 +52,7 @@ struct ProfileView: View {
             .alert("Sign out incomplete", isPresented: $isShowingSignOutError) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Naturebook couldn't finish signing you out. Check your connection and try again.")
+                Text(signOutErrorMessage)
             }
             .onAppear {
                 viewModel.fetchGeoprivacy()
@@ -112,6 +114,10 @@ struct ProfileView: View {
                 Button(role: .destructive) {
                     Task {
                         if !(await viewModel.signOut()) {
+                            signOutErrorMessage = SignOutPresentationPolicy
+                                .incompleteMessage(
+                                    isAnonymousSession: viewModel.isGuestUser
+                                )
                             isShowingSignOutError = true
                         }
                     }

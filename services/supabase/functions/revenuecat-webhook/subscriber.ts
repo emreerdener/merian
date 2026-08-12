@@ -12,11 +12,13 @@ const MAX_CUSTOMER_INFO_BYTES = 2 * 1024 * 1024;
 const CUSTOMER_INFO_TIMEOUT_MS = 10_000;
 const MAX_POSTGRES_TIMESTAMP_MS = 253_402_300_799_999;
 const PAID_ENTITLEMENT_IDS = new Set(["Naturalist Tier", "pro"]);
+const STOREKIT_PRO_SUBSCRIPTION_PRODUCT_IDS = new Set(["pro_annual"]);
 const PASS_REVOCATION_EVENTS = new Set([
   "CANCELLATION",
   "EXPIRATION",
   "REFUND",
 ]);
+const PASS_PURCHASE_EVENTS = new Set(["NON_RENEWING_PURCHASE"]);
 
 export class RevenueCatApiError extends Error {
   constructor(message: string, readonly retryable: boolean) {
@@ -64,6 +66,10 @@ function isAppStorePurchaseRecord(value: unknown): boolean {
   // so presence in `subscriptions` alone is not evidence of a StoreKit receipt.
   // Unknown or missing stores fail closed at the sign-out transfer boundary.
   return isRecord(value) && value.store === "app_store";
+}
+
+function isPromotionalPurchaseRecord(value: unknown): boolean {
+  return isRecord(value) && value.store === "promotional";
 }
 
 /**
@@ -327,6 +333,7 @@ export function deriveRevenueCatEntitlementState(
 export function deriveRevenueCatStoreEntitlementState(
   customerInfo: RevenueCatCustomerInfo,
   allowNonSubscriptionPassGrant = true,
+  event?: RevenueCatWebhookEvent,
 ): RevenueCatEntitlementState {
   const subscriptions = isRecord(customerInfo.subscriber.subscriptions)
     ? customerInfo.subscriber.subscriptions
@@ -338,6 +345,36 @@ export function deriveRevenueCatStoreEntitlementState(
     : {};
   const entitlements = customerInfo.subscriber.entitlements;
   let latestExpiration: number | undefined;
+
+  // A promotional grant and an App Store subscription may target the same
+  // entitlement. RevenueCat then exposes only one winning product on the
+  // entitlement row even though both subscription records remain present.
+  // Recognize Merian's reviewed StoreKit subscription product directly so a
+  // longer promotion cannot hide paid receipt access during account rotation.
+  for (
+    const [productIdentifier, subscription] of Object.entries(
+      subscriptions,
+    )
+  ) {
+    if (
+      !STOREKIT_PRO_SUBSCRIPTION_PRODUCT_IDS.has(productIdentifier) ||
+      !isAppStorePurchaseRecord(subscription)
+    ) {
+      continue;
+    }
+    const expiration = activeEntitlementExpiration(
+      subscription,
+      customerInfo.requestDateMs,
+    );
+    // Auto-renewing subscriptions must have a finite active or grace-period
+    // horizon. A missing/null expiry is malformed here, not lifetime access.
+    if (
+      expiration !== null && expiration !== undefined &&
+      (latestExpiration === undefined || expiration > latestExpiration)
+    ) {
+      latestExpiration = expiration;
+    }
+  }
 
   if (isRecord(entitlements)) {
     for (const [entitlementId, entitlement] of Object.entries(entitlements)) {
@@ -382,7 +419,7 @@ export function deriveRevenueCatStoreEntitlementState(
     ? activePassExpiration(
       customerInfo.subscriber,
       customerInfo.requestDateMs,
-      undefined,
+      event,
       true,
     )
     : null;
@@ -391,6 +428,127 @@ export function deriveRevenueCatStoreEntitlementState(
     (latestExpiration === undefined || passExpiration > latestExpiration)
   ) {
     latestExpiration = passExpiration;
+  }
+
+  return latestExpiration === undefined
+    ? { targetTier: "free", expiresAt: null }
+    : {
+      targetTier: "pro",
+      expiresAt: new Date(latestExpiration).toISOString(),
+    };
+}
+
+/**
+ * Returns whether the authoritative snapshot contains an active detached
+ * seven-day pass backed by an App Store transaction. This is deliberately
+ * narrower than durable policy: historical destination records cannot grant
+ * themselves permission to participate in entitlement projection.
+ */
+export function hasActiveRevenueCatAppStorePass(
+  customerInfo: RevenueCatCustomerInfo,
+  event?: RevenueCatWebhookEvent,
+): boolean {
+  return activePassExpiration(
+    customerInfo.subscriber,
+    customerInfo.requestDateMs,
+    event,
+    true,
+  ) !== null;
+}
+
+/**
+ * Returns an explicit durable-policy update for detached seven-day pass
+ * history. CustomerInfo retains non-subscription transactions after refunds,
+ * so background reconciliation may infer that history only after a signed
+ * purchase signal and must disable it on revocation or a transfer source.
+ * A transfer destination is authorized separately from the resolved source's
+ * durable policy; destination history alone is never authority. Unrelated
+ * events preserve the previously recorded policy.
+ */
+export function revenueCatNonSubscriptionPassGrantDecision(
+  customerInfo: RevenueCatCustomerInfo,
+  event: RevenueCatWebhookEvent,
+  subjectKind: "customer" | "transfer_source" | "transfer_destination",
+): boolean | null {
+  if (event.type === "TRANSFER") {
+    if (subjectKind === "transfer_source") return false;
+    if (subjectKind === "transfer_destination") return null;
+    return null;
+  }
+  if (!isSevenDayPassProduct(event.productId)) return null;
+  if (PASS_REVOCATION_EVENTS.has(event.type)) {
+    // A refund may target an older transaction while a later pass remains
+    // valid. Persist permission only when the event-aware parser can still
+    // prove another active App Store transaction.
+    return activePassExpiration(
+      customerInfo.subscriber,
+      customerInfo.requestDateMs,
+      event,
+      true,
+    ) !== null;
+  }
+  if (PASS_PURCHASE_EVENTS.has(event.type)) {
+    // A signed purchase signal without matching authoritative CustomerInfo can
+    // be a provider propagation race. Retrying is safer than permanently
+    // enabling historical transaction inference or dropping paid access.
+    if (
+      activePassExpiration(
+        customerInfo.subscriber,
+        customerInfo.requestDateMs,
+        event,
+        true,
+      ) === null
+    ) {
+      throw new RevenueCatApiError(
+        "RevenueCat CustomerInfo did not include the purchased pass.",
+        true,
+      );
+    }
+    return true;
+  }
+  return null;
+}
+
+/**
+ * Derives only active access issued through RevenueCat's promotional store.
+ * This state is imported into the private account-grant ledger and must never
+ * follow the stable purchase principal across sign-out or account switching.
+ * Unknown and missing provenance fail closed.
+ */
+export function deriveRevenueCatAccountGrantState(
+  customerInfo: RevenueCatCustomerInfo,
+): RevenueCatEntitlementState {
+  const subscriptions = isRecord(customerInfo.subscriber.subscriptions)
+    ? customerInfo.subscriber.subscriptions
+    : {};
+  const entitlements = customerInfo.subscriber.entitlements;
+  let latestExpiration: number | undefined;
+
+  if (isRecord(entitlements)) {
+    for (const [entitlementId, entitlement] of Object.entries(entitlements)) {
+      if (!PAID_ENTITLEMENT_IDS.has(entitlementId) || !isRecord(entitlement)) {
+        continue;
+      }
+      const productIdentifier = entitlement.product_identifier;
+      const subscription = typeof productIdentifier === "string"
+        ? subscriptions[productIdentifier]
+        : undefined;
+      if (!isPromotionalPurchaseRecord(subscription)) continue;
+
+      const expiration = activeEntitlementExpiration(
+        entitlement,
+        customerInfo.requestDateMs,
+      );
+      if (expiration === null) {
+        return { targetTier: "pro", expiresAt: null };
+      }
+      if (
+        expiration !== undefined &&
+        (latestExpiration === undefined || expiration > latestExpiration)
+      ) {
+        latestExpiration = expiration;
+      }
+    }
   }
 
   return latestExpiration === undefined

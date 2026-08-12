@@ -27,11 +27,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   via the Apple Keychain.
 - This creates persistent tracking tied exclusively to the `.uuidString` across
   the ecosystem lifecycle, without volatile session cookie dependencies.
-- It acts as the unified Apple Keychain fallback, solving "split-brain" tracking
-  between databases. `SupabaseManager` intercepts Anonymous sign-ins and links
-  the Supabase Auth UUID into both RevenueCat and PostHog, abandoning the
-  `DeviceIdentityManager.shared.deviceId` hardware ID to ensure identity stays
-  synced with backend Webhooks.
+- It remains an analytics/install fallback, not billing authority. In stable
+  mode, `PurchasePrincipalResolver` uses a separate 256-bit device-only
+  capability to obtain a server-owned RevenueCat purchase principal for the
+  current Supabase session. PostHog and Supabase Auth keep their own identity
+  contracts; no hardware ID selects a billing customer.
 - Anonymous session bootstrap is single-flight. `SupabaseManager` stores a
   `ghostSessionTask` handle so concurrent callers to `initializeGhostSession()`
   / `getValidAuthHeaders()` all await the same in-flight anonymous sign-in
@@ -108,7 +108,7 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     RevenueCat reconciliation and merge both lock the public user before the
     queue row, and reconciliation revalidates its lease under lock before
     applying entitlement state.
-  - A database queue repair does not transfer RevenueCat provider state. The
+  - In the legacy compatibility lane, a database queue repair does not transfer RevenueCat provider state. The
     Ghost UUID and permanent UUID are both non-anonymous custom RevenueCat IDs,
     and RevenueCat documents custom-to-custom `logIn` as an account switch with
     no purchase transfer. This does **not** block Ghost purchases: a stable Ghost
@@ -126,49 +126,60 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     error mappings, exact-version catalog replay, and staging concurrency probes
     satisfy the
     [Ghost merge rollout matrix](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
-  - Once the `session.user` is generated, `SupabaseManager` pipes the raw
-    identity payload into `linkExternalTelemetry(user:)`. This extracts GoTrue
-    metadata (`email`, `full_name`, `avatar_url`), performs a best-effort read of
-    the user's `public.users` row, and maps both sources into
-    `Purchases.shared.attribution` when calling
-    `RevenueCatManager.shared.linkWithSupabase(...)`. RevenueCat customers
-    receive subscriber attributes such as `supabase_user_id`, `auth_email`,
-    `public_username`, `public_author_name`, `public_identity_source`, and
-    `account_kind` so test-dashboard customers can be matched back to Merian
-    accounts even while the app uses the RevenueCat Test Store key. It then
-    calls `PostHogManager.shared.identifyUser(userId: newUserId)`. This sequence
-    aliases the prior IDFV/Ghost tracking into the permanent Cloud Identity and
-    populates RevenueCat dashboards with cross-referenced user details.
+  - Once `session.user` is available, `SupabaseManager` resolves purchase
+    identity before paid readiness. Stable mode passes only the server-returned
+    purchase-principal ID and binding generation to `RevenueCatManager`; it
+    never writes email, avatar, display name, username, account kind, or Auth UUID
+    subscriber attributes because the same purchase principal can outlive or
+    switch accounts. Identity mutations are serialized and fenced by Auth-event
+    generation so a stale asynchronous `logIn` cannot overwrite a newer session.
+    Legacy mode retains the uppercase Auth-UUID link and its historical
+    attributes only for supported old-client compatibility. PostHog linking is
+    independent and remains governed by analytics consent.
   - **Account Rehydration**: Intercepting the initial payload from
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
     scan history and loads it into local SwiftData structures.
-  - User-facing **Sign out** calls `transitionToGhostSession()`. It uses Supabase
-    `.local` scope only after `/transfer-signout-purchases` has read
-    authoritative RevenueCat CustomerInfo, intersected StoreKit-backed access
-    with the current server projection, and the client has durably persisted a
-    one-use proof. One fresh anonymous Supabase identity binds the proof, becomes
-    the exact uppercase RevenueCat custom ID, calls `syncPurchases()`, and waits
-    for authoritative destination verification/reconciliation plus a fresh
-    Merian entitlement read. The Keychain proof is removed last; temporary
-    failure is retryable across relaunch and purchase mutations remain disabled.
-    A restored linked source can cancel only an unbound proof. The Profile then
-    offers **Continue with Apple** and **Continue with Google**. Account deletion
-    calls low-level `signOut()` without replacement or purchase transfer, but is
-    disabled and server-rejected while a proof remains pending. Confirmed-
-    missing-session recovery also preserves the exact bound destination rather
-    than rotating it. Anonymous bootstrap cannot link RevenueCat before bind.
+  - User-facing **Sign out** calls `transitionToGhostSession()` but displays no
+    internal Ghost terminology. Stable mode durably marks the Auth rotation,
+    closes only the local linked session, creates one anonymous session, resolves
+    the same device purchase principal, relinks RevenueCat to the unchanged
+    server-owned ID, refreshes entitlement, verifies the same Auth generation,
+    and clears the marker last. The marker pins the exact local capability
+    fingerprint and forbids replacement capability creation, so partial
+    Keychain loss fails before server or provider identity mutation. It does not
+    call `syncPurchases()` or a provider customer-transfer API. The Profile
+    offers **Continue with Apple** and
+    **Continue with Google**; those transitions resolve the same principal.
+    Foreground activation retries this exact binding after transient resolver,
+    account-cleanup, Keychain, or provider failure, so recovery does not depend
+    on another Auth callback and never rotates the capability or provider ID.
+  - While the rollout response is `mode: legacy`, sign-out retains the existing
+    `/transfer-signout-purchases` compatibility flow: prepare StoreKit-only
+    state, verify a device-only proof before local sign-out, bind exactly one
+    fresh anonymous UUID, link its uppercase UUID customer, call
+    `syncPurchases()`, obtain authoritative server verification/reconciliation,
+    refresh entitlement, and remove the proof last. A restored source can cancel
+    only an unbound proof. Account deletion is disabled and server-rejected while
+    either stable rotation evidence or a legacy proof remains pending. An
+    already-issued legacy proof is immutable across a rollout-mode change: iOS
+    finishes receipt sync and server verification on its exact uppercase
+    destination UUID, clears the proof, and only then permits stable-principal
+    adoption.
   - Sign-out transfers only receipt-backed StoreKit access under RevenueCat's
     required **Transfer to new App User ID** behavior. Account-issued
     promotional/beta grants remain attached to the linked source and are not
     duplicated. The server requires RevenueCat v1's explicit
     `store: app_store` purchase discriminator; promotional subscription records
     use `store: promotional`, and unknown or missing stores fail closed. A
+    mixed customer whose promotion wins the entitlement row still retains an
+    active reviewed `pro_annual` StoreKit subscription from the authoritative
+    subscription record; the promotion remains account-owned. A
     detached seven-day pass must match the database's authoritative expiry;
     stale/refunded purchase history cannot establish a handoff.
-  - This custom-ID handoff is a compatibility boundary. The accepted long-term
-    design separates Supabase authentication identity, a stable StoreKit
-    purchase principal, and Supabase-owned account grants; see
+  - This custom-ID handoff is a compatibility boundary. The additive long-term
+    implementation separates Supabase authentication identity, a stable
+    StoreKit purchase principal, and Supabase-owned account grants; see
     [`purchase-principal-auth-separation.md`](../rfcs/purchase-principal-auth-separation.md).
     RevenueCat V2 customer transfer is not an allowed shortcut because it cannot
     isolate mixed promotional and StoreKit subscription history and has no
@@ -182,24 +193,24 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
 - Controls Apple ecosystem entitlement bounds governing core app functionality.
-- Waits for an active Supabase session, then initializes via
-  `.configure(withAPIKey:appUserID:)` using the uppercase RFC 4122 Supabase UUID
-  and the active iOS `ProcessInfo` values mapped to `.xcconfig` secure layers.
-  RevenueCat IDs are case-sensitive; PostgreSQL reconciliation uses the same
-  canonical uppercase function instead of `uuid::text`.
+- Waits for an active Supabase session and a successful purchase-principal
+  resolution. Stable mode initializes or logs in with the exact server-returned
+  opaque App User ID; legacy mode uses the uppercase RFC 4122 Supabase UUID.
+  RevenueCat IDs are case-sensitive, so neither client nor database changes the
+  returned stable value.
 - Local Debug and unsigned validation builds may use RevenueCat's `test_` Test
   Store key while purchase flows are being exercised. This does not include an
   internal TestFlight build. The store environment does not change Merian's
-  identity contract: the RevenueCat App User ID is the Supabase Auth UUID, and
-  subscriber attributes mirror the user's auth/public identity for manual
-  support lookups. The Xcode Release archive preflight requires a RevenueCat
+  identity contract: stable mode uses the server-issued purchase principal and
+  writes no account PII to it; legacy mode keeps the Auth-UUID compatibility
+  identity. The Xcode Release archive preflight requires a RevenueCat
   iOS SDK key beginning with `appl_` before Organizer distribution.
-- Uses `logIn(canonicalAppUserID)` to switch directly between known Supabase
-  accounts. It never configures anonymously and never uses RevenueCat logout.
-  This prevents new `$RCAnonymousID` rows but does not imply that provider
-  purchases or promotional grants transfer between two custom UUIDs. The
-  existing-account Ghost merge uses the separate verified server mirror plus
-  client receipt-sync contract above.
+- Serializes configure/login mutations. Stable readiness requires the provider's
+  current App User ID, active Supabase Auth UUID, and server binding generation
+  all match; a late result for an older Auth event is discarded. Sign-out clears
+  readiness but does not call RevenueCat logout, preventing `$RCAnonymousID`
+  creation. Legacy custom-ID switches still require the separate verified
+  server mirror and receipt-sync contract described above.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
   operational error when there is no current offering, the current offering has
@@ -333,8 +344,10 @@ SDK/UI request for the same unavailable offering; the first success criterion
 is one valid offering, not fewer error lines.
 
 RevenueCat identity and product loading are separate checks. A log such as
-`RevenueCat identity linked` proves that the Supabase UUID was linked; it does
-not prove StoreKit returned products. A complete smoke test must:
+`RevenueCat identity linked` proves only that the currently resolved legacy or
+stable App User ID was linked; it does not prove StoreKit returned products or
+that the server binding still matches after an Auth race. A complete smoke test
+must:
 
 1. Launch with the intended key/store combination.
 2. Confirm the SDK product-fetch error is absent.
@@ -367,8 +380,10 @@ alone to decide access.
    `REVENUECAT_WEBHOOK_SIGNING_SECRET`. Signatures outside the five-minute
    past/future window fail before JSON parsing.
 2. **Durable identity**: `event.id` and `event_timestamp_ms` are required.
-   Supabase UUID candidates are resolved in RevenueCat's current,
-   original, then alias order. `TRANSFER` has no `app_user_id`, so its
+   RevenueCat current, original, and alias identifiers resolve against active
+   stable purchase principals first and uppercase Supabase UUID compatibility
+   customers second. Ambiguous mixed identities fail closed. `TRANSFER` has no
+   `app_user_id`, so its
    `transferred_from` and `transferred_to` identity groups become separate
    source and destination subjects. A purely anonymous event is durably marked
    `ignored` without mutating a user; a later alias event carries a different
@@ -386,7 +401,20 @@ alone to decide access.
    authoritative non-subscription transactions with a seven-day expiry;
    matching refunds/revocations are excluded. An API error or malformed
    response returns a retryable failure and leaves the database unchanged. Both
-   transfer lookups finish before either side can be written.
+   transfer lookups finish before either side can be written. For stable
+   principals, the database also stores whether detached pass history is
+   eligible. Signed purchase evidence may enable it directly. A transfer
+   destination inherits it only from a resolved stable source whose durable
+   policy is already enabled and only after the destination snapshot contains
+   an active App Store pass. Refund/revocation/transfer-source evidence disables
+   it; unrelated events preserve it. CustomerInfo destination history or a
+   scheduled repair cannot enable the flag on its own, and transfer propagation
+   lag is retried instead of guessed.
+   A stable `TRANSFER` never mutates account-owned beta/promotional grants:
+   provider promotion state on either side is recorded as observation only,
+   while StoreKit state follows the purchase principal. Both stable customers
+   are then durably fenced from later provider-promotion imports so resolver and
+   scheduled reconciliation cannot move the grant after the event.
 4. **Transactional ordering**:
    `public.apply_revenuecat_customer_state(...)` stores each event ID once,
    locks every resolved user in sorted UUID order, and advances each subject
@@ -419,7 +447,8 @@ alone to decide access.
    revisited every six hours and free users every 24 hours. A separate
    oldest-due-age monitor alerts at 30 minutes and becomes critical at 60. The
    sweep cannot newly grant historical `pro_week` history after a revoked/free
-   watermark.
+   watermark. Stable-principal claims carry the durable pass-policy flag and the
+   apply path preserves it.
 
 RevenueCat delivers webhooks at least once, so a `200` response may report
 `applied`, `duplicate`, `stale`, `mixed`, or `ignored`, together with subject,

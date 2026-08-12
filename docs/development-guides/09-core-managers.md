@@ -1274,38 +1274,26 @@ consults that Keychain entry.
   unset, but passes the cached user ID to `ConsentManager` so required-consent
   restoration cannot briefly resolve to Ready. The subsequent
   `tokenRefreshed` or `signedOut` event completes the decision.
-- **`lastLinkedUserId` dedup guard**: `private var lastLinkedUserId: UUID?` —
-  prevents duplicate historical synchronization on cold start while allowing a
-  failed RevenueCat identity link to retry until its exact UUID fence is ready.
-  The Supabase SDK emits two auth events per session restore (local cache read +
-  server validation); the second event for the same user does not repeat the
-  history download, even if it must retry RevenueCat configuration.
-- **RevenueCat identity attributes**: `linkExternalTelemetry(user:)` performs a
-  best-effort read of the user's `public.users` row before calling
-  `RevenueCatManager.shared.linkWithSupabase(...)`. The RevenueCat customer
-  keeps the uppercase Supabase Auth UUID as the case-sensitive App User ID and
-  also receives subscriber attributes such as `supabase_user_id`, `auth_email`,
-  `public_username`, `public_author_name`, `public_identity_source`, and
-  `account_kind` so Test Store customers can be matched back to Merian accounts.
-  The lookup decodes a
-  bounded array and uses its first row rather than requiring PostgREST
-  singular-object semantics. A newly authenticated user may not have a
-  `public.users` projection yet; an empty result is a normal best-effort
-  fallback, not a `406` auth failure, and telemetry linking continues with Auth
-  metadata.
-  RevenueCat remains unconfigured until this UUID exists. Session replacement
-  switches directly with `logIn`; sign-out clears the manager fence without SDK
-  logout, preventing `$RCAnonymousID` customer creation. Direct custom-ID
-  switching does not transfer provider state: RevenueCat documents a
-  non-anonymous custom ID → custom ID login as a logout/login with no purchase
-  transfer. The normal OAuth link preserves the UUID and is safe from that
-  identity change. The existing-account Ghost merge changes UUIDs, so
-  `RevenueCatManager` now tracks the Supabase `account_kind` alongside its exact
-  ID fence. Matching normalized `anonymous` and `authenticated` accounts may
-  purchase, restore, and redeem; missing, unknown, or stale account-kind results
-  fail closed. The conflict fallback separately mirrors and verifies active Pro
-  on the destination, then synchronizes the store receipt under the tested
-  RevenueCat transfer behavior.
+- **Purchase-principal resolver**: each usable Auth session passes through one
+  single-flight `resolveAndLinkPurchasePrincipal` operation. A 256-bit
+  `WhenUnlockedThisDeviceOnly` installation capability is generated and
+  read-verified before first use; Edge stores only SHA-256 and returns explicit
+  `legacy` or `stable` mode. The client never selects or persists a RevenueCat
+  App User ID as authority. A device-only binding-intent counter advances and
+  read-verifies before network I/O; the server rejects older intents, while
+  Auth-event generation checks before and after the
+  serialized SDK identity mutation prevent a late result from an old session
+  from installing paid readiness for a new one.
+- **Stable versus legacy identity**: stable mode passes the immutable
+  server-issued purchase-principal ID and binding generation to
+  `RevenueCatManager`. It clears and synchronizes legacy account attributes,
+  then writes no account email, username, display name,
+  avatar, account kind, or Auth UUID subscriber attribute because that customer
+  can survive an account switch. Legacy mode keeps the uppercase Auth UUID and
+  historical attribute path for old-client compatibility. A definite missing
+  additive route may fall back to legacy; auth, timeout, configuration, provider,
+  and database failures remain fail-closed. RevenueCat is never configured with
+  an anonymous SDK ID and sign-out never calls SDK logout.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<User?, Never>?` —
   serializes anonymous session creation across all callers and returns the
@@ -1313,14 +1301,18 @@ consults that Keychain entry.
   suspension-window race where multiple `getValidAuthHeaders()` calls could each
   enter `initializeGhostSession()` and perform overlapping `signInAnonymously()`
   requests.
-- **Sign-out purchase handoff single-flight**:
-  `signOutPurchaseHandoffTask` converges the interactive flow and auth-listener
-  relaunch recovery on one anonymous destination. The exact order is bind →
+- **Sign-out identity single-flights**: stable mode writes and verifies a
+  purchase-principal Auth-rotation marker before local sign-out, creates one
+  anonymous session, resolves the same principal, serially relinks the unchanged
+  provider ID, refreshes Merian entitlement, verifies the same Auth generation,
+  and removes the marker last. The marker pins a non-secret fingerprint of the
+  exact installation capability and disables capability creation while pending;
+  a missing or replaced Keychain value fails before server or provider identity
+  mutation. It makes no receipt-sync or provider-transfer call. Legacy mode
+  retains `signOutPurchaseHandoffTask`: bind → uppercase UUID
   RevenueCat link → `syncPurchases()` → authoritative server verification and
-  reconciliation → Merian entitlement refresh → same-session verification →
-  verified Keychain removal. `isPurchaseIdentityHandoffPending` keeps
-  purchase/restore/redeem disabled until the final removal. The source-side
-  cancel path succeeds only while the database receipt is still `prepared`.
+  reconciliation → entitlement refresh → same-session verification → verified
+  proof removal. Either pending boundary keeps purchase/restore/redeem disabled.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -1362,27 +1354,27 @@ consults that Keychain entry.
 - **Deduplicated anonymous sign-in**: The two identical anonymous sign-in code
   paths were collapsed into a single `isSessionMissing` check, removing the
   duplicate `signInAnonymously()` block.
-- Maps Apple and Google OAuth hooks to migrate Ghost User accounts, calling
-  `RevenueCatManager.shared.linkWithSupabase()` to align payment state.
+- Maps Apple and Google OAuth hooks to migrate anonymous accounts, then resolves
+  the current session's stable or legacy purchase identity before paid readiness.
 - The database Ghost merge's destination reconciliation row repairs Merian's
   provider lookup schedule only. After commit, the server separately reads both
   RevenueCat customers, mirrors/verifies the source's active finite or lifetime
   Pro horizon, and blocks source Auth deletion on any failure. The durable client
   calls `syncPurchases()` before local evidence rebind and proof removal. Ghosts
   may purchase, restore, redeem, and receive reviewed beta grants.
-- User-facing **Sign out** calls `transitionToGhostSession()`: local-scope
-  `signOut()` closes authenticated request admission only after
-  `/transfer-signout-purchases` snapshots StoreKit-backed access and the client
-  persists its device-only proof. One fresh anonymous identity binds that proof,
-  becomes the exact RevenueCat custom UUID, synchronizes the StoreKit receipt,
-  receives server-verified reconciliation, and refreshes Merian entitlement
-  state before the proof is removed. The proof and a RevenueCat purchase fence
-  survive temporary failure or relaunch. A restored source may cancel only an
-  unbound proof. Promotional/beta access stays account-bound and is never cloned.
-  The anonymous Profile offers **Continue with Apple** and **Continue with
-  Google**. Account deletion calls low-level `signOut()` without replacement or
-  purchase transfer. Global sign-out remains inappropriate because it would
-  revoke other active devices.
+  - User-facing **Sign out** calls `transitionToGhostSession()` while presenting
+  only **Sign out**, **Continue with Apple**, and **Continue with Google**. Stable
+  mode rotates Supabase Auth under the same purchase principal and keeps
+    StoreKit access there; beta/promotion/support grants remain attached to their
+    account owner. Legacy mode uses `/transfer-signout-purchases` and receipt sync
+    until the supported-client rollback window closes. Account deletion calls
+    low-level `signOut()` without replacement or purchase transfer. Global
+    sign-out remains inappropriate because it would revoke other active devices.
+  - `AppLifecycleManager` retries an unresolved purchase-identity binding on
+    foreground activation, including while the required-consent gate is closed.
+    The retry is bound to the exact current Auth generation and durable Keychain
+    capability/handoff; it cannot rotate Auth or create a replacement RevenueCat
+    customer. Paid readiness reopens only after server entitlement verification.
 
 ### `DetachedWork`
 
@@ -1481,11 +1473,10 @@ consults that Keychain entry.
   functional access; and `canStartProScan` additionally requires capacity to
   fund a new analysis.
 - Treats exact RevenueCat identity linkage and permission to mutate provider
-  state as separate conditions. Offerings and subscription management can use
-  an exact custom Ghost identity; purchase, restore, and offer-code redemption
-  also work for that stable identity. The requested and linked account-kind
-  fences must match as normalized `anonymous` or `authenticated`, rejecting
-  stale anonymous-to-authenticated link results.
+  state as separate conditions. Stable readiness requires one exact provider
+  App User ID, active Auth UUID, and server binding generation. SDK identity
+  mutations run serially, and the newest request always runs last; stale
+  anonymous-to-authenticated results cannot reopen purchase admission.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.
@@ -1494,7 +1485,8 @@ consults that Keychain entry.
   finite secret-key grant of the same `pro` entitlement. Once either is
   projected to Supabase, it resolves as `pro_paid` and includes Field Chat for
   the active period. RevenueCat project-level Pro billing grants neither state.
-- Connects Ghost and authenticated users to RevenueCat; the
+- Connects anonymous and authenticated sessions to the resolved purchase
+  identity; the
   `revenuecat-webhook` Edge
   function remains the server-side purchase authority. It verifies signed
   delivery, fetches authoritative CustomerInfo, persists recurring/grace expiry,
@@ -1508,12 +1500,14 @@ consults that Keychain entry.
   product is absent. These diagnostics do not create products or repair package
   mapping; App Store Connect product readiness and RevenueCat dashboard mapping
   remain release prerequisites.
-- The only canonical App User ID is the uppercase Supabase UUID. Customer
-  counts need not match `public.users`, and historical provider rows are never
-  deleted for normalization. The grant client now accepts GET `200|201`, uses an
-  explicit tier-independent cohort, and joins to permanent Auth evidence. The
-  beta/canonical-ID production rollout remains held for disposable replay,
-  staging, exact-SHA review, and explicit provider authorization. See the
+- Stable App User IDs are immutable server-owned purchase-principal identifiers;
+  uppercase Supabase UUIDs remain the legacy compatibility IDs. Customer counts
+  need not match `public.users`, and historical provider rows are never deleted
+  for normalization. StoreKit state follows the active principal binding, while
+  beta/promotion/support access comes from a private account-owned grant ledger.
+  The stable rollout remains disabled by default and held for disposable replay,
+  provider sandbox, minimum-client, PII-scrub, monitoring, exact-SHA review, and
+  explicit production authorization. See the
   [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### `EntitlementManager`

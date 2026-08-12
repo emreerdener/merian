@@ -498,6 +498,12 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/transfer-signout-purchases/index.ts"
 
+[functions.resolve-purchase-principal]
+enabled = true
+# The shared handler verifies current publishable keys and asymmetric user JWTs.
+verify_jwt = false
+entrypoint = "./functions/resolve-purchase-principal/index.ts"
+
 
 
 [functions.audio-spec]
