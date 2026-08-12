@@ -255,6 +255,8 @@ Therefore:
   keyword-separated `SUBSTRING(value FROM pattern)`,
   `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)`
   forms are unqualified SQL expressions and cannot follow `pg_catalog.`;
+- `EXTRACT(field FROM source)` remains unqualified because it is SQL expression
+  syntax rather than a schema-qualifiable catalog function;
 - migration filenames and applied historical contents are immutable; and
 - historical migrations that contain explicit transaction controls remain
   compatibility artifacts, not examples for future work.
@@ -262,11 +264,12 @@ Therefore:
 The repository guard masks comments, quoted strings, identifiers, and routine
 bodies before checking transaction aliases and timeout settings. It separately
 inspects executable dynamic SQL for concurrent index DDL and every migration for
-schema-qualified `SUBSTRING` keyword syntax. Detector fixtures cover `FROM`,
-`FOR`, `SIMILAR`, nested expressions, comments, and valid comma invocation. The
-deploy workflow discovers every `*Migration*.test.ts` and `migration*.test.ts`
-source contract before starting the disposable database, so a new contract
-cannot be omitted from a curated list.
+schema-qualified `SUBSTRING` keyword syntax and schema-qualified `EXTRACT`
+expressions. Detector fixtures cover `FROM`, `FOR`, `SIMILAR`, nested
+expressions, comments, strings, valid comma invocation, and unqualified
+`EXTRACT`. The deploy workflow discovers every `*Migration*.test.ts` and
+`migration*.test.ts` source contract before starting the disposable database,
+so a new contract cannot be omitted from a curated list.
 
 Database fixtures must preserve production trigger and constraint behavior.
 Inserting `auth.users` fires `on_auth_user_created` and can synchronously create

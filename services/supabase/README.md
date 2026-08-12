@@ -41,11 +41,12 @@ ordinary comma-separated invocation. In particular, write
 `pg_catalog.SUBSTRING(value, pattern)`, not
 `pg_catalog.SUBSTRING(value FROM pattern)`: the `FROM`, `FOR`, and `SIMILAR`
 forms are unqualified SQL expressions. The migration execution contract scans
-the complete migration fleet for this parser seam, but static checks are not
-deployment evidence. **Supabase Candidate Validation** must still use the pinned
-CLI to build the disposable database and run every `tests/*.sql` catalog fixture
-on the exact candidate SHA. That validation-only run has no production access or
-mutation. The separate production job requires it before `db push`.
+the complete migration fleet for this parser seam and rejects schema-qualified
+`EXTRACT(field FROM source)` expressions for the same reason. Static checks are
+not deployment evidence. **Supabase Candidate Validation** must still use the
+pinned CLI to build the disposable database and run every `tests/*.sql` catalog
+fixture on the exact candidate SHA. That validation-only run has no production
+access or mutation. The separate production job requires it before `db push`.
 
 ### Validation-Only Candidate Workflow
 
@@ -1239,8 +1240,10 @@ overloaded arguments. The quota reservation lock, for example, deliberately uses
 `pg_catalog.HASHTEXTEXTENDED(..., 0::BIGINT)`, and the migration contract locks
 that signature.
 
-PostgreSQL conditional expressions are not ordinary catalog routines and must
-not be schema-qualified. In particular, do not write `pg_catalog.COALESCE(...)`.
+PostgreSQL conditional and keyword expressions are not ordinary catalog routines
+and must not be schema-qualified. In particular, do not write
+`pg_catalog.COALESCE(...)` or
+`pg_catalog.EXTRACT(EPOCH FROM observed_at)`.
 When an `INSERT ... ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`
 statement returns no row, PL/pgSQL leaves `event_inserted` null; branch on
 `event_inserted IS NOT TRUE` so both null and false take the durable-duplicate

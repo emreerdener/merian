@@ -151,6 +151,13 @@ function usesSchemaQualifiedConditionalExpression(sql: string): boolean {
   );
 }
 
+function usesSchemaQualifiedExtractExpression(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  return /\b(?:[a-z_][a-z0-9_$]*\s*\.\s*)+EXTRACT\s*\(/i.test(
+    executableSql,
+  );
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -307,6 +314,48 @@ Deno.test(
       violations.length === 0,
       "COALESCE, GREATEST, and LEAST are PostgreSQL conditional expressions, " +
         "not schema-qualifiable functions: " + violations.join(", "),
+    );
+  },
+);
+
+Deno.test(
+  "EXTRACT expressions remain unqualified in Supabase migrations",
+  async () => {
+    for (
+      const sql of [
+        "SELECT pg_catalog.EXTRACT(EPOCH FROM observed_at);",
+        "SELECT internal . EXTRACT(YEAR FROM observed_at);",
+        "SELECT PG_CATALOG.EXTRACT(DAY FROM observed_at);",
+      ]
+    ) {
+      assert(usesSchemaQualifiedExtractExpression(sql), sql);
+    }
+    assert(
+      !usesSchemaQualifiedExtractExpression(
+        "SELECT EXTRACT(EPOCH FROM observed_at);",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedExtractExpression(
+        "-- SELECT pg_catalog.EXTRACT(EPOCH FROM observed_at);\n" +
+          "SELECT 'internal.EXTRACT(YEAR FROM observed_at)';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesSchemaQualifiedExtractExpression(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "EXTRACT is PostgreSQL expression syntax, not a schema-qualifiable " +
+        "function: " + violations.join(", "),
     );
   },
 );

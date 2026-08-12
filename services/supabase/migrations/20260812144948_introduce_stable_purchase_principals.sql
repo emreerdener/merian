@@ -3238,8 +3238,8 @@ BEGIN
         CASE WHEN queue_health.oldest_due IS NULL THEN NULL ELSE
             GREATEST(
                 0,
-                pg_catalog.FLOOR(pg_catalog.EXTRACT(
-                    EPOCH FROM clock.observed_at - queue_health.oldest_due
+                pg_catalog.FLOOR(EXTRACT(
+                    EPOCH FROM (clock.observed_at - queue_health.oldest_due)
                 ))::BIGINT
             )
         END,
@@ -3247,8 +3247,8 @@ BEGIN
         CASE WHEN counts.oldest_pending IS NULL THEN NULL ELSE
             GREATEST(
                 0,
-                pg_catalog.FLOOR(pg_catalog.EXTRACT(
-                    EPOCH FROM clock.observed_at - counts.oldest_pending
+                pg_catalog.FLOOR(EXTRACT(
+                    EPOCH FROM (clock.observed_at - counts.oldest_pending)
                 ))::BIGINT
             )
         END

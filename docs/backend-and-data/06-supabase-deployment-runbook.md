@@ -144,7 +144,8 @@ steps:
    addition to the complete tooling gate. The migration execution contract
    enumerates every SQL migration and rejects direct or dynamic
    pipeline-incompatible concurrent index DDL plus schema-qualified `SUBSTRING`
-   calls that use the unqualified `FROM`, `FOR`, or `SIMILAR` expression forms.
+   calls that use the unqualified `FROM`, `FOR`, or `SIMILAR` expression forms,
+   as well as schema-qualified `EXTRACT(field FROM source)` expressions.
    The public-schema contract rejects transaction controls in new files,
    requires effective RLS, and locks final grants/default ACLs plus bounded
    user-FK index behavior. The species-count contract separately preserves its
@@ -614,6 +615,13 @@ entries in `pg_proc`. For example, `COALESCE` is syntax, so
 idempotent insert using
 `ON CONFLICT DO NOTHING RETURNING TRUE INTO event_inserted`, use
 `event_inserted IS NOT TRUE` to recognize the null left when no row is returned.
+
+`EXTRACT(field FROM source)` is also parser syntax, not a schema-qualifiable
+routine. Write `EXTRACT(EPOCH FROM interval_value)`, never
+`pg_catalog.EXTRACT(EPOCH FROM interval_value)`. Workflow run 1687 stopped while
+fresh-replaying the stable purchase-principal migration at this exact parser
+boundary; the fleet contract now rejects schema-qualified `EXTRACT` before
+disposable startup.
 
 Do not combine schema qualification with PostgreSQL's keyword-separated
 `SUBSTRING` expression forms. `SUBSTRING(value FROM pattern)`,
