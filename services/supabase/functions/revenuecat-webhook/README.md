@@ -107,11 +107,23 @@ boundary:
   subjects under the same event ID.
 - `internal.revenuecat_customer_state` stores the per-user ordering watermark.
 - `public.get_revenuecat_webhook_event_result(...)` provides a service-only
-  committed-receipt lookup, and `public.apply_revenuecat_customer_state(...)`
-  owns the mutation. Both use `SECURITY DEFINER SET search_path = ''`, call
+  committed-receipt lookup, and current bundles use
+  `public.apply_revenuecat_identity_state(...)` for the mutation. During the
+  rollout window, `public.apply_revenuecat_customer_state(...)` and
+  `public.schedule_revenuecat_reconciliation(...)` remain exact-signature
+  compatibility adapters for the immediately previous bundle. The mutation
+  delegates legacy UUID subjects into the separated ledger, while the scheduler
+  routes them through the identity queue. Both take the shared cutover advisory
+  lock before the principal-before-user row locks and recheck under lock,
+  failing closed if a stable principal activates or rebinds before either legacy
+  write. These routines use `SECURITY DEFINER SET search_path = ''`, call
   `internal.require_service_role()`, and are executable only by `service_role`.
   All three internal tables have RLS enabled and no direct API-role or
   service-role table grants.
+
+Remove the two legacy signatures only in a later forward migration, after every
+supported and rollback-eligible webhook bundle calls the identity RPCs and the
+reviewed deployment evidence shows no remaining old-bundle invocation path.
 
 The transaction requires each RevenueCat customer to map to exactly one live
 `public.users` row, locks all resolved UUIDs in sorted order, deduplicates the

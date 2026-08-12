@@ -3576,7 +3576,14 @@ The identity test matrix now has two explicit lanes:
   locked completion revalidation, and reuse of an active principal's durable pass
   policy.
   Webhook/reconciliation tests cover stable-first identity resolution, separate
-  stable and UUID queues, claim fencing, and authoritative promo exclusion.
+  stable and UUID queues, claim fencing, authoritative promo exclusion, and the
+  previous bundle's mutation/scheduler adapters. The adapters share the
+  cutover advisory lock and principal-before-user row-lock order with
+  activation; the disposable
+  `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds an active
+  principal to a previously unrelated Auth UUID, forces completion to win that
+  race, and requires the delayed legacy mutation to leave no state, queue, or
+  event row.
   `purchasePrincipalMigrationContract.test.ts` plus
   `purchase_principal_security.sql` cover RLS/grants, capability replay, same-
   install Auth rotation, fixed grant ownership, stable-before-UUID delivery,

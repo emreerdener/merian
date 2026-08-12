@@ -146,6 +146,18 @@ policy. First adoption requires an exact locked projection match, and a refund
 remains revoked through unrelated webhooks and scheduled reconciliation even
 when RevenueCat retains the old non-renewing transaction.
 
+The stable migration preserves expand/migrate compatibility with the immediately
+previous webhook bundle. Its old `apply_revenuecat_customer_state(...)` and
+`schedule_revenuecat_reconciliation(...)` RPCs are not independent writers:
+they validate the legacy payload and delegate into the identity ledger and
+scheduler. Both share the stable-completion cutover advisory lock before the
+principal-before-user row-lock sequence and recheck under lock, so concurrent
+stable activation wins before any later legacy state or queue write.
+The scheduler preserves the old bundle's verified RevenueCat lookup alias; it
+must not replace an alias with the resolved Supabase UUID.
+All purchase-principal advisory locks call the exact PostgreSQL
+`hashtextextended(text,bigint)` overload with an explicit `0::BIGINT` seed.
+
 The scheduled Ghost-merge health monitor can execute repository code before a
 blocked candidate migration reaches production. Its read-only queue comparison
 therefore mirrors the helper's immutable `UPPER(uuid::TEXT)` result inline so it

@@ -6,10 +6,10 @@ SELECT extensions.plan(1);
 
 DO $test$
 DECLARE
-    destination_user_id UUID := '00000000-0000-0000-0000-00000000b401';
-    source_user_id UUID := '00000000-0000-0000-0000-00000000b402';
-    missing_user_id UUID := '00000000-0000-0000-0000-00000000b403';
-    seed_user_id UUID := '00000000-0000-0000-0000-00000000b404';
+    destination_user_id UUID := '00000000-0000-4000-8000-00000000b401';
+    source_user_id UUID := '00000000-0000-4000-8000-00000000b402';
+    missing_user_id UUID := '00000000-0000-4000-8000-00000000b403';
+    seed_user_id UUID := '00000000-0000-4000-8000-00000000b404';
     initial_entitlement_version BIGINT;
     transition RECORD;
     receipt RECORD;
@@ -322,6 +322,17 @@ BEGIN
        OR transition.applied_count <> 1
        OR transition.stale_count <> 0 THEN
         RAISE EXCEPTION 'authoritative renewal was not applied atomically';
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.legacy_revenuecat_entitlement_state AS legacy
+        WHERE legacy.merian_user_id = destination_user_id
+          AND legacy.last_event_id = 'event-renewal'
+          AND legacy.authoritative_snapshot_at_ms = 3000
+          AND legacy.target_tier = 'pro'::public.subscription_tier_enum
+    ) THEN
+        RAISE EXCEPTION
+            'legacy webhook did not enter the separated compatibility state';
     END IF;
 
     SELECT *
@@ -660,17 +671,26 @@ BEGIN
 
     PERFORM public.schedule_revenuecat_reconciliation(
         pg_catalog.JSONB_BUILD_ARRAY(
-            pg_catalog.JSONB_BUILD_OBJECT(
-                'subject_kind', 'customer',
-                'lookup_app_user_id',
-                    internal.canonical_revenuecat_app_user_id(
-                        destination_user_id
-                    ),
-                'candidate_user_ids',
-                    pg_catalog.JSONB_BUILD_ARRAY(destination_user_id)
+                pg_catalog.JSONB_BUILD_OBJECT(
+                    'subject_kind', 'customer',
+                    'lookup_app_user_id',
+                    'legacy-revenuecat-alias-' || destination_user_id::TEXT,
+                    'candidate_user_ids',
+                        pg_catalog.JSONB_BUILD_ARRAY(destination_user_id)
+                )
             )
-        )
-    );
+        );
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.revenuecat_reconciliation_queue AS queue
+        WHERE queue.merian_user_id = destination_user_id
+          AND queue.lookup_app_user_id =
+                'legacy-revenuecat-alias-' || destination_user_id::TEXT
+    ) THEN
+        RAISE EXCEPTION
+            'legacy RevenueCat scheduler replaced its provider lookup alias';
+    END IF;
 
     UPDATE internal.revenuecat_reconciliation_queue AS queue
     SET next_reconcile_at = pg_catalog.NOW()

@@ -1605,20 +1605,29 @@ events exclude the matching pass transaction. CustomerInfo timeouts, rate
 limits, invalid responses, missing public user rows, and identity groups that
 map to multiple live users fail closed without a tier write.
 
-`public.apply_revenuecat_customer_state(...)` then performs the event insert,
-per-user lock, ordering comparison, tier projection, and durable watermark
-update in one transaction. `TRANSFER` events use `transferred_from` and
-`transferred_to` instead of `app_user_id`; the handler fetches both customers
-before calling the RPC, and the RPC locks source/destination UUIDs in sorted
-order. `internal.revenuecat_webhook_events.event_id` is the unique idempotency
-key, while `internal.revenuecat_webhook_event_subjects` records zero to two
-per-user results. `internal.revenuecat_customer_state` compares authoritative
-CustomerInfo snapshot time first; webhook event time and event ID break only
-exact snapshot ties. Duplicate or older deliveries remain auditable but cannot
-overwrite newer access, and a transfer cannot partially commit. All three
-internal tables have RLS enabled and no direct grants; the
-`SECURITY DEFINER SET search_path = ''` mutation and duplicate-lookup RPCs call
-`internal.require_service_role()` and are allowlisted only to `service_role`.
+`public.apply_revenuecat_identity_state(...)` then performs the event insert,
+principal/user locks, ordering comparison, separated StoreKit/account-grant
+projection, and durable watermark update in one transaction. `TRANSFER` events
+use `transferred_from` and `transferred_to` instead of `app_user_id`; the handler
+fetches both customers before calling the RPC, and the RPC locks stable
+principals before affected UUIDs in sorted order. During the expand/migrate
+window, the previous bundle's exact
+`public.apply_revenuecat_customer_state(...)` and
+`public.schedule_revenuecat_reconciliation(...)` signatures remain only as
+compatibility adapters. They delegate legacy UUID subjects into the identity
+ledger and scheduler. The adapters and stable completion first take one shared
+cutover advisory lock, then lock related principals before users and recheck
+under lock, so even a previously unrelated rebind destination cannot race a
+legacy write.
+`internal.revenuecat_webhook_events.event_id` is the unique idempotency key,
+while the legacy and principal subject ledgers record zero to two results.
+Authoritative CustomerInfo snapshot time orders state first; webhook event time
+and event ID break only exact snapshot ties. Duplicate or older deliveries
+remain auditable but cannot overwrite newer access, and a transfer cannot
+partially commit. The internal tables have RLS enabled and no direct grants;
+the `SECURITY DEFINER SET search_path = ''` mutation, adapter, resolver, and
+duplicate-lookup RPCs call `internal.require_service_role()` and are allowlisted
+only to `service_role`.
 
 Migration `20260725052338_reconcile_revenuecat_subscribers.sql` adds a durable
 authoritative repair queue. Migration

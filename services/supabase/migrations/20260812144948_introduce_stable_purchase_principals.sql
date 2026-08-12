@@ -934,9 +934,9 @@ BEGIN
     WHERE config.config_key = 'current';
 
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
             'purchase-principal-capability:' || p_capability_hash,
-            0
+            0::BIGINT
         )
     );
 
@@ -1034,9 +1034,9 @@ BEGIN
         -- abandoned preparations; no user row is held while waiting for a
         -- principal row that completion may already own.
         PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-            pg_catalog.HASHTEXTENDED(
+            pg_catalog.HASHTEXTEXTENDED(
                 'purchase-principal-auth-user:' || p_auth_user_id::TEXT,
-                0
+                0::BIGINT
             )
         );
 
@@ -1212,10 +1212,22 @@ BEGIN
     INTO STRICT rollout
     FROM internal.purchase_identity_rollout_config AS config
     WHERE config.config_key = 'current';
+
+    -- Previous-bundle webhook compatibility calls can still address the
+    -- destination by its Auth UUID before this completion creates the stable
+    -- binding. Serialize that cutover before taking any principal/user row
+    -- locks so neither side can make its legacy-versus-stable decision from a
+    -- relationship that changes underneath it.
     PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
-        pg_catalog.HASHTEXTENDED(
+        pg_catalog.HASHTEXTEXTENDED(
+            'purchase-principal-legacy-compatibility',
+            0::BIGINT
+        )
+    );
+    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
+        pg_catalog.HASHTEXTEXTENDED(
             'purchase-principal:' || p_purchase_principal_id::TEXT,
-            0
+            0::BIGINT
         )
     );
 
@@ -2329,7 +2341,8 @@ BEGIN
         subject_kind_value := subject.value ->> 'subject_kind';
         identity_kind_value := subject.value ->> 'identity_kind';
         lookup_app_user_id_value := subject.value ->> 'lookup_app_user_id';
-        IF subject_kind_value NOT IN (
+        IF subject_kind_value IS NULL
+           OR subject_kind_value NOT IN (
             'customer',
             'transfer_source',
             'transfer_destination'
@@ -2350,7 +2363,10 @@ BEGIN
                 '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
            OR lookup_app_user_id_value IS NULL
            OR pg_catalog.CHAR_LENGTH(lookup_app_user_id_value)
-                NOT BETWEEN 1 AND 255
+                NOT BETWEEN 1 AND CASE
+                    WHEN identity_kind_value = 'legacy_user' THEN 1500
+                    ELSE 255
+                END
            OR lookup_app_user_id_value ~ '[[:cntrl:]]' THEN
             RAISE EXCEPTION 'revenuecat_invalid_identity_state'
                 USING ERRCODE = '22023';
@@ -2798,6 +2814,381 @@ COMMENT ON FUNCTION public.apply_revenuecat_identity_state(
 ) IS
     'Service-only atomic webhook ledger for legacy UUID customers and stable purchase principals. Store-backed and account-grant state remain separate for stable identities.';
 
+-- Legacy compatibility callers must serialize with principal completion before
+-- they decide that a UUID is still legacy-owned. The shared cutover advisory
+-- lock is acquired before either side takes principal or user row locks. This
+-- also covers a destination that is not related to the principal until the
+-- completion transaction creates its binding. The helper then follows the
+-- principal-before-user row-lock order and rechecks under lock.
+CREATE OR REPLACE FUNCTION
+internal.lock_legacy_revenuecat_compatibility_users(
+    p_user_ids UUID[]
+)
+RETURNS VOID
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '5s'
+AS $function$
+DECLARE
+    locked_user_count INTEGER;
+BEGIN
+    IF p_user_ids IS NULL
+       OR COALESCE(pg_catalog.ARRAY_NDIMS(p_user_ids), 1) <> 1
+       OR pg_catalog.CARDINALITY(p_user_ids) > 2
+       OR EXISTS (
+           SELECT 1
+           FROM pg_catalog.UNNEST(p_user_ids) AS requested(user_id)
+           WHERE requested.user_id IS NULL
+       )
+       OR pg_catalog.CARDINALITY(p_user_ids) <> (
+           SELECT pg_catalog.COUNT(DISTINCT requested.user_id)::INTEGER
+           FROM pg_catalog.UNNEST(p_user_ids) AS requested(user_id)
+       ) THEN
+        RAISE EXCEPTION 'revenuecat_invalid_legacy_compatibility_users'
+            USING ERRCODE = '22023';
+    END IF;
+    IF pg_catalog.CARDINALITY(p_user_ids) = 0 THEN
+        RETURN;
+    END IF;
+
+    PERFORM pg_catalog.PG_ADVISORY_XACT_LOCK(
+        pg_catalog.HASHTEXTEXTENDED(
+            'purchase-principal-legacy-compatibility',
+            0::BIGINT
+        )
+    );
+
+    PERFORM principal.id
+    FROM internal.purchase_principals AS principal
+    LEFT JOIN internal.purchase_principal_bindings AS binding
+      ON binding.purchase_principal_id = principal.id
+    WHERE principal.account_grant_owner_user_id = ANY(p_user_ids)
+       OR binding.auth_user_id = ANY(p_user_ids)
+       OR CASE
+           WHEN principal.revenuecat_app_user_id ~*
+                '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+               THEN principal.revenuecat_app_user_id::UUID = ANY(p_user_ids)
+           ELSE FALSE
+       END
+    ORDER BY principal.id
+    FOR UPDATE OF principal;
+
+    PERFORM users.id
+    FROM public.users AS users
+    WHERE users.id = ANY(p_user_ids)
+    ORDER BY users.id
+    FOR UPDATE OF users;
+    GET DIAGNOSTICS locked_user_count = ROW_COUNT;
+    IF locked_user_count <> pg_catalog.CARDINALITY(p_user_ids) THEN
+        RAISE EXCEPTION 'revenuecat_user_not_found'
+            USING ERRCODE = 'P0001';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.purchase_principals AS principal
+        LEFT JOIN internal.purchase_principal_bindings AS binding
+          ON binding.purchase_principal_id = principal.id
+        WHERE principal.status = 'active'
+          AND (
+              principal.account_grant_owner_user_id = ANY(p_user_ids)
+              OR binding.auth_user_id = ANY(p_user_ids)
+              OR CASE
+                  WHEN principal.revenuecat_app_user_id ~*
+                        '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+                      THEN principal.revenuecat_app_user_id::UUID =
+                        ANY(p_user_ids)
+                  ELSE FALSE
+              END
+          )
+    ) THEN
+        RAISE EXCEPTION 'revenuecat_legacy_identity_conflict'
+            USING ERRCODE = '55000';
+    END IF;
+END;
+$function$;
+
+COMMENT ON FUNCTION
+internal.lock_legacy_revenuecat_compatibility_users(UUID[]) IS
+    'Serializes stable cutover, locks related purchase principals before legacy users, and rejects an active stable relationship under lock. Used only by previous-bundle compatibility adapters.';
+
+REVOKE ALL ON FUNCTION
+    internal.lock_legacy_revenuecat_compatibility_users(UUID[])
+    FROM PUBLIC, anon, authenticated, service_role;
+
+-- The previous webhook bundle remains live while this additive migration is
+-- applied. Preserve its exact RPC shape, but route resolved legacy UUID
+-- customers through the new ledger so an old bundle cannot write the effective
+-- public.users projection directly. If an old payload resolves to a stable
+-- purchase principal, fail closed: that payload combines StoreKit and
+-- promotional access and cannot safely populate the separated stable state.
+CREATE OR REPLACE FUNCTION public.apply_revenuecat_customer_state(
+    p_event_id TEXT,
+    p_event_timestamp_ms BIGINT,
+    p_event_type TEXT,
+    p_payload_sha256 TEXT,
+    p_signature_timestamp_s BIGINT,
+    p_subjects JSONB
+)
+RETURNS TABLE (
+    outcome TEXT,
+    subject_count INTEGER,
+    applied_count INTEGER,
+    stale_count INTEGER
+)
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '5s'
+AS $function$
+DECLARE
+    existing_event internal.revenuecat_webhook_events%ROWTYPE;
+    subject RECORD;
+    resolved RECORD;
+    source_subject JSONB;
+    resolver_subjects JSONB := '[]'::JSONB;
+    identity_subjects JSONB := '[]'::JSONB;
+    legacy_user_ids UUID[] := ARRAY[]::UUID[];
+    seen_subject_kinds TEXT[] := ARRAY[]::TEXT[];
+    subject_kind_value TEXT;
+    input_subject_total INTEGER;
+    distinct_candidate_count INTEGER;
+    snapshot_time BIGINT;
+    target_tier public.subscription_tier_enum;
+    target_expiry TIMESTAMPTZ;
+BEGIN
+    PERFORM internal.require_service_role();
+
+    IF p_event_id IS NULL
+       OR pg_catalog.CHAR_LENGTH(p_event_id) NOT BETWEEN 1 AND 255
+       OR p_event_id ~ '[[:cntrl:]]'
+       OR p_event_timestamp_ms IS NULL
+       OR p_event_timestamp_ms NOT BETWEEN 0 AND 253402300799999
+       OR p_event_type IS NULL
+       OR pg_catalog.CHAR_LENGTH(p_event_type) NOT BETWEEN 1 AND 100
+       OR p_event_type ~ '[[:cntrl:]]'
+       OR p_payload_sha256 IS NULL
+       OR p_payload_sha256 !~ '^[0-9a-f]{64}$'
+       OR p_signature_timestamp_s IS NULL
+       OR p_signature_timestamp_s NOT BETWEEN 0 AND 253402300799
+       OR pg_catalog.JSONB_TYPEOF(p_subjects) IS DISTINCT FROM 'array' THEN
+        RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+            USING ERRCODE = '22023';
+    END IF;
+
+    input_subject_total := pg_catalog.JSONB_ARRAY_LENGTH(p_subjects);
+    IF input_subject_total > 2
+       OR (p_event_type <> 'TRANSFER' AND input_subject_total > 1) THEN
+        RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+            USING ERRCODE = '22023';
+    END IF;
+
+    -- Preserve the old bundle's durable retry boundary even if a referenced
+    -- Auth profile has since been deleted.
+    SELECT events.*
+    INTO existing_event
+    FROM internal.revenuecat_webhook_events AS events
+    WHERE events.event_id = p_event_id;
+    IF FOUND THEN
+        IF existing_event.event_timestamp_ms <> p_event_timestamp_ms
+           OR existing_event.event_type <> p_event_type
+           OR existing_event.payload_sha256 <> p_payload_sha256 THEN
+            RAISE EXCEPTION 'revenuecat_event_id_conflict'
+                USING ERRCODE = '23505';
+        END IF;
+        RETURN QUERY SELECT
+            'duplicate'::TEXT,
+            existing_event.subject_count::INTEGER,
+            existing_event.applied_count::INTEGER,
+            existing_event.stale_count::INTEGER;
+        RETURN;
+    END IF;
+
+    FOR subject IN
+        SELECT item.value, item.position::INTEGER
+        FROM pg_catalog.JSONB_ARRAY_ELEMENTS(p_subjects)
+            WITH ORDINALITY AS item(value, position)
+        ORDER BY item.position
+    LOOP
+        IF pg_catalog.JSONB_TYPEOF(subject.value) IS DISTINCT FROM 'object'
+           OR pg_catalog.JSONB_TYPEOF(
+               subject.value -> 'candidate_user_ids'
+           ) IS DISTINCT FROM 'array'
+           OR pg_catalog.JSONB_ARRAY_LENGTH(
+               subject.value -> 'candidate_user_ids'
+           ) NOT BETWEEN 1 AND 32
+           OR pg_catalog.JSONB_TYPEOF(
+               subject.value -> 'authoritative_snapshot_at_ms'
+           ) IS DISTINCT FROM 'number'
+           OR pg_catalog.JSONB_TYPEOF(
+               subject.value -> 'target_tier'
+           ) IS DISTINCT FROM 'string'
+           OR (
+               subject.value ? 'target_expires_at'
+               AND pg_catalog.JSONB_TYPEOF(
+                   subject.value -> 'target_expires_at'
+               ) NOT IN ('null', 'string')
+           )
+           OR EXISTS (
+               SELECT 1
+               FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                   subject.value -> 'candidate_user_ids'
+               ) AS candidate(value)
+               WHERE candidate.value !~*
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+                  OR pg_catalog.LOWER(candidate.value) =
+                    '00000000-0000-0000-0000-000000000000'
+           ) THEN
+            RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+                USING ERRCODE = '22023';
+        END IF;
+
+        subject_kind_value := subject.value ->> 'subject_kind';
+        IF subject_kind_value IS NULL
+           OR subject_kind_value NOT IN (
+            'customer',
+            'transfer_source',
+            'transfer_destination'
+        ) OR subject_kind_value = ANY(seen_subject_kinds)
+           OR (p_event_type = 'TRANSFER' AND subject_kind_value = 'customer')
+           OR (p_event_type <> 'TRANSFER' AND subject_kind_value <> 'customer')
+        THEN
+            RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+                USING ERRCODE = '22023';
+        END IF;
+        seen_subject_kinds := pg_catalog.ARRAY_APPEND(
+            seen_subject_kinds,
+            subject_kind_value
+        );
+
+        SELECT pg_catalog.COUNT(DISTINCT candidate.value::UUID)::INTEGER
+        INTO distinct_candidate_count
+        FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+            subject.value -> 'candidate_user_ids'
+        ) AS candidate(value);
+        IF distinct_candidate_count <>
+                pg_catalog.JSONB_ARRAY_LENGTH(
+                    subject.value -> 'candidate_user_ids'
+                ) THEN
+            RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+                USING ERRCODE = '22023';
+        END IF;
+
+        snapshot_time :=
+            (subject.value ->> 'authoritative_snapshot_at_ms')::BIGINT;
+        IF snapshot_time NOT BETWEEN 0 AND 253402300799999
+           OR subject.value ->> 'target_tier' NOT IN ('free', 'pro') THEN
+            RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+                USING ERRCODE = '22023';
+        END IF;
+        target_tier := (subject.value ->> 'target_tier')::
+            public.subscription_tier_enum;
+        target_expiry := CASE
+            WHEN pg_catalog.JSONB_TYPEOF(
+                subject.value -> 'target_expires_at'
+            ) = 'string'
+                THEN (subject.value ->> 'target_expires_at')::TIMESTAMPTZ
+            ELSE NULL
+        END;
+        IF (target_tier = 'free'::public.subscription_tier_enum
+                AND target_expiry IS NOT NULL)
+           OR (target_tier = 'pro'::public.subscription_tier_enum
+                AND target_expiry IS NOT NULL
+                AND target_expiry <= pg_catalog.TO_TIMESTAMP(
+                    snapshot_time::DOUBLE PRECISION / 1000.0
+                )) THEN
+            RAISE EXCEPTION 'revenuecat_invalid_customer_state'
+                USING ERRCODE = '22023';
+        END IF;
+
+        resolver_subjects := resolver_subjects ||
+            pg_catalog.JSONB_BUILD_ARRAY(
+                pg_catalog.JSONB_BUILD_OBJECT(
+                    'subject_kind', subject_kind_value,
+                    'identifiers', subject.value -> 'candidate_user_ids'
+                )
+            );
+    END LOOP;
+
+    BEGIN
+        FOR resolved IN
+            SELECT result.*
+            FROM public.resolve_revenuecat_identity_subjects(
+                resolver_subjects
+            ) AS result
+            ORDER BY result.subject_position
+        LOOP
+            IF resolved.identity_kind <> 'legacy_user' THEN
+                RAISE EXCEPTION 'revenuecat_legacy_identity_conflict'
+                    USING ERRCODE = '55000';
+            END IF;
+            legacy_user_ids := pg_catalog.ARRAY_APPEND(
+                legacy_user_ids,
+                resolved.identity_id
+            );
+            source_subject := p_subjects -> (resolved.subject_position - 1);
+            identity_subjects := identity_subjects ||
+                pg_catalog.JSONB_BUILD_ARRAY(
+                    pg_catalog.JSONB_BUILD_OBJECT(
+                        'subject_kind', resolved.subject_kind,
+                        'identity_kind', 'legacy_user',
+                        'identity_id', resolved.identity_id,
+                        'lookup_app_user_id',
+                            internal.canonical_revenuecat_app_user_id(
+                                resolved.identity_id
+                            ),
+                        'authoritative_snapshot_at_ms',
+                            source_subject -> 'authoritative_snapshot_at_ms',
+                        'target_store_tier',
+                            source_subject -> 'target_tier',
+                        'target_store_expires_at',
+                            source_subject -> 'target_expires_at',
+                        'allow_non_subscription_pass_grant', NULL,
+                        'target_account_grant_tier', 'free',
+                        'target_account_grant_expires_at', NULL
+                    )
+                );
+        END LOOP;
+    EXCEPTION
+        WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM = 'revenuecat_identity_mapping_ambiguous' THEN
+                RAISE EXCEPTION 'revenuecat_user_mapping_ambiguous'
+                    USING ERRCODE = 'P0001';
+            END IF;
+            RAISE;
+    END;
+
+    PERFORM internal.lock_legacy_revenuecat_compatibility_users(
+        legacy_user_ids
+    );
+
+    RETURN QUERY
+    SELECT result.outcome,
+           result.subject_count,
+           result.applied_count,
+           result.stale_count
+    FROM public.apply_revenuecat_identity_state(
+        p_event_id,
+        p_event_timestamp_ms,
+        p_event_type,
+        p_payload_sha256,
+        p_signature_timestamp_s,
+        identity_subjects
+    ) AS result;
+END;
+$function$;
+
+COMMENT ON FUNCTION public.apply_revenuecat_customer_state(
+    TEXT,
+    BIGINT,
+    TEXT,
+    TEXT,
+    BIGINT,
+    JSONB
+) IS
+    'Service-only compatibility RPC for the previous webhook bundle. It validates the legacy payload, resolves legacy UUID subjects, and delegates to the separated identity ledger; stable-principal matches fail closed.';
+
 CREATE OR REPLACE FUNCTION public.schedule_revenuecat_identity_reconciliation(
     p_subjects JSONB
 )
@@ -2835,7 +3226,10 @@ BEGIN
                 '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
            OR lookup_id_value IS NULL
            OR pg_catalog.CHAR_LENGTH(lookup_id_value)
-                NOT BETWEEN 1 AND 255
+                NOT BETWEEN 1 AND CASE
+                    WHEN identity_kind = 'legacy_user' THEN 1500
+                    ELSE 255
+                END
            OR lookup_id_value ~ '[[:cntrl:]]' THEN
             RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
                 USING ERRCODE = '22023';
@@ -2910,6 +3304,164 @@ BEGIN
     RETURN scheduled_count;
 END;
 $function$;
+
+-- The previous webhook bundle schedules by UUID candidates after every apply
+-- and again on durable duplicate delivery. Preserve that signature, but route
+-- only still-legacy identities through the new scheduler. The shared lock and
+-- recheck prevent an old bundle from recreating a legacy queue after stable
+-- principal activation.
+CREATE OR REPLACE FUNCTION public.schedule_revenuecat_reconciliation(
+    p_subjects JSONB
+)
+RETURNS INTEGER
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+SET search_path = ''
+SET statement_timeout = '5s'
+AS $function$
+DECLARE
+    subject RECORD;
+    resolved RECORD;
+    source_subject JSONB;
+    resolver_subjects JSONB := '[]'::JSONB;
+    identity_subjects JSONB := '[]'::JSONB;
+    legacy_user_ids UUID[] := ARRAY[]::UUID[];
+    seen_subject_kinds TEXT[] := ARRAY[]::TEXT[];
+    subject_kind_value TEXT;
+    lookup_app_user_id_value TEXT;
+    distinct_candidate_count INTEGER;
+BEGIN
+    PERFORM internal.require_service_role();
+    IF pg_catalog.JSONB_TYPEOF(p_subjects) IS DISTINCT FROM 'array'
+       OR pg_catalog.JSONB_ARRAY_LENGTH(p_subjects) > 2 THEN
+        RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
+            USING ERRCODE = '22023';
+    END IF;
+
+    FOR subject IN
+        SELECT item.value, item.position::INTEGER
+        FROM pg_catalog.JSONB_ARRAY_ELEMENTS(p_subjects)
+            WITH ORDINALITY AS item(value, position)
+        ORDER BY item.position
+    LOOP
+        IF pg_catalog.JSONB_TYPEOF(subject.value) IS DISTINCT FROM 'object'
+           OR pg_catalog.JSONB_TYPEOF(
+               subject.value -> 'candidate_user_ids'
+           ) IS DISTINCT FROM 'array'
+           OR pg_catalog.JSONB_ARRAY_LENGTH(
+               subject.value -> 'candidate_user_ids'
+           ) NOT BETWEEN 1 AND 32
+           OR EXISTS (
+               SELECT 1
+               FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+                   subject.value -> 'candidate_user_ids'
+               ) AS candidate(value)
+               WHERE candidate.value !~*
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+                  OR pg_catalog.LOWER(candidate.value) =
+                    '00000000-0000-0000-0000-000000000000'
+           ) THEN
+            RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
+                USING ERRCODE = '22023';
+        END IF;
+
+        subject_kind_value := subject.value ->> 'subject_kind';
+        lookup_app_user_id_value := subject.value ->> 'lookup_app_user_id';
+        IF subject_kind_value IS NULL
+           OR subject_kind_value NOT IN (
+               'customer',
+               'transfer_source',
+               'transfer_destination'
+           )
+           OR subject_kind_value = ANY(seen_subject_kinds)
+           OR lookup_app_user_id_value IS NULL
+           OR pg_catalog.CHAR_LENGTH(lookup_app_user_id_value)
+                NOT BETWEEN 1 AND 1500
+           OR lookup_app_user_id_value ~ '[[:cntrl:]]' THEN
+            RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
+                USING ERRCODE = '22023';
+        END IF;
+        seen_subject_kinds := pg_catalog.ARRAY_APPEND(
+            seen_subject_kinds,
+            subject_kind_value
+        );
+
+        SELECT pg_catalog.COUNT(DISTINCT candidate.value::UUID)::INTEGER
+        INTO distinct_candidate_count
+        FROM pg_catalog.JSONB_ARRAY_ELEMENTS_TEXT(
+            subject.value -> 'candidate_user_ids'
+        ) AS candidate(value);
+        IF distinct_candidate_count <>
+                pg_catalog.JSONB_ARRAY_LENGTH(
+                    subject.value -> 'candidate_user_ids'
+                ) THEN
+            RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
+                USING ERRCODE = '22023';
+        END IF;
+
+        resolver_subjects := resolver_subjects ||
+            pg_catalog.JSONB_BUILD_ARRAY(
+                pg_catalog.JSONB_BUILD_OBJECT(
+                    'subject_kind', subject_kind_value,
+                    'identifiers', subject.value -> 'candidate_user_ids'
+                )
+            );
+    END LOOP;
+
+    BEGIN
+        FOR resolved IN
+            SELECT result.*
+            FROM public.resolve_revenuecat_identity_subjects(
+                resolver_subjects
+            ) AS result
+            ORDER BY result.subject_position
+        LOOP
+            IF resolved.identity_kind <> 'legacy_user' THEN
+                RAISE EXCEPTION 'revenuecat_legacy_identity_conflict'
+                    USING ERRCODE = '55000';
+            END IF;
+            legacy_user_ids := pg_catalog.ARRAY_APPEND(
+                legacy_user_ids,
+                resolved.identity_id
+            );
+            source_subject := p_subjects -> (resolved.subject_position - 1);
+            identity_subjects := identity_subjects ||
+                pg_catalog.JSONB_BUILD_ARRAY(
+                    pg_catalog.JSONB_BUILD_OBJECT(
+                        'subject_kind', resolved.subject_kind,
+                        'identity_kind', 'legacy_user',
+                        'identity_id', resolved.identity_id,
+                        'lookup_app_user_id',
+                            source_subject ->> 'lookup_app_user_id'
+                    )
+                );
+        END LOOP;
+    EXCEPTION
+        WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM = 'revenuecat_identity_mapping_ambiguous' THEN
+                RAISE EXCEPTION 'revenuecat_user_mapping_ambiguous'
+                    USING ERRCODE = 'P0001';
+            END IF;
+            RAISE;
+        WHEN SQLSTATE '22023' THEN
+            IF SQLERRM = 'revenuecat_invalid_identity_subjects' THEN
+                RAISE EXCEPTION 'revenuecat_invalid_reconciliation_subjects'
+                    USING ERRCODE = '22023';
+            END IF;
+            RAISE;
+    END;
+
+    PERFORM internal.lock_legacy_revenuecat_compatibility_users(
+        legacy_user_ids
+    );
+    RETURN public.schedule_revenuecat_identity_reconciliation(
+        identity_subjects
+    );
+END;
+$function$;
+
+COMMENT ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB) IS
+    'Service-only compatibility scheduler for the previous webhook bundle. It preserves the verified provider lookup, routes still-legacy UUIDs through the identity scheduler, and rejects active stable-principal relationships under the shared cutover and principal-before-user locks.';
 
 CREATE OR REPLACE FUNCTION public.claim_purchase_principal_reconciliations(
     p_limit INTEGER DEFAULT 6
@@ -3662,7 +4214,12 @@ REVOKE ALL ON FUNCTION public.resolve_revenuecat_identity_subjects(JSONB)
 REVOKE ALL ON FUNCTION public.apply_revenuecat_identity_state(
     TEXT, BIGINT, TEXT, TEXT, BIGINT, JSONB
 ) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.apply_revenuecat_customer_state(
+    TEXT, BIGINT, TEXT, TEXT, BIGINT, JSONB
+) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.schedule_revenuecat_identity_reconciliation(JSONB)
+    FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB)
     FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.claim_purchase_principal_reconciliations(INTEGER)
     FROM PUBLIC, anon, authenticated, service_role;
@@ -3698,7 +4255,12 @@ GRANT EXECUTE ON FUNCTION public.resolve_revenuecat_identity_subjects(JSONB)
 GRANT EXECUTE ON FUNCTION public.apply_revenuecat_identity_state(
     TEXT, BIGINT, TEXT, TEXT, BIGINT, JSONB
 ) TO service_role;
+GRANT EXECUTE ON FUNCTION public.apply_revenuecat_customer_state(
+    TEXT, BIGINT, TEXT, TEXT, BIGINT, JSONB
+) TO service_role;
 GRANT EXECUTE ON FUNCTION public.schedule_revenuecat_identity_reconciliation(JSONB)
+    TO service_role;
+GRANT EXECUTE ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB)
     TO service_role;
 GRANT EXECUTE ON FUNCTION public.claim_purchase_principal_reconciliations(INTEGER)
     TO service_role;
@@ -3755,8 +4317,18 @@ VALUES
     ),
     (
         'service_role',
+        'public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)',
+        'Previous webhook bundles delegate legacy UUID payloads into the separated identity ledger and fail closed on stable-principal matches.'
+    ),
+    (
+        'service_role',
         'public.schedule_revenuecat_identity_reconciliation(jsonb)',
         'Webhook schedules repair in the correct stable-principal or legacy-user queue.'
+    ),
+    (
+        'service_role',
+        'public.schedule_revenuecat_reconciliation(jsonb)',
+        'Previous webhook bundles route still-legacy UUIDs through the identity scheduler and fail closed after stable-principal activation.'
     ),
     (
         'service_role',

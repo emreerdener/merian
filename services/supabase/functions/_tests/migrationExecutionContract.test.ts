@@ -158,6 +158,13 @@ function usesSchemaQualifiedExtractExpression(sql: string): boolean {
   );
 }
 
+function usesMisspelledHashTextExtended(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  return /\b(?:pg_catalog\s*\.\s*)?HASHTEXTENDED\s*\(/i.test(
+    executableSql,
+  );
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -356,6 +363,44 @@ Deno.test(
       violations.length === 0,
       "EXTRACT is PostgreSQL expression syntax, not a schema-qualifiable " +
         "function: " + violations.join(", "),
+    );
+  },
+);
+
+Deno.test(
+  "advisory-lock hashes use PostgreSQL hashtextextended",
+  async () => {
+    assert(
+      usesMisspelledHashTextExtended(
+        "SELECT pg_catalog.HASHTEXTENDED(resource_name, 0);",
+      ),
+    );
+    assert(
+      !usesMisspelledHashTextExtended(
+        "SELECT pg_catalog.HASHTEXTEXTENDED(resource_name, 0::BIGINT);",
+      ),
+    );
+    assert(
+      !usesMisspelledHashTextExtended(
+        "-- SELECT pg_catalog.HASHTEXTENDED(resource_name, 0);\n" +
+          "SELECT 'pg_catalog.HASHTEXTENDED(resource_name, 0)';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesMisspelledHashTextExtended(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "PostgreSQL exposes hashtextextended(text,bigint), not " +
+        "hashtextended: " + violations.join(", "),
     );
   },
 );

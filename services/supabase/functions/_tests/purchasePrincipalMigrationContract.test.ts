@@ -24,6 +24,14 @@ const securityFixtureUrl = new URL(
   "../../tests/purchase_principal_security.sql",
   import.meta.url,
 );
+const revenueCatSecurityFixtureUrl = new URL(
+  "../../tests/revenuecat_webhook_security.sql",
+  import.meta.url,
+);
+const compatibilityConcurrencyFixtureUrl = new URL(
+  "./purchasePrincipalCompatibilityConcurrencyDb.test.ts",
+  import.meta.url,
+);
 
 function serviceRoleBlocks(sql: string): string[] {
   return [...sql.matchAll(
@@ -103,10 +111,24 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
 
   const begin = sql.slice(beginStart, completeStart);
   const complete = sql.slice(completeStart, grantStart);
+  assert(
+    !sql.includes("pg_catalog.HASHTEXTENDED("),
+    "purchase-principal advisory locks must call hashtextextended(text,bigint)",
+  );
+  assert(
+    (sql.match(/pg_catalog\.HASHTEXTEXTENDED\(/g) ?? []).length === 5,
+    "all five purchase-principal advisory locks must use the real catalog overload",
+  );
+  assert(
+    (sql.match(/'purchase-principal-legacy-compatibility'/g) ?? []).length ===
+      2,
+    "stable completion and legacy adapters must share the cutover lock",
+  );
   for (
     const fragment of [
       "PERFORM internal.require_service_role()",
       "purchase-principal-capability:' || p_capability_hash",
+      "pg_catalog.HASHTEXTEXTENDED( 'purchase-principal-capability:' || p_capability_hash, 0::BIGINT )",
       "WHERE principals.capability_hash = p_capability_hash FOR UPDATE",
       "principal.status = 'revoked'",
       "principal.status = 'active' AND p_client_protocol < rollout.minimum_client_protocol",
@@ -115,6 +137,7 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
       "p_binding_intent_generation NOT BETWEEN 1 AND 9007199254740991",
       "purchase_principal_binding_intent_stale",
       "purchase-principal-auth-user:' || p_auth_user_id::TEXT",
+      "pg_catalog.HASHTEXTEXTENDED( 'purchase-principal-auth-user:' || p_auth_user_id::TEXT, 0::BIGINT )",
       "JOIN public.users AS profile ON profile.id = auth_user.id",
       "proposed_app_user_id := pg_catalog.UPPER(p_auth_user_id::TEXT)",
       "'MERIAN_PP_' || pg_catalog.REPLACE",
@@ -125,6 +148,8 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
   for (
     const fragment of [
       "PERFORM internal.require_service_role()",
+      "pg_catalog.HASHTEXTEXTENDED( 'purchase-principal-legacy-compatibility', 0::BIGINT )",
+      "pg_catalog.HASHTEXTEXTENDED( 'purchase-principal:' || p_purchase_principal_id::TEXT, 0::BIGINT )",
       "rollout.principal_mode <> 'stable'",
       "principal.status <> 'active'",
       "purchase_principal_rollout_changed",
@@ -228,7 +253,12 @@ Deno.test("legacy reconciliation replacement preserves claim and seed contracts"
 });
 
 Deno.test("webhook and reconciliation resolve stable identities before UUID fallback", async () => {
-  const sql = compact(await Deno.readTextFile(migrationUrl));
+  const [migrationSource, revenueCatFixtureSource] = await Promise.all([
+    Deno.readTextFile(migrationUrl),
+    Deno.readTextFile(revenueCatSecurityFixtureUrl),
+  ]);
+  const sql = compact(migrationSource);
+  const revenueCatFixture = compact(revenueCatFixtureSource);
   const snapshotStart = sql.indexOf(
     "CREATE OR REPLACE FUNCTION internal.apply_purchase_principal_snapshot",
   );
@@ -256,6 +286,22 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
       "p_authoritative_snapshot_at_ms > state.authoritative_snapshot_at_ms",
       "snapshot_time > legacy_state.authoritative_snapshot_at_ms",
       "CREATE OR REPLACE FUNCTION public.apply_revenuecat_identity_state",
+      "internal.lock_legacy_revenuecat_compatibility_users",
+      "ORDER BY principal.id FOR UPDATE OF principal",
+      "ORDER BY users.id FOR UPDATE OF users",
+      "CREATE OR REPLACE FUNCTION public.apply_revenuecat_customer_state",
+      "IF resolved.identity_kind <> 'legacy_user' THEN",
+      "RAISE EXCEPTION 'revenuecat_legacy_identity_conflict' USING ERRCODE = '55000'",
+      "IF SQLERRM = 'revenuecat_identity_mapping_ambiguous'",
+      "RAISE EXCEPTION 'revenuecat_user_mapping_ambiguous' USING ERRCODE = 'P0001'",
+      "PERFORM internal.lock_legacy_revenuecat_compatibility_users( legacy_user_ids )",
+      "FROM public.apply_revenuecat_identity_state",
+      "CREATE OR REPLACE FUNCTION public.schedule_revenuecat_reconciliation",
+      "source_subject := p_subjects -> (resolved.subject_position - 1)",
+      "'lookup_app_user_id', source_subject ->> 'lookup_app_user_id'",
+      "RETURN public.schedule_revenuecat_identity_reconciliation( identity_subjects )",
+      "REVOKE ALL ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB)",
+      "GRANT EXECUTE ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB) TO service_role",
       "Lock every principal in UUID order before any public user row",
       "ORDER BY principals.id FOR UPDATE OF principals",
       "CREATE TABLE internal.purchase_principal_reconciliation_queue",
@@ -270,6 +316,10 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
   ) {
     assertStringIncludes(sql, fragment);
   }
+  assertStringIncludes(
+    revenueCatFixture,
+    "legacy RevenueCat scheduler replaced its provider lookup alias",
+  );
 });
 
 Deno.test("stable iOS linkage does not transfer receipts or write account PII", async () => {
@@ -370,6 +420,9 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "provider transfer moved, extended, revoked, or created an account grant",
       "provider transfer grant freeze was not preserved or audited",
       "authoritative snapshot ordering yielded to event delivery time",
+      "legacy webhook reinterpreted an active stable purchase principal",
+      "legacy scheduler recreated a stable principal reconciliation lane",
+      "previous webhook bundle recreated legacy state after stable adoption",
       "provider transfer did not freeze later grant imports",
       "deleted Auth UUID remained in purchase identity evidence",
       "ON CONFLICT (id) DO UPDATE",
@@ -385,5 +438,27 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
         .test(block),
       "service_role fixture phases must exercise guarded RPCs, not private tables",
     );
+  }
+});
+
+Deno.test("legacy compatibility mutation loses a concurrent stable activation", async () => {
+  const fixture = compact(
+    await Deno.readTextFile(compatibilityConcurrencyFixtureUrl),
+  );
+  for (
+    const fragment of [
+      "public.begin_purchase_principal_resolution",
+      "public.complete_purchase_principal_resolution",
+      "public.apply_revenuecat_customer_state",
+      "same principal did not prepare target rebind",
+      "completionApplicationName, userBlockerPid",
+      "legacyApplicationName, completionPid",
+      "revenuecat_legacy_identity_conflict",
+      "legacy_state_exists: false",
+      "legacy_queue_exists: false",
+      "rejected_event_exists: false",
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
   }
 });

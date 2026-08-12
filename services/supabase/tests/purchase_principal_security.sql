@@ -150,6 +150,32 @@ SET principal_mode = 'stable',
     updated_at = CLOCK_TIMESTAMP()
 WHERE config_key = 'current';
 
+-- Exercise the exact previous-bundle writer before adoption. Stable
+-- completion must retire this compatibility input for the adopted UUID.
+SET LOCAL ROLE service_role;
+DO $legacy_webhook_before_adoption$
+BEGIN
+  PERFORM public.apply_revenuecat_customer_state(
+    'legacy-webhook-before-stable-adoption',
+    1000,
+    'RENEWAL',
+    REPEAT('e', 64),
+    1,
+    JSONB_BUILD_ARRAY(
+      JSONB_BUILD_OBJECT(
+        'subject_kind', 'customer',
+        'candidate_user_ids',
+          JSONB_BUILD_ARRAY('21000000-0000-4000-8000-000000000001'),
+        'authoritative_snapshot_at_ms', 1000,
+        'target_tier', 'pro',
+        'target_expires_at', NULL
+      )
+    )
+  );
+END;
+$legacy_webhook_before_adoption$;
+RESET ROLE;
+
 CREATE TEMP TABLE purchase_principal_resolution_fixture (
   resolution_mode TEXT NOT NULL,
   purchase_principal_id UUID,
@@ -245,8 +271,91 @@ BEGIN
   IF owner_tier <> 'pro'::public.subscription_tier_enum THEN
     RAISE EXCEPTION 'first effective entitlement was not projected';
   END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM internal.legacy_revenuecat_entitlement_state AS legacy
+    WHERE legacy.merian_user_id =
+      '21000000-0000-4000-8000-000000000001'
+  ) THEN
+    RAISE EXCEPTION 'stable adoption retained its legacy provider input';
+  END IF;
 END;
 $first_binding$;
+
+-- A previous webhook bundle cannot reinterpret an adopted UUID customer as
+-- legacy combined access after that customer becomes a stable principal.
+SET LOCAL ROLE service_role;
+DO $legacy_webhook_stable_conflict$
+BEGIN
+  BEGIN
+    PERFORM public.apply_revenuecat_customer_state(
+      'legacy-webhook-stable-conflict',
+      1000,
+      'RENEWAL',
+      REPEAT('f', 64),
+      1,
+      JSONB_BUILD_ARRAY(
+        JSONB_BUILD_OBJECT(
+          'subject_kind', 'customer',
+          'candidate_user_ids',
+            JSONB_BUILD_ARRAY('21000000-0000-4000-8000-000000000001'),
+          'authoritative_snapshot_at_ms', 1000,
+          'target_tier', 'pro',
+          'target_expires_at', NULL
+        )
+      )
+    );
+    RAISE EXCEPTION
+      'legacy webhook reinterpreted an active stable purchase principal';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      IF SQLERRM <> 'revenuecat_legacy_identity_conflict' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
+    PERFORM public.schedule_revenuecat_reconciliation(
+      JSONB_BUILD_ARRAY(
+        JSONB_BUILD_OBJECT(
+          'subject_kind', 'customer',
+          'lookup_app_user_id',
+            '21000000-0000-4000-8000-000000000001',
+          'candidate_user_ids',
+            JSONB_BUILD_ARRAY('21000000-0000-4000-8000-000000000001')
+        )
+      )
+    );
+    RAISE EXCEPTION
+      'legacy scheduler recreated a stable principal reconciliation lane';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      IF SQLERRM <> 'revenuecat_legacy_identity_conflict' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$legacy_webhook_stable_conflict$;
+RESET ROLE;
+
+DO $legacy_compatibility_not_recreated$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM internal.legacy_revenuecat_entitlement_state AS legacy
+    WHERE legacy.merian_user_id =
+      '21000000-0000-4000-8000-000000000001'
+  ) OR EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000001'
+  ) THEN
+    RAISE EXCEPTION
+      'previous webhook bundle recreated legacy state after stable adoption';
+  END IF;
+END;
+$legacy_compatibility_not_recreated$;
 
 -- The same device capability moves only StoreKit access to the anonymous
 -- session. The imported promotional grant remains on its original account.

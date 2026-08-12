@@ -416,15 +416,21 @@ alone to decide access.
    are then durably fenced from later provider-promotion imports so resolver and
    scheduled reconciliation cannot move the grant after the event.
 4. **Transactional ordering**:
-   `public.apply_revenuecat_customer_state(...)` stores each event ID once,
-   locks every resolved user in sorted UUID order, and advances each subject
+   `public.apply_revenuecat_identity_state(...)` stores each event ID once,
+   locks stable principals and then every resolved user in sorted order, and
+   advances each subject
    only when the authoritative CustomerInfo `request_date_ms` is newer than that
    user's durable watermark. Provider event timestamp and event ID break only
    exact snapshot ties. Duplicate and stale deliveries are audited but cannot
    overwrite access. A newer refund therefore cannot be undone by a delayed
    purchase, and a newer renewal cannot be overwritten by a delayed expiration.
    Transfer source/destination changes share one event transaction and cannot
-   partially commit.
+   partially commit. The previous bundle's legacy UUID mutation and scheduler
+   RPCs remain only as compatibility adapters into the identity ledger and
+   queue. They share a cutover advisory lock with activation before the
+   principal-before-user row-lock sequence and recheck under lock, so a
+   completed stable adoption or rebind cannot be followed by a legacy state or
+   queue write.
 5. **Tier and expiry projection**: Active standard entitlement state writes
    `subscription_tier = pro` with the later recurring/grace expiration.
    `NULL` is reserved for an explicitly non-expiring lifetime entitlement. An

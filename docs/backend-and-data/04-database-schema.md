@@ -3907,10 +3907,16 @@ private RevenueCat synchronization ledger:
   timestamp, and update time.
 
 All three tables have RLS enabled and revoke all direct access from `PUBLIC`,
-`anon`, `authenticated`, and `service_role`. Edge code can mutate them only
-through `public.apply_revenuecat_customer_state(...)`, a service-role
-allowlisted `SECURITY DEFINER` routine with an empty search path and an
-in-function caller check. The identically protected
+`anon`, `authenticated`, and `service_role`. Current Edge code mutates them
+through `public.apply_revenuecat_identity_state(...)`; the immediately previous
+bundle's exact `public.apply_revenuecat_customer_state(...)` and
+`public.schedule_revenuecat_reconciliation(...)` signatures are temporary
+compatibility adapters that delegate only legacy UUID subjects into the
+identity ledger and scheduler. They share a cutover advisory lock with stable
+completion before locking related principals and users, then recheck under
+lock, rejecting an activation that wins either race. All are
+service-role-allowlisted `SECURITY DEFINER` routines with empty search paths and
+in-function caller checks. The identically protected
 `public.get_revenuecat_webhook_event_result(...)` returns an existing committed
 receipt without granting direct ledger access, avoiding another RevenueCat API
 call for ordinary at-least-once retries.
@@ -4161,6 +4167,12 @@ claim-token fenced. It locks the exact live lease without retaining a lint-only
 row value, returns stable SQLSTATE `55000` when the claim is absent or expired,
 and represents a synthetic zero-subject reconciliation seed with event outcome
 `ignored` so the immutable event-ledger CHECK remains valid.
+
+Purchase-principal capability, new-principal-per-account, and completion
+serialization use PostgreSQL's exact `hashtextextended(text,bigint)` overload;
+the seed is explicitly `0::BIGINT`. Catalog fixtures execute both resolver
+phases, and the privileged-routine gate statically validates every installed
+definer body, so a misspelled catalog routine cannot pass candidate validation.
 
 Every new table has RLS enabled and revokes all direct access from `PUBLIC`,
 `anon`, `authenticated`, and `service_role`. Every public RPC has an empty

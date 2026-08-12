@@ -643,6 +643,30 @@ temporary fixtures and exercise only guarded RPCs. The later `Dubious` and
 `Bad plan` summaries are consequences of those PostgreSQL exceptions, not
 evidence that production was contacted.
 
+Workflow run 1689 replayed every migration and reduced the catalog failures to
+three fixtures. Two shared one root cause: all three purchase-principal advisory
+locks called the nonexistent `HASHTEXTENDED` name, so resolver execution and the
+global `plpgsql_check` definer audit both stopped before their planned pgTAP
+result. Use the exact `pg_catalog.HASHTEXTEXTENDED(text,bigint)` overload with
+`0::BIGINT`, and pin that spelling/count in the migration contract.
+
+The remaining RevenueCat failure was coexistence drift. The previous webhook
+RPC still updated only the old watermark while the new reconciliation path read
+`legacy_revenuecat_entitlement_state`, creating an unexpected synthetic seed on
+the first sweep. During the expand/migrate window, keep both the old mutation
+and scheduler signatures only as authoritative compatibility adapters. Route
+their legacy UUID subjects into the identity ledger and scheduler, acquire the
+same cutover advisory lock as stable completion before principal/user row
+locks, and recheck under lock. An activation that wins either race must return
+SQLSTATE `55000`; neither old RPC may remain an independent state or queue
+writer.
+
+Retire the two legacy signatures only with a later reviewed forward migration,
+after both the active and rollback-eligible webhook bundles use the identity
+mutation and scheduler and the deployment plan has no old-bundle caller. Until
+that gate is recorded, preserve their service-only ACLs and fail-closed adapter
+behavior.
+
 Do not combine schema qualification with PostgreSQL's keyword-separated
 `SUBSTRING` expression forms. `SUBSTRING(value FROM pattern)`,
 `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)` are
@@ -3112,7 +3136,13 @@ Use this order for a separately authorized rollout on one reviewed exact SHA:
    replay, same-install Auth rotation, grant-owner immobility, stable-before-
    UUID webhook resolution, locked detached-pass adoption, durable refund
    revocation through a later reconciliation claim, and `authoritative`-mode
-   promo exclusion.
+   promo exclusion. Run
+   `purchasePrincipalCompatibilityConcurrencyDb.test.ts` against that same
+   disposable catalog and require stable completion to hold the shared cutover
+   lock, the old writer to wait, and the post-activation recheck to reject
+   without a legacy state, queue, or event row. The pgTAP fixture must also
+   prove that an accepted legacy scheduler call retains its verified RevenueCat
+   lookup alias rather than replacing it with the resolved Supabase UUID.
 2. Deploy the additive route and worker changes while the database remains in
    `legacy` / `dual_read`. The hosted smoke must validate every new service RPC,
    deny all of them to the public credential, validate both aggregate health
@@ -3222,6 +3252,12 @@ deno test --frozen \
   services/supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts
 
 supabase --workdir services db push --local
+SUPABASE_DB_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env=SUPABASE_DB_TEST_URL,PGAPPNAME,PGDATABASE,PGHOST,PGOPTIONS,PGPASSWORD,PGPORT,PGUSER \
+  --allow-net=127.0.0.1:54322 \
+  services/supabase/functions/_tests/purchasePrincipalCompatibilityConcurrencyDb.test.ts
 supabase --workdir services test db --local \
   services/supabase/tests/privileged_routine_security.sql \
   services/supabase/tests/ai_quota_security.sql \
@@ -3318,7 +3354,10 @@ SELECT
 FROM (
     VALUES
         ('public.get_revenuecat_webhook_event_result(text,bigint,text,text)'),
+        ('public.resolve_revenuecat_identity_subjects(jsonb)'),
+        ('public.apply_revenuecat_identity_state(text,bigint,text,text,bigint,jsonb)'),
         ('public.apply_revenuecat_customer_state(text,bigint,text,text,bigint,jsonb)'),
+        ('public.schedule_revenuecat_identity_reconciliation(jsonb)'),
         ('public.schedule_revenuecat_reconciliation(jsonb)'),
         ('public.claim_revenuecat_reconciliations(integer)'),
         ('public.get_revenuecat_reconciliation_health()'),

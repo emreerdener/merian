@@ -8743,14 +8743,21 @@ rejected before database access. The request body is capped at 256 KiB.
   unmatchable revocation fails closed for transactions at or before the event
   time while preserving a provably later purchase.
 - No active paid state projects `subscription_tier = free` and a null expiry.
-- `public.apply_revenuecat_customer_state(...)` records `event.id` under a
-  primary key, records zero to two per-user subject rows, and locks all selected
+- `public.apply_revenuecat_identity_state(...)` records `event.id` under a
+  primary key, records zero to two identity subject rows, and locks all selected
   users in sorted UUID order. Authoritative `request_date_ms` is the primary
   monotonic version; provider event timestamp and event ID break only exact
   snapshot ties. Duplicate IDs and older snapshots cannot update a user; a
   conflicting reuse of the same ID with a different event timestamp, type, or
   payload digest is rejected. Transfer source/destination transitions commit or
-  roll back together.
+  roll back together. During rollout, the immediately previous bundle may still
+  call the exact `public.apply_revenuecat_customer_state(...)` and
+  `public.schedule_revenuecat_reconciliation(...)` signatures. Those
+  compatibility adapters validate the old payload and delegate legacy UUID
+  subjects into the separated identity ledger and scheduler. Both share a
+  cutover advisory lock with stable completion before taking principal/user row
+  locks, then recheck after acquiring them; SQLSTATE `55000` wins if stable
+  activation commits before either legacy mutation.
 - The RPCs and private ledger tables are not client APIs. Only `service_role`
   may execute the duplicate lookup and mutation definer routines; both perform
   their own caller check and use an empty search path.
