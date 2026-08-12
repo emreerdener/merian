@@ -324,6 +324,7 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
       "REVOKE ALL ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB)",
       "GRANT EXECUTE ON FUNCTION public.schedule_revenuecat_reconciliation(JSONB) TO service_role",
       "Lock every principal in UUID order before any public user row",
+      "FROM ROWS FROM ( pg_catalog.UNNEST(identity_kinds), pg_catalog.UNNEST(identity_ids) ) AS ids(identity_kind, identity_id)",
       "ORDER BY principals.id FOR UPDATE OF principals",
       "CREATE TABLE internal.purchase_principal_reconciliation_queue",
       "INSERT INTO internal.revenuecat_reconciliation_queue ( merian_user_id, lookup_app_user_id, next_reconcile_at, updated_at ) SELECT users.id, lookup_id_value",

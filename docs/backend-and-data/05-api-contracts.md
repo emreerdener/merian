@@ -8846,3 +8846,13 @@ from restoring access. Its response is aggregate only:
 API RPC. It returns one aggregate row and no customer identity. The scheduled
 GitHub monitor invokes it directly, warning when oldest due age reaches 30
 minutes or any claim expires and marking 60 minutes critical.
+
+The stable-principal migration adds the separate service-role-only
+`get_purchase_principal_health()` aggregate. The monitor JSON records its
+contract as `purchase_principal_health_availability: available` plus the bounded
+aggregate row. During the documented pre-deploy expand window only, an exact
+`PGRST202` for that named zero-argument RPC produces
+`purchase_principal_health_availability: not_deployed` and
+`purchase_principal_health: null`; it never substitutes zero counts. The monitor
+CLI defaults to `required`, and authorization, transport, response-shape, and
+all unrelated missing-RPC failures remain fatal.

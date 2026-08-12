@@ -3396,11 +3396,16 @@ roughly 24 hours.
 
 Confirm the `RevenueCat Reconciliation Health Monitor` workflow is enabled for
 the Production environment. Dispatch it once with the default 30/60-minute
-thresholds and `fail_on=warning`; it reads both
+thresholds and `fail_on=warning`; after this migration it must read both
 `get_revenuecat_reconciliation_health()` and
 `get_purchase_principal_health()`. The summary artifact should be `ok` with no
 expired claim, stale pending principal, or unbound active principal carrying
-current StoreKit access. During an alert, inspect the structured
+current StoreKit access. The source initially keeps the scheduled invocation in
+`expand-compatible` mode so a pre-deploy schedule can accept only the exact
+missing principal-health RPC while still enforcing legacy health. Once the
+hosted smoke above proves the new RPC, land a follow-up exact-SHA workflow change
+to `required`; do not leave the compatibility mode in place through stable-mode
+activation. During an alert, inspect the structured
 `revenuecat_reconciliation_health` Edge event, `last_error_code`, and
 `attempt_count`. Restore RevenueCat/database availability and let claim-fenced
 retries drain the queue. Never clear leases or edit user tiers manually.
@@ -6086,8 +6091,9 @@ until verified completion; do not edit private jobs or manually delete Auth.
 The **RevenueCat Reconciliation Health Monitor** runs at minutes 7, 22, 37, and
 52, after the quarter-hour database dispatches. It resolves the production
 server API key at runtime through the revealed Management API resolver and calls
-only the aggregate `get_revenuecat_reconciliation_health()` RPC. No subscriber
-identity is written to logs or artifacts.
+the aggregate `get_revenuecat_reconciliation_health()` and
+`get_purchase_principal_health()` RPCs. No subscriber identity is written to
+logs or artifacts.
 
 Scheduled runs warn and fail at an oldest due age of 30 minutes, become critical
 at 60 minutes, and warn immediately on any expired lease. The same thresholds
@@ -6098,6 +6104,16 @@ expired, or the monitor could not read health. Start with the structured
 reconciliation and sign-out handoff logs plus queue error codes; preserve claim
 fencing and device proofs, and let idempotent recovery finish. Do not cancel or
 delete a bound proof manually.
+
+During the stable-principal expand window, the scheduled command uses
+`--purchase-principal-health-mode expand-compatible`. That mode accepts only a
+`PGRST202` naming the exact zero-argument principal-health RPC, records
+`purchase_principal_health_availability` as `not_deployed`, and stores
+`purchase_principal_health` as `null`; it does not invent healthy zero counts.
+The legacy aggregate, malformed responses, authorization failures, timeouts,
+and every other RPC failure still fail closed. The script default is
+`required`. Switch the scheduled command to `required` immediately after the
+production migration and hosted health-RPC smoke pass.
 
 ## DwC-A Export and Archive Health Automation
 

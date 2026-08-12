@@ -162,11 +162,14 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       'values.get("warning-after-minutes") ?? "30"',
       'values.get("critical-after-minutes") ?? "60"',
       'values.get("fail-on") ?? "warning"',
+      'values.get("purchase-principal-health-mode") ?? "required"',
+      'error.code === "PGRST202"',
+      '"function public.get_purchase_principal_health without parameters"',
       "expired_claim_count > 0",
       "oldestDueAgeSeconds >= criticalAfterMinutes * 60",
       "oldest_signout_pending_age_seconds",
-      "purchasePrincipalHealth.expired_claim_count",
-      "purchasePrincipalHealth.unbound_active_principal_count",
+      "purchasePrincipalHealth?.expired_claim_count",
+      "purchasePrincipalHealth?.unbound_active_principal_count",
     ]
   ) {
     assertStringIncludes(script, fragment);
@@ -178,6 +181,7 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "monitor_revenuecat_reconciliation.ts",
       "--warning-after-minutes",
       "--critical-after-minutes",
+      "--purchase-principal-health-mode expand-compatible",
       "SUPABASE_SERVER_API_KEY",
       "resolve_project_api_keys.ts",
     ]

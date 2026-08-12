@@ -185,7 +185,13 @@ Migration `20260726031502_scale_revenuecat_reconciliation.sql` adds a partial
 index for expired claimed rows and a service-only backlog-health RPC. The
 independent `RevenueCat Reconciliation Health Monitor` workflow checks oldest
 due age every 15 minutes, alerts at 30 minutes or on any expired lease, and
-marks 60 minutes critical.
+marks 60 minutes critical. During the additive stable-purchase-principal expand
+window, the scheduled workflow also requests the new principal-health aggregate
+in explicit `expand-compatible` mode. Only `PGRST202` naming that exact RPC is
+recorded as `purchase_principal_health_availability: not_deployed` with a null
+health payload; the legacy aggregate and every other failure remain fail-closed.
+After the principal migration and hosted RPC smoke pass, change the scheduled
+workflow to `required` mode.
 
 CustomerInfo retains historical non-renewing purchases after refund. To avoid
 restoring a revoked `pro_week`, a periodic claim may grant a detached pass only

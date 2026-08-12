@@ -172,6 +172,40 @@ function usesCaseAsBetweenUpperBound(sql: string): boolean {
   );
 }
 
+function usesSchemaQualifiedMultiArrayUnnest(sql: string): boolean {
+  const { executableSql } = sqlLexicalView(sql);
+  const invocationPattern = /\bpg_catalog\s*\.\s*UNNEST\s*\(/gi;
+
+  for (const invocation of executableSql.matchAll(invocationPattern)) {
+    const openParenthesis = (invocation.index ?? 0) + invocation[0].length - 1;
+    let parenthesisDepth = 1;
+    let bracketDepth = 0;
+
+    for (
+      let index = openParenthesis + 1;
+      index < executableSql.length && parenthesisDepth > 0;
+      index += 1
+    ) {
+      const character = executableSql[index];
+      if (character === "(") {
+        parenthesisDepth += 1;
+      } else if (character === ")") {
+        parenthesisDepth -= 1;
+      } else if (character === "[") {
+        bracketDepth += 1;
+      } else if (character === "]") {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+      } else if (
+        character === "," && parenthesisDepth === 1 && bracketDepth === 0
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 async function migrationFileNames(): Promise<string[]> {
   const names: string[] = [];
 
@@ -445,6 +479,58 @@ Deno.test(
       violations.length === 0,
       "Fresh catalog parsing rejects CASE as a BETWEEN upper bound; split " +
         "the identity-specific predicates instead: " + violations.join(", "),
+    );
+  },
+);
+
+Deno.test(
+  "multi-array UNNEST keeps PostgreSQL's special FROM-clause syntax",
+  async () => {
+    assert(
+      usesSchemaQualifiedMultiArrayUnnest(
+        "SELECT * FROM pg_catalog.UNNEST(identity_kinds, identity_ids);",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedMultiArrayUnnest(
+        "SELECT * FROM UNNEST(identity_kinds, identity_ids);",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedMultiArrayUnnest(
+        "SELECT * FROM ROWS FROM (" +
+          "pg_catalog.UNNEST(identity_kinds), " +
+          "pg_catalog.UNNEST(identity_ids));",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedMultiArrayUnnest(
+        "SELECT * FROM pg_catalog.UNNEST(ARRAY['first', 'second']);",
+      ),
+    );
+    assert(
+      !usesSchemaQualifiedMultiArrayUnnest(
+        "-- pg_catalog.UNNEST(first_array, second_array)\n" +
+          "SELECT 'pg_catalog.UNNEST(first_array, second_array)';",
+      ),
+    );
+
+    const violations: string[] = [];
+    for (const fileName of await migrationFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, migrationsDirectoryUrl),
+      );
+      if (usesSchemaQualifiedMultiArrayUnnest(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "PostgreSQL rewrites multi-array UNNEST only when its special " +
+        "FROM-clause name is unqualified. Use unqualified UNNEST or " +
+        "ROWS FROM with separate pg_catalog.UNNEST calls: " +
+        violations.join(", "),
     );
   },
 );

@@ -3537,7 +3537,10 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   queues.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
-  CLI safety, and operator summary.
+  CLI safety, and operator summary. It also proves that explicit
+  `expand-compatible` mode accepts only `PGRST202` for the exact undeployed
+  purchase-principal health RPC, emits null rather than false zero health, and
+  keeps required mode plus every unrelated RPC error fail-closed.
 - **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
   offline exports, conservative customer classification, canonical UUID
   formatting, exact explicit-cohort selection independent of current

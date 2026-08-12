@@ -2455,7 +2455,10 @@ BEGIN
 
         IF EXISTS (
             SELECT 1
-            FROM pg_catalog.UNNEST(identity_kinds, identity_ids)
+            FROM ROWS FROM (
+                pg_catalog.UNNEST(identity_kinds),
+                pg_catalog.UNNEST(identity_ids)
+            )
                 AS prior(kind, id)
             WHERE prior.kind = identity_kind_value
               AND prior.id = identity_id
@@ -2505,7 +2508,10 @@ BEGIN
     -- the inverse user -> principal order.
     PERFORM principals.id
     FROM internal.purchase_principals AS principals
-    JOIN pg_catalog.UNNEST(identity_kinds, identity_ids)
+    JOIN ROWS FROM (
+        pg_catalog.UNNEST(identity_kinds),
+        pg_catalog.UNNEST(identity_ids)
+    )
         AS ids(identity_kind, identity_id)
       ON ids.identity_kind = 'purchase_principal'
      AND ids.identity_id = principals.id
@@ -2523,7 +2529,10 @@ BEGIN
             updated_at = pg_catalog.CLOCK_TIMESTAMP()
         WHERE principals.id IN (
             SELECT ids.identity_id
-            FROM pg_catalog.UNNEST(identity_kinds, identity_ids)
+            FROM ROWS FROM (
+                pg_catalog.UNNEST(identity_kinds),
+                pg_catalog.UNNEST(identity_ids)
+            )
                 AS ids(identity_kind, identity_id)
             WHERE ids.identity_kind = 'purchase_principal'
         );
@@ -2533,19 +2542,28 @@ BEGIN
         SELECT DISTINCT affected.user_id
         FROM (
             SELECT ids.identity_id AS user_id
-            FROM pg_catalog.UNNEST(identity_kinds, identity_ids)
+            FROM ROWS FROM (
+                pg_catalog.UNNEST(identity_kinds),
+                pg_catalog.UNNEST(identity_ids)
+            )
                 AS ids(identity_kind, identity_id)
             WHERE ids.identity_kind = 'legacy_user'
             UNION ALL
             SELECT binding.auth_user_id
-            FROM pg_catalog.UNNEST(identity_kinds, identity_ids)
+            FROM ROWS FROM (
+                pg_catalog.UNNEST(identity_kinds),
+                pg_catalog.UNNEST(identity_ids)
+            )
                 AS ids(identity_kind, identity_id)
             JOIN internal.purchase_principal_bindings AS binding
               ON ids.identity_kind = 'purchase_principal'
              AND binding.purchase_principal_id = ids.identity_id
             UNION ALL
             SELECT principals.account_grant_owner_user_id
-            FROM pg_catalog.UNNEST(identity_kinds, identity_ids)
+            FROM ROWS FROM (
+                pg_catalog.UNNEST(identity_kinds),
+                pg_catalog.UNNEST(identity_ids)
+            )
                 AS ids(identity_kind, identity_id)
             JOIN internal.purchase_principals AS principals
               ON ids.identity_kind = 'purchase_principal'

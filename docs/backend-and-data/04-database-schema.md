@@ -4157,10 +4157,14 @@ Those abandoned preparations never mutated RevenueCat and cannot reserve an
 identity or alert indefinitely. The aggregate health row reports
 active, pending, unbound-active-with-current-StoreKit-access, due,
 expired-claim, oldest-due, and oldest-pending values and exposes no identities.
-Free abandoned principals do not create permanent operational alerts. In `account_grant_mode =
-authoritative`, provider promotional records are observed but forced to free;
-the private grant ledger is the only account-grant authority. That flag may be
-changed only after the runbook's migration and dual-read gates.
+It is exposed only through the service-role-only
+`public.get_purchase_principal_health()` routine; API roles have no table access
+and no execute grant.
+
+Free abandoned principals do not create permanent operational alerts. In
+`account_grant_mode = authoritative`, provider promotional records are observed
+but forced to free; the private grant ledger is the only account-grant authority.
+That flag may be changed only after the runbook's migration and dual-read gates.
 
 During coexistence, the legacy reconciliation apply routine remains
 claim-token fenced. It locks the exact live lease without retaining a lint-only
