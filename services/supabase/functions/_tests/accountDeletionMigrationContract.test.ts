@@ -44,6 +44,10 @@ const expiredPreparationRepairMigrationUrl = new URL(
   "../../migrations/20260813162506_reject_expired_account_deletion_preparation_promotion.sql",
   import.meta.url,
 );
+const preparationPrunerLockRepairMigrationUrl = new URL(
+  "../../migrations/20260813190637_serialize_account_deletion_preparation_pruning.sql",
+  import.meta.url,
+);
 const accountDeletionSecurityFixtureUrl = new URL(
   "../../tests/account_deletion_security.sql",
   import.meta.url,
@@ -420,6 +424,56 @@ Deno.test("expired v2 preparations are retired instead of promoted into deletion
   assert(
     !/\b(?:GRANT|REVOKE)\s+(?:EXECUTE\s+)?ON\s+FUNCTION\b/i.test(sql),
     "Replacing existing routine bodies must preserve their reviewed function ACLs rather than restating grants.",
+  );
+});
+
+Deno.test("expired-preparation pruning follows the Auth-first deletion lock order", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(preparationPrunerLockRepairMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "SET lock_timeout = '10s'; SET statement_timeout = '2min';",
+      "CREATE OR REPLACE FUNCTION public.prune_account_deletion_recovery_preparations",
+      "observed_at TIMESTAMPTZ := pg_catalog.STATEMENT_TIMESTAMP()",
+      "IF p_limit IS NULL OR p_limit < 1 OR p_limit > 500 THEN",
+      "ORDER BY auth_user.id LIMIT p_limit FOR UPDATE OF auth_user SKIP LOCKED",
+      "preparation.user_id = candidate_user_id",
+      "FOR UPDATE SKIP LOCKED",
+      "INSERT INTO internal.account_deletion_expired_preparation_proofs",
+      "deletion_committed, expired_at ) SELECT proof.proof_hash, proof.proof_kind, FALSE",
+      "DELETE FROM internal.account_deletion_recovery_preparations AS preparation",
+      "remaining_limit := remaining_limit - retired_for_user::INTEGER",
+      "NOTIFY pgrst, 'reload schema';",
+      "RESET statement_timeout; RESET lock_timeout;",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const authLock = sql.indexOf(
+    "ORDER BY auth_user.id LIMIT p_limit FOR UPDATE OF auth_user SKIP LOCKED",
+  );
+  const preparationLock = sql.indexOf(
+    "ORDER BY preparation.expires_at, preparation.id LIMIT remaining_limit FOR UPDATE SKIP LOCKED",
+  );
+  const tombstoneInsert = sql.indexOf(
+    "INSERT INTO internal.account_deletion_expired_preparation_proofs",
+  );
+  const preparationDelete = sql.indexOf(
+    "DELETE FROM internal.account_deletion_recovery_preparations AS preparation",
+  );
+  assert(
+    authLock >= 0 &&
+      preparationLock > authLock &&
+      tombstoneInsert > preparationLock &&
+      preparationDelete > tombstoneInsert,
+    "The pruner must lock Auth users before preparations and record both proofs before deletion.",
+  );
+  assert(
+    !/\b(?:GRANT|REVOKE)\s+(?:EXECUTE\s+)?ON\s+FUNCTION\b/i.test(sql),
+    "The forward body replacement must preserve the already-reviewed routine ACL.",
   );
 });
 

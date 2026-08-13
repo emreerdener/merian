@@ -476,24 +476,6 @@ final class AuthTransitionSingleFlight {
         }
     }
 
-    /// Read-only callback fence for URLSession work that may have been
-    /// reattached after process launch. A terminal callback without a live
-    /// in-memory lease may act only for the exact stable SDK session encoded in
-    /// its task description. Active transitions and deletion recovery are
-    /// intentionally rejected.
-    func backgroundAccountWorkOwnerMatchesCurrentSession(
-        _ ownerUserID: UUID
-    ) -> Bool {
-        guard allowsUnownedAccountBoundWork,
-              let currentUser,
-              let sdkUser = client.auth.currentSession?.user else {
-            return false
-        }
-        return currentUser.id == ownerUserID
-            && sdkUser.id == ownerUserID
-            && currentUser.isAnonymous == sdkUser.isAnonymous
-    }
-
     var isOAuthTransitionInProgress: Bool {
         guard let kind = activeAuthTransition?.token.kind,
               case .oauth = kind else {
@@ -707,6 +689,7 @@ final class AuthTransitionSingleFlight {
         switch (recoveryState, kind) {
         case (.intakePending, .accountDeletion),
              (.capabilityPreparationPending, .accountDeletion),
+             (.capabilityPreparedPending, .accountDeletion),
              (.capabilityIntakePending, .accountDeletion),
              (.cleanupPending, .accountDeletionCleanup),
              (.capabilityCleanupPending, .accountDeletionCleanup),
@@ -2153,7 +2136,7 @@ final class AuthTransitionSingleFlight {
         cachedUserIsAnonymous: Bool,
         cachedSessionIsExpired: Bool
     ) -> Bool {
-        guard !markerIsPending,
+        guard markerIsPending,
               !cachedSessionIsExpired,
               let sourceSession,
               let cachedUserID else {
@@ -2163,15 +2146,35 @@ final class AuthTransitionSingleFlight {
             && sourceSession.isAnonymous == cachedUserIsAnonymous
     }
 
+    /// The transition coordinator must adopt the exact cached source before
+    /// the durable deletion barrier is removed. Observable account state is
+    /// published only after marker removal is read back successfully. Because
+    /// every closure is synchronous on MainActor, ordinary account work cannot
+    /// enter between these steps.
+    static func performDeferredDeletionBarrierSessionRestoration(
+        markerIsPending: @MainActor () -> Bool,
+        adoptCachedSession: @MainActor () -> Bool,
+        resolveCleanup: @MainActor () -> Bool,
+        publishCachedSession: @MainActor () -> Bool
+    ) -> Bool {
+        guard markerIsPending(),
+              adoptCachedSession(),
+              resolveCleanup(),
+              !markerIsPending() else {
+            return false
+        }
+        return publishCachedSession()
+    }
+
     /// An account-deletion barrier intentionally suppresses SDK Auth events.
     /// When recovery proves that no destructive commit won, adopt the exact
     /// cached source session while the cleanup transition still owns Auth. Do
     /// not bootstrap a replacement identity when that source is unavailable.
-    private func restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+    private func restoreDeferredCachedSessionAndResolveDeletionBarrier(
         ownedBy transition: AuthTransitionToken
     ) async -> Bool {
         guard ownsAuthTransition(transition),
-              !AccountDeletionLocalCleanupStore.isPending(),
+              AccountDeletionLocalCleanupStore.isPending(),
               let sourceSession = activeAuthTransition?.sourceSession else {
             return false
         }
@@ -2190,18 +2193,60 @@ final class AuthTransitionSingleFlight {
             cachedSessionIsExpired: session.isExpired
         ), ownsAuthTransition(transition),
            client.auth.currentSession?.user.id == session.user.id,
-           adoptAuthTransitionSession(session.user, for: transition) else {
+           client.auth.currentSession?.user.isAnonymous ==
+            session.user.isAnonymous else {
             return false
         }
 
-        if currentUser?.id != session.user.id {
-            activePurchasePrincipalBinding = nil
-            lastLinkedUserId = nil
+        let didRestore = Self
+            .performDeferredDeletionBarrierSessionRestoration(
+                markerIsPending: {
+                    AccountDeletionLocalCleanupStore.isPending()
+                },
+                adoptCachedSession: {
+                    guard self.ownsAuthTransition(transition),
+                          self.client.auth.currentSession?.user.id ==
+                            session.user.id,
+                          self.client.auth.currentSession?.user.isAnonymous ==
+                            session.user.isAnonymous else {
+                        return false
+                    }
+                    return self.adoptAuthTransitionSession(
+                        session.user,
+                        for: transition
+                    )
+                },
+                resolveCleanup: {
+                    AccountDeletionLocalCleanupStore.resolve()
+                },
+                publishCachedSession: {
+                    guard self.ownsAuthTransition(transition),
+                          self.client.auth.currentSession?.user.id ==
+                            session.user.id,
+                          self.client.auth.currentSession?.user.isAnonymous ==
+                            session.user.isAnonymous,
+                          self.currentSessionMatchesAuthTransition(transition)
+                    else {
+                        return false
+                    }
+                    if self.currentUser?.id != session.user.id {
+                        self.activePurchasePrincipalBinding = nil
+                        self.lastLinkedUserId = nil
+                    }
+                    self.currentUser = session.user
+                    self.isAuthenticated = true
+                    ConsentManager.shared.observeSession(
+                        userId: session.user.id
+                    )
+                    self.schedulePublicAuthorIdentityRefreshIfNeeded(
+                        for: session.user
+                    )
+                    return true
+                }
+            )
+        guard didRestore else {
+            return false
         }
-        currentUser = session.user
-        isAuthenticated = true
-        ConsentManager.shared.observeSession(userId: session.user.id)
-        schedulePublicAuthorIdentityRefreshIfNeeded(for: session.user)
 
         if !TestExecutionCoordinator.isRunningTests {
             _ = await ensureTelemetryLinkedWhenSafe(
@@ -2281,8 +2326,8 @@ final class AuthTransitionSingleFlight {
         defer { finishAuthTransition(transition) }
 
         if recoveryState == .capabilityRejectionRetirementPending {
-            let didResolve = Self
-                .performRejectedAccountDeletionRecoveryRetirement(
+            let didRetireProof = Self
+                .performRejectedAccountDeletionRecoveryProofRetirement(
                 retireRecoveryCapability: {
                     do {
                         try recoveryCapabilityStore.clearVerified()
@@ -2290,13 +2335,10 @@ final class AuthTransitionSingleFlight {
                     } catch {
                         return false
                     }
-                },
-                resolveCleanup: {
-                    AccountDeletionLocalCleanupStore.resolve()
                 }
             )
-            guard didResolve else { return false }
-            return await restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+            guard didRetireProof else { return false }
+            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
                 ownedBy: transition
             )
         }
@@ -2346,10 +2388,7 @@ final class AuthTransitionSingleFlight {
         if storedCapability == nil,
            recoveryState == .capabilityLookupPending ||
             recoveryState == .capabilityPreparationPending {
-            guard AccountDeletionLocalCleanupStore.resolve() else {
-                return false
-            }
-            return await restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
                 ownedBy: transition
             )
         }
@@ -2363,10 +2402,7 @@ final class AuthTransitionSingleFlight {
                 return false
             }
             guard capability != nil else {
-                guard AccountDeletionLocalCleanupStore.resolve() else {
-                    return false
-                }
-                return await restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+                return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
                     ownedBy: transition
                 )
             }
@@ -2468,8 +2504,8 @@ final class AuthTransitionSingleFlight {
                 // preparation exists. Unknown proof therefore proves there is
                 // no committed deletion receipt and authorizes proof-only
                 // retirement after a missing or never-completed preparation.
-                let didResolve = Self
-                    .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                let didRetireProof = Self
+                    .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
                         recordRejectionRetirementPending: {
                             AccountDeletionLocalCleanupStore
                                 .recordCapabilityRejectionRetirementPending()
@@ -2481,13 +2517,10 @@ final class AuthTransitionSingleFlight {
                             } catch {
                                 return false
                             }
-                        },
-                        resolveCleanup: {
-                            AccountDeletionLocalCleanupStore.resolve()
                         }
                     )
-                guard didResolve else { return false }
-                return await restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+                guard didRetireProof else { return false }
+                return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
                     ownedBy: transition
                 )
             }
@@ -2504,8 +2537,8 @@ final class AuthTransitionSingleFlight {
         }
 
         if receipt.status == .notCommitted {
-            let didResolve = Self
-                .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+            let didRetireProof = Self
+                .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
                     recordRejectionRetirementPending: {
                         AccountDeletionLocalCleanupStore
                             .recordCapabilityRejectionRetirementPending()
@@ -2517,13 +2550,10 @@ final class AuthTransitionSingleFlight {
                         } catch {
                             return false
                         }
-                    },
-                    resolveCleanup: {
-                        AccountDeletionLocalCleanupStore.resolve()
                     }
                 )
-            guard didResolve else { return false }
-            return await restoreDeferredCachedSessionAfterDeletionBarrierCancellation(
+            guard didRetireProof else { return false }
+            return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
                 ownedBy: transition
             )
         }
@@ -2609,8 +2639,8 @@ final class AuthTransitionSingleFlight {
                     )
                 } catch {
                     if Self.isDefinitiveAccountDeletionIntakeRejection(error) {
-                        return Self
-                            .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                        let didRetireProof = Self
+                            .performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
                                 recordRejectionRetirementPending: {
                                     AccountDeletionLocalCleanupStore
                                         .recordCapabilityRejectionRetirementPending()
@@ -2623,11 +2653,12 @@ final class AuthTransitionSingleFlight {
                                     } catch {
                                         return false
                                     }
-                                },
-                                resolveCleanup: {
-                                    AccountDeletionLocalCleanupStore.resolve()
                                 }
                             )
+                        guard didRetireProof else { return false }
+                        return await restoreDeferredCachedSessionAndResolveDeletionBarrier(
+                            ownedBy: transition
+                        )
                     }
                     receipt = try await recoverDeletion(capability, false)
                 }
@@ -2808,11 +2839,19 @@ final class AuthTransitionSingleFlight {
     /// proof only. Keeping this separate from accepted-deletion retirement is
     /// what prevents a crash from turning a rejected request into local data
     /// erasure on the next launch.
+    static func performRejectedAccountDeletionRecoveryProofRetirement(
+        retireRecoveryCapability: @MainActor () -> Bool
+    ) -> Bool {
+        retireRecoveryCapability()
+    }
+
     static func performRejectedAccountDeletionRecoveryRetirement(
         retireRecoveryCapability: @MainActor () -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) -> Bool {
-        guard retireRecoveryCapability() else { return false }
+        guard performRejectedAccountDeletionRecoveryProofRetirement(
+            retireRecoveryCapability: retireRecoveryCapability
+        ) else { return false }
         return resolveCleanup()
     }
 
@@ -2821,16 +2860,27 @@ final class AuthTransitionSingleFlight {
     /// terminated after proof deletion and before marker removal, launch can
     /// then finish the proof-only cleanup instead of treating the absent proof
     /// as an ambiguous accepted deletion.
+    static func performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
+        recordRejectionRetirementPending: @MainActor () -> Bool,
+        retireRecoveryCapability: @MainActor () -> Bool
+    ) -> Bool {
+        guard recordRejectionRetirementPending() else { return false }
+        return performRejectedAccountDeletionRecoveryProofRetirement(
+            retireRecoveryCapability: retireRecoveryCapability
+        )
+    }
+
     static func performDefinitiveAccountDeletionIntakeRejectionRetirement(
         recordRejectionRetirementPending: @MainActor () -> Bool,
         retireRecoveryCapability: @MainActor () -> Bool,
         resolveCleanup: @MainActor () -> Bool
     ) -> Bool {
-        guard recordRejectionRetirementPending() else { return false }
-        return performRejectedAccountDeletionRecoveryRetirement(
-            retireRecoveryCapability: retireRecoveryCapability,
-            resolveCleanup: resolveCleanup
-        )
+        guard performDefinitiveAccountDeletionIntakeRejectionProofRetirement(
+            recordRejectionRetirementPending:
+                recordRejectionRetirementPending,
+            retireRecoveryCapability: retireRecoveryCapability
+        ) else { return false }
+        return resolveCleanup()
     }
 
     static func performPendingAccountDeletionLocalCleanup(

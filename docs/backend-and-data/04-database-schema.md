@@ -4409,8 +4409,12 @@ Protocol v2 is a two-stage state machine:
 - `prune_account_deletion_recovery_preparations(integer)` first writes both
   hashes from a bounded set of expired, non-destructive preparations to the
   identity-free tombstone table with `deletion_committed = false`, then removes
-  those preparations. Committed receipts remain subject to the permanent v1
-  retention rule above.
+  those preparations. Its outer Auth-user set and inner preparation set are
+  both bounded by the requested batch size. It locks candidate Auth users in
+  UUID order before any preparation row and skips users already locked by
+  deletion or recovery, so a cleanup batch neither waits behind an account nor
+  retires its proof before the lock owner commits classification. Committed
+  receipts remain subject to the permanent v1 retention rule above.
 - `get_account_deletion_recovery_preparation_health()` returns only aggregate
   active/expired counts and oldest ages.
 

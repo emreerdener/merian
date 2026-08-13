@@ -1967,11 +1967,12 @@ All replaceable offline-sync work therefore follows two ownership rules:
 
 1. **Operation generation** identifies the upload batch or inference attempt
    allowed to mutate domain state. New upload descriptions use
-   `upload|scanId|uploadIndex|generation|serverObjectKey`; new inference
-   descriptions use `inference_v2|generation|scanId`. URLSession callbacks parse
-   and carry this value through result, failure, retry, cancellation, and
-   deletion paths. The exact server-issued key also fences upload completion
-   against auth/device identity drift.
+   `upload_v2|ownerUUID|scanId|uploadIndex|generation|serverObjectKey`; new
+   inference descriptions use `inference_v3|ownerUUID|generation|scanId`.
+   URLSession callbacks parse and carry the durable account owner and generation
+   through result, failure, retry, cancellation, and deletion paths. The exact
+   server-issued key also fences upload completion against auth/device identity
+   drift.
 2. **Registry token** identifies the current delayed task occupying a per-scan
    slot. `GenerationTaskRegistry.replace` removes the old entry before
    cancelling it, installs a fresh UUID, and exposes `isCurrent` /

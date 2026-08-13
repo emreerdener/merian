@@ -17,6 +17,12 @@ const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
 
 export type AccountDeletionFailurePolicy = "critical" | "warning" | "never";
 export type AccountDeletionStatus = "ok" | "warning" | "critical";
+export type AccountDeletionRecoveryHealthMode =
+  | "expand-compatible"
+  | "required";
+export type AccountDeletionRecoveryHealthAvailability =
+  | "available"
+  | "not_deployed";
 
 export interface AccountDeletionMonitorArgs {
   warningDueAfterMinutes: number;
@@ -26,6 +32,7 @@ export interface AccountDeletionMonitorArgs {
   warningBacklog: number;
   criticalBacklog: number;
   failOn: AccountDeletionFailurePolicy;
+  recoveryHealthMode: AccountDeletionRecoveryHealthMode;
   summaryJsonPath: string | null;
   summaryMarkdownPath: string | null;
 }
@@ -79,27 +86,6 @@ export interface AccountDeletionRecoveryPreparationHealth {
   oldest_expired_age_seconds: number | null;
 }
 
-const EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH: AccountDeletionRecoveryHealth = {
-  generated_at: "1970-01-01T00:00:00.000Z",
-  active_unacknowledged_count: 0,
-  acknowledged_retained_count: 0,
-  expired_unacknowledged_count: 0,
-  oldest_active_issued_at: null,
-  oldest_active_age_seconds: null,
-  oldest_expired_at: null,
-  oldest_expired_age_seconds: null,
-  maximum_active_capabilities_per_job: 0,
-};
-
-const EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH:
-  AccountDeletionRecoveryPreparationHealth = {
-    generated_at: "1970-01-01T00:00:00.000Z",
-    active_preparation_count: 0,
-    expired_preparation_count: 0,
-    oldest_active_age_seconds: null,
-    oldest_expired_age_seconds: null,
-  };
-
 export interface AccountDeletionMonitorSummary {
   generated_at: string;
   status: AccountDeletionStatus;
@@ -116,8 +102,16 @@ export interface AccountDeletionMonitorSummary {
     should_fail: boolean;
   };
   health: AccountDeletionHealth;
-  recovery_health: AccountDeletionRecoveryHealth;
-  recovery_preparation_health: AccountDeletionRecoveryPreparationHealth;
+  recovery_health_availability: AccountDeletionRecoveryHealthAvailability;
+  recovery_health: AccountDeletionRecoveryHealth | null;
+  recovery_preparation_health_availability:
+    AccountDeletionRecoveryHealthAvailability;
+  recovery_preparation_health: AccountDeletionRecoveryPreparationHealth | null;
+}
+
+interface HealthRpcError {
+  code: string;
+  message: string;
 }
 
 if (import.meta.main) {
@@ -137,8 +131,11 @@ export async function runAccountDeletionMonitor(
   const [health, recoveryHealth, recoveryPreparationHealth] = await Promise.all(
     [
       fetchAccountDeletionHealth(supabase),
-      fetchAccountDeletionRecoveryHealth(supabase),
-      fetchAccountDeletionRecoveryPreparationHealth(supabase),
+      fetchAccountDeletionRecoveryHealth(supabase, args.recoveryHealthMode),
+      fetchAccountDeletionRecoveryPreparationHealth(
+        supabase,
+        args.recoveryHealthMode,
+      ),
     ],
   );
   const summary = buildAccountDeletionSummary(
@@ -176,30 +173,88 @@ async function fetchAccountDeletionHealth(
 
 async function fetchAccountDeletionRecoveryHealth(
   supabase: SupabaseClient,
-): Promise<AccountDeletionRecoveryHealth> {
+  mode: AccountDeletionRecoveryHealthMode,
+): Promise<AccountDeletionRecoveryHealth | null> {
   const { data, error } = await supabase.rpc(
     "get_account_deletion_recovery_health",
   );
-  if (error) {
-    throw new Error(
-      `Account deletion recovery health returned an error: ${error.message} (Code: ${error.code})`,
-    );
-  }
-  return assertAccountDeletionRecoveryHealth(data);
+  return resolveAccountDeletionRecoveryHealthRpcResult(data, error, mode);
 }
 
 async function fetchAccountDeletionRecoveryPreparationHealth(
   supabase: SupabaseClient,
-): Promise<AccountDeletionRecoveryPreparationHealth> {
+  mode: AccountDeletionRecoveryHealthMode,
+): Promise<AccountDeletionRecoveryPreparationHealth | null> {
   const { data, error } = await supabase.rpc(
     "get_account_deletion_recovery_preparation_health",
   );
-  if (error) {
-    throw new Error(
-      `Account deletion preparation health returned an error: ${error.message} (Code: ${error.code})`,
-    );
+  return resolveAccountDeletionRecoveryPreparationHealthRpcResult(
+    data,
+    error,
+    mode,
+  );
+}
+
+export function resolveAccountDeletionRecoveryHealthRpcResult(
+  data: unknown,
+  error: HealthRpcError | null,
+  mode: AccountDeletionRecoveryHealthMode,
+): AccountDeletionRecoveryHealth | null {
+  if (error === null) {
+    return assertAccountDeletionRecoveryHealth(data);
   }
-  return assertAccountDeletionRecoveryPreparationHealth(data);
+  if (
+    isExpandCompatibleMissingHealthRpc(
+      error,
+      mode,
+      "get_account_deletion_recovery_health",
+    )
+  ) {
+    console.warn(
+      "Account deletion recovery health is not deployed; continuing in explicit expand-compatible mode.",
+    );
+    return null;
+  }
+  throw new Error(
+    `Account deletion recovery health returned an error: ${error.message} (Code: ${error.code})`,
+  );
+}
+
+export function resolveAccountDeletionRecoveryPreparationHealthRpcResult(
+  data: unknown,
+  error: HealthRpcError | null,
+  mode: AccountDeletionRecoveryHealthMode,
+): AccountDeletionRecoveryPreparationHealth | null {
+  if (error === null) {
+    return assertAccountDeletionRecoveryPreparationHealth(data);
+  }
+  if (
+    isExpandCompatibleMissingHealthRpc(
+      error,
+      mode,
+      "get_account_deletion_recovery_preparation_health",
+    )
+  ) {
+    console.warn(
+      "Account deletion recovery preparation health is not deployed; continuing in explicit expand-compatible mode.",
+    );
+    return null;
+  }
+  throw new Error(
+    `Account deletion preparation health returned an error: ${error.message} (Code: ${error.code})`,
+  );
+}
+
+function isExpandCompatibleMissingHealthRpc(
+  error: HealthRpcError,
+  mode: AccountDeletionRecoveryHealthMode,
+  routine: string,
+): boolean {
+  return mode === "expand-compatible" &&
+    error.code === "PGRST202" &&
+    error.message.includes(
+      `function public.${routine} without parameters`,
+    );
 }
 
 export function assertAccountDeletionHealth(
@@ -501,10 +556,9 @@ export function accountDeletionStatus(
     | "warningBacklog"
     | "criticalBacklog"
   >,
-  recoveryHealth: AccountDeletionRecoveryHealth =
-    EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH,
-  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth =
-    EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH,
+  recoveryHealth: AccountDeletionRecoveryHealth | null = null,
+  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth | null =
+    null,
 ): AccountDeletionStatus {
   const oldestDueAge = Math.max(
     health.oldest_due_age_seconds ?? 0,
@@ -513,22 +567,22 @@ export function accountDeletionStatus(
   const oldestPendingAge = Math.max(
     health.oldest_pending_age_seconds ?? 0,
     health.oldest_storage_pending_age_seconds ?? 0,
-    recoveryHealth.oldest_active_age_seconds ?? 0,
-    recoveryPreparationHealth.oldest_active_age_seconds ?? 0,
+    recoveryHealth?.oldest_active_age_seconds ?? 0,
+    recoveryPreparationHealth?.oldest_active_age_seconds ?? 0,
   );
   const backlogDepth = Math.max(
     health.active_job_count,
     health.storage_backlog_count,
-    recoveryHealth.active_unacknowledged_count,
-    recoveryPreparationHealth.active_preparation_count,
+    recoveryHealth?.active_unacknowledged_count ?? 0,
+    recoveryPreparationHealth?.active_preparation_count ?? 0,
   );
   if (
     !health.reaper_cron_active ||
     !health.reaper_credentials_configured ||
     health.orphaned_storage_job_count > 0 ||
-    recoveryHealth.expired_unacknowledged_count > 0 ||
-    recoveryPreparationHealth.expired_preparation_count > 0 ||
-    recoveryHealth.maximum_active_capabilities_per_job > 8 ||
+    (recoveryHealth?.expired_unacknowledged_count ?? 0) > 0 ||
+    (recoveryPreparationHealth?.expired_preparation_count ?? 0) > 0 ||
+    (recoveryHealth?.maximum_active_capabilities_per_job ?? 0) > 8 ||
     oldestDueAge >= args.criticalDueAfterMinutes * 60 ||
     oldestPendingAge >= args.criticalSlaHours * 60 * 60 ||
     backlogDepth >= args.criticalBacklog
@@ -540,7 +594,7 @@ export function accountDeletionStatus(
     health.storage_failed_job_count > 0 ||
     health.expired_lease_count > 0 ||
     health.storage_expired_lease_count > 0 ||
-    recoveryHealth.maximum_active_capabilities_per_job === 8 ||
+    recoveryHealth?.maximum_active_capabilities_per_job === 8 ||
     oldestDueAge >= args.warningDueAfterMinutes * 60 ||
     oldestPendingAge >= args.warningSlaHours * 60 * 60 ||
     backlogDepth >= args.warningBacklog
@@ -554,10 +608,9 @@ export function buildAccountDeletionSummary(
   health: AccountDeletionHealth,
   args: AccountDeletionMonitorArgs,
   now: Date,
-  recoveryHealth: AccountDeletionRecoveryHealth =
-    EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH,
-  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth =
-    EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH,
+  recoveryHealth: AccountDeletionRecoveryHealth | null = null,
+  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth | null =
+    null,
 ): AccountDeletionMonitorSummary {
   const status = accountDeletionStatus(
     health,
@@ -581,7 +634,13 @@ export function buildAccountDeletionSummary(
       should_fail: shouldFailAccountDeletionMonitor(status, args.failOn),
     },
     health,
+    recovery_health_availability: recoveryHealth === null
+      ? "not_deployed"
+      : "available",
     recovery_health: recoveryHealth,
+    recovery_preparation_health_availability: recoveryPreparationHealth === null
+      ? "not_deployed"
+      : "available",
     recovery_preparation_health: recoveryPreparationHealth,
   };
 }
@@ -643,19 +702,51 @@ export function renderAccountDeletionMarkdown(
     "",
     "## Device Recovery",
     "",
-    `- Active unacknowledged capabilities: \`${recovery.active_unacknowledged_count}\``,
-    `- Acknowledged idempotency receipts retained: \`${recovery.acknowledged_retained_count}\``,
-    `- Expired unacknowledged capabilities: \`${recovery.expired_unacknowledged_count}\``,
-    `- Maximum active capabilities for one deletion: \`${recovery.maximum_active_capabilities_per_job}\``,
-    `- Oldest active age: \`${age(recovery.oldest_active_age_seconds)}\``,
-    `- Oldest expired age: \`${age(recovery.oldest_expired_age_seconds)}\``,
-    `- Active non-destructive preparations: \`${preparation.active_preparation_count}\``,
-    `- Expired preparations awaiting pruning: \`${preparation.expired_preparation_count}\``,
+    `- Recovery health availability: \`${summary.recovery_health_availability}\``,
+    `- Active unacknowledged capabilities: \`${
+      recovery === null ? "unavailable" : recovery.active_unacknowledged_count
+    }\``,
+    `- Acknowledged idempotency receipts retained: \`${
+      recovery === null ? "unavailable" : recovery.acknowledged_retained_count
+    }\``,
+    `- Expired unacknowledged capabilities: \`${
+      recovery === null ? "unavailable" : recovery.expired_unacknowledged_count
+    }\``,
+    `- Maximum active capabilities for one deletion: \`${
+      recovery === null
+        ? "unavailable"
+        : recovery.maximum_active_capabilities_per_job
+    }\``,
+    `- Oldest active age: \`${
+      recovery === null
+        ? "unavailable"
+        : age(recovery.oldest_active_age_seconds)
+    }\``,
+    `- Oldest expired age: \`${
+      recovery === null
+        ? "unavailable"
+        : age(recovery.oldest_expired_age_seconds)
+    }\``,
+    `- Preparation health availability: \`${summary.recovery_preparation_health_availability}\``,
+    `- Active non-destructive preparations: \`${
+      preparation === null
+        ? "unavailable"
+        : preparation.active_preparation_count
+    }\``,
+    `- Expired preparations awaiting pruning: \`${
+      preparation === null
+        ? "unavailable"
+        : preparation.expired_preparation_count
+    }\``,
     `- Oldest preparation age: \`${
-      age(preparation.oldest_active_age_seconds)
+      preparation === null
+        ? "unavailable"
+        : age(preparation.oldest_active_age_seconds)
     }\``,
     `- Oldest expired preparation age: \`${
-      age(preparation.oldest_expired_age_seconds)
+      preparation === null
+        ? "unavailable"
+        : age(preparation.oldest_expired_age_seconds)
     }\``,
     "",
     "## Thresholds",
@@ -669,8 +760,12 @@ export function renderAccountDeletionMarkdown(
     "",
     "## Operator Action",
     "",
-    summary.status === "ok"
+    summary.status === "ok" &&
+      summary.recovery_health_availability === "available" &&
+      summary.recovery_preparation_health_availability === "available"
       ? "No action required."
+      : summary.status === "ok"
+      ? "Baseline deletion health is healthy. Complete the recovery-ledger migration and hosted health-RPC smoke, then switch the scheduled monitor from expand-compatible to required; do not infer zero recovery work from unavailable aggregates."
       : "Verify the database reaper cron and its Vault/app-settings URL and service credential, then inspect safe-delete, recover-account-deletion, reconcile-account-deletions, and R2 erasure aggregate logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, capability, lease, or cursor rows.",
     "",
   ].join("\n");
@@ -740,6 +835,9 @@ export function parseAccountDeletionMonitorArgs(
     warningBacklog,
     criticalBacklog,
     failOn: parseFailurePolicy(values.get("fail-on") ?? "warning"),
+    recoveryHealthMode: parseRecoveryHealthMode(
+      values.get("recovery-health-mode") ?? "required",
+    ),
     summaryJsonPath: optionalPath(
       values.get("summary-json"),
       "--summary-json",
@@ -760,6 +858,7 @@ function argumentValues(rawArgs: string[]): Map<string, string | boolean> {
     "warning-backlog",
     "critical-backlog",
     "fail-on",
+    "recovery-health-mode",
     "summary-json",
     "summary-md",
   ]);
@@ -858,6 +957,17 @@ function parseFailurePolicy(
   throw new Error("--fail-on must be critical, warning, or never.");
 }
 
+function parseRecoveryHealthMode(
+  value: string | boolean,
+): AccountDeletionRecoveryHealthMode {
+  if (value === "expand-compatible" || value === "required") {
+    return value;
+  }
+  throw new Error(
+    "--recovery-health-mode must be expand-compatible or required.",
+  );
+}
+
 function optionalPath(
   value: string | boolean | undefined,
   label: string,
@@ -897,10 +1007,20 @@ function printSummary(summary: AccountDeletionMonitorSummary): void {
     `storage_backlog_count: ${summary.health.storage_backlog_count}`,
   );
   console.log(
-    `recovery_active_unacknowledged_count: ${summary.recovery_health.active_unacknowledged_count}`,
+    `recovery_health_availability: ${summary.recovery_health_availability}`,
   );
   console.log(
-    `recovery_expired_unacknowledged_count: ${summary.recovery_health.expired_unacknowledged_count}`,
+    `recovery_active_unacknowledged_count: ${
+      summary.recovery_health?.active_unacknowledged_count ?? "unavailable"
+    }`,
+  );
+  console.log(
+    `recovery_expired_unacknowledged_count: ${
+      summary.recovery_health?.expired_unacknowledged_count ?? "unavailable"
+    }`,
+  );
+  console.log(
+    `recovery_preparation_health_availability: ${summary.recovery_preparation_health_availability}`,
   );
   console.log(
     `storage_failed_job_count: ${summary.health.storage_failed_job_count}`,

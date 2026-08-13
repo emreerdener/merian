@@ -1166,8 +1166,9 @@ MerianTests/
     shape: five sampled inference frame files plus one playback video file must
     fit in one signing batch.
   - **Background task identity and single-flight ownership**: Verifies current
-    upload descriptions round-trip underscored scan IDs, media indices, and the
-    batch UUID; verifies current `inference_v2|generation|scanId` and legacy
+    `upload_v2` descriptions round-trip the Auth owner, underscored scan IDs,
+    media indices, and batch UUID; verifies current
+    `inference_v3|ownerUUID|generation|scanId`, generation-only v2, and legacy
     `inference_scanId` parsing; and proves inference preparation rejects a
     second claimant and ignores a compare-clear from the wrong UUID. Upload
     ownership tests prove a delayed batch UUID is rejected after replacement,
@@ -2274,6 +2275,12 @@ device-evidence checks:
   stable expired-match behavior, permanent acknowledged replay, total per-job
   receipt bounds, identity-free health aggregation, service allowlist, and
   denial to public API roles.
+- `_tests/accountDeletionRecoveryConcurrencyDb.test.ts` runs the reciprocal
+  disposable-database schedules for deletion-first and pruner-first ownership.
+  It proves pruning skips a locked Auth account, a pruned proof remains a
+  noncommitted tombstone after later deletion, no expired proof becomes a
+  capability, and `p_limit = 1` skips a locked lower UUID to retire one available
+  candidate without waiting.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -2313,7 +2320,8 @@ device-evidence checks:
   Keychain envelope is read-after-write verified before
   `capability_preparation_pending`, non-destructive server prepare precedes
   `capability_prepared_pending`, and the latter precedes destructive commit.
-  Persistence failure makes no request; ambiguous/lost-response failures and
+  Both preparation markers admit only the deletion-owned recovery transition
+  after relaunch. Persistence failure makes no request; ambiguous/lost-response failures and
   legacy unknown recovery retain both authority and barrier; v2
   `not_committed`/unknown recovery retires only unused intent; only explicit
   `409 purchase_continuity_pending` advances an unaccepted intake through the
@@ -2338,7 +2346,9 @@ device-evidence checks:
   parsing/invariants, threshold ordering, cron/configuration and orphan
   criticals, retry/expired-lease warnings, fail policy, and identity-free
   operator recovery guidance, including critical severity when configuration is
-  false. It also proves strict recovery-health parsing, expired-unacknowledged
+  false. It also proves strict recovery-health parsing, the exact named
+  `PGRST202`-only additive compatibility boundary with explicit
+  `not_deployed`/null evidence, expired-unacknowledged
   criticals, eight-per-job warning, cardinality-invariant failure, and combined
   summary status. The migration contract statically locks the Vault-first,
   NULL-only selection order. Workflow security checks separately keep its

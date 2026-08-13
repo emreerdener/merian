@@ -528,6 +528,7 @@ Deno.test("account deletion health alert is independent of the database reaper",
       "monitor_account_deletion_health.ts",
       "--warning-due-after-minutes",
       "--critical-sla-hours",
+      "--recovery-health-mode expand-compatible",
       "if: ${{ always() }}",
     ]
   ) {
@@ -554,8 +555,16 @@ Deno.test("account deletion health alert is independent of the database reaper",
       "maximum_active_capabilities_per_job",
       "active_preparation_count",
       "expired_preparation_count",
+      "recovery_health_availability",
+      "recovery_preparation_health_availability",
+      'error.code === "PGRST202"',
+      'mode === "expand-compatible"',
     ]
   ) {
     assertStringIncludes(monitor, fragment);
   }
+  assert(
+    !workflow.includes("--recovery-health-mode required"),
+    "The production schedule must remain expand-compatible until the additive recovery RPCs pass hosted smoke.",
+  );
 });

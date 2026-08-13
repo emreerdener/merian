@@ -608,6 +608,10 @@ failed durable retreat, task cancellation, or bounded drain expiry aborts the
 transition and leaves the source session intact for retry.
 Callbacks and relaunched tasks may mutate local state only when their explicit
 owner/generation matches both the live Auth session and durable job metadata.
+Before a relaunched terminal callback crosses its first actor boundary, it
+atomically reacquires and retains an exact-session account-work lease, so the
+transition drain cannot overtake persistence merely because the original
+process-local lease was lost.
 Legacy or unprovable tasks are cancelled and restaged rather than adopted by a
 replacement account. Inference refuses any staged key whose canonical owner
 differs from its typed request account. Realtime channels are keyed to
@@ -753,6 +757,7 @@ exact encoded bytes. It writes `capability_preparation_pending`, performs the
 server's non-destructive v2 preparation, writes
 `capability_prepared_pending`, then writes `capability_intake_pending` before
 destructive commit. This closes both lost-request and lost-response windows: a
+relaunch from either preparation phase re-enters the deletion transition; a
 crash before commit publicly cancels as `not_committed` without erasing Auth or
 SwiftData, while a crash after commit recovers the job receipt. If another
 device commits first, the database atomically binds every still-live prepared
@@ -780,9 +785,10 @@ Transport, Auth, gateway, `5xx`, cancellation, and malformed responses retain
 the proof and barrier because commit may still be in flight. An unknown legacy
 v1 proof also remains ambiguous. An unknown v2 proof permits proof-only
 retirement because commit requires the missing server preparation. A
-`not_committed` or genuinely unknown v2 proof first retires the unused proof and
-barrier, then re-adopts only the exact cached unexpired Supabase session with the
-same UUID and anonymous/account kind before reopening account work. The distinct
+`not_committed` or genuinely unknown v2 proof first retires the unused proof,
+then adopts only the exact cached unexpired Supabase session into the transition
+coordinator while the barrier remains. It clears the barrier before publishing
+that same UUID and anonymous/account kind or reopening account work. The distinct
 `account_deletion_recovery_preparation_expired` response is a non-authorizing
 tombstone match and retains the barrier. Only a matched committed capability's
 `account_deletion_recovery_expired` `410` is positive evidence that deletion was

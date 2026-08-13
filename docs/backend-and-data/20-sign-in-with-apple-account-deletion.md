@@ -130,6 +130,11 @@ move first to a permanent identity-free ledger and can never be reused or
 promoted into 180-day recovery capabilities. A deletion-job insert records
 expired proofs as committed before retiring them, so a second device cannot
 misclassify its stale proof as unknown after deletion has started.
+Forward migration
+`20260813190637_serialize_account_deletion_preparation_pruning.sql` gives the
+bounded pruner the same Auth-user-first row-lock order and skips locked accounts,
+closing the reciprocal cleanup-first race without making a batch wait behind
+active deletion or recovery.
 
 After Auth is gone, `/recover-account-deletion` uses only the proof to return
 the already-recorded manual Apple disposition and pending/completed state. It
@@ -140,9 +145,10 @@ succeeds and only with the independent acknowledgement proof. A legacy unknown
 proof leaves cleanup blocked because intake may still be committing. A v2
 `not_committed` or genuinely unknown proof retires only the unused local intent
 because commit cannot run without a server preparation. After that definitive
-cancellation, the transition owner re-adopts only the same unexpired cached
-Supabase session, same UUID, and same anonymous/account kind before reopening
-ordinary account work. An expired preparation retired during a different
+cancellation, the transition owner retires the unused proof, adopts only the
+same unexpired cached Supabase session while the durable barrier remains, then
+clears the barrier before republishing that exact UUID and anonymous/account
+kind or reopening ordinary account work. An expired preparation retired during a different
 device's commit returns the distinct non-authorizing
 `account_deletion_recovery_preparation_expired` response and keeps cleanup
 blocked. Only a retained committed capability matched after its 180-day window

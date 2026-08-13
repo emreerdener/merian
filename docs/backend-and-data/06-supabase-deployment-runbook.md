@@ -6216,6 +6216,16 @@ and does not read the Vault values required by the reaper, so cron or Vault
 misconfiguration remains independently observable. UUIDs, claim tokens,
 prefixes, cursors, and raw errors are absent from logs and artifacts.
 
+The monitor CLI defaults to `required`. While these two recovery-health RPCs
+are additive and not yet present in the hosted catalog, the production schedule
+uses `--recovery-health-mode expand-compatible`. Only an exact `PGRST202` for a
+named zero-argument recovery RPC is accepted; the artifact reports
+`not_deployed` and a null payload while baseline queue/cron/credential/erasure
+health remains enforced. It never reports unavailable recovery data as a zero
+backlog. Once the exact deployed SHA passes both hosted health-RPC smokes,
+change the scheduled command to `required` in a reviewed follow-up. Do not leave
+compatibility mode selected after that gate.
+
 Scheduled runs warn and fail on claimable work aged 10 minutes, active work aged
 27 hours, backlog of 25 jobs, any retry error, or any expired lease. They become
 critical at 30 minutes due age, 36 hours active age, 100 jobs, a disabled cron,

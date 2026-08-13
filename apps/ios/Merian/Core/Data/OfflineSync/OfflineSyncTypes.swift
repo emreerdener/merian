@@ -377,6 +377,14 @@ enum OfflineScanJobMetadataContract {
         return json(from: object)
     }
 
+    static func clearingBackgroundAccountWork(
+        in metadataJSON: String?
+    ) -> String? {
+        var object = object(from: metadataJSON)
+        object.removeValue(forKey: backgroundAccountWorkKey)
+        return json(from: object)
+    }
+
     static func json(
         generation: UUID?,
         funding: ScanFundingReservation
@@ -413,6 +421,11 @@ struct BackgroundAccountWorkOwnership: Codable, Sendable, Equatable {
         case generation
         case phase
     }
+}
+
+struct BackgroundAccountWorkCandidate: Sendable, Equatable {
+    let scanId: String
+    let ownership: BackgroundAccountWorkOwnership
 }
 
 enum InferenceURLSessionTaskContract {

@@ -33,6 +33,40 @@ private let backgroundAccountWorkQuiescenceTimeout: Duration = .seconds(30)
 // MARK: - Account-bound URLSession ownership
 
 extension OfflineQueueManager {
+    /// A transport that lost its Auth lease must remain suspended until its
+    /// durable queue owner has been requeued. Retrying here keeps the original
+    /// account-work lease alive, so an Auth transition cannot advance past a
+    /// transient SwiftData failure and leave `.uploading` or `.inferencing`
+    /// stranded after the task is cancelled.
+    @discardableResult
+    static func awaitDurableBackgroundWorkRetirement(
+        maximumAttempts: Int = 3,
+        retire: () async -> Bool,
+        waitBeforeRetry: () async -> Bool
+    ) async -> Bool {
+        guard maximumAttempts > 0 else { return false }
+        for attempt in 1...maximumAttempts {
+            if await retire() {
+                return true
+            }
+            guard attempt < maximumAttempts,
+                  !Task.isCancelled,
+                  await waitBeforeRetry() else {
+                return false
+            }
+        }
+        return false
+    }
+
+    static func waitForDurableBackgroundWorkRetirementRetry() async -> Bool {
+        do {
+            try await Task.sleep(for: .milliseconds(250))
+            return !Task.isCancelled
+        } catch {
+            return false
+        }
+    }
+
     @discardableResult
     func retainBackgroundAccountWork(
         _ lease: AccountBoundWorkLease,
@@ -56,7 +90,7 @@ extension OfflineQueueManager {
         SupabaseManager.shared.finishAccountBoundWork(lease)
     }
 
-    private func backgroundTaskOwnerIsCurrent(
+    private func backgroundTaskOwnerLeaseIsCurrentOrAdopted(
         taskIdentifier: Int,
         ownerUserID: UUID
     ) -> Bool {
@@ -65,8 +99,22 @@ extension OfflineQueueManager {
                 && SupabaseManager.shared
                     .isAccountBoundWorkLeaseCurrent(lease)
         }
-        return SupabaseManager.shared
-            .backgroundAccountWorkOwnerMatchesCurrentSession(ownerUserID)
+        // Relaunched URLSession tasks do not carry their process-local lease.
+        // Reacquire one synchronously on MainActor before the first actor
+        // suspension so an Auth transition cannot begin after owner validation
+        // and overtake terminal persistence.
+        guard let lease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork(expectedUserID: ownerUserID) else {
+            return false
+        }
+        guard retainBackgroundAccountWork(
+            lease,
+            for: taskIdentifier
+        ) else {
+            SupabaseManager.shared.finishAccountBoundWork(lease)
+            return false
+        }
+        return true
     }
 
     private func validateOrAdoptBackgroundAccountWork(
@@ -77,7 +125,7 @@ extension OfflineQueueManager {
         taskIdentifier: Int
     ) async -> BackgroundAccountWorkOwnership? {
         guard let ownerUserID, let generation,
-              backgroundTaskOwnerIsCurrent(
+              backgroundTaskOwnerLeaseIsCurrentOrAdopted(
                   taskIdentifier: taskIdentifier,
                   ownerUserID: ownerUserID
               ),
@@ -124,6 +172,15 @@ extension OfflineQueueManager {
 
         while true {
             guard !Task.isCancelled else { return false }
+            guard let container = modelContext?.container else {
+                return false
+            }
+            let actor = resolvedQueueDbActor(container: container)
+            guard let durableCandidates = await actor
+                .backgroundAccountWorkCandidates(ownerUserID: sourceUserID)
+            else {
+                return false
+            }
             let tasks = await backgroundSession.allTasks
             let accountTasks = tasks.filter {
                 InferenceURLSessionTaskContract.parse($0.taskDescription) != nil
@@ -133,83 +190,127 @@ extension OfflineQueueManager {
             }
             var cancellableTaskIdentifiers = Set<Int>()
             var retirementFailed = false
+            var retirementResults = [String: Bool]()
 
-            if !accountTasks.isEmpty {
-                guard let container = modelContext?.container else {
-                    return false
-                }
-                let actor = resolvedQueueDbActor(container: container)
-                var retiredKeys = Set<String>()
-                for task in accountTasks {
-                    if let identity = InferenceURLSessionTaskContract.parse(
-                        task.taskDescription
-                    ) {
-                        let key = "inference|\(identity.scanId)|\(identity.generation?.uuidString ?? "legacy")"
-                        if retiredKeys.insert(key).inserted {
-                            let didPersistRetirement = await actor
+            func retirementKey(
+                scanId: String,
+                ownerUserID: UUID?,
+                generation: UUID,
+                phase: BackgroundAccountWorkPhase
+            ) -> String {
+                "\(phase.rawValue)|\(ownerUserID?.uuidString ?? "unknown")|\(scanId)|\(generation.uuidString)"
+            }
+
+            for candidate in durableCandidates {
+                let ownership = candidate.ownership
+                let key = retirementKey(
+                    scanId: candidate.scanId,
+                    ownerUserID: ownership.ownerUserID,
+                    generation: ownership.generation,
+                    phase: ownership.phase
+                )
+                guard retirementResults[key] == nil else { continue }
+                let didPersistRetirement = await actor
+                    .retireBackgroundAccountWork(
+                        scanId: candidate.scanId,
+                        expectedOwnerUserID: ownership.ownerUserID,
+                        expectedGeneration: ownership.generation,
+                        phase: ownership.phase
+                    )
+                retirementResults[key] = didPersistRetirement
+                retirementFailed = retirementFailed || !didPersistRetirement
+            }
+
+            for task in accountTasks {
+                if let identity = InferenceURLSessionTaskContract.parse(
+                    task.taskDescription
+                ) {
+                    let didPersistRetirement: Bool
+                    if let generation = identity.generation {
+                        let key = retirementKey(
+                            scanId: identity.scanId,
+                            ownerUserID:
+                                identity.ownerUserID ?? sourceUserID,
+                            generation: generation,
+                            phase: .inference
+                        )
+                        if let existingResult = retirementResults[key] {
+                            didPersistRetirement = existingResult
+                        } else {
+                            didPersistRetirement = await actor
                                 .retireBackgroundAccountWork(
                                     scanId: identity.scanId,
                                     expectedOwnerUserID:
                                         identity.ownerUserID ?? sourceUserID,
-                                    expectedGeneration: identity.generation,
+                                    expectedGeneration: generation,
                                     phase: .inference
                                 )
-                            if didPersistRetirement {
-                                for matchingTask in accountTasks where
-                                    InferenceURLSessionTaskContract.parse(
-                                        matchingTask.taskDescription
-                                    ) == identity {
-                                    cancellableTaskIdentifiers.insert(
-                                        matchingTask.taskIdentifier
-                                    )
-                                }
-                            } else {
-                                retirementFailed = true
-                            }
+                            retirementResults[key] = didPersistRetirement
                         }
-                        if cancellableTaskIdentifiers.contains(
-                            task.taskIdentifier
-                        ), let generation = identity.generation {
+                    } else {
+                        didPersistRetirement = await actor
+                            .retireBackgroundAccountWork(
+                                scanId: identity.scanId,
+                                expectedOwnerUserID:
+                                    identity.ownerUserID ?? sourceUserID,
+                                expectedGeneration: nil,
+                                phase: .inference
+                            )
+                    }
+                    if didPersistRetirement {
+                        cancellableTaskIdentifiers.insert(task.taskIdentifier)
+                        if let generation = identity.generation {
                             retiredInferenceGenerations.insert(generation)
                             if activeInferenceGenerations[identity.scanId]
                                 == generation {
                                 activeInferenceGenerations[identity.scanId] = nil
                             }
                         }
-                    } else if let identity = MediaStagingContract
-                        .parseUploadTaskDescription(task.taskDescription) {
-                        let key = "upload|\(identity.scanId)|\(identity.syncGeneration?.uuidString ?? "legacy")"
-                        if retiredKeys.insert(key).inserted {
-                            let didPersistRetirement = await actor
+                    } else {
+                        retirementFailed = true
+                    }
+                } else if let identity = MediaStagingContract
+                    .parseUploadTaskDescription(task.taskDescription) {
+                    let didPersistRetirement: Bool
+                    if let generation = identity.syncGeneration {
+                        let key = retirementKey(
+                            scanId: identity.scanId,
+                            ownerUserID:
+                                identity.ownerUserID ?? sourceUserID,
+                            generation: generation,
+                            phase: .upload
+                        )
+                        if let existingResult = retirementResults[key] {
+                            didPersistRetirement = existingResult
+                        } else {
+                            didPersistRetirement = await actor
                                 .retireBackgroundAccountWork(
                                     scanId: identity.scanId,
                                     expectedOwnerUserID:
                                         identity.ownerUserID ?? sourceUserID,
-                                    expectedGeneration: identity.syncGeneration,
+                                    expectedGeneration: generation,
                                     phase: .upload
                                 )
-                            if didPersistRetirement {
-                                for matchingTask in accountTasks where
-                                    MediaStagingContract
-                                        .parseUploadTaskDescription(
-                                            matchingTask.taskDescription
-                                        ) == identity {
-                                    cancellableTaskIdentifiers.insert(
-                                        matchingTask.taskIdentifier
-                                    )
-                                }
-                            } else {
-                                retirementFailed = true
-                            }
+                            retirementResults[key] = didPersistRetirement
                         }
-                        if cancellableTaskIdentifiers.contains(
-                            task.taskIdentifier
-                        ) {
-                            invalidateUploadGeneration(
+                    } else {
+                        didPersistRetirement = await actor
+                            .retireBackgroundAccountWork(
                                 scanId: identity.scanId,
-                                generation: identity.syncGeneration
+                                expectedOwnerUserID:
+                                    identity.ownerUserID ?? sourceUserID,
+                                expectedGeneration: nil,
+                                phase: .upload
                             )
-                        }
+                    }
+                    if didPersistRetirement {
+                        cancellableTaskIdentifiers.insert(task.taskIdentifier)
+                        invalidateUploadGeneration(
+                            scanId: identity.scanId,
+                            generation: identity.syncGeneration
+                        )
+                    } else {
+                        retirementFailed = true
                     }
                 }
             }
@@ -221,7 +322,8 @@ extension OfflineQueueManager {
                 task.cancel()
             }
 
-            if accountTasks.isEmpty,
+            if durableCandidates.isEmpty,
+               accountTasks.isEmpty,
                backgroundAccountWorkLeases.isEmpty {
                 return true
             }
@@ -363,11 +465,18 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
     /// Invokes the stored completion handler so the system knows it's safe to suspend the app.
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
         Task { @MainActor in
-            await OfflineQueueManager.backgroundTerminalWorkTracker
-                .waitUntilIdle()
-            guard let handler = OfflineQueueManager.shared.backgroundCompletionHandler else { return }
-            OfflineQueueManager.shared.backgroundCompletionHandler = nil
-            handler()
+            await OfflineQueueManager
+                .invokeBackgroundSessionCompletionAfterTerminalWork(
+                    tracker: OfflineQueueManager
+                        .backgroundTerminalWorkTracker,
+                    takeHandler: {
+                        let handler = OfflineQueueManager.shared
+                            .backgroundCompletionHandler
+                        OfflineQueueManager.shared
+                            .backgroundCompletionHandler = nil
+                        return handler
+                    }
+                )
         }
     }
 }
@@ -397,16 +506,26 @@ extension OfflineQueueManager {
             taskIdentifier: taskIdentifier
         )
         guard ownership != nil else {
-            await retireRejectedBackgroundAccountWork(
-                scanId: identity.scanId,
-                generation: identity.syncGeneration,
-                ownerUserID: identity.ownerUserID,
-                phase: .upload
+            let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+                retire: {
+                    await self.retireRejectedBackgroundAccountWork(
+                        scanId: identity.scanId,
+                        generation: identity.syncGeneration,
+                        ownerUserID: identity.ownerUserID,
+                        phase: .upload
+                    )
+                },
+                waitBeforeRetry: {
+                    await Self
+                        .waitForDurableBackgroundWorkRetirementRetry()
+                }
             )
-            invalidateUploadGeneration(
-                scanId: identity.scanId,
-                generation: identity.syncGeneration
-            )
+            if didRetire {
+                invalidateUploadGeneration(
+                    scanId: identity.scanId,
+                    generation: identity.syncGeneration
+                )
+            }
             return
         }
 
@@ -457,13 +576,21 @@ extension OfflineQueueManager {
             taskIdentifier: taskIdentifier
         ) != nil else {
             try? FileManager.default.removeItem(at: resultFileURL)
-            await retireRejectedBackgroundAccountWork(
-                scanId: scanId,
-                generation: generation,
-                ownerUserID: ownerUserID,
-                phase: .inference
+            let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+                retire: {
+                    await self.retireRejectedBackgroundAccountWork(
+                        scanId: scanId,
+                        generation: generation,
+                        ownerUserID: ownerUserID,
+                        phase: .inference
+                    )
+                },
+                waitBeforeRetry: {
+                    await Self
+                        .waitForDurableBackgroundWorkRetirementRetry()
+                }
             )
-            if let generation {
+            if didRetire, let generation {
                 retiredInferenceGenerations.insert(generation)
             }
             return
@@ -492,13 +619,21 @@ extension OfflineQueueManager {
             phase: .inference,
             taskIdentifier: taskIdentifier
         ) != nil else {
-            await retireRejectedBackgroundAccountWork(
-                scanId: scanId,
-                generation: generation,
-                ownerUserID: ownerUserID,
-                phase: .inference
+            let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+                retire: {
+                    await self.retireRejectedBackgroundAccountWork(
+                        scanId: scanId,
+                        generation: generation,
+                        ownerUserID: ownerUserID,
+                        phase: .inference
+                    )
+                },
+                waitBeforeRetry: {
+                    await Self
+                        .waitForDurableBackgroundWorkRetirementRetry()
+                }
             )
-            if let generation {
+            if didRetire, let generation {
                 retiredInferenceGenerations.insert(generation)
             }
             return
@@ -515,16 +650,19 @@ extension OfflineQueueManager {
         generation: UUID?,
         ownerUserID: UUID?,
         phase: BackgroundAccountWorkPhase
-    ) async {
-        guard let container = modelContext?.container else { return }
+    ) async -> Bool {
+        guard let container = modelContext?.container else { return false }
         let actor = resolvedQueueDbActor(container: container)
-        _ = await actor.retireBackgroundAccountWork(
+        let didRetire = await actor.retireBackgroundAccountWork(
             scanId: scanId,
             expectedOwnerUserID: ownerUserID,
             expectedGeneration: generation,
             phase: phase
         )
-        updateUnsyncedItemCount()
+        if didRetire {
+            updateUnsyncedItemCount()
+        }
+        return didRetire
     }
 
     /// Processes the result of a completed background upload, then kicks off inference
@@ -1341,13 +1479,24 @@ extension OfflineQueueManager {
             // unresumed task is not guaranteed to receive a terminal delegate
             // callback. Requeue it before cancellation so relaunch cannot find
             // a permanently stranded inference owner.
-            await retireRejectedBackgroundAccountWork(
-                scanId: scanId,
-                generation: preparationGeneration,
-                ownerUserID: authenticatedRequest.expectedAuthUserID,
-                phase: .inference
+            let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
+                retire: {
+                    await self.retireRejectedBackgroundAccountWork(
+                        scanId: scanId,
+                        generation: preparationGeneration,
+                        ownerUserID:
+                            authenticatedRequest.expectedAuthUserID,
+                        phase: .inference
+                    )
+                },
+                waitBeforeRetry: {
+                    await Self
+                        .waitForDurableBackgroundWorkRetirementRetry()
+                }
             )
-            task.cancel()
+            if didRetire {
+                task.cancel()
+            }
             return
         }
         transferredAccountWorkLease = true

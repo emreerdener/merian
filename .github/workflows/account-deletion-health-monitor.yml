@@ -151,6 +151,8 @@ jobs:
           fail_on="${INPUT_FAIL_ON:-warning}"
 
           set +e
+          # Temporary additive-schema window. Switch to `required` immediately
+          # after both recovery-health RPCs pass the hosted deploy smoke.
           deno run --frozen \
             --config services/supabase/functions/deno.json \
             --allow-net="${PROJECT_ID}.supabase.co" \
@@ -164,6 +166,7 @@ jobs:
             --warning-backlog "$warning_backlog" \
             --critical-backlog "$critical_backlog" \
             --fail-on "$fail_on" \
+            --recovery-health-mode expand-compatible \
             --summary-json "$summary_json" \
             --summary-md "$summary_md"
           exit_code=$?

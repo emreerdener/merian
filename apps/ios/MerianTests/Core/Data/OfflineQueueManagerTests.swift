@@ -3,40 +3,267 @@ import Foundation
 import SwiftData
 import Testing
 
-private actor TerminalWorkCompletionProbe {
-    private(set) var didComplete = false
-
-    func markComplete() {
-        didComplete = true
-    }
-}
-
 @Suite(.serialized)
 @MainActor
 struct OfflineQueueManagerTests {
     @Test func backgroundSessionCompletionWaitsForTerminalPersistence() async {
         let tracker = BackgroundURLSessionTerminalWorkTracker()
         let token = tracker.begin()
-        let probe = TerminalWorkCompletionProbe()
-        let waiter = Task {
-            await tracker.waitUntilIdle()
-            await probe.markComplete()
+        var completionCount = 0
+        var completionHandler: (() -> Void)? = {
+            completionCount += 1
+        }
+        let waiter = Task { @MainActor in
+            await OfflineQueueManager
+                .invokeBackgroundSessionCompletionAfterTerminalWork(
+                    tracker: tracker,
+                    takeHandler: {
+                        let handler = completionHandler
+                        completionHandler = nil
+                        return handler
+                    }
+                )
             return true
         }
 
         await Task.yield()
         #expect(tracker.activeCountForTesting == 1)
-        #expect(!(await probe.didComplete))
+        #expect(completionCount == 0)
         tracker.finish(token)
         #expect(await waiter.value)
-        #expect(await probe.didComplete)
+        #expect(completionCount == 1)
         #expect(tracker.activeCountForTesting == 0)
 
         // Duplicate terminal callbacks cannot underflow the tracker or resume
         // a later waiter twice.
         tracker.finish(token)
-        await tracker.waitUntilIdle()
+        await OfflineQueueManager
+            .invokeBackgroundSessionCompletionAfterTerminalWork(
+                tracker: tracker,
+                takeHandler: {
+                    let handler = completionHandler
+                    completionHandler = nil
+                    return handler
+                }
+            )
+        #expect(completionCount == 1)
         #expect(tracker.activeCountForTesting == 0)
+    }
+
+    @Test func backgroundURLSessionTerminalOwnershipIsRegisteredSynchronously() throws {
+        let source = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        let downloadStart = try #require(source.range(
+            of: "didFinishDownloadingTo location: URL"
+        ))
+        let taskCompletionStart = try #require(source.range(
+            of: "didCompleteWithError error: Error?",
+            range: downloadStart.upperBound..<source.endIndex
+        ))
+        let sessionCompletionStart = try #require(source.range(
+            of: "urlSessionDidFinishEvents(forBackgroundURLSession",
+            range: taskCompletionStart.upperBound..<source.endIndex
+        ))
+        let downloadBody = source[downloadStart.lowerBound..<taskCompletionStart.lowerBound]
+        let firstDownloadRegistration = try #require(downloadBody.range(
+            of: ".backgroundTerminalWorkTracker.begin()"
+        ))
+        let firstDownloadHandoff = try #require(downloadBody.range(
+            of: "BackgroundTaskWrapper.execute",
+            range: firstDownloadRegistration.upperBound..<downloadBody.endIndex
+        ))
+        let secondDownloadRegistration = try #require(downloadBody.range(
+            of: ".backgroundTerminalWorkTracker.begin()",
+            range: firstDownloadHandoff.upperBound..<downloadBody.endIndex
+        ))
+        let secondDownloadHandoff = try #require(downloadBody.range(
+            of: "BackgroundTaskWrapper.execute",
+            range: secondDownloadRegistration.upperBound..<downloadBody.endIndex
+        ))
+        #expect(
+            firstDownloadRegistration.lowerBound <
+                firstDownloadHandoff.lowerBound
+        )
+        #expect(
+            secondDownloadRegistration.lowerBound <
+                secondDownloadHandoff.lowerBound
+        )
+
+        let taskCompletionBody =
+            source[taskCompletionStart.lowerBound..<sessionCompletionStart.lowerBound]
+        let taskRegistration = try #require(taskCompletionBody.range(
+            of: ".backgroundTerminalWorkTracker.begin()"
+        ))
+        let taskHandoff = try #require(taskCompletionBody.range(
+            of: "BackgroundTaskWrapper.execute"
+        ))
+        #expect(taskRegistration.lowerBound < taskHandoff.lowerBound)
+
+        let finalCallback = source[sessionCompletionStart.lowerBound...]
+        #expect(finalCallback.contains(
+            "invokeBackgroundSessionCompletionAfterTerminalWork"
+        ))
+    }
+
+    @Test func rejectedInferenceDispatchRetiresOwnershipBeforeCancellation() throws {
+        let source = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        let dispatchStart = try #require(source.range(
+            of: "func dispatchInferenceDownloadTask("
+        ))
+        let activation = try #require(source.range(
+            of: "guard await queueActor.activateBackgroundAccountWork(",
+            range: dispatchStart.upperBound..<source.endIndex
+        ))
+        let taskCreation = try #require(source.range(
+            of: "let task = backgroundSession.downloadTask(",
+            range: activation.upperBound..<source.endIndex
+        ))
+        let retirementGate = try #require(source.range(
+            of: "await Self.awaitDurableBackgroundWorkRetirement(",
+            range: taskCreation.upperBound..<source.endIndex
+        ))
+        let retirement = try #require(source.range(
+            of: "await self.retireRejectedBackgroundAccountWork(",
+            range: retirementGate.upperBound..<source.endIndex
+        ))
+        let cancellation = try #require(source.range(
+            of: "task.cancel()",
+            range: retirement.upperBound..<source.endIndex
+        ))
+        let resume = try #require(source.range(
+            of: "task.resume()",
+            range: cancellation.upperBound..<source.endIndex
+        ))
+
+        #expect(activation.lowerBound < taskCreation.lowerBound)
+        #expect(taskCreation.lowerBound < retirementGate.lowerBound)
+        #expect(retirementGate.lowerBound < retirement.lowerBound)
+        #expect(retirement.lowerBound < cancellation.lowerBound)
+        #expect(cancellation.lowerBound < resume.lowerBound)
+    }
+
+    @Test func authTransitionQuiescenceSweepsDurableOwnersWithoutTransportTasks() throws {
+        let source = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        let quiescenceStart = try #require(source.range(
+            of: "func quiesceBackgroundAccountWorkForAuthTransition("
+        ))
+        let delegateStart = try #require(source.range(
+            of: "// MARK: - URLSession Delegate",
+            range: quiescenceStart.upperBound..<source.endIndex
+        ))
+        let body = source[quiescenceStart.lowerBound..<delegateStart.lowerBound]
+
+        let durableSweep = try #require(body.range(
+            of: ".backgroundAccountWorkCandidates(ownerUserID: sourceUserID)"
+        ))
+        let transportSnapshot = try #require(body.range(
+            of: "let tasks = await backgroundSession.allTasks"
+        ))
+        let retirement = try #require(body.range(
+            of: ".retireBackgroundAccountWork(",
+            range: durableSweep.upperBound..<body.endIndex
+        ))
+        let cancellation = try #require(body.range(
+            of: "task.cancel()",
+            range: retirement.upperBound..<body.endIndex
+        ))
+
+        #expect(durableSweep.lowerBound < transportSnapshot.lowerBound)
+        #expect(transportSnapshot.lowerBound < retirement.lowerBound)
+        #expect(retirement.lowerBound < cancellation.lowerBound)
+    }
+
+    @Test func relaunchedTerminalCallbackReacquiresLeaseBeforeActorValidation() throws {
+        let source = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        let ownerCheckStart = try #require(source.range(
+            of: "private func backgroundTaskOwnerLeaseIsCurrentOrAdopted("
+        ))
+        let validationStart = try #require(source.range(
+            of: "private func validateOrAdoptBackgroundAccountWork(",
+            range: ownerCheckStart.upperBound..<source.endIndex
+        ))
+        let ownerCheckBody =
+            source[ownerCheckStart.lowerBound..<validationStart.lowerBound]
+        let leaseAdmission = try #require(ownerCheckBody.range(
+            of: ".beginUnownedAccountBoundWork(expectedUserID: ownerUserID)"
+        ))
+        let leaseRetention = try #require(ownerCheckBody.range(
+            of: "retainBackgroundAccountWork(",
+            range: leaseAdmission.upperBound..<ownerCheckBody.endIndex
+        ))
+        #expect(leaseAdmission.lowerBound < leaseRetention.lowerBound)
+
+        let quiescerStart = try #require(source.range(
+            of: "func quiesceBackgroundAccountWorkForAuthTransition("
+        ))
+        let delegateStart = try #require(source.range(
+            of: "// MARK: - URLSession Delegate",
+            range: quiescerStart.upperBound..<source.endIndex
+        ))
+        let quiescerBody = source[
+            quiescerStart.lowerBound..<delegateStart.lowerBound
+        ]
+        #expect(quiescerBody.contains("backgroundAccountWorkLeases.isEmpty"))
+    }
+
+    @Test func failedDurableRetirementCannotReachTransportCancellation() async {
+        var retirementResults = [false, true]
+        var events: [String] = []
+
+        let didRetire = await OfflineQueueManager
+            .awaitDurableBackgroundWorkRetirement(
+                retire: {
+                    let result = retirementResults.removeFirst()
+                    events.append(result ? "retired" : "retirement-failed")
+                    return result
+                },
+                waitBeforeRetry: {
+                    events.append("wait")
+                    return true
+                }
+            )
+        if didRetire {
+            events.append("cancel")
+        }
+
+        #expect(didRetire)
+        #expect(
+            events == [
+                "retirement-failed",
+                "wait",
+                "retired",
+                "cancel"
+            ]
+        )
+    }
+
+    @Test func persistentRetirementFailureCannotAuthorizeCancellation() async {
+        var retirementAttempts = 0
+        var waitCount = 0
+
+        let didRetire = await OfflineQueueManager
+            .awaitDurableBackgroundWorkRetirement(
+                maximumAttempts: 3,
+                retire: {
+                    retirementAttempts += 1
+                    return false
+                },
+                waitBeforeRetry: {
+                    waitCount += 1
+                    return true
+                }
+            )
+
+        #expect(!didRetire)
+        #expect(retirementAttempts == 3)
+        #expect(waitCount == 2)
     }
 
     @Test func cloudDeletionRequiresExplicitNetworkConfirmation() {

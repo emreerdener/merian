@@ -670,6 +670,21 @@ Deno.test("production RevenueCat monitoring requires purchase-principal health",
   );
 });
 
+Deno.test("account deletion monitor marks the additive recovery pre-deploy window explicitly", async () => {
+  const monitor = await Deno.readTextFile(
+    new URL("account-deletion-health-monitor.yml", workflowsDirectory),
+  );
+
+  assertStringIncludes(
+    monitor,
+    "--recovery-health-mode expand-compatible",
+  );
+  assert(
+    !monitor.includes("--recovery-health-mode required"),
+    "The schedule cannot require recovery health until both additive RPCs pass hosted smoke.",
+  );
+});
+
 Deno.test("candidate and deploy workflows never mutate purchase identity rollout modes", async () => {
   for (
     const filename of [

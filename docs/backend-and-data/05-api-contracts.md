@@ -7240,7 +7240,9 @@ under `WhenUnlockedThisDeviceOnly` protection. They persist
 persist `capability_prepared_pending`, then persist
 `capability_intake_pending` before destructive commit. They retain the exact
 cached session and permit only an owner-token commit replay until a receipt
-arrives. A crash before commit uses public v2 recovery: `not_committed` retires
+arrives. Relaunch from either preparation marker is admitted only to that same
+deletion-owned recovery transition. A crash before commit uses public v2
+recovery: `not_committed` retires
 only the proof and marker and preserves Auth and SwiftData; pending/completed
 proves another device or the interrupted commit created the job and proceeds to
 cleanup. An unknown v2 proof is also evidence of no commit because v2 commit
@@ -7355,7 +7357,12 @@ prefix cursors, delayed verification, idempotent Auth-not-found handling, and
 database-calculated backoff make crashes and lost responses resumable.
 It also prunes a bounded number of expired, non-destructive v2 preparations,
 records both proof hashes in the identity-free expired-proof ledger before
-removing each row, and returns `recovery_preparations_pruned`. Committed recovery proofs are permanent
+removing each row, and returns `recovery_preparations_pruned`. Pruning locks
+an outer set of at most the requested number of candidate Auth users in
+deterministic UUID order before their preparation rows and skips accounts whose
+Auth row is already locked, so concurrent deletion intake wins without making a
+small cleanup batch wait or introducing inverse lock order.
+Committed recovery proofs are permanent
 bounded idempotency receipts and the reaper does not delete them. Provider
 failures are reported in the
 existing deferred aggregate and remain inside the `auth_pending` account phase;
@@ -7458,7 +7465,16 @@ expired unacknowledged proof is critical because it represents a device that did
 not finish cleanup within the normal 180-day recovery window. Eight active
 proofs on one job is a warning boundary and more than eight is an invariant
 failure. The independent account-deletion monitor fetches and validates both
-health rows; absence, malformed shape, or dependency failure is fail-closed.
+health rows. Its CLI defaults to `required`, where absence, malformed shape, or
+dependency failure is fail-closed. During the documented additive pre-deploy
+window only, `--recovery-health-mode expand-compatible` accepts an exact
+`PGRST202` naming either zero-argument recovery-health RPC. The summary exposes
+`recovery_health_availability` and
+`recovery_preparation_health_availability` as `not_deployed` with the
+corresponding health payload set to `null`; it never substitutes zero counts.
+Authorization, timeout, malformed response, and unrelated catalog errors remain
+fatal. After both hosted RPC smokes pass, the production schedule must use
+`required`.
 
 ---
 

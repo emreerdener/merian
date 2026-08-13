@@ -57,9 +57,14 @@ a worker or dependency health check.
 Normal runs move each expired protocol-v2 preparation's two proof hashes into
 the private identity-free expired-proof ledger before deleting the preparation.
 Only live preparations can become committed capabilities, and tombstoned hashes
-cannot be reused. The ledger retains whether deletion had already committed so
-public recovery can distinguish safe `not_committed` cancellation from the
-non-authorizing `account_deletion_recovery_preparation_expired` state.
+cannot be reused. The pruner locks candidate Auth users in UUID order before
+their preparation rows, bounds both the Auth-user and preparation scans by the
+requested batch size, and skips an Auth row already owned by deletion or
+recovery. This prevents cleanup from waiting behind or classifying a proof while
+an earlier account operation owns that account. The ledger retains whether
+deletion had already committed so public recovery can distinguish safe
+`not_committed` cancellation from the non-authorizing
+`account_deletion_recovery_preparation_expired` state.
 
 ## Independent health alert
 
@@ -90,6 +95,15 @@ Vault values this reconciler needs. Therefore a disabled cron or absent Vault
 configuration becomes a critical alert instead of silently stopping deletion
 progress. The default end-to-end warning/critical thresholds are 27/36 hours to
 include the mandatory 25-hour verification delay.
+
+The monitor program defaults recovery-ledger health to `required`. The scheduled
+workflow may use the explicit `expand-compatible` mode only before the additive
+recovery migrations have passed hosted smoke. In that mode, an exact
+missing-function `PGRST202` for either named recovery health RPC is reported as
+`not_deployed` with a null payload; baseline reaper and erasure health remains
+enforced. No other error is softened and missing data is never rendered as zero.
+Flip the scheduled command to `required` immediately after the deployment gate
+proves both RPCs.
 
 On alert, repair cron/Vault configuration or the failing R2/Apple/Auth
 dependency and let claim-fenced retries resume. Never mutate queue cursors or

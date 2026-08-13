@@ -108,6 +108,17 @@ final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
     nonisolated static let backgroundTerminalWorkTracker =
         BackgroundURLSessionTerminalWorkTracker()
 
+    /// Testable system-completion boundary shared by the URLSession delegate.
+    /// The handler is taken only after every synchronously registered terminal
+    /// processor has committed its durable state and released its Auth lease.
+    static func invokeBackgroundSessionCompletionAfterTerminalWork(
+        tracker: BackgroundURLSessionTerminalWorkTracker,
+        takeHandler: @MainActor () -> (() -> Void)?
+    ) async {
+        await tracker.waitUntilIdle()
+        takeHandler()?()
+    }
+
     // MARK: - State
 
     /// Whether the device currently has a satisfied network path.

@@ -1122,12 +1122,28 @@ extension OfflineQueueManager {
                 // A manifest is all-or-nothing. Persist the retreat before any
                 // suspended task is cancelled so its terminal callback cannot
                 // promote a partial source-account upload.
-                _ = await queueActor.retireBackgroundAccountWork(
-                    scanId: scanId,
-                    expectedOwnerUserID: expectedAuthUserID,
-                    expectedGeneration: syncGeneration,
-                    phase: .upload
+                let didRetire = await Self
+                    .awaitDurableBackgroundWorkRetirement(
+                    retire: {
+                        await queueActor.retireBackgroundAccountWork(
+                            scanId: scanId,
+                            expectedOwnerUserID: expectedAuthUserID,
+                            expectedGeneration: syncGeneration,
+                            phase: .upload
+                        )
+                    },
+                    waitBeforeRetry: {
+                        await Self
+                            .waitForDurableBackgroundWorkRetirementRetry()
+                    }
                 )
+                guard didRetire else {
+                    // Keep suspended transports and their Auth leases intact.
+                    // The transition quiescer re-reads the durable ownership
+                    // and is not allowed to mutate Auth until retirement can
+                    // be committed.
+                    continue
+                }
                 invalidateUploadGeneration(
                     scanId: scanId,
                     generation: syncGeneration

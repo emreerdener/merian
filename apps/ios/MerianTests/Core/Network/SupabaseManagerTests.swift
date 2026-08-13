@@ -840,6 +840,7 @@ final class SupabaseManagerTests: XCTestCase {
         let intakeStates: [AccountDeletionLocalRecoveryState] = [
             .intakePending,
             .capabilityPreparationPending,
+            .capabilityPreparedPending,
             .capabilityIntakePending
         ]
         for state in intakeStates {
@@ -1134,15 +1135,6 @@ final class SupabaseManagerTests: XCTestCase {
 
         XCTAssertTrue(
             SupabaseManager.canRestoreDeferredDeletionBarrierSession(
-                markerIsPending: false,
-                sourceSession: source,
-                cachedUserID: sourceUserID,
-                cachedUserIsAnonymous: false,
-                cachedSessionIsExpired: false
-            )
-        )
-        XCTAssertFalse(
-            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
                 markerIsPending: true,
                 sourceSession: source,
                 cachedUserID: sourceUserID,
@@ -1154,6 +1146,15 @@ final class SupabaseManagerTests: XCTestCase {
             SupabaseManager.canRestoreDeferredDeletionBarrierSession(
                 markerIsPending: false,
                 sourceSession: source,
+                cachedUserID: sourceUserID,
+                cachedUserIsAnonymous: false,
+                cachedSessionIsExpired: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: true,
+                sourceSession: source,
                 cachedUserID: otherUserID,
                 cachedUserIsAnonymous: false,
                 cachedSessionIsExpired: false
@@ -1161,7 +1162,7 @@ final class SupabaseManagerTests: XCTestCase {
         )
         XCTAssertFalse(
             SupabaseManager.canRestoreDeferredDeletionBarrierSession(
-                markerIsPending: false,
+                markerIsPending: true,
                 sourceSession: source,
                 cachedUserID: sourceUserID,
                 cachedUserIsAnonymous: true,
@@ -1170,13 +1171,66 @@ final class SupabaseManagerTests: XCTestCase {
         )
         XCTAssertFalse(
             SupabaseManager.canRestoreDeferredDeletionBarrierSession(
-                markerIsPending: false,
+                markerIsPending: true,
                 sourceSession: source,
                 cachedUserID: sourceUserID,
                 cachedUserIsAnonymous: false,
                 cachedSessionIsExpired: true
             )
         )
+    }
+
+    func testDeletionBarrierAdoptsCachedSessionBeforeMarkerRemovalAndPublication() {
+        var markerIsPending = true
+        var events: [String] = []
+
+        let restored = SupabaseManager
+            .performDeferredDeletionBarrierSessionRestoration(
+                markerIsPending: { markerIsPending },
+                adoptCachedSession: {
+                    events.append("adopt")
+                    XCTAssertTrue(markerIsPending)
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    XCTAssertTrue(markerIsPending)
+                    markerIsPending = false
+                    return true
+                },
+                publishCachedSession: {
+                    events.append("publish")
+                    XCTAssertFalse(markerIsPending)
+                    return true
+                }
+            )
+
+        XCTAssertTrue(restored)
+        XCTAssertEqual(events, ["adopt", "resolve", "publish"])
+    }
+
+    func testDeletionBarrierDoesNotPublishWhenMarkerRemovalFails() {
+        var events: [String] = []
+
+        let restored = SupabaseManager
+            .performDeferredDeletionBarrierSessionRestoration(
+                markerIsPending: { true },
+                adoptCachedSession: {
+                    events.append("adopt")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return false
+                },
+                publishCachedSession: {
+                    events.append("publish")
+                    return true
+                }
+            )
+
+        XCTAssertFalse(restored)
+        XCTAssertEqual(events, ["adopt", "resolve"])
     }
 
     func testAccountDeletionDoesNotDispatchWhenIntentPersistenceFails() async {

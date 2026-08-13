@@ -10,6 +10,8 @@ import {
   buildAccountDeletionSummary,
   parseAccountDeletionMonitorArgs,
   renderAccountDeletionMarkdown,
+  resolveAccountDeletionRecoveryHealthRpcResult,
+  resolveAccountDeletionRecoveryPreparationHealthRpcResult,
   shouldFailAccountDeletionMonitor,
 } from "./monitor_account_deletion_health.ts";
 
@@ -71,6 +73,7 @@ Deno.test("parseAccountDeletionMonitorArgs applies deletion SLA defaults", () =>
     warningBacklog: 25,
     criticalBacklog: 100,
     failOn: "warning",
+    recoveryHealthMode: "required",
     summaryJsonPath: null,
     summaryMarkdownPath: null,
   });
@@ -87,6 +90,8 @@ Deno.test("parseAccountDeletionMonitorArgs applies deletion SLA defaults", () =>
       "--critical-backlog=250",
       "--fail-on",
       "critical",
+      "--recovery-health-mode",
+      "expand-compatible",
       "--summary-json=/tmp/account-deletion.json",
       "--summary-md",
       "/tmp/account-deletion.md",
@@ -99,6 +104,7 @@ Deno.test("parseAccountDeletionMonitorArgs applies deletion SLA defaults", () =>
       warningBacklog: 50,
       criticalBacklog: 250,
       failOn: "critical",
+      recoveryHealthMode: "expand-compatible",
       summaryJsonPath: "/tmp/account-deletion.json",
       summaryMarkdownPath: "/tmp/account-deletion.md",
     },
@@ -131,7 +137,68 @@ Deno.test("parseAccountDeletionMonitorArgs rejects unsafe thresholds", () => {
     ])
   );
   assertThrows(() => parseAccountDeletionMonitorArgs(["--fail-on", "always"]));
+  assertThrows(() =>
+    parseAccountDeletionMonitorArgs([
+      "--recovery-health-mode",
+      "optional",
+    ])
+  );
   assertThrows(() => parseAccountDeletionMonitorArgs(["--unknown", "1"]));
+});
+
+Deno.test("recovery health compatibility accepts only exact additive RPC absence", () => {
+  const missingRecovery = {
+    code: "PGRST202",
+    message:
+      "Could not find the function public.get_account_deletion_recovery_health without parameters in the schema cache",
+  };
+  const missingPreparation = {
+    code: "PGRST202",
+    message:
+      "Could not find the function public.get_account_deletion_recovery_preparation_health without parameters in the schema cache",
+  };
+
+  assertEquals(
+    resolveAccountDeletionRecoveryHealthRpcResult(
+      null,
+      missingRecovery,
+      "expand-compatible",
+    ),
+    null,
+  );
+  assertEquals(
+    resolveAccountDeletionRecoveryPreparationHealthRpcResult(
+      null,
+      missingPreparation,
+      "expand-compatible",
+    ),
+    null,
+  );
+  assertThrows(() =>
+    resolveAccountDeletionRecoveryHealthRpcResult(
+      null,
+      missingRecovery,
+      "required",
+    )
+  );
+  assertThrows(() =>
+    resolveAccountDeletionRecoveryPreparationHealthRpcResult(
+      null,
+      { ...missingPreparation, code: "42501" },
+      "expand-compatible",
+    )
+  );
+  assertThrows(() =>
+    resolveAccountDeletionRecoveryHealthRpcResult(
+      null,
+      {
+        code: "PGRST202",
+        message:
+          "Could not find the function public.unrelated without parameters in the schema cache",
+      },
+      "expand-compatible",
+    )
+  );
 });
 
 Deno.test("assertAccountDeletionHealth validates one consistent summary", () => {
@@ -399,7 +466,37 @@ Deno.test("renderAccountDeletionMarkdown includes recovery guidance", () => {
   assertStringIncludes(markdown, "- With retry errors: `2`");
   assertStringIncludes(markdown, "- Reaper credentials configured: `false`");
   assertStringIncludes(markdown, "## Device Recovery");
+  assertStringIncludes(markdown, "Recovery health availability: `available`");
   assertStringIncludes(markdown, "Active unacknowledged capabilities: `1`");
   assertStringIncludes(markdown, "Active non-destructive preparations: `1`");
   assertStringIncludes(markdown, "do not edit private job");
+});
+
+Deno.test("expand-compatible summaries expose unavailable recovery aggregates", () => {
+  const summary = buildAccountDeletionSummary(
+    HEALTHY,
+    {
+      ...parseAccountDeletionMonitorArgs([]),
+      recoveryHealthMode: "expand-compatible",
+    },
+    new Date("2026-07-27T01:00:00.000Z"),
+    null,
+    null,
+  );
+  const markdown = renderAccountDeletionMarkdown(summary);
+
+  assertEquals(summary.status, "ok");
+  assertEquals(summary.recovery_health_availability, "not_deployed");
+  assertEquals(
+    summary.recovery_preparation_health_availability,
+    "not_deployed",
+  );
+  assertEquals(summary.recovery_health, null);
+  assertEquals(summary.recovery_preparation_health, null);
+  assertStringIncludes(
+    markdown,
+    "Recovery health availability: `not_deployed`",
+  );
+  assertStringIncludes(markdown, "unavailable");
+  assertStringIncludes(markdown, "do not infer zero recovery work");
 });

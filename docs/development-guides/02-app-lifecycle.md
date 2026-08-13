@@ -111,8 +111,10 @@ recovery and acknowledgement capabilities in device-only Keychain. It records
 records `capability_prepared_pending`, and then records
 `capability_intake_pending` before destructive commit. It keeps the exact cached
 session solely so that JWT-derived, idempotent commit can be replayed after a
-crash or lost response; every other SDK Auth event, background sync, OAuth
-callback, and scene-phase operation remains closed. A successful or publicly
+crash or lost response. Both preparation markers are admitted back into that
+single deletion-owned recovery transition on relaunch; every other SDK Auth
+event, background sync, OAuth callback, and scene-phase operation remains
+closed. A successful or publicly
 recovered receipt advances to `capability_cleanup_pending`, which authorizes
 verified local sign-out and SwiftData purge. Acknowledgement then advances to
 `capability_retirement_pending`; verified proof removal precedes marker removal.
@@ -126,8 +128,10 @@ Keychain proof before clearing the barrier. Relaunch in that phase never signs
 out or purges local data. Legacy unknown proofs and all ambiguous failures retain
 both authority and barrier. A v2 `not_committed` or genuinely unknown proof
 definitively retires only the unused intent; before ordinary lifecycle work
-reopens, the transition owner must re-adopt the same cached unexpired session,
-same UUID, and same anonymous/account kind. A tombstoned expired preparation
+reopens, it verifies proof retirement, adopts the same cached unexpired session
+into the transition coordinator while the barrier is still present, clears the
+barrier, and only then republishes that session. The UUID and anonymous/account
+kind must match exactly. A tombstoned expired preparation
 retired during another device's commit is non-authorizing and retains the
 barrier. Only a server-matched expired committed capability permits
 conservative local erasure.

@@ -3561,6 +3561,17 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     incident,
     "The following thirteen customer-critical routes",
   );
+  assert(
+    !incident.includes("twelve stricter authorization probes") &&
+      !incident.includes("all twelve critical routes"),
+    "The incident release checklist must use the current thirteen-route authorization inventory.",
+  );
+  assert(
+    !backend.includes(
+      "stricter fail-closed authorization probes for twelve",
+    ),
+    "The Supabase operations README must use the current thirteen-route authorization inventory.",
+  );
   assertStringIncludes(
     backend,
     "A platform `404` therefore cannot be mistaken for an application-level missing scan",

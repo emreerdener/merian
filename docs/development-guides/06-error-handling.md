@@ -237,10 +237,14 @@ Both uploads and inference use the same background `URLSession`
 (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`,
 so iOS can re-attach in-flight tasks on app relaunch and deliver inference
 results while the app is completely suspended. Current upload task descriptions
-are `upload|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`. Current
-inference task descriptions are `inference_v2|{inferenceGeneration}|{scanId}`.
-Parsers continue to accept the earlier three- and four-part upload forms and
-`inference_{scanId}` for in-flight tasks created by an older app version.
+are
+`upload_v2|{ownerUUID}|{scanId}|{uploadIndex}|{syncGeneration}|{serverObjectKey}`.
+Current inference task descriptions are
+`inference_v3|{ownerUUID}|{inferenceGeneration}|{scanId}`. Parsers continue to
+accept the earlier three-, four-, and five-part upload forms,
+`inference_v2|{inferenceGeneration}|{scanId}`, and `inference_{scanId}` for
+in-flight tasks created by an older app version; unknown ownership remains
+fail-closed across account transitions.
 
 The generation in each current description is an ownership fence, not merely a
 deduplication key. Delayed callbacks, retry timers, server-status probes, and
@@ -249,7 +253,13 @@ clear manager state, cancel a URLSession task, delete a queued scan, or complete
 a UI progress token. Cancellation remains cooperative, so task dictionaries also
 use compare-before-clear registry tokens. Retry state itself lives in SwiftData
 (`OfflineQueuedScan.queue*` plus `OfflineJobRecord`) rather than in process
-memory. High-authority scan-ingestion retry/completion markers and attempt
+memory. If a task loses its Auth lease after durable upload/inference ownership
+was written, the client makes a bounded durable-retreat attempt before
+cancellation. A persistent save failure leaves the transport suspended or the
+durable owner intact, and the independent Auth-transition sweep must commit the
+retreat or abort the identity change; the client never cancels first and leaves
+an unowned `.uploading` or `.inferencing` row. High-authority scan-ingestion
+retry/completion markers and attempt
 counts are redundant copies, not alternatives: fresh reads consult both,
 writers repair drift before mutation, counts use the nonnegative monotonic
 maximum, and cloud completion outranks retry state. Never authorize Identify

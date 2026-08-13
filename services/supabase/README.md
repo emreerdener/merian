@@ -561,12 +561,24 @@ eight active proofs for one job is critical, while eight is a warning. Active
 preparations participate in the same backlog/age thresholds. The workflow fails
 on warning by default and retains JSON and Markdown evidence.
 
+The monitor CLI defaults to `--recovery-health-mode required`. During the
+additive recovery-ledger pre-deploy window, the scheduled workflow selects
+`expand-compatible`: only an exact PostgREST `PGRST202` for either named
+zero-argument recovery-health RPC is accepted. The JSON and Markdown summaries
+then record that aggregate as `not_deployed` with a `null` payload while the
+established deletion queue, cron, credential, storage, and lease checks remain
+active. It never substitutes zero counts, and authorization, transport,
+response-shape, or unrelated catalog errors remain fatal. After both migrations
+and the hosted RPC smokes pass at the deployed SHA, change the scheduled command
+to `required` in a reviewed follow-up.
+
 Coverage lives in `_shared/appleSignIn_test.ts`,
 `register-apple-revocation-token/handler_test.ts`,
 `safe-delete/manualRevocationEmail_test.ts`, `safe-delete/protocol_test.ts`,
 `safe-delete/db_recovery_test.ts`, `recover-account-deletion/handler_test.ts`,
 `_tests/safeDelete.test.ts`, `_tests/accountDeletionCoverage.test.ts`,
 `_tests/accountDeletionMigrationContract.test.ts`, and
+`_tests/accountDeletionRecoveryConcurrencyDb.test.ts`, and
 `tests/account_deletion_security.sql`, with R2 worker coverage in
 `functions/safe-delete/storageWorker_test.ts` and monitor policy coverage in
 `scripts/monitor_account_deletion_health_test.ts`.
@@ -2356,7 +2368,7 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for twelve
+followed by stricter fail-closed authorization probes for thirteen
 customer-critical scan, signing, share-state, Explore media-incident, Field
 Chat, Community, identity-handoff, and deletion routes. It then reaches the
 exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile`,

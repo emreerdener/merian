@@ -797,7 +797,8 @@ additional callback fence, but they are not the persistence authority:
   claims and retry retreats for that scan across independent SwiftData
   `ModelContext` actors, closing their fetch-then-save window. The same UUID is
   stored durably, becomes the active inference generation, and is encoded as
-  `inference_v2|{generation}|{scanId}` in the background download task. Request
+  `inference_v3|{ownerUUID}|{generation}|{scanId}` in the background download
+  task. Request
   preparation, delayed status probes, retry scheduling, delegate callbacks,
   result processing, task cancellation, and queue deletion all compare that UUID
   before mutating state.
@@ -922,9 +923,10 @@ every call it runs
 with the same snapshot cutoff. It cross-references live background URLSession
 inference tasks, preparation slots, completion slots, active generation owners,
 and server-poll slots before resetting `.inferencing → .staged`. Current tasks
-use `inference_v2|{generation}|{scanId}` descriptions; the parser also
-recognizes legacy `"inference_{scanId}"` tasks created before generation
-tagging. This replaces the old blind `resetOrphanedInferencingScans()` — a
+use `inference_v3|{ownerUUID}|{generation}|{scanId}` descriptions; the parser
+also recognizes generation-only `inference_v2|{generation}|{scanId}` and legacy
+`"inference_{scanId}"` tasks created before account ownership tagging. This
+replaces the old blind `resetOrphanedInferencingScans()` — a
 background download task for inference can survive app suspension and re-attach
 after a relaunch, so blindly resetting all `.inferencing` scans would dispatch a
 duplicate inference task against a scan already owned by a live OS task.
@@ -1035,11 +1037,24 @@ the latch without waiting for a URLSession delegate callback.
 ### 5. Upload Lifecycle via URLSession Delegates
 
 - **Step A**: iOS transmits the staged file to the Cloudflare R2 staging bucket.
-- **Step B**: `urlSessionDidFinishEvents(forBackgroundURLSession:)` fires,
-  invoking the `AppDelegate` completion handler so the system knows it's safe to
-  suspend.
-- **Step C**: `urlSession(_:task:didCompleteWithError:)` fires. Non-Sendable
-  task properties are captured as local immutable variables before crossing the
+- **Step B**: `urlSession(_:task:didCompleteWithError:)` and inference
+  `urlSession(_:downloadTask:didFinishDownloadingTo:)` callbacks synchronously
+  register terminal work before crossing an actor or background-task boundary.
+  Their processors persist terminal queue state and release the task's
+  transferred Auth-work lease before unregistering that work. A rejected or
+  stale transport makes a bounded durable `.pending` retreat while the callback
+  still owns its Auth-work lease; cancellation cannot run unless that save
+  succeeds. If persistence stays unavailable, the untouched durable owner makes
+  the Auth-transition quiescer fail closed on its independent retry.
+  A task reattached after relaunch atomically reacquires an exact-session lease
+  from its encoded owner before its first SwiftData suspension; the transition
+  drain therefore also waits for terminal processors that began in a later
+  process.
+- **Step C**: `urlSessionDidFinishEvents(forBackgroundURLSession:)` waits for
+  every registered terminal processor, then takes and invokes the `AppDelegate`
+  completion handler exactly once so the system knows it is safe to suspend.
+  For upload completion, non-Sendable task properties are captured as local
+  immutable variables before crossing the
   actor boundary through the newly distinct `fetchScanMetadata` helper. The
   handler cleans up the temp staging file unconditionally, then evaluates the
   payload explicitly through `handleUploadFallback`:
@@ -1093,7 +1108,7 @@ the latch without waiting for a URLSession delegate callback.
   a **background URLSession download task**
   (`backgroundSession.downloadTask(with: request)`). The preparation UUID is
   claimed before any suspending status/request work and becomes the task
-  identity: `"inference_v2|{generation}|{scanId}"`.
+  identity: `"inference_v3|{ownerUUID}|{generation}|{scanId}"`.
   `SyncStateManager.shared.beginInferencing(generation:)` registers that exact
   token. The inference download is suppressed until the **last** media file for
   the scan and upload generation has landed (guarded by the strict
