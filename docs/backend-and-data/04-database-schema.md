@@ -4159,7 +4159,10 @@ active, pending, unbound-active-with-current-StoreKit-access, due,
 expired-claim, oldest-due, and oldest-pending values and exposes no identities.
 It is exposed only through the service-role-only
 `public.get_purchase_principal_health()` routine; API roles have no table access
-and no execute grant.
+and no execute grant. Stable-principal reconciliation locks a live claim with a
+lock-only `PERFORM 1 ... FOR UPDATE`; an absent or expired claim returns stable
+SQLSTATE `55000` before any snapshot mutation. The stable identity ledger uses
+the integer `FOR` loop's implicit index so strict database lint remains clean.
 
 Free abandoned principals do not create permanent operational alerts. In
 `account_grant_mode = authoritative`, provider promotional records are observed

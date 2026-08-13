@@ -6,6 +6,7 @@ SELECT extensions.plan(1);
 DO $test$
 DECLARE
     function_definition TEXT;
+    normalized_definition TEXT;
 BEGIN
     IF EXISTS (
         SELECT 1
@@ -71,6 +72,17 @@ BEGIN
     IF function_definition ~* E'\\msubject_index\\M[[:space:]]+integer[[:space:]]*;' THEN
         RAISE EXCEPTION
             'apply_revenuecat_customer_state still shadows its loop variable';
+    END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.apply_revenuecat_identity_state(text,bigint,text,text,bigint,jsonb)'
+        )
+    )
+    INTO STRICT function_definition;
+    IF function_definition ~* E'\\msubject_index\\M[[:space:]]+integer[[:space:]]*;' THEN
+        RAISE EXCEPTION
+            'apply_revenuecat_identity_state still shadows its loop variable';
     END IF;
 
     IF pg_catalog.TO_REGPROCEDURE(
@@ -145,6 +157,39 @@ BEGIN
     IF function_definition ~* '\mqueue_row\M' THEN
         RAISE EXCEPTION
             'apply_revenuecat_reconciliation retains its unread lock row';
+    END IF;
+
+    SELECT pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+            'public.apply_purchase_principal_reconciliation(uuid,uuid,bigint,text,timestamp with time zone,text,timestamp with time zone)'
+        )
+    )
+    INTO STRICT function_definition;
+    normalized_definition := pg_catalog.REGEXP_REPLACE(
+        function_definition,
+        '[[:space:]]+',
+        ' ',
+        'g'
+    );
+    IF function_definition ~* '\mqueue_row\M'
+       OR normalized_definition !~*
+            'PERFORM 1 FROM internal[.]purchase_principal_reconciliation_queue AS queue WHERE queue[.]purchase_principal_id = principal[.]id AND queue[.]claim_token = p_claim_token AND queue[.]claim_expires_at > pg_catalog[.]clock_timestamp[(][)] FOR UPDATE; IF NOT FOUND THEN RAISE EXCEPTION ''purchase_principal_reconciliation_claim_lost'''
+       OR pg_catalog.STRPOS(
+            function_definition,
+            'purchase_principal_reconciliation_claim_lost'
+          ) <= pg_catalog.STRPOS(
+            function_definition,
+            'PERFORM 1'
+          )
+       OR pg_catalog.STRPOS(
+            function_definition,
+            'FROM internal.apply_purchase_principal_snapshot('
+          ) <= pg_catalog.STRPOS(
+            function_definition,
+            'purchase_principal_reconciliation_claim_lost'
+          ) THEN
+        RAISE EXCEPTION
+            'apply_purchase_principal_reconciliation lacks its lint-clean claim lock';
     END IF;
 
     SELECT pg_catalog.PG_GET_FUNCTIONDEF(

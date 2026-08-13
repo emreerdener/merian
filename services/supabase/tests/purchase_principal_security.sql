@@ -1274,6 +1274,103 @@ END;
 $durable_pass_revocation$;
 RESET ROLE;
 
+CREATE TEMP TABLE stale_principal_reconciliation_snapshot ON COMMIT DROP AS
+SELECT
+  (
+    SELECT pg_catalog.COALESCE(
+      pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(state)),
+      '[]'::JSONB
+    )
+    FROM internal.purchase_principal_store_state AS state
+    WHERE state.purchase_principal_id = fixture.purchase_principal_id
+  ) AS store_state,
+  (
+    SELECT pg_catalog.COALESCE(
+      pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(queue)),
+      '[]'::JSONB
+    )
+    FROM internal.purchase_principal_reconciliation_queue AS queue
+    WHERE queue.purchase_principal_id = fixture.purchase_principal_id
+  ) AS queue_state,
+  (
+    SELECT pg_catalog.COUNT(*)
+    FROM internal.revenuecat_webhook_events
+  ) AS event_count
+FROM purchase_principal_resolution_fixture AS fixture;
+
+SET LOCAL ROLE service_role;
+DO $stale_principal_reconciliation_claim$
+DECLARE
+  principal_id UUID := (
+    SELECT purchase_principal_id
+    FROM purchase_principal_resolution_fixture
+  );
+BEGIN
+  BEGIN
+    PERFORM public.apply_purchase_principal_reconciliation(
+      principal_id,
+      '23000000-0000-4000-8000-000000000001',
+      1,
+      'free',
+      NULL,
+      'free',
+      NULL
+    );
+    RAISE EXCEPTION
+      'missing purchase-principal claim reached entitlement mutation';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      IF SQLERRM <> 'purchase_principal_reconciliation_claim_lost' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$stale_principal_reconciliation_claim$;
+RESET ROLE;
+
+DO $stale_principal_reconciliation_state$
+DECLARE
+  principal_id UUID := (
+    SELECT purchase_principal_id
+    FROM purchase_principal_resolution_fixture
+  );
+  store_state_after JSONB;
+  queue_state_after JSONB;
+  event_count_after BIGINT;
+BEGIN
+  SELECT pg_catalog.COALESCE(
+    pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(state)),
+    '[]'::JSONB
+  )
+  INTO STRICT store_state_after
+  FROM internal.purchase_principal_store_state AS state
+  WHERE state.purchase_principal_id = principal_id;
+
+  SELECT pg_catalog.COALESCE(
+    pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(queue)),
+    '[]'::JSONB
+  )
+  INTO STRICT queue_state_after
+  FROM internal.purchase_principal_reconciliation_queue AS queue
+  WHERE queue.purchase_principal_id = principal_id;
+
+  SELECT pg_catalog.COUNT(*)
+  INTO STRICT event_count_after
+  FROM internal.revenuecat_webhook_events;
+
+  IF EXISTS (
+    SELECT 1
+    FROM stale_principal_reconciliation_snapshot AS snapshot
+    WHERE store_state_after IS DISTINCT FROM snapshot.store_state
+       OR queue_state_after IS DISTINCT FROM snapshot.queue_state
+       OR event_count_after IS DISTINCT FROM snapshot.event_count
+  ) THEN
+    RAISE EXCEPTION
+      'missing purchase-principal claim changed durable state';
+  END IF;
+END;
+$stale_principal_reconciliation_state$;
+
 DO $durable_pass_state$
 BEGIN
   IF EXISTS (

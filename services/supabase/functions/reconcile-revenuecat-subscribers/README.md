@@ -38,7 +38,8 @@ is not a browser or iOS API.
   the queue, user, and customer-watermark locks. Every write is claim-fenced.
   CustomerInfo must be no more than 15 minutes old and no more than five minutes
   in the future; an out-of-window response is failed and retried without
-  changing either entitlement lane.
+  changing either entitlement lane. A missing or expired claim in either lane
+  fails with stable SQLSTATE `55000` before snapshot mutation.
 - A principal claim removes at most 100 unbound, state-free `pending` principals
   with no activity for 24 hours. Each begin attempt refreshes the activity time
   under the principal lock, so cleanup cannot delete a live retry between begin

@@ -13,6 +13,10 @@ const lockOnlyMigrationUrl = new URL(
   "../../migrations/20260802040100_clean_lock_only_database_lint_warnings.sql",
   import.meta.url,
 );
+const stablePurchasePrincipalLintMigrationUrl = new URL(
+  "../../migrations/20260813020636_repair_stable_purchase_principal_lint_warnings.sql",
+  import.meta.url,
+);
 
 const speciesStatsMigrationUrl = new URL(
   "../../migrations/20260724170709_harden_species_observation_stats.sql",
@@ -191,5 +195,43 @@ Deno.test("lock-only database lint repairs preserve lock semantics", async () =>
   assert(
     !/\b(?:GRANT|REVOKE)\b/i.test(sql),
     "lock/profile lint repairs must preserve existing routine ACLs",
+  );
+});
+
+Deno.test("stable purchase-principal replacements retain lint-clean lock semantics", async () => {
+  const sql = await migrationSql(stablePurchasePrincipalLintMigrationUrl);
+
+  for (
+    const fragment of [
+      "public.apply_revenuecat_identity_state(text,bigint,text,text,bigint,jsonb)",
+      "subject_index INTEGER;",
+      "FOR subject_index IN 1..subject_total LOOP",
+      "public.apply_purchase_principal_reconciliation(uuid,uuid,bigint,text,timestamp with time zone,text,timestamp with time zone)",
+      "queue_row internal.purchase_principal_reconciliation_queue%ROWTYPE;",
+      "INTO STRICT queue_row",
+      "declaration_occurrences <> 1",
+      "select_occurrences <> 1",
+      "PERFORM 1",
+      "purchase_principal_reconciliation_claim_lost",
+      "USING ERRCODE = ''55000''",
+      "PG_GET_FUNCTIONDEF",
+      "EXECUTE patched_sql",
+      "SET lock_timeout = '5s'",
+      "SET statement_timeout = '30s'",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assertEquals(
+    sql.match(/EXECUTE patched_sql/g)?.length,
+    2,
+    "each stable purchase-principal lint repair must rebuild exactly one routine",
+  );
+  assert(
+    !/\b(?:GRANT|REVOKE)\b/i.test(sql),
+    "stable purchase-principal lint repair must preserve existing routine ACLs",
   );
 });

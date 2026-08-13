@@ -8,6 +8,10 @@ const legacyQueueFenceMigrationUrl = new URL(
   "../../migrations/20260813012852_fence_empty_legacy_revenuecat_queue_after_stable_binding.sql",
   import.meta.url,
 );
+const stablePrincipalLintRepairMigrationUrl = new URL(
+  "../../migrations/20260813020636_repair_stable_purchase_principal_lint_warnings.sql",
+  import.meta.url,
+);
 const resolverHandlerUrl = new URL(
   "../resolve-purchase-principal/handler.ts",
   import.meta.url,
@@ -130,6 +134,37 @@ Deno.test("stable bindings fence only evidence-free legacy reconciliation lanes"
     ),
     "stable binding must preserve a durable legacy provider input during the compatibility window",
   );
+});
+
+Deno.test("stable-principal lint repair validates claims before snapshots", async () => {
+  const sql = compact(
+    await Deno.readTextFile(stablePrincipalLintRepairMigrationUrl),
+  );
+  const performStart = sql.indexOf(
+    "lock_only_perform CONSTANT TEXT :=",
+  );
+  const queueLockStart = sql.indexOf(
+    "FROM internal.purchase_principal_reconciliation_queue AS queue",
+    performStart,
+  );
+  const claimLostStart = sql.indexOf(
+    "purchase_principal_reconciliation_claim_lost",
+    queueLockStart,
+  );
+  const snapshotStart = sql.indexOf(
+    "FROM internal.apply_purchase_principal_snapshot(",
+    claimLostStart,
+  );
+
+  assert(
+    performStart >= 0 &&
+      queueLockStart > performStart &&
+      claimLostStart > queueLockStart &&
+      snapshotStart < 0,
+    "the repair replacement must validate a live principal claim before the preserved routine can apply its snapshot",
+  );
+  assertStringIncludes(sql, "declaration_occurrences <> 1");
+  assertStringIncludes(sql, "select_occurrences <> 1");
 });
 
 Deno.test("purchase-principal resolution is service-only and uses one lock order", async () => {
@@ -529,6 +564,9 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "unbound paid purchase principal was not reported",
       "unbound free purchase principal created a permanent alert",
       "refunded pass policy was not returned by reconciliation claim",
+      "missing purchase-principal claim reached entitlement mutation",
+      "missing purchase-principal claim changed durable state",
+      "purchase_principal_reconciliation_claim_lost",
       "refunded pass policy was not durable in principal state",
       "provider transfer moved, extended, revoked, or created an account grant",
       "provider transfer grant freeze was not preserved or audited",

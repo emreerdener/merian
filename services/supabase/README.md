@@ -1298,6 +1298,11 @@ UPDATE`, maps a missing or expired lease to stable SQLSTATE `55000`, and records
 its zero-subject synthetic seed as `ignored`. Reintroducing an unread row holder,
 `INTO STRICT`, or the constraint-invalid `applied` outcome breaks the lint,
 retry, or event-ledger contracts even though the replacement DDL parses.
+The stable identity ledger likewise relies on its integer `FOR` loop's implicit
+index, and stable-principal reconciliation uses a lock-only `PERFORM 1 ... FOR
+UPDATE` plus explicit `55000` claim-loss mapping. Migration
+`20260813020636_repair_stable_purchase_principal_lint_warnings.sql` restores
+those final installed definitions after the stable-principal replacement.
 
 ```bash
 make validate-supabase-migrations
