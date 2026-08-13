@@ -722,13 +722,15 @@ $$;
 RESET ROLE;
 
 UPDATE internal.account_deletion_recovery_preparations AS preparation
-SET expires_at = pg_catalog.NOW() - INTERVAL '1 second'
+SET prepared_at = pg_catalog.NOW() - INTERVAL '2 seconds',
+    expires_at = pg_catalog.NOW() - INTERVAL '1 second'
 WHERE preparation.user_id =
         '00000000-0000-0000-0000-00000000d206'::UUID
   AND preparation.recovery_secret_hash = pg_catalog.REPEAT('5', 64);
 
 UPDATE internal.account_deletion_recovery_preparations AS preparation
-SET expires_at = pg_catalog.NOW() - INTERVAL '1 second'
+SET prepared_at = pg_catalog.NOW() - INTERVAL '2 seconds',
+    expires_at = pg_catalog.NOW() - INTERVAL '1 second'
 WHERE preparation.user_id =
         '00000000-0000-0000-0000-00000000d207'::UUID
   AND preparation.recovery_secret_hash = pg_catalog.REPEAT('9', 64);
