@@ -4,6 +4,10 @@ const migrationUrl = new URL(
   "../../migrations/20260812144948_introduce_stable_purchase_principals.sql",
   import.meta.url,
 );
+const legacyQueueFenceMigrationUrl = new URL(
+  "../../migrations/20260813012852_fence_empty_legacy_revenuecat_queue_after_stable_binding.sql",
+  import.meta.url,
+);
 const resolverHandlerUrl = new URL(
   "../resolve-purchase-principal/handler.ts",
   import.meta.url,
@@ -90,6 +94,41 @@ Deno.test("purchase principals are private, capability-bound, and disabled by de
       !sql.includes("GRANT INSERT ON TABLE internal.purchase_principals") &&
       !sql.includes("GRANT UPDATE ON TABLE internal.purchase_principals"),
     "purchase-principal tables must not be directly exposed through Data API roles",
+  );
+});
+
+Deno.test("stable bindings fence only evidence-free legacy reconciliation lanes", async () => {
+  const sql = compact(await Deno.readTextFile(legacyQueueFenceMigrationUrl));
+
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.has_active_purchase_principal_relationship",
+      "principal.status = 'active'",
+      "binding.auth_user_id = p_user_id",
+      "principal.account_grant_owner_user_id = p_user_id",
+      "internal.canonical_revenuecat_app_user_id(p_user_id)",
+      "CREATE OR REPLACE FUNCTION internal.should_keep_legacy_revenuecat_reconciliation",
+      "NOT internal.has_active_purchase_principal_relationship(p_user_id) OR EXISTS",
+      "FROM internal.legacy_revenuecat_entitlement_state AS legacy",
+      "CREATE TRIGGER guard_legacy_revenuecat_reconciliation_queue BEFORE INSERT OR UPDATE ON internal.revenuecat_reconciliation_queue",
+      "CREATE TRIGGER fence_empty_legacy_revenuecat_queue_after_binding AFTER INSERT OR UPDATE OF auth_user_id ON internal.purchase_principal_bindings",
+      "DELETE FROM internal.revenuecat_reconciliation_queue AS queue WHERE queue.merian_user_id = NEW.auth_user_id",
+      "DELETE FROM internal.revenuecat_reconciliation_queue AS queue USING",
+      "AS active_relationship WHERE queue.merian_user_id = active_relationship.user_id",
+      "REVOKE ALL ON FUNCTION internal.has_active_purchase_principal_relationship(UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "REVOKE ALL ON FUNCTION internal.should_keep_legacy_revenuecat_reconciliation(UUID) FROM PUBLIC, anon, authenticated, service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes(
+      "DELETE FROM internal.legacy_revenuecat_entitlement_state",
+    ),
+    "stable binding must preserve a durable legacy provider input during the compatibility window",
   );
 });
 
@@ -497,6 +536,11 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "legacy webhook reinterpreted an active stable purchase principal",
       "legacy scheduler recreated a stable principal reconciliation lane",
       "previous webhook bundle recreated legacy state after stable adoption",
+      "account-switch target did not start with one evidence-free legacy queue",
+      "stable account switch retained its evidence-free legacy queue",
+      "identity update recreated an evidence-free stable legacy queue",
+      "durable legacy provider state lost its compatibility queue",
+      "stable binding deleted its pre-existing durable legacy lane",
       "provider transfer did not freeze later grant imports",
       "deleted Auth UUID remained in purchase identity evidence",
       "ON CONFLICT (id) DO UPDATE",
@@ -562,12 +606,20 @@ Deno.test("legacy compatibility mutation loses a concurrent stable activation", 
       "public.complete_purchase_principal_resolution",
       "public.apply_revenuecat_customer_state",
       "same principal did not prepare target rebind",
+      "target fixture did not establish the ordinary pre-binding legacy queue",
       "completionApplicationName, userBlockerPid",
       "legacyApplicationName, completionPid",
       "revenuecat_legacy_identity_conflict",
       "legacy_state_exists: false",
       "legacy_queue_exists: false",
       "rejected_event_exists: false",
+      "identity update recreated an evidence-free legacy queue after stable binding",
+      "target fixture did not retain its pre-binding claimed queue",
+      "claimedCompletionApplicationName, queueBlockerPid",
+      "claimedApplyApplicationName, claimedCompletionPid",
+      "revenuecat_reconciliation_claim_lost",
+      "claimed legacy reconciliation unexpectedly survived stable binding",
+      "seed_event_exists: false",
     ]
   ) {
     assertStringIncludes(fixture, fragment);

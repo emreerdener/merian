@@ -71,25 +71,40 @@ async function hasForwardHardening(
   client: Client,
   label: string,
 ): Promise<boolean> {
-  const result = await client.queryObject<{ installed: boolean }>(`
-    SELECT COALESCE(
+  const result = await client.queryObject<{
+    revenuecat_definition: string | null;
+    community_definition: string | null;
+  }>(`
+    SELECT
       pg_catalog.PG_GET_FUNCTIONDEF(
         pg_catalog.TO_REGPROCEDURE(
           'public.apply_revenuecat_reconciliation(uuid,uuid,bigint,text,timestamptz)'
         )
-      ) LIKE '%Match Ghost merge ordering: parent user first%',
-      FALSE
-    ) AND COALESCE(
+      ) AS revenuecat_definition,
       pg_catalog.PG_GET_FUNCTIONDEF(
         pg_catalog.TO_REGPROCEDURE(
           'internal.merge_ghost_community_activity_actors(uuid,uuid)'
         )
-      ) NOT LIKE
-        '%INSERT INTO internal.community_identification_activity_actors%',
-      FALSE
-    ) AS installed
+      ) AS community_definition
   `);
-  const installed = result.rows[0]?.installed === true;
+  const revenuecatDefinition = result.rows[0]?.revenuecat_definition
+    ?.replace(/\s+/g, " ")
+    .toLowerCase() ?? "";
+  const communityDefinition = result.rows[0]?.community_definition
+    ?.replace(/\s+/g, " ")
+    .toLowerCase() ?? "";
+  const revenuecatUserLock = revenuecatDefinition.indexOf(
+    "from public.users as users where users.id = p_user_id for update",
+  );
+  const revenuecatQueueLock = revenuecatDefinition.indexOf(
+    "from internal.revenuecat_reconciliation_queue as queue where queue.merian_user_id = p_user_id and queue.claim_token = p_claim_token and queue.claim_expires_at > pg_catalog.clock_timestamp() for update",
+  );
+  const installed = revenuecatUserLock >= 0 &&
+    revenuecatQueueLock > revenuecatUserLock &&
+    revenuecatDefinition.includes("revenuecat_reconciliation_claim_lost") &&
+    !communityDefinition.includes(
+      "insert into internal.community_identification_activity_actors",
+    );
   if (!installed && CONFIGURED_DB_URL != null) {
     throw new Error(
       `[${label}] The configured database has not applied Ghost merge forward hardening`,

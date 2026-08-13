@@ -4172,6 +4172,21 @@ row value, returns stable SQLSTATE `55000` when the claim is absent or expired,
 and represents a synthetic zero-subject reconciliation seed with event outcome
 `ignored` so the immutable event-ledger CHECK remains valid.
 
+Forward migration
+`20260813012852_fence_empty_legacy_revenuecat_queue_after_stable_binding.sql`
+closes the empty target-UUID lane exposed by a stable rebind. Binding creation
+atomically removes the target's legacy reconciliation row when no durable
+`legacy_revenuecat_entitlement_state` exists, and a private queue trigger
+suppresses later inserts or updates for any active binding, fixed grant owner,
+or adopted provider UUID that still lacks such evidence. This prevents the
+legacy worker's RevenueCat subscriber GET from creating a redundant UUID
+customer. A durable legacy snapshot remains a valid separate projection input
+and keeps its queue during the old-client compatibility window. A worker that
+claimed the row before the binding transaction may finish its already-started
+provider read; user-before-queue locking makes either its durable legacy apply
+or the evidence-free binding cleanup win atomically, and no losing claim can
+write state.
+
 Purchase-principal capability, new-principal-per-account, and completion
 serialization use PostgreSQL's exact `hashtextextended(text,bigint)` overload;
 the seed is explicitly `0::BIGINT`. Catalog fixtures execute both resolver

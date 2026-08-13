@@ -96,6 +96,11 @@ FROM (VALUES
     '21000000-0000-4000-8000-000000000003'::UUID,
     'principal-second-account@naturebook.invalid',
     FALSE
+  ),
+  (
+    '21000000-0000-4000-8000-000000000004'::UUID,
+    'principal-legacy-account@naturebook.invalid',
+    FALSE
   )
 ) AS seed(user_id, email, is_anonymous);
 
@@ -132,6 +137,15 @@ VALUES
     'principal-second-account@naturebook.invalid',
     'principal_second_03',
     'Principal Second',
+    'alias',
+    'free',
+    NULL
+  ),
+  (
+    '21000000-0000-4000-8000-000000000004',
+    'principal-legacy-account@naturebook.invalid',
+    'principal_legacy_04',
+    'Principal Legacy',
     'alias',
     'free',
     NULL
@@ -783,6 +797,25 @@ $authoritative_cutover$;
 
 -- Operator grants remain account-scoped while StoreKit follows the stable
 -- principal to another linked account.
+DO $account_switch_target_starts_legacy$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000003'
+  ) OR EXISTS (
+    SELECT 1
+    FROM internal.legacy_revenuecat_entitlement_state AS legacy
+    WHERE legacy.merian_user_id =
+      '21000000-0000-4000-8000-000000000003'
+  ) THEN
+    RAISE EXCEPTION
+      'account-switch target did not start with one evidence-free legacy queue';
+  END IF;
+END;
+$account_switch_target_starts_legacy$;
+
 SET LOCAL ROLE service_role;
 SELECT public.record_account_access_grant(
   '21000000-0000-4000-8000-000000000001',
@@ -853,8 +886,146 @@ BEGIN
       'pro'::public.subscription_tier_enum THEN
     RAISE EXCEPTION 'account switch mixed StoreKit and account grant ownership';
   END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000003'
+  ) THEN
+    RAISE EXCEPTION
+      'stable account switch retained its evidence-free legacy queue';
+  END IF;
 END;
 $account_switch$;
+
+-- The ordinary identity-update enqueue trigger cannot recreate a UUID
+-- customer after an evidence-free account adopts a stable principal.
+UPDATE public.users
+SET public_identity_source = 'alias'
+WHERE id = '21000000-0000-4000-8000-000000000003';
+
+DO $stable_identity_update_stays_fenced$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000003'
+  ) THEN
+    RAISE EXCEPTION
+      'identity update recreated an evidence-free stable legacy queue';
+  END IF;
+END;
+$stable_identity_update_stays_fenced$;
+
+-- A real legacy snapshot remains a separate compatibility input even while
+-- another installation principal is bound to the same account.
+INSERT INTO internal.legacy_revenuecat_entitlement_state (
+  merian_user_id,
+  target_tier,
+  target_expires_at,
+  authoritative_snapshot_at_ms,
+  last_event_timestamp_ms
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000003',
+  'free',
+  NULL,
+  1,
+  1
+);
+
+INSERT INTO internal.revenuecat_reconciliation_queue (
+  merian_user_id,
+  lookup_app_user_id,
+  next_reconcile_at
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000003',
+  internal.canonical_revenuecat_app_user_id(
+    '21000000-0000-4000-8000-000000000003'
+  ),
+  NOW()
+);
+
+DO $durable_legacy_lane_survives_stable_binding$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000003'
+  ) THEN
+    RAISE EXCEPTION
+      'durable legacy provider state lost its compatibility queue';
+  END IF;
+END;
+$durable_legacy_lane_survives_stable_binding$;
+
+-- The binding trigger must also preserve a compatibility lane that predates
+-- stable adoption, not merely allow one that was inserted afterward.
+INSERT INTO internal.legacy_revenuecat_entitlement_state (
+  merian_user_id,
+  target_tier,
+  target_expires_at,
+  authoritative_snapshot_at_ms,
+  last_event_timestamp_ms
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000004',
+  'free',
+  NULL,
+  1,
+  1
+);
+
+INSERT INTO internal.purchase_principals (
+  id,
+  revenuecat_app_user_id,
+  capability_hash,
+  status,
+  activated_at
+)
+VALUES (
+  '22000000-0000-4000-8000-000000000004',
+  'pp_legacy_lane_fixture_04',
+  REPEAT('4', 64),
+  'active',
+  CLOCK_TIMESTAMP()
+);
+
+INSERT INTO internal.purchase_principal_bindings (
+  purchase_principal_id,
+  auth_user_id
+)
+VALUES (
+  '22000000-0000-4000-8000-000000000004',
+  '21000000-0000-4000-8000-000000000004'
+);
+
+DO $preexisting_durable_legacy_lane_survives_binding$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM internal.legacy_revenuecat_entitlement_state AS legacy
+    WHERE legacy.merian_user_id =
+      '21000000-0000-4000-8000-000000000004'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM internal.revenuecat_reconciliation_queue AS queue
+    WHERE queue.merian_user_id =
+      '21000000-0000-4000-8000-000000000004'
+  ) THEN
+    RAISE EXCEPTION
+      'stable binding deleted its pre-existing durable legacy lane';
+  END IF;
+END;
+$preexisting_durable_legacy_lane_survives_binding$;
+
+DELETE FROM internal.revenuecat_reconciliation_queue
+WHERE merian_user_id = '21000000-0000-4000-8000-000000000003';
+DELETE FROM internal.legacy_revenuecat_entitlement_state
+WHERE merian_user_id = '21000000-0000-4000-8000-000000000003';
 
 -- Account deletion and principal resolution share one fail-closed boundary.
 -- A job that already exists rejects begin, and a job inserted after begin

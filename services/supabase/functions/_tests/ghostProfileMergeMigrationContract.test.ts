@@ -20,6 +20,10 @@ const pgTapUrl = new URL(
   "../../tests/ghost_profile_merge_security.sql",
   import.meta.url,
 );
+const concurrencyFixtureUrl = new URL(
+  "./ghostProfileMergeConcurrencyDb.test.ts",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -48,6 +52,28 @@ Deno.test("Ghost merge classifies user references and fails closed", async () =>
   assert(
     !sql.includes("EXECUTE policy.handler_key"),
     "handler documentation must never become dynamically executable SQL",
+  );
+});
+
+Deno.test("Ghost merge concurrency preflight inspects installed lock semantics", async () => {
+  const fixture = normalized(await Deno.readTextFile(concurrencyFixtureUrl));
+
+  for (
+    const fragment of [
+      "from public.users as users where users.id = p_user_id for update",
+      "from internal.revenuecat_reconciliation_queue as queue where queue.merian_user_id = p_user_id and queue.claim_token = p_claim_token and queue.claim_expires_at > pg_catalog.clock_timestamp() for update",
+      "revenuecatQueueLock > revenuecatUserLock",
+      'revenuecatDefinition.includes("revenuecat_reconciliation_claim_lost")',
+      "!communityDefinition.includes",
+      "insert into internal.community_identification_activity_actors",
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
+  }
+
+  assert(
+    !fixture.includes("Match Ghost merge ordering: parent user first"),
+    "installed hardening must be detected from executable lock semantics rather than a mutable SQL comment",
   );
 });
 

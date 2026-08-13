@@ -3145,10 +3145,18 @@ Use this order for a separately authorized rollout on one reviewed exact SHA:
    promo exclusion. Run
    `purchasePrincipalCompatibilityConcurrencyDb.test.ts` against that same
    disposable catalog and require stable completion to hold the shared cutover
-   lock, the old writer to wait, and the post-activation recheck to reject
-   without a legacy state, queue, or event row. The pgTAP fixture must also
-   prove that an accepted legacy scheduler call retains its verified RevenueCat
-   lookup alias rather than replacing it with the resolved Supabase UUID.
+   lock, the old writer to wait, and the post-activation recheck for a target
+   with no durable legacy-provider state to reject without creating a legacy
+   state, queue, or event row. Require the target's ordinary pre-binding queue
+   to be removed and an identity update after binding to remain unable to
+   recreate it. Separately prove that a target with an existing durable legacy
+   snapshot retains that snapshot and its compatibility queue. Treat a
+   provider read claimed before binding as an allowed in-flight compatibility
+   operation: its claim-fenced database apply must either commit first as
+   durable legacy input or lose without state, queue, or event mutation. The
+   pgTAP fixture must also prove that an accepted legacy scheduler call retains
+   its verified RevenueCat lookup alias rather than replacing it with the
+   resolved Supabase UUID.
 2. Deploy the additive route and worker changes while the database remains in
    `legacy` / `dual_read`. The hosted smoke must validate every new service RPC,
    deny all of them to the public credential, validate both aggregate health

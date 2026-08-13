@@ -164,6 +164,17 @@ principal-before-user row-lock sequence and recheck under lock, so concurrent
 stable activation wins before any later legacy state or queue write.
 The scheduler preserves the old bundle's verified RevenueCat lookup alias; it
 must not replace an alias with the resolved Supabase UUID.
+Forward migration
+`20260813012852_fence_empty_legacy_revenuecat_queue_after_stable_binding.sql`
+also removes the ordinary target-UUID queue when a stable binding is created
+without durable legacy-provider state. A queue trigger suppresses later
+identity-update or scheduler re-enqueue for that evidence-free UUID, preventing
+RevenueCat's get-or-create subscriber read from manufacturing a second customer.
+Users with a real `legacy_revenuecat_entitlement_state` keep that input and its
+periodic reconciliation during the compatibility window. An already-claimed
+legacy job may complete its in-flight provider read, but the shared
+user-before-queue order ensures that only the binding cleanup or a completed
+durable legacy snapshot can win the database transition.
 All purchase-principal advisory locks call the exact PostgreSQL
 `hashtextextended(text,bigint)` overload with an explicit `0::BIGINT` seed.
 

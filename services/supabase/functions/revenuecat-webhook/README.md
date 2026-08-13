@@ -165,6 +165,16 @@ Supabase UUID used by iOS configuration and by
 preserved exactly; only database-generated same-user UUID lookups are
 canonicalized.
 
+A stable purchase-principal binding removes an Auth UUID's periodic queue only
+when that UUID has no durable `legacy_revenuecat_entitlement_state`. The queue
+guard also suppresses later evidence-free re-enqueue, because RevenueCat's
+subscriber GET is get-or-create and would otherwise manufacture a redundant
+customer. A real legacy snapshot remains an independent entitlement input and
+continues periodic reconciliation until the compatibility window closes. A
+worker that claimed the UUID before binding can finish its in-flight read; its
+claim-fenced apply either commits first and becomes durable legacy input or
+loses to binding cleanup without writing state.
+
 Project-level RevenueCat Pro billing does not grant customer access. Store
 trials arrive through receipt-backed CustomerInfo, while beta access requires a
 separate finite promotional grant. Once either produces an active `pro`

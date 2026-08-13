@@ -3592,7 +3592,14 @@ The identity test matrix now has two explicit lanes:
   `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds an active
   principal to a previously unrelated Auth UUID, forces completion to win that
   race, and requires the delayed legacy mutation to leave no state, queue, or
-  event row.
+  event row. The fixture first proves that normal account creation established
+  a legacy queue, then proves binding removes that evidence-free queue and a
+  later identity update cannot recreate it. Static contracts keep durable
+  legacy-provider state eligible for its separate compatibility queue rather
+  than treating every stable relationship as grounds for deletion. A second
+  schedule holds a pre-binding claimed queue, forces stable completion to own
+  the user lock before cleanup, and requires the delayed reconciliation apply
+  to lose its claim without state or synthetic-event writes.
   `purchasePrincipalMigrationContract.test.ts` plus
   `purchase_principal_security.sql` cover RLS/grants, capability replay, same-
   install Auth rotation, fixed grant ownership, stable-before-UUID delivery,

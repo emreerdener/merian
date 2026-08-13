@@ -167,10 +167,14 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
   const suffix = crypto.randomUUID().slice(0, 8);
   const sourceUserId = crypto.randomUUID();
   const targetUserId = crypto.randomUUID();
+  const claimedTargetUserId = crypto.randomUUID();
   const capabilityHash = "a".repeat(56) + suffix;
   const eventId = `legacy-race-${suffix}`;
+  const claimToken = crypto.randomUUID();
   const completionApplicationName = `pp-complete-${suffix}`;
   const legacyApplicationName = `pp-legacy-${suffix}`;
+  const claimedCompletionApplicationName = `pp-claimed-complete-${suffix}`;
+  const claimedApplyApplicationName = `pp-claimed-apply-${suffix}`;
   const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1_000)
     .toISOString();
   let rolloutConfig: RolloutConfig | null = null;
@@ -181,6 +185,27 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
   try {
     await insertUser(observer, sourceUserId, `Principal Source ${suffix}`);
     await insertUser(observer, targetUserId, `Principal Target ${suffix}`);
+    await insertUser(
+      observer,
+      claimedTargetUserId,
+      `Principal Claimed Target ${suffix}`,
+    );
+    const preexistingTargetQueue = await observer.queryObject<{
+      exists: boolean;
+    }>(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM internal.revenuecat_reconciliation_queue AS queue
+          WHERE queue.merian_user_id = $1::UUID
+        ) AS exists
+      `,
+      [targetUserId],
+    );
+    assert(
+      preexistingTargetQueue.rows[0]?.exists === true,
+      "target fixture did not establish the ordinary pre-binding legacy queue",
+    );
     const rolloutResult = await observer.queryObject<RolloutConfig>(`
       SELECT principal_mode, account_grant_mode
       FROM internal.purchase_identity_rollout_config
@@ -393,6 +418,209 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
       legacy_queue_exists: false,
       rejected_event_exists: false,
     });
+
+    await observer.queryArray(
+      `
+        UPDATE public.users
+        SET public_identity_source = 'alias'
+        WHERE id = $1::UUID
+      `,
+      [targetUserId],
+    );
+    const recreatedTargetQueue = await observer.queryObject<{
+      exists: boolean;
+    }>(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM internal.revenuecat_reconciliation_queue AS queue
+          WHERE queue.merian_user_id = $1::UUID
+        ) AS exists
+      `,
+      [targetUserId],
+    );
+    assert(
+      recreatedTargetQueue.rows[0]?.exists === false,
+      "identity update recreated an evidence-free legacy queue after stable binding",
+    );
+
+    // A worker can claim the ordinary target UUID queue and finish its
+    // get-or-create provider read before stable completion starts. Hold that
+    // exact queue row so completion owns the user lock while waiting to delete
+    // it, then prove the delayed claim-fenced apply cannot write legacy state.
+    await observer.queryArray("SET ROLE service_role");
+    const claimedRebindResolution = await observer.queryObject<{
+      purchase_principal_id: string;
+    }>(
+      `
+        SELECT result.purchase_principal_id::TEXT
+        FROM public.begin_purchase_principal_resolution(
+          $1::UUID,
+          $2,
+          1,
+          3
+        ) AS result
+      `,
+      [claimedTargetUserId, capabilityHash],
+    );
+    assertEquals(
+      claimedRebindResolution.rows[0]?.purchase_principal_id,
+      purchasePrincipalId,
+      "same principal did not prepare claimed-worker target rebind",
+    );
+    await observer.queryArray("RESET ROLE");
+
+    const claimedQueue = await observer.queryObject<{ user_id: string }>(
+      `
+        UPDATE internal.revenuecat_reconciliation_queue
+        SET next_reconcile_at = pg_catalog.NOW(),
+            claim_token = $2::UUID,
+            claimed_at = pg_catalog.CLOCK_TIMESTAMP(),
+            claim_expires_at =
+              pg_catalog.CLOCK_TIMESTAMP() + INTERVAL '10 minutes',
+            updated_at = pg_catalog.CLOCK_TIMESTAMP()
+        WHERE merian_user_id = $1::UUID
+        RETURNING merian_user_id::TEXT AS user_id
+      `,
+      [claimedTargetUserId, claimToken],
+    );
+    assertEquals(
+      claimedQueue.rows[0]?.user_id,
+      claimedTargetUserId,
+      "target fixture did not retain its pre-binding claimed queue",
+    );
+
+    await setApplicationName(
+      completionClient,
+      claimedCompletionApplicationName,
+    );
+    await setApplicationName(legacyClient, claimedApplyApplicationName);
+    await beginTransaction(userBlocker);
+    await userBlocker.queryArray(
+      `
+        SELECT merian_user_id
+        FROM internal.revenuecat_reconciliation_queue
+        WHERE merian_user_id = $1::UUID
+        FOR UPDATE
+      `,
+      [claimedTargetUserId],
+    );
+    const queueBlockerPid = await backendPid(userBlocker);
+
+    await beginTransaction(completionClient, true);
+    const claimedCompletionPid = await backendPid(completionClient);
+    completionPromise = settle(
+      completionClient.queryArray(
+        `
+          SELECT *
+          FROM public.complete_purchase_principal_resolution(
+            $1::UUID,
+            $2::UUID,
+            $3,
+            3,
+            $4::BIGINT,
+            'pro',
+            $5::TIMESTAMPTZ,
+            FALSE,
+            'free',
+            NULL
+          )
+        `,
+        [
+          claimedTargetUserId,
+          purchasePrincipalId,
+          capabilityHash,
+          Date.now(),
+          expiresAt,
+        ],
+      ),
+    );
+    await waitUntilBlocked(
+      observer,
+      claimedCompletionApplicationName,
+      queueBlockerPid,
+    );
+
+    await beginTransaction(legacyClient, true);
+    legacyPromise = settle(
+      legacyClient.queryArray(
+        `
+          SELECT public.apply_revenuecat_reconciliation(
+            $1::UUID,
+            $2::UUID,
+            $3::BIGINT,
+            'pro',
+            $4::TIMESTAMPTZ
+          )
+        `,
+        [claimedTargetUserId, claimToken, Date.now(), expiresAt],
+      ),
+    );
+    await waitUntilBlocked(
+      observer,
+      claimedApplyApplicationName,
+      claimedCompletionPid,
+    );
+
+    await userBlocker.queryArray("COMMIT");
+    const claimedCompletionResult = await completionPromise;
+    assert(
+      claimedCompletionResult.ok,
+      claimedCompletionResult.ok
+        ? undefined
+        : describeError(claimedCompletionResult.error),
+    );
+    await completionClient.queryArray("COMMIT");
+
+    const claimedApplyResult = await legacyPromise;
+    assert(
+      !claimedApplyResult.ok,
+      "claimed legacy reconciliation unexpectedly survived stable binding",
+    );
+    assertStringIncludes(
+      describeError(claimedApplyResult.error),
+      "revenuecat_reconciliation_claim_lost",
+    );
+    await rollback(legacyClient);
+
+    const claimedFinalState = await observer.queryObject<{
+      binding_exists: boolean;
+      legacy_state_exists: boolean;
+      legacy_queue_exists: boolean;
+      seed_event_exists: boolean;
+    }>(
+      `
+        SELECT
+          EXISTS (
+            SELECT 1
+            FROM internal.purchase_principal_bindings AS binding
+            WHERE binding.purchase_principal_id = $1::UUID
+              AND binding.auth_user_id = $2::UUID
+          ) AS binding_exists,
+          EXISTS (
+            SELECT 1
+            FROM internal.legacy_revenuecat_entitlement_state AS legacy
+            WHERE legacy.merian_user_id = $2::UUID
+          ) AS legacy_state_exists,
+          EXISTS (
+            SELECT 1
+            FROM internal.revenuecat_reconciliation_queue AS queue
+            WHERE queue.merian_user_id = $2::UUID
+          ) AS legacy_queue_exists,
+          EXISTS (
+            SELECT 1
+            FROM internal.revenuecat_webhook_events AS event
+            WHERE event.event_id = 'reconcile-seed:' || $2::TEXT
+          ) AS seed_event_exists
+      `,
+      [purchasePrincipalId, claimedTargetUserId],
+    );
+    assertEquals(claimedFinalState.rows[0], {
+      binding_exists: true,
+      legacy_state_exists: false,
+      legacy_queue_exists: false,
+      seed_event_exists: false,
+    });
   } finally {
     await rollback(userBlocker);
     if (completionPromise != null) await completionPromise;
@@ -419,7 +647,9 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
           [purchasePrincipalId],
         );
       }
-      for (const userId of [sourceUserId, targetUserId]) {
+      for (
+        const userId of [sourceUserId, targetUserId, claimedTargetUserId]
+      ) {
         await observer.queryArray(
           "DELETE FROM public.users WHERE id = $1::UUID",
           [userId],
