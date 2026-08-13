@@ -339,12 +339,13 @@ Before an apply-capable promotional grant:
 7. Treat a changed cohort, entitlement, expiration, or partial-results ledger as
    a new operation requiring review.
 
-The grant tool now implements these source safeguards, but production apply
-remains held until the disposable replay, staging matrix, exact-SHA review,
-cohort/expiration approval, and explicit provider/production authorization in
-the
-[RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md)
-are complete. Dry-run remains the only authorized mode before those gates pass.
+The former RevenueCat beta-grant tool is now permanently dry-run-only and its
+Make target receives no provider credential or network permission. New
+beta/promotion/support access uses the private Supabase account-grant ledger,
+an exact approved dry-run plan, and an immutable identity-free operation
+receipt. Restoring any provider-promotion writer would be a new external-
+mutation design requiring all safeguards above, a reviewed source change, and
+separate provider/production authorization; it is not a rollback shortcut.
 
 RevenueCat customer deletion is permanent erasure, not deduplication. A later
 SDK or subscriber GET can recreate an empty shell, but that lookup does not

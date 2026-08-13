@@ -30,16 +30,16 @@ the
 
 ## Supabase Auth cold-start adoption
 
-`MerianSupabaseClientFactory` enables
-`emitLocalSessionAsInitialSession`. The pinned Supabase Swift SDK therefore
-emits the cached session immediately, including a session whose access token is
-expired, and refreshes an expired session in the background. `SupabaseManager`
-classifies the initial value before mutating observable auth state:
+`MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
+pinned Supabase Swift SDK therefore emits the cached session immediately,
+including a session whose access token is expired, and refreshes an expired
+session in the background. `SupabaseManager` classifies the initial value before
+mutating observable auth state:
 
 - no session is `.signedOut` and may resolve required-consent restoration as
   unauthenticated;
-- a non-expired session is `.authenticated` and may start entitlement,
-  identity, and synchronization work; and
+- a non-expired session is `.authenticated` and may start entitlement, identity,
+  and synchronization work; and
 - an expired session with a user is `.awaitingRefresh`. Authenticated request
   and RevenueCat mutation readiness remain closed and `currentUser` remains
   unset, but the known user ID is passed to `ConsentManager` so a completed user
@@ -49,9 +49,9 @@ The SDK's later `tokenRefreshed` event adopts the valid session through the
 normal authenticated path and re-resolves the purchase identity. A terminal
 refresh-token cleanup emits `signedOut`, immediately closes RevenueCat session
 readiness without creating a provider-anonymous customer, and only then
-establishes that no active account remains. Never route an
-expired cached session through sign-out cleanup: doing so can briefly resolve
-restoration and mount the Ready approval screen before refresh completes.
+establishes that no active account remains. Never route an expired cached
+session through sign-out cleanup: doing so can briefly resolve restoration and
+mount the Ready approval screen before refresh completes.
 
 ## `MerianNetworkClient`
 
@@ -75,20 +75,20 @@ restoration and mount the Ready approval screen before refresh completes.
   Terms row, and granted all-version Gemini stream head for the same account.
   Local onboarding completion or persisted `syncedUserId` values cannot open
   this request boundary.
-- Maps only handler-owned HTTP `403` with stable code
-  `ai_consent_required` to `MerianError.aiConsentRequired`. That is a
-  disclosure transition—not quota exhaustion or generic authorization—and
-  foreground callers must preserve the queued scan while the account returns
-  to Ready. `402 pro_required` and the `429` quota/rate codes remain separate.
-- Treats shared-auth `401 auth_session_missing` and
-  `401 invalid_session_token` as refresh-first transitions. The pinned Supabase
-  SDK refreshes the current session through its single-flight session manager,
-  then the client rebuilds and retries the request once with the new access
-  token. Anonymous identity replacement is considered only after that refresh
-  fails, so an ordinary expired JWT cannot detach a first scan, consent ledger,
-  or entitlement reservation from its existing account UUID. Every unclassified
-  `401` preserves both Ghost and OAuth identities because route policy failure is
-  not Auth-deletion evidence.
+- Maps only handler-owned HTTP `403` with stable code `ai_consent_required` to
+  `MerianError.aiConsentRequired`. That is a disclosure transition—not quota
+  exhaustion or generic authorization—and foreground callers must preserve the
+  queued scan while the account returns to Ready. `402 pro_required` and the
+  `429` quota/rate codes remain separate.
+- Treats shared-auth `401 auth_session_missing` and `401 invalid_session_token`
+  as refresh-first transitions. The pinned Supabase SDK refreshes the current
+  session through its single-flight session manager, then the client rebuilds
+  and retries the request once with the new access token. Anonymous identity
+  replacement is considered only after that refresh fails, so an ordinary
+  expired JWT cannot detach a first scan, consent ledger, or entitlement
+  reservation from its existing account UUID. Every unclassified `401` preserves
+  both Ghost and OAuth identities because route policy failure is not
+  Auth-deletion evidence.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
 - Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response
@@ -283,8 +283,8 @@ directly.
 ## Queue-backed Identify Foreground and Retry Ownership
 
 The durable queue, rather than the foreground HTTP helper, owns retry after the
-first transport failure of a queue-backed live Identify request. The client
-uses one explicit per-call ownership policy:
+first transport failure of a queue-backed live Identify request. The client uses
+one explicit per-call ownership policy:
 
 - queue-backed `identifyMultiModal` gets one 15-second foreground attempt and
   returns its first transient `URLError` to `InferenceEngine`, after the
@@ -296,8 +296,8 @@ uses one explicit per-call ownership policy:
 
 This exception is scoped to queue-backed live Identify transport. It does not
 remove reviewed replay from queue-less direct callers, audited read routes,
-handler-owned authentication refresh, or Supabase route-propagation recovery.
-A returned handler/provider `5xx` also remains a service failure rather than
+handler-owned authentication refresh, or Supabase route-propagation recovery. A
+returned handler/provider `5xx` also remains a service failure rather than
 evidence that the device is offline.
 
 The 15-second foreground bound is intentionally more than twice the documented
@@ -569,72 +569,121 @@ session. This client transition does not fabricate a server revocation receipt.
 
 ## Sign-out and anonymous account transition
 
-User-facing logout is **Sign out**. `ProfileViewModel.signOut()` and the Settings
-danger-zone action call `transitionToGhostSession()`; user-facing copy does not
-expose the internal Ghost name. Every usable session first calls the additive
-`/resolve-purchase-principal` route. Its explicit `mode` selects the stable or
-legacy branch; only a definite missing route may use legacy fallback, while
-auth, timeout, provider, and database failures remain fail-closed.
-Once an installation has activated a stable principal, server rollback keeps
-returning that exact principal; it never instructs iOS to rotate back to the
-current Auth UUID. A response requiring a newer stable protocol also fails
-closed until the app is updated. A verified device-only activation fingerprint
-makes that transition monotonic: later `404` or `mode: legacy` responses are
-rejected rather than used as compatibility fallback.
+User-facing logout is **Sign out**. `ProfileViewModel.signOut()` and the
+Settings danger-zone action call `transitionToGhostSession()`; user-facing copy
+does not expose internal Ghost or guest-session terminology. Apple, Google, Sign
+out, anonymous recovery, Apple credential revocation, and account deletion all
+enter one `AuthTransitionCoordinator`. Its operation token owns the source
+session, expected destination, phase, and Auth-event generation. A second
+operation cannot start while one owns the SDK; late provider callbacks and
+wrong-controller Apple callbacks are discarded. SDK events for an unadopted
+intermediate or destination session cannot link RevenueCat, refresh entitlement,
+write metadata, or change account routes ahead of the operation owner. The
+Apple, Google, and destructive-account controls remain disabled for the whole
+transition. Unowned account-scoped background work uses the same closed gate.
+Every direct Supabase read/write, entitlement refresh, profile/preference
+mutation, historical reconciliation, collection sync, and ordinary
+`MerianNetworkClient` HTTP attempt acquires an exact-session account-work lease.
+The transition closes admission synchronously, cancels and awaits consent
+synchronization, closes `InferenceEngine` write admission, cancels and awaits
+even non-cooperative presentation/metadata tasks, waits for all admitted leases
+and collection work, and only then mutates the Auth SDK session. HTTP retries release their lease before 401
+recovery so recovery cannot deadlock on its initiating request; payloads that
+embed an Auth UUID also pass that UUID as an expected owner and fail before
+dispatch if the live account differs. Every recursive transport, route,
+refresh, and service retry remains pinned to the account that initiated the
+request; an unowned request cannot silently recapture a replacement session.
+Foreground and background inference keep
+the request body, JWT, and expected Auth UUID in one typed request value; the
+background dispatcher persists that Auth UUID plus generation in the job
+metadata and `inference_v3` task description before resume, then retains the
+exact account lease until the URLSession terminal callback. Offline media
+staging does the same through `upload_v2`, requires every returned R2 key to
+equal the prepared owner key, and retains one exact lease per task through its
+terminal callback. The transition drain first commits each affected queue row
+back to pending and clears its source-owned staging keys, then cancels every
+matching task and waits for both URLSession disappearance and lease release;
+there is no timeout that allows Auth mutation to outrun a presigned PUT, and a
+failed durable retreat, task cancellation, or bounded drain expiry aborts the
+transition and leaves the source session intact for retry.
+Callbacks and relaunched tasks may mutate local state only when their explicit
+owner/generation matches both the live Auth session and durable job metadata.
+Legacy or unprovable tasks are cancelled and restaged rather than adopted by a
+replacement account. Inference refuses any staged key whose canonical owner
+differs from its typed request account. Realtime channels are keyed to
+the final account and close while a transition is active. If collection work was already
+in flight, the source session remains stable until it finishes, and local
+tombstones are retained whenever the transition began before the local commit.
+Each URLSession terminal delegate callback registers its asynchronous durable
+work synchronously before crossing actors. The background-session
+`urlSessionDidFinishEvents` callback waits for that tracker to drain before
+invoking the system completion handler, preventing suspension between network
+completion and final queue/result persistence.
+Anonymous bootstrap is itself a coordinator-owned transition, so restore/create
+cannot be overtaken by Apple, Google, Sign out, recovery, or deletion.
+
+Every usable session first calls the additive `/resolve-purchase-principal`
+route. Its explicit `mode` selects the stable or legacy branch; only a definite
+missing route may use legacy fallback, while auth, timeout, provider, and
+database failures remain fail-closed. Once an installation has activated a
+stable principal, server rollback keeps returning that exact principal; it never
+instructs iOS to rotate back to the current Auth UUID. A response requiring a
+newer stable protocol also fails closed until the app is updated. A verified
+device-only activation fingerprint makes that transition monotonic: later `404`
+or `mode: legacy` responses are rejected rather than used as compatibility
+fallback.
 
 In stable mode, the client read-verifies a device-only installation capability
 and advances/read-verifies its device-monotonic binding intent before each
 resolver request. The server rejects any older intent, so a cancelled Auth
 request that finishes late cannot replace the current binding. The client also
 persists a write-ahead Auth-rotation marker before closing the local linked
-session.
-One fresh anonymous identity resolves the same server-owned purchase principal,
-`RevenueCatManager` serially links the unchanged App User ID, Merian entitlement
-refreshes, the same Auth generation is verified, and the marker is removed last.
-If a transient resolver, account-cleanup, Keychain, or provider failure finishes
-without another Auth event, foreground activation retries that exact durable
-capability or handoff. It never rotates Auth or creates a replacement provider
-customer, and paid readiness remains closed until the same session and server
-entitlement are verified.
-If local Supabase sign-out fails and the source account remains active, the
-unused marker is cleared only after verification and the exact source
-RevenueCat/entitlement session is restored before the transition returns.
-There is no `syncPurchases()` or RevenueCat customer-transfer call. Email,
-username, display name, avatar, account kind, and Auth UUID are never written to
-the shared stable provider customer; adoption deletes any legacy values and
-synchronizes that deletion before stable paid readiness opens.
+session. One fresh anonymous identity resolves the same server-owned purchase
+principal, `RevenueCatManager` serially links the unchanged App User ID, Merian
+entitlement refreshes, the same Auth generation is verified, and the marker is
+removed last. If a transient resolver, account-cleanup, Keychain, or provider
+failure finishes without another Auth event, foreground activation retries that
+exact durable capability or handoff. It never rotates Auth or creates a
+replacement provider customer, and paid readiness remains closed until the same
+session and server entitlement are verified. If local Supabase sign-out fails
+and the source account remains active, the unused marker is cleared only after
+verification and the exact source RevenueCat/entitlement session is restored
+before the transition returns. There is no `syncPurchases()` or RevenueCat
+customer-transfer call. Email, username, display name, avatar, account kind, and
+Auth UUID are never written to the shared stable provider customer; adoption
+deletes any legacy values and synchronizes that deletion before stable paid
+readiness opens.
 
-In legacy mode, the client first calls `/transfer-signout-purchases` to snapshot authoritative
-StoreKit-backed access and persists its one-use proof under
-`Merian_PendingSignOutPurchaseHandoff_v1` with
-`whenUnlockedThisDeviceOnly`. A preparation or verified-Keychain-write failure
-leaves the linked session untouched. Only then does the client close the local
-Supabase session and create one fresh anonymous identity. A linked SDK session
-is always presented as linked; the retired
-`Merian_GhostModeUserID_v1` presentation marker is deleted during startup and
-can no longer hide an authenticated account. The anonymous Profile state offers
-**Continue with Apple** and **Continue with Google**.
+In legacy mode, the client first calls `/transfer-signout-purchases` to snapshot
+authoritative StoreKit-backed access and persists its one-use proof under
+`Merian_PendingSignOutPurchaseHandoff_v1` with `whenUnlockedThisDeviceOnly`. A
+preparation or verified-Keychain-write failure leaves the linked session
+untouched. Only then does the client close the local Supabase session and create
+one fresh anonymous identity. A linked SDK session is always presented as
+linked; the retired `Merian_GhostModeUserID_v1` presentation marker is deleted
+during startup and can no longer hide an authenticated account. The anonymous
+Profile state offers **Continue with Apple** and **Continue with Google**.
 
-The fresh legacy anonymous identity binds the proof before RevenueCat is linked to its
-uppercase UUID. The client then calls `Purchases.syncPurchases()` under the
-project's required **Transfer to new App User ID** restore behavior, asks the
-server to verify authoritative destination CustomerInfo, refreshes the Merian
-entitlement projection, verifies that the same anonymous session remains
+The fresh legacy anonymous identity binds the proof before RevenueCat is linked
+to its uppercase UUID. The client then calls `Purchases.syncPurchases()` under
+the project's required **Transfer to new App User ID** restore behavior, asks
+the server to verify authoritative destination CustomerInfo, refreshes the
+Merian entitlement projection, verifies that the same anonymous session remains
 active, and removes the proof last. Purchase/restore/redeem admission remains
 disabled while that proof exists. Temporary failures retain it and auth-state
 restoration retries the same destination. The anonymous Profile also exposes a
 visible **Finish sign out** action, so recovery does not depend on a relaunch or
 another provider attempt. A restored source account can cancel only a still-
 unbound proof; the server refuses cancellation once receipt movement may have
-begun. An already-issued compatibility proof always finishes against
-its exact uppercase destination UUID even if `principal_mode` changes to
-`stable` while the transition is in flight. Only after the proof is cleared may
-the resolver adopt/rebind that installation to a stable principal; this prevents
-receipt sync and server verification from targeting different customers.
-If a finite prepared purchase expires before first completion, the
-server refreshes the source before accepting the destination's current
-StoreKit state, so natural expiry can finish free without overlooking a source
-renewal. Completed replay uses the immutable attested state and snapshot.
+begun. An already-issued compatibility proof always finishes against its exact
+uppercase destination UUID even if `principal_mode` changes to `stable` while
+the transition is in flight. Only after the proof is cleared may the resolver
+adopt/rebind that installation to a stable principal; this prevents receipt sync
+and server verification from targeting different customers. If a finite prepared
+purchase expires before first completion, the server refreshes the source before
+accepting the destination's current StoreKit state, so natural expiry can finish
+free without overlooking a source renewal. Completed replay uses the immutable
+attested state and snapshot.
 
 While a proof is unresolved, generic auth-state bootstrap and refresh must not
 link the anonymous RevenueCat identity early. A confirmed-missing-session `401`
@@ -642,16 +691,16 @@ also preserves the exact Auth session instead of rotating or locally clearing
 it; an unreadable Keychain proof is treated as pending. Account deletion is
 disabled in the UI while any local proof is unresolved. The server rejects
 deletion of either side after binding; if deletion wins before binding, bind
-fails before RevenueCat is mutated. The database also prevents anonymous
-cleanup or profile merge from deleting a bound destination.
+fails before RevenueCat is mutated. The database also prevents anonymous cleanup
+or profile merge from deleting a bound destination.
 
 Only StoreKit-backed access moves. RevenueCat promotional/beta grants are
 account-bound and remain on the linked source rather than being cloned onto a
 second customer. The server requires an explicit RevenueCat v1
 `store: app_store` purchase record; `store: promotional` and unknown/missing
-stores fail closed. Active detached seven-day pass history is accepted only
-when the durable database projection confirms the same expiry, preventing
-refunded historical purchases from being resurrected.
+stores fail closed. Active detached seven-day pass history is accepted only when
+the durable database projection confirms the same expiry, preventing refunded
+historical purchases from being resurrected.
 
 `SupabaseManager` closes the authenticated-request gate and clears observable
 account state before asking Supabase Auth to invalidate the local session. It
@@ -670,23 +719,22 @@ prepared. Stable success means the replacement Auth session resolves and links
 the same purchase principal, then refreshes entitlement. Legacy success means
 the anonymous Supabase identity, exact custom RevenueCat identity, receipt sync,
 server verification/reconciliation, and current entitlement read all completed.
-An anonymous-session result by itself is not success. The same
-identity rotation remains available for stable missing/invalid-session recovery
-after SDK refresh fails only when no purchase handoff is pending; a generic
-`401` never reaches it. Account deletion intentionally calls `signOut()` alone
-so it does not recreate an identity during deletion.
-`/safe-delete` returns `409 purchase_continuity_pending` if either side of an
-active handoff is targeted; the user must use **Finish sign out** first. The
-`/safe-delete` call may return immediate `200` completion or `202` durable
-acceptance. The shared request layer strictly decodes the matching status plus
-the required `manual_provider_revocation_required` boolean; missing or
-contradictory receipts are invalid responses. A legacy Apple disposition is
-persisted before sign-out so the app-root manual-removal notice survives local
-account and SQLite cleanup. Backend intent and relational cleanup are persisted
-before the client signs out. The scheduled account-deletion reaper owns
-cursor-persisted R2 sweeps, delayed empty verification, Apple provider
-revocation when a Vault credential exists, and terminal Auth removal; a new
-request therefore normally receives `202`.
+An anonymous-session result by itself is not success. The same identity rotation
+remains available for stable missing/invalid-session recovery after SDK refresh
+fails only when no purchase handoff is pending; a generic `401` never reaches
+it. Account deletion intentionally calls `signOut()` alone so it does not
+recreate an identity during deletion. `/safe-delete` returns
+`409 purchase_continuity_pending` if either side of an active handoff is
+targeted; the user must use **Finish sign out** first. The `/safe-delete` call
+may return immediate `200` completion or `202` durable acceptance. The shared
+request layer strictly decodes the matching status plus the required
+`manual_provider_revocation_required` boolean; missing or contradictory receipts
+are invalid responses. A legacy Apple disposition is persisted before sign-out
+so the app-root manual-removal notice survives local account and SQLite cleanup.
+Backend intent and relational cleanup are persisted before the client signs out.
+The scheduled account-deletion reaper owns cursor-persisted R2 sweeps, delayed
+empty verification, Apple provider revocation when a Vault credential exists,
+and terminal Auth removal; a new request therefore normally receives `202`.
 
 This strict receipt and durable notice exist only in supporting binaries. An
 older client can ignore `manual_provider_revocation_required`, so publishing the
@@ -699,3 +747,51 @@ Account deletion retains ownerless exact scientific facts under the
 `signOut()` must not imply that every submitted observation is erased. The
 provider-specific lifecycle is canonical in the
 [`Sign in with Apple account-deletion contract`](../../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
+Before `/safe-delete` can commit, iOS generates an atomic Keychain envelope with
+independent 256-bit recovery and acknowledgement capabilities and verifies the
+exact encoded bytes. It writes `capability_preparation_pending`, performs the
+server's non-destructive v2 preparation, writes
+`capability_prepared_pending`, then writes `capability_intake_pending` before
+destructive commit. This closes both lost-request and lost-response windows: a
+crash before commit publicly cancels as `not_committed` without erasing Auth or
+SwiftData, while a crash after commit recovers the job receipt. If another
+device commits first, the database atomically binds every still-live prepared
+proof to the same deletion job and tombstones expired proof hashes as committed.
+No expired preparation is promoted into a 180-day recovery capability. While
+commit is unresolved, the only permitted authenticated call is an
+exact-transition replay. If the cached Auth session is gone, the app submits
+only the recovery capability to `/recover-account-deletion`; acknowledgement
+after verified cleanup uses only its distinct proof. Neither request contains
+an account, job, provider, or purchase identity.
+
+A returned durable receipt promotes the marker to
+`capability_cleanup_pending`; only then may iOS sign out locally and purge
+SwiftData. After cleanup, iOS acknowledges recovery, records
+`capability_retirement_pending`, read-after-delete verifies Keychain removal,
+and clears the marker last. Relaunch from retirement re-verifies local Auth
+absence and repeats the idempotent SwiftData purge before proof removal, so a
+marker-writing durability failure cannot skip either cleanup boundary. A
+definitive `409 purchase_continuity_pending` first records
+`capability_rejection_retirement_pending`, then read-after-delete verifies the
+unused proof is gone, and clears the marker last. Relaunch in this phase performs
+only that proof-and-marker retirement; it never signs out or purges local data
+because the server proved the deletion intake did not win.
+Transport, Auth, gateway, `5xx`, cancellation, and malformed responses retain
+the proof and barrier because commit may still be in flight. An unknown legacy
+v1 proof also remains ambiguous. An unknown v2 proof permits proof-only
+retirement because commit requires the missing server preparation. A
+`not_committed` or genuinely unknown v2 proof first retires the unused proof and
+barrier, then re-adopts only the exact cached unexpired Supabase session with the
+same UUID and anonymous/account kind before reopening account work. The distinct
+`account_deletion_recovery_preparation_expired` response is a non-authorizing
+tombstone match and retains the barrier. Only a matched committed capability's
+`account_deletion_recovery_expired` `410` is positive evidence that deletion was
+accepted; it permits conservative local erasure, after which
+the independent acknowledgement proof remains valid and then permits verified
+retirement.
+It does not reveal pre-cleanup job state. Legacy `intake_pending` and
+`cleanup_pending` remain readable during the installed-client compatibility
+window. No marker or proof stores an account, provider, job, or request
+identifier. A refreshable `401` renews only the transition's exact expected
+Supabase session; it cannot start nested recovery or relink RevenueCat,
+analytics, profile metadata, or entitlements.

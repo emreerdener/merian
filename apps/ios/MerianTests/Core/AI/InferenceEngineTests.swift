@@ -114,12 +114,37 @@ struct InferenceEngineTests {
         private(set) var value = 0
         func increment() { value += 1 }
     }
+
+    actor NonCooperativeBackgroundWriteGate {
+        private var started = false
+        private var released = false
+
+        func waitUntilReleased() async {
+            started = true
+            while !released {
+                await Task.yield()
+            }
+        }
+
+        func waitUntilStarted() async {
+            while !started {
+                await Task.yield()
+            }
+        }
+
+        func release() {
+            released = true
+        }
+    }
     
     init() {
         MockURLProtocol.mockEndpoints = [:]
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.overridingAuthUserID = UUID(
+            uuidString: "11111111-1111-4111-8111-111111111111"
+        )
         MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
         UserDefaults.standard.set(
@@ -509,6 +534,41 @@ struct InferenceEngineTests {
         #expect(state.active == 0, "cancelActiveRequest must cancel all active background writes")
         #expect(state.pending == 0, "cancelActiveRequest must clear queued background writes")
         #expect(await counter.value == 0, "Queued background writes from the cancelled scan must never run")
+    }
+
+    @Test func testAuthTransitionAwaitsNonCooperativeBackgroundWrite() async throws {
+        let engine = InferenceEngine()
+        let gate = NonCooperativeBackgroundWriteGate()
+        let completedWrites = CounterBox()
+        let completedDrains = CounterBox()
+        let rejectedWrites = CounterBox()
+
+        engine.debugEnqueueTrackedBackgroundTask {
+            await gate.waitUntilReleased()
+            await completedWrites.increment()
+        }
+        await gate.waitUntilStarted()
+
+        engine.beginAuthTransitionWriteFence()
+        let drain = Task { @MainActor in
+            await engine.awaitAuthTransitionWriteQuiescence()
+            await completedDrains.increment()
+        }
+        engine.debugEnqueueTrackedBackgroundTask {
+            await rejectedWrites.increment()
+        }
+
+        try await Task.sleep(for: .milliseconds(25))
+        #expect(await completedDrains.value == 0)
+        #expect(await rejectedWrites.value == 0)
+
+        await gate.release()
+        await drain.value
+        #expect(await completedWrites.value == 1)
+        #expect(await completedDrains.value == 1)
+        #expect(engine.debugBackgroundWriteState().active == 0)
+
+        engine.finishAuthTransitionWriteFence()
     }
 
     @Test func testBackgroundWriteBacklogHasAHardMemoryBound() async throws {

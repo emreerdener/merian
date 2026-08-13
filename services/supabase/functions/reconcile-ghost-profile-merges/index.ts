@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { logIdentitySafeError, serveEdge } from "../_shared/edgeHandler.ts";
 import { corsHeaders, parseJsonBody } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
@@ -52,13 +52,12 @@ serveEdge(async (req: Request) => {
       parseLimit(body),
     );
     return jsonResponse({ success: true, ...result }, 200);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(JSON.stringify({
-      event: "ghost_profile_merge_reconciliation_failed",
-      error: message,
-      ts: new Date().toISOString(),
-    }));
+  } catch {
+    logIdentitySafeError("ghost_profile_merge_reconciliation_failed", {
+      operation: "reconcile",
+      stage: "worker",
+      code: "operation_failed",
+    });
     return jsonResponse({ error: "Reconciliation failed." }, 500);
   }
 });

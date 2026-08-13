@@ -44,7 +44,26 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   and matching RevenueCat customer shells.
 - Exposes `isGuestUser` through `AccountPresentationPolicy`. It is true only
   when the active Supabase session is anonymous or no session is available. A
-  linked session is always presented as linked.
+  linked session is always presented as linked. This is an internal state name;
+  product errors and controls say signed out and never render “Ghost” or “guest
+  session.”
+- Apple, Google, Sign out, anonymous recovery, credential revocation, and
+  account deletion share one generation-bound `AuthTransitionCoordinator`.
+  Only its token may adopt a destination or mutate the SDK session. Competing
+  controls disable, stale provider/controller callbacks are ignored, and every
+  account-bound write rechecks the live source/destination after suspension.
+  Confirmed deletion additionally verifies an atomic device-only envelope with
+  distinct recovery and acknowledgement capabilities. It persists
+  `capability_preparation_pending`, completes the server's non-destructive
+  prepare, persists `capability_prepared_pending`, and then persists
+  `capability_intake_pending` before destructive commit. It fences every other
+  account operation and replays only the JWT-derived idempotent commit or
+  account-free proof recovery after a lost response. `not_committed` preserves
+  the account and retires only local intent; a success receipt advances through
+  cleanup, independent acknowledgement, and capability retirement. Verified
+  Keychain envelope removal precedes marker clearing. The blocking foreground/cold-launch
+  recovery UI never stores or displays an internal user, job, provider, request,
+  or purchase identity.
 - **Identity Resolution & OAuth**: Merian uses standard Apple
   (`ASAuthorizationAppleIDProvider`) and Google (`GIDSignIn`) iOS libraries to
   authenticate without web-view redirects.
@@ -133,15 +152,29 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     subscriber attributes because the same purchase principal can outlive or
     switch accounts. Identity mutations are serialized and fenced by Auth-event
     generation so a stale asynchronous `logIn` cannot overwrite a newer session.
+    Every Auth-user, binding-generation, account-kind, or provider-ID change
+    closes local subscription and account-grant readiness before rebind; a
+    transient same-principal rebind cannot retain another account's promotion.
     Legacy mode retains the uppercase Auth-UUID link and its historical
     attributes only for supported old-client compatibility. PostHog linking is
     independent and remains governed by analytics consent.
+  - Local `CustomerInfo` can open paid UI only when RevenueCat reports
+    `verified` or `verifiedOnDevice` and each active product has store
+    provenance allowed by the binding. Release builds accept exact Apple App
+    Store provenance; Test Store is Debug-only. Stable mode rejects
+    promotional, Mac App Store, Play Store, Stripe, RevenueCat Billing,
+    External, Paddle, Amazon, Galaxy, missing, or unknown provenance for
+    `pro_annual`, entitlement rows, and the seven-day pass even if the product
+    identifier appears active. Account-owned promotions remain a separate
+    server grant and never masquerade as StoreKit access on a shared purchase
+    principal; only the temporary dual-read account-grant compatibility lane
+    may admit explicit promotional provenance for the recorded owner.
   - **Account Rehydration**: Intercepting the initial payload from
     `SupabaseManager.setupAuthStateListener`, Merian calls
     `ScanRepository.shared.syncHistoricalScansDown`, which fetches the user's
     scan history and loads it into local SwiftData structures.
   - User-facing **Sign out** calls `transitionToGhostSession()` but displays no
-    internal Ghost terminology. Stable mode durably marks the Auth rotation,
+    internal Ghost or guest-session terminology. Stable mode durably marks the Auth rotation,
     closes only the local linked session, creates one anonymous session, resolves
     the same device purchase principal, relinks RevenueCat to the unchanged
     server-owned ID, refreshes entitlement, verifies the same Auth generation,
@@ -211,6 +244,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   readiness but does not call RevenueCat logout, preventing `$RCAnonymousID`
   creation. Legacy custom-ID switches still require the separate verified
   server mirror and receipt-sync contract described above.
+- Configures RevenueCat entitlement verification in informational mode and
+  grants local paid presentation/operation readiness only for CustomerInfo
+  reported as `verified` or `verifiedOnDevice`. Any unverified snapshot closes
+  local paid state. The SDK log callback discards provider message bodies and
+  emits fixed severity-only diagnostics without customer or account identity.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
   operational error when there is no current offering, the current offering has

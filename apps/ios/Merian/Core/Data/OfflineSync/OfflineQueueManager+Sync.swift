@@ -447,7 +447,19 @@ extension OfflineQueueManager {
                 )
             }
 
-            let stagingUserId = await self.currentMediaStagingUserId()
+            guard let stagingUserId = await self.currentMediaStagingUserId()
+            else {
+                _ = await MainActor.run {
+                    self.finishUploadSync(generation: generation)
+                }
+                return
+            }
+            guard let stagingAuthUserID = UUID(uuidString: stagingUserId) else {
+                _ = await MainActor.run {
+                    self.finishUploadSync(generation: generation)
+                }
+                return
+            }
             guard await MainActor.run(body: {
                 self.isCurrentUploadSync(generation)
             }) else { return }
@@ -649,7 +661,8 @@ extension OfflineQueueManager {
 
             do {
                 let presignedUrls = try await MerianNetworkClient.shared.generateUploadURLs(
-                    uploadFiles: claimedUploadFiles
+                    uploadFiles: claimedUploadFiles,
+                    expectedAuthUserID: stagingAuthUserID
                 )
                 guard await MainActor.run(body: {
                     self.isCurrentUploadSync(generation)
@@ -671,6 +684,7 @@ extension OfflineQueueManager {
                     uploadItems: claimedUploadItems,
                     presignedUrls: presignedUrls,
                     syncGeneration: generation,
+                    expectedAuthUserID: stagingAuthUserID,
                     forcedExpensiveVideoUploadScanIds:
                         forcedExpensiveVideoUploadScanIds
                 )
@@ -842,24 +856,14 @@ extension OfflineQueueManager {
 
     // MARK: - Upload Helpers
 
-    nonisolated func currentMediaStagingUserId() async -> String {
-        // The persisted Auth session is the source of truth even while
-        // SupabaseManager.currentUser is still hydrating after a cold launch.
-        // This also keeps the pre-V33 staged-key recovery path on the same owner
-        // namespace that the authenticated upload endpoint used.
-        let sessionUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let (hydratedUserId, deviceId) = await MainActor.run {
-            (
-                SupabaseManager.shared.currentUser?.id.uuidString,
-                DeviceIdentityManager.shared.deviceId
-            )
+    nonisolated func currentMediaStagingUserId() async -> String? {
+        await MainActor.run {
+            let manager = SupabaseManager.shared
+            guard let lease = try? manager.beginUnownedAccountBoundWork()
+            else { return nil }
+            defer { manager.finishAccountBoundWork(lease) }
+            return lease.session.userID.uuidString
         }
-
-        return MediaStagingContract.preferredOwnerId(
-            sessionUserId: sessionUserId,
-            hydratedUserId: hydratedUserId,
-            deviceId: deviceId
-        )
     }
 
     nonisolated private func prepareUploadItems(
@@ -927,8 +931,22 @@ extension OfflineQueueManager {
         uploadItems: [ScanUploadItem],
         presignedUrls: [PreSignedURL],
         syncGeneration: UUID,
+        expectedAuthUserID: UUID,
         forcedExpensiveVideoUploadScanIds: Set<String>
     ) async -> UploadDispatchResult {
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork(
+                expectedUserID: expectedAuthUserID
+            ) else {
+            return UploadDispatchResult(
+                dispatchedScanIds: [],
+                needsResigningScanIds: []
+            )
+        }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+
         let playbackVideoScanIds = Set(uploadItems.lazy.filter {
             $0.mediaKind == .video
         }.map(\.scanId))
@@ -956,6 +974,7 @@ extension OfflineQueueManager {
             }
             let presignedURL = presignedUrls[index]
             guard presignedURL.fileName == item.fileName,
+                  presignedURL.objectKey == item.objectKey,
                   MediaStagingContract.isCanonicalObjectKey(
                     presignedURL.objectKey,
                     fileName: item.fileName
@@ -1039,7 +1058,24 @@ extension OfflineQueueManager {
                 continue
             }
 
-            let uploadTasks = entries.map { entry in
+            guard let container = modelContext?.container else { continue }
+            let durableOwnership = BackgroundAccountWorkOwnership(
+                ownerUserID: expectedAuthUserID,
+                generation: syncGeneration,
+                phase: .upload
+            )
+            let queueActor = resolvedQueueDbActor(container: container)
+            guard await queueActor.activateBackgroundAccountWork(
+                scanId: scanId,
+                ownership: durableOwnership
+            ) else {
+                continue
+            }
+
+            var uploadTasks: [URLSessionUploadTask] = []
+            var retainedTaskIdentifiers: [Int] = []
+            var manifestPreparationFailed = false
+            for entry in entries {
                 let request = queuedUploadRequest(
                     remoteURL: entry.remoteURL,
                     item: entry.item,
@@ -1058,9 +1094,53 @@ extension OfflineQueueManager {
                         scanId: scanId,
                         uploadIndex: entry.item.uploadIndex,
                         syncGeneration: syncGeneration,
-                        objectKey: entry.presignedURL.objectKey
+                        objectKey: entry.presignedURL.objectKey,
+                        ownerUserID: expectedAuthUserID
                     )
-                return task
+                uploadTasks.append(task)
+                guard let terminalLease = try? SupabaseManager.shared
+                    .beginUnownedAccountBoundWork(
+                        expectedUserID: expectedAuthUserID
+                    ) else {
+                    manifestPreparationFailed = true
+                    break
+                }
+                guard retainBackgroundAccountWork(
+                    terminalLease,
+                    for: task.taskIdentifier
+                ) else {
+                    SupabaseManager.shared.finishAccountBoundWork(
+                        terminalLease
+                    )
+                    manifestPreparationFailed = true
+                    break
+                }
+                retainedTaskIdentifiers.append(task.taskIdentifier)
+            }
+            guard !manifestPreparationFailed,
+                  uploadTasks.count == entries.count else {
+                // A manifest is all-or-nothing. Persist the retreat before any
+                // suspended task is cancelled so its terminal callback cannot
+                // promote a partial source-account upload.
+                _ = await queueActor.retireBackgroundAccountWork(
+                    scanId: scanId,
+                    expectedOwnerUserID: expectedAuthUserID,
+                    expectedGeneration: syncGeneration,
+                    phase: .upload
+                )
+                invalidateUploadGeneration(
+                    scanId: scanId,
+                    generation: syncGeneration
+                )
+                for retainedIdentifier in retainedTaskIdentifiers {
+                    finishBackgroundAccountWork(
+                        for: retainedIdentifier
+                    )
+                }
+                for uploadTask in uploadTasks {
+                    uploadTask.cancel()
+                }
+                continue
             }
             for uploadTask in uploadTasks {
                 uploadTask.resume()
@@ -1251,7 +1331,10 @@ extension OfflineQueueManager {
     @discardableResult
     func drainCollectionSyncIfPossible() async -> Bool {
         while hasPendingCollectionSyncJob {
-            guard isOnline, SupabaseManager.shared.isAuthenticated else { return false }
+            guard isOnline,
+                  SupabaseManager.shared.allowsUnownedAccountBoundWork else {
+                return false
+            }
             guard isCollectionSyncJobRunnable else { return false }
 
             if let existingTask = collectionSyncTask {
@@ -1284,6 +1367,16 @@ extension OfflineQueueManager {
         }
 
         return true
+    }
+
+    /// Auth transitions close the dispatch gate before awaiting the one
+    /// collection mutation that may already be in flight. This preserves the
+    /// source session until that operation reaches a terminal local outcome;
+    /// no new collection job can start while the transition owns Auth.
+    func awaitCollectionSyncQuiescenceForAuthTransition() async {
+        while let task = collectionSyncTask {
+            _ = await task.value
+        }
     }
 
     func markCollectionSyncPending() {

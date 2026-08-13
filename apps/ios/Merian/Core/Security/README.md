@@ -158,25 +158,28 @@ for the complete root matrix and UI behavior.
 ## RevenueCat contract
 
 `RevenueCatManager` remains unconfigured until Supabase has established a
-session, including a ghost session. It then configures Purchases directly with
-the uppercase RFC 4122 form of that Supabase Auth UUID. RevenueCat App User IDs
-are case-sensitive, so iOS and PostgreSQL must both use this one canonical form;
-an unadorned `uuid::text` value is not an equivalent customer ID. The manager
-mirrors bounded support attributes, refreshes customer information, and exposes
-the current offering to the Settings paywall.
+session and `/resolve-purchase-principal` has selected the identity mode. In
+legacy mode it uses the uppercase RFC 4122 Supabase Auth UUID. In stable mode it
+uses only the server-issued immutable purchase-principal App User ID and writes
+no account PII or Auth UUID attributes. RevenueCat App User IDs are
+case-sensitive, so iOS and PostgreSQL must agree on the exact server-selected
+value. The manager refreshes customer information and exposes the current
+offering to the Settings paywall.
 
-Account changes switch directly with `Purchases.logIn(canonicalUUID)`. Merian
-never configures without a custom ID and never calls `Purchases.logOut()`, both
-of which would generate a `$RCAnonymousID` customer. Sign-out clears local paid
-state plus the expected/linked ID and account-kind fences. Offering reads and
-subscription management require the next exact custom ID. Purchase, restore,
-and offer-code redemption require the exact linked UUID plus a matching known
-Supabase `account_kind`. Both `anonymous` Ghost and `authenticated` permanent
-accounts may purchase; missing, unknown, or asynchronously mismatched account
-kinds fail closed. A generic Edge `401` never rotates a Ghost identity. Only a
-stable missing-session response followed by a failed Supabase SDK refresh may
-replace that UUID, preventing endpoint-policy failures from manufacturing new
-Supabase and RevenueCat customers.
+Merian never configures without a custom ID and never calls
+`Purchases.logOut()`, both of which would generate a `$RCAnonymousID` customer.
+Sign-out clears paid readiness and Auth-session fences but does not discard an
+active stable purchase principal. Legacy mode retains the durable sign-out
+handoff and exact UUID linkage until the cutover/rollback window closes.
+Any Auth user, binding generation, account kind, or provider App User ID change
+also closes subscription state and account-grant eligibility before the
+asynchronous rebind begins. Reusing the same stable provider ID therefore cannot
+carry the previous account's promotion through a transient resolver failure.
+Offering reads, purchase, restore, redemption, and subscription management
+require the exact resolved identity, current Auth session, binding generation,
+and recognized `account_kind`. Missing, unknown, stale, or asynchronously
+mismatched state fails closed. A generic Edge `401` never rotates purchase
+identity.
 `RevenueCatOfferingPolicy` requires these App Store product identifiers:
 
 - `pro_week`
@@ -200,7 +203,19 @@ also load both packages, complete/restore the transaction, and verify the
 server-side webhook result where applicable.
 
 Client `CustomerInfo` controls local presentation and purchase UX only. It
-cannot write durable backend access. The Supabase webhook independently
+cannot write durable backend access, and local paid access opens only when
+RevenueCat reports `verified` or `verifiedOnDevice` entitlement verification.
+An unverified snapshot immediately closes local paid state. Store provenance is
+also part of that local decision: `pro_annual`, entitlement rows, and the
+detached seven-day pass must resolve to a store allowed by the active binding.
+A stable purchase principal accepts only exact Apple App Store provenance in
+Release builds. Promotional provenance is admitted only by the approved
+legacy/account-grant compatibility lane; Test Store is an explicit Debug-only
+test path. Mac App Store, Play Store, Stripe, RevenueCat Billing, External,
+Paddle, Amazon, Galaxy, and missing/unknown provenance fail closed even when
+RevenueCat lists `pro_annual` as active.
+RevenueCat SDK log bodies are discarded; fixed severity-only messages prevent
+provider responses or identifiers from entering unified logs. The Supabase webhook independently
 verifies RevenueCat's configured bearer credential and raw-body HMAC, fetches
 authoritative server-side CustomerInfo, and applies each unique event through a
 per-user monotonic database transaction. Duplicate or delayed deliveries and a
@@ -277,12 +292,14 @@ The accepted product, API, offline, and rollout rules are canonical in
 These invariants must all be demonstrated in a clean compiled test run before
 the strict server cutover or a production submission.
 
-- The Supabase Auth UUID remains the RevenueCat App User ID across anonymous and
-  OAuth-upgraded sessions, always in uppercase RFC 4122 form.
-- RevenueCat purchase, restore, and offer-code redemption require both the exact
-  linked UUID and one matching recognized account kind. Stable Ghost accounts
-  are first-class purchase identities; an ordinary OAuth link preserves their
-  UUID and provider state.
+- Legacy mode uses the uppercase Auth UUID; stable mode uses only the exact
+  server-issued purchase-principal App User ID. An active stable installation
+  never downgrades to the legacy identity during rollback.
+- RevenueCat purchase, restore, and offer-code redemption require the exact
+  resolved provider identity, Auth session, binding generation, and one matching
+  recognized account kind.
+- Local paid access requires verified RevenueCat CustomerInfo. Unverified,
+  failed, or stale-session results fail closed.
 - An unclassified `401` preserves the active Supabase identity. Ghost replacement
   requires an explicit missing/invalid-session response and a failed SDK refresh.
 - Normal sign-out is device-local, clears RevenueCat's local linked-state fence
@@ -328,7 +345,14 @@ the strict server cutover or a production submission.
 - Realtime account-wide analytics changes must start reliably after session
   establishment and recover after channel failure; foreground reconciliation is
   a second safety net, not the only synchronization mechanism.
-- Errors and identity values use explicit unified-log privacy annotations.
+- Auth transition admission cancels and awaits consent synchronization before
+  the SDK session can change. Entitlement baseline reads require either the
+  active transition token or an exact-session account-work lease, then reject
+  wrong-account, stale-generation, and non-single-row results before applying
+  any functional access.
+- Authentication and purchase logs contain no account, Auth, RevenueCat
+  customer, purchase-principal, capability, provider-body, URL, or raw-error
+  values; fixed operation/error kinds are the only diagnostic payload.
 
 See
 [`02-revenue-and-identity.md`](../../../../../docs/features-and-hardware/02-revenue-and-identity.md),

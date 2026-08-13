@@ -909,12 +909,22 @@ struct GeoprivacyPickerView: View {
                     guard defaultGeoprivacy != option.id else { return }
                     defaultGeoprivacy = option.id
                     Task {
-                        guard let userId = supabase.currentUser?.id else { return }
+                        guard let accountWorkLease = try? supabase
+                            .beginUnownedAccountBoundWork() else { return }
+                        defer {
+                            supabase.finishAccountBoundWork(accountWorkLease)
+                        }
+                        let userId = accountWorkLease.session.userID
                         do {
                             try await supabase.client.from("users")
                                 .update(["default_geoprivacy": option.id])
                                 .eq("id", value: userId)
                                 .execute()
+                            guard supabase.isAccountBoundWorkLeaseCurrent(
+                                accountWorkLease
+                            ) else {
+                                return
+                            }
                         } catch {
                             MerianLog.network.error("Failed to update geoprivacy preference: \(error, privacy: .private)")
                         }

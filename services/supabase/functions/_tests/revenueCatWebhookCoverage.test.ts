@@ -27,6 +27,13 @@ const monitorWorkflowUrl = new URL(
   "../../../../.github/workflows/revenuecat-reconciliation-health-monitor.yml",
   import.meta.url,
 );
+const identityBoundaryUrls = [
+  new URL("../resolve-purchase-principal/handler.ts", import.meta.url),
+  new URL("../transfer-signout-purchases/handler.ts", import.meta.url),
+  new URL("../merge-ghost-profile/index.ts", import.meta.url),
+  new URL("../reconcile-ghost-profile-merges/index.ts", import.meta.url),
+  reconcilerUrl,
+];
 
 Deno.test("RevenueCat webhook verifies ingress before authoritative state mutation", async () => {
   const handler = await Deno.readTextFile(handlerUrl);
@@ -181,12 +188,27 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "monitor_revenuecat_reconciliation.ts",
       "--warning-after-minutes",
       "--critical-after-minutes",
-      "--purchase-principal-health-mode expand-compatible",
+      "--purchase-principal-health-mode required",
       "SUPABASE_SERVER_API_KEY",
       "resolve_project_api_keys.ts",
     ]
   ) {
     assertStringIncludes(workflow, fragment);
+  }
+});
+
+Deno.test("authentication and purchase identity failures use the zero-identity logger", async () => {
+  for (const url of identityBoundaryUrls) {
+    const source = await Deno.readTextFile(url);
+    assertStringIncludes(source, "logIdentitySafeError");
+    assert(
+      !source.includes("logStructuredError"),
+      `${url.pathname} can bypass the identity-safe detail allowlist.`,
+    );
+    assert(
+      !source.includes("console.error"),
+      `${url.pathname} can emit raw authentication or purchase errors.`,
+    );
   }
 });
 

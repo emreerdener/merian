@@ -1,4 +1,4 @@
-import { serveEdge } from "../_shared/edgeHandler.ts";
+import { logIdentitySafeError, serveEdge } from "../_shared/edgeHandler.ts";
 import { publicErrorResponse, requestIdFor } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
@@ -28,9 +28,10 @@ serveEdge(async (request: Request): Promise<Response> => {
     );
   }
   if (supabaseUrl.length === 0 || !revenueCatApiKey.startsWith("sk_")) {
-    console.error(
-      `[reconcile-revenuecat-subscribers] request_id=${requestId} required configuration is missing.`,
-    );
+    logIdentitySafeError("revenuecat_reconciliation_configuration_invalid", {
+      stage: "configuration",
+      code: "missing_configuration",
+    });
     return publicErrorResponse(
       request,
       503,
@@ -55,11 +56,11 @@ serveEdge(async (request: Request): Promise<Response> => {
         "X-Request-ID": requestId,
       },
     });
-  } catch (error) {
-    console.error(
-      `[reconcile-revenuecat-subscribers] request_id=${requestId} failed:`,
-      error,
-    );
+  } catch {
+    logIdentitySafeError("revenuecat_reconciliation_request_failed", {
+      stage: "worker",
+      code: "operation_failed",
+    });
     return publicErrorResponse(
       request,
       500,

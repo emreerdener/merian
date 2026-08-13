@@ -359,7 +359,7 @@ final class PostHogManager {
         let finalUserId = sdkUserId(userId)
         sdk.identify(finalUserId)
         lock.unlock()
-        MerianLog.general.debug("PostHog identified user: \(finalUserId, privacy: .private)")
+        MerianLog.general.debug("PostHog identity applied.")
     }
 
     // MARK: - Session
@@ -412,10 +412,8 @@ final class PostHogManager {
         }
         lock.unlock()
 
-        if let identifiedUserId {
-            MerianLog.general.debug(
-                "PostHog identified user: \(identifiedUserId, privacy: .private)"
-            )
+        if identifiedUserId != nil {
+            MerianLog.general.debug("PostHog identity applied.")
         }
     }
 

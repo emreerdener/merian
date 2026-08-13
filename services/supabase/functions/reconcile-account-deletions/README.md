@@ -46,6 +46,21 @@ matches one exact current or legacy server key through the shared request
 boundary. Opaque keys are accepted only in `apikey`; legacy JWTs use matching
 `apikey` and Bearer headers. It never accepts a user ID in its body.
 
+An exact authenticated `{ "dry_run": true }` request returns only
+`{ "success": true, "dry_run": true }` with `private, no-store`. Authentication
+happens first, and the handler returns before creating a Supabase client,
+claiming account or storage jobs, invoking R2 or Auth, or pruning preparations.
+False, mistyped, and mixed dry-run bodies return `400`. This is the production
+deployment probe for route and server-key transport only; it is deliberately not
+a worker or dependency health check.
+
+Normal runs move each expired protocol-v2 preparation's two proof hashes into
+the private identity-free expired-proof ledger before deleting the preparation.
+Only live preparations can become committed capabilities, and tombstoned hashes
+cannot be reused. The ledger retains whether deletion had already committed so
+public recovery can distinguish safe `not_committed` cancellation from the
+non-authorizing `account_deletion_recovery_preparation_expired` state.
+
 ## Independent health alert
 
 The database cron is not its own health check. Migration

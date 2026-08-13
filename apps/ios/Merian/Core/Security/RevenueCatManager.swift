@@ -90,24 +90,101 @@ enum RevenueCatPurchaseMutationPolicy {
     }
 }
 
-enum RevenueCatEntitlementProvenancePolicy {
-    static func hasActiveStoreBackedSubscription(
-        productIdentifiers: Set<String>
+enum RevenueCatIdentityRebindPolicy {
+    /// Any change to the Auth binding closes local paid readiness before the
+    /// RevenueCat SDK or server projection is consulted. This is especially
+    /// important for a stable purchase principal: the provider App User ID may
+    /// remain unchanged while account-scoped grants must stop following the
+    /// previous Auth user immediately.
+    static func requiresPaidReadinessReset(
+        linkedAppUserID: String?,
+        linkedAuthUserID: UUID?,
+        linkedBindingGeneration: Int64?,
+        linkedAccountKind: String?,
+        nextAppUserID: String,
+        nextAuthUserID: UUID,
+        nextBindingGeneration: Int64,
+        nextAccountKind: String?
     ) -> Bool {
-        productIdentifiers.contains(
+        linkedAppUserID != nextAppUserID
+            || linkedAuthUserID != nextAuthUserID
+            || linkedBindingGeneration != nextBindingGeneration
+            || RevenueCatAccountMutationPolicy.normalizedAccountKind(
+                linkedAccountKind
+            ) != RevenueCatAccountMutationPolicy.normalizedAccountKind(
+                nextAccountKind
+            )
+    }
+}
+
+enum RevenueCatCustomerInfoVerificationPolicy {
+    /// RevenueCat informational verification keeps the SDK available while
+    /// making trust an explicit Merian decision. Only server-signed responses
+    /// and StoreKit 2 data verified on-device may open local paid access.
+    static func allowsPaidAccess(_ result: VerificationResult) -> Bool {
+        result == .verified || result == .verifiedOnDevice
+    }
+}
+
+enum RevenueCatSDKLogPrivacyPolicy {
+    /// RevenueCat SDK messages may contain App User IDs or provider payload
+    /// details. Merian deliberately discards message bodies and emits only a
+    /// fixed severity marker for actionable SDK warnings and errors.
+    static func safeMessage(for level: LogLevel) -> String? {
+        switch level {
+        case .warn:
+            return "RevenueCat SDK reported a warning."
+        case .error:
+            return "RevenueCat SDK reported an error."
+        case .verbose, .debug, .info:
+            return nil
+        }
+    }
+}
+
+enum RevenueCatEntitlementProvenancePolicy {
+    static var allowsTestStoreForCurrentBuild: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    static func hasActiveStoreBackedSubscription(
+        productIdentifiers: Set<String>,
+        storeByProductIdentifier: [String: Store],
+        accountGrantsAllowed: Bool
+    ) -> Bool {
+        let annualProductIdentifier =
             RevenueCatOfferingPolicy.annualProductIdentifier
+        guard productIdentifiers.contains(annualProductIdentifier),
+              let store = storeByProductIdentifier[annualProductIdentifier]
+        else {
+            return false
+        }
+        return allowsStoreBackedAccess(
+            store: store,
+            accountGrantsAllowed: accountGrantsAllowed
         )
     }
 
     static func allowsStoreBackedAccess(
         store: Store,
-        accountGrantsAllowed: Bool
+        accountGrantsAllowed: Bool,
+        allowsTestStore: Bool = allowsTestStoreForCurrentBuild
     ) -> Bool {
-        if accountGrantsAllowed { return true }
         switch store {
-        case .appStore, .macAppStore, .testStore:
+        case .appStore:
             return true
-        default:
+        case .promotional:
+            return accountGrantsAllowed
+        case .testStore:
+            return allowsTestStore
+        case .macAppStore, .playStore, .stripe, .unknownStore, .amazon,
+             .rcBilling, .external, .paddle, .galaxy:
+            return false
+        @unknown default:
             return false
         }
     }
@@ -272,6 +349,10 @@ enum RevenueCatStableIdentityPrivacyPolicy {
         linkedAuthUserID = nil
         linkedBindingGeneration = nil
         linkedAccountKind = nil
+        closePaidReadiness()
+    }
+
+    private func closePaidReadiness() {
         accountGrantsAllowed = false
         isSubscribed = false
         currentOfferings = nil
@@ -394,6 +475,18 @@ enum RevenueCatStableIdentityPrivacyPolicy {
 
         let normalizedAccountKind = RevenueCatAccountMutationPolicy
             .normalizedAccountKind(accountKind)
+        let providerIdentityChanged = linkedAppUserID != appUserID
+        let requiresPaidReadinessReset = RevenueCatIdentityRebindPolicy
+            .requiresPaidReadinessReset(
+                linkedAppUserID: linkedAppUserID,
+                linkedAuthUserID: linkedAuthUserID,
+                linkedBindingGeneration: linkedBindingGeneration,
+                linkedAccountKind: linkedAccountKind,
+                nextAppUserID: appUserID,
+                nextAuthUserID: authUserID,
+                nextBindingGeneration: bindingGeneration,
+                nextAccountKind: normalizedAccountKind
+            )
         identityRequestGeneration &+= 1
         let requestGeneration = identityRequestGeneration
         requestedAppUserID = appUserID
@@ -401,22 +494,14 @@ enum RevenueCatStableIdentityPrivacyPolicy {
         requestedBindingGeneration = bindingGeneration
         requestedAccountKind = normalizedAccountKind
 
-        if linkedAppUserID != appUserID {
-            linkedAppUserID = nil
+        if requiresPaidReadinessReset {
+            if providerIdentityChanged {
+                linkedAppUserID = nil
+            }
             linkedAuthUserID = nil
             linkedBindingGeneration = nil
             linkedAccountKind = nil
-            isSubscribed = false
-            currentOfferings = nil
-            synchronizeFunctionalEntitlement()
-        } else if linkedAuthUserID != authUserID
-                    || linkedBindingGeneration != bindingGeneration
-                    || linkedAccountKind != normalizedAccountKind {
-            // Fail closed while the same provider customer is rebound to a new
-            // Auth session or account kind.
-            linkedAuthUserID = nil
-            linkedBindingGeneration = nil
-            linkedAccountKind = nil
+            closePaidReadiness()
         }
 
         // RevenueCat SDK identity mutations are asynchronous and are not
@@ -472,12 +557,26 @@ enum RevenueCatStableIdentityPrivacyPolicy {
         }
 
         Purchases.logLevel = .warn
+        Purchases.logHandler = { level, _ in
+            guard let message = RevenueCatSDKLogPrivacyPolicy.safeMessage(
+                for: level
+            ) else { return }
+            if level == .error {
+                MerianLog.general.error("\(message, privacy: .public)")
+            } else {
+                MerianLog.general.warning("\(message, privacy: .public)")
+            }
+        }
         guard let apiKey = validatedAPIKey() else { return }
 
         do {
             let customerInfo: CustomerInfo?
             if !Purchases.isConfigured {
-                Purchases.configure(withAPIKey: apiKey, appUserID: appUserID)
+                Purchases.configure(
+                    with: Configuration.builder(withAPIKey: apiKey)
+                        .with(appUserID: appUserID)
+                        .with(entitlementVerificationMode: .informational)
+                )
                 customerInfo = nil
             } else if Purchases.shared.appUserID == appUserID {
                 customerInfo = nil
@@ -557,9 +656,11 @@ enum RevenueCatStableIdentityPrivacyPolicy {
             }
 
             await fetchOfferings()
-            MerianLog.general.debug("RevenueCat identity linked for user \(appUserID, privacy: .private)")
+            MerianLog.general.debug("RevenueCat identity linked.")
         } catch {
-            MerianLog.general.debug("RevenueCat identity link failed: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug(
+                "RevenueCat identity link failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
         }
     }
 
@@ -575,11 +676,24 @@ enum RevenueCatStableIdentityPrivacyPolicy {
             guard isCurrentIdentity(appUserID) else { return }
             updateEntitlements(with: info)
         } catch {
-            MerianLog.general.debug("Failed to fetch customer info: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug(
+                "Failed to fetch RevenueCat CustomerInfo; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
         }
     }
 
     private func updateEntitlements(with info: CustomerInfo) {
+        guard RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(
+            info.entitlements.verification
+        ) else {
+            isSubscribed = false
+            synchronizeFunctionalEntitlement()
+            MerianLog.general.error(
+                "RevenueCat CustomerInfo failed trusted-entitlement verification; paid access remains closed."
+            )
+            return
+        }
+
         let isNaturalist = entitlementIsAllowed(
             info.entitlements.all["Naturalist Tier"]
         )
@@ -587,7 +701,10 @@ enum RevenueCatStableIdentityPrivacyPolicy {
         let hasActiveStoreBackedSubscription =
             RevenueCatEntitlementProvenancePolicy
                 .hasActiveStoreBackedSubscription(
-                    productIdentifiers: info.activeSubscriptions
+                    productIdentifiers: info.activeSubscriptions,
+                    storeByProductIdentifier:
+                        info.subscriptionsByProductIdentifier.mapValues(\.store),
+                    accountGrantsAllowed: accountGrantsAllowed
                 )
         let isActive7DayPass = SevenDayPassAccessPolicy.isActive(
             purchases: info.nonSubscriptions.compactMap {
@@ -670,7 +787,9 @@ enum RevenueCatStableIdentityPrivacyPolicy {
                 )
             }
         } catch {
-            MerianLog.general.debug("Failed to fetch RevenueCat offerings: \(error.localizedDescription, privacy: .private)")
+            MerianLog.general.debug(
+                "Failed to fetch RevenueCat offerings; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
         }
     }
 
@@ -774,7 +893,9 @@ enum RevenueCatStableIdentityPrivacyPolicy {
             do {
                 try await Purchases.shared.showManageSubscriptions()
             } catch {
-                MerianLog.general.debug("Purchases.showManageSubscriptions failed: \(error.localizedDescription, privacy: .private)")
+                MerianLog.general.debug(
+                    "RevenueCat subscription-management presentation failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
                 if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
                     _ = await UIApplication.shared.open(url)
                 }

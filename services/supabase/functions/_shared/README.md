@@ -26,8 +26,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   explicit safe response failures use `publicErrorResponse(...)`. Audited
   returned `4xx` application contracts are still supported, while unexpected
   exceptions become `500 internal_error` and ordinary returned `5xx` bodies keep
-  their status but receive a generic status-derived envelope. Raw exception
-  details remain server-side.
+  their status but receive a generic status-derived envelope. Authentication and
+  purchase-identity handlers use `logIdentitySafeError(...)`, whose fixed field
+  set accepts only bounded operation tokens and HTTP status. UUID-shaped values,
+  opaque provider IDs, capabilities, URLs, prose, and raw exceptions collapse to
+  a generic error kind instead of entering logs. Other handlers may retain
+  private exception details only under their separately reviewed logging
+  contract.
 - **`http.ts`**: CORS headers, JSON responses, parameter validation,
   constant-time comparison helpers, and the canonical bounded request readers.
   `parseJsonBody(...)` is the ordinary object API;

@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import { assertStringIncludes } from "@std/assert";
 import {
   jsonResponse,
+  logIdentitySafeError,
   logStructuredError,
   runBackground,
   withEdgeHandler,
@@ -85,6 +86,9 @@ Deno.test("runBackground — swallows rejection and logs when EdgeRuntime is abs
   await new Promise((r) => setTimeout(r, 20));
 
   assertEquals(errors.length, 1);
+  const serialized = String((errors[0] as unknown[])[0]);
+  assertStringIncludes(serialized, "background_task_failed");
+  assertEquals(serialized.includes("bg failure"), false);
 
   console.error = originalError;
   globalObj.EdgeRuntime = original;
@@ -176,6 +180,77 @@ Deno.test("logStructuredError — detail fields do not overwrite event or ts", (
   assertEquals(parsed.event, "real_event");
   assert(parsed.ts !== "injected_ts");
   assert(!isNaN(Date.parse(parsed.ts)));
+});
+
+Deno.test("logIdentitySafeError — emits only allowlisted non-identity fields", () => {
+  const logs: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => logs.push(args[0]);
+
+  try {
+    logIdentitySafeError("RevenueCat Reconciliation Failed", {
+      identityKind: "purchase-principal",
+      operation: "complete",
+      stage: "provider lookup",
+      code: "550e8400-e29b-41d4-a716-446655440000",
+      status: 503,
+    });
+  } finally {
+    console.error = original;
+  }
+
+  assertEquals(logs.length, 1);
+  const serialized = logs[0] as string;
+  const parsed = JSON.parse(serialized);
+  assertEquals(parsed.event, "revenuecat_reconciliation_failed");
+  assertEquals(parsed.identity_kind, "purchase_principal");
+  assertEquals(parsed.operation, "complete");
+  assertEquals(parsed.stage, "provider_lookup");
+  assertEquals(parsed.code, "operation_failed");
+  assertEquals(parsed.status, 503);
+  assert(!serialized.includes("550e8400"));
+
+  const secondLogs: unknown[] = [];
+  console.error = (...args: unknown[]) => secondLogs.push(args[0]);
+  try {
+    logIdentitySafeError("purchase_principal_resolution_failed", {
+      code: "MERIAN_PP_00112233445566778899AABBCCDDEEFF",
+      stage: "provider body exposed",
+    });
+  } finally {
+    console.error = original;
+  }
+  const second = String(secondLogs[0]);
+  assertEquals(second.includes("00112233445566778899"), false);
+  assertEquals(JSON.parse(second).code, "operation_failed");
+});
+
+Deno.test("logIdentitySafeError — rejects modern UUID and opaque provider identity shapes", () => {
+  const forbiddenCodes = [
+    "018f22a2-7c5c-7cc4-98c9-2e389f13f521",
+    "00000000-0000-0000-0000-000000000000",
+    "revenuecat-customer-2",
+    "$RCAnonymousID:0011223344556677",
+    "pp_00112233445566778899aabbccddeeff",
+  ];
+  const logs: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => logs.push(args[0]);
+
+  try {
+    for (const code of forbiddenCodes) {
+      logIdentitySafeError("purchase_principal_resolution_failed", { code });
+    }
+  } finally {
+    console.error = original;
+  }
+
+  assertEquals(logs.length, forbiddenCodes.length);
+  for (const [index, serialized] of logs.entries()) {
+    const text = String(serialized);
+    assertEquals(JSON.parse(text).code, "operation_failed");
+    assertEquals(text.includes(forbiddenCodes[index]), false);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -292,6 +367,30 @@ Deno.test("withPublicEdgeHandler sanitizes custom-handler exceptions", async () 
     assertEquals(JSON.stringify(body).includes("private provider"), false);
     assertEquals(response.headers.get("X-Request-ID"), body.request_id);
     assertEquals(response.headers.get("X-Merian-Handler"), "1");
+  } finally {
+    console.error = originalError;
+  }
+});
+
+Deno.test("withPublicEdgeHandler never logs raw exception text or URL identities", async () => {
+  const marker = "550e8400-e29b-41d4-a716-446655440000";
+  const logs: unknown[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => logs.push(args[0]);
+  try {
+    const request = new Request(
+      `https://test-project.supabase.co/functions/v1/private/${marker}`,
+    );
+    const response = await withPublicEdgeHandler(request, () => {
+      throw new Error(`provider leaked customer ${marker}`);
+    });
+
+    assertEquals(response.status, 500);
+    assertEquals(logs.length, 1);
+    const serialized = String(logs[0]);
+    assertStringIncludes(serialized, "edge_function_request_failed");
+    assertEquals(serialized.includes(marker), false);
+    assertEquals(serialized.includes("provider leaked customer"), false);
   } finally {
     console.error = originalError;
   }

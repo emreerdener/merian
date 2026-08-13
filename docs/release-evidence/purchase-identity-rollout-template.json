@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "source_sha": "0000000000000000000000000000000000000000",
+  "reviewed_at": "1970-01-01T00:00:00.000Z",
+  "artifacts": {
+    "candidate_validation_url": "https://replace.invalid/candidate-validation",
+    "backend_deploy_url": "https://replace.invalid/backend-deploy",
+    "ios_test_url": "https://replace.invalid/ios-tests",
+    "physical_device_matrix_url": "https://replace.invalid/physical-device-matrix",
+    "revenuecat_matrix_url": "https://replace.invalid/revenuecat-matrix",
+    "health_monitor_url": "https://replace.invalid/health-monitor"
+  },
+  "candidate": {
+    "validation": "pending",
+    "exact_sha_deploy_smoke": "pending"
+  },
+  "database": {
+    "disposable_replay": "pending",
+    "pgtap": "pending",
+    "concurrency": "pending",
+    "lint": "pending",
+    "security_advisor": "pending"
+  },
+  "ios": {
+    "unit_tests": "pending",
+    "ui_tests": "pending",
+    "clean_device_apple": "pending",
+    "clean_device_google": "pending",
+    "kill_relaunch": "pending",
+    "keychain_unavailable": "pending",
+    "offline_retry": "pending",
+    "account_switch": "pending",
+    "account_deletion": "pending"
+  },
+  "revenuecat": {
+    "restore_behavior": "unverified",
+    "active_subscription": "pending",
+    "renewal": "pending",
+    "refund": "pending",
+    "expiration": "pending",
+    "lifetime": "pending",
+    "seven_day_pass": "pending",
+    "promotional_only": "pending",
+    "mixed_storekit_promotion": "pending",
+    "timeout_reconciliation": "pending",
+    "duplicate_delivery": "pending",
+    "attribute_scrub": "pending",
+    "anonymous_app_user_id_count": -1,
+    "auth_rotation_receipt_sync_count": -1,
+    "auth_rotation_customer_transfer_count": -1
+  },
+  "compatibility": {
+    "old_client_new_backend": "pending",
+    "legacy_handoff_retained": "pending",
+    "stable_rollback_rehearsal": "pending"
+  },
+  "monitoring": {
+    "required_principal_health": "pending",
+    "queue_and_lease_health": "pending"
+  },
+  "account_grants": {
+    "projection_divergence_count": -1,
+    "issuance_cutover": "pending",
+    "authoritative_rollback_rehearsal": "pending"
+  },
+  "approval": {
+    "reference_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

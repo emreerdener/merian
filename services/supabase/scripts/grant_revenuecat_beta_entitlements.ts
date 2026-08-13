@@ -2,26 +2,20 @@
  * One-time, guarded migration of a frozen, explicitly reviewed beta cohort to
  * RevenueCat promotional entitlements.
  *
- * Current subscription projections never define cohort membership. Dry-run is
- * the default and performs no network requests. Apply mode requires active
- * Supabase Auth evidence (Ghost or provider-linked), a reviewed results path,
- * finite expiration, secret API key, and confirmation.
+ * Current subscription projections never define cohort membership. This
+ * compatibility audit is permanently dry-run-only: new beta, promotion, and
+ * support access is written to the private account-access ledger by
+ * grant_account_access_entitlements.ts and never issued as a RevenueCat
+ * promotion.
  */
 
-import { readByteStreamWithinLimit } from "../functions/_shared/http.ts";
-import { fetchWithDeadline } from "../functions/_shared/outbound.ts";
 import {
   parseDelimitedText,
   readPossiblyGzippedText,
   readPossiblyGzippedTextArtifact,
-  serializeDelimitedRows,
 } from "./revenuecat_csv.ts";
 import { canonicalUUID } from "./audit_revenuecat_customers.ts";
 
-const REVENUECAT_API_BASE_URL = "https://api.revenuecat.com/v1";
-const REQUEST_TIMEOUT_MS = 10_000;
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-const MAX_RETRIES = 3;
 const DEFAULT_CONCURRENCY = 3;
 const MAX_CONCURRENCY = 5;
 const DEFAULT_MAX_USERS = 500;
@@ -38,7 +32,6 @@ export interface BetaEntitlementGrantArgs {
   concurrency: number;
   maxUsers: number;
   summaryJsonPath: string | null;
-  resultsCsvPath: string | null;
 }
 
 export interface BetaEntitlementCandidate {
@@ -90,13 +83,6 @@ export interface BetaEntitlementGrantSummary {
   revenuecat_requests_performed: boolean;
 }
 
-class RevenueCatOperationError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-    this.name = "RevenueCatOperationError";
-  }
-}
-
 if (import.meta.main) {
   try {
     const exitCode = await runBetaEntitlementGrant(Deno.args);
@@ -113,9 +99,11 @@ if (import.meta.main) {
 
 export async function runBetaEntitlementGrant(
   rawArgs: string[],
-  fetcher: typeof fetch = fetch,
 ): Promise<number> {
   const args = parseBetaEntitlementGrantArgs(rawArgs);
+  if (args.apply) {
+    throw new Error("legacy_revenuecat_promotion_apply_retired");
+  }
   if (!args.usersCsvPath) throw new Error("--users-csv is required.");
   if (!args.cohortCsvPath) throw new Error("--cohort-csv is required.");
   if (!args.authAuditCsvPath) {
@@ -144,28 +132,9 @@ export async function runBetaEntitlementGrant(
   const expiresAt = args.expiresAt
     ? validateGrantExpiration(args.expiresAt, now)
     : null;
-  let apiKey: string | null = null;
-  if (args.apply) {
-    if (!args.confirmed) {
-      throw new Error("--apply also requires --confirm-beta-pro-grant.");
-    }
-    if (!expiresAt) {
-      throw new Error("--apply requires a finite --expires-at timestamp.");
-    }
-    if (!args.resultsCsvPath) {
-      throw new Error("--apply requires --results-csv for an operator ledger.");
-    }
-    apiKey = requireRevenueCatSecretAPIKey();
-  }
-
   const results = await executeBetaEntitlementGrant({
     apply: args.apply,
     candidates: selection.candidates,
-    entitlementID: args.entitlementID,
-    expiresAt,
-    apiKey,
-    concurrency: args.concurrency,
-    fetcher,
   });
 
   const summary = buildBetaEntitlementGrantSummary(
@@ -182,19 +151,7 @@ export async function runBetaEntitlementGrant(
       args.summaryJsonPath,
       `${JSON.stringify(summary, null, 2)}\n`,
     );
-    console.log(`summary_json: ${args.summaryJsonPath}`);
   }
-  if (args.resultsCsvPath) {
-    await Deno.writeTextFile(
-      args.resultsCsvPath,
-      serializeDelimitedRows(
-        ["app_user_id", "status", "error_code"],
-        results,
-      ),
-    );
-    console.log(`results_csv: ${args.resultsCsvPath}`);
-  }
-
   return summary.failed_count > 0 ? 1 : 0;
 }
 
@@ -212,7 +169,6 @@ export function parseBetaEntitlementGrantArgs(
     concurrency: DEFAULT_CONCURRENCY,
     maxUsers: DEFAULT_MAX_USERS,
     summaryJsonPath: null,
-    resultsCsvPath: null,
   };
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -257,9 +213,6 @@ export function parseBetaEntitlementGrantArgs(
         break;
       case "--summary-json":
         args.summaryJsonPath = nextArgument(rawArgs, ++index, argument);
-        break;
-      case "--results-csv":
-        args.resultsCsvPath = nextArgument(rawArgs, ++index, argument);
         break;
       default:
         throw new Error(`Unknown argument: ${argument}`);
@@ -441,118 +394,18 @@ export function validateGrantExpiration(value: string, now: Date): string {
   return new Date(parsed).toISOString();
 }
 
-export async function executeBetaEntitlementGrant(input: {
+export function executeBetaEntitlementGrant(input: {
   apply: boolean;
   candidates: BetaEntitlementCandidate[];
-  entitlementID: string;
-  expiresAt: string | null;
-  apiKey: string | null;
-  concurrency: number;
-  fetcher: typeof fetch;
-}): Promise<BetaEntitlementGrantResult[]> {
-  if (!input.apply) {
-    return input.candidates.map((candidate) => ({
-      app_user_id: candidate.app_user_id,
-      status: "planned",
-      error_code: "",
-    }));
+}): BetaEntitlementGrantResult[] {
+  if (input.apply) {
+    throw new Error("legacy_revenuecat_promotion_apply_retired");
   }
-  if (!input.expiresAt) {
-    throw new Error("Apply mode requires a finite expiration.");
-  }
-  if (!input.apiKey) {
-    throw new Error("Apply mode requires a RevenueCat secret API key.");
-  }
-  return await applyBetaEntitlementGrants({
-    candidates: input.candidates,
-    entitlementID: input.entitlementID,
-    expiresAt: input.expiresAt,
-    apiKey: input.apiKey,
-    concurrency: input.concurrency,
-    fetcher: input.fetcher,
-  });
-}
-
-export async function applyBetaEntitlementGrants(input: {
-  candidates: BetaEntitlementCandidate[];
-  entitlementID: string;
-  expiresAt: string;
-  apiKey: string;
-  concurrency: number;
-  fetcher: typeof fetch;
-}): Promise<BetaEntitlementGrantResult[]> {
-  return await mapWithConcurrency(
-    input.candidates,
-    input.concurrency,
-    async (candidate) => {
-      try {
-        const existing = await revenueCatRequest({
-          method: "GET",
-          appUserID: candidate.app_user_id,
-          entitlementID: input.entitlementID,
-          apiKey: input.apiKey,
-          fetcher: input.fetcher,
-        });
-        if (isEntitlementActive(existing, input.entitlementID)) {
-          return {
-            app_user_id: candidate.app_user_id,
-            status: "already_active" as const,
-            error_code: "",
-          };
-        }
-
-        const granted = await revenueCatRequest({
-          method: "POST",
-          appUserID: candidate.app_user_id,
-          entitlementID: input.entitlementID,
-          endTimeMs: Date.parse(input.expiresAt),
-          apiKey: input.apiKey,
-          fetcher: input.fetcher,
-        });
-        if (!isEntitlementActive(granted, input.entitlementID)) {
-          throw new RevenueCatOperationError(
-            "grant_not_active",
-            "RevenueCat grant response did not contain an active entitlement.",
-          );
-        }
-        return {
-          app_user_id: candidate.app_user_id,
-          status: "granted" as const,
-          error_code: "",
-        };
-      } catch (error) {
-        return {
-          app_user_id: candidate.app_user_id,
-          status: "failed" as const,
-          error_code: error instanceof RevenueCatOperationError
-            ? error.code
-            : "unexpected_error",
-        };
-      }
-    },
-  );
-}
-
-export function isEntitlementActive(
-  payload: unknown,
-  entitlementID: string,
-): boolean {
-  const root = record(payload);
-  const value = record(root?.value) ?? root;
-  const subscriber = record(value?.subscriber);
-  const entitlements = record(subscriber?.entitlements);
-  const entitlement = record(entitlements?.[entitlementID]);
-  if (!entitlement) return false;
-  if (entitlement.expires_date === null) return true;
-
-  const expiresAt = timestampMilliseconds(entitlement.expires_date);
-  const gracePeriodEndsAt = timestampMilliseconds(
-    entitlement.grace_period_expires_date,
-  );
-  const requestAt = typeof value?.request_date_ms === "number"
-    ? value.request_date_ms
-    : Date.now();
-  return Math.max(expiresAt ?? 0, gracePeriodEndsAt ?? 0) > requestAt;
+  return input.candidates.map((candidate) => ({
+    app_user_id: candidate.app_user_id,
+    status: "planned",
+    error_code: "",
+  }));
 }
 
 function buildBetaEntitlementGrantSummary(
@@ -585,136 +438,6 @@ function buildBetaEntitlementGrantSummary(
   };
 }
 
-async function revenueCatRequest(input: {
-  method: "GET" | "POST";
-  appUserID: string;
-  entitlementID: string;
-  endTimeMs?: number;
-  apiKey: string;
-  fetcher: typeof fetch;
-}): Promise<unknown> {
-  const base = `${REVENUECAT_API_BASE_URL}/subscribers/${
-    encodeURIComponent(input.appUserID)
-  }`;
-  const url = input.method === "GET"
-    ? base
-    : `${base}/entitlements/${
-      encodeURIComponent(input.entitlementID)
-    }/promotional`;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
-    let response: Response;
-    try {
-      response = await fetchWithDeadline(
-        url,
-        {
-          method: input.method,
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${input.apiKey}`,
-            ...(input.method === "POST"
-              ? { "Content-Type": "application/json" }
-              : {}),
-          },
-          body: input.method === "POST"
-            ? JSON.stringify({ end_time_ms: input.endTimeMs })
-            : undefined,
-        },
-        { fetcher: input.fetcher, timeoutMs: REQUEST_TIMEOUT_MS },
-      );
-    } catch {
-      if (attempt < MAX_RETRIES) {
-        await retryPause(attempt);
-        continue;
-      }
-      throw new RevenueCatOperationError(
-        "network_failure",
-        "RevenueCat request failed after bounded retries.",
-      );
-    }
-
-    const isExpectedStatus = input.method === "GET"
-      ? response.status === 200 || response.status === 201
-      : response.status === 201;
-    if (!isExpectedStatus) {
-      const retryable = response.status === 408 || response.status === 425 ||
-        response.status === 429 || response.status >= 500;
-      await response.body?.cancel().catch(() => undefined);
-      if (retryable && attempt < MAX_RETRIES) {
-        await retryPause(attempt);
-        continue;
-      }
-      throw new RevenueCatOperationError(
-        `http_${response.status}`,
-        `RevenueCat returned HTTP ${response.status}.`,
-      );
-    }
-
-    const contentLength = Number(response.headers.get("Content-Length"));
-    if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new RevenueCatOperationError(
-        "response_too_large",
-        "RevenueCat response exceeded the size limit.",
-      );
-    }
-    const bounded = await readByteStreamWithinLimit(
-      response.body,
-      MAX_RESPONSE_BYTES,
-      "RevenueCat response exceeded the size limit",
-    );
-    if (bounded.exceeded || !bounded.bytes) {
-      throw new RevenueCatOperationError(
-        "response_too_large",
-        "RevenueCat response exceeded the size limit.",
-      );
-    }
-    try {
-      const source = new TextDecoder("utf-8", { fatal: true }).decode(
-        bounded.bytes,
-      );
-      return JSON.parse(source);
-    } catch {
-      throw new RevenueCatOperationError(
-        "invalid_response",
-        "RevenueCat returned invalid JSON.",
-      );
-    }
-  }
-  throw new RevenueCatOperationError("retry_exhausted", "Retry exhausted.");
-}
-
-async function mapWithConcurrency<T, U>(
-  values: T[],
-  concurrency: number,
-  operation: (value: T) => Promise<U>,
-): Promise<U[]> {
-  const results = new Array<U>(values.length);
-  let nextIndex = 0;
-  const workers = Array.from(
-    { length: Math.min(concurrency, values.length) },
-    async () => {
-      while (nextIndex < values.length) {
-        const index = nextIndex++;
-        results[index] = await operation(values[index]);
-      }
-    },
-  );
-  await Promise.all(workers);
-  return results;
-}
-
-function requireRevenueCatSecretAPIKey(): string {
-  const apiKey = Deno.env.get("REVENUECAT_SECRET_API_KEY")?.trim() ?? "";
-  if (!apiKey) throw new Error("REVENUECAT_SECRET_API_KEY is required.");
-  if (!apiKey.startsWith("sk_")) {
-    throw new Error(
-      "REVENUECAT_SECRET_API_KEY must be a server-side secret key, not a public SDK key.",
-    );
-  }
-  return apiKey;
-}
-
 function printBetaEntitlementGrantSummary(
   summary: BetaEntitlementGrantSummary,
 ): void {
@@ -738,18 +461,6 @@ function printBetaEntitlementGrantSummary(
   console.log(
     `revenuecat_requests_performed: ${summary.revenuecat_requests_performed}`,
   );
-}
-
-function record(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
-}
-
-function timestampMilliseconds(value: unknown): number | null {
-  if (typeof value !== "string") return null;
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function normalizedBoolean(value: string): boolean | null {
@@ -792,8 +503,4 @@ function nextArgument(
     throw new Error(`${argument} requires a value.`);
   }
   return value;
-}
-
-async function retryPause(attempt: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, attempt * 250));
 }

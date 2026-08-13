@@ -85,8 +85,12 @@ final class ScanRepository {
     /// prevent OOM on accounts with large histories. All reconciliation work runs on a single
     /// `HistoricalDatabaseActor` invocation to minimise actor-boundary crossings.
     func syncHistoricalScansDown(modelContext: ModelContext) async {
-        guard SupabaseManager.shared.isAuthenticated,
-              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return }
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else { return }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+        let userId = accountWorkLease.session.userID.uuidString
 
         do {
             let container = modelContext.container
@@ -102,6 +106,10 @@ final class ScanRepository {
                 let didDrainCollections = await offlineQueue.drainCollectionSyncIfPossible()
                 guard didDrainCollections else {
                     MerianLog.data.debug("syncHistoricalScansDown: skipped cloud reconciliation because pending collection mutations could not be drained safely.")
+                    return
+                }
+                guard SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
                     return
                 }
             }
@@ -123,6 +131,10 @@ final class ScanRepository {
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
                     .execute()
                     .value
+                guard SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    return
+                }
                 if !page.isEmpty {
                     if scanOffset == 0 {
                         MerianLog.data.debug("🔄 Merian Sync: Streaming remote scan pages (page size: \(scanPageSize, privacy: .public))…")
@@ -151,6 +163,10 @@ final class ScanRepository {
                     .range(from: colOffset, to: colOffset + colPageSize - 1)
                     .execute()
                     .value
+                guard SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    return
+                }
                 allCollections.append(contentsOf: page)
                 if page.count < colPageSize { break }
                 colOffset += colPageSize
@@ -158,6 +174,10 @@ final class ScanRepository {
 
             // Reconcile collections after all scan pages have been ingested so that
             // collection → scan relationships can resolve against the full local set.
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                return
+            }
             await dbActor.syncCollectionsDown(remoteCollections: allCollections)
 
             if totalNewRecords > 0 {
@@ -176,8 +196,12 @@ final class ScanRepository {
     /// the server has persisted it. This avoids waiting for a full historical sync when
     /// the photo's EXIF timestamp places it deep in the user's remote history.
     func syncHistoricalScanDown(scanId: String, modelContext: ModelContext) async -> Bool {
-        guard SupabaseManager.shared.isAuthenticated,
-              let userId = SupabaseManager.shared.currentUser?.id.uuidString else { return false }
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else { return false }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+        let userId = accountWorkLease.session.userID.uuidString
 
         do {
             let container = modelContext.container
@@ -191,6 +215,11 @@ final class ScanRepository {
                 .execute()
                 .value
 
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                return false
+            }
+
             guard !response.isEmpty else {
                 MerianLog.data.debug(
                     "syncHistoricalScanDown: server had status=found but targeted fetch returned no row scanId=\(scanId, privacy: .public)"
@@ -199,6 +228,10 @@ final class ScanRepository {
             }
 
             let newRecords = await dbActor.reconcileScanPage(responses: response)
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                return false
+            }
             MerianLog.data.debug(
                 "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
             )
@@ -312,7 +345,8 @@ final class ScanRepository {
     }
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
-    func purgeAllData(modelContext: ModelContext) {
+    @discardableResult
+    func purgeAllData(modelContext: ModelContext) -> Bool {
         do {
             try modelContext.delete(model: LocalScanRecord.self)
             try modelContext.delete(model: ScanCollection.self)
@@ -323,9 +357,11 @@ final class ScanRepository {
             ExploreShareStateStore.clearAll()
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             MerianLog.data.debug("✅ Successfully purged all SwiftData records natively.")
+            return true
         } catch {
             modelContext.rollback()
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
+            return false
         }
     }
 }

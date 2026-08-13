@@ -12,13 +12,32 @@ extension ExploreFeedViewModel {
     }
 
     func refreshUnreadNotificationCount(force: Bool = false) async {
-        if let count = await AppIconBadgeCoordinator.refreshExploreUnreadNotificationCount(force: force) {
-            unreadNotificationCount = count
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else { return }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
         }
+        guard let count = await AppIconBadgeCoordinator
+            .refreshExploreUnreadNotificationCount(force: force),
+              !Task.isCancelled,
+              SupabaseManager.shared.allowsUnownedAccountBoundWork,
+              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+                accountWorkLease
+              ) else {
+            return
+        }
+        unreadNotificationCount = count
     }
 
     func startUnreadNotificationUpdates() async {
+        guard SupabaseManager.shared.allowsUnownedAccountBoundWork else {
+            return
+        }
         await refreshUnreadNotificationCount()
+        guard !Task.isCancelled,
+              SupabaseManager.shared.allowsUnownedAccountBoundWork else {
+            return
+        }
         await startRealtimeUnreadNotificationUpdates()
     }
 
@@ -52,7 +71,12 @@ extension ExploreFeedViewModel {
 
     private func startRealtimeUnreadNotificationUpdates() async {
         guard unreadNotificationsChannel == nil, unreadNotificationListenerTask == nil else { return }
-        guard let userId = await resolveExploreNotificationsUserId() else { return }
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else { return }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+        let userId = accountWorkLease.session.userID.uuidString
 
         let channel = SupabaseManager.shared.client.channel(
             "explore-notifications-\(userId)-\(UUID().uuidString)"
@@ -66,6 +90,14 @@ extension ExploreFeedViewModel {
 
         do {
             try await channel.subscribeWithError()
+            guard !Task.isCancelled,
+                  SupabaseManager.shared.allowsUnownedAccountBoundWork,
+                  SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+                    accountWorkLease
+                  ) else {
+                await SupabaseManager.shared.client.removeChannel(channel)
+                return
+            }
             unreadNotificationsChannel = channel
             unreadNotificationListenerTask = Task { [weak self] in
                 for await _ in changes {
@@ -81,14 +113,4 @@ extension ExploreFeedViewModel {
         }
     }
 
-    private func resolveExploreNotificationsUserId() async -> String? {
-        if let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString {
-            return currentUserId
-        }
-
-        guard let session = try? await SupabaseManager.shared.client.auth.session else {
-            return nil
-        }
-        return session.user.id.uuidString
-    }
 }

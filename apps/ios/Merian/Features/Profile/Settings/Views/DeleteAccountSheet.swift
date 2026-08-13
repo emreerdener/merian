@@ -13,9 +13,16 @@ struct DeleteAccountSheet: View {
     private var purchaseContinuityPending: Bool {
         RevenueCatManager.shared.isPurchaseIdentityHandoffPending
     }
+
+    private var deletionRecoveryPending: Bool {
+        AccountDeletionLocalCleanupStore.isPending()
+    }
     
     var isDeleteEnabled: Bool {
-        confirmationText == "DELETE" && !purchaseContinuityPending
+        confirmationText == "DELETE" &&
+            !purchaseContinuityPending &&
+            !deletionRecoveryPending &&
+            !supabase.isAuthTransitionInProgress
     }
 
     var body: some View {
@@ -96,13 +103,13 @@ struct DeleteAccountSheet: View {
             }
             .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled(isDeleting)
+            .interactiveDismissDisabled(isDeleting || deletionRecoveryPending)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .disabled(isDeleting)
+                    .disabled(isDeleting || deletionRecoveryPending)
                 }
             }
         }
@@ -129,16 +136,36 @@ struct DeleteAccountSheet: View {
         errorMessage = nil
         
         do {
-            let receipt = try await MerianNetworkClient.shared.safeDeleteAccount()
-            if receipt.manualProviderRevocationRequired {
-                ManualAppleRevocationNoticeStore.record()
+            if deletionRecoveryPending {
+                guard await supabase
+                    .resumePendingAccountDeletionLocalCleanup(
+                        purgeLocalData: {
+                            ScanRepository.shared.purgeAllData(
+                                modelContext: modelContext
+                            )
+                        }
+                    ) else {
+                    errorMessage =
+                        "Account deletion is still being confirmed. Keep Naturebook open and connected; it will retry safely."
+                    isDeleting = false
+                    return
+                }
+            } else {
+                _ = try await supabase.deleteCurrentAccount {
+                    ScanRepository.shared.purgeAllData(
+                        modelContext: modelContext
+                    )
+                }
             }
-            await supabase.signOut()
-            ScanRepository.shared.purgeAllData(modelContext: modelContext)
             dismiss() // the parent view will catch the sign out and pop out to root
         } catch {
-            MerianLog.general.error("Account deletion failed: \(error.localizedDescription, privacy: .public)")
-            if MerianNetworkClient.stableEdgeErrorCode(from: error)
+            MerianLog.general.error(
+                "Account deletion failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
+            if AccountDeletionLocalCleanupStore.isPending() {
+                errorMessage =
+                    "Account deletion is still being confirmed. Keep Naturebook open and connected; it will retry safely."
+            } else if MerianNetworkClient.stableEdgeErrorCode(from: error)
                 == "purchase_continuity_pending" {
                 errorMessage = "Finish signing out before deleting this account."
             } else {

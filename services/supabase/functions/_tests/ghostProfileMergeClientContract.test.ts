@@ -73,7 +73,7 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
     "private func performPendingGhostProfileMerge(",
   );
   const performerEnd = source.indexOf(
-    "private func refreshPublicAuthorIdentity()",
+    "private func refreshPublicAuthorIdentity(",
     performer,
   );
   const performerSource = source.slice(performer, performerEnd);
@@ -99,12 +99,16 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
     restoration,
   );
   const identityRefresh = source.indexOf(
-    "guard await refreshPublicAuthorIdentity()",
+    "guard await refreshPublicAuthorIdentity(",
     restoration,
   );
   assert(
     restoration >= 0 && retry > restoration && identityRefresh > retry,
     "Restored permanent sessions must retry retained proofs before refreshing public identity",
+  );
+  assertStringIncludes(
+    source.slice(identityRefresh, identityRefresh + 180),
+    "expectedUserID: expectedUserID",
   );
 });
 
@@ -299,6 +303,26 @@ Deno.test("iOS independently owns and retries analytics-consent Realtime", async
   assertStringIncludes(
     foreground,
     "ensureAnalyticsConsentUpdates(for: userId)",
+  );
+  assertStringIncludes(
+    foreground,
+    "beginUnownedAccountBoundWork()",
+  );
+  assertStringIncludes(
+    foreground,
+    "finishAccountBoundWork(accountWorkLease)",
+  );
+  assertStringIncludes(
+    foreground,
+    "isAccountBoundWorkLeaseCurrent(accountWorkLease)",
+  );
+  assertStringIncludes(
+    foreground,
+    "func synchronizeWithCurrentSession( ownedBy transition: AuthTransitionToken ) async throws",
+  );
+  assertStringIncludes(
+    foreground,
+    "currentSessionMatchesAuthTransition(transition)",
   );
   assertStringIncludes(
     source,

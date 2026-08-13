@@ -94,6 +94,7 @@ fi
 approved_event_cases="$({
   printf '%s\n' \
     appDidResumeAfterTimeout \
+    accountDeletionRecoveryStateChanged \
     captureGoalContextInvalidated \
     communityIdentificationRequestChanged \
     exploreAudioBoostPreferenceChanged \

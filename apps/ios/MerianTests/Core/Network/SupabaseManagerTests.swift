@@ -6,6 +6,15 @@ import XCTest
 
 @MainActor
 final class SupabaseManagerTests: XCTestCase {
+    func testBackgroundAccountWorkQuiescenceFailurePreservesProductLanguage() {
+        let message = SupabaseAuthTransitionError
+            .accountBoundWorkQuiescenceFailed.errorDescription ?? ""
+
+        XCTAssertTrue(message.contains("account is unchanged"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("ghost"))
+        XCTAssertFalse(message.localizedCaseInsensitiveContains("guest"))
+    }
+
 
     var supabaseManager: SupabaseManager!
 
@@ -53,6 +62,1248 @@ final class SupabaseManagerTests: XCTestCase {
             ),
             .signedOut
         )
+    }
+
+    func testAuthTransitionCoordinatorSerializesAllSessionMutations() {
+        let source = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: true
+        )
+        var coordinator = AuthTransitionCoordinator()
+
+        let google = coordinator.begin(
+            kind: .oauth(.google),
+            sourceSession: source,
+            authGeneration: 7,
+            id: UUID()
+        )
+        XCTAssertNotNil(google)
+        XCTAssertNil(
+            coordinator.begin(
+                kind: .signOut,
+                sourceSession: source,
+                authGeneration: 7
+            )
+        )
+        XCTAssertNil(
+            coordinator.begin(
+                kind: .oauth(.apple),
+                sourceSession: source,
+                authGeneration: 7
+            )
+        )
+        XCTAssertNil(
+            coordinator.begin(
+                kind: .accountDeletion,
+                sourceSession: source,
+                authGeneration: 7
+            )
+        )
+
+        XCTAssertTrue(coordinator.finish(google!))
+        XCTAssertNotNil(
+            coordinator.begin(
+                kind: .signOut,
+                sourceSession: source,
+                authGeneration: 7
+            )
+        )
+    }
+
+    func testDoubleSignOutCallsShareOneTransitionOperationAndResult() async {
+        let singleFlight = AuthTransitionSingleFlight()
+        let gate = SupabaseManagerTestGate()
+        let started = expectation(description: "sign-out operation started")
+        var operationCount = 0
+
+        let first = Task { @MainActor in
+            await singleFlight.run {
+                operationCount += 1
+                started.fulfill()
+                await gate.wait()
+                return true
+            }
+        }
+        await fulfillment(of: [started], timeout: 1)
+        let second = Task { @MainActor in
+            await singleFlight.run {
+                operationCount += 1
+                return false
+            }
+        }
+        await Task.yield()
+
+        await gate.release()
+        let firstResult = await first.value
+        let secondResult = await second.value
+
+        XCTAssertTrue(firstResult)
+        XCTAssertTrue(secondResult)
+        XCTAssertEqual(operationCount, 1)
+        XCTAssertFalse(singleFlight.isRunning)
+    }
+
+    func testSimultaneousAppleGoogleAndSignOutStartsHaveExactlyOneOwner() async {
+        let source = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: true
+        )
+        let gate = SupabaseManagerTestGate()
+        var coordinator = AuthTransitionCoordinator()
+        let appleID = UUID()
+        let googleID = UUID()
+        let signOutID = UUID()
+
+        let apple = Task { @MainActor in
+            await gate.wait()
+            return coordinator.begin(
+                kind: .oauth(.apple),
+                sourceSession: source,
+                authGeneration: 11,
+                id: appleID
+            )
+        }
+        let google = Task { @MainActor in
+            await gate.wait()
+            return coordinator.begin(
+                kind: .oauth(.google),
+                sourceSession: source,
+                authGeneration: 11,
+                id: googleID
+            )
+        }
+        let signOut = Task { @MainActor in
+            await gate.wait()
+            return coordinator.begin(
+                kind: .signOut,
+                sourceSession: source,
+                authGeneration: 11,
+                id: signOutID
+            )
+        }
+
+        await gate.waitUntilWaiterCount(3)
+        await gate.release()
+        let appleResult = await apple.value
+        let googleResult = await google.value
+        let signOutResult = await signOut.value
+        let results = [appleResult, googleResult, signOutResult]
+        let owners = results.compactMap { $0 }
+
+        XCTAssertEqual(owners.count, 1)
+        XCTAssertEqual(coordinator.active?.token, owners[0])
+        for candidate in [
+            AuthTransitionToken(id: appleID, kind: .oauth(.apple)),
+            AuthTransitionToken(id: googleID, kind: .oauth(.google)),
+            AuthTransitionToken(id: signOutID, kind: .signOut)
+        ] where candidate != owners[0] {
+            XCTAssertFalse(coordinator.finish(candidate))
+        }
+        XCTAssertTrue(coordinator.finish(owners[0]))
+    }
+
+    func testAuthTransitionCoordinatorRejectsStaleCallbacksAndSessions() {
+        let source = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: true
+        )
+        let destination = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: false
+        )
+        var coordinator = AuthTransitionCoordinator()
+        let active = coordinator.begin(
+            kind: .oauth(.apple),
+            sourceSession: source,
+            authGeneration: 3,
+            id: UUID()
+        )!
+        let stale = AuthTransitionToken(
+            id: UUID(),
+            kind: .oauth(.google)
+        )
+
+        coordinator.observeAuthEvent(
+            session: destination,
+            authGeneration: 4
+        )
+        XCTAssertTrue(
+            coordinator.validatesExpectedSession(
+                source,
+                authGeneration: 3,
+                for: active
+            )
+        )
+        XCTAssertFalse(
+            coordinator.adoptExpectedSession(
+                destination,
+                authGeneration: 4,
+                for: stale
+            )
+        )
+        XCTAssertFalse(coordinator.finish(stale))
+
+        XCTAssertTrue(
+            coordinator.adoptExpectedSession(
+                destination,
+                authGeneration: 4,
+                for: active
+            )
+        )
+        coordinator.observeAuthEvent(
+            session: destination,
+            authGeneration: 5
+        )
+        XCTAssertTrue(
+            coordinator.validatesExpectedSession(
+                destination,
+                authGeneration: 5,
+                for: active
+            )
+        )
+        XCTAssertFalse(
+            coordinator.validatesExpectedSession(
+                source,
+                authGeneration: 5,
+                for: active
+            )
+        )
+    }
+
+    func testAppleCallbackRequiresMatchingControllerAndTransition() {
+        let transitionID = UUID()
+
+        XCTAssertTrue(
+            SupabaseManager.shouldAcceptAppleSignInCallback(
+                activeTransitionID: transitionID,
+                attemptTransitionID: transitionID,
+                controllerMatches: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldAcceptAppleSignInCallback(
+                activeTransitionID: UUID(),
+                attemptTransitionID: transitionID,
+                controllerMatches: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldAcceptAppleSignInCallback(
+                activeTransitionID: transitionID,
+                attemptTransitionID: transitionID,
+                controllerMatches: false
+            )
+        )
+    }
+
+    func testOAuthFailureClearsOnlyAChangedOrObservedSession() {
+        let source = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: true
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldClearOAuthSessionAfterFailure(
+                observedSessionMutation: false,
+                sourceSession: source,
+                currentSession: source
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearOAuthSessionAfterFailure(
+                observedSessionMutation: true,
+                sourceSession: source,
+                currentSession: source
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearOAuthSessionAfterFailure(
+                observedSessionMutation: false,
+                sourceSession: source,
+                currentSession: AuthTransitionSession(
+                    userID: source.userID,
+                    isAnonymous: false
+                )
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldClearOAuthSessionAfterFailure(
+                observedSessionMutation: false,
+                sourceSession: source,
+                currentSession: nil
+            )
+        )
+    }
+
+    func testOAuthMetadataMutationRequiresTheExactTransitionSessionBeforeAndAfterUpdate() {
+        let expectedUserID = UUID()
+        let otherUserID = UUID()
+
+        XCTAssertTrue(
+            SupabaseManager.allowsOAuthMetadataMutation(
+                transitionIsCurrent: true,
+                transitionExpectedUserID: expectedUserID,
+                currentSessionUserID: expectedUserID,
+                expectedUserID: expectedUserID,
+                updatedUserID: expectedUserID
+            )
+        )
+        for allowed in [
+            SupabaseManager.allowsOAuthMetadataMutation(
+                transitionIsCurrent: false,
+                transitionExpectedUserID: expectedUserID,
+                currentSessionUserID: expectedUserID,
+                expectedUserID: expectedUserID
+            ),
+            SupabaseManager.allowsOAuthMetadataMutation(
+                transitionIsCurrent: true,
+                transitionExpectedUserID: otherUserID,
+                currentSessionUserID: expectedUserID,
+                expectedUserID: expectedUserID
+            ),
+            SupabaseManager.allowsOAuthMetadataMutation(
+                transitionIsCurrent: true,
+                transitionExpectedUserID: expectedUserID,
+                currentSessionUserID: otherUserID,
+                expectedUserID: expectedUserID
+            ),
+            SupabaseManager.allowsOAuthMetadataMutation(
+                transitionIsCurrent: true,
+                transitionExpectedUserID: expectedUserID,
+                currentSessionUserID: expectedUserID,
+                expectedUserID: expectedUserID,
+                updatedUserID: otherUserID
+            )
+        ] {
+            XCTAssertFalse(allowed)
+        }
+    }
+
+    func testActiveTransitionOwnsListenerSideEffectsAndAuthenticatedRequests() {
+        let active = AuthTransitionToken(
+            id: UUID(),
+            kind: .oauth(.apple)
+        )
+        let stale = AuthTransitionToken(
+            id: UUID(),
+            kind: .recovery
+        )
+
+        XCTAssertTrue(
+            SupabaseManager.shouldDeferAuthListenerSideEffects(
+                hasActiveTransition: true,
+                accountDeletionCleanupPending: false
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.shouldDeferAuthListenerSideEffects(
+                hasActiveTransition: false,
+                accountDeletionCleanupPending: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldDeferAuthListenerSideEffects(
+                hasActiveTransition: false,
+                accountDeletionCleanupPending: false
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: active,
+                requestOwner: active,
+                accountDeletionCleanupPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: active,
+                requestOwner: nil,
+                accountDeletionCleanupPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: active,
+                requestOwner: stale,
+                accountDeletionCleanupPending: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: nil,
+                requestOwner: nil,
+                accountDeletionCleanupPending: true
+            )
+        )
+        let deletion = AuthTransitionToken(
+            id: UUID(),
+            kind: .accountDeletion
+        )
+        XCTAssertTrue(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: deletion,
+                requestOwner: deletion,
+                accountDeletionCleanupPending: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: deletion,
+                requestOwner: nil,
+                accountDeletionCleanupPending: true
+            )
+        )
+        let cleanup = AuthTransitionToken(
+            id: UUID(),
+            kind: .accountDeletionCleanup
+        )
+        XCTAssertFalse(
+            SupabaseManager.allowsAuthenticatedRequest(
+                activeTransition: cleanup,
+                requestOwner: cleanup,
+                accountDeletionCleanupPending: true
+            )
+        )
+    }
+
+    func testAccountBoundWorkLeasesRemainSessionBoundUntilEveryLeaseFinishes() {
+        let source = AuthTransitionSession(
+            userID: UUID(),
+            isAnonymous: false
+        )
+        var coordinator = AccountBoundWorkCoordinator()
+        let first = coordinator.begin(
+            session: source,
+            id: UUID()
+        )
+        let second = coordinator.begin(
+            session: source,
+            id: UUID()
+        )
+
+        XCTAssertFalse(coordinator.isEmpty)
+        XCTAssertTrue(coordinator.owns(first))
+        XCTAssertTrue(coordinator.owns(second))
+        XCTAssertTrue(coordinator.finish(first))
+        XCTAssertFalse(coordinator.isEmpty)
+        XCTAssertFalse(coordinator.owns(first))
+        XCTAssertTrue(coordinator.owns(second))
+        XCTAssertFalse(
+            coordinator.owns(
+                AccountBoundWorkLease(
+                    id: second.id,
+                    session: AuthTransitionSession(
+                        userID: UUID(),
+                        isAnonymous: true
+                    )
+                )
+            )
+        )
+        XCTAssertTrue(coordinator.finish(second))
+        XCTAssertTrue(coordinator.isEmpty)
+        XCTAssertFalse(coordinator.finish(second))
+    }
+
+    func testAuthTransitionDrainCancelsAndAwaitsConsentSynchronization() async throws {
+        let userID = UUID()
+        let suiteName = "merian.tests.auth-consent-drain.\(UUID().uuidString)"
+        let userDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let started = expectation(description: "consent sync started")
+        let cancelled = expectation(description: "consent sync cancelled")
+        let manager = ConsentManager(
+            ledgerStore: UserDefaultsConsentLedgerStore(
+                userDefaults: userDefaults
+            ),
+            currentSDKUserIdProvider: { userID },
+            synchronizationOperation: { _, _ in
+                started.fulfill()
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                } catch is CancellationError {
+                    cancelled.fulfill()
+                    throw CancellationError()
+                }
+            }
+        )
+        manager.observeSession(userId: userID)
+        let synchronization = Task { @MainActor in
+            try? await manager.synchronize(for: userID)
+        }
+        await fulfillment(of: [started], timeout: 1)
+
+        await manager.cancelAndAwaitSynchronizationForAuthTransition()
+        await synchronization.value
+
+        await fulfillment(of: [cancelled], timeout: 1)
+    }
+
+    func testFallbackAuthenticationCallbackNeverReplacesAnAnonymousOrDifferentAccount() {
+        let linkedUserID = UUID()
+        let linked = AuthTransitionSession(
+            userID: linkedUserID,
+            isAnonymous: false
+        )
+
+        XCTAssertTrue(
+            SupabaseManager.acceptsAuthenticationCallbackTarget(
+                sourceSession: nil,
+                targetSession: linked
+            )
+        )
+        XCTAssertTrue(
+            SupabaseManager.acceptsAuthenticationCallbackTarget(
+                sourceSession: linked,
+                targetSession: linked
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.acceptsAuthenticationCallbackTarget(
+                sourceSession: AuthTransitionSession(
+                    userID: UUID(),
+                    isAnonymous: true
+                ),
+                targetSession: linked
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.acceptsAuthenticationCallbackTarget(
+                sourceSession: linked,
+                targetSession: AuthTransitionSession(
+                    userID: UUID(),
+                    isAnonymous: false
+                )
+            )
+        )
+    }
+
+    func testAcceptedAccountDeletionPersistsRecoveryBeforeSignOutAndClearsLast() async {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .pending,
+            manualProviderRevocationRequired: true
+        )
+
+        let result = await SupabaseManager
+            .performAcceptedAccountDeletionCleanup(
+                receipt: receipt,
+                recordCleanupPending: {
+                    events.append("record")
+                    return true
+                },
+                recordManualProviderRevocation: { events.append("manual") },
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                acknowledgeRecovery: {
+                    events.append("acknowledge")
+                    return true
+                },
+                recordRecoveryRetirementPending: {
+                    events.append("record-retirement")
+                    return true
+                },
+                retireRecoveryCapability: {
+                    events.append("retire-capability")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(
+            events,
+            [
+                "record",
+                "manual",
+                "signout",
+                "purge",
+                "acknowledge",
+                "record-retirement",
+                "retire-capability",
+                "resolve"
+            ]
+        )
+    }
+
+    func testAccountDeletionAcknowledgementFailureRetainsProofAndMarker() async {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .completed,
+            manualProviderRevocationRequired: false
+        )
+
+        let result = await SupabaseManager
+            .performAcceptedAccountDeletionCleanup(
+                receipt: receipt,
+                recordCleanupPending: {
+                    events.append("record")
+                    return true
+                },
+                recordManualProviderRevocation: { events.append("manual") },
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                acknowledgeRecovery: {
+                    events.append("acknowledge")
+                    return false
+                },
+                recordRecoveryRetirementPending: {
+                    events.append("record-retirement")
+                    return true
+                },
+                retireRecoveryCapability: {
+                    events.append("retire-capability")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(
+            events,
+            ["record", "signout", "purge", "acknowledge"]
+        )
+    }
+
+    func testAccountDeletionRetirementReverifiesCleanupAndClearsProofBeforeMarker() async {
+        var events: [String] = []
+        let completedRetirement = await SupabaseManager
+            .performAccountDeletionRecoveryRetirement(
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                retireRecoveryCapability: {
+                    events.append("retire-capability")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+        XCTAssertTrue(completedRetirement)
+        XCTAssertEqual(
+            events,
+            ["signout", "purge", "retire-capability", "resolve"]
+        )
+
+        events.removeAll()
+        let incompleteRetirement = await SupabaseManager
+            .performAccountDeletionRecoveryRetirement(
+                performLocalSignOut: { true },
+                purgeLocalData: { true },
+                retireRecoveryCapability: {
+                    events.append("retire-capability")
+                    return false
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+        XCTAssertFalse(incompleteRetirement)
+        XCTAssertEqual(events, ["retire-capability"])
+    }
+
+    func testRejectedAccountDeletionRetiresOnlyProofAndMarker() {
+        var events: [String] = []
+
+        XCTAssertTrue(
+            SupabaseManager
+                .performRejectedAccountDeletionRecoveryRetirement(
+                    retireRecoveryCapability: {
+                        events.append("retire-capability")
+                        return true
+                    },
+                    resolveCleanup: {
+                        events.append("resolve")
+                        return true
+                    }
+                )
+        )
+        XCTAssertEqual(events, ["retire-capability", "resolve"])
+
+        events.removeAll()
+        XCTAssertFalse(
+            SupabaseManager
+                .performRejectedAccountDeletionRecoveryRetirement(
+                    retireRecoveryCapability: {
+                        events.append("retire-capability")
+                        return false
+                    },
+                    resolveCleanup: {
+                        events.append("resolve")
+                        return true
+                    }
+                )
+        )
+        XCTAssertEqual(events, ["retire-capability"])
+    }
+
+    func testDefinitiveDeletionRejectionPersistsRetirementBeforeProofRemoval() {
+        var events: [String] = []
+
+        XCTAssertTrue(
+            SupabaseManager
+                .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                    recordRejectionRetirementPending: {
+                        events.append("record-rejection-retirement")
+                        return true
+                    },
+                    retireRecoveryCapability: {
+                        events.append("retire-capability")
+                        return true
+                    },
+                    resolveCleanup: {
+                        events.append("resolve")
+                        return true
+                    }
+                )
+        )
+        XCTAssertEqual(
+            events,
+            [
+                "record-rejection-retirement",
+                "retire-capability",
+                "resolve"
+            ]
+        )
+
+        events.removeAll()
+        XCTAssertFalse(
+            SupabaseManager
+                .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                    recordRejectionRetirementPending: {
+                        events.append("record-rejection-retirement")
+                        return false
+                    },
+                    retireRecoveryCapability: {
+                        events.append("retire-capability")
+                        return true
+                    },
+                    resolveCleanup: {
+                        events.append("resolve")
+                        return true
+                    }
+                )
+        )
+        XCTAssertEqual(events, ["record-rejection-retirement"])
+
+        events.removeAll()
+        XCTAssertFalse(
+            SupabaseManager
+                .performDefinitiveAccountDeletionIntakeRejectionRetirement(
+                    recordRejectionRetirementPending: {
+                        events.append("record-rejection-retirement")
+                        return true
+                    },
+                    retireRecoveryCapability: {
+                        events.append("retire-capability")
+                        return false
+                    },
+                    resolveCleanup: {
+                        events.append("resolve")
+                        return true
+                    }
+                )
+        )
+        XCTAssertEqual(
+            events,
+            ["record-rejection-retirement", "retire-capability"]
+        )
+    }
+
+    func testEveryDeletionRecoveryPhaseAdmitsOnlyItsOwnedTransition() {
+        let intakeStates: [AccountDeletionLocalRecoveryState] = [
+            .intakePending,
+            .capabilityPreparationPending,
+            .capabilityIntakePending
+        ]
+        for state in intakeStates {
+            XCTAssertTrue(
+                SupabaseManager
+                    .allowsAuthTransitionDuringAccountDeletionRecovery(
+                        recoveryState: state,
+                        kind: .accountDeletion
+                    )
+            )
+            XCTAssertFalse(
+                SupabaseManager
+                    .allowsAuthTransitionDuringAccountDeletionRecovery(
+                        recoveryState: state,
+                        kind: .accountDeletionCleanup
+                    )
+            )
+        }
+
+        let cleanupStates: [AccountDeletionLocalRecoveryState] = [
+            .cleanupPending,
+            .capabilityCleanupPending,
+            .capabilityRetirementPending,
+            .capabilityRejectionRetirementPending,
+            .capabilityLookupPending
+        ]
+        for state in cleanupStates {
+            XCTAssertTrue(
+                SupabaseManager
+                    .allowsAuthTransitionDuringAccountDeletionRecovery(
+                        recoveryState: state,
+                        kind: .accountDeletionCleanup
+                    )
+            )
+            XCTAssertFalse(
+                SupabaseManager
+                    .allowsAuthTransitionDuringAccountDeletionRecovery(
+                        recoveryState: state,
+                        kind: .accountDeletion
+                    )
+            )
+        }
+
+        XCTAssertFalse(
+            SupabaseManager
+                .allowsAuthTransitionDuringAccountDeletionRecovery(
+                    recoveryState: .capabilityLookupPending,
+                    kind: .oauth(.apple)
+                )
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .allowsAuthTransitionDuringAccountDeletionRecovery(
+                    recoveryState: .capabilityCleanupPending,
+                    kind: .signOut
+                )
+        )
+    }
+
+    func testAccountDeletionKeepsRecoveryPendingWhenMarkerRemovalFails() async {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .completed,
+            manualProviderRevocationRequired: false
+        )
+
+        let result = await SupabaseManager
+            .performAcceptedAccountDeletionCleanup(
+                receipt: receipt,
+                recordCleanupPending: { true },
+                recordManualProviderRevocation: {},
+                performLocalSignOut: { true },
+                purgeLocalData: { true },
+                acknowledgeRecovery: { true },
+                recordRecoveryRetirementPending: { true },
+                retireRecoveryCapability: {
+                    events.append("retire-capability")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return false
+                }
+            )
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(events, ["retire-capability", "resolve"])
+    }
+
+    func testFailedAccountDeletionPurgeLeavesRecoveryMarkerPending() async {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .completed,
+            manualProviderRevocationRequired: false
+        )
+
+        let result = await SupabaseManager
+            .performAcceptedAccountDeletionCleanup(
+                receipt: receipt,
+                recordCleanupPending: {
+                    events.append("record")
+                    return true
+                },
+                recordManualProviderRevocation: { events.append("manual") },
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return false
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(events, ["record", "signout", "purge"])
+    }
+
+    func testAcceptedAccountDeletionDoesNotEraseLocalStateWhenRecoveryPersistenceFails() async {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .pending,
+            manualProviderRevocationRequired: true
+        )
+
+        let result = await SupabaseManager
+            .performAcceptedAccountDeletionCleanup(
+                receipt: receipt,
+                recordCleanupPending: {
+                    events.append("record")
+                    return false
+                },
+                recordManualProviderRevocation: { events.append("manual") },
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+
+        XCTAssertFalse(result)
+        XCTAssertEqual(events, ["record"])
+    }
+
+    func testAccountDeletionPersistsIntentBeforeRequestAndRetainsAmbiguousFailure() async {
+        var events: [String] = []
+
+        do {
+            _ = try await SupabaseManager.performDurableAccountDeletionIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    return true
+                },
+                requestDeletion: {
+                    events.append("request")
+                    throw URLError(.networkConnectionLost)
+                },
+                verifyReceiptOwner: {
+                    events.append("verify")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+            XCTFail("Expected the ambiguous request to fail")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .networkConnectionLost)
+        }
+
+        XCTAssertEqual(events, ["record-intent", "request"])
+    }
+
+    func testAccountDeletionClearsIntentOnlyAfterDefinitiveClientRejection() async {
+        var events: [String] = []
+
+        do {
+            _ = try await SupabaseManager.performDurableAccountDeletionIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    return true
+                },
+                requestDeletion: {
+                    events.append("request")
+                    throw MerianError.httpError(
+                        statusCode: 409,
+                        message: #"{"code":"purchase_continuity_pending"}"#
+                    )
+                },
+                verifyReceiptOwner: {
+                    events.append("verify")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+            XCTFail("Expected the rejected request to fail")
+        } catch {
+            XCTAssertTrue(
+                SupabaseManager
+                    .isDefinitiveAccountDeletionIntakeRejection(error)
+            )
+        }
+
+        XCTAssertEqual(events, ["record-intent", "request", "clear"])
+    }
+
+    func testAccountDeletionTreatsOtherHTTPFailuresAsAmbiguous() {
+        let unauthorized = MerianError.httpError(
+            statusCode: 401,
+            message: #"{"code":"invalid_session"}"#
+        )
+        let unrelatedConflict = MerianError.httpError(
+            statusCode: 409,
+            message: #"{"code":"account_deletion_conflict"}"#
+        )
+        let serverFailure = MerianError.httpError(
+            statusCode: 503,
+            message: #"{"code":"temporarily_unavailable"}"#
+        )
+
+        XCTAssertFalse(
+            SupabaseManager
+                .isDefinitiveAccountDeletionIntakeRejection(unauthorized)
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .isDefinitiveAccountDeletionIntakeRejection(unrelatedConflict)
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .isDefinitiveAccountDeletionIntakeRejection(serverFailure)
+        )
+    }
+
+    func testOnlyMatchedExpiredRecoveryProvesDeletionWasAccepted() {
+        let matchedExpiry = MerianError.httpError(
+            statusCode: 410,
+            message: #"{"code":"account_deletion_recovery_expired"}"#
+        )
+        let wrongStatus = MerianError.httpError(
+            statusCode: 404,
+            message: #"{"code":"account_deletion_recovery_expired"}"#
+        )
+        let unknownProof = MerianError.httpError(
+            statusCode: 404,
+            message: #"{"code":"account_deletion_recovery_invalid"}"#
+        )
+        let expiredPreparation = MerianError.httpError(
+            statusCode: 410,
+            message: #"{"code":"account_deletion_recovery_preparation_expired"}"#
+        )
+
+        XCTAssertTrue(
+            SupabaseManager
+                .isAcceptedExpiredAccountDeletionRecovery(matchedExpiry)
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .isAcceptedExpiredAccountDeletionRecovery(wrongStatus)
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .isAcceptedExpiredAccountDeletionRecovery(unknownProof)
+        )
+        XCTAssertFalse(
+            SupabaseManager
+                .isAcceptedExpiredAccountDeletionRecovery(expiredPreparation)
+        )
+    }
+
+    func testDeletionBarrierRestoresOnlyTheExactCachedSourceSession() {
+        let sourceUserID = UUID()
+        let otherUserID = UUID()
+        let source = AuthTransitionSession(
+            userID: sourceUserID,
+            isAnonymous: false
+        )
+
+        XCTAssertTrue(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: false,
+                sourceSession: source,
+                cachedUserID: sourceUserID,
+                cachedUserIsAnonymous: false,
+                cachedSessionIsExpired: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: true,
+                sourceSession: source,
+                cachedUserID: sourceUserID,
+                cachedUserIsAnonymous: false,
+                cachedSessionIsExpired: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: false,
+                sourceSession: source,
+                cachedUserID: otherUserID,
+                cachedUserIsAnonymous: false,
+                cachedSessionIsExpired: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: false,
+                sourceSession: source,
+                cachedUserID: sourceUserID,
+                cachedUserIsAnonymous: true,
+                cachedSessionIsExpired: false
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.canRestoreDeferredDeletionBarrierSession(
+                markerIsPending: false,
+                sourceSession: source,
+                cachedUserID: sourceUserID,
+                cachedUserIsAnonymous: false,
+                cachedSessionIsExpired: true
+            )
+        )
+    }
+
+    func testAccountDeletionDoesNotDispatchWhenIntentPersistenceFails() async {
+        var events: [String] = []
+
+        do {
+            _ = try await SupabaseManager.performDurableAccountDeletionIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    return false
+                },
+                requestDeletion: {
+                    events.append("request")
+                    return AccountDeletionReceipt(
+                        success: true,
+                        status: .pending,
+                        manualProviderRevocationRequired: false
+                    )
+                },
+                verifyReceiptOwner: {
+                    events.append("verify")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+            XCTFail("Expected persistence failure")
+        } catch {
+            guard case SupabaseAuthTransitionError
+                .accountDeletionRecoveryPersistenceFailed = error else {
+                XCTFail("Unexpected error: \(error)")
+                return
+            }
+        }
+
+        XCTAssertEqual(events, ["record-intent"])
+    }
+
+    func testAccountDeletionVerifiesTransitionOwnerAfterReceipt() async throws {
+        var events: [String] = []
+        let receipt = AccountDeletionReceipt(
+            success: true,
+            status: .pending,
+            manualProviderRevocationRequired: false
+        )
+
+        let result = try await SupabaseManager
+            .performDurableAccountDeletionIntake(
+                recordIntakePending: {
+                    events.append("record-intent")
+                    return true
+                },
+                requestDeletion: {
+                    events.append("request")
+                    return receipt
+                },
+                verifyReceiptOwner: {
+                    events.append("verify")
+                },
+                clearIntakeAfterDefinitiveRejection: {
+                    events.append("clear")
+                }
+            )
+
+        XCTAssertEqual(result, receipt)
+        XCTAssertEqual(events, ["record-intent", "request", "verify"])
+    }
+
+    func testPendingAccountDeletionSignsOutBeforePurgeAndResolvesLast() async {
+        var events: [String] = []
+
+        let result = await SupabaseManager
+            .performPendingAccountDeletionLocalCleanup(
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+
+        XCTAssertTrue(result)
+        XCTAssertEqual(events, ["signout", "purge", "resolve"])
+
+        events.removeAll()
+        let failed = await SupabaseManager
+            .performPendingAccountDeletionLocalCleanup(
+                performLocalSignOut: {
+                    events.append("signout")
+                    return true
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return false
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+        XCTAssertFalse(failed)
+        XCTAssertEqual(events, ["signout", "purge"])
+
+        events.removeAll()
+        let signOutFailed = await SupabaseManager
+            .performPendingAccountDeletionLocalCleanup(
+                performLocalSignOut: {
+                    events.append("signout")
+                    return false
+                },
+                purgeLocalData: {
+                    events.append("purge")
+                    return true
+                },
+                resolveCleanup: {
+                    events.append("resolve")
+                    return true
+                }
+            )
+        XCTAssertFalse(signOutFailed)
+        XCTAssertEqual(events, ["signout"])
     }
 
     func testAnonymousExternalIdentityLinkWaitsForPurchaseHandoffBinding() {
@@ -1529,6 +2780,31 @@ final class SupabaseManagerTests: XCTestCase {
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
         return "header.\(payloadSegment).signature"
+    }
+}
+
+private actor SupabaseManagerTestGate {
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var released = false
+
+    func wait() async {
+        if released { return }
+        await withCheckedContinuation { continuation in
+            continuations.append(continuation)
+        }
+    }
+
+    func waitUntilWaiterCount(_ expectedCount: Int) async {
+        while !released && continuations.count < expectedCount {
+            await Task.yield()
+        }
+    }
+
+    func release() {
+        released = true
+        let pending = continuations
+        continuations.removeAll(keepingCapacity: false)
+        pending.forEach { $0.resume() }
     }
 }
 

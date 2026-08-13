@@ -182,17 +182,25 @@ struct UserProfile: View {
                 }
             }) {
                 HStack {
-                    Image(systemName: "applelogo")
+                    if profileViewModel.activeOAuthProvider == .apple {
+                        ProgressView()
+                            .tint(Color(UIColor.systemBackground))
+                    } else {
+                        Image(systemName: "applelogo")
+                    }
                     Text("Continue with Apple")
-                        .fontWeight(.semibold)
                 }
+                .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color.primary)
                 .foregroundColor(Color(UIColor.systemBackground))
                 .clipShape(Capsule())
             }
-            .disabled(isPurchaseContinuityPending)
+            .disabled(
+                isPurchaseContinuityPending ||
+                    profileViewModel.isAuthTransitionInProgress
+            )
 
             Button(action: {
                 Task {
@@ -200,20 +208,27 @@ struct UserProfile: View {
                 }
             }) {
                 HStack {
-                    Image("google-logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
+                    if profileViewModel.activeOAuthProvider == .google {
+                        ProgressView()
+                    } else {
+                        Image("google-logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 18, height: 18)
+                    }
                     Text("Continue with Google")
-                        .fontWeight(.semibold)
                 }
+                .fontWeight(.semibold)
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(Color(UIColor.secondarySystemGroupedBackground))
                 .foregroundColor(.primary)
                 .clipShape(Capsule())
             }
-            .disabled(isPurchaseContinuityPending)
+            .disabled(
+                isPurchaseContinuityPending ||
+                    profileViewModel.isAuthTransitionInProgress
+            )
         }
     }
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { jsonResponse, logStructuredError } from "../_shared/edgeHandler.ts";
+import { jsonResponse, logIdentitySafeError } from "../_shared/edgeHandler.ts";
 import { publicErrorResponse } from "../_shared/http.ts";
 import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
 import {
@@ -100,8 +100,9 @@ export async function handleResolvePurchasePrincipal(
     const apiKey = (dependencies.apiKey ??
       Deno.env.get("REVENUECAT_SECRET_API_KEY") ?? "").trim();
     if (!apiKey.startsWith("sk_")) {
-      logStructuredError("purchase_principal_configuration_invalid", {
-        reason: apiKey.length === 0 ? "secret_missing" : "secret_invalid",
+      logIdentitySafeError("purchase_principal_configuration_invalid", {
+        stage: "configuration",
+        code: apiKey.length === 0 ? "secret_missing" : "secret_invalid",
       });
       return publicErrorResponse(
         req,
@@ -175,21 +176,29 @@ export async function handleResolvePurchasePrincipal(
     );
   } catch (error) {
     if (error instanceof PurchasePrincipalDatabaseError) {
-      logStructuredError("purchase_principal_resolution_rejected", {
+      const status = error.code ===
+          "purchase_principal_client_upgrade_required"
+        ? 426
+        : error.retryable
+        ? 503
+        : 409;
+      logIdentitySafeError("purchase_principal_resolution_rejected", {
+        operation: "resolve",
+        stage: "database",
         code: error.code,
-        retryable: error.retryable,
+        status,
       });
       if (error.code === "purchase_principal_client_upgrade_required") {
         return publicErrorResponse(
           req,
-          426,
+          status,
           error.code,
           "Update Merian to keep purchase access connected.",
         );
       }
       return publicErrorResponse(
         req,
-        error.retryable ? 503 : 409,
+        status,
         error.code,
         error.retryable
           ? "Purchase access is temporarily unavailable. Please try again."
@@ -198,8 +207,10 @@ export async function handleResolvePurchasePrincipal(
       );
     }
 
-    logStructuredError("purchase_principal_resolution_failed", {
-      failure_name: safeErrorName(error),
+    logIdentitySafeError("purchase_principal_resolution_failed", {
+      operation: "resolve",
+      stage: "processing",
+      code: safeErrorName(error),
     });
     return publicErrorResponse(
       req,

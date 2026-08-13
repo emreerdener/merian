@@ -133,4 +133,12 @@ Deno.test("claims authentication shares the pinned SDK and remains opt-in", asyn
     !claimsAuthSource.includes("error: `Unauthorized: ${message}`"),
     "Claims auth must not expose provider diagnostics.",
   );
+  assert(
+    !authSource.includes('failed.", authError'),
+    "Established auth logs must not serialize provider errors.",
+  );
+  assert(
+    !claimsAuthSource.includes('failed.", error'),
+    "Claims-auth logs must not serialize provider errors.",
+  );
 });

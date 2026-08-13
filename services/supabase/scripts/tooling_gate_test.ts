@@ -72,6 +72,26 @@ Deno.test("RevenueCat prelaunch reset Make target exposes only its dedicated des
   );
 });
 
+Deno.test("account grant Make targets cannot mutate RevenueCat", async () => {
+  const makefile = await Deno.readTextFile(makefilePath);
+  const legacyTarget = makefile.match(
+    /^grant-beta-pro:\n[\s\S]*?(?=^[A-Za-z0-9_-]+:|(?![\s\S]))/m,
+  )?.[0] ?? "";
+  const ledgerTarget = makefile.match(
+    /^grant-account-access:\n[\s\S]*?(?=^[A-Za-z0-9_-]+:|(?![\s\S]))/m,
+  )?.[0] ?? "";
+
+  assert(!legacyTarget.includes("--allow-net"));
+  assert(!legacyTarget.includes("--allow-env"));
+  assert(!legacyTarget.includes("REVENUECAT_SECRET_API_KEY"));
+  assertMatch(
+    ledgerTarget,
+    /--allow-env=MERIAN_DATABASE_URL,MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION/,
+  );
+  assert(ledgerTarget.includes("grant_account_access_entitlements.ts"));
+  assert(!ledgerTarget.includes("REVENUECAT"));
+});
+
 Deno.test("Supabase tooling gate discovers every standard TypeScript test", async () => {
   const gate = await Deno.readTextFile(toolingGatePath);
   const testFiles: string[] = [];
@@ -796,7 +816,7 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
   const smokeCurlCount = productionSmoke.match(/curl -sS/g)?.length ?? 0;
   const boundedSmokeCurlCount =
     productionSmoke.match(/--max-filesize 1048576/g)?.length ?? 0;
-  assertEquals(smokeCurlCount, 8);
+  assertEquals(smokeCurlCount, 9);
   assertEquals(
     boundedSmokeCurlCount,
     smokeCurlCount,

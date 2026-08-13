@@ -59,6 +59,47 @@ export interface AccountDeletionHealth {
   reaper_credentials_configured: boolean;
 }
 
+export interface AccountDeletionRecoveryHealth {
+  generated_at: string;
+  active_unacknowledged_count: number;
+  acknowledged_retained_count: number;
+  expired_unacknowledged_count: number;
+  oldest_active_issued_at: string | null;
+  oldest_active_age_seconds: number | null;
+  oldest_expired_at: string | null;
+  oldest_expired_age_seconds: number | null;
+  maximum_active_capabilities_per_job: number;
+}
+
+export interface AccountDeletionRecoveryPreparationHealth {
+  generated_at: string;
+  active_preparation_count: number;
+  expired_preparation_count: number;
+  oldest_active_age_seconds: number | null;
+  oldest_expired_age_seconds: number | null;
+}
+
+const EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH: AccountDeletionRecoveryHealth = {
+  generated_at: "1970-01-01T00:00:00.000Z",
+  active_unacknowledged_count: 0,
+  acknowledged_retained_count: 0,
+  expired_unacknowledged_count: 0,
+  oldest_active_issued_at: null,
+  oldest_active_age_seconds: null,
+  oldest_expired_at: null,
+  oldest_expired_age_seconds: null,
+  maximum_active_capabilities_per_job: 0,
+};
+
+const EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH:
+  AccountDeletionRecoveryPreparationHealth = {
+    generated_at: "1970-01-01T00:00:00.000Z",
+    active_preparation_count: 0,
+    expired_preparation_count: 0,
+    oldest_active_age_seconds: null,
+    oldest_expired_age_seconds: null,
+  };
+
 export interface AccountDeletionMonitorSummary {
   generated_at: string;
   status: AccountDeletionStatus;
@@ -75,6 +116,8 @@ export interface AccountDeletionMonitorSummary {
     should_fail: boolean;
   };
   health: AccountDeletionHealth;
+  recovery_health: AccountDeletionRecoveryHealth;
+  recovery_preparation_health: AccountDeletionRecoveryPreparationHealth;
 }
 
 if (import.meta.main) {
@@ -91,8 +134,20 @@ export async function runAccountDeletionMonitor(
     maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
   });
 
-  const health = await fetchAccountDeletionHealth(supabase);
-  const summary = buildAccountDeletionSummary(health, args, new Date());
+  const [health, recoveryHealth, recoveryPreparationHealth] = await Promise.all(
+    [
+      fetchAccountDeletionHealth(supabase),
+      fetchAccountDeletionRecoveryHealth(supabase),
+      fetchAccountDeletionRecoveryPreparationHealth(supabase),
+    ],
+  );
+  const summary = buildAccountDeletionSummary(
+    health,
+    args,
+    new Date(),
+    recoveryHealth,
+    recoveryPreparationHealth,
+  );
   printSummary(summary);
   await writeSummaryFiles(summary, args);
 
@@ -117,6 +172,34 @@ async function fetchAccountDeletionHealth(
   }
 
   return assertAccountDeletionHealth(data);
+}
+
+async function fetchAccountDeletionRecoveryHealth(
+  supabase: SupabaseClient,
+): Promise<AccountDeletionRecoveryHealth> {
+  const { data, error } = await supabase.rpc(
+    "get_account_deletion_recovery_health",
+  );
+  if (error) {
+    throw new Error(
+      `Account deletion recovery health returned an error: ${error.message} (Code: ${error.code})`,
+    );
+  }
+  return assertAccountDeletionRecoveryHealth(data);
+}
+
+async function fetchAccountDeletionRecoveryPreparationHealth(
+  supabase: SupabaseClient,
+): Promise<AccountDeletionRecoveryPreparationHealth> {
+  const { data, error } = await supabase.rpc(
+    "get_account_deletion_recovery_preparation_health",
+  );
+  if (error) {
+    throw new Error(
+      `Account deletion preparation health returned an error: ${error.message} (Code: ${error.code})`,
+    );
+  }
+  return assertAccountDeletionRecoveryPreparationHealth(data);
 }
 
 export function assertAccountDeletionHealth(
@@ -264,6 +347,139 @@ export function assertAccountDeletionHealth(
   return health;
 }
 
+export function assertAccountDeletionRecoveryHealth(
+  value: unknown,
+): AccountDeletionRecoveryHealth {
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error(
+      "Account deletion recovery health response must contain one row.",
+    );
+  }
+  const candidate = value[0];
+  if (
+    candidate === null ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate)
+  ) {
+    throw new Error(
+      "Account deletion recovery health response row must be an object.",
+    );
+  }
+  const row = candidate as Record<string, unknown>;
+  const health: AccountDeletionRecoveryHealth = {
+    generated_at: timestamp(row.generated_at, "recovery.generated_at"),
+    active_unacknowledged_count: count(
+      row.active_unacknowledged_count,
+      "recovery.active_unacknowledged_count",
+    ),
+    acknowledged_retained_count: count(
+      row.acknowledged_retained_count,
+      "recovery.acknowledged_retained_count",
+    ),
+    expired_unacknowledged_count: count(
+      row.expired_unacknowledged_count,
+      "recovery.expired_unacknowledged_count",
+    ),
+    oldest_active_issued_at: optionalTimestamp(
+      row.oldest_active_issued_at,
+      "recovery.oldest_active_issued_at",
+    ),
+    oldest_active_age_seconds: optionalCount(
+      row.oldest_active_age_seconds,
+      "recovery.oldest_active_age_seconds",
+    ),
+    oldest_expired_at: optionalTimestamp(
+      row.oldest_expired_at,
+      "recovery.oldest_expired_at",
+    ),
+    oldest_expired_age_seconds: optionalCount(
+      row.oldest_expired_age_seconds,
+      "recovery.oldest_expired_age_seconds",
+    ),
+    maximum_active_capabilities_per_job: count(
+      row.maximum_active_capabilities_per_job,
+      "recovery.maximum_active_capabilities_per_job",
+    ),
+  };
+
+  if (
+    !pairMatchesCount(
+      health.active_unacknowledged_count,
+      health.oldest_active_issued_at,
+      health.oldest_active_age_seconds,
+    ) ||
+    !pairMatchesCount(
+      health.expired_unacknowledged_count,
+      health.oldest_expired_at,
+      health.oldest_expired_age_seconds,
+    ) ||
+    health.maximum_active_capabilities_per_job >
+      health.active_unacknowledged_count ||
+    (health.active_unacknowledged_count === 0 &&
+      health.maximum_active_capabilities_per_job !== 0)
+  ) {
+    throw new Error(
+      "Account deletion recovery health response is inconsistent.",
+    );
+  }
+  return health;
+}
+
+export function assertAccountDeletionRecoveryPreparationHealth(
+  value: unknown,
+): AccountDeletionRecoveryPreparationHealth {
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error(
+      "Account deletion preparation health response must contain one row.",
+    );
+  }
+  const candidate = value[0];
+  if (
+    candidate === null ||
+    typeof candidate !== "object" ||
+    Array.isArray(candidate)
+  ) {
+    throw new Error(
+      "Account deletion preparation health response row must be an object.",
+    );
+  }
+  const row = candidate as Record<string, unknown>;
+  const health: AccountDeletionRecoveryPreparationHealth = {
+    generated_at: timestamp(
+      row.generated_at,
+      "recovery_preparation.generated_at",
+    ),
+    active_preparation_count: count(
+      row.active_preparation_count,
+      "recovery_preparation.active_preparation_count",
+    ),
+    expired_preparation_count: count(
+      row.expired_preparation_count,
+      "recovery_preparation.expired_preparation_count",
+    ),
+    oldest_active_age_seconds: optionalCount(
+      row.oldest_active_age_seconds,
+      "recovery_preparation.oldest_active_age_seconds",
+    ),
+    oldest_expired_age_seconds: optionalCount(
+      row.oldest_expired_age_seconds,
+      "recovery_preparation.oldest_expired_age_seconds",
+    ),
+  };
+
+  if (
+    (health.active_preparation_count === 0) !==
+      (health.oldest_active_age_seconds === null) ||
+    (health.expired_preparation_count === 0) !==
+      (health.oldest_expired_age_seconds === null)
+  ) {
+    throw new Error(
+      "Account deletion preparation health response is inconsistent.",
+    );
+  }
+  return health;
+}
+
 function pairMatchesCount(
   itemCount: number,
   timestampValue: string | null,
@@ -285,6 +501,10 @@ export function accountDeletionStatus(
     | "warningBacklog"
     | "criticalBacklog"
   >,
+  recoveryHealth: AccountDeletionRecoveryHealth =
+    EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH,
+  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth =
+    EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH,
 ): AccountDeletionStatus {
   const oldestDueAge = Math.max(
     health.oldest_due_age_seconds ?? 0,
@@ -293,15 +513,22 @@ export function accountDeletionStatus(
   const oldestPendingAge = Math.max(
     health.oldest_pending_age_seconds ?? 0,
     health.oldest_storage_pending_age_seconds ?? 0,
+    recoveryHealth.oldest_active_age_seconds ?? 0,
+    recoveryPreparationHealth.oldest_active_age_seconds ?? 0,
   );
   const backlogDepth = Math.max(
     health.active_job_count,
     health.storage_backlog_count,
+    recoveryHealth.active_unacknowledged_count,
+    recoveryPreparationHealth.active_preparation_count,
   );
   if (
     !health.reaper_cron_active ||
     !health.reaper_credentials_configured ||
     health.orphaned_storage_job_count > 0 ||
+    recoveryHealth.expired_unacknowledged_count > 0 ||
+    recoveryPreparationHealth.expired_preparation_count > 0 ||
+    recoveryHealth.maximum_active_capabilities_per_job > 8 ||
     oldestDueAge >= args.criticalDueAfterMinutes * 60 ||
     oldestPendingAge >= args.criticalSlaHours * 60 * 60 ||
     backlogDepth >= args.criticalBacklog
@@ -313,6 +540,7 @@ export function accountDeletionStatus(
     health.storage_failed_job_count > 0 ||
     health.expired_lease_count > 0 ||
     health.storage_expired_lease_count > 0 ||
+    recoveryHealth.maximum_active_capabilities_per_job === 8 ||
     oldestDueAge >= args.warningDueAfterMinutes * 60 ||
     oldestPendingAge >= args.warningSlaHours * 60 * 60 ||
     backlogDepth >= args.warningBacklog
@@ -326,8 +554,17 @@ export function buildAccountDeletionSummary(
   health: AccountDeletionHealth,
   args: AccountDeletionMonitorArgs,
   now: Date,
+  recoveryHealth: AccountDeletionRecoveryHealth =
+    EMPTY_ACCOUNT_DELETION_RECOVERY_HEALTH,
+  recoveryPreparationHealth: AccountDeletionRecoveryPreparationHealth =
+    EMPTY_ACCOUNT_DELETION_RECOVERY_PREPARATION_HEALTH,
 ): AccountDeletionMonitorSummary {
-  const status = accountDeletionStatus(health, args);
+  const status = accountDeletionStatus(
+    health,
+    args,
+    recoveryHealth,
+    recoveryPreparationHealth,
+  );
   return {
     generated_at: now.toISOString(),
     status,
@@ -344,6 +581,8 @@ export function buildAccountDeletionSummary(
       should_fail: shouldFailAccountDeletionMonitor(status, args.failOn),
     },
     health,
+    recovery_health: recoveryHealth,
+    recovery_preparation_health: recoveryPreparationHealth,
   };
 }
 
@@ -360,6 +599,8 @@ export function renderAccountDeletionMarkdown(
   summary: AccountDeletionMonitorSummary,
 ): string {
   const health = summary.health;
+  const recovery = summary.recovery_health;
+  const preparation = summary.recovery_preparation_health;
   return [
     "# Account Deletion Health",
     "",
@@ -400,6 +641,23 @@ export function renderAccountDeletionMarkdown(
     }\``,
     `- Oldest due age: \`${age(health.oldest_storage_due_age_seconds)}\``,
     "",
+    "## Device Recovery",
+    "",
+    `- Active unacknowledged capabilities: \`${recovery.active_unacknowledged_count}\``,
+    `- Acknowledged idempotency receipts retained: \`${recovery.acknowledged_retained_count}\``,
+    `- Expired unacknowledged capabilities: \`${recovery.expired_unacknowledged_count}\``,
+    `- Maximum active capabilities for one deletion: \`${recovery.maximum_active_capabilities_per_job}\``,
+    `- Oldest active age: \`${age(recovery.oldest_active_age_seconds)}\``,
+    `- Oldest expired age: \`${age(recovery.oldest_expired_age_seconds)}\``,
+    `- Active non-destructive preparations: \`${preparation.active_preparation_count}\``,
+    `- Expired preparations awaiting pruning: \`${preparation.expired_preparation_count}\``,
+    `- Oldest preparation age: \`${
+      age(preparation.oldest_active_age_seconds)
+    }\``,
+    `- Oldest expired preparation age: \`${
+      age(preparation.oldest_expired_age_seconds)
+    }\``,
+    "",
     "## Thresholds",
     "",
     `- Warning due age: \`${summary.thresholds.warning_due_after_minutes}m\``,
@@ -413,7 +671,7 @@ export function renderAccountDeletionMarkdown(
     "",
     summary.status === "ok"
       ? "No action required."
-      : "Verify the database reaper cron and its Vault/app-settings URL and service credential, then inspect safe-delete, reconcile-account-deletions, and R2 erasure logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, lease, or cursor rows.",
+      : "Verify the database reaper cron and its Vault/app-settings URL and service credential, then inspect safe-delete, recover-account-deletion, reconcile-account-deletions, and R2 erasure aggregate logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, capability, lease, or cursor rows.",
     "",
   ].join("\n");
 }
@@ -637,6 +895,12 @@ function printSummary(summary: AccountDeletionMonitorSummary): void {
   console.log(`failed_job_count: ${summary.health.failed_job_count}`);
   console.log(
     `storage_backlog_count: ${summary.health.storage_backlog_count}`,
+  );
+  console.log(
+    `recovery_active_unacknowledged_count: ${summary.recovery_health.active_unacknowledged_count}`,
+  );
+  console.log(
+    `recovery_expired_unacknowledged_count: ${summary.recovery_health.expired_unacknowledged_count}`,
   );
   console.log(
     `storage_failed_job_count: ${summary.health.storage_failed_job_count}`,

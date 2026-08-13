@@ -1,5 +1,8 @@
 export const PURCHASE_PRINCIPAL_MAX_BODY_BYTES = 2 * 1024;
-export const PURCHASE_PRINCIPAL_CLIENT_PROTOCOL = 1;
+/// Protocol emitted by the current iOS candidate and required before a new
+/// stable principal can activate. The parser continues accepting protocol 1
+/// while old clients use the additive legacy compatibility path.
+export const PURCHASE_PRINCIPAL_CLIENT_PROTOCOL = 2;
 
 const INSTALLATION_CAPABILITY_RE = /^[A-Za-z0-9_-]{43}$/;
 

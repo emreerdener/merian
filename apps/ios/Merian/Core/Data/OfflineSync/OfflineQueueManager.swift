@@ -4,6 +4,57 @@ import Observation
 import os
 import SwiftData
 
+/// Tracks asynchronous terminal persistence spawned by background URLSession
+/// delegate callbacks. Registration is synchronous and lock-protected so
+/// `urlSessionDidFinishEvents` cannot overtake a hop to the main actor.
+final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
+    struct Token: Hashable, Sendable {
+        fileprivate let id = UUID()
+    }
+
+    private let lock = NSLock()
+    private var activeTokens: Set<Token> = []
+    private var idleWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func begin() -> Token {
+        let token = Token()
+        _ = lock.withLock { activeTokens.insert(token) }
+        return token
+    }
+
+    func finish(_ token: Token) {
+        let waiters: [CheckedContinuation<Void, Never>] = lock.withLock {
+            guard activeTokens.remove(token) != nil,
+                  activeTokens.isEmpty else {
+                return []
+            }
+            let pending = idleWaiters
+            idleWaiters.removeAll()
+            return pending
+        }
+        for waiter in waiters {
+            waiter.resume()
+        }
+    }
+
+    func waitUntilIdle() async {
+        await withCheckedContinuation { continuation in
+            let isAlreadyIdle = lock.withLock {
+                guard !activeTokens.isEmpty else { return true }
+                idleWaiters.append(continuation)
+                return false
+            }
+            if isAlreadyIdle {
+                continuation.resume()
+            }
+        }
+    }
+
+    var activeCountForTesting: Int {
+        lock.withLock { activeTokens.count }
+    }
+}
+
 // MARK: - Offline Queue Manager
 
 /// Persistent background sync engine for upload queuing and cloud deletions.
@@ -45,6 +96,17 @@ import SwiftData
         config.allowsConstrainedNetworkAccess = false
         return URLSession(configuration: config, delegate: self, delegateQueue: nil)
     }()
+
+    /// Ordinary Auth-work leases transferred to URLSession tasks at `resume`.
+    /// Unlike a dispatch-scope lease, these remain live until the terminal
+    /// delegate callback finishes all durable local processing.
+    @ObservationIgnored var backgroundAccountWorkLeases:
+        [Int: AccountBoundWorkLease] = [:]
+
+    /// Terminal delegate processors must finish durable persistence and release
+    /// their Auth-work leases before the app tells iOS it may suspend again.
+    nonisolated static let backgroundTerminalWorkTracker =
+        BackgroundURLSessionTerminalWorkTracker()
 
     // MARK: - State
 

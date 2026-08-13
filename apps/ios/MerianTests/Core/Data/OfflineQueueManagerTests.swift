@@ -3,9 +3,42 @@ import Foundation
 import SwiftData
 import Testing
 
+private actor TerminalWorkCompletionProbe {
+    private(set) var didComplete = false
+
+    func markComplete() {
+        didComplete = true
+    }
+}
+
 @Suite(.serialized)
 @MainActor
 struct OfflineQueueManagerTests {
+    @Test func backgroundSessionCompletionWaitsForTerminalPersistence() async {
+        let tracker = BackgroundURLSessionTerminalWorkTracker()
+        let token = tracker.begin()
+        let probe = TerminalWorkCompletionProbe()
+        let waiter = Task {
+            await tracker.waitUntilIdle()
+            await probe.markComplete()
+            return true
+        }
+
+        await Task.yield()
+        #expect(tracker.activeCountForTesting == 1)
+        #expect(!(await probe.didComplete))
+        tracker.finish(token)
+        #expect(await waiter.value)
+        #expect(await probe.didComplete)
+        #expect(tracker.activeCountForTesting == 0)
+
+        // Duplicate terminal callbacks cannot underflow the tracker or resume
+        // a later waiter twice.
+        tracker.finish(token)
+        await tracker.waitUntilIdle()
+        #expect(tracker.activeCountForTesting == 0)
+    }
+
     @Test func cloudDeletionRequiresExplicitNetworkConfirmation() {
         #expect(
             OfflineQueueManager.cloudDeletionWasConfirmed(error: nil)
@@ -1128,6 +1161,30 @@ struct OfflineQueueManagerTests {
                 presignedURLs: mixedOwnerURLs
             )
         )
+        let replacementOwnerId = UUID().uuidString.lowercased()
+        let replacementOwnerURLs = items.map { item in
+            let replacementObjectKey = MediaStagingContract.objectKey(
+                userId: replacementOwnerId,
+                fileName: item.fileName
+            )
+            return PreSignedURL(
+                fileName: item.fileName,
+                signedUrl: "https://r2.invalid/bucket/\(replacementObjectKey)?X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost",
+                objectKey: replacementObjectKey,
+                requiredHeaders: [
+                    "Content-Type": item.contentType,
+                    "Content-Length": String(item.sizeBytes)
+                ],
+                mediaAssetId: nil,
+                mediaSessionId: nil
+            )
+        }
+        #expect(
+            !MediaStagingContract.presignedUploadManifestIsValid(
+                uploadItems: items,
+                presignedURLs: replacementOwnerURLs
+            )
+        )
         var mixedOriginURLs = presignedURLs
         mixedOriginURLs[1] = PreSignedURL(
             fileName: items[1].fileName,
@@ -1307,7 +1364,8 @@ struct OfflineQueueManagerTests {
             scanId: scanId,
             uploadIndex: 12,
             syncGeneration: syncGeneration,
-            objectKey: objectKey
+            objectKey: objectKey,
+            ownerUserID: UUID(uuidString: ownerId)!
         )
         let identity = MediaStagingContract.parseUploadTaskDescription(description)
 
@@ -1315,6 +1373,7 @@ struct OfflineQueueManagerTests {
         #expect(identity?.uploadIndex == 12)
         #expect(identity?.syncGeneration == syncGeneration)
         #expect(identity?.objectKey == objectKey)
+        #expect(identity?.ownerUserID?.uuidString.lowercased() == ownerId)
         #expect(MediaStagingContract.uploadTaskDescription(description, belongsTo: scanId))
     }
 
@@ -1383,17 +1442,29 @@ struct OfflineQueueManagerTests {
     @Test func testInferenceTaskDescriptionPreservesGenerationAndUnderscoredScanId() {
         let scanId = "queued_nonvisual_audio_only"
         let generation = UUID()
+        let ownerUserID = UUID()
         let description = InferenceURLSessionTaskContract.taskDescription(
             scanId: scanId,
-            generation: generation
+            generation: generation,
+            ownerUserID: ownerUserID
         )
 
         #expect(
             InferenceURLSessionTaskContract.parse(description)
                 == InferenceURLSessionTaskIdentity(
                     scanId: scanId,
-                    generation: generation
+                    generation: generation,
+                    ownerUserID: ownerUserID
                 )
+        )
+        #expect(
+            InferenceURLSessionTaskContract.parse(
+                "inference_v2|\(generation.uuidString)|\(scanId)"
+            ) == InferenceURLSessionTaskIdentity(
+                scanId: scanId,
+                generation: generation,
+                ownerUserID: nil
+            )
         )
         #expect(
             InferenceURLSessionTaskContract.parse("inference_\(scanId)")
@@ -2383,8 +2454,24 @@ struct OfflineQueueManagerTests {
         #expect(syncSource.contains(
             "var entriesByScanId: [String: [UploadDispatchEntry]]"
         ))
-        #expect(syncSource.contains("let uploadTasks = entries.map"))
+        let ownershipActivation = try #require(syncSource.range(
+            of: "guard await queueActor.activateBackgroundAccountWork("
+        ))
+        let taskCreation = try #require(syncSource.range(
+            of: "let task = session.uploadTask("
+        ))
+        let terminalLeaseRetention = try #require(syncSource.range(
+            of: "guard retainBackgroundAccountWork("
+        ))
+        let firstResume = try #require(syncSource.range(
+            of: "uploadTask.resume()"
+        ))
+        #expect(syncSource.contains("let durableOwnership = BackgroundAccountWorkOwnership("))
+        #expect(syncSource.contains("var uploadTasks: [URLSessionUploadTask] = []"))
+        #expect(syncSource.contains("uploadTasks.count == entries.count"))
         #expect(syncSource.contains("for uploadTask in uploadTasks"))
+        #expect(ownershipActivation.lowerBound < taskCreation.lowerBound)
+        #expect(terminalLeaseRetention.lowerBound < firstResume.lowerBound)
         #expect(syncSource.contains(
             "candidateScanIds: undispatchedScanIDs"
         ))
@@ -2401,6 +2488,18 @@ struct OfflineQueueManagerTests {
         )
         let normalizedURLSessionSource =
             normalizedRepositorySource(urlSessionSource)
+        #expect(normalizedURLSessionSource.contains(
+            "func quiesceBackgroundAccountWorkForAuthTransition( sourceUserID: UUID? ) async -> Bool"
+        ))
+        #expect(normalizedURLSessionSource.contains(
+            "guard let container = modelContext?.container else { return false }"
+        ))
+        #expect(normalizedURLSessionSource.contains(
+            "guard !retirementFailed else { return false }"
+        ))
+        #expect(normalizedURLSessionSource.contains(
+            "guard clock.now < deadline else { return false }"
+        ))
         #expect(syncSource.components(
             separatedBy: "Set<String>(liveTasks.compactMap { task -> String? in"
         ).count == 4)

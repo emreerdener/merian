@@ -243,6 +243,20 @@ test("mutations check origin and raw user searches remain out of URLs", async ()
   assert.doesNotMatch(users, /URLSearchParams/);
 });
 
+test("admin account presentation does not expose internal identity terminology", async () => {
+  const [users, overview] = await Promise.all([
+    source("components/UserSearch.tsx"),
+    source("app/(admin)/overview/page.tsx"),
+  ]);
+
+  for (const text of [users, overview]) {
+    assert.doesNotMatch(text, /["'`]Ghost(?:["'`\s])/);
+    assert.doesNotMatch(text, /["'`][^"'`]*guest session/i);
+  }
+  assert.match(users, /"Signed out"/);
+  assert.match(overview, /`Signed out \$\{number\(data\.accounts\.ghost\)\}`/);
+});
+
 test("review, feedback, user, and audit lists use bounded cursor pagination", async () => {
   const [reviews, feedback, users, access] = await Promise.all([
     source("app/(admin)/reviews/page.tsx"),

@@ -197,7 +197,7 @@ rolling-day, and all-time options. The browser's IANA timezone is used for daily
 overview buckets; AI Usage currently groups daily rows in database time.
 
 - **Registered**: `auth.users.is_anonymous = false`.
-- **Ghost**: `auth.users.is_anonymous = true`.
+- **Signed out**: `auth.users.is_anonymous = true`.
 - **Pro paid**: user-aware effective plan `pro_paid`; stored Pro must have no
   expiry or a future expiry.
 - **Pro complimentary**: user-aware effective plan `pro_complimentary`, derived

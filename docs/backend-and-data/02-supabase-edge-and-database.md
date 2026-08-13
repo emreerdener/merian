@@ -2680,7 +2680,7 @@ these invariants:
   group before its actor and the inverse order can deadlock.
 - Both `ghost_merge_species_ledger_mismatch` and
   `user_species_scan_count_underflow` map to HTTP 503
-  `merge_temporarily_unavailable` with the guest-data-unchanged message. The
+  `merge_temporarily_unavailable` with the signed-out-profile-data-unchanged message. The
   transaction has already rolled back in either case; exposing an unexpected
   500 would give the client the wrong operational classification.
 

@@ -77,7 +77,7 @@ uses the validated legacy anon JWT only where the two intentional gateway
 never sends a publishable key as Bearer and fails closed if the required
 execution credential is unavailable.
 
-The following twelve customer-critical routes receive an additional semantic
+The following thirteen customer-critical routes receive an additional semantic
 authorization probe:
 
 1. `generate-upload-urls`;
@@ -90,14 +90,15 @@ authorization probe:
 8. `insight-chat`;
 9. `explore-post-chat`;
 10. `request-community-identification`;
-11. `transfer-signout-purchases`; and
-12. `delete-scan`.
+11. `transfer-signout-purchases`;
+12. `resolve-purchase-principal`; and
+13. `delete-scan`.
 
 Each unauthenticated critical-route probe must return fail-closed `401` with the
 marker.
 
 These gates prevent a deployment from reporting success while any configured
-route is absent and preserve stricter auth evidence on the twelve affected
+route is absent and preserve stricter auth evidence on the thirteen affected
 customer paths. They do not claim that a later Supabase regional incident is
 impossible; the typed client failure keeps that incident retryable and
 distinguishable from scan state.

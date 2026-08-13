@@ -19,6 +19,7 @@ import {
   RevenueCatReconciliationClaim,
   RevenueCatReconciliationHealth,
 } from "./db.ts";
+import { logIdentitySafeError } from "../_shared/edgeHandler.ts";
 
 const FETCH_CONCURRENCY = 3;
 // The worker drains two independent identity queues. Three claims per lane
@@ -82,10 +83,16 @@ const EMPTY_PURCHASE_PRINCIPAL_HEALTH: PurchasePrincipalHealth = {
 
 function publicFailureCode(error: unknown): string {
   if (!(error instanceof Error)) return "reconciliation_failed";
-  const normalized = error.name.replaceAll(/[^A-Za-z0-9_-]/g, "_");
-  return normalized.length > 0
-    ? normalized.slice(0, 120)
-    : "reconciliation_failed";
+  switch (error.name) {
+    case "AbortError":
+      return "provider_request_aborted";
+    case "TimeoutError":
+      return "provider_request_timed_out";
+    case "TypeError":
+      return "dependency_type_error";
+    default:
+      return "reconciliation_failed";
+  }
 }
 
 async function reconcileOne(
@@ -129,10 +136,11 @@ async function reconcileOne(
     );
     return applied ? "applied" : "stale";
   } catch (error) {
-    console.error(
-      `[reconcile-revenuecat-subscribers] user_id=${claim.userId} failed:`,
-      error,
-    );
+    logIdentitySafeError("revenuecat_reconciliation_failed", {
+      identityKind: "legacy",
+      stage: "reconcile",
+      code: publicFailureCode(error),
+    });
     try {
       await dependencies.fail(
         claim,
@@ -140,10 +148,11 @@ async function reconcileOne(
         supabaseAdmin,
       );
     } catch (failureWriteError) {
-      console.error(
-        `[reconcile-revenuecat-subscribers] user_id=${claim.userId} failure persistence failed:`,
-        failureWriteError,
-      );
+      logIdentitySafeError("revenuecat_reconciliation_failure_write_failed", {
+        identityKind: "legacy",
+        stage: "persist_failure",
+        code: publicFailureCode(failureWriteError),
+      });
     }
     return "failed";
   }
@@ -196,10 +205,11 @@ async function reconcilePrincipalOne(
     );
     return applied ? "applied" : "stale";
   } catch (error) {
-    console.error(
-      "[reconcile-revenuecat-subscribers] identity_kind=purchase_principal failed:",
-      error,
-    );
+    logIdentitySafeError("revenuecat_reconciliation_failed", {
+      identityKind: "purchase_principal",
+      stage: "reconcile",
+      code: publicFailureCode(error),
+    });
     try {
       await dependencies.failPrincipal(
         claim,
@@ -207,10 +217,11 @@ async function reconcilePrincipalOne(
         supabaseAdmin,
       );
     } catch (failureWriteError) {
-      console.error(
-        "[reconcile-revenuecat-subscribers] identity_kind=purchase_principal failure persistence failed:",
-        failureWriteError,
-      );
+      logIdentitySafeError("revenuecat_reconciliation_failure_write_failed", {
+        identityKind: "purchase_principal",
+        stage: "persist_failure",
+        code: publicFailureCode(failureWriteError),
+      });
     }
     return "failed";
   }

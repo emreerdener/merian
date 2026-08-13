@@ -68,9 +68,11 @@ curl --fail-with-body \
 During legacy-key migration only, send the same legacy JWT in both `apikey` and
 `Authorization: Bearer ...`.
 
-The response reports `claimed`, `deleted`, `failed`, and per-receipt errors. A
-successful HTTP response can still contain retryable row failures; inspect
-`failed` rather than treating HTTP 200 alone as a clean queue.
+The response reports `claimed`, `deleted`, `failed`, and one bounded machine
+code for each failed receipt. It never returns receipt, Auth-user, RevenueCat,
+or raw provider/database error identity. A successful HTTP response can still
+contain retryable row failures; inspect `failed` rather than treating HTTP 200
+alone as a clean queue.
 
 ## Verification
 

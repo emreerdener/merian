@@ -28,6 +28,213 @@ enum BackgroundInferenceResponseDisposition: Equatable {
 private let requiredConsentAttentionMessage =
     "Complete the required age, Terms, and Google Gemini consent step. Naturebook will automatically resume the eligible saved scan; if it stays paused, you can retry it from Scans."
 
+private let backgroundAccountWorkQuiescenceTimeout: Duration = .seconds(30)
+
+// MARK: - Account-bound URLSession ownership
+
+extension OfflineQueueManager {
+    @discardableResult
+    func retainBackgroundAccountWork(
+        _ lease: AccountBoundWorkLease,
+        for taskIdentifier: Int
+    ) -> Bool {
+        guard backgroundAccountWorkLeases[taskIdentifier] == nil,
+              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)
+        else {
+            return false
+        }
+        backgroundAccountWorkLeases[taskIdentifier] = lease
+        return true
+    }
+
+    func finishBackgroundAccountWork(for taskIdentifier: Int) {
+        guard let lease = backgroundAccountWorkLeases.removeValue(
+            forKey: taskIdentifier
+        ) else {
+            return
+        }
+        SupabaseManager.shared.finishAccountBoundWork(lease)
+    }
+
+    private func backgroundTaskOwnerIsCurrent(
+        taskIdentifier: Int,
+        ownerUserID: UUID
+    ) -> Bool {
+        if let lease = backgroundAccountWorkLeases[taskIdentifier] {
+            return lease.session.userID == ownerUserID
+                && SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(lease)
+        }
+        return SupabaseManager.shared
+            .backgroundAccountWorkOwnerMatchesCurrentSession(ownerUserID)
+    }
+
+    private func validateOrAdoptBackgroundAccountWork(
+        scanId: String,
+        generation: UUID?,
+        ownerUserID: UUID?,
+        phase: BackgroundAccountWorkPhase,
+        taskIdentifier: Int
+    ) async -> BackgroundAccountWorkOwnership? {
+        guard let ownerUserID, let generation,
+              backgroundTaskOwnerIsCurrent(
+                  taskIdentifier: taskIdentifier,
+                  ownerUserID: ownerUserID
+              ),
+              let container = modelContext?.container else {
+            return nil
+        }
+        let ownership = BackgroundAccountWorkOwnership(
+            ownerUserID: ownerUserID,
+            generation: generation,
+            phase: phase
+        )
+        let actor = resolvedQueueDbActor(container: container)
+        if await actor.backgroundAccountWorkIsCurrent(
+            scanId: scanId,
+            ownership: ownership
+        ) {
+            return ownership
+        }
+        // A modern task may be reattached after process termination before its
+        // callback. The task's explicit account/generation pair is sufficient
+        // to re-adopt only while the exact stable Auth session and expected
+        // queue state still exist.
+        guard await actor.activateBackgroundAccountWork(
+            scanId: scanId,
+            ownership: ownership
+        ) else {
+            return nil
+        }
+        return ownership
+    }
+
+    /// Closes every URLSession account-work lane before Auth can mutate.
+    /// Durable queue retreat commits before task cancellation; then this waits
+    /// for both transport disappearance and terminal callback lease release.
+    func quiesceBackgroundAccountWorkForAuthTransition(
+        sourceUserID: UUID?
+    ) async -> Bool {
+        syncTask?.cancel()
+        retryBackoffTask?.cancel()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(
+            by: backgroundAccountWorkQuiescenceTimeout
+        )
+
+        while true {
+            guard !Task.isCancelled else { return false }
+            let tasks = await backgroundSession.allTasks
+            let accountTasks = tasks.filter {
+                InferenceURLSessionTaskContract.parse($0.taskDescription) != nil
+                    || MediaStagingContract.parseUploadTaskDescription(
+                        $0.taskDescription
+                    ) != nil
+            }
+            var cancellableTaskIdentifiers = Set<Int>()
+            var retirementFailed = false
+
+            if !accountTasks.isEmpty {
+                guard let container = modelContext?.container else {
+                    return false
+                }
+                let actor = resolvedQueueDbActor(container: container)
+                var retiredKeys = Set<String>()
+                for task in accountTasks {
+                    if let identity = InferenceURLSessionTaskContract.parse(
+                        task.taskDescription
+                    ) {
+                        let key = "inference|\(identity.scanId)|\(identity.generation?.uuidString ?? "legacy")"
+                        if retiredKeys.insert(key).inserted {
+                            let didPersistRetirement = await actor
+                                .retireBackgroundAccountWork(
+                                    scanId: identity.scanId,
+                                    expectedOwnerUserID:
+                                        identity.ownerUserID ?? sourceUserID,
+                                    expectedGeneration: identity.generation,
+                                    phase: .inference
+                                )
+                            if didPersistRetirement {
+                                for matchingTask in accountTasks where
+                                    InferenceURLSessionTaskContract.parse(
+                                        matchingTask.taskDescription
+                                    ) == identity {
+                                    cancellableTaskIdentifiers.insert(
+                                        matchingTask.taskIdentifier
+                                    )
+                                }
+                            } else {
+                                retirementFailed = true
+                            }
+                        }
+                        if cancellableTaskIdentifiers.contains(
+                            task.taskIdentifier
+                        ), let generation = identity.generation {
+                            retiredInferenceGenerations.insert(generation)
+                            if activeInferenceGenerations[identity.scanId]
+                                == generation {
+                                activeInferenceGenerations[identity.scanId] = nil
+                            }
+                        }
+                    } else if let identity = MediaStagingContract
+                        .parseUploadTaskDescription(task.taskDescription) {
+                        let key = "upload|\(identity.scanId)|\(identity.syncGeneration?.uuidString ?? "legacy")"
+                        if retiredKeys.insert(key).inserted {
+                            let didPersistRetirement = await actor
+                                .retireBackgroundAccountWork(
+                                    scanId: identity.scanId,
+                                    expectedOwnerUserID:
+                                        identity.ownerUserID ?? sourceUserID,
+                                    expectedGeneration: identity.syncGeneration,
+                                    phase: .upload
+                                )
+                            if didPersistRetirement {
+                                for matchingTask in accountTasks where
+                                    MediaStagingContract
+                                        .parseUploadTaskDescription(
+                                            matchingTask.taskDescription
+                                        ) == identity {
+                                    cancellableTaskIdentifiers.insert(
+                                        matchingTask.taskIdentifier
+                                    )
+                                }
+                            } else {
+                                retirementFailed = true
+                            }
+                        }
+                        if cancellableTaskIdentifiers.contains(
+                            task.taskIdentifier
+                        ) {
+                            invalidateUploadGeneration(
+                                scanId: identity.scanId,
+                                generation: identity.syncGeneration
+                            )
+                        }
+                    }
+                }
+            }
+
+            guard !retirementFailed else { return false }
+
+            for task in accountTasks where
+                cancellableTaskIdentifiers.contains(task.taskIdentifier) {
+                task.cancel()
+            }
+
+            if accountTasks.isEmpty,
+               backgroundAccountWorkLeases.isEmpty {
+                return true
+            }
+            guard clock.now < deadline else { return false }
+            do {
+                try await Task.sleep(for: .milliseconds(25))
+            } catch {
+                return false
+            }
+        }
+    }
+}
+
 // MARK: - URLSession Delegate
 
 extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegate {
@@ -44,6 +251,7 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
 
         let scanId = taskIdentity.scanId
         let generation = taskIdentity.generation
+        let ownerUserID = taskIdentity.ownerUserID
         let httpResponse = downloadTask.response as? HTTPURLResponse
         let statusCode = httpResponse?.statusCode
         let functionRouteEvidence = httpResponse.map {
@@ -63,20 +271,37 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
             try FileManager.default.copyItem(at: location, to: tempDestination)
         } catch {
             MerianLog.data.error("Background inference download: failed to preserve temp file for \(scanId, privacy: .private): \(error, privacy: .private)")
+            let terminalToken = OfflineQueueManager
+                .backgroundTerminalWorkTracker.begin()
             BackgroundTaskWrapper.execute(name: "OfflineInferenceError") { _ in
-                await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(
+                defer {
+                    OfflineQueueManager.backgroundTerminalWorkTracker
+                        .finish(terminalToken)
+                }
+                await OfflineQueueManager.shared
+                    .processInferenceTerminalFailure(
                     scanId: scanId,
                     generation: generation,
+                    ownerUserID: ownerUserID,
+                    taskIdentifier: taskIdentifier,
                     error: error
                 )
             }
             return
         }
 
+        let terminalToken = OfflineQueueManager
+            .backgroundTerminalWorkTracker.begin()
         BackgroundTaskWrapper.execute(name: "OfflineInferenceResult") { _ in
-            await OfflineQueueManager.shared.processInferenceDownloadResult(
+            defer {
+                OfflineQueueManager.backgroundTerminalWorkTracker
+                    .finish(terminalToken)
+            }
+            await OfflineQueueManager.shared.processInferenceTerminalResult(
                 scanId: scanId,
                 generation: generation,
+                ownerUserID: ownerUserID,
+                taskIdentifier: taskIdentifier,
                 resultFileURL: tempDestination,
                 statusCode: statusCode,
                 functionRouteEvidence: functionRouteEvidence
@@ -91,11 +316,17 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
         let originalRequestUrlPath = task.originalRequest?.url?.path
         let responseStatusCode = (task.response as? HTTPURLResponse)?.statusCode
         let taskIdentifier = task.taskIdentifier
+        let terminalToken = OfflineQueueManager
+            .backgroundTerminalWorkTracker.begin()
 
         BackgroundTaskWrapper.execute(
             name: "OfflineInference",
             expirationHandler: { MerianLog.data.debug("OfflineInference background task expired") }
         ) { _ in
+            defer {
+                OfflineQueueManager.backgroundTerminalWorkTracker
+                    .finish(terminalToken)
+            }
             // Route inference download task failures.
             // On success, didFinishDownloadingTo already handled the result — skip here.
             if let inferenceIdentity = InferenceURLSessionTaskContract.parse(taskDescription) {
@@ -104,9 +335,12 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
                     "urlSession didCompleteWithError: inference scanId=\(scanId, privacy: .private) status=\(responseStatusCode ?? -1, privacy: .public) error=\((error?.localizedDescription ?? "nil"), privacy: .private)"
                 )
                 if let error {
-                    await OfflineQueueManager.shared.handleInferenceTaskNetworkFailure(
+                    await OfflineQueueManager.shared
+                        .processInferenceTerminalFailure(
                         scanId: scanId,
                         generation: inferenceIdentity.generation,
+                        ownerUserID: inferenceIdentity.ownerUserID,
+                        taskIdentifier: taskIdentifier,
                         error: error
                     )
                 }
@@ -114,55 +348,14 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
                 return
             }
 
-            // handleResult is a local async closure so that early returns from upload
-            // processing don't bypass the activeTasks completion check that follows it.
-            let handleResult: @Sendable () async -> Void = {
-                await OfflineQueueManager.shared.processUploadCompletion(
-                    taskDescription: taskDescription,
-                    originalRequestUrlPath: originalRequestUrlPath,
-                    responseStatusCode: responseStatusCode,
-                    uploadError: error,
-                    taskIdentifier: taskIdentifier,
-                    session: session
-                )
-            }
-
-            await handleResult()
-
-            // Signal sync completion once all background upload tasks have settled.
-            // Exclude inference download tasks — they have their own lifecycle.
-            // Re-query allTasks here (not reusing the snapshot from processUploadCompletion)
-            // because dispatchInferenceDownloadTask may have added new download tasks during
-            // handleResult — those must be excluded from the upload-completion gate.
-            guard let completedUpload = MediaStagingContract.parseUploadTaskDescription(
-                taskDescription
-            ) else { return }
-            let remaining = await session.allTasks
-            let activeUploadTasks = remaining.filter {
-                guard $0.taskIdentifier != taskIdentifier,
-                      let identity = MediaStagingContract.parseUploadTaskDescription(
-                        $0.taskDescription
-                      ) else {
-                    return false
-                }
-                return identity.syncGeneration == completedUpload.syncGeneration
-            }
-            if activeUploadTasks.isEmpty {
-                await MainActor.run {
-                    let manager = OfflineQueueManager.shared
-                    let didFinishCurrentSync = manager.finishUploadSync(
-                        generation: completedUpload.syncGeneration
-                    )
-                    // Orphan recovery is required even when this process did
-                    // not create the generation. A background URLSession can
-                    // reattach modern generation-tagged tasks after relaunch
-                    // while the process-local global sync latch is nil.
-                    manager.replayInferenceForUploadedScans()
-                    if didFinishCurrentSync && manager.unsyncedItemsCount > 0 {
-                        manager.syncPendingScans()
-                    }
-                }
-            }
+            await OfflineQueueManager.shared.processUploadTerminalCallback(
+                taskDescription: taskDescription,
+                originalRequestUrlPath: originalRequestUrlPath,
+                responseStatusCode: responseStatusCode,
+                uploadError: error,
+                taskIdentifier: taskIdentifier,
+                session: session
+            )
         }
     }
 
@@ -170,6 +363,8 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
     /// Invokes the stored completion handler so the system knows it's safe to suspend the app.
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
         Task { @MainActor in
+            await OfflineQueueManager.backgroundTerminalWorkTracker
+                .waitUntilIdle()
             guard let handler = OfflineQueueManager.shared.backgroundCompletionHandler else { return }
             OfflineQueueManager.shared.backgroundCompletionHandler = nil
             handler()
@@ -180,6 +375,157 @@ extension OfflineQueueManager: URLSessionTaskDelegate, URLSessionDownloadDelegat
 // MARK: - Upload Completion & Inference Pipeline
 
 extension OfflineQueueManager {
+
+    func processUploadTerminalCallback(
+        taskDescription: String?,
+        originalRequestUrlPath: String?,
+        responseStatusCode: Int?,
+        uploadError: Error?,
+        taskIdentifier: Int,
+        session: URLSession
+    ) async {
+        defer { finishBackgroundAccountWork(for: taskIdentifier) }
+        guard let identity = MediaStagingContract
+            .parseUploadTaskDescription(taskDescription) else {
+            return
+        }
+        let ownership = await validateOrAdoptBackgroundAccountWork(
+            scanId: identity.scanId,
+            generation: identity.syncGeneration,
+            ownerUserID: identity.ownerUserID,
+            phase: .upload,
+            taskIdentifier: taskIdentifier
+        )
+        guard ownership != nil else {
+            await retireRejectedBackgroundAccountWork(
+                scanId: identity.scanId,
+                generation: identity.syncGeneration,
+                ownerUserID: identity.ownerUserID,
+                phase: .upload
+            )
+            invalidateUploadGeneration(
+                scanId: identity.scanId,
+                generation: identity.syncGeneration
+            )
+            return
+        }
+
+        await processUploadCompletion(
+            taskDescription: taskDescription,
+            originalRequestUrlPath: originalRequestUrlPath,
+            responseStatusCode: responseStatusCode,
+            uploadError: uploadError,
+            taskIdentifier: taskIdentifier,
+            session: session
+        )
+
+        let remaining = await session.allTasks
+        let activeUploadTasks = remaining.filter {
+            guard $0.taskIdentifier != taskIdentifier,
+                  let other = MediaStagingContract
+                    .parseUploadTaskDescription($0.taskDescription) else {
+                return false
+            }
+            return other.syncGeneration == identity.syncGeneration
+        }
+        if activeUploadTasks.isEmpty {
+            let didFinishCurrentSync = finishUploadSync(
+                generation: identity.syncGeneration
+            )
+            replayInferenceForUploadedScans()
+            if didFinishCurrentSync && unsyncedItemsCount > 0 {
+                syncPendingScans()
+            }
+        }
+    }
+
+    func processInferenceTerminalResult(
+        scanId: String,
+        generation: UUID?,
+        ownerUserID: UUID?,
+        taskIdentifier: Int,
+        resultFileURL: URL,
+        statusCode: Int?,
+        functionRouteEvidence: EdgeFunctionRouteResponseEvidence?
+    ) async {
+        defer { finishBackgroundAccountWork(for: taskIdentifier) }
+        guard await validateOrAdoptBackgroundAccountWork(
+            scanId: scanId,
+            generation: generation,
+            ownerUserID: ownerUserID,
+            phase: .inference,
+            taskIdentifier: taskIdentifier
+        ) != nil else {
+            try? FileManager.default.removeItem(at: resultFileURL)
+            await retireRejectedBackgroundAccountWork(
+                scanId: scanId,
+                generation: generation,
+                ownerUserID: ownerUserID,
+                phase: .inference
+            )
+            if let generation {
+                retiredInferenceGenerations.insert(generation)
+            }
+            return
+        }
+        await processInferenceDownloadResult(
+            scanId: scanId,
+            generation: generation,
+            resultFileURL: resultFileURL,
+            statusCode: statusCode,
+            functionRouteEvidence: functionRouteEvidence
+        )
+    }
+
+    func processInferenceTerminalFailure(
+        scanId: String,
+        generation: UUID?,
+        ownerUserID: UUID?,
+        taskIdentifier: Int,
+        error: Error
+    ) async {
+        defer { finishBackgroundAccountWork(for: taskIdentifier) }
+        guard await validateOrAdoptBackgroundAccountWork(
+            scanId: scanId,
+            generation: generation,
+            ownerUserID: ownerUserID,
+            phase: .inference,
+            taskIdentifier: taskIdentifier
+        ) != nil else {
+            await retireRejectedBackgroundAccountWork(
+                scanId: scanId,
+                generation: generation,
+                ownerUserID: ownerUserID,
+                phase: .inference
+            )
+            if let generation {
+                retiredInferenceGenerations.insert(generation)
+            }
+            return
+        }
+        await handleInferenceTaskNetworkFailure(
+            scanId: scanId,
+            generation: generation,
+            error: error
+        )
+    }
+
+    private func retireRejectedBackgroundAccountWork(
+        scanId: String,
+        generation: UUID?,
+        ownerUserID: UUID?,
+        phase: BackgroundAccountWorkPhase
+    ) async {
+        guard let container = modelContext?.container else { return }
+        let actor = resolvedQueueDbActor(container: container)
+        _ = await actor.retireBackgroundAccountWork(
+            scanId: scanId,
+            expectedOwnerUserID: ownerUserID,
+            expectedGeneration: generation,
+            phase: phase
+        )
+        updateUnsyncedItemCount()
+    }
 
     /// Processes the result of a completed background upload, then kicks off inference
     /// for the scan once all of its image files have landed in R2 staging.
@@ -864,9 +1210,9 @@ extension OfflineQueueManager {
             return
         }
 
-        let request: URLRequest
+        let authenticatedRequest: AuthenticatedInferenceRequest
         do {
-            request = try await prepareInferenceDownloadRequestWithTimeout(
+            authenticatedRequest = try await prepareInferenceDownloadRequestWithTimeout(
                 scanId: scanId,
                 extracted: extracted
             )
@@ -927,10 +1273,29 @@ extension OfflineQueueManager {
             return
         }
 
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork(
+                expectedUserID: authenticatedRequest.expectedAuthUserID
+            ) else {
+            return
+        }
+        var transferredAccountWorkLease = false
+        defer {
+            if !transferredAccountWorkLease {
+                SupabaseManager.shared.finishAccountBoundWork(
+                    accountWorkLease
+                )
+            }
+        }
+
         // Dispatch the background download task. The OS serializes the URLRequest (including
         // httpBody) at resume() time — safe to use inline httpBody on background sessions.
         let tasksBeforeDispatch = await backgroundSession.allTasks
-        guard allowsAutomaticNetworkWorkOnCurrentPath,
+        guard authenticatedRequest.isBound(to: accountWorkLease.session),
+              allowsAutomaticNetworkWorkOnCurrentPath,
+              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+                accountWorkLease
+              ),
               isInferencePreparationCurrent(
                 scanId: scanId,
                 generation: preparationGeneration
@@ -943,11 +1308,49 @@ extension OfflineQueueManager {
             return
         }
 
-        let task = backgroundSession.downloadTask(with: request)
+        let durableOwnership = BackgroundAccountWorkOwnership(
+            ownerUserID: authenticatedRequest.expectedAuthUserID,
+            generation: preparationGeneration,
+            phase: .inference
+        )
+        let queueActor = resolvedQueueDbActor(
+            container: extracted.container
+        )
+        guard await queueActor.activateBackgroundAccountWork(
+            scanId: scanId,
+            ownership: durableOwnership
+        ) else {
+            return
+        }
+
+        let task = backgroundSession.downloadTask(
+            with: authenticatedRequest.request
+        )
         task.taskDescription = InferenceURLSessionTaskContract.taskDescription(
             scanId: scanId,
-            generation: preparationGeneration
+            generation: preparationGeneration,
+            ownerUserID: authenticatedRequest.expectedAuthUserID
         )
+        guard SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+            accountWorkLease
+        ), retainBackgroundAccountWork(
+            accountWorkLease,
+            for: task.taskIdentifier
+        ) else {
+            // Durable ownership was already moved to `.inferencing`, but this
+            // unresumed task is not guaranteed to receive a terminal delegate
+            // callback. Requeue it before cancellation so relaunch cannot find
+            // a permanently stranded inference owner.
+            await retireRejectedBackgroundAccountWork(
+                scanId: scanId,
+                generation: preparationGeneration,
+                ownerUserID: authenticatedRequest.expectedAuthUserID,
+                phase: .inference
+            )
+            task.cancel()
+            return
+        }
+        transferredAccountWorkLease = true
         inferenceDispatchDates[scanId] = Date()
         didDispatch = true
         task.resume()
@@ -962,7 +1365,7 @@ extension OfflineQueueManager {
     private func prepareInferenceDownloadRequestWithTimeout(
         scanId: String,
         extracted: ExtractedScanData
-    ) async throws -> URLRequest {
+    ) async throws -> AuthenticatedInferenceRequest {
         let preparationTask = Task { @MainActor in
             try await self.buildInferenceDownloadRequest(scanId: scanId, extracted: extracted)
         }
@@ -971,7 +1374,9 @@ extension OfflineQueueManager {
             preparationTask.cancel()
         }
 
-        return try await withThrowingTaskGroup(of: URLRequest.self) { group in
+        return try await withThrowingTaskGroup(
+            of: AuthenticatedInferenceRequest.self
+        ) { group in
             group.addTask {
                 try await preparationTask.value
             }
@@ -992,7 +1397,7 @@ extension OfflineQueueManager {
     private func buildInferenceDownloadRequest(
         scanId: String,
         extracted: ExtractedScanData
-    ) async throws -> URLRequest {
+    ) async throws -> AuthenticatedInferenceRequest {
         let baseTelemetry = extracted.telemetry
 
         // Background replay must never make the scan library wait on WeatherKit or geocoding.
@@ -2396,7 +2801,7 @@ extension OfflineQueueManager {
     /// the response, a naive retry would re-run inference and insert a duplicate row. When
     /// the scan is found server-side, targeted historical sync restores the `LocalScanRecord`
     /// and the queue entry is deleted.
-    private func handleInferenceRetry(
+    func handleInferenceRetry(
         scanId: String,
         generation: UUID?,
         reason: String = "retry",

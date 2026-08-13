@@ -25,7 +25,7 @@ final class KeychainManager {
         }
     }
 
-    enum Accessibility {
+    enum Accessibility: Equatable {
         case afterFirstUnlockThisDeviceOnly
         case whenUnlockedThisDeviceOnly
 
@@ -84,7 +84,9 @@ final class KeychainManager {
             accessibility: accessibility
         )
         if status != errSecSuccess {
-            MerianLog.network.error("Keychain write failed for \(key, privacy: .private): \(status, privacy: .public)")
+            MerianLog.network.error(
+                "Keychain write failed; status=\(status, privacy: .public)."
+            )
         }
         return status == errSecSuccess
     }
@@ -94,7 +96,7 @@ final class KeychainManager {
             return try dataOrThrow(forKey: key)
         } catch {
             MerianLog.network.error(
-                "Keychain read failed for \(key, privacy: .private): \(error.localizedDescription, privacy: .public)"
+                "Keychain read failed; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
             return nil
         }
@@ -133,7 +135,7 @@ final class KeychainManager {
             try removeObjectVerified(forKey: key)
         } catch {
             MerianLog.network.error(
-                "Keychain delete failed for \(key, privacy: .private): \(error.localizedDescription, privacy: .public)"
+                "Keychain delete failed; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
         }
     }

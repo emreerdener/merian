@@ -66,6 +66,18 @@ final class ProfileViewModel {
         supabase.isGuestUser
     }
 
+    var isAuthTransitionInProgress: Bool {
+        supabase.isAuthTransitionInProgress
+    }
+
+    var activeOAuthProvider: AuthTransitionProvider? {
+        guard let kind = supabase.activeAuthTransition?.token.kind,
+              case .oauth(let provider) = kind else {
+            return nil
+        }
+        return provider
+    }
+
     var currentUserId: String? {
         supabase.currentUser?.id.uuidString
     }
@@ -138,6 +150,10 @@ final class ProfileViewModel {
     func fetchGeoprivacy() {
         if !isGuestUser, let user = supabase.currentUser {
             Task {
+                guard let lease = try? supabase.beginUnownedAccountBoundWork(
+                    expectedUserID: user.id
+                ) else { return }
+                defer { supabase.finishAccountBoundWork(lease) }
                 do {
                     // Ephemeral isolated Decodable Struct explicitly preventing globally polluting the namespace models.
                     struct CurrentSettings: Decodable { let default_geoprivacy: String }
@@ -147,9 +163,16 @@ final class ProfileViewModel {
                         .single()
                         .execute()
                         .value
+                    guard !Task.isCancelled,
+                          supabase.isAccountBoundWorkLeaseCurrent(lease) else {
+                        return
+                    }
                     self.defaultGeoprivacy = response.default_geoprivacy
                 } catch {
-                    MerianLog.network.error("Failed to fetch geoprivacy preference: \(error, privacy: .private)")
+                    guard !Task.isCancelled else { return }
+                    MerianLog.network.error(
+                        "Failed to fetch geoprivacy preference; kind=\(MerianLog.errorKind(error), privacy: .public)."
+                    )
                 }
             }
         }
@@ -165,6 +188,11 @@ final class ProfileViewModel {
             return
         }
 
+        guard let lease = try? supabase.beginUnownedAccountBoundWork(
+            expectedUserID: user.id
+        ) else { return }
+        defer { supabase.finishAccountBoundWork(lease) }
+
         isLoadingPublicIdentity = true
         defer { isLoadingPublicIdentity = false }
 
@@ -175,20 +203,23 @@ final class ProfileViewModel {
                 .single()
                 .execute()
                 .value
-            guard !Task.isCancelled, supabase.currentUser?.id == user.id else { return }
+            guard !Task.isCancelled,
+                  supabase.isAccountBoundWorkLeaseCurrent(lease) else { return }
             publicUsername = response.publicUsername
             publicAuthorName = response.publicAuthorName
             publicIdentitySource = response.publicIdentitySource
             publicAvatarUrl = response.publicAvatarUrl
         } catch {
             guard !Task.isCancelled else { return }
-            MerianLog.network.error("Failed to fetch public identity: \(error, privacy: .private)")
+            MerianLog.network.error(
+                "Failed to fetch public identity; kind=\(MerianLog.errorKind(error), privacy: .public)."
+            )
         }
     }
 
     func updatePublicAvatar(_ avatar: PreparedProfileAvatar) async -> Bool {
         guard let userId = currentUserId else {
-            avatarUpdateErrorMessage = "Open a guest session before changing your profile picture."
+            avatarUpdateErrorMessage = "Your signed-out profile is still loading. Try again in a moment."
             return false
         }
 
@@ -245,7 +276,7 @@ final class ProfileViewModel {
 
     func updatePublicUsername(_ username: String) async -> Bool {
         guard let userId = currentUserId else {
-            usernameUpdateErrorMessage = "Sign in or open a guest session first."
+            usernameUpdateErrorMessage = "Your signed-out profile is still loading. Try again in a moment."
             return false
         }
 
@@ -273,7 +304,7 @@ final class ProfileViewModel {
 
     func updatePublicDisplayName(_ displayName: String) async -> Bool {
         guard let userId = currentUserId else {
-            displayNameUpdateErrorMessage = "Open a guest session before changing your name."
+            displayNameUpdateErrorMessage = "Your signed-out profile is still loading. Try again in a moment."
             return false
         }
 

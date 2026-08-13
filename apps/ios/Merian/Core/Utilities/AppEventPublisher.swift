@@ -43,6 +43,9 @@ enum AppEvent: Sendable {
     case exploreVideoMutePreferenceReset
     /// Dispatched after the durable manual Apple-revocation notice is recorded.
     case manualAppleRevocationNoticeRequired
+    /// Dispatched after the identity-free account-deletion recovery marker
+    /// changes. Consumers re-read the durable store; the event carries no ID.
+    case accountDeletionRecoveryStateChanged
 }
 
 /// Producer-only capability. Domain services cannot subscribe through it.

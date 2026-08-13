@@ -67,9 +67,8 @@ Gemini grant, or resolves a revoked all-version provider head at the greatest
 accepted consent revision. The head is selected before disclosure compatibility,
 so a withdrawal created under an older disclosure cannot be hidden by a prior
 current-version grant. During the bounded replacement build window the server
-accepts only
-an explicitly allowlisted complete beta bundle; after owner-only strict
-cutover, only adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini
+accepts only an explicitly allowlisted complete beta bundle; after owner-only
+strict cutover, only adult policy `2026-08-03`, Terms `2026-08-03`, and Gemini
 disclosure `2026-08-04.1` pass. This failure occurs at the common database quota
 boundary before provider dispatch; clients must return the user to the
 disclosure screen rather than retrying the same request in a loop.
@@ -80,13 +79,13 @@ runs before entitlement selection and provider-counter reservation, so this
 included Pro scan or daily Flash allowance. Provider-admission failures remain
 distinct:
 
-| HTTP | Code                            | Meaning and required client behavior |
-| ---: | ------------------------------- | ------------------------------------ |
-|  403 | `ai_consent_required`           | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent. |
-|  402 | `pro_required`                  | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path. |
-|  429 | `ai_quota_daily_exceeded`       | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent. |
-|  429 | `ai_user_rate_limit_exceeded`   | Temporary per-user request-rate protection. Use bounded retry. |
-|  429 | `ai_ip_rate_limit_exceeded`     | Temporary per-network request-rate protection. Use bounded retry. |
+| HTTP | Code                          | Meaning and required client behavior                                                                                                                                                                                                    |
+| ---: | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  403 | `ai_consent_required`         | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                           |
+|  402 | `pro_required`                | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                            |
+|  429 | `ai_quota_daily_exceeded`     | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent. |
+|  429 | `ai_user_rate_limit_exceeded` | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                          |
+|  429 | `ai_ip_rate_limit_exceeded`   | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                       |
 
 ### Scan admission preview RPC
 
@@ -98,11 +97,11 @@ one row. The current iOS caller sets the boolean only for one ordinary image,
 standalone audio clip, or description; video, mixed/multiple evidence, and
 refinement pass false.
 
-| Field | Type | Meaning |
-| ----- | ---- | ------- |
-| `decision` | text | `allowed`, `daily_quota_exhausted`, or `pro_required` |
-| `effective_plan` | text | Prospective `pro_paid`, `pro_trial`, `pro_complimentary`, or `free` plan |
-| `daily_limit` | integer, nullable | Applicable UTC-day limit, or null for an unlimited plan/no applicable policy |
+| Field             | Type              | Meaning                                                                                  |
+| ----------------- | ----------------- | ---------------------------------------------------------------------------------------- |
+| `decision`        | text              | `allowed`, `daily_quota_exhausted`, or `pro_required`                                    |
+| `effective_plan`  | text              | Prospective `pro_paid`, `pro_trial`, `pro_complimentary`, or `free` plan                 |
+| `daily_limit`     | integer, nullable | Applicable UTC-day limit, or null for an unlimited plan/no applicable policy             |
 | `daily_remaining` | integer, nullable | Non-negative remaining allowance after existing usage; zero accompanies daily exhaustion |
 
 This endpoint is an advisory, read-only UX preflight: it does not reserve a
@@ -113,13 +112,13 @@ client opens the existing paywall and preserves staged input for either denial.
 same paywall fallback.
 
 For image imports, iOS runs the preview before presenting the native photo
-picker and before reading/preparing a pending external Photos/Files receipt.
-The boolean reflects the prospective imported media shape: exactly one image
-with no existing evidence/refinement is Flash-eligible; multiple, mixed, or
-refinement evidence is not. A known denial therefore reaches the paywall before
-selection or crop work. Crop confirmation/submission rechecks admission because
-the preview is non-reserving; a concurrent account/quota change can still deny
-that later boundary.
+picker and before reading/preparing a pending external Photos/Files receipt. The
+boolean reflects the prospective imported media shape: exactly one image with no
+existing evidence/refinement is Flash-eligible; multiple, mixed, or refinement
+evidence is not. A known denial therefore reaches the paywall before selection
+or crop work. Crop confirmation/submission rechecks admission because the
+preview is non-reserving; a concurrent account/quota change can still deny that
+later boundary.
 
 The iOS preflight uses an isolated ephemeral session with a two-second request
 and resource deadline, `waitsForConnectivity = false`, no URL cache, and no
@@ -137,11 +136,11 @@ retry feedback. A valid `daily_quota_exhausted` or `pro_required` response still
 opens the paywall. Known-offline Capture follows the same local-meter,
 queue-only rule without attempting the RPC.
 
-Release order is database first, iOS second. The iOS client intentionally
-blocks online processing with retry feedback when this RPC is unavailable for
-any reason other than a classified URL transport failure, so shipping the
-caller before migration `20260809155517` would stop online scans rather than
-bypass admission.
+Release order is database first, iOS second. The iOS client intentionally blocks
+online processing with retry feedback when this RPC is unavailable for any
+reason other than a classified URL transport failure, so shipping the caller
+before migration `20260809155517` would stop online scans rather than bypass
+admission.
 
 Before constructing a first Identify request for a newly onboarded account, an
 iOS client must push pending adult, Terms, and Gemini evidence and verify a
@@ -155,17 +154,17 @@ authorization. The failure and release proof are documented in the
 The iOS client appends mutable provider permission only through these
 authenticated PostgREST RPCs:
 
-- `append_user_ai_consent_event(...)`, fixed to the caller's
-  `google_gemini` stream;
+- `append_user_ai_consent_event(...)`, fixed to the caller's `google_gemini`
+  stream;
 - `append_user_analytics_consent_event(...)`, fixed to the caller's `posthog`
   stream.
 
-Both accept the same parameters: `p_id`, `p_disclosure_version`,
-`p_event_kind`, `p_occurred_at`, `p_disclosure_text`, `p_action_text`,
-`p_platform`, `p_app_version`, `p_app_build`, and the nullable
-`p_causal_parent_id` observed when the local action was created. The caller
-cannot supply a user ID, provider, server timestamp, or revision. Direct table
-inserts and sequence access are denied.
+Both accept the same parameters: `p_id`, `p_disclosure_version`, `p_event_kind`,
+`p_occurred_at`, `p_disclosure_text`, `p_action_text`, `p_platform`,
+`p_app_version`, `p_app_build`, and the nullable `p_causal_parent_id` observed
+when the local action was created. The caller cannot supply a user ID, provider,
+server timestamp, or revision. Direct table inserts and sequence access are
+denied.
 
 Each call returns exactly one row with this shape:
 
@@ -449,19 +448,19 @@ standard-outing items. Each currently curated goal can also include a
 The Edge layer maps broad goals to a reviewed illustrative species without
 changing the database matching rule, batches the corresponding
 `species_dictionary` and `species_reference_images` reads, and returns at most
-one sanitized image per source in `merian` (displayed as Naturebook),
-Wikipedia, then GBIF order. If the normalized cache has no usable candidate for
-a current-level goal, the same database layer uses the shared external
-enrichment helper to obtain public Wikipedia/GBIF candidates. This fallback is
-capped at six active goals, runs at most three provider lookups concurrently,
-inherits the shared 2.5-second request deadline and 256 KiB JSON response
-ceiling, and fails open to the otherwise valid template detail. The iOS client
-treats the resulting source order as a load-failure waterfall. A completed
-goal's private local scan visual replaces its reference inside the same stable
-goal slot; the API still never constructs or returns a private evidence URL.
-`reference_species` is absent from catalog, capture context, Events, public
-profiles, publication/challenge snapshots, and Explore payloads. Start, stop,
-reset, and resume responses use this same detail shape.
+one sanitized image per source in `merian` (displayed as Naturebook), Wikipedia,
+then GBIF order. If the normalized cache has no usable candidate for a
+current-level goal, the same database layer uses the shared external enrichment
+helper to obtain public Wikipedia/GBIF candidates. This fallback is capped at
+six active goals, runs at most three provider lookups concurrently, inherits the
+shared 2.5-second request deadline and 256 KiB JSON response ceiling, and fails
+open to the otherwise valid template detail. The iOS client treats the resulting
+source order as a load-failure waterfall. A completed goal's private local scan
+visual replaces its reference inside the same stable goal slot; the API still
+never constructs or returns a private evidence URL. `reference_species` is
+absent from catalog, capture context, Events, public profiles,
+publication/challenge snapshots, and Explore payloads. Start, stop, reset, and
+resume responses use this same detail shape.
 
 For template detail only, a published outing's progress includes:
 
@@ -1312,10 +1311,10 @@ promotion or cleanup. Image roles may be `display`, `thumbnail`, or
 rejects unsanitized filenames, duplicate filenames, invalid `mediaKind` values,
 invalid role/kind combinations, content-type/kind mismatches, empty media, and
 oversized media before signing. Every manifest requires a positive integer
-`sizeBytes`; legacy `fileNames`, missing sizes, top-level arrays/non-objects, and
-other old request shapes fail with stable `400 size_bytes_required`. Each URL
-response includes `requiredHeaders` with the exact `Content-Type` and decimal
-`Content-Length`. Signing uses `allHeaders: true`, binding the exact
+`sizeBytes`; legacy `fileNames`, missing sizes, top-level arrays/non-objects,
+and other old request shapes fail with stable `400 size_bytes_required`. Each
+URL response includes `requiredHeaders` with the exact `Content-Type` and
+decimal `Content-Length`. Signing uses `allHeaders: true`, binding the exact
 `content-length;content-type;host` header set. Every iOS data, file, avatar,
 repair, restore, foreground, and background PUT applies the returned map. A
 file-backed upload retains its signing-time size, re-stats immediately before
@@ -1999,11 +1998,11 @@ the last failed offset when present, otherwise the last successfully imported
 page offset. For each successfully fetched page, the worker normalizes the raw
 GBIF rows, calls `upsert_gbif_community_taxa(...)` only when normalized taxa
 remain, and annotates any created `taxonomy_import_runs` row as
-`scope = "gbif_bounded_birds"`. It then checkpoints the raw page's
-`next_offset` even when every result normalized out. A live run stops only at
-GBIF `endOfRecords`, a raw empty page, or the requested page count; it never
-stops merely because the normalized page is empty. After a run imports at least
-one row, the worker refreshes coverage once when `refresh_coverage = true`.
+`scope = "gbif_bounded_birds"`. It then checkpoints the raw page's `next_offset`
+even when every result normalized out. A live run stops only at GBIF
+`endOfRecords`, a raw empty page, or the requested page count; it never stops
+merely because the normalized page is empty. After a run imports at least one
+row, the worker refreshes coverage once when `refresh_coverage = true`.
 `dry_run = true` performs no database writes while advancing the cursor in the
 response as if each fetched page had been checkpointed.
 
@@ -2048,17 +2047,16 @@ Before provider dispatch, `reserve_ai_quota` first verifies current account
 consent, then atomically verifies entitlement, selects the operation's database
 policy/model, and consumes daily/user/IP counters. A consent rejection creates
 no provider reservation or entitlement consumption. Reusing a key for a
-`reserved` or `committed` attempt does not consume
-or dispatch again: the API returns `409 ai_request_in_progress` or
-`409 ai_request_already_completed`. A previously explicit `refunded` key may be
-reserved again. `reserved` attempts carry a ten-minute lease; abandoned leases
-are automatically refunded, and every retry receives a new fencing token so a
-late settlement from an earlier attempt is rejected. A provider error changes
-`committed` to `failed`: the original counters remain charged, but the same key
-may begin a newly metered attempt. This reservation protects cost idempotency;
-by itself it does not promise to replay a prior HTTP response body. The
-scan-specific durable replay contract below absorbs these quota conflicts when
-safe completion evidence exists.
+`reserved` or `committed` attempt does not consume or dispatch again: the API
+returns `409 ai_request_in_progress` or `409 ai_request_already_completed`. A
+previously explicit `refunded` key may be reserved again. `reserved` attempts
+carry a ten-minute lease; abandoned leases are automatically refunded, and every
+retry receives a new fencing token so a late settlement from an earlier attempt
+is rejected. A provider error changes `committed` to `failed`: the original
+counters remain charged, but the same key may begin a newly metered attempt.
+This reservation protects cost idempotency; by itself it does not promise to
+replay a prior HTTP response body. The scan-specific durable replay contract
+below absorbs these quota conflicts when safe completion evidence exists.
 
 Terminal reservations ordinarily prune after 30 days. Exact failed/committed
 normal and replay scan reservations remain retained as chronological authority
@@ -2637,17 +2635,17 @@ only that rejected queue generation, presents the terminal recapture guidance,
 and does not count the outcome against the network circuit. All other Gemini
 errors return `503` so the offline queue retries with persisted
 `queueNextRetryAt` / `OfflineJobRecord.nextRunAt` metadata. For
-`scan_persistence_failed`, an
-owner-row status probe wins first. If a readable exact-owner probe proves no
-scan row exists, the server transitions the committed provider reservation to
-`failed` so the stable request UUID can reserve a fenced metered retry, while
-iOS clears potentially consumed staged keys and performs a fresh upload from
-durable local files. If the insert outcome cannot be proved, quota and media
-remain fenced and intact until the next owner-row recovery. A post-insert
-failure retains the committed reservation because owner-row reconstruction is
-the no-provider-call recovery surface. Malformed paid-provider output is 503,
-not 422, and its ingestion ledger remains `failed_retryable` with a bounded
-`retry_after`; the linked hold remains held for same-UUID recovery.
+`scan_persistence_failed`, an owner-row status probe wins first. If a readable
+exact-owner probe proves no scan row exists, the server transitions the
+committed provider reservation to `failed` so the stable request UUID can
+reserve a fenced metered retry, while iOS clears potentially consumed staged
+keys and performs a fresh upload from durable local files. If the insert outcome
+cannot be proved, quota and media remain fenced and intact until the next
+owner-row recovery. A post-insert failure retains the committed reservation
+because owner-row reconstruction is the no-provider-call recovery surface.
+Malformed paid-provider output is 503, not 422, and its ingestion ledger remains
+`failed_retryable` with a bounded `retry_after`; the linked hold remains held
+for same-UUID recovery.
 
 Migration `20260728232000_ensure_scan_user_profile.sql` must precede deployment
 of all four scan-producing Edge bundles. It preserves the mandatory Explore
@@ -4558,9 +4556,9 @@ Rules:
 - Protected brand namespaces (`explore`, `merian`, `naturebook`, and
   `naturebookearth`), official/system roles such as `admin`, `security`,
   `support`, and `verified`, and exact brand-role combinations in either order
-  are rejected with `400`. The policy is not prefix-based, so an ordinary
-  handle such as `naturebook_fan` remains valid. Usernames never grant
-  administrative authorization. The complete current groups are maintained in
+  are rejected with `400`. The policy is not prefix-based, so an ordinary handle
+  such as `naturebook_fan` remains valid. Usernames never grant administrative
+  authorization. The complete current groups are maintained in
   [Public Usernames](../features-and-hardware/21-public-usernames.md#reserved-name-policy).
 - Duplicate normalized usernames return `409`.
 - Alias-source users also have `public_author_name` updated to the username so
@@ -5612,13 +5610,13 @@ JWT claims. The `user_id` in the request body is ignored for auth purposes.
 
 ### Error Responses
 
-| Status | Body                                                                                               | Meaning                                                                            |
-| ------ | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `400`  | `{ "error": "At least one media element or description is required" }`                             | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
+| Status | Body                                                                                                                              | Meaning                                                                            |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `400`  | `{ "error": "At least one media element or description is required" }`                                                            | No image, audio, or non-empty `observation_contexts[*].freeText` text was provided |
 | `400`  | `{ "error": "We couldn’t process this observation. Please try a different photo or recording.", "code": "observation_rejected" }` | Permanent Gemini safety / policy failure                                           |
-| `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                          | Gemini returned malformed or structurally invalid output; delivery may retry       |
-| `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }` | Final server-enriched payload violated the wire contract                           |
-| `503`  | `{ "error": "AI processing error. Please try again." }`                                            | Transient Gemini failure                                                           |
+| `503`  | `{ "error": "Processing Error: Malformed AI response." }`                                                                         | Gemini returned malformed or structurally invalid output; delivery may retry       |
+| `502`  | `{ "error": "AI response validation failed. Please retry.", "code": "identify_response_invalid" }`                                | Final server-enriched payload violated the wire contract                           |
+| `503`  | `{ "error": "AI processing error. Please try again." }`                                                                           | Transient Gemini failure                                                           |
 
 ---
 
@@ -6316,10 +6314,10 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    reconciliation when one device retains a stale UUID while preventing a
    service-role write from reassigning it. Ownership is resolved from the JWT;
    collection JSON never supplies `user_id`.
-4. **Delete IDOR Guard**: `deleteCollections` scopes the DELETE
-   query with `.eq("user_id", userId)` as a defence-in-depth layer.
-   `deleteCollections` now throws on database error rather than logging
-   silently, preventing false-success `200` responses when the deletion fails.
+4. **Delete IDOR Guard**: `deleteCollections` scopes the DELETE query with
+   `.eq("user_id", userId)` as a defence-in-depth layer. `deleteCollections` now
+   throws on database error rather than logging silently, preventing
+   false-success `200` responses when the deletion fails.
 5. **Owner-Joined Membership Insertion**: Applying `collection_scans`
    relationships in bounded set-based RPC chunks avoids N+1 query timeouts.
    `insert_owned_collection_scans(p_user_id, p_rows)` joins both the requested
@@ -6328,19 +6326,19 @@ and `collection_scans` schemas, handling diffing and missing FK references.
    skipped, leaving the local relationship for the next sync pulse. The RPC
    cannot create a cross-owner membership, and a database trigger independently
    rejects direct writes whose parent owners differ. Existing memberships are
-   hydrated for all accepted owner collections
-   with one keyset-paginated `.in("collection_id", ownedIds)` query ordered by
-   `(collection_id, scan_id)`, rather than one pagination loop per collection.
-   Each bounded page resumes after its last composite primary key instead of
-   paying progressively higher range/OFFSET costs. This keeps latency sublinear
-   for users with many collections while bounding each page in V8 memory.
-6. **RLS and Direct-Grant Boundary**: Authenticated RLS separates
-   own-collection select/delete from own-collection-plus-own-scan insert;
-   membership updates are unsupported. `service_role` has no table-wide
-   collection UPDATE and may directly update only `name` and `created_at`.
-   Ghost merge reparenting stays behind its existing privileged merge function.
-   Both owner RPCs are invoker functions with empty search paths and explicit
-   `service_role`-only execute grants.
+   hydrated for all accepted owner collections with one keyset-paginated
+   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`,
+   rather than one pagination loop per collection. Each bounded page resumes
+   after its last composite primary key instead of paying progressively higher
+   range/OFFSET costs. This keeps latency sublinear for users with many
+   collections while bounding each page in V8 memory.
+6. **RLS and Direct-Grant Boundary**: Authenticated RLS separates own-collection
+   select/delete from own-collection-plus-own-scan insert; membership updates
+   are unsupported. `service_role` has no table-wide collection UPDATE and may
+   directly update only `name` and `created_at`. Ghost merge reparenting stays
+   behind its existing privileged merge function. Both owner RPCs are invoker
+   functions with empty search paths and explicit `service_role`-only execute
+   grants.
 7. **Array-Bound Diffing Deletes**: Identifies obsolete collections by running
    `.select()` across the user's DB rows, building a `toDelete` array in memory
    and passing it to `.delete().in("id", toDelete)`. This avoids
@@ -6564,45 +6562,47 @@ endpoint rounds `gps_lat_public` coordinates to 11km tiles.
 ## Deno `/resolve-purchase-principal` Edge Node
 
 Additive authenticated resolver for the stable StoreKit purchase identity. The
-route accepts `POST` only, limits JSON to 2 KiB, sends `Cache-Control: no-store`,
-and rejects unknown or missing fields. `config.toml` uses `verify_jwt = false`
-only to keep JWT validation inside the shared handler; `withEdgeHandler` still
-requires a live user from `supabaseAdmin.auth.getUser()`.
+route accepts `POST` only, limits JSON to 2 KiB, sends
+`Cache-Control: no-store`, and rejects unknown or missing fields. `config.toml`
+uses `verify_jwt = false` only to keep JWT validation inside the shared handler;
+`withEdgeHandler` still requires a live user from
+`supabaseAdmin.auth.getUser()`.
 
-Exact protocol-v1 request:
+The current iOS candidate sends the exact protocol-v2 request. Protocol 1
+remains accepted only by the additive server while rollout is in the legacy
+compatibility window:
 
 ```json
 {
   "operation": "resolve",
   "installation_capability": "43-character base64url value",
-  "client_protocol": 1,
+  "client_protocol": 2,
   "binding_intent_generation": 42
 }
 ```
 
 The installation capability is 256 random bits generated with
-`SecRandomCopyBytes`, written to
-`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, and read back before first use.
-It authorizes possession of one installation purchase identity; it is not a
-caller-selected user or provider ID. Edge hashes it with SHA-256 before any RPC,
-passes only the authenticated user's ID, and never logs either value.
-`binding_intent_generation` is a positive, device-persisted monotonic counter.
-iOS advances and read-verifies it before each resolver request. Postgres accepts
-only a value newer than the latest value for that capability, and completion
-must present that exact accepted value. A delayed request from an older Auth
-session therefore cannot overwrite a newer binding even if its HTTP work
-finishes last. The maximum is JavaScript's exact-integer limit
-(`9007199254740991`) across Swift, Edge, and Postgres.
+`SecRandomCopyBytes`, written to `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`,
+and read back before first use. It authorizes possession of one installation
+purchase identity; it is not a caller-selected user or provider ID. Edge hashes
+it with SHA-256 before any RPC, passes only the authenticated user's ID, and
+never logs either value. `binding_intent_generation` is a positive,
+device-persisted monotonic counter. iOS advances and read-verifies it before
+each resolver request. Postgres accepts only a value newer than the latest value
+for that capability, and completion must present that exact accepted value. A
+delayed request from an older Auth session therefore cannot overwrite a newer
+binding even if its HTTP work finishes last. The maximum is JavaScript's
+exact-integer limit (`9007199254740991`) across Swift, Edge, and Postgres.
 
-The resolver first calls `begin_purchase_principal_resolution`. While rollout
-is disabled—or when the client protocol is below the server minimum—a new or
+The resolver first calls `begin_purchase_principal_resolution`. While rollout is
+disabled—or when the client protocol is below the server minimum—a new or
 pending capability receives the successful compatibility response:
 
 ```json
 {
   "success": true,
   "mode": "legacy",
-  "minimum_client_protocol": 1
+  "minimum_client_protocol": 2
 }
 ```
 
@@ -6612,19 +6612,18 @@ configuration, timeout, and other service failures remain fail-closed. That
 missing-route fallback is available only before the exact device capability has
 ever activated stable mode. iOS persists a device-only activation fingerprint;
 after activation, both `404` and `mode: legacy` fail closed without changing the
-RevenueCat identity.
-An already active capability never falls back to an Auth-UUID customer during
-rollback: it continues to receive `mode: stable` and may rebind. If that active
-principal requires a newer protocol, the endpoint fails closed with `426`
-instead of rotating provider identity.
+RevenueCat identity. An already active capability never falls back to an
+Auth-UUID customer during rollback: it continues to receive `mode: stable` and
+may rebind. If that active principal requires a newer protocol, the endpoint
+fails closed with `426` instead of rotating provider identity.
 
 In stable mode, begin returns a server-owned pending or active principal. Edge
-fetches authoritative RevenueCat v1 CustomerInfo for that immutable App User
-ID, rejects stale/future snapshots, derives StoreKit state only from explicit
+fetches authoritative RevenueCat v1 CustomerInfo for that immutable App User ID,
+rejects stale/future snapshots, derives StoreKit state only from explicit
 `store: app_store` records, and derives account-grant compatibility state only
 from explicit `store: promotional` records. The service-only completion RPC
-atomically stores those separate states and binds the principal to the exact
-JWT user. A detached `pro_week` history record is admitted on first adoption only
+atomically stores those separate states and binds the principal to the exact JWT
+user. A detached `pro_week` history record is admitted on first adoption only
 when the existing Supabase Pro projection has the exact same finite expiry;
 Postgres rechecks that evidence under the locked user row before activation. An
 active principal reuses its durable pass-policy flag instead of inferring from
@@ -6638,39 +6637,100 @@ RevenueCat history. Success is:
   "revenuecat_app_user_id": "server-owned custom ID",
   "binding_generation": 2,
   "account_grants_allowed": false,
-  "minimum_client_protocol": 1
+  "minimum_client_protocol": 2
 }
 ```
 
-iOS must compare all stable fields with its current Auth-event generation
-before changing RevenueCat. `RevenueCatManager` serializes SDK identity
-mutations, binds readiness to the returned provider ID, Auth UUID, and binding
-generation, and writes no email, display name, avatar, username, or Auth UUID
-attribute to a stable customer. When a legacy customer is first adopted, iOS
-deletes those legacy attributes and synchronizes the deletion before declaring
-the stable identity ready. Ordinary stable-mode sign-out, anonymous Auth
-rotation, Apple continuation, and Google continuation resolve the same
-principal and do not call `syncPurchases()` or a RevenueCat customer-transfer
-API. The legacy sign-out proof remains unchanged while mode is `legacy`.
+iOS must compare all stable fields with its current Auth-event generation before
+changing RevenueCat. `RevenueCatManager` serializes SDK identity mutations,
+binds readiness to the returned provider ID, Auth UUID, and binding generation,
+and writes no email, display name, avatar, username, or Auth UUID attribute to a
+stable customer. When a legacy customer is first adopted, iOS deletes those
+legacy attributes and synchronizes the deletion before declaring the stable
+identity ready. Ordinary stable-mode sign-out, anonymous Auth rotation, Apple
+continuation, and Google continuation resolve the same principal and do not call
+`syncPurchases()` or a RevenueCat customer-transfer API. The legacy sign-out
+proof remains unchanged while mode is `legacy`.
 
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
-| HTTP | Code | Meaning / client action |
-| ---- | ---- | ----------------------- |
-| 400/413 | `invalid_request` | Malformed, oversized, non-exact, or invalid capability payload |
-| 401 | shared auth error | Missing, expired, invalid, or non-live JWT |
-| 409 | `purchase_principal_capability_revoked` | Terminal device capability; block paid mutations and require reviewed recovery |
-| 426 | `purchase_principal_client_upgrade_required` | Active stable identity requires a newer supported protocol; retain its provider identity and require an app update |
-| 503 | `purchase_principal_rollout_changed` | Mode changed between begin and completion; retry resolution from the current session |
-| 503 | `purchase_principal_binding_intent_stale` | An older Auth request lost the monotonic ordering race; ignore it and let the newest current-session resolution finish |
-| 503 | `purchase_principal_entitlement_projection_changed` | The pass-adoption projection changed between read and locked completion; retry from current authoritative state |
-| 503 | `purchase_principal_account_deletion_in_progress` | Account deletion won the lifecycle race; do not mutate provider identity and retry only while the current Auth session remains live |
-| 503 | `purchase_principal_user_not_available` | Auth/profile lifecycle race; retain the session and retry |
-| 503 | `purchase_principal_unavailable` | Provider, secret, timeout, lock, or database dependency unavailable; retain the session and retry |
+| HTTP    | Code                                                | Meaning / client action                                                                                                             |
+| ------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 400/413 | `invalid_request`                                   | Malformed, oversized, non-exact, or invalid capability payload                                                                      |
+| 401     | shared auth error                                   | Missing, expired, invalid, or non-live JWT                                                                                          |
+| 409     | `purchase_principal_capability_revoked`             | Terminal device capability; block paid mutations and require reviewed recovery                                                      |
+| 426     | `purchase_principal_client_upgrade_required`        | Active stable identity requires a newer supported protocol; retain its provider identity and require an app update                  |
+| 503     | `purchase_principal_rollout_changed`                | Mode changed between begin and completion; retry resolution from the current session                                                |
+| 503     | `purchase_principal_binding_intent_stale`           | An older Auth request lost the monotonic ordering race; ignore it and let the newest current-session resolution finish              |
+| 503     | `purchase_principal_entitlement_projection_changed` | The pass-adoption projection changed between read and locked completion; retry from current authoritative state                     |
+| 503     | `purchase_principal_account_deletion_in_progress`   | Account deletion won the lifecycle race; do not mutate provider identity and retry only while the current Auth session remains live |
+| 503     | `purchase_principal_user_not_available`             | Auth/profile lifecycle race; retain the session and retry                                                                           |
+| 503     | `purchase_principal_unavailable`                    | Provider, secret, timeout, lock, or database dependency unavailable; retain the session and retry                                   |
 
 The checked-in endpoint is not a rollout authorization. The database defaults to
 `legacy` / `dual_read`; stable activation requires the release runbook's exact-
 SHA, database replay, provider, old-client, monitoring, and account-grant gates.
+
+### Owner-only purchase identity rollout control
+
+This is an operator/database contract, not an Edge or client API. Migration
+`20260813040000_add_purchase_identity_rollout_control.sql` creates the private
+`purchase_identity_rollout_operations` ledger and
+`apply_purchase_identity_rollout_operation(...)`. The routine accepts one
+versioned operation ID, the fixed production environment/project reference, the
+exact live PostgreSQL system identifier, one action, exact 40-hex source SHA,
+evidence, approval, and approved-plan SHA-256 digests, exact expected
+modes/protocol, target protocol, and an optional rollback reference. It is
+executable only by the database owner and changes exactly one rollout axis in
+the same transaction that records its identity-free receipt.
+
+Operators use `services/supabase/scripts/control_purchase_identity_rollout.ts`.
+The default command is read-only and writes a canonical plan plus digest. It
+verifies that the clean checkout is at the supplied SHA, binds the database URL
+to the checked-in production project reference, records the live database system
+identifier, and rejects evidence older than 24 hours or more than five minutes
+in the future. Artifact URLs and pass/fail values remain explicit
+trusted-operator attestations; the tool does not authenticate external CI,
+device, or RevenueCat systems. Apply requires `--apply`, the exact
+`--approved-plan-sha256`, the unchanged dry-run JSON through
+`--approved-plan-json`, and
+`MERIAN_PURCHASE_IDENTITY_ROLLOUT_APPLY_CONFIRMATION` equal to
+`<target>:<action>:<source-sha>:<plan-sha256>`. Evidence must prove the
+exact-SHA candidate/deploy, disposable DB and iOS gates, clean Apple and Google
+devices, RevenueCat transfer setting and product matrix, zero anonymous provider
+IDs, zero stable-rotation sync/transfer calls, old-client compatibility,
+attribute scrub, required health, and zero projection divergence. Account-grant
+authority also requires issuance cutover and rollback rehearsal.
+
+`enable_stable`, `rollback_stable`, `enable_authoritative`, and
+`rollback_authoritative` are distinct operations. A rollback names the unique,
+unused enable receipt it reverses. The tool and ledger enforce evidence; they do
+not confer permission. Production application requires **separate explicit
+authorization** naming the operation and target. Candidate/deploy workflows must
+never invoke the mutating routine or the tool's apply path.
+
+### Owner-controlled account-access issuance
+
+This is also an operator/database contract, not a public API. New beta,
+promotion, and support access is issued by
+`services/supabase/scripts/grant_account_access_entitlements.ts`; the legacy
+RevenueCat beta utility is permanently dry-run-only and rejects apply. The new
+tool accepts reviewed user/cohort/Auth-audit artifacts, a finite expiry, grant
+kind, operation UUID, clean source SHA, target, and approval digest. Its dry run
+reads the live rollout modes and database system identity and emits only
+aggregate counts and SHA-256 digests—never account IDs.
+
+Apply requires the unchanged dry-run JSON, exact plan digest, and
+`MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION` equal to
+`<target>:account-access-grant:<source-sha>:<operation-id>:<plan-sha256>`.
+Under one serializable transaction it revalidates the live plan, invokes the
+existing service-guarded `record_account_access_grant(...)` routine for every
+sorted account, and records `internal.account_access_grant_operations`. The
+receipt is immutable and identity-free. Exact replay after a lost response is a
+no-op; a changed cohort, grant, database, rollout mode, or reused conflicting
+operation ID fails closed. This tool never calls RevenueCat, and running it
+against production still requires separate explicit authorization naming the
+target and operation.
 
 ---
 
@@ -6679,9 +6739,9 @@ SHA, database replay, provider, old-client, monitoring, and account-grant gates.
 Preserves StoreKit-backed access when a linked account explicitly signs out to
 one fresh anonymous Supabase account. The route accepts `POST` only, limits JSON
 to 2 KiB, and never accepts a source or destination UUID. `config.toml` uses
-`verify_jwt = false` so the gateway does not couple this route to one JWT signing
-scheme; `withEdgeHandler` still requires the Authorization header and resolves
-the live Supabase Auth user before the handler runs.
+`verify_jwt = false` so the gateway does not couple this route to one JWT
+signing scheme; `withEdgeHandler` still requires the Authorization header and
+resolves the live Supabase Auth user before the handler runs.
 
 ### Prepare
 
@@ -6712,10 +6772,9 @@ to the service-role issue RPC. The `201` response is `Cache-Control: no-store`:
 }
 ```
 
-iOS must persist that proof with
-`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` and verify the write before
-closing the linked session. A prepare or Keychain failure leaves that session
-unchanged.
+iOS must persist that proof with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+and verify the write before closing the linked session. A prepare or Keychain
+failure leaves that session unchanged.
 
 ### Bind and cancel
 
@@ -6731,9 +6790,9 @@ Bind requires an anonymous JWT. The database derives the destination from
 `auth.uid()`, requires it to have been created no earlier than the proof, locks
 source and destination Auth rows in UUID order, rejects an active account-
 deletion job for either identity, and permits exactly one destination.
-Same-destination replay is idempotent. The capability
-expiry limits only the initial bind; a bound proof remains completable after
-that timestamp because the receipt may already have moved.
+Same-destination replay is idempotent. The capability expiry limits only the
+initial bind; a bound proof remains completable after that timestamp because the
+receipt may already have moved.
 
 `operation: "cancel"` uses the same proof fields and is allowed only while the
 restored linked source still owns an unbound `prepared` handoff. Cancellation is
@@ -6741,32 +6800,33 @@ same-source idempotent. Bound or completed handoffs fail closed and cannot be
 discarded.
 
 Both operations return `200`, `success`, the same `handoff_id`, their operation
-timestamp, and an `already_bound` or `already_cancelled` replay flag.
-Bind also returns the database-derived `destination_user_id`; iOS must compare
-it with a freshly read anonymous session before any RevenueCat identity or
-receipt mutation.
+timestamp, and an `already_bound` or `already_cancelled` replay flag. Bind also
+returns the database-derived `destination_user_id`; iOS must compare it with a
+freshly read anonymous session before any RevenueCat identity or receipt
+mutation.
 
 ### Complete
 
 After bind, iOS links RevenueCat to the anonymous account's canonical uppercase
 UUID and calls `Purchases.syncPurchases()`. It then submits the same proof with
 `operation: "complete"`. The handler independently fetches destination
-CustomerInfo and requires its StoreKit horizon to cover the prepared horizon.
-If a finite prepared horizon elapsed while completion was pending, it also
+CustomerInfo and requires its StoreKit horizon to cover the prepared horizon. If
+a finite prepared horizon elapsed while completion was pending, it also
 refreshes source CustomerInfo: a source renewal must be covered by the
 destination, while a source that is now free permits completion as free. The
 service-only completion RPC records the authenticated Edge boundary's
-authoritative destination snapshot and exact verified StoreKit tier/expiry in
-an idempotent receipt and makes the canonical source and destination
-reconciliation rows due; clients cannot mark a handoff verified directly. It
-never changes profile ownership, deletes the source, or grants entitlement. The
-service boundary then claims only the destination queue row and applies the
-prepared StoreKit horizon, or the exact destination state after that guarded
+authoritative destination snapshot and exact verified StoreKit tier/expiry in an
+idempotent receipt and makes the canonical source and destination reconciliation
+rows due; clients cannot mark a handoff verified directly. It never changes
+profile ownership, deletes the source, or grants entitlement. The service
+boundary then claims only the destination queue row and applies the prepared
+StoreKit horizon, or the exact destination state after that guarded
 natural-expiry check, through the existing lease-fenced reconciliation RPC.
 Detached pass history is excluded after expiry because passes cannot renew and
 purchase mutations remain fenced. If the response is lost, replay uses the
-immutable attested state and snapshot instead of depending on later mutable CustomerInfo; newer webhook/reconciliation
-watermarks still prevent stale access from being restored.
+immutable attested state and snapshot instead of depending on later mutable
+CustomerInfo; newer webhook/reconciliation watermarks still prevent stale access
+from being restored.
 
 Successful response: HTTP 200.
 
@@ -6786,24 +6846,24 @@ purchase/restore/redeem until relaunch or retry completes it.
 
 Error bodies use `{ "code": "...", "error": "..." }`.
 
-| HTTP | Code | Meaning / client action |
-| ---- | ---- | ----------------------- |
-| 400/413 | `invalid_request` | Malformed, oversized, or non-exact payload; do not retry unchanged |
-| 401 | shared auth error | Missing, invalid, expired, or non-live user JWT |
-| 403 | `linked_session_required` | Prepare/cancel requires the linked source |
-| 403 | `anonymous_session_required` | Bind/complete requires the anonymous destination |
-| 403 | `handoff_forbidden` | Authenticated caller does not own this transition |
-| 404 | `handoff_invalid` | Unknown, superseded, or wrong-destination proof; remove only this terminal proof |
-| 409 | `handoff_not_cancelable` | Receipt continuity is already bound; retain and complete on that destination |
-| 410 | `handoff_expired` | Unbound capability expired; remove the terminal proof |
-| 503 | `purchase_projection_pending` | Source pass/projection evidence is not yet safe; leave the linked session unchanged |
-| 503 | `purchase_transfer_pending` | Destination receipt state does not cover the active prepared horizon or a current source renewal; retain and retry |
-| 503 | `purchase_continuity_unavailable` / `handoff_temporarily_unavailable` | Provider, configuration, lock, or database dependency unavailable; retain and retry |
+| HTTP    | Code                                                                  | Meaning / client action                                                                                            |
+| ------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 400/413 | `invalid_request`                                                     | Malformed, oversized, or non-exact payload; do not retry unchanged                                                 |
+| 401     | shared auth error                                                     | Missing, invalid, expired, or non-live user JWT                                                                    |
+| 403     | `linked_session_required`                                             | Prepare/cancel requires the linked source                                                                          |
+| 403     | `anonymous_session_required`                                          | Bind/complete requires the anonymous destination                                                                   |
+| 403     | `handoff_forbidden`                                                   | Authenticated caller does not own this transition                                                                  |
+| 404     | `handoff_invalid`                                                     | Unknown, superseded, or wrong-destination proof; remove only this terminal proof                                   |
+| 409     | `handoff_not_cancelable`                                              | Receipt continuity is already bound; retain and complete on that destination                                       |
+| 410     | `handoff_expired`                                                     | Unbound capability expired; remove the terminal proof                                                              |
+| 503     | `purchase_projection_pending`                                         | Source pass/projection evidence is not yet safe; leave the linked session unchanged                                |
+| 503     | `purchase_transfer_pending`                                           | Destination receipt state does not cover the active prepared horizon or a current source renewal; retain and retry |
+| 503     | `purchase_continuity_unavailable` / `handoff_temporarily_unavailable` | Provider, configuration, lock, or database dependency unavailable; retain and retry                                |
 
 The RevenueCat project must use **Transfer to new App User ID** restore behavior
 before a client with this route is released. This route transfers store receipt
-access only. Promotional and beta grants stay on the linked source account.
-An issued proof remains bound to the legacy destination UUID even if purchase-
+access only. Promotional and beta grants stay on the linked source account. An
+issued proof remains bound to the legacy destination UUID even if purchase-
 principal rollout mode changes before completion. The client must finish this
 route on that exact RevenueCat UUID and may adopt a stable principal only after
 the device proof is durably cleared.
@@ -6904,7 +6964,7 @@ Successful response: HTTP 200.
   "target_user_id": "UUID",
   "merged_at": "RFC 3339 timestamp",
   "already_merged": false,
-  "message": "Guest profile securely upgraded."
+  "message": "Signed-out profile securely upgraded."
 }
 ```
 
@@ -6932,9 +6992,9 @@ Error bodies use `{ "code": "...", "error": "..." }`.
 `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow`
 are internal database diagnostics, not public response codes. Both must map to
 HTTP 503 `merge_temporarily_unavailable` and the message “Account upgrade is
-temporarily unavailable. Your guest data is unchanged.” This mapping is a
-release gate: the current schema-aware hardening must not be deployed until the
-Edge mapper and its unit test cover both diagnostics.
+temporarily unavailable. Your signed-out profile data is unchanged.” This
+mapping is a release gate: the current schema-aware hardening must not be
+deployed until the Edge mapper and its unit test cover both diagnostics.
 
 `{"operation":"refresh_identity"}` is the separate permanent-session operation
 for refreshing public provider identity when no merge is required. It returns
@@ -6948,7 +7008,9 @@ function uses `verify_jwt = false` only so that server credential can reach
 Deno, then performs an exact timing-safe comparison. It leases at most 100
 merged receipts, deletes the obsolete anonymous Auth users, and records each
 claim-token-bound outcome. HTTP 404 and exact Auth code `user_not_found` are
-idempotent cleanup success.
+idempotent cleanup success. Its response contains aggregate counts and bounded
+machine failure codes only; receipt, Auth-user, RevenueCat, and raw
+provider/database identities are never returned or logged.
 
 ---
 
@@ -6984,12 +7046,12 @@ Success is `200`:
 ```
 
 Repeating the same registration UUID returns the same success without consuming
-the code again. A successful exchange followed by failed persistence triggers
-an immediate compensating Apple revocation. Validation/expired-authorization
+the code again. A successful exchange followed by failed persistence triggers an
+immediate compensating Apple revocation. Validation/expired-authorization
 failures are bounded `4xx`; dependency, configuration, or persistence failures
 are retryable `503`. Public responses and logs never contain an Apple code,
-identity token, refresh token, client secret, or provider response body.
-The hosted-secret, rotation, rollout, and production evidence requirements are
+identity token, refresh token, client secret, or provider response body. The
+hosted-secret, rotation, rollout, and production evidence requirements are
 normative in the
 [Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md).
 
@@ -7006,16 +7068,70 @@ The exact retained-versus-cleared field boundary is normative in the
 
 ### Request Payload
 
-No JSON body is required. The endpoint operates from the JWT identity alone to
-prevent IDOR vulnerabilities.
+Legacy clients send either the exact empty object or one exact capability
+field:
+
+```json
+{}
+```
+
+```json
+{
+  "recovery_capability": "43-character-base64url-device-proof"
+}
+```
+
+The capability is the base64url encoding of 32 random device-generated bytes.
+Protocol-v2 clients first send a non-destructive preparation with two
+independent proofs:
+
+```json
+{
+  "protocol_version": 2,
+  "operation": "prepare",
+  "recovery_capability": "43-character-base64url-recovery-proof",
+  "acknowledgement_capability": "43-character-base64url-acknowledgement-proof"
+}
+```
+
+Only after that response is durably recorded locally do they send destructive
+commit with the same recovery proof:
+
+```json
+{
+  "protocol_version": 2,
+  "operation": "commit",
+  "recovery_capability": "43-character-base64url-recovery-proof"
+}
+```
+
+The two v2 values must be different. Recovery can inspect/cancel a preparation;
+acknowledgement can only retire a committed receipt after verified device
+cleanup. Neither selects an account.
+Unknown keys, padding, malformed lengths, arrays, and nonobjects return
+`400 invalid_request`. The endpoint still derives the deletion target only from
+the verified JWT identity; the capability authorizes later recovery and never
+selects a user, job, provider, or purchase principal.
 
 ### Authentication Enforcement
 
 1. Calls `supabaseAdmin.auth.getUser()` to extract the authenticated user's UUID
    from the `Authorization: Bearer` header.
-2. Calls service-only `request_account_deletion(user.id)`. This inserts or
-   returns the active private job before any destructive work and records the
-   Apple provider disposition plus legacy manual-fallback boolean.
+2. Hashes supplied capabilities with SHA-256. V1 uses the legacy raw-value
+   namespace; v2 prefixes recovery and acknowledgement with distinct protocol
+   domains before hashing, so neither proof can be replayed through v1 or the
+   other v2 operation. Protocol-v2 `prepare` calls
+   `prepare_account_deletion_recovery_v2(user.id, recovery_hash,
+   acknowledgement_hash)` and cannot create a deletion job. After local
+   prepared-state persistence, v2 `commit` calls
+   `request_account_deletion_with_recovery_v2(user.id, recovery_hash)`; the
+   database requires the preparation, converts every still-live concurrently
+   prepared device proof into a receipt, and tombstones expired hashes as
+   committed in the same deletion-intake transaction. Legacy
+   capability clients call `request_account_deletion_with_recovery(user.id,
+   hash)` and legacy `{}` callers use `request_account_deletion(user.id)`. All
+   destructive paths record the Apple provider disposition plus legacy
+   manual-fallback boolean.
 3. Attempts a target-bound lease through
    `claim_account_deletion_jobs(1, user.id)`. Another live claim produces a
    durable `202` response rather than duplicate work.
@@ -7026,13 +7142,12 @@ prevent IDOR vulnerabilities.
    and verifies no public user or scan still references the UUID. Account-owned
    grants are erased with the account; the installation's non-identifying
    StoreKit principal remains for later signed-out resolution. Retained scans
-   become ownerless tombstones and
-   clear compatibility media URLs, structured captured-media references,
-   semantic/public location labels, device locale/time-zone context, free-form
-   notes, and custom tags. Exact coordinates, elevation, time, taxonomy,
-   identification, environmental, quality, and provenance facts remain unchanged
-   as mandatory Scientific Data. No synthetic `auth.users` or `public.users`
-   identity is created.
+   become ownerless tombstones and clear compatibility media URLs, structured
+   captured-media references, semantic/public location labels, device
+   locale/time-zone context, free-form notes, and custom tags. Exact
+   coordinates, elevation, time, taxonomy, identification, environmental,
+   quality, and provenance facts remain unchanged as mandatory Scientific Data.
+   No synthetic `auth.users` or `public.users` identity is created.
 5. Relational completion returns `storage_pending` and releases the account
    claim. The storage worker keyset-sweeps the user's free uploads, Pro uploads,
    staging, avatars, and exports prefixes in 50-key pages. After at least 25
@@ -7052,9 +7167,8 @@ prevent IDOR vulnerabilities.
    `manual_required` and do not claim automatic revocation.
 7. Only `auth_pending` with completed storage, resolved provider disposition,
    and no remaining Apple credential may call
-   `supabaseAdmin.auth.admin.deleteUser(user.id)`.
-   HTTP `404` and exact Auth code `user_not_found` are treated as idempotent
-   success.
+   `supabaseAdmin.auth.admin.deleteUser(user.id)`. HTTP `404` and exact Auth
+   code `user_not_found` are treated as idempotent success.
 8. `finish_account_deletion_attempt` independently rechecks storage and provider
    fences, records terminal completion, or releases the claim with bounded retry
    backoff. Completion clears the private job's direct `user_id`.
@@ -7070,29 +7184,45 @@ Auth call. `/generate-upload-urls` also returns
 `409 account_deletion_in_progress`, preventing new signed writes during erasure.
 Deletion intake locks the Auth user and rejects either side of a bound handoff.
 An unbound proof has not authorized a RevenueCat mutation, so deletion may win
-without forcing a user who lost the originating device to wait for proof
-expiry. The reciprocal bind path locks the same Auth rows and rejects an active
-deletion job, so whichever transition wins is visible to the other without a
-destructive race.
+without forcing a user who lost the originating device to wait for proof expiry.
+The reciprocal bind path locks the same Auth rows and rejects an active deletion
+job, so whichever transition wins is visible to the other without a destructive
+race.
 
 ### Responses
 
-- `200 OK`, `{ "success": true, "status": "completed",
-  "manual_provider_revocation_required": false, ... }`: relational cleanup,
-  delayed empty R2 verification, provider disposition, and Auth deletion are
-  confirmed; the terminal account job no longer retains the user UUID.
-- `202 Accepted`, `{ "success": true, "status": "pending",
-  "manual_provider_revocation_required": true, ... }`: the request is durably
-  recorded. A five-minute scheduled reaper resumes it. The boolean is always
-  present; `true` instructs the client to preserve Apple's legacy manual
-  removal notice before sign-out. This is a successful deletion request, not a
-  prompt to submit another target.
+- `200 OK`, `{ "success": true, "status": "prepared",
+  "protocol_version": 2, "recovery_capability_expires_at": "..." }`:
+  only the 24-hour non-destructive preparation is durable. No deletion job,
+  cleanup, provider revocation, or Auth mutation has started. If another device
+  had already committed deletion, the proof is instead bound to that existing
+  job and the subsequent idempotent commit returns its receipt.
+- `200 OK`,
+  `{ "success": true, "status": "completed",
+  "manual_provider_revocation_required": false,
+  "recovery_capability_expires_at": "...", ... }`:
+  relational cleanup, delayed empty R2 verification, provider disposition, and
+  Auth deletion are confirmed; the terminal account job no longer retains the
+  user UUID.
+- `202 Accepted`,
+  `{ "success": true, "status": "pending",
+  "manual_provider_revocation_required": true,
+  "recovery_capability_expires_at": "...", ... }`:
+  the request is durably recorded. A five-minute scheduled reaper resumes it.
+  The boolean is always present; `true` instructs the client to preserve Apple's
+  legacy manual removal notice before sign-out. This is a successful deletion
+  request, not a prompt to submit another target.
+- `400 Bad Request`, `{ "code": "invalid_request", ... }`: malformed or
+  unsupported request body. No deletion intake is attempted.
 - `405 Method Not Allowed`: any method except `POST`.
 - `409 Conflict`, `{ "code": "purchase_continuity_pending", ... }`: this
   identity participates in a bound, unresolved sign-out purchase handoff. No
   deletion job or destructive work began; finish sign-out first.
-- `500 Internal Server Error`: durable intake itself failed, so no destructive
-  work began.
+- `500 Internal Server Error`: no usable intake receipt reached the client. It
+  may be a pre-commit failure or a response lost after the idempotent database
+  intake committed; the client must retain its pre-request fence and replay the
+  same JWT-derived request. It must not infer that destructive work did not
+  begin.
 
 `manual_provider_revocation_required` is a required wire field, but it is not a
 backwards-compatible delivery mechanism for clients that predate it. Those
@@ -7103,10 +7233,112 @@ or an independent server-delivered manual-revocation fallback for older iOS
 binaries. App Store availability of the supporting build does not satisfy this
 compatibility gate.
 
-After either success response, the iOS client first persists any manual Apple
-disposition, then performs local Supabase sign-out,
-drops all local SQLite `ModelContext` state through
-`ScanRepository.purgeAllData()`, and resets to Guest.
+Before dispatch, supporting iOS clients atomically read-after-write verify a
+protocol-v2 Keychain envelope containing two independent 256-bit capabilities
+under `WhenUnlockedThisDeviceOnly` protection. They persist
+`capability_preparation_pending`, call the non-destructive prepare operation,
+persist `capability_prepared_pending`, then persist
+`capability_intake_pending` before destructive commit. They retain the exact
+cached session and permit only an owner-token commit replay until a receipt
+arrives. A crash before commit uses public v2 recovery: `not_committed` retires
+only the proof and marker and preserves Auth and SwiftData; pending/completed
+proves another device or the interrupted commit created the job and proceeds to
+cleanup. An unknown v2 proof is also evidence of no commit because v2 commit
+cannot run without a server preparation. Legacy v1 unknown proofs remain
+ambiguous and fail closed. Transport, Auth, gateway, `5xx`, cancellation, or
+decode failure cannot reopen normal account work or cause a different account
+to inherit cleanup. The explicit `409 purchase_continuity_pending` is the only
+authenticated rejection that retires an uncommitted intent immediately. iOS
+first persists
+`capability_rejection_retirement_pending`, then read-after-delete verifies the
+unused proof is gone before clearing the marker. Relaunch in this phase performs
+neither local sign-out nor local data erasure.
+
+After either success response, iOS advances the marker to
+`capability_cleanup_pending`, persists any manual Apple disposition, performs
+verified local Supabase sign-out, and drops all local SQLite `ModelContext`
+state through `ScanRepository.purgeAllData()`. It then acknowledges through the
+public recovery route using only the independent acknowledgement capability,
+records `capability_retirement_pending`, verifies
+local Auth absence and idempotent SwiftData purge again on relaunch, verifies
+Keychain proof removal, and clears the marker last. Foreground and cold-launch
+recovery repeat the exact phase behind a blocking screen. Only a matched
+committed capability's `account_deletion_recovery_expired` `410` permits
+conservative local cleanup; the subsequent independent
+acknowledgement remains valid after expiry and converts the row to a permanent
+replay receipt before local retirement. An unknown legacy proof does not.
+An authenticated duplicate that arrives after acknowledgement returns the same
+permanent receipt and cannot clear acknowledgement or extend its expiry.
+The app establishes its ordinary
+signed-out state only after this sequence. Neither marker nor proof contains an
+account, job, provider, or request identifier. Legacy `intake_pending` and
+`cleanup_pending` remain supported during the installed-client compatibility
+window.
+
+### Public `/recover-account-deletion` continuation
+
+This POST-only route recovers or acknowledges an already accepted deletion
+after the cached Auth session is unavailable. It requires the project
+publishable `apikey` for gateway routing but deliberately sends no user Bearer
+token. Its exact body is:
+
+```json
+{
+  "operation": "recover",
+  "recovery_capability": "43-character-base64url-device-proof"
+}
+```
+
+Protocol v2 adds `"protocol_version": 2`. Recovery continues to use
+`recovery_capability`; acknowledgement instead requires the distinct field
+`acknowledgement_capability`. A v2 recovery may return the identity-free
+terminal receipt `{ "status": "not_committed", "protocol_version": 2, ... }`.
+That status means the server cancelled a non-destructive preparation and no
+deletion job exists for the proof. If any device committed first while this
+preparation remained live, recovery returns pending/completed. If this proof
+had already expired, the commit records its non-reusable tombstone and recovery
+returns the distinct non-authorizing preparation-expired state instead.
+
+`operation` is exactly `recover` or `acknowledge`; unknown fields and malformed
+proofs return `400 invalid_request`. Edge hashes the proof and calls the matching
+service-only v1 or v2 recovery/acknowledgement RPC. A successful
+`200` response is exact account-free state:
+
+```json
+{
+  "success": true,
+  "status": "pending",
+  "manual_provider_revocation_required": true,
+  "recovery_capability_expires_at": "2027-02-09T00:00:00Z",
+  "recovery_acknowledged": false
+}
+```
+
+`acknowledge` must return `recovery_acknowledged: true`. A wrong or unknown v1
+proof returns `404 account_deletion_recovery_invalid`; this is not evidence that
+the authenticated intake failed, because a prior request may still be
+committing. A wrong or unknown v2 proof cannot have committed because commit
+requires its prior server preparation, so supporting clients may retire only
+that proof and local intent without signing out or erasing data. Expired 24-hour
+preparations first move into the private, identity-free
+`internal.account_deletion_expired_preparation_proofs` ledger. If expiration
+happened before deletion committed, recovery returns `not_committed`; if another
+device committed in the transaction that retired this expired proof, recovery
+returns the distinct fail-closed
+`410 account_deletion_recovery_preparation_expired`. That code is not a deletion
+receipt and never authorizes local erasure. Its permanent hash tombstone prevents
+an older client from later interpreting the proof as unknown or reusing it to
+mint a new capability. A retained proof whose 180-day inspection window elapsed returns
+`410 account_deletion_recovery_expired` only after a server-side hash match.
+After local cleanup, the same expired proof may be submitted with
+`operation: "acknowledge"`; that operation returns the ordinary acknowledged
+receipt and removes it from expired-unacknowledged health without deleting the
+hash.
+Dependency failure or malformed database state returns retryable
+`503 account_deletion_recovery_unavailable` or
+`account_deletion_recovery_invalid_response`. Responses are `private,
+no-store`; no route response or log contains the proof, hash, account, job, or
+provider identity.
 
 ### Service-only reaper
 
@@ -7121,9 +7353,21 @@ returns only aggregate `account_claimed`, `account_completed`,
 `storage_completed`, and `storage_deferred` counts. Claim expiry, persisted
 prefix cursors, delayed verification, idempotent Auth-not-found handling, and
 database-calculated backoff make crashes and lost responses resumable.
-Provider failures are reported in the existing deferred aggregate and remain
-inside the `auth_pending` account phase; no provider credential enters this
-response.
+It also prunes a bounded number of expired, non-destructive v2 preparations,
+records both proof hashes in the identity-free expired-proof ledger before
+removing each row, and returns `recovery_preparations_pruned`. Committed recovery proofs are permanent
+bounded idempotency receipts and the reaper does not delete them. Provider
+failures are reported in the
+existing deferred aggregate and remain inside the `auth_pending` account phase;
+no provider credential enters this response.
+
+An authenticated request whose body is exactly `{ "dry_run": true }` returns
+only `{ "success": true, "dry_run": true }` with `private, no-store`. Any false,
+mistyped, or mixed `dry_run` body returns `400`. The successful path returns
+before client construction, database RPCs, job claims, R2 calls, preparation
+pruning, or logging. It exists solely for post-deploy verification of the route
+and current server-key transport; it is not a health check and does not exercise
+deletion work.
 
 The scheduled caller reads its key from Vault and delegates header construction
 to `internal.server_api_request_headers(...)`. A modern opaque `sb_secret_...`
@@ -7187,6 +7431,34 @@ if the fallback is populated. The field does not test URL reachability,
 credential validity, or a reconciler round trip; the required post-deploy
 monitor dispatch validates the independent health-RPC path, while a recent
 successful reaper cron request validates the worker path.
+
+### Service-only deletion-recovery health RPC
+
+`POST /rest/v1/rpc/get_account_deletion_recovery_health` accepts `{}` under the
+same server/service-role-only authorization and returns one aggregate row:
+
+```json
+[
+  {
+    "generated_at": "2026-08-13T12:00:00Z",
+    "active_unacknowledged_count": 2,
+    "acknowledged_retained_count": 1,
+    "expired_unacknowledged_count": 0,
+    "oldest_active_issued_at": "2026-08-13T11:55:00Z",
+    "oldest_active_age_seconds": 300,
+    "oldest_expired_at": null,
+    "oldest_expired_age_seconds": null,
+    "maximum_active_capabilities_per_job": 1
+  }
+]
+```
+
+The RPC never returns a proof, hash, account, job, provider, or claim token. An
+expired unacknowledged proof is critical because it represents a device that did
+not finish cleanup within the normal 180-day recovery window. Eight active
+proofs on one job is a warning boundary and more than eight is an invariant
+failure. The independent account-deletion monitor fetches and validates both
+health rows; absence, malformed shape, or dependency failure is fail-closed.
 
 ---
 
@@ -8701,13 +8973,13 @@ rejected before database access. The request body is capped at 256 KiB.
   or `503`; there is no static-secret-only compatibility path.
 - **Customer identity contract**: iOS configures RevenueCat only after a
   Supabase session exists, using the uppercase RFC 4122 Auth UUID, and writes
-  subscriber attributes (`supabase_user_id`, `auth_email`,
-  `public_username`, `public_author_name`, `public_identity_source`,
-  `account_kind`) before entitlement checks. Account changes use direct `logIn`;
-  the client never configures without an ID and never calls SDK logout. Manual
-  dashboard adjustments should use the uppercase UUID/App User ID first, with
-  subscriber attributes as the human-readable cross-reference. This applies to
-  both RevenueCat Test Store and production keys.
+  subscriber attributes (`supabase_user_id`, `auth_email`, `public_username`,
+  `public_author_name`, `public_identity_source`, `account_kind`) before
+  entitlement checks. Account changes use direct `logIn`; the client never
+  configures without an ID and never calls SDK logout. Manual dashboard
+  adjustments should use the uppercase UUID/App User ID first, with subscriber
+  attributes as the human-readable cross-reference. This applies to both
+  RevenueCat Test Store and production keys.
 - UUID candidates are ordered from `app_user_id`, `original_app_user_id`, then
   `aliases` and deduplicated. A RevenueCat `TRANSFER` creates independent source
   and destination subjects from its two identity arrays; it does not have an

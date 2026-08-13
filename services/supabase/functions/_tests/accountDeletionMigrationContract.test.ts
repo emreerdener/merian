@@ -32,6 +32,18 @@ const appleRevocationMigrationUrl = new URL(
   "../../migrations/20260806203700_durable_apple_provider_revocation.sql",
   import.meta.url,
 );
+const recoveryCapabilityMigrationUrl = new URL(
+  "../../migrations/20260813053000_add_account_deletion_recovery_capabilities.sql",
+  import.meta.url,
+);
+const preparedRecoveryV2MigrationUrl = new URL(
+  "../../migrations/20260813142638_prepare_account_deletion_recovery_v2.sql",
+  import.meta.url,
+);
+const expiredPreparationRepairMigrationUrl = new URL(
+  "../../migrations/20260813162506_reject_expired_account_deletion_preparation_promotion.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -130,6 +142,246 @@ Deno.test("account deletion RPCs remain service-only", async () => {
   assert(
     !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
     "PostgreSQL conditional expressions are not schema-qualified functions and fail plpgsql_check.",
+  );
+});
+
+Deno.test("account deletion recovery is hash-only, atomic, bounded, and service-only", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(recoveryCapabilityMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "CREATE TABLE internal.account_deletion_recovery_capabilities",
+      "REFERENCES internal.account_deletion_jobs(id) ON DELETE RESTRICT",
+      "CHECK (secret_hash ~ '^[0-9a-f]{64}$')",
+      "ENABLE ROW LEVEL SECURITY",
+      "CREATE INDEX account_deletion_recovery_capabilities_job_idx",
+      "CREATE OR REPLACE FUNCTION public.request_account_deletion_with_recovery",
+      "FROM public.request_account_deletion(p_user_id) AS request",
+      "capability_count >= 8",
+      "IF existing_capability.acknowledged_at IS NULL THEN",
+      "capability_expiry := existing_capability.expires_at",
+      "CREATE OR REPLACE FUNCTION public.recover_account_deletion",
+      "account_deletion_recovery_invalid",
+      "account_deletion_recovery_expired",
+      "capability_record.acknowledged_at IS NULL AND capability_record.expires_at <= pg_catalog.NOW()",
+      "AND NOT p_acknowledge",
+      "CREATE OR REPLACE FUNCTION public.get_account_deletion_recovery_health",
+      "expired_unacknowledged_count",
+      "PERFORM internal.require_service_role()",
+      "pg_catalog.hashtextextended(",
+      "0::BIGINT",
+      "REVOKE ALL ON FUNCTION public.request_account_deletion_with_recovery(UUID, TEXT)",
+      "TO service_role",
+      "'public.request_account_deletion_with_recovery(uuid,text)'",
+      "'public.recover_account_deletion(text,boolean)'",
+      "'public.get_account_deletion_recovery_health()'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !/GRANT\s+EXECUTE\s+ON\s+FUNCTION[^;]+\bTO\s+(?:anon|authenticated)\b/i
+      .test(sql),
+    "No public client role may execute a deletion-recovery RPC.",
+  );
+  assert(
+    !sql.includes(
+      "DELETE FROM internal.account_deletion_recovery_capabilities",
+    ),
+    "Deletion recovery receipts must remain replayable for arbitrarily offline clients.",
+  );
+  assert(
+    !/\b(?:user_id|job_id)\b\s*[,}]?/i.test(
+      sql.slice(
+        sql.indexOf("RETURNS TABLE (", sql.indexOf("recover_account_deletion")),
+        sql.indexOf(
+          "LANGUAGE PLPGSQL",
+          sql.indexOf("recover_account_deletion"),
+        ),
+      ),
+    ),
+    "The public recovery receipt must not expose an account or deletion-job identity.",
+  );
+  assert(
+    !/pg_catalog\.(?:COALESCE|NULLIF|GREATEST|LEAST)\s*\(/i.test(sql),
+    "PostgreSQL conditional expressions must not be schema-qualified.",
+  );
+});
+
+Deno.test("account deletion recovery v2 prepares before commit and keeps multi-device receipts truthful", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(preparedRecoveryV2MigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "ADD COLUMN protocol_version SMALLINT NOT NULL DEFAULT 1",
+      "ADD COLUMN acknowledgement_secret_hash TEXT",
+      "protocol_version = 2 AND acknowledgement_secret_hash IS NOT NULL AND acknowledgement_secret_hash <> secret_hash",
+      "CREATE TABLE internal.account_deletion_recovery_preparations",
+      "recovery_secret_hash TEXT NOT NULL UNIQUE",
+      "acknowledgement_secret_hash TEXT NOT NULL UNIQUE",
+      "CREATE INDEX account_deletion_recovery_preparations_user_idx",
+      "ENABLE ROW LEVEL SECURITY",
+      "'account_deletion_recovery_preparations', 'user_id', 'auth', 'users', 'id', 'preserve'",
+      "SELECT internal.assert_ghost_profile_merge_reference_policy_coverage()",
+      "internal.lock_account_deletion_capability_hashes",
+      "ORDER BY supplied.value",
+      "pg_catalog.HASHTEXTEXTENDED(",
+      "CREATE OR REPLACE FUNCTION internal.bind_account_deletion_recovery_preparations",
+      "CREATE TRIGGER trg_bind_account_deletion_recovery_preparations",
+      "AFTER INSERT ON internal.account_deletion_jobs",
+      "capability_count + preparation_count > 8",
+      "CREATE OR REPLACE FUNCTION public.prepare_account_deletion_recovery_v2",
+      "CREATE OR REPLACE FUNCTION public.request_account_deletion_with_recovery_v2",
+      "deletion_job.user_id IS DISTINCT FROM p_user_id",
+      "CREATE OR REPLACE FUNCTION public.recover_account_deletion_v2",
+      "CREATE OR REPLACE FUNCTION public.acknowledge_account_deletion_recovery_v2",
+      "CREATE OR REPLACE FUNCTION public.prune_account_deletion_recovery_preparations",
+      "CREATE OR REPLACE FUNCTION public.get_account_deletion_recovery_preparation_health",
+      "'not_committed'::TEXT",
+      "capability.acknowledgement_secret_hash = p_acknowledgement_secret_hash",
+      "PERFORM internal.require_service_role()",
+      "REVOKE ALL ON FUNCTION public.prepare_account_deletion_recovery_v2(UUID, TEXT, TEXT)",
+      "GRANT EXECUTE ON FUNCTION public.prepare_account_deletion_recovery_v2(UUID, TEXT, TEXT)",
+      "'public.prepare_account_deletion_recovery_v2(uuid,text,text)'",
+      "'public.request_account_deletion_with_recovery_v2(uuid,text)'",
+      "'public.recover_account_deletion_v2(text)'",
+      "'public.acknowledge_account_deletion_recovery_v2(text)'",
+      "'public.prune_account_deletion_recovery_preparations(integer)'",
+      "'public.get_account_deletion_recovery_preparation_health()'",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  assert(
+    !sql.includes("user_id UUID NOT NULL UNIQUE"),
+    "Protocol v2 must retain one preparation per device, not supersede another device's proof.",
+  );
+  assert(
+    !/GRANT\s+EXECUTE\s+ON\s+FUNCTION[^;]+\bTO\s+(?:anon|authenticated)\b/i
+      .test(sql),
+    "No public client role may execute a v2 deletion-recovery RPC.",
+  );
+
+  const triggerStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.bind_account_deletion_recovery_preparations",
+  );
+  const triggerEnd = sql.indexOf(
+    "COMMENT ON FUNCTION internal.bind_account_deletion_recovery_preparations",
+    triggerStart,
+  );
+  const trigger = sql.slice(triggerStart, triggerEnd);
+  assert(
+    trigger.indexOf(
+      "INSERT INTO internal.account_deletion_recovery_capabilities",
+    ) <
+      trigger.indexOf(
+        "DELETE FROM internal.account_deletion_recovery_preparations",
+      ),
+    "Deletion commit must materialize every durable receipt before removing preparations.",
+  );
+
+  const recoverStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.recover_account_deletion_v2",
+  );
+  const recoverEnd = sql.indexOf(
+    "COMMENT ON FUNCTION public.recover_account_deletion_v2",
+    recoverStart,
+  );
+  const recover = sql.slice(recoverStart, recoverEnd);
+  assert(
+    recover.indexOf("FROM internal.account_deletion_jobs AS jobs") <
+      recover.indexOf("'not_committed'::TEXT"),
+    "Prepared recovery must check for a deletion committed by another device before returning not_committed.",
+  );
+});
+
+Deno.test("expired v2 preparations are retired instead of promoted into deletion capabilities", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(expiredPreparationRepairMigrationUrl),
+  );
+
+  for (
+    const fragment of [
+      "SET lock_timeout = '10s'; SET statement_timeout = '2min';",
+      "CREATE TABLE internal.account_deletion_expired_preparation_proofs",
+      "deletion_committed BOOLEAN NOT NULL",
+      "ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE internal.account_deletion_expired_preparation_proofs FROM PUBLIC, anon, authenticated, service_role",
+      "CREATE OR REPLACE FUNCTION internal.bind_account_deletion_recovery_preparations()",
+      "observed_at TIMESTAMPTZ := pg_catalog.NOW()",
+      "ORDER BY preparation.id FOR UPDATE",
+      "preparation.expires_at <= observed_at",
+      "preparation.expires_at > observed_at",
+      "CREATE OR REPLACE FUNCTION public.recover_account_deletion_v2( p_recovery_secret_hash TEXT )",
+      "IF preparation_record.expires_at <= observed_at THEN",
+      "'preparation_expired'",
+      "CREATE OR REPLACE FUNCTION public.prune_account_deletion_recovery_preparations",
+      "FOR UPDATE SKIP LOCKED",
+      "account_deletion_recovery_preparation_expired",
+      "PG_GET_FUNCTIONDEF",
+      "capability_record.expires_at <= observed_at",
+      "NOTIFY pgrst, 'reload schema';",
+      "RESET statement_timeout; RESET lock_timeout;",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+
+  const triggerStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.bind_account_deletion_recovery_preparations",
+  );
+  const triggerEnd = sql.indexOf(
+    "COMMENT ON FUNCTION internal.bind_account_deletion_recovery_preparations",
+    triggerStart,
+  );
+  const trigger = sql.slice(triggerStart, triggerEnd);
+  const expiredDelete = trigger.indexOf(
+    "DELETE FROM internal.account_deletion_recovery_preparations AS preparation WHERE preparation.user_id = NEW.user_id AND preparation.expires_at <= observed_at",
+  );
+  const capabilityInsert = trigger.indexOf(
+    "INSERT INTO internal.account_deletion_recovery_capabilities",
+  );
+  assert(
+    expiredDelete >= 0 && expiredDelete < capabilityInsert,
+    "The commit trigger must retire expired preparations before materializing any capability.",
+  );
+  assertStringIncludes(
+    trigger.slice(capabilityInsert),
+    "WHERE preparation.user_id = NEW.user_id AND preparation.expires_at > observed_at",
+  );
+
+  const recoverStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.recover_account_deletion_v2",
+  );
+  const recoverEnd = sql.indexOf(
+    "COMMENT ON FUNCTION public.recover_account_deletion_v2",
+    recoverStart,
+  );
+  const recover = sql.slice(recoverStart, recoverEnd);
+  const expiryGuard = recover.indexOf(
+    "IF preparation_record.expires_at <= observed_at THEN",
+  );
+  const jobLookup = recover.indexOf(
+    "FROM internal.account_deletion_jobs AS jobs",
+  );
+  const preparationPromotion = recover.indexOf(
+    "INSERT INTO internal.account_deletion_recovery_capabilities",
+  );
+  assert(
+    expiryGuard >= 0 && expiryGuard < jobLookup && preparationPromotion === -1,
+    "Public recovery must retire an expired preparation before inspecting a job and must never promote a preparation.",
+  );
+  assert(
+    !/\b(?:GRANT|REVOKE)\s+(?:EXECUTE\s+)?ON\s+FUNCTION\b/i.test(sql),
+    "Replacing existing routine bodies must preserve their reviewed function ACLs rather than restating grants.",
   );
 });
 

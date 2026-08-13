@@ -220,7 +220,7 @@ export function mapDatabaseError(
     return new GhostMergeDatabaseError(
       "source_already_merged",
       409,
-      "This guest profile has already been upgraded.",
+      "This signed-out profile has already been upgraded.",
       internalMessage,
     );
   }
@@ -251,7 +251,7 @@ export function mapDatabaseError(
     return new GhostMergeDatabaseError(
       "merge_temporarily_unavailable",
       503,
-      "Account upgrade is temporarily unavailable. Your guest data is unchanged.",
+      "Account upgrade is temporarily unavailable. Your signed-out profile data is unchanged.",
       internalMessage,
     );
   }

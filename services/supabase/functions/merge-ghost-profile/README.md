@@ -136,8 +136,9 @@ append.
 
 Both scan-ledger invariant diagnostics—`ghost_merge_species_ledger_mismatch` and
 `user_species_scan_count_underflow`—are retryable HTTP 503
-`merge_temporarily_unavailable` responses with the exact guest-data-unchanged
-message. The transaction rolls back before either reaches the Edge mapper.
+`merge_temporarily_unavailable` responses with the exact
+signed-out-profile-data-unchanged message. The transaction rolls back before
+either reaches the Edge mapper.
 
 ## Pre-deployment status
 

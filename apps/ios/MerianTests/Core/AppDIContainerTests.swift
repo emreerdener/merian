@@ -188,6 +188,118 @@ struct AppDIContainerTests {
         #expect(!ManualAppleRevocationNoticeStore.isPending(userDefaults: defaults))
     }
 
+    @Test func testAccountDeletionLocalCleanupPersistsUntilResolution() {
+        let suiteName = "merian.tests.account-deletion-cleanup.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let events = AppEventPublisher()
+        var recoveryInvalidations = 0
+        let cancellable = events.publisher.sink { event in
+            if case .accountDeletionRecoveryStateChanged = event {
+                recoveryInvalidations += 1
+            }
+        }
+        defer { cancellable.cancel() }
+
+        #expect(!AccountDeletionLocalCleanupStore.isPending(userDefaults: defaults))
+        #expect(
+            AccountDeletionLocalCleanupStore.recordIntakePending(
+                userDefaults: defaults,
+                eventSender: events
+            )
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .capabilityIntakePending
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore.recordCleanupPending(
+                userDefaults: defaults,
+                eventSender: events
+            )
+        )
+        #expect(AccountDeletionLocalCleanupStore.isPending(userDefaults: defaults))
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .capabilityCleanupPending
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore
+                .recordCapabilityRetirementPending(
+                    userDefaults: defaults,
+                    eventSender: events
+                )
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .capabilityRetirementPending
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore
+                .recordCapabilityRejectionRetirementPending(
+                    userDefaults: defaults,
+                    eventSender: events
+                )
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .capabilityRejectionRetirementPending
+        )
+        #expect(
+            AccountDeletionLocalCleanupStore.resolve(
+                userDefaults: defaults,
+                eventSender: events
+            )
+        )
+        #expect(!AccountDeletionLocalCleanupStore.isPending(userDefaults: defaults))
+        #expect(recoveryInvalidations == 5)
+    }
+
+    @Test func testLegacyAcceptedReceiptUsesCapabilityFreeCleanupState() {
+        let suiteName = "AccountDeletionCleanupStore.Compat.\(UUID())"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        #expect(AccountDeletionLocalCleanupStore.record(userDefaults: defaults))
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .cleanupPending
+        )
+    }
+
+    @Test func testLegacyAccountDeletionBooleanMigratesAsAcceptedCleanup() throws {
+        let suiteName = "AccountDeletionCleanupStore.Legacy.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(
+            true,
+            forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        )
+
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .cleanupPending
+        )
+    }
+
+    @Test func testUnknownAccountDeletionStateFailsClosedBeforeLocalErasure() throws {
+        let suiteName = "AccountDeletionCleanupStore.Unknown.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(
+            "future_state",
+            forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        )
+
+        #expect(
+            AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .intakePending
+        )
+    }
+
     @Test func testCaptureGoalProgressDefaultsOnAndPersistsExplicitOff() {
         let suiteName = "merian.tests.capture-goal-progress.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

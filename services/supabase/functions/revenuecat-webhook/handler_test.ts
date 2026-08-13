@@ -135,7 +135,15 @@ Deno.test("valid webhook reconciles CustomerInfo before one entitlement transact
     fetchImpl: fakeFetch,
     now: () => NOW_MS,
   });
-  const response = await handler(await signedRequest(rawWebhook()));
+  const infoLogs: unknown[] = [];
+  const originalInfo = console.info;
+  console.info = (...args: unknown[]) => infoLogs.push(args[0]);
+  let response: Response;
+  try {
+    response = await handler(await signedRequest(rawWebhook()));
+  } finally {
+    console.info = originalInfo;
+  }
   const payload = await response.json();
 
   assertEquals(response.status, 200);
@@ -172,6 +180,10 @@ Deno.test("valid webhook reconciles CustomerInfo before one entitlement transact
     target_account_grant_expires_at: null,
     allow_non_subscription_pass_grant: null,
   }]);
+  const serializedLogs = infoLogs.map(String).join("\n");
+  assertEquals(serializedLogs.includes(USER_ID), false);
+  assertEquals(serializedLogs.includes("event-123"), false);
+  assertEquals(serializedLogs.includes("$RCAnonymousID"), false);
 });
 
 Deno.test("committed duplicate bypasses another CustomerInfo request", async () => {
@@ -209,7 +221,15 @@ Deno.test("committed duplicate bypasses another CustomerInfo request", async () 
     now: () => NOW_MS,
   });
 
-  const response = await handler(await signedRequest(rawWebhook()));
+  const infoLogs: unknown[] = [];
+  const originalInfo = console.info;
+  console.info = (...args: unknown[]) => infoLogs.push(args[0]);
+  let response: Response;
+  try {
+    response = await handler(await signedRequest(rawWebhook()));
+  } finally {
+    console.info = originalInfo;
+  }
   const payload = await response.json();
 
   assertEquals(response.status, 200);
@@ -221,6 +241,10 @@ Deno.test("committed duplicate bypasses another CustomerInfo request", async () 
     stale_count: 0,
   });
   assertEquals(fetchCount, 0);
+  const serializedLogs = infoLogs.map(String).join("\n");
+  assertEquals(serializedLogs.includes(USER_ID), false);
+  assertEquals(serializedLogs.includes("event-123"), false);
+  assertEquals(serializedLogs.includes("$RCAnonymousID"), false);
 });
 
 Deno.test("expired signature is rejected before API or database work", async () => {

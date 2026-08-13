@@ -90,17 +90,23 @@ struct MediaStagingUploadTaskIdentity: Sendable, Equatable {
     let uploadIndex: Int?
     let syncGeneration: UUID?
     let objectKey: String?
+    /// Auth user that authorized the signed upload. Modern task descriptions
+    /// carry this explicitly so a reattached background task can never be
+    /// adopted by a replacement account after an Auth transition.
+    let ownerUserID: UUID?
 
     init(
         scanId: String,
         uploadIndex: Int?,
         syncGeneration: UUID?,
-        objectKey: String? = nil
+        objectKey: String? = nil,
+        ownerUserID: UUID? = nil
     ) {
         self.scanId = scanId
         self.uploadIndex = uploadIndex
         self.syncGeneration = syncGeneration
         self.objectKey = objectKey
+        self.ownerUserID = ownerUserID
     }
 }
 
@@ -128,6 +134,20 @@ struct MediaStagingUploadCompletionState: Sendable, Equatable {
 struct InferenceURLSessionTaskIdentity: Sendable, Equatable {
     let scanId: String
     let generation: UUID?
+    /// Auth user whose JWT authorized the inference request. `nil` is accepted
+    /// only for legacy task parsing and is treated as unknown/fail-closed at an
+    /// account transition boundary.
+    let ownerUserID: UUID?
+
+    init(
+        scanId: String,
+        generation: UUID?,
+        ownerUserID: UUID? = nil
+    ) {
+        self.scanId = scanId
+        self.generation = generation
+        self.ownerUserID = ownerUserID
+    }
 }
 
 /// Optional guard used by queue deletion paths that originate from inference work.
@@ -260,6 +280,7 @@ struct ScanFundingReservation: Codable, Sendable, Equatable {
 enum OfflineScanJobMetadataContract {
     private static let fundingReservationKey = "funding_reservation"
     private static let fundingReleasedKey = "funding_reservation_released"
+    private static let backgroundAccountWorkKey = "background_account_work"
 
     static func object(from metadataJSON: String?) -> [String: Any] {
         guard let metadataJSON,
@@ -326,6 +347,36 @@ enum OfflineScanJobMetadataContract {
         return json(from: object)
     }
 
+    static func backgroundAccountWork(
+        in metadataJSON: String?
+    ) -> BackgroundAccountWorkOwnership? {
+        let object = object(from: metadataJSON)
+        guard let rawValue = object[backgroundAccountWorkKey],
+              JSONSerialization.isValidJSONObject(rawValue),
+              let data = try? JSONSerialization.data(withJSONObject: rawValue)
+        else {
+            return nil
+        }
+        return try? JSONDecoder().decode(
+            BackgroundAccountWorkOwnership.self,
+            from: data
+        )
+    }
+
+    static func settingBackgroundAccountWork(
+        _ ownership: BackgroundAccountWorkOwnership,
+        in metadataJSON: String?
+    ) -> String? {
+        var object = object(from: metadataJSON)
+        guard let data = try? JSONEncoder().encode(ownership),
+              let rawValue = try? JSONSerialization.jsonObject(with: data)
+        else {
+            return metadataJSON
+        }
+        object[backgroundAccountWorkKey] = rawValue
+        return json(from: object)
+    }
+
     static func json(
         generation: UUID?,
         funding: ScanFundingReservation
@@ -341,12 +392,40 @@ enum OfflineScanJobMetadataContract {
     }
 }
 
+enum BackgroundAccountWorkPhase: String, Codable, Sendable, Equatable {
+    case upload
+    case inference
+}
+
+/// Durable account/generation owner for a background URLSession operation.
+///
+/// URLSession tasks can outlive both the creating process and its Auth
+/// session. This record is the local write fence: a callback must match it and
+/// the queue state before it may stage media, persist inference, or delete
+/// queued work.
+struct BackgroundAccountWorkOwnership: Codable, Sendable, Equatable {
+    let ownerUserID: UUID
+    let generation: UUID
+    let phase: BackgroundAccountWorkPhase
+
+    private enum CodingKeys: String, CodingKey {
+        case ownerUserID = "owner_user_id"
+        case generation
+        case phase
+    }
+}
+
 enum InferenceURLSessionTaskContract {
-    private static let currentPrefix = "inference_v2"
+    private static let currentPrefix = "inference_v3"
+    private static let generationOnlyPrefix = "inference_v2"
     private static let legacyPrefix = "inference_"
 
-    static func taskDescription(scanId: String, generation: UUID) -> String {
-        "\(currentPrefix)|\(generation.uuidString.lowercased())|\(scanId)"
+    static func taskDescription(
+        scanId: String,
+        generation: UUID,
+        ownerUserID: UUID
+    ) -> String {
+        "\(currentPrefix)|\(ownerUserID.uuidString.lowercased())|\(generation.uuidString.lowercased())|\(scanId)"
     }
 
     static func parse(_ description: String?) -> InferenceURLSessionTaskIdentity? {
@@ -355,25 +434,50 @@ enum InferenceURLSessionTaskContract {
         if description.hasPrefix("\(currentPrefix)|") {
             let parts = description.split(
                 separator: "|",
+                maxSplits: 3,
+                omittingEmptySubsequences: false
+            )
+            guard parts.count == 4,
+                  String(parts[0]) == currentPrefix,
+                  let ownerUserID = UUID(uuidString: String(parts[1])),
+                  let generation = UUID(uuidString: String(parts[2])),
+                  !parts[3].isEmpty else {
+                return nil
+            }
+            return InferenceURLSessionTaskIdentity(
+                scanId: String(parts[3]),
+                generation: generation,
+                ownerUserID: ownerUserID
+            )
+        }
+
+        if description.hasPrefix("\(generationOnlyPrefix)|") {
+            let parts = description.split(
+                separator: "|",
                 maxSplits: 2,
                 omittingEmptySubsequences: false
             )
             guard parts.count == 3,
-                  String(parts[0]) == currentPrefix,
+                  String(parts[0]) == generationOnlyPrefix,
                   let generation = UUID(uuidString: String(parts[1])),
                   !parts[2].isEmpty else {
                 return nil
             }
             return InferenceURLSessionTaskIdentity(
                 scanId: String(parts[2]),
-                generation: generation
+                generation: generation,
+                ownerUserID: nil
             )
         }
 
         guard description.hasPrefix(legacyPrefix) else { return nil }
         let scanId = String(description.dropFirst(legacyPrefix.count))
         guard !scanId.isEmpty else { return nil }
-        return InferenceURLSessionTaskIdentity(scanId: scanId, generation: nil)
+        return InferenceURLSessionTaskIdentity(
+            scanId: scanId,
+            generation: nil,
+            ownerUserID: nil
+        )
     }
 }
 
@@ -495,6 +599,7 @@ struct StagingUploadFile: Codable, Sendable, Equatable {
 enum MediaStagingContract {
     static let maxUploadItemsPerRequest = MerianConfig.mediaStagingMaxFilesPerRequest
     private static let uploadTaskPrefix = "upload"
+    private static let accountOwnedUploadTaskPrefix = "upload_v2"
 
     static func sanitizedFileName(_ rawFileName: String) -> String {
         var sanitized = ""
@@ -581,6 +686,7 @@ enum MediaStagingContract {
         var fileNames = Set<String>()
         for (item, presignedURL) in zip(uploadItems, presignedURLs) {
             guard presignedURL.fileName == item.fileName,
+                  presignedURL.objectKey == item.objectKey,
                   isCanonicalObjectKey(
                     presignedURL.objectKey,
                     fileName: item.fileName
@@ -775,8 +881,12 @@ enum MediaStagingContract {
         scanId: String,
         uploadIndex: Int,
         syncGeneration: UUID? = nil,
-        objectKey: String? = nil
+        objectKey: String? = nil,
+        ownerUserID: UUID? = nil
     ) -> String {
+        if let syncGeneration, let objectKey, let ownerUserID {
+            return "\(accountOwnedUploadTaskPrefix)|\(ownerUserID.uuidString.lowercased())|\(scanId)|\(uploadIndex)|\(syncGeneration.uuidString.lowercased())|\(objectKey)"
+        }
         if let syncGeneration {
             let prefix =
                 "\(uploadTaskPrefix)|\(scanId)|\(uploadIndex)|\(syncGeneration.uuidString.lowercased())"
@@ -792,6 +902,25 @@ enum MediaStagingContract {
         guard let description, !description.hasPrefix("inference_") else { return nil }
 
         let parts = description.split(separator: "|", omittingEmptySubsequences: false)
+        if parts.count == 6,
+           String(parts[0]) == accountOwnedUploadTaskPrefix,
+           let ownerUserID = UUID(uuidString: String(parts[1])),
+           let uploadIndex = Int(parts[3]),
+           let syncGeneration = UUID(uuidString: String(parts[4])) {
+            let objectKey = String(parts[5])
+            guard ownerId(fromObjectKey: objectKey)?.caseInsensitiveCompare(
+                ownerUserID.uuidString
+            ) == .orderedSame else {
+                return nil
+            }
+            return MediaStagingUploadTaskIdentity(
+                scanId: String(parts[2]),
+                uploadIndex: uploadIndex,
+                syncGeneration: syncGeneration,
+                objectKey: objectKey,
+                ownerUserID: ownerUserID
+            )
+        }
         if parts.count == 3 || parts.count == 4 || parts.count == 5,
            String(parts[0]) == uploadTaskPrefix {
             let syncGeneration = parts.count >= 4
@@ -809,7 +938,10 @@ enum MediaStagingContract {
                 scanId: String(parts[1]),
                 uploadIndex: Int(parts[2]),
                 syncGeneration: syncGeneration,
-                objectKey: objectKey
+                objectKey: objectKey,
+                ownerUserID: objectKey
+                    .flatMap { ownerId(fromObjectKey: $0) }
+                    .flatMap { UUID(uuidString: $0) }
             )
         }
 
@@ -818,7 +950,8 @@ enum MediaStagingContract {
         return MediaStagingUploadTaskIdentity(
             scanId: legacyScanId,
             uploadIndex: legacyParts.dropFirst().first.flatMap(Int.init),
-            syncGeneration: nil
+            syncGeneration: nil,
+            ownerUserID: nil
         )
     }
 

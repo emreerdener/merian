@@ -1104,7 +1104,15 @@ extension OfflineQueueManager {
                 // empty — guard on !localImagePaths.isEmpty to skip this path for them.
                 let finalExtracted: ExtractedScanData
                 if extracted.r2Keys.isEmpty && !extracted.localUploadPaths.isEmpty {
-                    let stagingUserId = await self.currentMediaStagingUserId()
+                    guard let stagingUserId = await self
+                        .currentMediaStagingUserId() else {
+                        await self.handleInferenceRetry(
+                            scanId: scanId,
+                            generation: preparationGeneration,
+                            reason: "auth transition pending"
+                        )
+                        return
+                    }
                     let reconstructedKeys = MediaStagingContract.splitObjectKeys(
                         [],
                         scanId: scanId,

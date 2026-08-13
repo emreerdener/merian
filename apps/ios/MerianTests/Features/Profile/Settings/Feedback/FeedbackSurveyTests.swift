@@ -10,6 +10,9 @@ struct FeedbackSurveyTests {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.overridingAuthUserID = UUID(
+            uuidString: "11111111-1111-4111-8111-111111111111"
+        )
     }
 
     @Test func promptPolicyRequiresForegroundCompletionOnboardingAndMeaningfulUse() {

@@ -45,4 +45,18 @@ struct ProfileViewModelTests {
         )
     }
 
+    @Test("User-facing authentication copy does not expose internal session terminology")
+    func testUserFacingAuthenticationCopy() {
+        let messages = [
+            SupabaseAuthTransitionError.guestMergeSessionChanged.errorDescription,
+            SupabaseAuthTransitionError.guestMergeHandoffPersistenceFailed.errorDescription,
+            "Your signed-out profile is still loading. Try again in a moment."
+        ].compactMap { $0 }
+
+        for message in messages {
+            #expect(!message.localizedCaseInsensitiveContains("guest"))
+            #expect(!message.localizedCaseInsensitiveContains("ghost"))
+        }
+    }
+
 }

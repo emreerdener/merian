@@ -3,6 +3,24 @@ import Foundation
 import SwiftData
 import Testing
 
+private actor CollectionSyncFenceRecorder {
+    private var gateResults: [Bool]
+    private(set) var invocationCount = 0
+
+    init(gateResults: [Bool]) {
+        self.gateResults = gateResults
+    }
+
+    func nextGateResult() -> Bool {
+        guard !gateResults.isEmpty else { return false }
+        return gateResults.removeFirst()
+    }
+
+    func recordInvocation() {
+        invocationCount += 1
+    }
+}
+
 @MainActor
 struct BackgroundDatabaseActorTests {
 
@@ -276,6 +294,274 @@ struct BackgroundDatabaseActorTests {
         #expect(payloads?.first?.id == collection.id)
         #expect(payloads?.first?.scan_ids == [secondMember.id, firstMember.id])
         #expect(payloads?.first?.scan_ids.contains(unrelated.id) == false)
+    }
+
+    @Test func collectionSyncDoesNotInvokeDuringAuthTransition() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let tombstone = ScanCollection(
+            id: "collection_auth_transition_preflight",
+            name: "Removed Collection",
+            isDeleted: true
+        )
+        context.insert(tombstone)
+        try context.save()
+
+        let fence = CollectionSyncFenceRecorder(gateResults: [false])
+        let dbActor = BackgroundDatabaseActor(modelContainer: container)
+        let result = await dbActor.pushCollectionsToEdge(
+            accountWorkAllowed: { await fence.nextGateResult() },
+            invoke: { _ in await fence.recordInvocation() }
+        )
+
+        let verificationContext = ModelContext(container)
+        let tombstoneID = tombstone.id
+        let descriptor = FetchDescriptor<ScanCollection>(
+            predicate: #Predicate { $0.id == tombstoneID }
+        )
+        #expect(!result)
+        #expect(await fence.invocationCount == 0)
+        #expect(try verificationContext.fetch(descriptor).count == 1)
+    }
+
+    @Test func collectionSyncRetainsTombstoneWhenTransitionStartsInFlight() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let tombstone = ScanCollection(
+            id: "collection_auth_transition_in_flight",
+            name: "Removed Collection",
+            isDeleted: true
+        )
+        context.insert(tombstone)
+        try context.save()
+
+        // Dispatch is allowed under the stable source session. The second gate
+        // models an Auth transition beginning while the Edge call is suspended.
+        let fence = CollectionSyncFenceRecorder(gateResults: [true, false])
+        let dbActor = BackgroundDatabaseActor(modelContainer: container)
+        let result = await dbActor.pushCollectionsToEdge(
+            accountWorkAllowed: { await fence.nextGateResult() },
+            invoke: { _ in await fence.recordInvocation() }
+        )
+
+        let verificationContext = ModelContext(container)
+        let tombstoneID = tombstone.id
+        let descriptor = FetchDescriptor<ScanCollection>(
+            predicate: #Predicate { $0.id == tombstoneID }
+        )
+        #expect(!result)
+        #expect(await fence.invocationCount == 1)
+        #expect(try verificationContext.fetch(descriptor).count == 1)
+    }
+
+    @Test func accountBoundBackgroundWorkRetiresBeforeTransportCancellation() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "background_auth_owner_\(UUID().uuidString.lowercased())"
+        let ownerUserID = UUID()
+        let generation = UUID()
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            scanState: .uploading,
+            stagedR2Keys: ["staging/\(ownerUserID.uuidString.lowercased())/queued.webp"]
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let ownership = BackgroundAccountWorkOwnership(
+            ownerUserID: ownerUserID,
+            generation: generation,
+            phase: .upload
+        )
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            await actor.activateBackgroundAccountWork(
+                scanId: scanId,
+                ownership: ownership
+            )
+        )
+        #expect(
+            await actor.backgroundAccountWorkIsCurrent(
+                scanId: scanId,
+                ownership: ownership
+            )
+        )
+        #expect(
+            await actor.retireBackgroundAccountWork(
+                scanId: scanId,
+                expectedOwnerUserID: ownerUserID,
+                expectedGeneration: UUID(),
+                phase: .upload
+            )
+        )
+        #expect(
+            await actor.backgroundAccountWorkIsCurrent(
+                scanId: scanId,
+                ownership: ownership
+            )
+        )
+        #expect(
+            await actor.retireBackgroundAccountWork(
+                scanId: scanId,
+                expectedOwnerUserID: ownerUserID,
+                expectedGeneration: generation,
+                phase: .upload
+            )
+        )
+
+        let verificationContext = ModelContext(container)
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        let persistedScan = try #require(
+            verificationContext.fetch(scanDescriptor).first
+        )
+        let expectedJobId = OfflineQueueManager.scanIngestionJobId(
+            scanId: scanId
+        )
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == expectedJobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try #require(
+            verificationContext.fetch(jobDescriptor).first
+        )
+        #expect(persistedScan.queueState == .pending)
+        #expect(persistedScan.stagedR2Keys == nil)
+        #expect(persistedJob.status == .pending)
+        #expect(
+            !(await actor.backgroundAccountWorkIsCurrent(
+                scanId: scanId,
+                ownership: ownership
+            ))
+        )
+    }
+
+    @Test func rejectedInferenceDispatchDurablyRequeuesBeforeCancellation() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "rejected_inference_dispatch_\(UUID().uuidString.lowercased())"
+        let ownerUserID = UUID()
+        let generation = UUID()
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            scanState: .inferencing,
+            stagedR2Keys: [
+                "staging/\(ownerUserID.uuidString.lowercased())/queued.webp"
+            ]
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON: InferenceGenerationMetadataContract.json(
+                for: generation
+            )
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let ownership = BackgroundAccountWorkOwnership(
+            ownerUserID: ownerUserID,
+            generation: generation,
+            phase: .inference
+        )
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            await actor.activateBackgroundAccountWork(
+                scanId: scanId,
+                ownership: ownership
+            )
+        )
+        #expect(
+            await actor.retireBackgroundAccountWork(
+                scanId: scanId,
+                expectedOwnerUserID: ownerUserID,
+                expectedGeneration: generation,
+                phase: .inference
+            )
+        )
+
+        let verificationContext = ModelContext(container)
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        let persistedScan = try #require(
+            verificationContext.fetch(scanDescriptor).first
+        )
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try #require(
+            verificationContext.fetch(jobDescriptor).first
+        )
+        #expect(persistedScan.queueState == .pending)
+        #expect(persistedScan.stagedR2Keys == nil)
+        #expect(persistedJob.status == .pending)
+        #expect(
+            !(await actor.backgroundAccountWorkIsCurrent(
+                scanId: scanId,
+                ownership: ownership
+            ))
+        )
+    }
+
+    @Test func staleSpeciesMetadataCannotOverwriteReplacementIdentification() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "metadata_generation_fence_\(UUID().uuidString.lowercased())"
+        context.insert(LocalScanRecord(
+            id: scanId,
+            speciesId: "replacement-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch",
+            isBiological: true,
+            isLiveCapture: false
+        ))
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.updateScanWithWikipedia(
+            scanId: scanId,
+            extract: "Stale metadata",
+            url: "https://example.invalid/stale",
+            imageUrl: nil,
+            expectedScientificName: "Papilio glaucus"
+        )
+        await actor.updateScanWithEnrichment(
+            scanId: scanId,
+            habitatDescription: "Stale habitat",
+            gbifTaxonKey: 999,
+            similarSpeciesJsonData: nil,
+            taxonomy: nil,
+            expectedScientificName: "Papilio glaucus"
+        )
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.wikipediaOverview == nil)
+        #expect(persisted.wikipediaUrl == nil)
+        #expect(persisted.habitatDescription == nil)
+        #expect(persisted.gbifTaxonKey == nil)
     }
 
     @Test func testClearAllLocalLookalikesCacheClearsBiologicalRecordsAcrossBatchesOnly() async throws {

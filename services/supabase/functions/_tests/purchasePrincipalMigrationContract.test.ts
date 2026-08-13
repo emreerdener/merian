@@ -28,6 +28,10 @@ const supabaseManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Network/SupabaseManager.swift",
   import.meta.url,
 );
+const purchasePrincipalResolverUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/PurchasePrincipalResolver.swift",
+  import.meta.url,
+);
 const securityFixtureUrl = new URL(
   "../../tests/purchase_principal_security.sql",
   import.meta.url,
@@ -471,12 +475,14 @@ Deno.test("webhook and reconciliation resolve stable identities before UUID fall
 });
 
 Deno.test("stable iOS linkage does not transfer receipts or write account PII", async () => {
-  const [handler, resolverDb, manager, supabaseManager] = await Promise.all([
-    Deno.readTextFile(resolverHandlerUrl),
-    Deno.readTextFile(resolverDbUrl),
-    Deno.readTextFile(revenueCatManagerUrl),
-    Deno.readTextFile(supabaseManagerUrl),
-  ]);
+  const [handler, resolverDb, manager, supabaseManager, resolver] =
+    await Promise.all([
+      Deno.readTextFile(resolverHandlerUrl),
+      Deno.readTextFile(resolverDbUrl),
+      Deno.readTextFile(revenueCatManagerUrl),
+      Deno.readTextFile(supabaseManagerUrl),
+      Deno.readTextFile(purchasePrincipalResolverUrl),
+    ]);
 
   assertStringIncludes(handler, "deriveRevenueCatStoreEntitlementState");
   assertStringIncludes(handler, "deriveRevenueCatAccountGrantState");
@@ -494,6 +500,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   assertStringIncludes(manager, "!usesStablePurchasePrincipal,");
   assertStringIncludes(manager, "The newest request always runs last.");
   assertStringIncludes(manager, "func beginPurchaseIdentityResolution()");
+  assertStringIncludes(resolver, "static let current = 2");
   assertStringIncludes(
     supabaseManager,
     "RevenueCatManager.shared.beginPurchaseIdentityResolution()",
@@ -522,11 +529,15 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     supabaseManager,
     ".linkLegacyRevenueCatIdentityForSignOutHandoff(",
   );
-  const compatibilityCompletion = supabaseManager.slice(
-    supabaseManager.indexOf(
+  const compactSupabaseManager = supabaseManager.replaceAll(/\s+/g, " ")
+    .trim();
+  const compatibilityCompletion = compactSupabaseManager.slice(
+    compactSupabaseManager.indexOf(
       "private func performPendingSignOutPurchaseHandoff",
     ),
-    supabaseManager.indexOf("func hasPendingPurchaseIdentityHandoffFailClosed"),
+    compactSupabaseManager.indexOf(
+      "func hasPendingPurchaseIdentityHandoffFailClosed",
+    ),
   );
   assert(
     compatibilityCompletion.indexOf(
@@ -535,7 +546,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
           ".synchronizePurchasesAfterIdentityHandoff(",
         ) &&
       compatibilityCompletion.lastIndexOf(
-          "ensureTelemetryLinkedIfNeeded(for: session.user)",
+          "ensureTelemetryLinkedWhenSafe( for: session.user, ownedBy: transition )",
         ) > compatibilityCompletion.indexOf(
           "clearPendingSignOutPurchaseHandoff()",
         ),

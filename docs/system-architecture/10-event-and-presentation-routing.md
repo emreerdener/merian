@@ -104,6 +104,7 @@ untracked `sink`.
 | `exploreAudioBoostPreferenceChanged(postId:isEnabled:)` | Invalidation | preference store → feed/detail audio | Normalized post ID; latest persisted Boolean wins | UserDefaults preference | Current user preference |
 | `exploreVideoMutePreferenceReset` | Invalidation | mute preference → feed media | Current reset generation; duplicate reset is idempotent | Preference store is re-read on remount | Current user preference |
 | `manualAppleRevocationNoticeRequired` | Lifecycle/security command | `ManualAppleRevocationNoticeStore` → `MerianApp` root | One pending notice flag; duplicate presentation is idempotent | Durable pending-notice flag restored on appearance/foreground | Current auth session |
+| `accountDeletionRecoveryStateChanged` | Lifecycle/security invalidation | `AccountDeletionLocalCleanupStore` → `MerianApp` root | Identity-free phase; duplicate re-read/retry is idempotent | Durable capability intake, cleanup, or retirement phase is authoritative on appearance/foreground; legacy phases remain readable | Device-local deletion barrier |
 
 The bus itself performs no coalescing and stores no replay. “Logical identity”
 defines why duplicate delivery is safe and how a future consumer may bound its

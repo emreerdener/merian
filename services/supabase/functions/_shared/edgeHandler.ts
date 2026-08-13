@@ -41,6 +41,85 @@ export function logStructuredError(
   }));
 }
 
+export interface IdentitySafeErrorDetails {
+  identityKind?: string;
+  operation?: string;
+  stage?: string;
+  code?: string;
+  status?: number;
+}
+
+const IDENTITY_SAFE_LOG_TOKEN = /^[a-z][a-z0-9_]{0,63}$/;
+const UUID_LIKE_LOG_TOKEN =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const IDENTITY_SAFE_CODE_SOURCE = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+function identitySafeLogToken(value: string, fallback: string): string {
+  if (UUID_LIKE_LOG_TOKEN.test(value)) return fallback;
+  const normalized = value.trim().toLowerCase().replaceAll(
+    /[^a-z0-9_]/g,
+    "_",
+  ).slice(0, 64);
+  if (
+    normalized.split("_").some((segment) => segment.length >= 16)
+  ) {
+    return fallback;
+  }
+  return IDENTITY_SAFE_LOG_TOKEN.test(normalized) ? normalized : fallback;
+}
+
+function identitySafeCodeToken(value: string): string {
+  // Codes are machine-authored names, never prose. Rejecting separators that
+  // occur in messages, URLs, and provider customer IDs prevents a future
+  // caller from laundering raw identity/error text through normalization.
+  const trimmed = value.trim();
+  if (!IDENTITY_SAFE_CODE_SOURCE.test(trimmed)) return "operation_failed";
+  return identitySafeLogToken(trimmed, "operation_failed");
+}
+
+/**
+ * Emits an allowlisted operational error without accepting arbitrary detail
+ * objects, Error instances, provider bodies, or identity-bearing values.
+ * Authentication and purchase-identity paths use this narrower boundary so a
+ * customer UUID, principal ID, handoff ID, or raw database/provider message
+ * cannot accidentally enter logs.
+ */
+export function logIdentitySafeError(
+  event: string,
+  details: IdentitySafeErrorDetails = {},
+): void {
+  const safeDetails: Record<string, string | number> = {};
+  if (details.identityKind !== undefined) {
+    safeDetails.identity_kind = identitySafeLogToken(
+      details.identityKind,
+      "unknown",
+    );
+  }
+  if (details.operation !== undefined) {
+    safeDetails.operation = identitySafeLogToken(
+      details.operation,
+      "unknown",
+    );
+  }
+  if (details.stage !== undefined) {
+    safeDetails.stage = identitySafeLogToken(details.stage, "unknown");
+  }
+  if (details.code !== undefined) {
+    safeDetails.code = identitySafeCodeToken(details.code);
+  }
+  if (
+    details.status !== undefined && Number.isInteger(details.status) &&
+    details.status >= 100 && details.status <= 599
+  ) {
+    safeDetails.status = details.status;
+  }
+
+  logStructuredError(
+    identitySafeLogToken(event, "identity_operation_failed"),
+    safeDetails,
+  );
+}
+
 /**
  * Schedules a background task using EdgeRuntime.waitUntil when available,
  * falling back gracefully for local development.
@@ -55,7 +134,11 @@ export function runBackground(task: Promise<void>): void {
   ) {
     globalObj.EdgeRuntime.waitUntil(task);
   } else {
-    task.catch(console.error);
+    task.catch((error: unknown) => {
+      logIdentitySafeError("background_task_failed", {
+        code: identitySafeErrorKind(error),
+      });
+    });
   }
 }
 
@@ -227,10 +310,8 @@ function boundaryFailureResponse(req: Request, error: unknown): Response {
   const requestId = requestIdFor(req);
   logStructuredError("edge_function_request_failed", {
     request_id: requestId,
-    method: req.method,
-    pathname: safePathname(req.url),
-    error_name: error instanceof Error ? error.name : typeof error,
-    error_message: error instanceof Error ? error.message : String(error),
+    method: identitySafeLogToken(req.method, "unknown"),
+    error_kind: identitySafeErrorKind(error),
   });
 
   if (error instanceof PublicHttpError) {
@@ -248,6 +329,13 @@ function boundaryFailureResponse(req: Request, error: unknown): Response {
     500,
     "internal_error",
     "The request could not be completed.",
+  );
+}
+
+function identitySafeErrorKind(error: unknown): string {
+  return identitySafeLogToken(
+    error instanceof Error ? error.name : typeof error,
+    "operation_failed",
   );
 }
 
@@ -319,12 +407,4 @@ function validRetryAfter(value: number | undefined): number | undefined {
       value <= 86_400
     ? value
     : undefined;
-}
-
-function safePathname(url: string): string {
-  try {
-    return new URL(url).pathname.slice(0, 256);
-  } catch {
-    return "<invalid-url>";
-  }
 }

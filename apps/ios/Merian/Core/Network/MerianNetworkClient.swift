@@ -182,6 +182,8 @@ private struct DeleteScanResponse: Decodable {
 }
 
 enum AccountDeletionStatus: String, Decodable, Equatable, Sendable {
+    case prepared
+    case notCommitted = "not_committed"
     case pending
     case completed
 }
@@ -190,11 +192,92 @@ struct AccountDeletionReceipt: Decodable, Equatable, Sendable {
     let success: Bool
     let status: AccountDeletionStatus
     let manualProviderRevocationRequired: Bool
+    let recoveryCapabilityExpiresAt: String?
+    let recoveryAcknowledged: Bool?
+    let protocolVersion: Int?
+
+    init(
+        success: Bool,
+        status: AccountDeletionStatus,
+        manualProviderRevocationRequired: Bool,
+        recoveryCapabilityExpiresAt: String? = nil,
+        recoveryAcknowledged: Bool? = nil,
+        protocolVersion: Int? = nil
+    ) {
+        self.success = success
+        self.status = status
+        self.manualProviderRevocationRequired =
+            manualProviderRevocationRequired
+        self.recoveryCapabilityExpiresAt = recoveryCapabilityExpiresAt
+        self.recoveryAcknowledged = recoveryAcknowledged
+        self.protocolVersion = protocolVersion
+    }
 
     private enum CodingKeys: String, CodingKey {
         case success
         case status
         case manualProviderRevocationRequired = "manual_provider_revocation_required"
+        case recoveryCapabilityExpiresAt = "recovery_capability_expires_at"
+        case recoveryAcknowledged = "recovery_acknowledged"
+        case protocolVersion = "protocol_version"
+    }
+}
+
+private struct AccountDeletionIntakePayload: Encodable {
+    let recoveryCapability: String
+
+    private enum CodingKeys: String, CodingKey {
+        case recoveryCapability = "recovery_capability"
+    }
+}
+
+private struct AccountDeletionRecoveryPayload: Encodable {
+    let operation: String
+    let recoveryCapability: String
+
+    private enum CodingKeys: String, CodingKey {
+        case operation
+        case recoveryCapability = "recovery_capability"
+    }
+}
+
+struct AccountDeletionPreparationPayload: Encodable {
+    let protocolVersion = 2
+    let operation = "prepare"
+    let recoveryCapability: String
+    let acknowledgementCapability: String
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolVersion = "protocol_version"
+        case operation
+        case recoveryCapability = "recovery_capability"
+        case acknowledgementCapability = "acknowledgement_capability"
+    }
+}
+
+struct AccountDeletionCommitPayload: Encodable {
+    let protocolVersion = 2
+    let operation = "commit"
+    let recoveryCapability: String
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolVersion = "protocol_version"
+        case operation
+        case recoveryCapability = "recovery_capability"
+    }
+}
+
+private struct AccountDeletionRecoveryV2Payload: Encodable {
+    let protocolVersion = 2
+    let operation: String
+    let recoveryCapability: String?
+    let acknowledgementCapability: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolVersion = "protocol_version"
+        case operation
+        case recoveryCapability = "recovery_capability"
+        case acknowledgementCapability = "acknowledgement_capability"
     }
 }
 
@@ -478,6 +561,7 @@ struct EdgeFunctionRouteResponseEvidence: Sendable {
 
 private struct InferenceRequestContext: Sendable {
     let userId: String
+    let authUserID: UUID?
     let deviceLocale: String
     let deviceTimeZone: String
     let deviceRegion: String?
@@ -485,6 +569,33 @@ private struct InferenceRequestContext: Sendable {
     let timeOfDay: String
     let depthScaleText: String?
     let defaultGeoprivacy: String
+}
+
+struct AuthenticatedInferenceRequest: Sendable {
+    let request: URLRequest
+    let expectedAuthUserID: UUID
+
+    /// Keeps the serialized inference body, JWT, and eventual transport lease
+    /// attached to the same Auth account across suspensions.
+    func isBound(to session: AuthTransitionSession) -> Bool {
+        expectedAuthUserID == session.userID
+    }
+}
+
+enum AuthenticatedRetryAccountPolicy {
+    static func boundUserID(
+        explicitUserID: UUID?,
+        initiatingUserID: UUID
+    ) -> UUID {
+        explicitUserID ?? initiatingUserID
+    }
+}
+
+private struct AuthenticatedTransportResult {
+    let data: Data
+    let response: URLResponse
+    let uploadDelegate: MerianRequestUploadDelegate?
+    let authCompletedAt: CFAbsoluteTime
 }
 
 private enum InferencePayloadBuilder {
@@ -503,6 +614,7 @@ private enum InferencePayloadBuilder {
 
         return InferenceRequestContext(
             userId: userId.lowercased(),
+            authUserID: UUID(uuidString: userId),
             deviceLocale: Locale.current.language.languageCode?.identifier ?? "en",
             deviceTimeZone: TimeZone.current.identifier,
             deviceRegion: Locale.current.region?.identifier,
@@ -927,6 +1039,11 @@ final class MerianNetworkClient {
     /// allowing dedicated tests to prove that consent failures stop dispatch.
     var overridingInferenceConsentCheck: (@Sendable () async throws -> Void)?
 
+    /// Explicit account identity for mocked requests whose injected transport
+    /// intentionally has no live Supabase SDK session. Production never reads
+    /// this seam.
+    var overridingAuthUserID: UUID?
+
     /// Lets the 401 recovery regression exercise the real request replay branch
     /// without refreshing or replacing a developer's persisted simulator session.
     var overridingAuthSessionRefresh: (@Sendable () async -> Bool)?
@@ -1002,7 +1119,7 @@ final class MerianNetworkClient {
             _ = try await activeSession.data(for: request)
         } catch {
             MerianLog.network.debug(
-                "Inference endpoint prewarm skipped: \(error.localizedDescription, privacy: .private)"
+                "Inference endpoint prewarm skipped; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
         }
     }
@@ -1363,6 +1480,16 @@ final class MerianNetworkClient {
         return stableEdgeErrorCode(responseData: Data(message.utf8))
     }
 
+    static func inferenceObjectKeysBelongToExpectedUser(
+        _ objectKeyGroups: [[String]],
+        expectedAuthUserID: UUID
+    ) -> Bool {
+        let expectedOwner = expectedAuthUserID.uuidString.lowercased()
+        return objectKeyGroups.joined().allSatisfy {
+            MediaStagingContract.ownerId(fromObjectKey: $0) == expectedOwner
+        }
+    }
+
     static func isRecoverableInferenceConflict(_ error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, _) = error,
               statusCode == 409,
@@ -1438,26 +1565,45 @@ final class MerianNetworkClient {
     }
     #endif
 
-    private func makeInferenceRequestContext(telemetry: CaptureTelemetry) async -> InferenceRequestContext {
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let (deviceId, defaultGeoprivacy) = await MainActor.run {
-            (
-                DeviceIdentityManager.shared.deviceId,
-                AppDIContainer.shared.profileViewModel.defaultGeoprivacy
-            )
+    private func makeInferenceRequestContext(
+        telemetry: CaptureTelemetry
+    ) async throws -> InferenceRequestContext {
+        let authUserID = try await requestPayloadAuthUserID()
+        let defaultGeoprivacy = await MainActor.run {
+            AppDIContainer.shared.profileViewModel.defaultGeoprivacy
         }
         return InferencePayloadBuilder.makeContext(
-            userId: authUserId ?? deviceId,
+            userId: authUserID.uuidString,
             telemetry: telemetry,
             defaultGeoprivacy: defaultGeoprivacy
         )
+    }
+
+    /// Captures the exact account embedded in an authenticated payload. The
+    /// later transport must reacquire this same account before dispatch.
+    private func requestPayloadAuthUserID() async throws -> UUID {
+        #if DEBUG
+        if overridingSession != nil {
+            guard let overridingAuthUserID else {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+            return overridingAuthUserID
+        }
+        #endif
+        return try await MainActor.run {
+            let manager = SupabaseManager.shared
+            let lease = try manager.beginUnownedAccountBoundWork()
+            defer { manager.finishAccountBoundWork(lease) }
+            return lease.session.userID
+        }
     }
 
     private func makeAuthenticatedJSONRequest(
         url: URL,
         bodyData: Data,
         timeoutInterval: TimeInterval = 90.0,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        expectedAuthUserID: UUID? = nil
     ) async throws -> URLRequest {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
         request.httpMethod = "POST"
@@ -1468,15 +1614,197 @@ final class MerianNetworkClient {
         }
         request.httpBody = bodyData
 
-        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
+        #if DEBUG
+        let enforcesLiveAccountContext = overridingSession == nil
+            && !TestExecutionCoordinator.isRunningTests
+        #else
+        let enforcesLiveAccountContext = true
+        #endif
+        let accountWorkLease: AccountBoundWorkLease?
+        if enforcesLiveAccountContext {
+            if let admitted = try? await SupabaseManager.shared
+                .beginUnownedAccountBoundWork(
+                    expectedUserID: expectedAuthUserID
+                ) {
+                accountWorkLease = admitted
+            } else {
+                _ = try await SupabaseManager.shared.getValidAuthHeaders(
+                    expectedUserID: expectedAuthUserID
+                )
+                accountWorkLease = try await SupabaseManager.shared
+                    .beginUnownedAccountBoundWork(
+                        expectedUserID: expectedAuthUserID
+                    )
+            }
+        } else {
+            accountWorkLease = nil
         }
 
-        return request
+        do {
+            #if DEBUG
+            if overridingSession == nil {
+                let authHeaders = try await SupabaseManager.shared
+                    .getValidAuthHeaders(expectedUserID: expectedAuthUserID)
+                for (key, val) in authHeaders {
+                    request.setValue(val, forHTTPHeaderField: key)
+                }
+            }
+            #else
+            let authHeaders = try await SupabaseManager.shared
+                .getValidAuthHeaders(expectedUserID: expectedAuthUserID)
+            for (key, val) in authHeaders {
+                request.setValue(val, forHTTPHeaderField: key)
+            }
+            #endif
+            if let accountWorkLease {
+                guard await SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                await SupabaseManager.shared
+                    .finishAccountBoundWork(accountWorkLease)
+            }
+            return request
+        } catch {
+            if let accountWorkLease {
+                await SupabaseManager.shared
+                    .finishAccountBoundWork(accountWorkLease)
+            }
+            throw error
+        }
     }
 
     // MARK: - Authenticated Request Core
+
+    /// Dispatches one authenticated HTTP attempt while an exact-session lease
+    /// prevents Auth from rotating underneath the request. Recovery and retry
+    /// decisions happen after this scope releases, so a 401-triggered Auth
+    /// transition cannot deadlock waiting on the request that initiated it.
+    private func performAuthenticatedTransport(
+        request originalRequest: URLRequest,
+        body: Data?,
+        onRequestBodySent: (@Sendable () -> Void)?,
+        authTransitionOwner: AuthTransitionToken?,
+        expectedAuthUserID: UUID?
+    ) async throws -> AuthenticatedTransportResult {
+        #if DEBUG
+        let enforcesLiveAccountContext = overridingSession == nil
+            && !TestExecutionCoordinator.isRunningTests
+        #else
+        let enforcesLiveAccountContext = true
+        #endif
+
+        let accountWorkLease: AccountBoundWorkLease?
+        if enforcesLiveAccountContext, authTransitionOwner == nil {
+            if let admitted = try? await SupabaseManager.shared
+                .beginUnownedAccountBoundWork(
+                    expectedUserID: expectedAuthUserID
+                ) {
+                accountWorkLease = admitted
+            } else {
+                // A genuinely missing session may require the manager's
+                // serialized anonymous bootstrap. Re-read headers only to
+                // complete that bootstrap, then atomically admit the exact
+                // expected account before dispatch.
+                _ = try await SupabaseManager.shared.getValidAuthHeaders(
+                    expectedUserID: expectedAuthUserID
+                )
+                accountWorkLease = try await SupabaseManager.shared
+                    .beginUnownedAccountBoundWork(
+                        expectedUserID: expectedAuthUserID
+                    )
+            }
+        } else {
+            accountWorkLease = nil
+        }
+
+        do {
+            if let authTransitionOwner,
+               !(await SupabaseManager.shared
+                    .ownsAuthTransition(authTransitionOwner)) {
+                throw SupabaseAuthTransitionError.signOutSessionChanged
+            }
+
+            var request = originalRequest
+            #if DEBUG
+            if overridingSession == nil {
+                let authHeaders = try await SupabaseManager.shared
+                    .getValidAuthHeaders(
+                        ownedBy: authTransitionOwner,
+                        expectedUserID: expectedAuthUserID
+                    )
+                for (key, val) in authHeaders {
+                    request.setValue(val, forHTTPHeaderField: key)
+                }
+            }
+            #else
+            let authHeaders = try await SupabaseManager.shared
+                .getValidAuthHeaders(
+                    ownedBy: authTransitionOwner,
+                    expectedUserID: expectedAuthUserID
+                )
+            for (key, val) in authHeaders {
+                request.setValue(val, forHTTPHeaderField: key)
+            }
+            #endif
+            try Task.checkCancellation()
+
+            let constrainedNetwork = await MainActor.run {
+                OfflineQueueManager.shared.isCurrentNetworkConstrained
+            }
+            try Task.checkCancellation()
+            request.setValue(
+                constrainedNetwork ? "true" : "false",
+                forHTTPHeaderField: "X-Merian-Constrained-Network"
+            )
+            let authCompletedAt = CFAbsoluteTimeGetCurrent()
+
+            let data: Data
+            let response: URLResponse
+            let uploadDelegate: MerianRequestUploadDelegate?
+            if let body, let onRequestBodySent {
+                let delegate = MerianRequestUploadDelegate(
+                    expectedBodyBytes: body.count,
+                    onBodySent: onRequestBodySent
+                )
+                uploadDelegate = delegate
+                (data, response) = try await activeSession.data(
+                    for: request,
+                    delegate: delegate
+                )
+            } else {
+                uploadDelegate = nil
+                (data, response) = try await activeSession.data(for: request)
+            }
+
+            if let authTransitionOwner {
+                guard await SupabaseManager.shared
+                    .ownsAuthTransition(authTransitionOwner) else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+            }
+            if let accountWorkLease {
+                guard await SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                await SupabaseManager.shared
+                    .finishAccountBoundWork(accountWorkLease)
+            }
+            return AuthenticatedTransportResult(
+                data: data,
+                response: response,
+                uploadDelegate: uploadDelegate,
+                authCompletedAt: authCompletedAt
+            )
+        } catch {
+            if let accountWorkLease {
+                await SupabaseManager.shared
+                    .finishAccountBoundWork(accountWorkLease)
+            }
+            throw error
+        }
+    }
 
     private func performAuthenticatedRequest(
         url: URL,
@@ -1487,9 +1815,28 @@ final class MerianNetworkClient {
         functionRouteRetryAttempt: Int = 0,
         idempotencyKey: String? = nil,
         allowsTransientTransportRetry: Bool = true,
-        onRequestBodySent: (@Sendable () -> Void)? = nil
+        onRequestBodySent: (@Sendable () -> Void)? = nil,
+        authTransitionOwner: AuthTransitionToken? = nil,
+        expectedAuthUserID: UUID? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         try Task.checkCancellation()
+
+        // Bind the complete retry chain to the account that initiated it. A
+        // transport/route/401 delay can outlive an Auth transition; allowing a
+        // recursive attempt to capture the replacement session would replay
+        // account A's intent under account B. Transition-owned requests already
+        // validate their owner token and expected SDK session separately.
+        let retryChainAuthUserID: UUID?
+        if authTransitionOwner == nil {
+            let initiatingUserID = try await requestPayloadAuthUserID()
+            retryChainAuthUserID =
+                AuthenticatedRetryAccountPolicy.boundUserID(
+                    explicitUserID: expectedAuthUserID,
+                    initiatingUserID: initiatingUserID
+                )
+        } else {
+            retryChainAuthUserID = expectedAuthUserID
+        }
 
         let requestStart = CFAbsoluteTimeGetCurrent()
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeoutInterval)
@@ -1503,45 +1850,21 @@ final class MerianNetworkClient {
             request.httpBody = body
         }
 
-        // In DEBUG, skip the live auth round-trip when a mock session is injected.
-        // The Supabase SDK uses its own internal URLSession for token refresh which
-        // MockURLProtocol cannot intercept, causing the test to hit the real network.
-        #if DEBUG
-        if overridingSession == nil {
-            let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
-            for (key, val) in authHeaders {
-                request.setValue(val, forHTTPHeaderField: key)
-            }
-        }
-        #else
-        let authHeaders = try await SupabaseManager.shared.getValidAuthHeaders()
-        for (key, val) in authHeaders {
-            request.setValue(val, forHTTPHeaderField: key)
-        }
-        #endif
-        try Task.checkCancellation()
-
-        let constrainedNetwork = await MainActor.run {
-            OfflineQueueManager.shared.isCurrentNetworkConstrained
-        }
-        try Task.checkCancellation()
-
-        request.setValue(constrainedNetwork ? "true" : "false", forHTTPHeaderField: "X-Merian-Constrained-Network")
-        let authCompletedAt = CFAbsoluteTimeGetCurrent()
-
         let (data, response): (Data, URLResponse)
         var requestUploadDelegate: MerianRequestUploadDelegate?
+        let authCompletedAt: CFAbsoluteTime
         do {
-            if let body, let onRequestBodySent {
-                let uploadDelegate = MerianRequestUploadDelegate(
-                    expectedBodyBytes: body.count,
-                    onBodySent: onRequestBodySent
-                )
-                requestUploadDelegate = uploadDelegate
-                (data, response) = try await activeSession.data(for: request, delegate: uploadDelegate)
-            } else {
-                (data, response) = try await activeSession.data(for: request)
-            }
+            let transport = try await performAuthenticatedTransport(
+                request: request,
+                body: body,
+                onRequestBodySent: onRequestBodySent,
+                authTransitionOwner: authTransitionOwner,
+                expectedAuthUserID: retryChainAuthUserID
+            )
+            data = transport.data
+            response = transport.response
+            requestUploadDelegate = transport.uploadDelegate
+            authCompletedAt = transport.authCompletedAt
         } catch let urlError as URLError {
             // A transport failure means the inline request can no longer be the
             // sole owner of the uplink. Release the durable queue immediately;
@@ -1577,7 +1900,9 @@ final class MerianNetworkClient {
                     idempotencyKey: idempotencyKey,
                     allowsTransientTransportRetry:
                         allowsTransientTransportRetry,
-                    onRequestBodySent: onRequestBodySent
+                    onRequestBodySent: onRequestBodySent,
+                    authTransitionOwner: authTransitionOwner,
+                    expectedAuthUserID: retryChainAuthUserID
                 )
             }
             throw urlError
@@ -1593,7 +1918,11 @@ final class MerianNetworkClient {
 
         if !(200..<300).contains(httpResponse.statusCode) {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
-            MerianLog.network.debug("Edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
+            let safeCode = Self.stableEdgeErrorCode(responseData: data)
+                ?? "unclassified"
+            MerianLog.network.debug(
+                "Edge function failed; route=\(url.lastPathComponent, privacy: .public) status=\(httpResponse.statusCode, privacy: .public) code=\(safeCode, privacy: .public)."
+            )
 
             let platformFunctionRouteUnavailable = Self.isPlatformFunctionRouteUnavailable(
                 evidence: EdgeFunctionRouteResponseEvidence(response: httpResponse),
@@ -1617,7 +1946,9 @@ final class MerianNetworkClient {
                         idempotencyKey: idempotencyKey,
                         allowsTransientTransportRetry:
                             allowsTransientTransportRetry,
-                        onRequestBodySent: onRequestBodySent
+                        onRequestBodySent: onRequestBodySent,
+                        authTransitionOwner: authTransitionOwner,
+                        expectedAuthUserID: retryChainAuthUserID
                     )
                 }
 
@@ -1641,7 +1972,7 @@ final class MerianNetworkClient {
                             .requireCurrentConsentReapprovalAfterServerRejection()
                     } catch {
                         MerianLog.auth.error(
-                            "Server-required consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                            "Server-required consent reapproval could not be persisted; the in-memory gate remains closed; kind=\(MerianLog.errorKind(error), privacy: .public)."
                         )
                     }
                 }
@@ -1657,7 +1988,20 @@ final class MerianNetworkClient {
                     // access token while the refresh token and account remain
                     // valid. Refresh first so an anonymous user's durable scan,
                     // consent evidence, and server ownership stay on one UUID.
-                    if await refreshActiveSessionForRetry() {
+                    let refreshedSession = await Self
+                        .performSessionRefreshForUnauthorizedRequest(
+                            authTransitionOwner: authTransitionOwner,
+                            refreshOrdinary: {
+                                await self.refreshActiveSessionForRetry()
+                            },
+                            refreshTransitionOwned: { owner in
+                                await SupabaseManager.shared
+                                    .refreshExpectedSessionForAuthenticatedRequest(
+                                        ownedBy: owner
+                                    )
+                            }
+                        )
+                    if refreshedSession {
                         return try await performAuthenticatedRequest(
                             url: url,
                             method: method,
@@ -1668,7 +2012,9 @@ final class MerianNetworkClient {
                             idempotencyKey: idempotencyKey,
                             allowsTransientTransportRetry:
                                 allowsTransientTransportRetry,
-                            onRequestBodySent: onRequestBodySent
+                            onRequestBodySent: onRequestBodySent,
+                            authTransitionOwner: authTransitionOwner,
+                            expectedAuthUserID: retryChainAuthUserID
                         )
                     }
 
@@ -1696,7 +2042,9 @@ final class MerianNetworkClient {
                                 idempotencyKey: idempotencyKey,
                                 allowsTransientTransportRetry:
                                     allowsTransientTransportRetry,
-                                onRequestBodySent: onRequestBodySent
+                                onRequestBodySent: onRequestBodySent,
+                                authTransitionOwner: authTransitionOwner,
+                                expectedAuthUserID: retryChainAuthUserID
                             )
                         }
 
@@ -1746,9 +2094,11 @@ final class MerianNetworkClient {
                     isRetry: true,
                     functionRouteRetryAttempt: functionRouteRetryAttempt,
                     idempotencyKey: idempotencyKey,
-                    allowsTransientTransportRetry:
-                        allowsTransientTransportRetry,
-                    onRequestBodySent: onRequestBodySent
+                        allowsTransientTransportRetry:
+                            allowsTransientTransportRetry,
+                    onRequestBodySent: onRequestBodySent,
+                    authTransitionOwner: authTransitionOwner,
+                    expectedAuthUserID: retryChainAuthUserID
                 )
             }
 
@@ -1765,6 +2115,18 @@ final class MerianNetworkClient {
             )
         }
         return (data, httpResponse)
+    }
+
+    static func performSessionRefreshForUnauthorizedRequest(
+        authTransitionOwner: AuthTransitionToken?,
+        refreshOrdinary: @MainActor () async -> Bool,
+        refreshTransitionOwned:
+            @MainActor (AuthTransitionToken) async -> Bool
+    ) async -> Bool {
+        if let authTransitionOwner {
+            return await refreshTransitionOwned(authTransitionOwner)
+        }
+        return await refreshOrdinary()
     }
 
     private func performPublicGETRequest(
@@ -1802,7 +2164,11 @@ final class MerianNetworkClient {
 
         if httpResponse.statusCode != 200 {
             let errString = String(data: data, encoding: .utf8) ?? "Unknown"
-            MerianLog.network.debug("Public edge function failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
+            let safeCode = Self.stableEdgeErrorCode(responseData: data)
+                ?? "unclassified"
+            MerianLog.network.debug(
+                "Public Edge function failed; route=\(url.lastPathComponent, privacy: .public) status=\(httpResponse.statusCode, privacy: .public) code=\(safeCode, privacy: .public)."
+            )
 
             if httpResponse.statusCode >= 500 && !isRetry {
                 MerianLog.network.debug("Public server error \(httpResponse.statusCode, privacy: .public) — retrying in 2s.")
@@ -1828,10 +2194,12 @@ final class MerianNetworkClient {
         clientScanId: String,
         description: String? = nil,
         observationContextJSON: String? = nil
-    ) async throws -> URLRequest {
+    ) async throws -> AuthenticatedInferenceRequest {
         try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify")
-        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let context = try await makeInferenceRequestContext(
+            telemetry: telemetry
+        )
         let capturedR2ObjectKeys = r2ObjectKeys
         let capturedScanId = clientScanId
         let capturedTelemetry = telemetry
@@ -1850,17 +2218,33 @@ final class MerianNetworkClient {
             )
         }.value
 
-        return try await makeAuthenticatedJSONRequest(
+        guard let expectedAuthUserID = context.authUserID else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        guard Self.inferenceObjectKeysBelongToExpectedUser(
+            [capturedR2ObjectKeys],
+            expectedAuthUserID: expectedAuthUserID
+        ) else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        let request = try await makeAuthenticatedJSONRequest(
             url: functionUrl,
             bodyData: bodyData,
-            idempotencyKey: capturedScanId
+            idempotencyKey: capturedScanId,
+            expectedAuthUserID: expectedAuthUserID
+        )
+        return AuthenticatedInferenceRequest(
+            request: request,
+            expectedAuthUserID: expectedAuthUserID
         )
     }
 
     func analyzeSubject(r2ObjectKeys: [String]?, base64ImageDatas: [String]?, mimeType: String = "image/webp", telemetry: CaptureTelemetry, clientScanId: String? = nil, description: String? = nil, observationContextJSON: String? = nil) async throws -> Data {
         try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify")
-        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let context = try await makeInferenceRequestContext(
+            telemetry: telemetry
+        )
         let capturedR2ObjectKeys = r2ObjectKeys
         let capturedImageBase64s = base64ImageDatas
         let capturedMimeType = mimeType
@@ -1868,6 +2252,13 @@ final class MerianNetworkClient {
         let capturedClientScanId = clientScanId ?? UUID().uuidString.lowercased()
         let capturedDescription = description
         let capturedObservationContextJSON = observationContextJSON
+        guard let expectedAuthUserID = context.authUserID,
+              Self.inferenceObjectKeysBelongToExpectedUser(
+                [capturedR2ObjectKeys ?? []],
+                expectedAuthUserID: expectedAuthUserID
+              ) else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
         let bodyData = try await Task.detached(priority: .userInitiated) {
             try InferencePayloadBuilder.identifyBody(
                 r2ObjectKeys: capturedR2ObjectKeys,
@@ -1887,7 +2278,8 @@ final class MerianNetworkClient {
             method: "POST",
             body: bodyData,
             timeoutInterval: 90.0,
-            idempotencyKey: capturedClientScanId
+            idempotencyKey: capturedClientScanId,
+            expectedAuthUserID: expectedAuthUserID
         )
         return data
     }
@@ -1919,6 +2311,7 @@ final class MerianNetworkClient {
     ) throws -> Data {
         let context = InferenceRequestContext(
             userId: userId.lowercased(),
+            authUserID: UUID(uuidString: userId),
             deviceLocale: deviceLocale,
             deviceTimeZone: deviceTimeZone,
             deviceRegion: deviceRegion,
@@ -1960,10 +2353,12 @@ final class MerianNetworkClient {
         telemetry: CaptureTelemetry,
         clientScanId: String,
         preferredGoal: FieldTripPreferredGoal? = nil
-    ) async throws -> URLRequest {
+    ) async throws -> AuthenticatedInferenceRequest {
         try await ensureInferenceConsent()
         let functionUrl = try endpointURL("identify-multimodal")
-        let context = await makeInferenceRequestContext(telemetry: telemetry)
+        let context = try await makeInferenceRequestContext(
+            telemetry: telemetry
+        )
         let capturedR2ObjectKeys = r2ObjectKeys
         let capturedBase64ImageDatas = base64ImageDatas
         let capturedClientScanId = clientScanId
@@ -2006,10 +2401,28 @@ final class MerianNetworkClient {
             )
         }.value
 
-        return try await makeAuthenticatedJSONRequest(
+        guard let expectedAuthUserID = context.authUserID else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        guard Self.inferenceObjectKeysBelongToExpectedUser(
+            [
+                capturedR2ObjectKeys,
+                capturedAudioR2ObjectKeys,
+                capturedVideoR2ObjectKeys
+            ],
+            expectedAuthUserID: expectedAuthUserID
+        ) else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        let request = try await makeAuthenticatedJSONRequest(
             url: functionUrl,
             bodyData: bodyData,
-            idempotencyKey: capturedClientScanId
+            idempotencyKey: capturedClientScanId,
+            expectedAuthUserID: expectedAuthUserID
+        )
+        return AuthenticatedInferenceRequest(
+            request: request,
+            expectedAuthUserID: expectedAuthUserID
         )
     }
 
@@ -2080,7 +2493,7 @@ final class MerianNetworkClient {
         durableQueueOwnsRecovery: Bool = false,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
-        let request = try await buildMultiModalRequest(
+        let authenticatedRequest = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
             videoR2ObjectKeys: videoR2ObjectKeys,
             base64ImageDatas: base64ImageDatas,
@@ -2094,6 +2507,7 @@ final class MerianNetworkClient {
             clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
             preferredGoal: preferredGoal
         )
+        let request = authenticatedRequest.request
 
         guard let url = request.url, let bodyData = request.httpBody else {
             throw MerianError.invalidURL
@@ -2111,7 +2525,8 @@ final class MerianNetworkClient {
             // one bounded attempt. Any later provider/status work belongs to the
             // exact queued scan rather than an inline replay.
             allowsTransientTransportRetry: !durableQueueOwnsRecovery,
-            onRequestBodySent: onRequestBodySent
+            onRequestBodySent: onRequestBodySent,
+            expectedAuthUserID: authenticatedRequest.expectedAuthUserID
         )
         return data
     }
@@ -2175,14 +2590,26 @@ final class MerianNetworkClient {
 
     // MARK: - R2 Storage
 
-    func generateUploadURLs(uploadFiles: [StagingUploadFile]) async throws -> [PreSignedURL] {
+    func generateUploadURLs(
+        uploadFiles: [StagingUploadFile],
+        expectedAuthUserID: UUID? = nil
+    ) async throws -> [PreSignedURL] {
         let functionUrl = try endpointURL("generate-upload-urls")
-        let authUserId = try? await SupabaseManager.shared.client.auth.session.user.id.uuidString
-        let deviceId = await MainActor.run { DeviceIdentityManager.shared.deviceId }
-        let userId = (authUserId ?? deviceId).lowercased()
+        let authUserID: UUID
+        if let expectedAuthUserID {
+            authUserID = expectedAuthUserID
+        } else {
+            authUserID = try await requestPayloadAuthUserID()
+        }
+        let userId = authUserID.uuidString.lowercased()
         let bodyData = try JSONEncoder().encode(UploadURLRequestBody(files: uploadFiles, userId: userId))
 
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            expectedAuthUserID: authUserID
+        )
         return try JSONDecoder().decode(PreSignedURLResponse.self, from: data).urls
     }
 
@@ -2380,8 +2807,9 @@ final class MerianNetworkClient {
         }
 
         if httpResponse.statusCode != 200 {
-            let errString = String(data: responseData, encoding: .utf8) ?? "Unknown"
-            MerianLog.network.debug("R2 upload failed [\(httpResponse.statusCode, privacy: .public)]: \(errString, privacy: .public)")
+            MerianLog.network.debug(
+                "R2 upload failed; status=\(httpResponse.statusCode, privacy: .public)."
+            )
             throw MerianError.uploadFailed
         }
     }
@@ -2408,7 +2836,15 @@ final class MerianNetworkClient {
             payload["recovery_scan"] = recoveryObject
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
+        let expectedAuthUserID = recoveryScan.flatMap {
+            UUID(uuidString: $0.userId)
+        }
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            expectedAuthUserID: expectedAuthUserID
+        )
         let decoded: ScanStatusResponse
         do {
             decoded = try JSONDecoder().decode(
@@ -2515,11 +2951,28 @@ final class MerianNetworkClient {
         MerianLog.network.debug("Scan deleted: \(scanId, privacy: .private)")
     }
 
-    func safeDeleteAccount() async throws -> AccountDeletionReceipt {
+    func safeDeleteAccount(
+        recoveryCapability: String? = nil,
+        ownedBy authTransitionOwner: AuthTransitionToken? = nil
+    ) async throws -> AccountDeletionReceipt {
         let functionUrl = try endpointURL("safe-delete")
+        if let recoveryCapability {
+            guard Self.isValidAccountDeletionRecoveryCapability(
+                recoveryCapability
+            ) else {
+                throw MerianError.invalidResponse
+            }
+        }
+        let body = try recoveryCapability.map {
+            try JSONEncoder().encode(
+                AccountDeletionIntakePayload(recoveryCapability: $0)
+            )
+        }
         let (data, httpResponse) = try await performAuthenticatedRequest(
             url: functionUrl,
-            method: "POST"
+            method: "POST",
+            body: body,
+            authTransitionOwner: authTransitionOwner
         )
         let receipt: AccountDeletionReceipt
         do {
@@ -2529,11 +2982,315 @@ final class MerianNetworkClient {
         }
         guard receipt.success,
               (receipt.status == .pending && httpResponse.statusCode == 202)
-                || (receipt.status == .completed && httpResponse.statusCode == 200) else {
+                || (receipt.status == .completed && httpResponse.statusCode == 200),
+              recoveryCapability == nil ||
+                Self.isValidAccountDeletionRecoveryExpiry(
+                    receipt.recoveryCapabilityExpiresAt
+                ) else {
             throw MerianError.invalidResponse
         }
         MerianLog.network.debug("Account deletion accepted.")
         return receipt
+    }
+
+    /// Registers both protocol-v2 proofs without creating a deletion job.
+    /// Destructive commit is a separate authenticated request and is rejected
+    /// unless this exact preparation exists server-side.
+    func prepareAccountDeletionRecoveryV2(
+        recoveryCapability: String,
+        acknowledgementCapability: String,
+        ownedBy authTransitionOwner: AuthTransitionToken
+    ) async throws -> AccountDeletionReceipt {
+        guard Self.isValidAccountDeletionRecoveryCapability(
+            recoveryCapability
+        ), Self.isValidAccountDeletionRecoveryCapability(
+            acknowledgementCapability
+        ), recoveryCapability != acknowledgementCapability else {
+            throw MerianError.invalidResponse
+        }
+        let functionUrl = try endpointURL("safe-delete")
+        let body = try JSONEncoder().encode(
+            AccountDeletionPreparationPayload(
+                recoveryCapability: recoveryCapability,
+                acknowledgementCapability: acknowledgementCapability
+            )
+        )
+        let (data, response) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: body,
+            authTransitionOwner: authTransitionOwner
+        )
+        let receipt = try decodeAccountDeletionReceipt(data)
+        guard response.statusCode == 200,
+              receipt.success,
+              receipt.status == .prepared,
+              receipt.protocolVersion == 2,
+              Self.isValidAccountDeletionRecoveryExpiry(
+                  receipt.recoveryCapabilityExpiresAt
+              ) else {
+            throw MerianError.invalidResponse
+        }
+        return receipt
+    }
+
+    func commitPreparedAccountDeletionV2(
+        recoveryCapability: String,
+        ownedBy authTransitionOwner: AuthTransitionToken
+    ) async throws -> AccountDeletionReceipt {
+        guard Self.isValidAccountDeletionRecoveryCapability(
+            recoveryCapability
+        ) else {
+            throw MerianError.invalidResponse
+        }
+        let functionUrl = try endpointURL("safe-delete")
+        let body = try JSONEncoder().encode(
+            AccountDeletionCommitPayload(
+                recoveryCapability: recoveryCapability
+            )
+        )
+        let (data, response) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: body,
+            authTransitionOwner: authTransitionOwner
+        )
+        let receipt = try decodeAccountDeletionReceipt(data)
+        guard receipt.success,
+              receipt.protocolVersion == 2,
+              (receipt.status == .pending && response.statusCode == 202)
+                || (receipt.status == .completed && response.statusCode == 200),
+              Self.isValidAccountDeletionRecoveryExpiry(
+                  receipt.recoveryCapabilityExpiresAt
+              ) else {
+            throw MerianError.invalidResponse
+        }
+        return receipt
+    }
+
+    /// Recovers or acknowledges an already-authorized deletion after the Auth
+    /// identity may have been removed. The device capability is the only input;
+    /// this route cannot initiate deletion or select an account.
+    func recoverAcceptedAccountDeletion(
+        recoveryCapability: String,
+        acknowledge: Bool
+    ) async throws -> AccountDeletionReceipt {
+        guard Self.isValidAccountDeletionRecoveryCapability(
+            recoveryCapability
+        ) else {
+            throw MerianError.invalidResponse
+        }
+        let functionUrl = try endpointURL("recover-account-deletion")
+        let body = try JSONEncoder().encode(
+            AccountDeletionRecoveryPayload(
+                operation: acknowledge ? "acknowledge" : "recover",
+                recoveryCapability: recoveryCapability
+            )
+        )
+        let (data, httpResponse) = try await
+            performPublicAccountDeletionRecoveryRequest(
+                url: functionUrl,
+                body: body
+            )
+        let receipt: AccountDeletionReceipt
+        do {
+            receipt = try JSONDecoder().decode(
+                AccountDeletionReceipt.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
+        let recoveryTimestampIsValid = receipt.recoveryAcknowledged == true
+            ? Self.isValidAccountDeletionRecoveryTimestamp(
+                receipt.recoveryCapabilityExpiresAt
+            )
+            : Self.isValidAccountDeletionRecoveryExpiry(
+                receipt.recoveryCapabilityExpiresAt
+            )
+        guard httpResponse.statusCode == 200,
+              receipt.success,
+              recoveryTimestampIsValid,
+              !acknowledge || receipt.recoveryAcknowledged == true else {
+            throw MerianError.invalidResponse
+        }
+        return receipt
+    }
+
+    func recoverPreparedAccountDeletionV2(
+        recoveryCapability: String
+    ) async throws -> AccountDeletionReceipt {
+        try await performAccountDeletionRecoveryV2(
+            operation: "recover",
+            capability: recoveryCapability
+        )
+    }
+
+    func acknowledgeAccountDeletionRecoveryV2(
+        acknowledgementCapability: String
+    ) async throws -> AccountDeletionReceipt {
+        try await performAccountDeletionRecoveryV2(
+            operation: "acknowledge",
+            capability: acknowledgementCapability
+        )
+    }
+
+    private func performAccountDeletionRecoveryV2(
+        operation: String,
+        capability: String
+    ) async throws -> AccountDeletionReceipt {
+        guard operation == "recover" || operation == "acknowledge",
+              Self.isValidAccountDeletionRecoveryCapability(capability) else {
+            throw MerianError.invalidResponse
+        }
+        let functionUrl = try endpointURL("recover-account-deletion")
+        let body = try JSONEncoder().encode(
+            AccountDeletionRecoveryV2Payload(
+                operation: operation,
+                recoveryCapability:
+                    operation == "recover" ? capability : nil,
+                acknowledgementCapability:
+                    operation == "acknowledge" ? capability : nil
+            )
+        )
+        let (data, response) = try await
+            performPublicAccountDeletionRecoveryRequest(
+                url: functionUrl,
+                body: body
+            )
+        let receipt = try decodeAccountDeletionReceipt(data)
+        let timestampIsValid = receipt.status == .notCommitted
+            || receipt.recoveryAcknowledged == true
+            ? Self.isValidAccountDeletionRecoveryTimestamp(
+                receipt.recoveryCapabilityExpiresAt
+            )
+            : Self.isValidAccountDeletionRecoveryExpiry(
+                receipt.recoveryCapabilityExpiresAt
+            )
+        guard response.statusCode == 200,
+              receipt.success,
+              receipt.protocolVersion == 2,
+              timestampIsValid,
+              operation != "acknowledge"
+                || receipt.recoveryAcknowledged == true else {
+            throw MerianError.invalidResponse
+        }
+        return receipt
+    }
+
+    private func decodeAccountDeletionReceipt(
+        _ data: Data
+    ) throws -> AccountDeletionReceipt {
+        do {
+            return try JSONDecoder().decode(
+                AccountDeletionReceipt.self,
+                from: data
+            )
+        } catch {
+            throw MerianError.invalidResponse
+        }
+    }
+
+    private func performPublicAccountDeletionRecoveryRequest(
+        url: URL,
+        body: Data,
+        isRetry: Bool = false
+    ) async throws -> (Data, HTTPURLResponse) {
+        try Task.checkCancellation()
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: 20
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.httpBody = body
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await activeSession.data(for: request)
+        } catch let urlError as URLError {
+            try Task.checkCancellation()
+            let transientCodes: Set<URLError.Code> = [
+                .timedOut,
+                .networkConnectionLost,
+                .cannotConnectToHost,
+                .dnsLookupFailed,
+                .notConnectedToInternet
+            ]
+            if transientCodes.contains(urlError.code), !isRetry {
+                try await Task.sleep(for: .seconds(2))
+                return try await performPublicAccountDeletionRecoveryRequest(
+                    url: url,
+                    body: body,
+                    isRetry: true
+                )
+            }
+            throw urlError
+        }
+
+        try Task.checkCancellation()
+        guard data.count <= 64 * 1024,
+              let httpResponse = response as? HTTPURLResponse else {
+            throw MerianError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode >= 500, !isRetry {
+                try await Task.sleep(for: .seconds(2))
+                return try await performPublicAccountDeletionRecoveryRequest(
+                    url: url,
+                    body: body,
+                    isRetry: true
+                )
+            }
+            let message = String(data: data, encoding: .utf8) ?? ""
+            throw MerianError.httpError(
+                statusCode: httpResponse.statusCode,
+                message: message
+            )
+        }
+        return (data, httpResponse)
+    }
+
+    static func isValidAccountDeletionRecoveryCapability(
+        _ value: String
+    ) -> Bool {
+        value.utf8.count == 43 && value.unicodeScalars.allSatisfy {
+            ($0.value >= 48 && $0.value <= 57) ||
+                ($0.value >= 65 && $0.value <= 90) ||
+                ($0.value >= 97 && $0.value <= 122) ||
+                $0.value == 95 || $0.value == 45
+        }
+    }
+
+    static func isValidAccountDeletionRecoveryExpiry(
+        _ value: String?
+    ) -> Bool {
+        guard let date = accountDeletionRecoveryDate(value) else {
+            return false
+        }
+        return date > Date().addingTimeInterval(-5 * 60)
+    }
+
+    static func isValidAccountDeletionRecoveryTimestamp(
+        _ value: String?
+    ) -> Bool {
+        accountDeletionRecoveryDate(value) != nil
+    }
+
+    private static func accountDeletionRecoveryDate(
+        _ value: String?
+    ) -> Date? {
+        guard let value,
+              value.utf8.count >= 20,
+              value.utf8.count <= 40 else {
+            return nil
+        }
+        return DateUtilities.iso8601FractionalFormatter.date(from: value)
+            ?? DateUtilities.iso8601Formatter.date(from: value)
     }
 
     // MARK: - Darwin Core Export
@@ -4945,7 +5702,8 @@ final class MerianNetworkClient {
         for scan: ExploreShareMediaSnapshot,
         locationSharing: ExplorePostLocationSharing?
     ) async throws -> OwnedScanRecoveryPayload {
-        let authUserId = try await SupabaseManager.shared.client.auth.session.user.id.uuidString.lowercased()
+        let authUserID = try await requestPayloadAuthUserID()
+        let authUserId = authUserID.uuidString.lowercased()
         let defaultGeoprivacy = await MainActor.run {
             AppDIContainer.shared.profileViewModel.defaultGeoprivacy
         }

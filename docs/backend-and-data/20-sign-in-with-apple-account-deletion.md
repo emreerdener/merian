@@ -32,6 +32,11 @@ No authorization code, identity token, refresh token, Apple client secret, or
 Apple response body may enter application logs, telemetry, a public table, or a
 client deletion receipt.
 
+Deletion acceptance must also survive termination after the server commits but
+before iOS receives the receipt. Supporting builds bind a separate random
+deletion-recovery proof during authenticated intake. That proof carries no
+Apple or account identity and cannot initiate deletion by itself.
+
 ## Authorization capture
 
 1. `ASAuthorizationAppleIDCredential` must contain both `identityToken` and
@@ -109,6 +114,42 @@ bit before sign-out and keeps showing **Finish Sign in with Apple Cleanup**
 until the user explicitly confirms that they removed Naturebook in Apple
 settings.
 
+### Client crash recovery
+
+Migration `20260813053000_add_account_deletion_recovery_capabilities.sql` keeps
+the legacy one-proof contract. Migration
+`20260813142638_prepare_account_deletion_recovery_v2.sql` adds the supporting
+two-stage protocol: iOS atomically persists distinct recovery and
+acknowledgement proofs, authenticated prepare records only their SHA-256 hashes
+without creating a deletion job, and later authenticated commit requires that
+preparation. Recovery and acknowledgement use distinct protocol-v2 hash
+domains, separate from legacy v1. Forward repair
+`20260813162506_reject_expired_account_deletion_preparation_promotion.sql`
+locks and converts only still-live device preparations. Expired proof hashes
+move first to a permanent identity-free ledger and can never be reused or
+promoted into 180-day recovery capabilities. A deletion-job insert records
+expired proofs as committed before retiring them, so a second device cannot
+misclassify its stale proof as unknown after deletion has started.
+
+After Auth is gone, `/recover-account-deletion` uses only the proof to return
+the already-recorded manual Apple disposition and pending/completed state. It
+does not reauthenticate the deleted account or accept a user, Apple subject,
+job, or provider identifier. iOS must persist the manual notice before local
+sign-out, purge, and proof retirement. It acknowledges only after local cleanup
+succeeds and only with the independent acknowledgement proof. A legacy unknown
+proof leaves cleanup blocked because intake may still be committing. A v2
+`not_committed` or genuinely unknown proof retires only the unused local intent
+because commit cannot run without a server preparation. After that definitive
+cancellation, the transition owner re-adopts only the same unexpired cached
+Supabase session, same UUID, and same anonymous/account kind before reopening
+ordinary account work. An expired preparation retired during a different
+device's commit returns the distinct non-authorizing
+`account_deletion_recovery_preparation_expired` response and keeps cleanup
+blocked. Only a retained committed capability matched after its 180-day window
+returns `account_deletion_recovery_expired` and authorizes conservative local
+cleanup while forcing the manual Apple notice. This acknowledgement never
+claims automatic Apple-provider revocation.
+
 ## Private data and authorization boundary
 
 - `internal.apple_sign_in_revocation_credentials` maps one Auth user to one
@@ -123,6 +164,15 @@ settings.
   authorized, empty-search-path routines on the privileged-routine allowlist.
 - The authenticated Edge handler derives the caller from the verified JWT. No
   caller can nominate another user or read a stored token.
+- `internal.account_deletion_recovery_capabilities` stores only a unique
+  SHA-256 proof hash, deletion-job reference, expiry, and recovery/acknowledgement
+  times. Direct access is revoked. Its issue, recover, and health routines
+  are service-only and no public response contains a user or Apple identity.
+- `internal.account_deletion_expired_preparation_proofs` permanently stores only
+  an expired proof hash, its recovery/acknowledgement kind, expiry, record time,
+  and whether deletion had committed. Direct access is revoked; it contains no
+  user, job, Apple, device, provider, or purchase identity and never authorizes
+  deletion by itself.
 
 ## Hosted configuration
 
@@ -150,9 +200,11 @@ The migration and these runtime consumers form one release unit:
 
 - `register-apple-revocation-token`
 - `safe-delete`
+- `recover-account-deletion`
 - `reconcile-account-deletions`
-- iOS `SupabaseManager`, `MerianNetworkClient`, `DeleteAccountSheet`, and the
-  app-root manual notice
+- iOS `SupabaseManager`, `MerianNetworkClient`,
+  `AccountDeletionRecoveryCapability`, `DeleteAccountSheet`, and the app-root
+  manual notice
 
 The production workflow applies migrations before Edge bundles. The prior worker
 rejects the new `provider_revocation_pending` cleanup result, so a stored
@@ -177,6 +229,14 @@ the following on one immutable release SHA:
 - a legacy Apple fixture proving the deletion response sets
   `manual_provider_revocation_required`, the notice survives sign-out and
   relaunch, and the Apple support/settings path opens;
+- physical-device termination at each recovery boundary: before authenticated
+  intake, after server commit with a dropped response, after local Auth sign-out,
+  after SwiftData purge, after recovery acknowledgement, and after Keychain
+  removal. Each relaunch must converge with the same proof without restoring an
+  account or losing the manual-provider disposition;
+- public recovery with no cached Auth session, using publishable `apikey` plus
+  the proof only, as well as wrong-proof and matched-expired fixtures that prove
+  fail-closed versus conservative-terminal behavior;
 - a physical-device credential-revocation notification smoke proving the app
   queries the active provider-specific Apple subject and clears the matching
   local session when Apple no longer reports `.authorized`, while exact-SHA
@@ -215,10 +275,20 @@ provider attempt successful from an Apple error response.
 - `_tests/accountDeletionCoverage.test.ts`: source, iOS, workflow, config, and
   executable-fixture ordering.
 - `_tests/accountDeletionMigrationContract.test.ts`: Vault schema, Auth and
-  terminal fences, ACLs, allowlist, and secret destruction before state commit.
+  terminal fences, recovery hash ledger, ACLs, allowlist, permanent replay,
+  health, and
+  secret destruction before state commit.
+- `safe-delete/protocol_test.ts`, `safe-delete/db_recovery_test.ts`, and
+  `recover-account-deletion/handler_test.ts`: exact proof wire contract,
+  server-side hashing, account-free recovery, stable errors, and no-store
+  response behavior.
 - `tests/account_deletion_security.sql`: live catalog intake, Vault read,
   provider completion, secret removal, legacy disposition, Auth fencing, retry,
-  and terminal completion.
+  terminal completion, expired-preparation retirement, and a two-device commit
+  proving an expired proof never becomes a committed recovery capability.
 - `SupabaseManagerTests`, `MerianNetworkClientTests`, and `AppDIContainerTests`:
   bounded registration retry, strict deletion receipt, subject-bound
-  credential-state handling, and durable notice persistence.
+  credential-state handling, durable notice persistence, recovery phase order,
+  ambiguous-response retention, and terminal capability retirement.
+- `AccountDeletionRecoveryCapabilityTests`: secure randomness, Keychain
+  accessibility, write verification, reuse, and verified deletion.

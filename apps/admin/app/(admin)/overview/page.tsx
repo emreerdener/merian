@@ -20,7 +20,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const data = await adminRpc<Overview>("admin_get_overview", { p_days: days, p_timezone: timezone, p_refresh: params.refresh === "1" });
   const maxTokens = Math.max(1, ...data.daily.map((day) => Number(day.total_tokens)));
   const cards = [
-    ["Registered", number(data.accounts.registered), `Ghost ${number(data.accounts.ghost)}`],
+    ["Registered", number(data.accounts.registered), `Signed out ${number(data.accounts.ghost)}`],
     ["Effective Pro", number((data.plans.pro_paid ?? 0) + (data.plans.pro_complimentary ?? 0) + (data.plans.pro_trial ?? 0)), `Paid ${number(data.plans.pro_paid)} · Complimentary ${number(data.plans.pro_complimentary)} · Historical trial ${number(data.plans.pro_trial)}`],
     ["Completed scans", number(data.daily.reduce((sum, day) => sum + Number(day.scans), 0)), "Primary identification events"],
     ["Open reviews", number(data.open_reviews), "Open and in review"],

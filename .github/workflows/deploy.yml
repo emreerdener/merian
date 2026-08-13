@@ -249,11 +249,17 @@ jobs:
             supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/functions/_tests/safeDelete.test.ts \
+            supabase/functions/safe-delete/protocol_test.ts \
+            supabase/functions/safe-delete/db_recovery_test.ts \
+            supabase/functions/recover-account-deletion/handler_test.ts \
             supabase/functions/auto-purge-nonbio/index.ts \
             supabase/functions/delete-scan/index.ts \
             supabase/functions/safe-delete/index.ts \
             supabase/functions/safe-delete/handler.ts \
             supabase/functions/safe-delete/worker.ts \
+            supabase/functions/safe-delete/protocol.ts \
+            supabase/functions/recover-account-deletion/index.ts \
+            supabase/functions/recover-account-deletion/handler.ts \
             supabase/functions/register-apple-revocation-token/index.ts \
             supabase/functions/register-apple-revocation-token/handler.ts \
             supabase/functions/reconcile-account-deletions/index.ts \
@@ -1150,6 +1156,21 @@ jobs:
             probe_user_function_route "$function_name"
           done
 
+          account_deletion_reaper_validation="$(
+            post_server_json \
+              "/functions/v1/reconcile-account-deletions" \
+              '{"dry_run":true}'
+          )"
+          if ! jq -e '
+            type == "object" and
+            (keys | sort) == ["dry_run", "success"] and
+            .success == true and
+            .dry_run == true
+          ' <<< "$account_deletion_reaper_validation" > /dev/null; then
+            echo "The account-deletion reaper did not pass its authenticated non-mutating validation boundary." >&2
+            exit 1
+          fi
+
           probe_server_rpc_validation_boundary \
             "ensure_scan_user_profile" \
             '{"p_user_id":"00000000-0000-0000-0000-000000000000"}' \
@@ -1226,7 +1247,34 @@ jobs:
             "fail_purchase_principal_reconciliation" \
             '{"p_purchase_principal_id":null,"p_claim_token":null,"p_error_code":null}' \
             "purchase_principal_invalid_reconciliation_failure"
-
+          probe_server_rpc_validation_boundary \
+            "request_account_deletion_with_recovery" \
+            '{"p_user_id":null,"p_secret_hash":null}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "recover_account_deletion" \
+            '{"p_secret_hash":null,"p_acknowledge":false}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "prepare_account_deletion_recovery_v2" \
+            '{"p_user_id":null,"p_recovery_secret_hash":null,"p_acknowledgement_secret_hash":null}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "request_account_deletion_with_recovery_v2" \
+            '{"p_user_id":null,"p_recovery_secret_hash":null}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "recover_account_deletion_v2" \
+            '{"p_recovery_secret_hash":null}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "acknowledge_account_deletion_recovery_v2" \
+            '{"p_acknowledgement_secret_hash":null}' \
+            "account_deletion_recovery_invalid"
+          probe_server_rpc_validation_boundary \
+            "prune_account_deletion_recovery_preparations" \
+            '{"p_limit":0}' \
+            "account_deletion_recovery_prune_limit_invalid"
           signout_health_response="$(
             post_server_json \
               "/rest/v1/rpc/get_revenuecat_reconciliation_health" \
@@ -1264,6 +1312,46 @@ jobs:
             )
           ' > /dev/null
 
+          account_deletion_recovery_health_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_account_deletion_recovery_health" \
+              '{}'
+          )"
+          echo "$account_deletion_recovery_health_response" | jq -e '
+            length == 1
+            and (.[0].active_unacknowledged_count | type) == "number"
+            and (.[0].acknowledged_retained_count | type) == "number"
+            and (.[0].expired_unacknowledged_count | type) == "number"
+            and (.[0].maximum_active_capabilities_per_job | type) == "number"
+            and (
+              .[0].oldest_active_age_seconds == null
+              or (.[0].oldest_active_age_seconds | type) == "number"
+            )
+            and (
+              .[0].oldest_expired_age_seconds == null
+              or (.[0].oldest_expired_age_seconds | type) == "number"
+            )
+          ' > /dev/null
+
+          account_deletion_preparation_health_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_account_deletion_recovery_preparation_health" \
+              '{}'
+          )"
+          echo "$account_deletion_preparation_health_response" | jq -e '
+            length == 1
+            and (.[0].active_preparation_count | type) == "number"
+            and (.[0].expired_preparation_count | type) == "number"
+            and (
+              .[0].oldest_active_age_seconds == null
+              or (.[0].oldest_active_age_seconds | type) == "number"
+            )
+            and (
+              .[0].oldest_expired_age_seconds == null
+              or (.[0].oldest_expired_age_seconds | type) == "number"
+            )
+          ' > /dev/null
+
           critical_service_rpc_names=(
             ensure_scan_user_profile
             publish_scan_to_explore_atomically
@@ -1287,6 +1375,15 @@ jobs:
             apply_purchase_principal_reconciliation
             fail_purchase_principal_reconciliation
             get_purchase_principal_health
+            request_account_deletion_with_recovery
+            recover_account_deletion
+            get_account_deletion_recovery_health
+            prepare_account_deletion_recovery_v2
+            request_account_deletion_with_recovery_v2
+            recover_account_deletion_v2
+            acknowledge_account_deletion_recovery_v2
+            prune_account_deletion_recovery_preparations
+            get_account_deletion_recovery_preparation_health
           )
           critical_service_rpc_payloads=(
             '{"p_user_id":"00000000-0000-0000-0000-000000000000"}'
@@ -1310,6 +1407,15 @@ jobs:
             '{"p_limit":0}'
             '{"p_purchase_principal_id":null,"p_claim_token":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}'
             '{"p_purchase_principal_id":null,"p_claim_token":null,"p_error_code":null}'
+            '{}'
+            '{"p_user_id":null,"p_secret_hash":null}'
+            '{"p_secret_hash":null,"p_acknowledge":false}'
+            '{}'
+            '{"p_user_id":null,"p_recovery_secret_hash":null,"p_acknowledgement_secret_hash":null}'
+            '{"p_user_id":null,"p_recovery_secret_hash":null}'
+            '{"p_recovery_secret_hash":null}'
+            '{"p_acknowledgement_secret_hash":null}'
+            '{"p_limit":0}'
             '{}'
           )
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
@@ -1347,6 +1453,24 @@ jobs:
                   ;;
               esac
             done
+
+            deletion_recovery_probe="$RUNNER_TEMP/account-deletion-recovery-route-${index}.json"
+            deletion_recovery_status="$(
+              curl -sS \
+                --connect-timeout 10 \
+                --max-time 60 \
+                --max-filesize 1048576 \
+                -o "$deletion_recovery_probe" \
+                -w "%{http_code}" \
+                -X POST "${supabase_url}/functions/v1/recover-account-deletion" \
+                "${public_headers[@]}" \
+                --data '{}'
+            )"
+            if [ "$deletion_recovery_status" != "400" ] ||
+              ! jq -e '.code == "invalid_request"' "$deletion_recovery_probe" > /dev/null; then
+              echo "The public account-deletion recovery route did not reach its bounded protocol validator (HTTP ${deletion_recovery_status})." >&2
+              exit 1
+            fi
 
             denied_response="$RUNNER_TEMP/service-role-auth-denied-${index}.json"
             denied_status="$(

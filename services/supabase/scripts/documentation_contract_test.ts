@@ -3551,15 +3551,15 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     runbook,
-    "separately probes twelve customer-critical routes",
+    "separately probes thirteen customer-critical routes",
   );
   assertStringIncludes(
     backend,
-    "all twelve customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
+    "all thirteen customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
   );
   assertStringIncludes(
     incident,
-    "The following twelve customer-critical routes",
+    "The following thirteen customer-critical routes",
   );
   assertStringIncludes(
     backend,
@@ -4511,4 +4511,65 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
       workflow.indexOf("Push Database Migrations"),
     "Apple secret validation must precede database mutation.",
   );
+});
+
+Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, and separately authorized", async () => {
+  const [rfc, runbook, backend, schema, api, testing, logging, template] =
+    await Promise.all([
+      read("docs/rfcs/purchase-principal-auth-separation.md"),
+      read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+      read("services/supabase/README.md"),
+      read("docs/backend-and-data/04-database-schema.md"),
+      read("docs/backend-and-data/05-api-contracts.md"),
+      read("docs/development-guides/08-testing-strategy.md"),
+      read("docs/development-guides/04-logging-and-debugging.md"),
+      read("docs/release-evidence/purchase-identity-rollout-template.json"),
+    ]).then((sources) => sources.map(compact));
+
+  for (const source of [rfc, runbook, backend]) {
+    assertStringIncludes(source, "control_purchase_identity_rollout.ts");
+    assertStringIncludes(source, "approved-plan-sha256");
+    assertStringIncludes(source, "separate explicit authorization");
+  }
+  for (const source of [schema, api, runbook]) {
+    assertStringIncludes(source, "purchase_identity_rollout_operations");
+    assertStringIncludes(source, "apply_purchase_identity_rollout_operation");
+  }
+  assertStringIncludes(testing, "purchase identity rollout");
+  assertStringIncludes(
+    logging,
+    "account, Auth, RevenueCat customer, purchase principal",
+  );
+  assertStringIncludes(template, "physical_device_matrix_url");
+  assertStringIncludes(template, "mixed_storekit_promotion");
+  assertStringIncludes(template, "anonymous_app_user_id_count");
+});
+
+Deno.test("account-grant issuance documentation retires RevenueCat mutation and binds an immutable plan", async () => {
+  const [rfc, runbook, backend, schema, api, reconciler] = await Promise.all([
+    read("docs/rfcs/purchase-principal-auth-separation.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read(
+      "services/supabase/functions/reconcile-revenuecat-subscribers/README.md",
+    ),
+  ]).then((sources) => sources.map(compact));
+
+  for (const source of [rfc, runbook, backend, api, reconciler]) {
+    assertStringIncludes(source, "grant_account_access_entitlements.ts");
+  }
+  for (const source of [runbook, backend, api]) {
+    assertStringIncludes(
+      source,
+      "MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION",
+    );
+    assertStringIncludes(source, "never calls RevenueCat");
+  }
+  for (const source of [schema, api, runbook]) {
+    assertStringIncludes(source, "account_access_grant_operations");
+    assertStringIncludes(source, "immutable");
+  }
+  assertStringIncludes(reconciler, "rejects apply");
 });

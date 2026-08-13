@@ -4084,6 +4084,14 @@ The private identity boundary consists of:
   audit evidence; purchase-principal StoreKit history remains independent. A
   full leading account-user index supports that foreign key, while the separate
   partial `(account_user_id, expires_at)` index serves active-grant projection.
+- `internal.account_access_grant_operations`: one immutable, database-owner-only
+  receipt for a dry-run-approved cohort issuance. It stores the clean source
+  SHA, target database identity, approval/plan/input-set digests, aggregate
+  count, grant kind/expiry, and rollout modes, but no account UUID or source
+  artifact. RLS is forced, API roles have no table privilege, and a trigger
+  rejects receipt update or deletion. The operation row commits in the same
+  serializable transaction as calls to `record_account_access_grant(...)`, so a
+  lost response is replayable without reissuing or changing the cohort.
 
 `internal.recompute_purchase_principal_entitlement(uuid)` is the only common
 projection helper. It takes the exact `public.users` lock and combines active
@@ -4168,6 +4176,30 @@ Free abandoned principals do not create permanent operational alerts. In
 `account_grant_mode = authoritative`, provider promotional records are observed
 but forced to free; the private grant ledger is the only account-grant authority.
 That flag may be changed only after the runbook's migration and dual-read gates.
+
+### Purchase identity rollout operations
+
+Forward migration
+`20260813040000_add_purchase_identity_rollout_control.sql` adds
+`internal.purchase_identity_rollout_operations`, an RLS-enabled private ledger
+with no API-role or `service_role` grants. Each row records version 1, target
+environment, fixed production project reference, live PostgreSQL system
+identifier, one action, reviewed source SHA, evidence/approval/approved-plan
+SHA-256 digests, exact before/after modes and protocol, optional rollback
+source, and database-owner application time. It stores no account, Auth,
+RevenueCat customer, purchase principal, capability, or provider payload. A
+unique approved plan prevents one approval from naming multiple operations; a
+unique `rollback_of` makes each enabling operation reversible at most once.
+
+`internal.apply_purchase_identity_rollout_operation(...)` is `SECURITY
+INVOKER`, empty-search-path, database-owner-only, and executable by none of
+`PUBLIC`, `anon`, `authenticated`, or `service_role`. It takes one global
+advisory lock followed by the singleton rollout-row lock, rejects state drift,
+changes exactly one axis, and inserts the receipt atomically. The allowed
+sequence is `legacy/dual_read → stable/dual_read`, then optionally
+`stable/authoritative`; rollbacks reverse those operations separately without
+lowering the stable minimum client protocol or deleting any principal/binding
+state. Candidate/deploy workflows never call this routine.
 
 During coexistence, the legacy reconciliation apply routine remains
 claim-token fenced. It locks the exact live lease without retaining a lint-only
@@ -4273,6 +4305,9 @@ transitions are:
 
 - `request_account_deletion(uuid)` — idempotent durable intake returning the
   job ID/status and legacy manual-provider disposition
+- `request_account_deletion_with_recovery(uuid,text)` — the supporting-client
+  intake wrapper that atomically binds a SHA-256 recovery-capability hash to
+  that same job and returns its expiry
 - `claim_account_deletion_jobs(integer,uuid)` — bounded `SKIP LOCKED` leasing;
   the optional UUID is only for the initiating authenticated route's fast path
 - `complete_account_deletion_cleanup(uuid,uuid)` — claim-fenced storage-job
@@ -4287,6 +4322,108 @@ transitions are:
 - `finish_account_deletion_attempt(uuid,uuid,boolean,text)` — terminal Auth
   receipt or database-calculated retry; success verifies completed storage,
   resolved provider state, and credential absence again
+
+### `internal.account_deletion_recovery_capabilities`
+
+Migration `20260813053000_add_account_deletion_recovery_capabilities.sql` adds a
+private recovery ledger for the HTTP intake/receipt crash boundary. Each row
+contains a UUID primary key, restrictive deletion-job foreign key, unique
+lowercase SHA-256 `secret_hash`, `issued_at`, `expires_at`, optional
+`last_recovered_at`, and optional `acknowledged_at`. It never stores the raw capability or
+an account, provider, purchase-principal, request, or device identifier. RLS is
+enabled and every table privilege is revoked, including from `service_role`.
+Indexes cover job/cardinality checks, active-expiry health, and acknowledged
+receipt counts. At most eight total proofs, including acknowledged receipts,
+may exist for one job.
+
+The service-only routines are:
+
+- `recover_account_deletion(text,boolean)` — derives the job only from the hash,
+  takes the same hash advisory lock used by issue, returns only pending/completed
+  state, manual-provider disposition, expiry, and acknowledgement, and records
+  acknowledgement when requested;
+- `get_account_deletion_recovery_health()` — returns aggregate active,
+  acknowledged-retained, expired-unacknowledged, oldest-age, and maximum
+  per-job-cardinality state without identifiers.
+
+All three recovery routines, including the intake wrapper, are empty-search-path
+`SECURITY DEFINER`, call `internal.require_service_role()`, are present in
+`internal.privileged_routine_grants`, and grant execute only to
+`service_role`. A hash match after the 180-day inspection window raises the
+distinctive `account_deletion_recovery_expired` code; a missing hash remains
+ambiguous and cannot authorize client cleanup. Acknowledged hashes remain
+replayable even after that window. No recovery receipt is age-pruned: the
+acknowledgement response may itself be lost, so deletion would reintroduce the
+same ambiguity this ledger exists to close. The total eight-row-per-job issue
+bound includes acknowledged receipts, and the restrictive parent foreign key
+prevents an operator or future cleanup from deleting their minimized terminal
+job underneath a still-offline device.
+Expiry blocks ordinary inspection only. The same expired matched proof may
+acknowledge completed local cleanup, after which every replay returns the
+permanent acknowledged receipt.
+
+Migration `20260813142638_prepare_account_deletion_recovery_v2.sql` extends the
+ledger with `protocol_version` and an independent
+`acknowledgement_secret_hash`, then adds the private/RLS-enabled
+`internal.account_deletion_recovery_preparations` table. A preparation contains
+only its exact Auth-user foreign key, two distinct lowercase SHA-256 hashes, and
+a 24-hour expiry. Edge derives those hashes with separate protocol-v2 recovery
+and acknowledgement domain prefixes, so an acknowledgement value cannot match
+a legacy or v2 recovery digest. Multiple devices may prepare independently, up to the same
+eight-proof account bound; one device never supersedes another device's proof.
+The table has non-partial user and expiry indexes, no API-role table grants, and
+a reviewed `preserve` Ghost-merge policy so an Auth identity cannot be merged
+while deletion intent is unresolved.
+
+Forward repair
+`20260813162506_reject_expired_account_deletion_preparation_promotion.sql`
+adds the private, RLS-enabled
+`internal.account_deletion_expired_preparation_proofs` table. It retains only a
+lowercase SHA-256 proof hash, proof kind, the preparation expiry, recorded time,
+and whether a deletion had already committed when the proof was retired. It has
+no account, job, provider, purchase-principal, request, or device identifier and
+no API-role privileges, including `service_role`. These permanent, identity-free
+tombstones prevent an old client from later treating a discarded proof as
+unknown or reusing the hash in a fresh preparation.
+
+Protocol v2 is a two-stage state machine:
+
+- `prepare_account_deletion_recovery_v2(uuid,text,text)` writes only a
+  non-destructive preparation. If deletion already exists, it binds the two
+  proofs to that existing job without creating new destructive intent.
+- `request_account_deletion_with_recovery_v2(uuid,text)` requires the matching
+  authenticated preparation before it may invoke deletion intake. The deletion
+  job's insert trigger locks every device preparation, tombstones expired proof
+  hashes as committed, and atomically converts only still-live preparations for
+  that user into protocol-v2 receipts before cleanup can run.
+- `recover_account_deletion_v2(text)` cancels only a still-uncommitted
+  live preparation and returns `not_committed`. An expired preparation is
+  retired to the tombstone table while holding the Auth-user lock: it returns
+  `not_committed` when no deletion exists and the non-authorizing
+  `preparation_expired` state when another device committed. It never promotes
+  an expired preparation into a 180-day capability. A live preparation that was
+  converted by another device returns that job's pending/completed receipt.
+- `acknowledge_account_deletion_recovery_v2(text)` accepts only the independent
+  acknowledgement proof. Recovery and acknowledgement hashes are
+  domain-separated and deliberately non-interchangeable.
+- `prune_account_deletion_recovery_preparations(integer)` first writes both
+  hashes from a bounded set of expired, non-destructive preparations to the
+  identity-free tombstone table with `deletion_committed = false`, then removes
+  those preparations. Committed receipts remain subject to the permanent v1
+  retention rule above.
+- `get_account_deletion_recovery_preparation_health()` returns only aggregate
+  active/expired counts and oldest ages.
+
+All six routines are empty-search-path, in-body-authorized, service-role-only
+entries in `internal.privileged_routine_grants`. Capability hashes are locked in
+lexical order before any row lock. Account operations serialize first on the
+Auth user, then the deletion job/preparation rows, so prepare, commit, public
+recovery, pruning, and multi-device intake cannot deadlock or cross-bind proofs.
+New preparation rejects any hash already present in the expired-proof ledger.
+Only `account_deletion_recovery_expired`, returned after a positive match to an
+actual committed capability whose 180-day window elapsed, authorizes the
+client's conservative cleanup path. Preparation expiry is deliberately a
+different, non-authorizing terminal state.
 
 ### Apple revocation credential tables
 

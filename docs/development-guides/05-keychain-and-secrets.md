@@ -39,6 +39,7 @@ Merian.
 | `Merian_PurchasePrincipalBindingIntentGeneration_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                         | Positive monotonic resolver intent; advanced/read-verified before network I/O so an older Auth request cannot overwrite a newer server binding |
 | `Merian_PurchasePrincipalStableActivationFingerprint_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                       | Monotonic lowercase SHA-256 fingerprint of the local capability after first stable activation; prevents later legacy or missing-route identity fallback |
 | `Merian_PendingPurchasePrincipalAuthRotation_v1`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Write-ahead marker proving a stable-principal Auth rotation has not yet been rebound; paid mutations fail closed until verified removal |
+| `Merian_AccountDeletionRecoveryCapability_v1`      | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Random 256-bit one-deletion recovery authority; server stores only SHA-256 and iOS verifies creation/removal around its identity-free durable phase marker |
 | `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
 | Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
 | Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
@@ -338,6 +339,7 @@ Currently stored keys:
 | `Merian_PurchasePrincipalBindingIntentGeneration_v1` | canonical positive decimal `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic Auth-binding intent paired with the capability. It is advanced/read-verified before each resolver request and must already exist after stable activation; missing or malformed state fails closed |
 | `Merian_PurchasePrincipalStableActivationFingerprint_v1` | lowercase SHA-256 `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic evidence that the exact local capability has activated stable mode; it is not a provider-ID cache and is never sent as identity authority |
 | `Merian_PendingPurchasePrincipalAuthRotation_v1` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Stable-mode write-ahead marker containing the source Auth UUID, expected principal/provider IDs, and a non-secret local capability fingerprint needed to finish or safely retry one local Auth rotation |
+| `Merian_AccountDeletionRecoveryCapability_v1` | 32-byte `Data` | `WhenUnlockedThisDeviceOnly` | One deletion-only recovery authority generated and read-after-write verified before authenticated intake. Edge stores only its SHA-256 hash; the device retires it only after accepted local cleanup and recovery acknowledgement, including the acknowledgement permitted after a matched-expired receipt |
 | `Merian_AnalyticsRevocationIntent_v1` | JSON `Data` | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                               |
 
 The merge queue is persisted and read back successfully before the app switches
@@ -427,6 +429,40 @@ activation fingerprint. Once present, neither an endpoint `404` nor a later
 `mode: legacy` response is accepted for that capability. The marker is retained
 through sign-out, account deletion, and rollback because it prevents provider
 identity downgrade; it does not select or cache a RevenueCat App User ID.
+
+Account deletion uses a separate atomic protocol-v2 envelope at the
+compatibility-named `Merian_AccountDeletionRecoveryCapability_v1` key. iOS
+generates two distinct 256-bit values, JSON-encodes them as recovery and
+acknowledgement capabilities, persists the envelope once, and read-after-write
+verifies the exact bytes before the first network suspension. It first records
+`capability_preparation_pending`, registers the two hashes through the
+non-destructive prepare operation, records `capability_prepared_pending`, and
+only then records `capability_intake_pending` before destructive commit. The
+recovery value is sent only in authenticated commit or public recovery; the
+acknowledgement value is sent only after verified local cleanup. Neither is
+interchangeable: Edge applies distinct protocol-v2 recovery and acknowledgement
+hash domains, also separating both from the legacy v1 hash namespace. Neither is
+placed in
+`UserDefaults`, URLs, logs, analytics, crash metadata, App Groups, backups, or
+server plaintext storage. Once the server receipt is known, the local state
+advances through cleanup and capability-retirement phases. Keychain deletion is
+read-after-delete verified before the durable marker is removed. For legacy v1,
+unknown proofs and ambiguous transport outcomes remain fail-closed; a
+matched-expired proof is the only non-receipt result that authorizes
+conservative local erasure. For v2, `not_committed` or an unknown proof
+authorizes proof-only retirement because destructive commit cannot run without
+the server preparation. If another device committed first, the database
+converts every preparation into a receipt and recovery returns
+pending/completed instead. The device acknowledges with the distinct second
+proof before retiring the envelope; expiry blocks inspection, not post-cleanup
+acknowledgement.
+When authenticated intake is definitively rejected with
+`409 purchase_continuity_pending`, iOS first persists
+`capability_rejection_retirement_pending`, then read-after-delete verifies the
+unused proof is gone, and removes the marker last. Recovery from that phase is
+non-destructive: it cannot sign out or purge local data.
+This capability cannot select, restore, or authenticate an account and is never
+reused for sign-in or purchase identity.
 
 In legacy mode, the same UX uses the one-use proof in
 `Merian_PendingSignOutPurchaseHandoff_v1`. The server stores only its SHA-256

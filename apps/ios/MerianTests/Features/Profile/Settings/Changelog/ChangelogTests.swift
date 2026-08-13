@@ -33,6 +33,29 @@ struct ChangelogTests {
         #expect(catalog.entries[0].build == nil)
     }
 
+    @Test func userFacingCatalogDoesNotExposeInternalAccountTerminology() throws {
+        var repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+        for _ in 0..<7 {
+            repositoryRoot.deleteLastPathComponent()
+        }
+        let catalogURL = repositoryRoot.appendingPathComponent(
+            "apps/ios/Merian/Resources/Changelog/changelog.json"
+        )
+        let catalog = try ChangelogCatalog.decode(
+            from: Data(contentsOf: catalogURL)
+        )
+
+        let userFacingCopy = catalog.entries.flatMap { entry in
+            [entry.title] + entry.sections.flatMap { section in
+                [section.title] + section.items
+            }
+        }.joined(separator: "\n")
+
+        #expect(!userFacingCopy.localizedCaseInsensitiveContains("ghost"))
+        #expect(!userFacingCopy.localizedCaseInsensitiveContains("guest"))
+    }
+
     private var samplePayload: Data {
         Data(
             """

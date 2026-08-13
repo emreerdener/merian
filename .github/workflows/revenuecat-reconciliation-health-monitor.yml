@@ -105,9 +105,9 @@ jobs:
           critical_after="${INPUT_CRITICAL_AFTER_MINUTES:-60}"
           fail_on="${INPUT_FAIL_ON:-warning}"
 
-          # Expand compatibility is temporary while main may precede the
-          # purchase-principal migration in Production. After the deploy smoke
-          # proves get_purchase_principal_health(), change this to required.
+          # The deployed purchase-principal migration and post-deploy smoke
+          # make this RPC mandatory. Missing or malformed principal health is
+          # an alertable production failure, not a compatibility success.
           set +e
           deno run --frozen \
             --config services/supabase/functions/deno.json \
@@ -118,7 +118,7 @@ jobs:
             --warning-after-minutes "$warning_after" \
             --critical-after-minutes "$critical_after" \
             --fail-on "$fail_on" \
-            --purchase-principal-health-mode expand-compatible \
+            --purchase-principal-health-mode required \
             --summary-json "$summary_json" \
             --summary-md "$summary_md"
           exit_code=$?

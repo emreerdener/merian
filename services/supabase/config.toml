@@ -406,6 +406,14 @@ verify_jwt = false
 [functions.safe-delete]
 verify_jwt = false
 
+[functions.recover-account-deletion]
+enabled = true
+# A 256-bit, device-held capability recovers only an already-authorized
+# deletion receipt after Auth has disappeared. The handler hashes the proof
+# before the service-only RPC and never accepts an identity or job id.
+verify_jwt = false
+entrypoint = "./functions/recover-account-deletion/index.ts"
+
 [functions.register-apple-revocation-token]
 # The gateway and withEdgeHandler both bind the request to the newly installed
 # permanent Supabase session before the one-use Apple code is exchanged.

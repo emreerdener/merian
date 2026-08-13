@@ -194,6 +194,7 @@ reconcile-ghost-profile-merges
 reconcile-revenuecat-subscribers
 reconcile-scan-deletions
 reconcile-scan-media-assets
+recover-account-deletion
 refresh-merian-reference-images
 refresh-species-content
 refresh-species-model-content

@@ -65,7 +65,7 @@ export async function requireAuth(
 
   if (authError || !user) {
     const message = authError?.message || "Invalid or expired session token.";
-    console.error("requireAuth: Supabase getUser() failed.", authError);
+    console.error("auth_session_validation_failed");
     return {
       user: null,
       response: new Response(

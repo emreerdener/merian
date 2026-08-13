@@ -1,5 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { jsonResponse } from "../_shared/edgeHandler.ts";
+import { jsonResponse, logIdentitySafeError } from "../_shared/edgeHandler.ts";
 import {
   isJsonMediaType,
   publicErrorResponse,
@@ -81,9 +81,10 @@ export function createRevenueCatWebhookHandler(
     }
 
     if (!configurationIsComplete(dependencies.config)) {
-      console.error(
-        `[revenuecat-webhook] request_id=${requestId} required secrets are unavailable.`,
-      );
+      logIdentitySafeError("revenuecat_webhook_configuration_invalid", {
+        stage: "configuration",
+        code: "missing_configuration",
+      });
       return publicErrorResponse(
         request,
         503,
@@ -143,11 +144,11 @@ export function createRevenueCatWebhookHandler(
         rawBytes,
         now(),
       );
-    } catch (error) {
-      console.error(
-        `[revenuecat-webhook] request_id=${requestId} signature verification unavailable:`,
-        error,
-      );
+    } catch {
+      logIdentitySafeError("revenuecat_webhook_signature_failed", {
+        stage: "signature",
+        code: "verification_unavailable",
+      });
       return publicErrorResponse(
         request,
         503,
@@ -218,9 +219,13 @@ export function createRevenueCatWebhookHandler(
           // A committed event remains a valid duplicate after its profile was
           // deleted; there is no live reconciliation destination to repair.
         }
-        console.info(
-          `[revenuecat-webhook] duplicate event ${event.id}; ${existingResult.subjectCount} subject(s).`,
-        );
+        console.info(JSON.stringify({
+          event: "revenuecat_webhook_processed",
+          outcome: "duplicate",
+          subject_count: existingResult.subjectCount,
+          applied_count: existingResult.appliedCount,
+          stale_count: existingResult.staleCount,
+        }));
         return jsonResponse(
           {
             success: true,
@@ -347,9 +352,13 @@ export function createRevenueCatWebhookHandler(
         dependencies.supabaseAdmin,
       );
 
-      console.info(
-        `[revenuecat-webhook] ${result.outcome} event ${event.id}; ${result.appliedCount} applied, ${result.staleCount} stale.`,
-      );
+      console.info(JSON.stringify({
+        event: "revenuecat_webhook_processed",
+        outcome: result.outcome,
+        applied_count: result.appliedCount,
+        stale_count: result.staleCount,
+        subject_count: result.subjectCount,
+      }));
       return jsonResponse(
         {
           success: true,
@@ -372,9 +381,11 @@ export function createRevenueCatWebhookHandler(
       }
 
       if (error instanceof RevenueCatApiError) {
-        console.error(
-          `[revenuecat-webhook] request_id=${requestId} ${error.message}`,
-        );
+        logIdentitySafeError("revenuecat_webhook_provider_failed", {
+          stage: "provider_lookup",
+          code: error.retryable ? "retryable" : "terminal",
+          status: error.retryable ? 503 : 502,
+        });
         return publicErrorResponse(
           request,
           error.retryable ? 503 : 502,
@@ -385,11 +396,10 @@ export function createRevenueCatWebhookHandler(
       }
 
       if (error instanceof RevenueCatDatabaseError) {
-        console.error(
-          `[revenuecat-webhook] request_id=${requestId} database transition failed (${
-            error.code ?? "unknown"
-          }): ${error.message}`,
-        );
+        logIdentitySafeError("revenuecat_webhook_database_failed", {
+          stage: "database_transition",
+          code: error.code ?? "unknown",
+        });
         if (error.message.includes("revenuecat_user_not_found")) {
           return publicErrorResponse(
             request,
@@ -428,10 +438,10 @@ export function createRevenueCatWebhookHandler(
           );
         }
       } else {
-        console.error(
-          `[revenuecat-webhook] request_id=${requestId} unexpected failure:`,
-          error,
-        );
+        logIdentitySafeError("revenuecat_webhook_failed", {
+          stage: "processing",
+          code: "unexpected_failure",
+        });
       }
 
       return publicErrorResponse(

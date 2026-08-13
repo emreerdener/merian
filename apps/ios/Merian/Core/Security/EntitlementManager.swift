@@ -324,7 +324,31 @@ import Supabase
     /// Resets proof when the account changes, then verifies against the private
     /// ledger. A failed refresh never creates complimentary offline access.
     @discardableResult
-    func beginSession(userID: UUID, client: SupabaseClient) async -> Bool {
+    func beginSession(
+        userID: UUID,
+        client: SupabaseClient,
+        authTransitionOwner: AuthTransitionToken? = nil
+    ) async -> Bool {
+        let supabaseManager = SupabaseManager.shared
+        let accountWorkLease: AccountBoundWorkLease?
+        if let authTransitionOwner {
+            guard supabaseManager.ownsAuthTransition(authTransitionOwner) else {
+                return false
+            }
+            accountWorkLease = nil
+        } else {
+            guard let admitted = try? supabaseManager
+                .beginUnownedAccountBoundWork(expectedUserID: userID) else {
+                return false
+            }
+            accountWorkLease = admitted
+        }
+        defer {
+            if let accountWorkLease {
+                supabaseManager.finishAccountBoundWork(accountWorkLease)
+            }
+        }
+
         if sessionUserID != userID {
             resetState(sessionUserID: userID)
         }
@@ -336,16 +360,47 @@ import Supabase
                 .rpc("get_my_entitlement")
                 .execute()
                 .value
-            guard generation == sessionGeneration,
-                  sessionUserID == userID,
-                  rows.count == 1 else { return false }
+            let accountContextIsCurrent: Bool
+            if let authTransitionOwner {
+                accountContextIsCurrent = supabaseManager
+                    .ownsAuthTransition(authTransitionOwner)
+                    && supabaseManager.client.auth.currentSession?.user.id
+                        == userID
+            } else if let accountWorkLease {
+                accountContextIsCurrent = supabaseManager
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease)
+            } else {
+                accountContextIsCurrent = false
+            }
+            guard Self.acceptsSessionVerificationResult(
+                accountContextIsCurrent: accountContextIsCurrent,
+                expectedUserID: userID,
+                activeUserID: sessionUserID,
+                requestGeneration: generation,
+                activeGeneration: sessionGeneration,
+                rowCount: rows.count
+            ) else { return false }
             return apply(rows[0], for: userID)
         } catch {
             MerianLog.auth.debug(
-                "Complimentary entitlement verification failed: \(error.localizedDescription, privacy: .private)"
+                "Complimentary entitlement verification failed; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
             return false
         }
+    }
+
+    nonisolated static func acceptsSessionVerificationResult(
+        accountContextIsCurrent: Bool,
+        expectedUserID: UUID,
+        activeUserID: UUID?,
+        requestGeneration: UUID,
+        activeGeneration: UUID,
+        rowCount: Int
+    ) -> Bool {
+        accountContextIsCurrent
+            && activeUserID == expectedUserID
+            && requestGeneration == activeGeneration
+            && rowCount == 1
     }
 
     /// Establishes the current-launch server baseline, then reconciles any scan

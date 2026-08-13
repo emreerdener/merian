@@ -40,6 +40,11 @@ private enum ExploreDiscoveryMode: Hashable {
     case map
 }
 
+private struct ExploreNotificationSessionKey: Hashable {
+    let userID: UUID?
+    let authTransitionInProgress: Bool
+}
+
 private enum ExploreNotificationDismissalDestination {
     case scansLibrary
     case communityRequest(String)
@@ -58,6 +63,7 @@ struct ExploreView: View {
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(SupabaseManager.self) private var supabase
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel = ExploreFeedViewModel()
@@ -403,7 +409,12 @@ struct ExploreView: View {
             guard activeTab == .community, activeIdentifyMode == .index else { return }
             await refreshDictionaryUserRegionFromAuthorizedLocation()
         }
-        .task {
+        .task(id: ExploreNotificationSessionKey(
+            userID: supabase.currentUser?.id,
+            authTransitionInProgress: supabase.isAuthTransitionInProgress
+        )) {
+            viewModel.stopUnreadNotificationUpdates()
+            guard supabase.allowsUnownedAccountBoundWork else { return }
             await viewModel.startUnreadNotificationUpdates()
 
             while !Task.isCancelled {

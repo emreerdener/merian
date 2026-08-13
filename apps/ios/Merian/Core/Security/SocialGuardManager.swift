@@ -23,9 +23,9 @@ import os
         if !success {
             // Revert on failure.
             blockedUserIds.remove(targetUserId)
-            MerianLog.general.debug("Block failed; reverted local state for user \(targetUserId, privacy: .private)")
+            MerianLog.general.debug("Block failed; reverted local state.")
         } else {
-            MerianLog.general.debug("Block succeeded for user \(targetUserId, privacy: .private)")
+            MerianLog.general.debug("Block succeeded.")
         }
     }
 

@@ -4,6 +4,7 @@ import { SEVEN_DAY_PASS_PRODUCT_ID } from "../_shared/subscriptionPass.ts";
 import type { PurchasePrincipalResolutionStart } from "./db.ts";
 import { PurchasePrincipalDatabaseError } from "./db.ts";
 import { handleResolvePurchasePrincipal } from "./handler.ts";
+import { PURCHASE_PRINCIPAL_CLIENT_PROTOCOL } from "./protocol.ts";
 
 const NOW_MS = 1_786_500_000_000;
 const AUTH_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
@@ -19,7 +20,7 @@ function request(body: Record<string, unknown> = {}): Request {
     body: JSON.stringify({
       operation: "resolve",
       installation_capability: CAPABILITY,
-      client_protocol: 1,
+      client_protocol: PURCHASE_PRINCIPAL_CLIENT_PROTOCOL,
       binding_intent_generation: 7,
       ...body,
     }),
@@ -40,7 +41,7 @@ function stableStart(
     mode: "stable",
     purchasePrincipalId: PRINCIPAL_ID,
     revenueCatAppUserId: APP_USER_ID,
-    minimumClientProtocol: 1,
+    minimumClientProtocol: PURCHASE_PRINCIPAL_CLIENT_PROTOCOL,
     bindingIntentGeneration: 7,
     allowNonSubscriptionPassGrant,
   };
@@ -143,7 +144,7 @@ Deno.test("stable mode separates StoreKit state from account promotions", async 
     revenuecat_app_user_id: APP_USER_ID,
     binding_generation: 3,
     account_grants_allowed: false,
-    minimum_client_protocol: 1,
+    minimum_client_protocol: PURCHASE_PRINCIPAL_CLIENT_PROTOCOL,
   });
   assertEquals(seen.length, 1);
   assertEquals(seen[0].authUserId, AUTH_USER_ID);
@@ -353,27 +354,37 @@ Deno.test("revoked installation capability is a terminal conflict", async () => 
 });
 
 Deno.test("an activated principal requiring a newer client fails closed", async () => {
-  const response = await handleResolvePurchasePrincipal(
-    request(),
-    user(),
-    supabaseAdmin,
-    {
-      begin: () =>
-        Promise.reject(
-          new PurchasePrincipalDatabaseError(
-            "purchase_principal_client_upgrade_required",
-            false,
-            "upgrade required",
+  const logs: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => logs.push(String(args[0]));
+  let response: Response;
+  try {
+    response = await handleResolvePurchasePrincipal(
+      request(),
+      user(),
+      supabaseAdmin,
+      {
+        begin: () =>
+          Promise.reject(
+            new PurchasePrincipalDatabaseError(
+              "purchase_principal_client_upgrade_required",
+              false,
+              "upgrade required",
+            ),
           ),
-        ),
-    },
-  );
+      },
+    );
+  } finally {
+    console.error = originalError;
+  }
 
   assertEquals(response.status, 426);
   assertEquals(
     (await response.json()).code,
     "purchase_principal_client_upgrade_required",
   );
+  assertEquals(logs.length, 1);
+  assertEquals(JSON.parse(logs[0]).status, 426);
 });
 
 Deno.test("account deletion in progress is a retryable fail-closed response", async () => {

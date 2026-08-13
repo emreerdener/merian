@@ -17,6 +17,13 @@ verified R2 erasure a required durable phase: Migration
 `20260806203700_durable_apple_provider_revocation.sql` adds a claim-fenced
 provider substage after storage and before Auth.
 
+Migration `20260813053000_add_account_deletion_recovery_capabilities.sql` adds
+an identity-free recovery proof for the request/response crash boundary. The
+server stores only a SHA-256 hash, binds it to the deletion job in the same
+transaction as intake, and exposes recovery through the separate public
+`/recover-account-deletion` route. The proof never identifies or selects an
+account.
+
 Migration `20260810034953_guard_empty_ghost_account_cleanup.sql` adds a second,
 operator-only intake for prelaunch anonymous shells. It does not change this
 state machine or expose `/safe-delete` to arbitrary UUIDs. After an offline
@@ -43,15 +50,17 @@ also rejects any Auth-first delete until cleanup has removed that profile. The
 scan-ingestion replay worker treats an ownerless tombstone as terminal and never
 dispatches another AI request for it.
 
-1. `request_account_deletion(user_id)` inserts or returns the active `pending`
-   job. This durable receipt is always the first mutation. It records Apple
-   provider work as `pending`, `manual_required`, or `not_required` and returns
-   the durable manual-fallback disposition. It first locks the Auth user and
-   rejects either side of a bound sign-out purchase handoff with
-   `409 purchase_continuity_pending`; no deletion job is written in that case.
-   An unbound proof does not strand deletion if its device is lost: deletion may
-   win before binding, and the reciprocal bind path then rejects the active
-   deletion job before any RevenueCat identity mutation.
+1. `request_account_deletion_with_recovery(user_id, secret_hash)` inserts or
+   returns the active `pending` job and atomically binds the caller's
+   server-hashed recovery proof. Legacy callers retain the service-only
+   `request_account_deletion(user_id)` compatibility path. This durable receipt
+   is always the first mutation. It records Apple provider work as `pending`,
+   `manual_required`, or `not_required` and returns the durable manual-fallback
+   disposition. It first locks the Auth user and rejects either side of a bound
+   sign-out purchase handoff with `409 purchase_continuity_pending`; no deletion
+   job is written in that case. An unbound proof does not strand deletion if its
+   device is lost: deletion may win before binding, and the reciprocal bind path
+   then rejects the active deletion job before any RevenueCat identity mutation.
 2. `claim_account_deletion_jobs(...)` assigns a five-minute UUID lease using
    `FOR UPDATE SKIP LOCKED`.
 3. Every account claim, including a later `auth_pending` retry, calls
@@ -101,8 +110,42 @@ normally returns `202` because delayed storage verification is deliberately
 asynchronous; `200` is possible only when an already verified idempotent job can
 finish immediately. Both are successful responses and contain the required
 boolean `manual_provider_revocation_required`. The iOS client persists a legacy
-Apple notice before it signs out locally and purges its local store. A failure
-before the intake receipt returns `500` and performs no destructive work.
+Apple notice before it signs out locally and purges its local store. Before
+dispatch, supporting clients atomically persist and verify distinct 256-bit
+recovery and acknowledgement capabilities. They persist
+`capability_preparation_pending`, invoke the non-destructive v2 prepare, persist
+`capability_prepared_pending`, then persist `capability_intake_pending` before
+commit. A crash before commit publicly cancels the preparation as
+`not_committed` without signing out or erasing local data. A received durable
+receipt advances the marker to `capability_cleanup_pending`; only then may iOS
+sign out locally and purge SwiftData. After both finish, the public recovery
+route records acknowledgement, iOS advances to `capability_retirement_pending`,
+read-after-delete verifies Keychain removal, and finally clears the marker. The
+Edge boundary hashes the two v2 values in separate recovery and acknowledgement
+domains; neither hash can be replayed through the legacy v1 namespace or through
+the other v2 operation. For legacy v1, `500`, transport failure, public-recovery
+`404`, or unknown proof never proves that intake failed: the database mutation
+may still be committing, so the client retains both proof and barrier. In v2, an
+unknown proof proves no commit because destructive intake requires the
+preparation. If another device commits first, the deletion-job insert trigger
+converts only still-live preparations into receipts. Expired proof hashes move
+to a permanent identity-free tombstone and can never be reused. An expired
+preparation with no committed deletion returns `not_committed`; one retired
+during another device's deletion commit returns the distinct fail-closed
+`410 account_deletion_recovery_preparation_expired`, which does not authorize
+local erasure. Only a 180-day capability actually bound to a job returns
+`410 account_deletion_recovery_expired`; that positive match permits
+conservative local erasure but not pre-cleanup inspection. Post-cleanup
+acknowledgement uses only the independent second proof, remains valid after
+expiry, and converts the row to a permanent replay receipt. Late duplicate
+authenticated intake returns that permanent receipt without clearing
+acknowledgement or extending its original expiry. Only explicit
+`409 purchase_continuity_pending` proves this intake did not win. iOS first
+persists `capability_rejection_retirement_pending`, then read-after-delete
+verifies removal of the unused proof before removing the marker. Relaunch from
+that phase performs no local sign-out or data purge. Pre-capability
+`intake_pending` and `cleanup_pending` markers remain supported for
+installed-client compatibility.
 
 This response addition is not usable by older binaries that do not decode the
 boolean. They can accept the deletion response while silently omitting Apple's
@@ -114,10 +157,20 @@ the instructions. Publishing the supporting build alone is not rollout evidence.
 The scheduled `reconcile-account-deletions` function resumes due account jobs
 and storage pages every five minutes. It performs a bounded account pass,
 bounded storage pass, then a second account pass only when storage completed in
-that invocation. A crashed worker cannot clear or finish another worker's claim,
-and a lost success response is safe: the reaper sees either a completed row or
-an `auth_pending` job whose already-deleted Auth identity resolves as idempotent
-success.
+that invocation. Its bounded preparation pass writes both hashes from every
+selected expired non-destructive preparation to the permanent identity-free
+tombstone ledger before removing the preparation. The exact authenticated
+`{ "dry_run": true }` mode returns before creating a database client or invoking
+any of those workers and is reserved for deployment validation. Recovery hashes
+bound to jobs are permanent idempotency receipts: an acknowledgement response
+can be lost, so neither acknowledged nor expired proofs are age-pruned. The
+table is capped at eight hashes per deletion job, contains no raw proof or
+account identity, and a completed parent job has already removed its user UUID.
+This lets an arbitrarily offline client receive a stable replay instead of an
+ambiguous missing-proof response. A crashed worker cannot clear or finish
+another worker's claim, and a lost success response is safe: the reaper sees
+either a completed row or an `auth_pending` job whose already-deleted Auth
+identity resolves as idempotent success.
 
 An internal `BEFORE INSERT` trigger rejects recreation of `public.users` while a
 deletion job is active. This prevents Auth metadata synchronization or a trusted
@@ -131,7 +184,13 @@ public-schema discovery names, not client-callable APIs. Execution is revoked
 from `PUBLIC`, `anon`, and `authenticated`; only the reviewed `service_role`
 allowlist can execute them, and every routine calls
 `internal.require_service_role()`. The private job and outbox tables have RLS
-enabled and no direct API-role privileges.
+enabled and no direct API-role privileges. The same controls cover
+`internal.account_deletion_recovery_capabilities`,
+`internal.account_deletion_recovery_preparations`,
+`internal.account_deletion_expired_preparation_proofs`, and their prepare,
+commit, recover, acknowledge, prune, and aggregate-health RPC surfaces. The
+public recovery Edge route accepts only one high-entropy proof and its exact
+operation; it never accepts Auth, account, job, or provider identifiers.
 
 The same denial applies to `internal.apple_sign_in_revocation_credentials` and
 `internal.apple_sign_in_credential_registrations`. The former references
@@ -149,13 +208,16 @@ only for its separate cleanup lifecycle.
 
 The independent `.github/workflows/account-deletion-health-monitor.yml` schedule
 is the primary stuck-job/SLA alert. It calls the aggregate service-only
-`get_account_deletion_health()` RPC rather than the reconciler itself and does
-not use the reaper's Vault values. Its defaults are:
+`get_account_deletion_health()` and `get_account_deletion_recovery_health()`
+RPCs rather than the reconciler itself and does not use the reaper's Vault
+values. Its defaults are:
 
 - warning at 10 minutes and critical at 30 minutes for oldest claimable work;
 - warning at 27 hours and critical at 36 hours for oldest active deletion,
   allowing for the mandatory 25-hour delayed storage verification;
 - warning at 25 and critical at 100 active jobs;
+- warning when any job has eight active recovery proofs and critical above that
+  invariant, or when any unacknowledged proof has exceeded its recovery window;
 - critical when the cron is disabled, its URL/service credential is absent, or
   an active storage row has no valid private deletion owner; and
 - warning when a retry error or expired lease is present.
@@ -185,8 +247,9 @@ Structured log alerts remain useful for immediate dependency failures:
 
 Provider dependency failures appear under `account_deletion_attempt_deferred`
 with stage `provider`. They remain in the existing `auth_pending` health
-envelope and contribute to the retry-error aggregate without exposing a token or
-user identifier.
+envelope and contribute to the retry-error aggregate. The immediate handler and
+reaper use the identity-safe logging boundary: account, job, storage-deletion,
+provider-customer, token, URL, and raw error values are never emitted.
 
 Do not manually delete an Auth user to recover a pending job. Repair the
 underlying cleanup failure and invoke the service reaper. For a legacy
@@ -205,6 +268,7 @@ projections continue to apply geoprivacy and sensitive-taxon rules.
 ## Source layout
 
 - `index.ts` owns verified-session and POST-only routing.
+- `protocol.ts` owns the exact legacy/capability request union and proof syntax.
 - `handler.ts` persists intake and maps immediate versus queued success.
 - `worker.ts` owns cleanup-before-provider-before-Auth ordering, retries, and
   claim recovery.
@@ -214,8 +278,12 @@ projections continue to apply geoprivacy and sensitive-taxon rules.
   token exchange, and revocation transport.
 - `storageDb.ts` owns claim-fenced storage-outbox RPC wrappers.
 - `storageWorker.ts` owns bounded R2 list/delete/verification processing.
-- `reconcile-account-deletions/` is the scheduled service-only account and
-  storage reaper.
+- `reconcile-account-deletions/handler.ts` owns service authentication, exact
+  non-mutating deployment dry-run parsing, and the scheduled bounded account,
+  storage, and expired-preparation passes; its `index.ts` is only the server
+  entrypoint.
+- `../recover-account-deletion/` owns public proof recovery and acknowledgement
+  without an Auth session.
 - `../../scripts/monitor_account_deletion_health.ts` reads the aggregate health
   RPC, applies deletion-SLA policy, and writes bounded operator evidence.
 
@@ -225,9 +293,14 @@ Focused source, migration-contract, and pgTAP tests live in
 `functions/_tests/safeDelete.test.ts`,
 `functions/_tests/accountDeletionCoverage.test.ts`,
 `functions/_tests/accountDeletionMigrationContract.test.ts`, and
-`tests/account_deletion_security.sql`. R2 page and deadline behavior is covered
-by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`; monitor
-parsing, thresholds, severity, and recovery guidance are covered by
+`tests/account_deletion_security.sql`. Request parsing, adapter hashing, and
+public recovery behavior are covered by `safe-delete/protocol_test.ts`,
+`safe-delete/db_recovery_test.ts`, and
+`recover-account-deletion/handler_test.ts`. The authenticated no-work reaper
+probe and ordinary bounded invocation are covered by
+`reconcile-account-deletions/handler_test.ts`. R2 page and deadline behavior is
+covered by `_shared/aws_test.ts` and `safe-delete/storageWorker_test.ts`;
+monitor parsing, thresholds, severity, and recovery guidance are covered by
 `scripts/monitor_account_deletion_health_test.ts`.
 
 See the

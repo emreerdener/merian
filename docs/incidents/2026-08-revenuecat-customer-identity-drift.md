@@ -187,6 +187,12 @@ recovering when Auth authoritatively no longer recognizes the session.
 
 ### New-customer success was rejected by the grant tool
 
+> **Superseded 2026-08-13:** the RevenueCat promotional apply path described in
+> this historical section is permanently retired. The script remains a
+> dry-run-only cohort audit and rejects `--apply`; new beta/promotion/support
+> access uses the private Supabase account-grant ledger and an immutable
+> identity-free operation receipt.
+
 The original grant tool accepted only HTTP `200` from its preliminary
 CustomerInfo GET. RevenueCat documents HTTP `201` as success when that GET
 creates the canonical customer. The repaired client accepts both statuses, still
@@ -237,9 +243,9 @@ depends on the RevenueCat project setting and must be exercised in staging.
 
 Until every exit criterion is complete:
 
-1. Do not run `grant-beta-pro` with production credentials until the remaining
-   database, staging, exact-SHA, cohort, expiration, and authorization gates are
-   complete.
+1. Do not restore or bypass the retired `grant-beta-pro` provider mutation.
+   Account-owned access must use the reviewed `grant-account-access` dry-run and
+   exact-plan database operation.
 2. Do not call the canonical-ID/beta rollout production-ready.
 3. Preserve the exact iOS identity/account-kind fence and the grant tool's
    reviewed-cohort/Auth-evidence gate. Ghost store purchases remain allowed;
@@ -286,7 +292,9 @@ another apply.
 
 ## Code, test, and release evidence
 
-The source-level P1 corrections are implemented:
+The historical source-level P1 corrections below were implemented before the
+provider apply path was retired. They remain evidence about the incident, not a
+supported mutation contract:
 
 1. CustomerInfo GET `200` and `201` are accepted, promotional POST still
    requires `201`, and the grant response must contain an active entitlement.

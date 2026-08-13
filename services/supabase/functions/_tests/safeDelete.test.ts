@@ -196,6 +196,41 @@ Deno.test("safe-delete handler records the job before its fast-path worker", asy
   });
 });
 
+Deno.test("safe-delete atomically threads a recovery hash into its receipt", async () => {
+  const recoveryHash = "a".repeat(64);
+  const expiresAt = "2027-02-09T00:00:00.000Z";
+  let receivedHash: string | null | undefined;
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      request: (_userId, _admin, hash) => {
+        receivedHash = hash;
+        return Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "completed",
+          manualProviderRevocationRequired: false,
+          recoveryExpiresAt: expiresAt,
+        });
+      },
+      process: () => {
+        throw new Error("completed intake must not run the worker");
+      },
+    },
+    recoveryHash,
+  );
+
+  assertEquals(receivedHash, recoveryHash);
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    success: true,
+    status: "completed",
+    manual_provider_revocation_required: false,
+    recovery_capability_expires_at: expiresAt,
+    message: "Account securely deleted and anonymized.",
+  });
+});
+
 Deno.test("safe-delete returns accepted after durable retry scheduling", async () => {
   const response = await handleSafeDelete(
     pendingClaim().userId,
@@ -224,6 +259,51 @@ Deno.test("safe-delete returns accepted after durable retry scheduling", async (
 
   assertEquals(response.status, 202);
   assertEquals((await response.json()).status, "pending");
+});
+
+Deno.test("safe-delete deferred diagnostics omit deletion identities and raw failures", async () => {
+  const marker = "018f22a2-7c5c-7cc4-98c9-2e389f13f521";
+  const logs: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => logs.push(String(args[0]));
+
+  try {
+    const response = await handleSafeDelete(
+      pendingClaim().userId,
+      supabaseAdmin,
+      {
+        request: () =>
+          Promise.resolve({
+            jobId: marker,
+            status: "pending",
+            manualProviderRevocationRequired: false,
+          }),
+        process: () =>
+          Promise.resolve({
+            claimed: 1,
+            completed: 0,
+            deferred: 1,
+            waitingForStorage: 0,
+            failures: [{
+              jobId: marker,
+              stage: "provider",
+              code: `provider-customer-${marker}`,
+            }],
+          }),
+      },
+    );
+
+    assertEquals(response.status, 202);
+  } finally {
+    console.error = original;
+  }
+
+  assertEquals(logs.length, 1);
+  assert(logs[0].includes("account_deletion_attempt_deferred"));
+  assert(logs[0].includes('"code":"operation_failed"'));
+  assert(!logs[0].includes(marker));
+  assert(!logs[0].includes("provider-customer"));
+  assert(!logs[0].includes("job_id"));
 });
 
 Deno.test("safe-delete remains accepted if fast-path claiming fails", async () => {
@@ -305,6 +385,90 @@ Deno.test("safe-delete rejects deletion while sign-out purchase continuity is pe
     error: "Finish signing out before deleting this account.",
   });
   assertEquals(processCalled, false);
+});
+
+Deno.test("safe-delete protocol v2 preparation is non-destructive", async () => {
+  let requestCalled = false;
+  let processCalled = false;
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      prepareV2: (_userId, _client, recoveryHash, acknowledgementHash) => {
+        assertEquals(recoveryHash, "recovery-hash");
+        assertEquals(acknowledgementHash, "acknowledgement-hash");
+        return Promise.resolve({
+          prepared: true,
+          recoveryExpiresAt: "2026-08-14T00:00:00.000Z",
+        });
+      },
+      request: () => {
+        requestCalled = true;
+        return Promise.reject(new Error("unexpected request"));
+      },
+      process: () => {
+        processCalled = true;
+        return Promise.resolve({
+          claimed: 0,
+          completed: 0,
+          deferred: 0,
+          waitingForStorage: 0,
+          failures: [],
+        });
+      },
+    },
+    "recovery-hash",
+    {
+      protocolVersion: 2,
+      operation: "prepare",
+      acknowledgementSecretHash: "acknowledgement-hash",
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    success: true,
+    status: "prepared",
+    protocol_version: 2,
+    recovery_capability_expires_at: "2026-08-14T00:00:00.000Z",
+  });
+  assertEquals(requestCalled, false);
+  assertEquals(processCalled, false);
+});
+
+Deno.test("safe-delete protocol v2 commit uses only the prepared recovery proof", async () => {
+  let observedRecoveryHash: string | null = null;
+  const response = await handleSafeDelete(
+    pendingClaim().userId,
+    supabaseAdmin,
+    {
+      requestV2: (_userId, _client, recoveryHash) => {
+        observedRecoveryHash = recoveryHash;
+        return Promise.resolve({
+          jobId: pendingClaim().jobId,
+          status: "pending",
+          manualProviderRevocationRequired: false,
+          recoveryExpiresAt: "2027-02-09T00:00:00.000Z",
+        });
+      },
+      process: () =>
+        Promise.resolve({
+          claimed: 0,
+          completed: 0,
+          deferred: 1,
+          waitingForStorage: 0,
+          failures: [],
+        }),
+    },
+    "recovery-hash",
+    { protocolVersion: 2, operation: "commit" },
+  );
+
+  assertEquals(observedRecoveryHash, "recovery-hash");
+  assertEquals(response.status, 202);
+  const body = await response.json();
+  assertEquals(body.protocol_version, 2);
+  assertEquals(body.status, "pending");
 });
 
 Deno.test("storage_pending cleanup never removes the Auth identity", async () => {

@@ -727,6 +727,41 @@ Deno.test("prepare rejects an anonymous source before provider or database work"
   assertEquals(externalCalls, 0);
 });
 
+Deno.test("bind and identity-change errors use signed-out presentation copy", async () => {
+  const linkedResponse = await handleSignoutPurchaseHandoff(
+    request("bind"),
+    user(SOURCE_ID, false),
+    supabaseAdmin,
+    { apiKey: "" },
+  );
+  assertEquals(linkedResponse.status, 403);
+  assertEquals(await linkedResponse.json(), {
+    code: "anonymous_session_required",
+    error: "A signed-out session is required after sign-out.",
+  });
+
+  const changedResponse = await handleSignoutPurchaseHandoff(
+    request("bind"),
+    user(SOURCE_ID, true),
+    supabaseAdmin,
+    {
+      apiKey: "",
+      bindHandoff: () =>
+        Promise.resolve({
+          ...bound({ targetTier: "free", expiresAt: null }),
+          destinationUserId: DESTINATION_ID,
+        }),
+    },
+  );
+  const changedPayload = await changedResponse.json();
+  assertEquals(changedResponse.status, 503);
+  assertEquals(changedPayload.code, "handoff_identity_changed");
+  assertEquals(
+    changedPayload.error,
+    "The signed-out session changed during purchase continuity.",
+  );
+});
+
 Deno.test("cancel needs the linked source but no RevenueCat configuration", async () => {
   let cancelCount = 0;
   const response = await handleSignoutPurchaseHandoff(

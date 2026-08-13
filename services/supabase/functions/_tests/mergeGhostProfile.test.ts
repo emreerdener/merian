@@ -18,6 +18,31 @@ import {
 
 const HANDOFF_ID = "550e8400-e29b-41d4-a716-446655440000";
 
+Deno.test("ghost merge presentation copy uses signed-out language", async () => {
+  const sources = await Promise.all([
+    Deno.readTextFile(
+      new URL("../merge-ghost-profile/index.ts", import.meta.url),
+    ),
+    Deno.readTextFile(new URL("../merge-ghost-profile/db.ts", import.meta.url)),
+  ]);
+  const presentationSource = sources.join("\n");
+  for (
+    const retiredCopy of [
+      "A guest session",
+      "Guest profile securely upgraded",
+      "This guest profile",
+      "Your guest data",
+    ]
+  ) {
+    assertEquals(presentationSource.includes(retiredCopy), false);
+  }
+  assertStringIncludes(presentationSource, "A signed-out session");
+  assertStringIncludes(
+    presentationSource,
+    "Signed-out profile securely upgraded",
+  );
+});
+
 Deno.test("ghost merge protocol - prepare binds an allowed provider subject", () => {
   assertEquals(
     parseGhostMergeRequest({
@@ -250,7 +275,10 @@ Deno.test("ghost merge database errors expose guarded schema drift as 503", () =
     assert(mapped instanceof GhostMergeDatabaseError);
     assertEquals(mapped.code, "merge_temporarily_unavailable");
     assertEquals(mapped.status, 503);
-    assertStringIncludes(mapped.message, "guest data is unchanged");
+    assertStringIncludes(
+      mapped.message,
+      "signed-out profile data is unchanged",
+    );
   }
 });
 

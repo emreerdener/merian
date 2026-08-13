@@ -102,6 +102,16 @@ MerianLog.general.debug("Species: \(name, privacy: .auto)")
 - Never log a raw `Error` without `privacy: .private` — error messages can
   contain user file paths or network URLs
 
+Authentication and purchase identity use a stricter zero-identity boundary.
+An account, Auth, RevenueCat customer, purchase principal, installation
+capability, provider response/body, URL, or raw error string is never emitted,
+even with `.private`. iOS uses fixed operation/error-kind messages; Edge uses an
+allowlisted structured logger containing only bounded kind/status/stage fields
+and aggregate counts. Opaque per-request correlation IDs may be retained when
+they are generated for that request and cannot select a customer or account.
+Tests must inject marker UUIDs, URLs, and provider/error strings and prove none
+reaches captured authentication, webhook, handoff, or reconciliation output.
+
 ---
 
 ## Reading Logs

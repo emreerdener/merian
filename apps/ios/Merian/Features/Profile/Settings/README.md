@@ -67,6 +67,22 @@ confirmation button remain disabled. The server independently returns
 source or exact bound anonymous destination; the user must finish sign-out
 first.
 
+Before the request is dispatched, the confirmation flow creates and verifies a
+random device-only Keychain capability, then records the identity-free
+`capability_intake_pending` marker. It blocks every other Auth transition and
+account-bound request, but retains the exact cached session so `/safe-delete`
+can be replayed after a crash or ambiguous response. When Auth is unavailable,
+the app recovers through the capability-only public route. The recovery overlay
+remains visible and retries with bounded backoff. A valid receipt advances
+through `capability_cleanup_pending`, local Supabase sign-out, SwiftData purge,
+server acknowledgement, and `capability_retirement_pending`; verified Keychain
+removal precedes marker clearing. A received
+`409 purchase_continuity_pending` proves intake did not win and clears the
+pre-request marker/proof so the sheet can direct the user to finish sign-out. An
+unknown proof or ambiguous error never does. A server-matched expired proof
+permits conservative local erasure, followed by an expiry-tolerant
+acknowledgement and verified proof retirement.
+
 Every successful response must also contain
 `manual_provider_revocation_required`. When true, `DeleteAccountSheet` records
 the durable app-level notice before sign-out. The root app then presents

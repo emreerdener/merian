@@ -1256,8 +1256,15 @@ the shared server-key transport migration
 `20260727013416_future_proof_server_key_boundaries.sql` and user-FK index
 migration `20260727190804_index_user_foreign_keys_for_identity_lifecycle.sql`,
 the Apple provider migration
-`20260806203700_durable_apple_provider_revocation.sql`,
-`register-apple-revocation-token`, `safe-delete`, `reconcile-account-deletions`,
+`20260806203700_durable_apple_provider_revocation.sql`, and the hash-only
+recovery migration
+`20260813053000_add_account_deletion_recovery_capabilities.sql`,
+the non-destructive two-proof preparation migration
+`20260813142638_prepare_account_deletion_recovery_v2.sql`, its forward expiry
+repair
+`20260813162506_reject_expired_account_deletion_preparation_promotion.sql`,
+`register-apple-revocation-token`, `safe-delete`,
+`recover-account-deletion`, `reconcile-account-deletions`,
 `generate-upload-urls`, and `replay-scan-ingestion`, form one release unit. The
 Apple stage requires `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
 `APPLE_SIGN_IN_PRIVATE_KEY` in the GitHub `Production` environment. The deploy
@@ -1323,8 +1330,11 @@ migration sequence:
   verification and before Auth deletion, while returning the manual fallback for
   legacy Apple identities without a stored token;
 - installs service-only account and storage claim/advance/failure RPCs;
+- stores only SHA-256 deletion-recovery hashes, atomically binds them to intake,
+  and adds service-only recover/acknowledge/aggregate-health RPCs;
 - adds indexed, identity-free aggregate health for active/due age, retries,
-  leases, storage backlog, cron state, and credential readiness; and
+  leases, storage backlog, recovery-proof age/cardinality, cron state, and
+  credential readiness; and
 - schedules `reconcile_account_deletions_every_five_minutes`.
 
 The ownerless migration takes bounded `SHARE ROW EXCLUSIVE` locks in Auth →
@@ -1434,6 +1444,10 @@ deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_tests/safeDelete.test.ts \
   services/supabase/functions/_tests/accountDeletionCoverage.test.ts \
   services/supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
+  services/supabase/functions/safe-delete/protocol_test.ts \
+  services/supabase/functions/safe-delete/db_recovery_test.ts \
+  services/supabase/functions/recover-account-deletion/handler_test.ts \
+  services/supabase/functions/reconcile-account-deletions/handler_test.ts \
   services/supabase/functions/safe-delete/storageWorker_test.ts \
   services/supabase/scripts/monitor_account_deletion_health_test.ts
 
@@ -1447,8 +1461,8 @@ short interval, the previous worker rejects the new
 credential/Auth foreign key and terminal SQL fence remain independent backstops.
 Legacy manual notices require the new response bundle and iOS client, so avoid
 deliberately exercising account deletion until
-`register-apple-revocation-token`, `safe-delete`, and
-`reconcile-account-deletions` are deployed. The deployment-workflow change
+`register-apple-revocation-token`, `safe-delete`,
+`recover-account-deletion`, and `reconcile-account-deletions` are deployed. The deployment-workflow change
 selects the complete function fleet, ensuring all shared Apple transport
 consumers install together. Do not distribute the supporting iOS build before
 this backend release and its Apple smoke pass.
@@ -1559,6 +1573,12 @@ WHERE jobname = 'reconcile_account_deletions_every_five_minutes';
 SELECT *
 FROM public.get_account_deletion_health();
 
+SELECT *
+FROM public.get_account_deletion_recovery_health();
+
+SELECT *
+FROM public.get_account_deletion_recovery_preparation_health();
+
 SELECT
     status,
     COUNT(*) AS jobs,
@@ -1645,7 +1665,9 @@ booleans true, an active cron, and `reaper_cron_active = true` plus
 `reaper_credentials_configured = true` in the health row. The other health
 fields reflect the current aggregate queue and must not contain identifiers. The
 credential boolean checks nonblank effective values only; it does not validate
-the URL or key.
+the URL or key. Recovery health must contain zero expired-unacknowledged proofs
+and `maximum_active_capabilities_per_job <= 8`; review any nonzero active count
+as aggregate in-flight work, never by printing proof, job, or account rows.
 
 Manually dispatch `Account Deletion Health Monitor` once after the migration.
 The run must complete successfully under the Production environment and retain
@@ -1653,6 +1675,17 @@ both summary artifacts. Its defaults fail on warning: 10/30 minutes for oldest
 claimable work, 27/36 hours for oldest active work, and 25/100 jobs for
 warning/critical backlog. The end-to-end threshold intentionally includes the
 mandatory 25-hour delayed verification window.
+The same run must successfully validate the deletion-recovery health shape and
+fail closed for any expired unacknowledged proof or per-job cardinality above
+eight.
+
+The deploy workflow must also prove the hosted recovery contract at the exact
+deployed SHA: service credentials can execute the issue, recover,
+acknowledge, and health routines with valid response shapes; every real
+anon/publishable credential is denied direct RPC execution; and the public Edge
+route is reachable but rejects a bounded malformed capability with
+`400 invalid_request`. These are route/ACL/shape smokes only. They neither
+create a deletion job nor replace the device crash-boundary matrix below.
 
 `fenced_due_storage_rows` is an audit count, not an expected-zero correctness
 gate. A nonzero result can identify historical outbox rows that the new routine
@@ -1698,7 +1731,35 @@ before token capture was deployed. Confirm:
     provider-specific subject and clear that matching local session after Apple
     reports a non-authorized credential state. Reauthorize afterward and prove a
     new Vault credential registration succeeds. Do not log or retain the Apple
-    subject while collecting this evidence.
+    subject while collecting this evidence;
+17. terminate the supporting iOS build after capability/marker persistence but
+    before `/safe-delete`, after server acceptance but before the receipt,
+    after local Auth sign-out, after SwiftData purge, after acknowledgement, and
+    after Keychain proof removal. At every boundary, relaunch must remain on the
+    blocking recovery surface, use the same proof, avoid restoring or creating
+    an account, and converge exactly once;
+18. repeat the lost-receipt case after removing the cached Auth session. The
+    public `/recover-account-deletion` route must recover using only publishable
+    `apikey` plus the capability, without a user Bearer token or any identity in
+    the request/response/logs; and
+19. prove a random/unknown capability leaves local cleanup fenced, while a
+    disposable matched-expired fixture permits conservative local erasure,
+    expiry-tolerant cleanup acknowledgement, and proof retirement without
+    falsely claiming Apple-provider revocation;
+20. for protocol v2, terminate after the two-proof Keychain envelope, after
+    non-destructive prepare but before commit, and after commit loses its HTTP
+    response. The first two cases must recover as `not_committed` and preserve
+    Auth/SwiftData; the committed case must recover pending/completed and
+    perform cleanup exactly once;
+21. prepare deletion from two devices for the same staging account, commit from
+    one device (including the legacy authenticated intake path), and prove both
+    recovery proofs resolve the same deletion job. Neither device may observe
+    `not_committed` after the job exists, and each distinct acknowledgement
+    proof may acknowledge only its own receipt; and
+22. confirm the scheduled monitor reads
+    `get_account_deletion_recovery_preparation_health()`, treats any expired
+    preparation as critical until the bounded reaper prunes it, and the deploy
+    smoke denies public credentials for all six v2 service RPCs.
 
 Separately verify the selected older-binary rollout control: either an older
 binary is prevented from starting legacy Apple deletion until it follows a clear
@@ -2918,34 +2979,33 @@ Create and retain these three inputs independently:
    header is `id`; this file alone defines beta membership.
 2. `/secure/users.csv`: a fresh `public.users` export. It classifies the current
    free/timed-Pro/permanent-Pro projection but never adds or removes a member.
-3. `/secure/ghost-audit.csv`: a fresh `audit-ghost-users --snapshot-csv`
+3. `/secure/anonymous-auth-audit.csv`: a fresh
+   `audit-ghost-users --snapshot-csv`
    artifact. Every cohort row must join to `auth_exists=true`; strict
-   `auth_is_anonymous=true` Ghosts and `false` linked users are both eligible,
+   `auth_is_anonymous=true` and `false` linked users are both eligible,
    while missing or malformed evidence aborts the entire run.
 
 Generate the Auth evidence through the read-only audit under the normal
 server-credential preflight:
 
 ```bash
-make audit-ghost-users ARGS='--snapshot-json /secure/ghost-audit.json --snapshot-csv /secure/ghost-audit.csv --summary-md /tmp/ghost-audit.md'
+make audit-ghost-users ARGS='--snapshot-json /secure/anonymous-auth-audit.json --snapshot-csv /secure/anonymous-auth-audit.csv --summary-md /tmp/anonymous-auth-audit.md'
 ```
 
-Then run the grant tool without `--apply`:
+The legacy RevenueCat beta tool is now audit-only and rejects `--apply`. Create
+an identity-free, database-bound account-ledger plan instead:
 
 ```bash
-make grant-beta-pro ARGS='--users-csv /secure/users.csv --cohort-csv /secure/beta-cohort.csv --auth-audit-csv /secure/ghost-audit.csv --expires-at <beta-end-iso8601> --summary-json /tmp/beta-pro-plan.json --results-csv /secure/beta-pro-results.csv'
+make grant-account-access ARGS='--target production --source-sha <reviewed-40-hex-sha> --operation-id <new-uuid> --approval-sha256 <approval-artifact-sha256> --users-csv /secure/users.csv --cohort-csv /secure/beta-cohort.csv --auth-audit-csv /secure/anonymous-auth-audit.csv --grant-kind beta --expires-at <beta-end-iso8601> --summary-json /tmp/account-grant-plan.json --summary-markdown /tmp/account-grant-plan.md'
 ```
 
-Dry-run performs zero RevenueCat requests. Require
-`selection=explicit_reviewed_cohort`, a matching cohort SHA-256, candidate count
-equal to the frozen row count, `verified_auth_user_count` equal to candidate
-count, Ghost plus linked counts equal to that total, and reviewed aggregate
-projection counts. The implementation and tests reject
-duplicate/malformed/missing/nonexistent Auth identities, prove no non-cohort
-request, accept CustomerInfo GET `200|201`, skip active Pro, require promotional
-POST `201`, bound retries and response bytes, and keep console/summary output
-identity-free. The results CSV is intentionally identity-bearing and remains in
-restricted storage.
+Dry-run performs no database mutation and no RevenueCat request. Require the
+clean source SHA, production project reference, live PostgreSQL system
+identifier, input-artifact hashes, candidate-set hash/count, anonymous plus
+linked counts, aggregate projection counts, rollout modes, grant kind, and
+finite expiration to match the reviewed evidence. The summary contains only
+aggregates and digests. Duplicate, malformed, missing, or nonexistent Auth
+identities abort before a plan is approved.
 
 iOS allows purchase, restore, and offer-code redemption for the exact linked
 Supabase identity when requested and linked account kinds match and normalize to
@@ -2960,16 +3020,24 @@ the destination before source Auth deletion; the durable client then calls
 RevenueCat-only promotional grants have no receipt, which is why the server
 mirror is mandatory.
 
-After the remaining incident gates pass, choose one finite beta end date. Apply
-mode requires `--apply --confirm-beta-pro-grant`, the reviewed results path, and
-`REVENUECAT_SECRET_API_KEY` supplied through the process environment. It GETs
-each canonical customer, skips an already-active `pro`, and POSTs only missing
-promotional grants. RevenueCat emits a production `NON_RENEWING_PURCHASE`
-webhook; the normal webhook and scheduled repair project it to
-`subscription_tier = pro` / `pro_paid`. That is the same functional Pro gate as
-a store entitlement and includes Field Chat for the grant period. A direct
-database-only Pro edit is not beta authority and is intentionally reverted when
-RevenueCat reports no active entitlement.
+After the remaining incident gates pass and the user/operator separately
+authorizes this exact production operation, choose one finite beta end date.
+Set
+`MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION` to
+`production:account-access-grant:<source-sha>:<operation-id>:<approved-plan-sha256>`
+and repeat the unchanged command with
+`--apply --approved-plan-sha256 <approved-plan-sha256>
+--approved-plan-json /tmp/account-grant-plan.json`. The tool revalidates the
+clean checkout, target/system identity, rollout modes, cohort artifacts, and
+plan digest under a serializable transaction. It calls the existing
+service-guarded `record_account_access_grant(...)` boundary for every sorted
+account, then commits one immutable aggregate
+`internal.account_access_grant_operations` receipt in the same transaction. A
+response-lost replay returns that receipt; a changed plan or
+reused operation ID fails closed. This path never calls RevenueCat and never
+creates or mutates a RevenueCat customer. Existing legacy provider promotions remain comparison
+input during `dual_read`, but every new account-owned grant comes only from the
+Supabase ledger.
 
 After accidental identity creation outside explicit user sign-out has stopped,
 retain a fourth independent artifact: `/secure/protected-cohort.csv`, a nonempty
@@ -3134,6 +3202,67 @@ The migration intentionally inserts `principal_mode = legacy` and
 No source change, green CI run, or database deployment implicitly authorizes a
 mode flip or a RevenueCat mutation.
 
+The only supported mode-change path is migration
+`20260813040000_add_purchase_identity_rollout_control.sql`, the private
+`purchase_identity_rollout_operations` receipt ledger, and owner-only
+`apply_purchase_identity_rollout_operation(...)`. Start from
+`docs/release-evidence/purchase-identity-rollout-template.json`; copy the
+completed identity-free evidence outside the source checkout (for example,
+`/secure/purchase-identity-rollout.json`) so the exact-SHA cleanliness check
+remains meaningful. From a trusted owner workstation, with the
+target database URL supplied out of band, generate the read-only plan:
+
+```bash
+deno run --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env=MERIAN_DATABASE_URL \
+  --allow-read=/secure/purchase-identity-rollout.json,/tmp/purchase-identity-plan.json \
+  --allow-write=/tmp \
+  --allow-net \
+  --allow-run=git \
+  services/supabase/scripts/control_purchase_identity_rollout.ts \
+  --action enable_stable \
+  --target production \
+  --source-sha <reviewed-40-hex-sha> \
+  --minimum-client-protocol 2 \
+  --evidence-json /secure/purchase-identity-rollout.json \
+  --operation-id <new-uuid> \
+  --approval-sha256 <approval-artifact-sha256> \
+  --summary-json /tmp/purchase-identity-plan.json \
+  --summary-markdown /tmp/purchase-identity-plan.md
+```
+
+Review and retain both outputs. Do not apply unless the user/operator gives
+**separate explicit authorization** naming `enable_stable` and the production
+target. After that authorization, set
+`MERIAN_PURCHASE_IDENTITY_ROLLOUT_APPLY_CONFIRMATION` to
+`production:enable_stable:<source-sha>:<approved-plan-sha256>` and repeat the
+same command with `--apply --approved-plan-sha256
+<approved-plan-sha256> --approved-plan-json
+/tmp/purchase-identity-plan.json`. The tool verifies the checkout is clean and
+at the reviewed SHA, the connection URL names the checked-in production project
+reference, the live PostgreSQL system identifier equals the approved plan, and
+the evidence was reviewed within 24 hours (with at most five minutes of future
+clock skew). Placeholder `.invalid` hosts, localhost, and credential-bearing
+artifact URLs are rejected. The remaining external HTTPS artifact URLs and
+pass/fail values are explicit operator attestations, not independently fetched
+or authenticated by the tool.
+Any changed database health/evidence changes the plan
+digest and fails closed; create and approve a fresh dry run. Never put the
+database URL, confirmation, or approval material in source, CI logs, or an
+issue. The candidate/deploy workflows validate the tool but never call apply.
+
+Use a new operation ID for every transition. `enable_authoritative` is a later,
+separately approved step. Each rollback uses its own action and includes
+`--rollback-of <enable-operation-id>`; the database permits one rollback per
+enable receipt and preserves active principals, bindings, queues, and minimum
+protocol. A rollback is operational recovery, not permission to delete or
+retarget RevenueCat customers. Rollback still requires exact-SHA candidate,
+database, compatibility/rehearsal, required-health-RPC, and approval evidence,
+but queue debt or a currently unavailable physical/provider matrix does not
+block the recovery action. Those conditions remain recorded in the new plan and
+therefore require a freshly reviewed digest.
+
 Use this order for a separately authorized rollout on one reviewed exact SHA:
 
 1. Replay the migration into a disposable database and run
@@ -3164,11 +3293,14 @@ Use this order for a separately authorized rollout on one reviewed exact SHA:
    apps must still use the unchanged legacy path at this point.
 3. Inventory active StoreKit and promotional state from fresh provider and
    Supabase evidence. Import every approved beta/promotion/support grant into
-   `internal.account_access_grants` through the service-only audited boundary;
-   compare the legacy-provider, stable-StoreKit, account-grant, and effective
-   projections until divergence is zero. Do not make the grant ledger
-   authoritative while any operational process can still issue a RevenueCat
-   promotional grant without the matching ledger write.
+   `internal.account_access_grants` through the dry-run-first
+   `grant_account_access_entitlements.ts` boundary; retain its immutable
+   operation receipt and compare the legacy-provider, stable-StoreKit,
+   account-grant, and effective projections until divergence is zero. The old
+   RevenueCat beta script and Make target are network-disabled and reject
+   apply. Do not make the grant ledger authoritative while any external or
+   unreviewed operational process can still issue a RevenueCat promotional
+   grant outside this source-controlled boundary.
 4. Review adopted RevenueCat customers for legacy subscriber attributes. A
    stable purchase principal may survive account switching, so email, username,
    avatar, display name, Auth UUID, and similar account attributes must not
@@ -3211,8 +3343,9 @@ Use this order for a separately authorized rollout on one reviewed exact SHA:
    event, and do not repair any mismatch by moving a binding or editing
    `public.users` directly.
 8. Change `account_grant_mode` to `authoritative` only after all provider promos
-   are represented in the private ledger, provider promo issuance is disabled
-   or atomically dual-written, the old-client window is closed, and rollback is
+   are represented in the private ledger, the retired provider-promo apply path
+   is proven unreachable, every current issuer produces an immutable account-
+   grant operation receipt, the old-client window is closed, and rollback is
    rehearsed. In this mode provider promo records are observed for evidence but
    cannot recreate account access. StoreKit state remains purchase-principal
    scoped.
@@ -3409,11 +3542,10 @@ thresholds and `fail_on=warning`; after this migration it must read both
 `get_purchase_principal_health()`. The summary artifact should be `ok` with no
 expired claim, stale pending principal, or unbound active principal carrying
 current StoreKit access. The source initially keeps the scheduled invocation in
-`expand-compatible` mode so a pre-deploy schedule can accept only the exact
-missing principal-health RPC while still enforcing legacy health. Once the
-hosted smoke above proves the new RPC, land a follow-up exact-SHA workflow change
-to `required`; do not leave the compatibility mode in place through stable-mode
-activation. During an alert, inspect the structured
+compatibility mode only before the first additive deployment. The hosted smoke
+has now established the RPC contract, so the checked-in scheduled invocation is
+`required`: a missing principal-health RPC fails even while
+`principal_mode = legacy`. During an alert, inspect the structured
 `revenuecat_reconciliation_health` Edge event, `last_error_code`, and
 `attempt_count`. Restore RevenueCat/database availability and let claim-fenced
 retries drain the queue. Never clear leases or edit user tiers manually.
@@ -3989,7 +4121,7 @@ below have implementation and test evidence in the same exact SHA:
       leaves non-colliding rows for policy reparenting; it does not insert a
       target actor after taking actor locks.
 - [ ] `user_species_scan_count_underflow` maps to the same HTTP 503
-      `merge_temporarily_unavailable` guest-data-unchanged response as
+      `merge_temporarily_unavailable` signed-out-profile-data-unchanged response as
       `ghost_merge_species_ledger_mismatch`.
 - [ ] Foreground and worker cleanup both preserve and verify the source Ghost's
       active RevenueCat Pro horizon on the destination before source Auth
@@ -4119,7 +4251,7 @@ does not replace that full gate.
 | Provider access handoff       | `revenuecat_test.ts` proves case-exact source/target reads, free and already-covered idempotency, finite/lifetime Pro mirroring, verified target coverage, and bounded failure. Worker tests require preservation before Auth deletion and leave a failed handoff retryable; the client contract pins `syncPurchases()` before evidence rebind/proof removal. |
 | RevenueCat lock order         | The static contract pins user-lock before queue-lock plus two wall-clock claim-expiry checks. `ghostProfileMergeConcurrencyDb.test.ts` runs against the disposable Postgres instance, schedules merge while a stale apply is blocked, and requires claim loss without deadlock or state mutation.                                                             |
 | Community actor lock order    | pgTAP covers colliding and non-colliding actor groups. The static contract forbids insert/upsert, and `ghostProfileMergeConcurrencyDb.test.ts` runs the historical group/actor cycle in two sessions and requires both sessions to finish with exact counts.                                                                                                  |
-| Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the guest-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged.                    |
+| Ledger error response         | Edge unit tests pass both `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow` through the real mapper and require 503, `merge_temporarily_unavailable`, and the signed-out-profile-data-unchanged message. The pgTAP transaction introduces controlled drift and proves failure leaves both profiles and ownership unchanged.                    |
 | Client proof durability       | `ghostProfileMergeClientContract.test.ts` pins persistence before the session switch, `WhenUnlockedThisDeviceOnly` storage with read-after-write, restored-session retry before identity refresh, and terminal-only deletion. The Swift discard-policy source contract requires retryable 503 proofs to remain queued.                                        |
 
 After reset, run the owner-only topology assertion explicitly:
@@ -5936,17 +6068,26 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes twelve
+an unmarked gateway response. The workflow then separately probes thirteen
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
 `get-scan-explore-share-state`, `get-explore-composer-media`,
 `get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
-`request-community-identification`, `transfer-signout-purchases`, and
-`delete-scan`. Each critical route must
+`request-community-identification`, `transfer-signout-purchases`,
+`resolve-purchase-principal`, and `delete-scan`. Each critical route must
 return `401` with the marker, additionally proving user-scoped access fails
 closed. A gateway `404` with no handler marker never counts as a missing scan
 and never permits the production workflow to report success. Do not run the
 matching iOS smoke while either gate is still retrying.
+
+Using the same resolved server credential, the workflow then posts exactly
+`{"dry_run":true}` to `reconcile-account-deletions` and requires the exact
+`{"success":true,"dry_run":true}` response. The handler authenticates before
+parsing and returns before constructing a Supabase client, claiming account or
+storage work, or pruning expired preparations. This proves the deployed reaper
+and current service-key transport without processing a real deletion. It does
+not replace the independent aggregate deletion-health monitor or prove R2,
+Apple, Auth Admin, or cron execution.
 
 The workflow next proves eleven critical database boundaries are present in the
 production PostgREST schema cache and executable only with server authority. It
@@ -6068,15 +6209,19 @@ downloads that artifact and performs the commit with the workflow's sole scoped
 The **Account Deletion Health Monitor** runs every five minutes at minutes 2, 7,
 …, 57, offset from the database reaper. It resolves the production server API
 key through the Management API and calls only the aggregate
-`get_account_deletion_health()` RPC. It does not invoke deletion work and does
-not read the Vault values required by the reaper, so cron or Vault
+`get_account_deletion_health()` and
+`get_account_deletion_recovery_health()` plus
+`get_account_deletion_recovery_preparation_health()` RPCs. It does not invoke deletion work
+and does not read the Vault values required by the reaper, so cron or Vault
 misconfiguration remains independently observable. UUIDs, claim tokens,
 prefixes, cursors, and raw errors are absent from logs and artifacts.
 
 Scheduled runs warn and fail on claimable work aged 10 minutes, active work aged
 27 hours, backlog of 25 jobs, any retry error, or any expired lease. They become
 critical at 30 minutes due age, 36 hours active age, 100 jobs, a disabled cron,
-missing reaper URL/service credentials, or any orphaned active storage work. The
+missing reaper URL/service credentials, any orphaned active storage work, any
+expired unacknowledged recovery proof, or more than eight active proofs for one
+job. Eight active proofs is a warning boundary. The
 active-age threshold allows for the mandatory 25-hour delayed verification. The
 monitor request has a 15-second deadline and 64 KiB response ceiling.
 Configuration health follows the reaper's Vault-first, NULL-only fallback
@@ -6089,10 +6234,11 @@ verifies the health RPC and monitoring credential, but operators must also
 inspect recent reaper cron runs to confirm the separate Vault-backed path
 succeeds.
 
-A failed run means the state machine is overdue, unhealthy, misconfigured, or
-the monitor could not read aggregate health. Use the incident procedure in the
-durable account-deletion release gate. Preserve claim fencing and login access
-until verified completion; do not edit private jobs or manually delete Auth.
+A failed run means the state machine or recovery ledger is overdue, unhealthy,
+misconfigured, or the monitor could not read aggregate health. Use the incident
+procedure in the durable account-deletion release gate. Preserve claim fencing,
+recovery hashes, and login access until verified completion; do not edit private
+jobs, delete proofs, or manually delete Auth.
 
 ## RevenueCat Reconciliation Health Automation
 
@@ -6113,15 +6259,12 @@ reconciliation and sign-out handoff logs plus queue error codes; preserve claim
 fencing and device proofs, and let idempotent recovery finish. Do not cancel or
 delete a bound proof manually.
 
-During the stable-principal expand window, the scheduled command uses
-`--purchase-principal-health-mode expand-compatible`. That mode accepts only a
-`PGRST202` naming the exact zero-argument principal-health RPC, records
-`purchase_principal_health_availability` as `not_deployed`, and stores
-`purchase_principal_health` as `null`; it does not invent healthy zero counts.
-The legacy aggregate, malformed responses, authorization failures, timeouts,
-and every other RPC failure still fail closed. The script default is
-`required`. Switch the scheduled command to `required` immediately after the
-production migration and hosted health-RPC smoke pass.
+The scheduled command uses `--purchase-principal-health-mode required` after
+the production migration and hosted health-RPC smoke. A missing RPC, malformed
+response, authorization failure, timeout, or either unhealthy aggregate fails
+closed even while stable adoption remains disabled. The script retains its
+explicit compatibility parser only for a pre-deployment manual check; the
+production schedule must not select it again.
 
 ## DwC-A Export and Archive Health Automation
 

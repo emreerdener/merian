@@ -4,7 +4,11 @@ import Security
 import Supabase
 
 private enum PurchasePrincipalProtocol {
-    static let current = 1
+    /// Protocol 2 is the first client contract eligible for stable-principal
+    /// activation. Protocol 1 remains server-supported only for the additive
+    /// legacy compatibility window.
+    static let current = 2
+    static let stableMinimum = 2
 }
 
 enum PurchasePrincipalCapabilityPolicy {
@@ -72,7 +76,10 @@ struct PurchasePrincipalBinding: Codable, Equatable {
     }
 
     init(response: PurchasePrincipalResolveResponse) throws {
-        guard response.success, response.minimum_client_protocol >= 1 else {
+        guard response.success,
+              response.minimum_client_protocol >= 1,
+              response.minimum_client_protocol
+                <= PurchasePrincipalProtocol.current else {
             throw PurchasePrincipalResolverError.invalidResponse
         }
         guard let mode = PurchasePrincipalResolutionMode(rawValue: response.mode) else {
@@ -95,10 +102,10 @@ struct PurchasePrincipalBinding: Codable, Equatable {
                 minimumClientProtocol: response.minimum_client_protocol
             )
         case .stable:
-            guard let principalId = response.purchase_principal_id
+            guard response.minimum_client_protocol
+                    >= PurchasePrincipalProtocol.stableMinimum,
+                  let principalId = response.purchase_principal_id
                     .flatMap(UUID.init(uuidString:)),
-                  response.minimum_client_protocol
-                    <= PurchasePrincipalProtocol.current,
                   let appUserId = response.revenuecat_app_user_id,
                   Self.isValidRevenueCatAppUserId(appUserId),
                   let generation = response.binding_generation,
@@ -150,6 +157,91 @@ enum PurchasePrincipalResolverError: LocalizedError {
     }
 }
 
+protocol PurchasePrincipalSecureStore: AnyObject {
+    func dataOrThrow(forKey key: String) throws -> Data?
+
+    @discardableResult
+    func set(
+        _ data: Data,
+        forKey key: String,
+        accessibility: KeychainManager.Accessibility
+    ) -> Bool
+}
+
+extension KeychainManager: PurchasePrincipalSecureStore {}
+
+struct PurchasePrincipalCapabilityStore {
+    typealias Generator = () throws -> Data
+
+    private let secureStore: any PurchasePrincipalSecureStore
+    private let generateCapability: Generator
+
+    init(
+        secureStore: any PurchasePrincipalSecureStore
+    ) {
+        self.init(
+            secureStore: secureStore,
+            generateCapability: Self.generateSecureCapability
+        )
+    }
+
+    init(
+        secureStore: any PurchasePrincipalSecureStore,
+        generateCapability: @escaping Generator
+    ) {
+        self.secureStore = secureStore
+        self.generateCapability = generateCapability
+    }
+
+    func loadExisting() throws -> Data {
+        guard let capability = try secureStore.dataOrThrow(
+            forKey: KeychainKeys.purchasePrincipalInstallationCapability
+        ), capability.count == 32 else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        return capability
+    }
+
+    func loadOrCreate(allowsCreation: Bool) throws -> Data {
+        let key = KeychainKeys.purchasePrincipalInstallationCapability
+        if let existing = try secureStore.dataOrThrow(forKey: key) {
+            guard existing.count == 32 else {
+                throw PurchasePrincipalResolverError.capabilityUnavailable
+            }
+            return existing
+        }
+        guard allowsCreation else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+
+        let capability = try generateCapability()
+        guard capability.count == 32,
+              secureStore.set(
+                capability,
+                forKey: key,
+                accessibility: .whenUnlockedThisDeviceOnly
+              ),
+              try secureStore.dataOrThrow(forKey: key) == capability else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        return capability
+    }
+
+    private static func generateSecureCapability() throws -> Data {
+        var bytes = Data(count: 32)
+        let status = bytes.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else {
+                return errSecParam
+            }
+            return SecRandomCopyBytes(kSecRandomDefault, 32, baseAddress)
+        }
+        guard status == errSecSuccess else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        return bytes
+    }
+}
+
 private struct PurchasePrincipalResolvePayload: Encodable {
     let operation = "resolve"
     let installation_capability: String
@@ -170,14 +262,18 @@ struct PurchasePrincipalResolveResponse: Decodable {
 @MainActor
 final class PurchasePrincipalResolver {
     private let client: SupabaseClient
-    private let keychain: KeychainManager
+    private let keychain: any PurchasePrincipalSecureStore
+    private let capabilityStore: PurchasePrincipalCapabilityStore
 
     init(
         client: SupabaseClient,
-        keychain: KeychainManager = .shared
+        keychain: any PurchasePrincipalSecureStore = KeychainManager.shared
     ) {
         self.client = client
         self.keychain = keychain
+        capabilityStore = PurchasePrincipalCapabilityStore(
+            secureStore: keychain
+        )
     }
 
     func resolve(
@@ -185,7 +281,7 @@ final class PurchasePrincipalResolver {
         allowsCapabilityCreation: Bool = true
     ) async throws -> PurchasePrincipalBinding {
         let stableActivationFingerprint = try loadStableActivationFingerprint()
-        let capabilityData = try loadOrCreateInstallationCapability(
+        let capabilityData = try capabilityStore.loadOrCreate(
             allowsCreation:
                 allowsCapabilityCreation && stableActivationFingerprint == nil
         )
@@ -243,11 +339,7 @@ final class PurchasePrincipalResolver {
     }
 
     func currentInstallationCapabilityFingerprint() throws -> String {
-        guard let capability = try keychain.dataOrThrow(
-            forKey: KeychainKeys.purchasePrincipalInstallationCapability
-        ), capability.count == 32 else {
-            throw PurchasePrincipalResolverError.capabilityUnavailable
-        }
+        let capability = try capabilityStore.loadExisting()
         let fingerprint = PurchasePrincipalCapabilityPolicy.fingerprint(
             capability
         )
@@ -294,39 +386,6 @@ final class PurchasePrincipalResolver {
         ) == data else {
             throw PurchasePrincipalResolverError.capabilityUnavailable
         }
-    }
-
-    private func loadOrCreateInstallationCapability(
-        allowsCreation: Bool
-    ) throws -> Data {
-        let key = KeychainKeys.purchasePrincipalInstallationCapability
-        if let existing = try keychain.dataOrThrow(forKey: key) {
-            guard existing.count == 32 else {
-                throw PurchasePrincipalResolverError.capabilityUnavailable
-            }
-            return existing
-        }
-        guard allowsCreation else {
-            throw PurchasePrincipalResolverError.capabilityUnavailable
-        }
-
-        var bytes = Data(count: 32)
-        let status = bytes.withUnsafeMutableBytes { buffer in
-            guard let baseAddress = buffer.baseAddress else {
-                return errSecParam
-            }
-            return SecRandomCopyBytes(kSecRandomDefault, 32, baseAddress)
-        }
-        guard status == errSecSuccess,
-              keychain.set(
-                bytes,
-                forKey: key,
-                accessibility: .whenUnlockedThisDeviceOnly
-              ),
-              try keychain.dataOrThrow(forKey: key) == bytes else {
-            throw PurchasePrincipalResolverError.capabilityUnavailable
-        }
-        return bytes
     }
 
     private func advanceBindingIntentGeneration(

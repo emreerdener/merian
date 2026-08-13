@@ -34,7 +34,8 @@ and an ambiguous network result cannot be retried blindly.
 
 The product uses **Sign out**, **Continue with Apple**, and **Continue with
 Google**. Anonymous app use is presented as signed out; the internal legacy term
-“Ghost” is never user-facing.
+“Ghost” and implementation language such as “guest session” are never
+user-facing.
 
 Signing out must not:
 
@@ -89,6 +90,26 @@ accepts only a newer intent and requires completion to match it. This is the
 ordering authority across cancellation and delayed HTTP execution: an old Auth
 request cannot become the final binding merely because it completes last.
 
+iOS also has one generation-bound `AuthTransitionCoordinator` for Apple,
+Google, Sign out, recovery, credential revocation, and account deletion. The
+owner token records the source session and expected destination. Competing
+controls are disabled, stale provider/controller callbacks are discarded, and
+Auth-listener side effects cannot overtake the operation that owns the SDK.
+Every account-bound metadata, RevenueCat, entitlement, and routing write
+revalidates that token and the live session after its last suspension point.
+Ordinary direct Supabase and HTTP work additionally holds an exact-session
+lease. Transition admission closes before the drain begins; the owner cancels
+and awaits consent synchronization, waits for all admitted leases and
+collection work, and changes the SDK session only after that boundary is empty.
+401 recovery runs only after the failed request releases its lease. Realtime
+channels stop while a transition is active and restart only for the verified
+final account. Inference requests bind their body, JWT, and expected Auth UUID
+in one typed value, and background dispatch holds the exact-session lease
+through task resume. Offline media signing and upload dispatch use the same
+captured UUID, reject a returned object key for any other canonical owner, and
+hold the lease through task resume. Anonymous session restore/creation is a
+coordinator-owned transition, not a parallel bootstrap exception.
+
 RevenueCat webhooks and reconciliation first resolve the private stable mapping
 and only then use legacy UUID fallback. StoreKit state, legacy provider state,
 and account grants are separate inputs to one effective projection. Stable
@@ -107,10 +128,27 @@ promotion import. Stable customers receive no new account PII or Auth UUID attri
 adoption clears legacy account attributes before paid readiness. Ordinary
 same-install sign-out and Apple/Google continuation rebind the same purchase
 principal and perform no receipt synchronization or customer transfer.
+Every Auth-user, binding-generation, account-kind, or provider-ID change closes
+local subscription state and account-grant eligibility before the asynchronous
+rebind starts, even when the stable provider ID itself is unchanged.
+Local paid readiness also requires RevenueCat CustomerInfo whose entitlement
+verification result is `verified` or `verifiedOnDevice`. An unverified or
+failed verification closes local paid state; neither cached UI nor an Auth
+transition may promote it. The client also verifies store provenance for every
+active product: Release builds accept exact Apple App Store provenance and
+reserve Test Store for explicit Debug testing. Stable mode rejects promotional,
+Mac App Store, Play Store, Stripe, RevenueCat Billing, External, Paddle,
+Amazon, Galaxy, missing, and unknown stores for `pro_annual`, entitlement rows,
+and detached pass access even if RevenueCat lists the identifier as active.
+Account-owned promotions enter only through the server grant projection, except
+for the bounded dual-read compatibility lane that admits explicit promotional
+provenance only for the recorded account-grant owner.
 The global legacy switch is an adoption brake, not an identity rollback:
 already active capabilities keep resolving and rebinding their exact stable
-principal. A client below the minimum protocol fails closed instead of being
-redirected to an Auth-UUID RevenueCat customer.
+principal. A client below the minimum protocol fails closed when resolving an
+already active stable principal instead of being redirected to an Auth-UUID
+RevenueCat customer. Before activation, unsupported clients remain on the
+legacy compatibility lane and cannot adopt a stable principal.
 The iOS client records only a monotonic fingerprint of the capability after
 first stable activation—not the provider ID as authority. Thereafter a missing
 resolver route or explicit legacy response fails closed, preventing an
@@ -149,8 +187,13 @@ does not create a dormant operation ledger.
 2. **Account-grant authority (prepared, disabled).** The private, audited
    `account_access_grants` ledger exists in the forward migration. The rollout
    begins in `dual_read`; provider promotions are imported only for comparison.
+   New account-owned access uses the dry-run-first, exact-plan
+   `grant_account_access_entitlements.ts` path, which commits an immutable
+   identity-free operation receipt with the cohort grants and never calls
+   RevenueCat. The old provider-promotion utility rejects apply.
    `authoritative` may be selected only after an explicit cohort migration,
-   projection comparison, issuance cutover, and rollback review.
+   projection comparison, proof that every issuer uses this ledger path, and
+   rollback review.
 3. **Purchase-principal introduction (prepared, disabled).** Server-issued
    stable principals, device-capability resolution, binding history,
    principal-aware webhooks/reconciliation, aggregate health, and the iOS
@@ -194,3 +237,25 @@ backend compatibility, attribute-scrub review for adopted customers, and the
 controlled RevenueCat sandbox matrix. Stable mode must remain disabled until
 those artifacts are attached to the reviewed exact SHA. Production Supabase,
 RevenueCat, TestFlight, and App Store operations remain separately authorized.
+
+Migration `20260813040000_add_purchase_identity_rollout_control.sql` adds the
+private `purchase_identity_rollout_operations` ledger and owner-only
+`apply_purchase_identity_rollout_operation(...)` routine. Operators run
+`control_purchase_identity_rollout.ts` in dry-run mode, review and approve its
+exact evidence-bound plan digest, and then provide both
+`--approved-plan-sha256` and the unchanged `--approved-plan-json` in a
+separately invoked apply. The tool directly verifies the clean checkout SHA,
+production project reference, database system identity, and evidence freshness;
+external artifact URLs/statuses remain trusted-operator attestations. Stable
+and account-grant-authoritative transitions
+remain separate operations, and each rollback references the one unused
+enabling operation it reverses. This mechanism is a safety control, not
+authorization: production apply still requires **separate explicit
+authorization** naming the target and operation.
+
+Scheduled purchase-principal health is required after the additive RPC has
+passed hosted smoke; a missing RPC is then an alert, never compatibility
+success. Authentication and RevenueCat diagnostics are zero-identity: they may
+record an allowlisted operation/error kind and aggregate counts, but never an
+account, Auth, RevenueCat customer, purchase principal, capability, provider
+body, or raw error text.

@@ -59,7 +59,7 @@ Deno.test("ghost merge reconciler records successful and retryable Auth cleanup 
   assertEquals(result.claimed, 2);
   assertEquals(result.deleted, 1);
   assertEquals(result.failed, 1);
-  assertEquals(result.errors[0]?.reason, "auth_http_503");
+  assertEquals(result.errors, [{ code: "auth_http_503" }]);
   assertEquals(finished, [
     {
       handoffId: CLAIMS[0].handoffId,
@@ -105,10 +105,39 @@ Deno.test("ghost merge reconciler preserves RevenueCat before deleting Ghost Aut
   ]);
   assertEquals(result.deleted, 0);
   assertEquals(result.failed, 1);
-  assertEquals(
-    result.errors[0]?.reason,
-    "revenuecat_customer_info_retryable",
+  assertEquals(result.errors, [{
+    code: "revenuecat_customer_info_retryable",
+  }]);
+});
+
+Deno.test("ghost merge reconciler output never exposes receipt, account, or raw error identities", async () => {
+  const marker = "550e8400-e29b-41d4-a716-446655440099";
+  const result = await reconcileGhostProfileMerges(
+    {} as SupabaseClient,
+    1,
+    {
+      claim: () => Promise.resolve([CLAIMS[0]]),
+      preserveRevenueCatAccess: () => {
+        throw new Error(
+          `customer=${marker} url=https://provider.invalid/private`,
+        );
+      },
+      deleteAuthUser: () => Promise.resolve({ succeeded: true as const }),
+      finish: () => Promise.resolve(),
+    },
   );
+
+  assertEquals(result, {
+    claimed: 1,
+    deleted: 0,
+    failed: 1,
+    errors: [{ code: "cleanup_failed" }],
+  });
+  const serialized = JSON.stringify(result);
+  assertEquals(serialized.includes(marker), false);
+  assertEquals(serialized.includes("provider.invalid"), false);
+  assertEquals(serialized.includes(CLAIMS[0].handoffId), false);
+  assertEquals(serialized.includes(CLAIMS[0].ghostUserId), false);
 });
 
 Deno.test("ghost Auth deletion treats only 404 or user_not_found as idempotent success", async () => {

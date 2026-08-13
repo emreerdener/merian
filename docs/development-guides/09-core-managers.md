@@ -568,10 +568,11 @@ triggering excessive SwiftUI view rebuilds.
   and server polls keep their token for the full awaited operation and
   revalidate after each suspension instead of clearing ownership before work
   begins. Current task descriptions are
-  `upload|scanId|uploadIndex|generation|serverObjectKey` and
-  `inference_v2|generation|scanId`; parsers retain legacy compatibility for
-  tasks created by older app builds. Carrying the server-issued key prevents a
-  cold-launch auth/device-identity guess from changing the upload owner.
+  `upload_v2|ownerUUID|scanId|uploadIndex|generation|serverObjectKey` and
+  `inference_v3|ownerUUID|generation|scanId`; parsers retain legacy
+  compatibility for tasks created by older app builds. Carrying both the exact
+  Auth owner and server-issued key prevents a cold-launch identity guess from
+  changing the upload owner.
   Queue-backed foreground inference additionally persists its UUID on the
   scan-ingestion job and atomically consumes it before provider dispatch.
   `InferenceEngine` checks the scan, presentation UUID, and foreground UUID at
@@ -1284,6 +1285,14 @@ consults that Keychain entry.
   Auth-event generation checks before and after the
   serialized SDK identity mutation prevent a late result from an old session
   from installing paid readiness for a new one.
+- **Unified Auth-transition ownership**: one `AuthTransitionCoordinator` owns
+  Apple, Google, Sign out, recovery, Apple credential revocation, and account
+  deletion. Its token records kind, phase, source, expected destination, and
+  Auth generation. Competing operations cannot begin; stale provider callbacks
+  and wrong Apple controllers are ignored. Account-bound metadata, purchase,
+  entitlement, and routing writes verify token ownership plus the live session
+  after suspension. The Auth listener observes basic SDK state but cannot run
+  identity side effects ahead of the active owner.
 - **Stable versus legacy identity**: stable mode passes the immutable
   server-issued purchase-principal ID and binding generation to
   `RevenueCatManager`. It clears and synchronizes legacy account attributes,
@@ -1367,8 +1376,26 @@ consults that Keychain entry.
   mode rotates Supabase Auth under the same purchase principal and keeps
     StoreKit access there; beta/promotion/support grants remain attached to their
     account owner. Legacy mode uses `/transfer-signout-purchases` and receipt sync
-    until the supported-client rollback window closes. Account deletion calls
-    low-level `signOut()` without replacement or purchase transfer. Global
+    until the supported-client rollback window closes. Account deletion owns
+    its own transition and atomically verifies distinct recovery and
+    acknowledgement capabilities in one device-only Keychain envelope. It
+    records `capability_preparation_pending`, completes non-destructive server
+    prepare, records `capability_prepared_pending`, and only then records
+    `capability_intake_pending` before destructive commit. A lost response
+    therefore replays only the same server-idempotent commit or uses the
+    account-free public recovery route while all other account work stays
+    fenced. `not_committed` retires only the proof/marker; a successful receipt
+    advances through cleanup and capability
+    retirement; iOS signs out without replacement or purchase transfer, purges
+    SwiftData, acknowledges, verifies proof removal, and removes the marker
+    last. Foreground and cold launch present a blocking recovery surface and
+    retry the exact interrupted phase. Only the server's explicit
+    `409 purchase_continuity_pending` may move an unaccepted intake into the
+    durable `capability_rejection_retirement_pending` phase. That phase verifies
+    removal of only the unused proof before removing the marker and never signs
+    out or purges local data;
+    unknown or ambiguous recovery never does.
+    Global
     sign-out remains inappropriate because it would revoke other active devices.
   - `AppLifecycleManager` retries an unresolved purchase-identity binding on
     foreground activation, including while the required-consent gate is closed.
@@ -1480,6 +1507,16 @@ consults that Keychain entry.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
   entitlements, and treats `pro_week` as a detached non-subscription purchase
   that is active for seven days from its purchase date.
+- Opens local paid state only when RevenueCat entitlement verification is
+  `verified` or `verifiedOnDevice`; an unverified snapshot fails closed. The
+  active binding must also authorize the RevenueCat store behind each active
+  product. Stable mode rejects promotional, missing, and unknown store
+  provenance for `pro_annual`, entitlement rows, and the detached seven-day
+  pass even when `activeSubscriptions` contains the product identifier.
+  Account-owned promotions enter only through the approved account-grant or
+  legacy compatibility lane. The
+  SDK log handler drops provider message bodies and emits only fixed severity
+  categories, never customer/account IDs or raw errors.
 - A store introductory trial activates through its receipt without a manual
   RevenueCat approval. A beta promotion is different: it is an explicit,
   finite secret-key grant of the same `pro` entitlement. Once either is
@@ -1808,6 +1845,10 @@ consults that Keychain entry.
 - `InferenceEngine` now treats pending background writes as generation-scoped
   work. Any scan reset or cancellation invalidates the old generation before the
   next scan can enqueue or drain background mutations.
+- Auth transitions close the engine's write-admission fence synchronously,
+  cancel all presentation producers, retain their task handles, and await even
+  cancellation-ignoring work before an Auth SDK session change. The fence opens
+  only when the owning transition finishes.
 - Active and pending best-effort metadata writes each have a hard depth-eight
   ceiling. Rapid queue replay therefore retains at most sixteen write closures;
   overflow is dropped instead of creating an unbounded OOM backlog.

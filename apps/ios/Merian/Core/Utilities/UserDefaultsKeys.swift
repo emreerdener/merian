@@ -134,6 +134,12 @@ enum UserDefaultsKeys {
     /// deletion cannot programmatically revoke a token that was never stored.
     static let pendingManualAppleRevocationNotice =
         "pendingManualAppleRevocationNotice.v1"
+    /// Durable, identity-free marker written only after the backend accepts an
+    /// account-deletion request. Startup retries local cache removal until it
+    /// succeeds, so a termination after server acceptance cannot preserve
+    /// account-owned data on the device indefinitely.
+    static let pendingLocalAccountDeletionCleanup =
+        "pendingLocalAccountDeletionCleanup.v1"
 }
 
 enum ManualAppleRevocationNoticeStore {
@@ -162,6 +168,238 @@ enum ManualAppleRevocationNoticeStore {
         userDefaults.removeObject(
             forKey: UserDefaultsKeys.pendingManualAppleRevocationNotice
         )
+    }
+}
+
+enum AccountDeletionLocalRecoveryState: String, Equatable {
+    /// The user confirmed deletion and the durable barrier was written before
+    /// Keychain capability creation. Relaunch may create or reuse the proof only
+    /// while the exact cached Auth session still exists.
+    case capabilityPreparationPending = "capability_preparation_pending"
+    /// Protocol v2 preparation was acknowledged without creating a deletion
+    /// job. The commit request has not started; recovery may cancel this state
+    /// without erasing local data.
+    case capabilityPreparedPending = "capability_prepared_pending"
+    /// The authenticated intake may be in flight or may have committed without
+    /// returning a receipt. The exact cached Auth session must be retained so
+    /// the idempotent request can be retried after relaunch.
+    case intakePending = "intake_pending"
+    /// The server returned its durable receipt. Local Auth and SwiftData may be
+    /// erased, and the marker is cleared only after both are verified.
+    case cleanupPending = "cleanup_pending"
+    /// Current protocol: the authenticated request may have committed and the
+    /// device-held recovery capability must remain readable before any local
+    /// account lifecycle can resume.
+    case capabilityIntakePending = "capability_intake_pending"
+    /// Current protocol: server acceptance was recovered or received. Local
+    /// erasure must be acknowledged with the same capability before state is
+    /// retired.
+    case capabilityCleanupPending = "capability_cleanup_pending"
+    /// The server acknowledged device cleanup. Relaunch re-verifies local Auth
+    /// absence and idempotent data purge before capability/marker retirement;
+    /// a crash after Keychain deletion can finish without the removed proof.
+    case capabilityRetirementPending = "capability_retirement_pending"
+    /// Durable deletion intake was definitively rejected before it could
+    /// commit. Relaunch may retire only the unused Keychain proof and marker;
+    /// it must not sign out or erase local data.
+    case capabilityRejectionRetirementPending =
+        "capability_rejection_retirement_pending"
+    /// Keychain contained a proof while the UserDefaults phase was absent or
+    /// secure storage could not be inspected before Auth bootstrap. Recovery is
+    /// capability-only and must never submit a deletion for the current session.
+    case capabilityLookupPending = "capability_lookup_pending"
+
+    var isIntakePending: Bool {
+        self == .intakePending ||
+            self == .capabilityPreparationPending ||
+            self == .capabilityPreparedPending ||
+            self == .capabilityIntakePending
+    }
+
+    var requiresRecoveryCapability: Bool {
+        self == .capabilityIntakePending ||
+            self == .capabilityCleanupPending
+    }
+}
+
+enum AccountDeletionLocalCleanupStore {
+    static func state(
+        userDefaults: UserDefaults = .standard
+    ) -> AccountDeletionLocalRecoveryState? {
+        let key = UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        let storedValue = userDefaults.object(forKey: key)
+        if let rawValue = storedValue as? String {
+            // An unknown future state remains fail-closed at the non-destructive
+            // intake boundary. This build must re-confirm server acceptance,
+            // never infer permission to erase local state from an unknown value.
+            return AccountDeletionLocalRecoveryState(rawValue: rawValue)
+                ?? .intakePending
+        }
+        // Builds predating the two-phase protocol stored a Boolean only after
+        // server acceptance. Preserve that recovery meaning during upgrade.
+        if let legacyAcceptedMarker = storedValue as? Bool,
+           legacyAcceptedMarker {
+            return .cleanupPending
+        }
+        return nil
+    }
+
+    static func isPending(
+        userDefaults: UserDefaults = .standard
+    ) -> Bool {
+        state(userDefaults: userDefaults) != nil
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordIntakePending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityIntakePending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCapabilityPreparationPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityPreparationPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCapabilityLookupPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil,
+        emitEvent: Bool = true
+    ) -> Bool {
+        record(
+            .capabilityLookupPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender,
+            emitEvent: emitEvent
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCapabilityPreparedPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityPreparedPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCleanupPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityCleanupPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCapabilityRetirementPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityRetirementPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    static func recordCapabilityRejectionRetirementPending(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .capabilityRejectionRetirementPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    /// Compatibility spelling for call sites that already hold a server
+    /// receipt. New deletion requests must persist `intakePending` first.
+    @discardableResult
+    @MainActor
+    static func record(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        record(
+            .cleanupPending,
+            userDefaults: userDefaults,
+            eventSender: eventSender
+        )
+    }
+
+    @discardableResult
+    @MainActor
+    private static func record(
+        _ state: AccountDeletionLocalRecoveryState,
+        userDefaults: UserDefaults,
+        eventSender: (any AppEventSending)?,
+        emitEvent: Bool = true
+    ) -> Bool {
+        userDefaults.set(
+            state.rawValue,
+            forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        )
+        // This marker is the local side of an irreversible request. Force the
+        // preferences domain to disk, then read it back before allowing the
+        // network mutation to start.
+        guard userDefaults.synchronize(),
+              self.state(userDefaults: userDefaults) == state else {
+            return false
+        }
+        if emitEvent {
+            let sender = eventSender ?? AppDIContainer.shared.appEventPublisher
+            sender.send(.accountDeletionRecoveryStateChanged)
+        }
+        return true
+    }
+
+    @discardableResult
+    @MainActor
+    static func resolve(
+        userDefaults: UserDefaults = .standard,
+        eventSender: (any AppEventSending)? = nil
+    ) -> Bool {
+        userDefaults.removeObject(
+            forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
+        )
+        guard userDefaults.synchronize(),
+              state(userDefaults: userDefaults) == nil else {
+            return false
+        }
+        let sender = eventSender ?? AppDIContainer.shared.appEventPublisher
+        sender.send(.accountDeletionRecoveryStateChanged)
+        return true
     }
 }
 
@@ -195,6 +433,11 @@ enum KeychainKeys {
     /// stable purchase principal is server-bound to the replacement session.
     static let pendingPurchasePrincipalAuthRotation =
         "Merian_PendingPurchasePrincipalAuthRotation_v1"
+    /// Device-only proof used only to recover or acknowledge a deletion that
+    /// the authenticated backend already accepted. The server stores its hash;
+    /// the raw capability never identifies or initiates an account deletion.
+    static let accountDeletionRecoveryCapability =
+        "Merian_AccountDeletionRecoveryCapability_v1"
     /// Write-ahead journal that keeps analytics fail-closed if the larger
     /// consent ledger cannot persist one or more account-wide withdrawals.
     static let analyticsRevocationIntent = "Merian_AnalyticsRevocationIntent_v1"
@@ -665,19 +908,30 @@ enum SpeciesPreferredNameRepository {
     ) async -> Bool {
         SpeciesPreferredNameStore.recordSyncAttempt(userDefaults: legacyDefaults)
 
-        guard SupabaseManager.shared.isAuthenticated,
-              let userId = SupabaseManager.shared.currentUser?.id.uuidString else {
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else {
             SpeciesPreferredNameStore.recordSyncSkip(
-                "No authenticated Supabase user.",
+                "No stable authenticated Supabase session.",
                 userDefaults: legacyDefaults
             )
             return false
         }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+        let userId = accountWorkLease.session.userID.uuidString
 
         do {
             let localPreferences = fetchAllPreferences(modelContext: modelContext)
             let pendingDeletes = SpeciesPreferredNameStore.pendingDeleteDates(userDefaults: legacyDefaults)
-            let remoteRows = try await fetchRemotePreferences(userId: userId)
+            let remoteRows = try await fetchRemotePreferences(
+                userId: userId,
+                accountWorkLease: accountWorkLease
+            )
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                throw SupabaseAuthTransitionError.signOutInProgress
+            }
             let remoteByScientificName = Dictionary(
                 uniqueKeysWithValues: remoteRows.map {
                     (normalizedScientificName($0.scientific_name), $0)
@@ -702,6 +956,11 @@ enum SpeciesPreferredNameRepository {
                     .upsert(upserts, onConflict: "user_id,scientific_name")
                     .execute()
 
+                guard SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    throw SupabaseAuthTransitionError.signOutInProgress
+                }
+
                 for upsert in deleteUpserts {
                     SpeciesPreferredNameStore.clearPendingCloudDelete(
                         for: upsert.scientific_name,
@@ -710,6 +969,10 @@ enum SpeciesPreferredNameRepository {
                 }
             }
 
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                throw SupabaseAuthTransitionError.signOutInProgress
+            }
             applyRemotePreferences(
                 remoteRows,
                 localPreferences: localPreferences,
@@ -949,7 +1212,10 @@ enum SpeciesPreferredNameRepository {
         }
     }
 
-    private static func fetchRemotePreferences(userId: String) async throws -> [SpeciesPreferenceCloudRow] {
+    private static func fetchRemotePreferences(
+        userId: String,
+        accountWorkLease: AccountBoundWorkLease
+    ) async throws -> [SpeciesPreferenceCloudRow] {
         var rows: [SpeciesPreferenceCloudRow] = []
         rows.reserveCapacity(cloudSyncPageSize)
 
@@ -963,6 +1229,11 @@ enum SpeciesPreferredNameRepository {
                 .range(from: offset, to: offset + cloudSyncPageSize - 1)
                 .execute()
                 .value
+
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                throw SupabaseAuthTransitionError.signOutInProgress
+            }
 
             rows.append(contentsOf: page)
             if page.count < cloudSyncPageSize { break }

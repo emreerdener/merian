@@ -175,6 +175,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// increments the generation so queued work from a previous scan session cannot drain into
     /// the next one after cancellation.
     @ObservationIgnored private var backgroundWriteGeneration: UInt64 = 0
+    /// Closes presentation-owned local and cloud side effects while an Auth
+    /// transition owns the process. Cancellation is cooperative, so the Auth
+    /// transition also awaits the captured tasks before identity mutation.
+    @ObservationIgnored private var authTransitionWriteFenceActive = false
     /// Latest identification-review action for each scan. Review hydration performs network
     /// I/O, so an older override can otherwise finish after a newer reset and overwrite the
     /// newer choice locally or in the cloud.
@@ -204,6 +208,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     private func executeTrackedBackgroundTask(operation: @escaping @Sendable () async -> Void) {
+        guard !authTransitionWriteFenceActive else { return }
         let generation = backgroundWriteGeneration
         guard backgroundWriteTasks.count < backgroundWriteTaskCap else {
             guard pendingBackgroundTasks.count < pendingBackgroundWriteTaskCap else {
@@ -219,7 +224,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         operation: @escaping @Sendable () async -> Void,
         generation: UInt64
     ) {
-        guard generation == backgroundWriteGeneration else { return }
+        guard !authTransitionWriteFenceActive,
+              generation == backgroundWriteGeneration else { return }
         let id = UUID()
         let task = Task { [weak self] in
             defer {
@@ -248,7 +254,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         backgroundWriteGeneration &+= 1
         pendingBackgroundTasks.removeAll(keepingCapacity: false)
         for task in backgroundWriteTasks.values { task.cancel() }
-        backgroundWriteTasks.removeAll(keepingCapacity: false)
+        // Retain active handles until each task's defer removes it. A task may
+        // ignore cancellation while suspended; dropping its handle would let
+        // an Auth transition mistake live mutation work for quiesced work.
         // Keep the cancelled tail as the next action's predecessor. If its operation already
         // crossed a cancellation boundary, waiting for it preserves final-writer ordering
         // across A → B → A presentation changes.
@@ -312,6 +320,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         channel: IdentificationWriteChannel = .review,
         operation: @escaping @Sendable () async -> Void
     ) {
+        guard !authTransitionWriteFenceActive else { return }
         let predecessor = identificationReviewWriteTail
         let presentationGeneration = backgroundWriteGeneration
         identificationReviewWriteTail = Task { @MainActor [weak self] in
@@ -378,6 +387,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         reviewActionGeneration: UInt64?,
         operation: @escaping @Sendable () async -> Void
     ) {
+        guard !authTransitionWriteFenceActive else { return }
         let guardedOperation: @Sendable () async -> Void = { [weak self] in
             guard !Task.isCancelled,
                   let self,
@@ -401,6 +411,57 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         } else {
             executeTrackedBackgroundTask(operation: guardedOperation)
         }
+    }
+
+    /// Synchronously closes new presentation writes at Auth-transition
+    /// admission and cancels every existing producer. The async drain is the
+    /// terminal proof that non-cooperative tasks have stopped.
+    func beginAuthTransitionWriteFence() {
+        guard !authTransitionWriteFenceActive else { return }
+        authTransitionWriteFenceActive = true
+        inferenceTask?.cancel()
+        liveHydrationTask?.cancel()
+        historicHydrationTask?.cancel()
+        gbifHydrationTask?.cancel()
+        enrichmentWriteTask?.cancel()
+        localClassificationTask?.cancel()
+        phaseRotationTask?.cancel()
+        identificationReviewWriteTail?.cancel()
+        resetTrackedBackgroundWrites()
+    }
+
+    func awaitAuthTransitionWriteQuiescence() async {
+        guard authTransitionWriteFenceActive else { return }
+
+        _ = await inferenceTask?.result
+        _ = await liveHydrationTask?.result
+        _ = await historicHydrationTask?.result
+        _ = await gbifHydrationTask?.result
+        _ = await enrichmentWriteTask?.result
+        _ = await localClassificationTask?.result
+        _ = await phaseRotationTask?.result
+        _ = await identificationReviewWriteTail?.result
+
+        while !backgroundWriteTasks.isEmpty {
+            let tasks = Array(backgroundWriteTasks.values)
+            for task in tasks {
+                await task.value
+            }
+            await Task.yield()
+        }
+
+        inferenceTask = nil
+        liveHydrationTask = nil
+        historicHydrationTask = nil
+        gbifHydrationTask = nil
+        enrichmentWriteTask = nil
+        localClassificationTask = nil
+        phaseRotationTask = nil
+        identificationReviewWriteTail = nil
+    }
+
+    func finishAuthTransitionWriteFence() {
+        authTransitionWriteFenceActive = false
     }
 
     private func hasUsableLookalikeTaxonomy(_ taxonomy: TaxonomyData?) -> Bool {
@@ -471,6 +532,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     ///
     /// Contrast with `cancelActiveRequest()`, which resets to idle with no upcoming scan.
     func prepareForNewScan() {
+        guard !authTransitionWriteFenceActive else { return }
         // Cancel all in-flight async work before the new scan claims the engine.
         invalidateActiveLiveInferenceAttempt(
             resumeBackground: true,
@@ -1091,6 +1153,23 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
+        guard !authTransitionWriteFenceActive else {
+            if let scanId, let foregroundInferenceGeneration {
+                OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                    scanId: scanId,
+                    foregroundInferenceGeneration:
+                        foregroundInferenceGeneration,
+                    reason: "auth_transition_active"
+                )
+                OfflineQueueManager.shared.retireForegroundInference(
+                    scanId: scanId,
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "auth_transition_active"
+                )
+            }
+            return
+        }
         guard !imageDatas.isEmpty else {
             if let scanId, let foregroundInferenceGeneration {
                 OfflineQueueManager.shared.releaseDeferredLiveUpload(
@@ -1681,6 +1760,23 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         targetEradicationScanId: String? = nil,
         userPerceivedStart: CFAbsoluteTime? = nil
     ) {
+        guard !authTransitionWriteFenceActive else {
+            if let scanId, let foregroundInferenceGeneration {
+                OfflineQueueManager.shared.releaseDeferredLiveUpload(
+                    scanId: scanId,
+                    foregroundInferenceGeneration:
+                        foregroundInferenceGeneration,
+                    reason: "auth_transition_active"
+                )
+                OfflineQueueManager.shared.retireForegroundInference(
+                    scanId: scanId,
+                    generation: foregroundInferenceGeneration,
+                    resumeBackground: true,
+                    reason: "auth_transition_active"
+                )
+            }
+            return
+        }
         let filteredAudioFilePaths = (audioFilePaths ?? []).filter { !$0.isEmpty }
         let filteredVideoFilePaths = (videoFilePaths ?? []).filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
@@ -2512,7 +2608,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     reviewActionGeneration: reviewActionGeneration
                 ) { [safeImageUrlToPersist] in
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: descriptionText, url: webUrl, imageUrl: safeImageUrlToPersist)
+                    await dbActor.updateScanWithWikipedia(
+                        scanId: scanId,
+                        extract: descriptionText,
+                        url: webUrl,
+                        imageUrl: safeImageUrlToPersist,
+                        expectedScientificName: species
+                    )
                 }
             }
         } catch {
@@ -2616,7 +2718,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     reviewActionGeneration: reviewActionGeneration
                 ) {
                     let dbActor = BackgroundDatabaseActor(modelContainer: container)
-                    await dbActor.updateScanWithWikipedia(scanId: scanId, extract: nil, url: nil, imageUrl: finalUrls)
+                    await dbActor.updateScanWithWikipedia(
+                        scanId: scanId,
+                        extract: nil,
+                        url: nil,
+                        imageUrl: finalUrls,
+                        expectedScientificName: scientificName
+                    )
                 }
             }
         } catch {
@@ -2761,7 +2869,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                                     gbifTaxonKey: gbifSnapshot,
                                     similarSpeciesJsonData: nil,
                                     taxonomy: taxonomySnapshot,
-                                    alternativeCommonNames: altNamesSnapshot
+                                    alternativeCommonNames: altNamesSnapshot,
+                                    expectedScientificName:
+                                        capturedScientificName
                                 )
                             }
                         }
@@ -2851,7 +2961,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                                         habitatDescription: nil,
                                         gbifTaxonKey: nil,
                                         similarSpeciesJsonData: encodedLookalikes,
-                                        taxonomy: nil
+                                        taxonomy: nil,
+                                        expectedScientificName:
+                                            capturedScientificName
                                     )
                                 }
                             }
@@ -3368,7 +3480,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// Owner-derived RPC persisting the complete identification review atomically.
     /// Accepts nil for `override` to set the column to NULL (reset / confirmed-only path).
     private func syncIdentificationReviewToCloud(scanId: String, override: String?, confirmed: Bool, confirmedSpeciesId: String?, userReviewState: String) async {
-        guard await MainActor.run(body: { SupabaseManager.shared.currentUser != nil }) else { return }
+        guard let accountWorkLease = try? SupabaseManager.shared
+            .beginUnownedAccountBoundWork() else { return }
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
 
         do {
             try await SupabaseManager.shared.client
@@ -3384,12 +3500,19 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 )
                 .execute()
 
+            guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                return
+            }
+
             if let postId = ExploreShareStateStore.sharedPostId(for: scanId) {
                 AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postId))
             }
             await AppDIContainer.shared.scanMilestoneCoordinator.processIdentificationUpdate(scanId: scanId)
         } catch {
-            MerianLog.general.debug("syncIdentificationReviewToCloud failed: \(error, privacy: .private)")
+            MerianLog.general.debug(
+                "syncIdentificationReviewToCloud failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
         }
     }
 
@@ -3493,6 +3616,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// tracked `historicHydrationTask` so that navigating to a different scan immediately
     /// cancels the previous scan's outstanding work.
     func load(from record: LocalScanRecord) {
+        guard !authTransitionWriteFenceActive else { return }
         // Loading a persisted record replaces the live presentation just as
         // starting another capture does. Relinquish the exact foreground owner
         // before changing activeScanId, otherwise the old task can no longer

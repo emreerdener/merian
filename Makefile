@@ -1,4 +1,4 @@
-.PHONY: help validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro db-push functions-deploy
+.PHONY: help validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro grant-account-access db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -33,7 +33,8 @@ help:
 	@printf "  make audit-revenuecat-customers ARGS='...' Compare Supabase and RevenueCat CSV exports offline\n"
 	@printf "  make cleanup-revenuecat-shells ARGS='...' Plan or apply guarded empty-shell deletion\n"
 	@printf "  make reset-revenuecat-customers-prelaunch ARGS='...' Exact prelaunch RevenueCat project reset\n"
-	@printf "  make grant-beta-pro ARGS='...'        Dry-run or apply guarded RevenueCat beta grants\n"
+	@printf "  make grant-beta-pro ARGS='...'        Audit the retired RevenueCat beta cohort path (dry-run only)\n"
+	@printf "  make grant-account-access ARGS='...'  Plan or apply account-owned access through the private ledger\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
 
@@ -183,10 +184,14 @@ reset-revenuecat-customers-prelaunch:
 
 grant-beta-pro:
 	deno run --frozen --config services/supabase/functions/deno.json \
-		--allow-env=REVENUECAT_SECRET_API_KEY \
-		--allow-net=api.revenuecat.com \
 		--allow-read --allow-write \
 		services/supabase/scripts/grant_revenuecat_beta_entitlements.ts $(ARGS)
+
+grant-account-access:
+	deno run --frozen --config services/supabase/functions/deno.json \
+		--allow-env=MERIAN_DATABASE_URL,MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION \
+		--allow-net --allow-read --allow-write --allow-run=git \
+		services/supabase/scripts/grant_account_access_entitlements.ts $(ARGS)
 
 db-push:
 	@bash services/supabase/scripts/require_supabase_cli_version.sh

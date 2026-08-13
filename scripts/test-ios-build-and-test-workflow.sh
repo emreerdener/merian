@@ -781,8 +781,30 @@ assert_file_contains "$queue_sync_source" "finalPolicy.isOnline"
 assert_file_contains \
   "$queue_sync_source" \
   "var entriesByScanId: [String: [UploadDispatchEntry]]"
-assert_file_contains "$queue_sync_source" "let uploadTasks = entries.map"
+assert_file_contains \
+  "$queue_sync_source" \
+  "let durableOwnership = BackgroundAccountWorkOwnership("
+assert_file_contains \
+  "$queue_sync_source" \
+  "guard await queueActor.activateBackgroundAccountWork("
+assert_file_contains \
+  "$queue_sync_source" \
+  "var uploadTasks: [URLSessionUploadTask] = []"
+assert_file_contains \
+  "$queue_sync_source" \
+  "guard retainBackgroundAccountWork("
+assert_file_contains \
+  "$queue_sync_source" \
+  "uploadTasks.count == entries.count"
 assert_file_contains "$queue_sync_source" "for uploadTask in uploadTasks"
+assert_file_before \
+  "$queue_sync_source" \
+  "guard await queueActor.activateBackgroundAccountWork(" \
+  "let task = session.uploadTask("
+assert_file_before \
+  "$queue_sync_source" \
+  "guard retainBackgroundAccountWork(" \
+  "uploadTask.resume()"
 assert_file_contains \
   "$queue_sync_source" \
   "candidateScanIds: undispatchedScanIDs"

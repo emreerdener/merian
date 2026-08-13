@@ -13,6 +13,9 @@ struct SpeciesDictionaryTests {
         let mockTransport = ScopedMockTransport()
         let networkClient = MerianNetworkClient()
         networkClient.overridingSession = mockTransport.makeSession()
+        networkClient.overridingAuthUserID = UUID(
+            uuidString: "22222222-2222-4222-8222-222222222222"
+        )
         networkClient.resetSpeciesDictionaryCacheForTesting()
         self.mockTransport = mockTransport
         self.networkClient = networkClient

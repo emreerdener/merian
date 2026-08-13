@@ -30,6 +30,7 @@ struct DangerZone: View {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .foregroundColor(.red)
+                .disabled(supabase.isAuthTransitionInProgress)
                 .confirmationDialog(
                     "Are you sure you want to sign out?",
                     isPresented: $showSignOutConfirmation,
@@ -52,7 +53,10 @@ struct DangerZone: View {
             } label: {
                 Label("Delete account & data", systemImage: "trash.fill")
             }
-            .disabled(purchaseContinuityPending)
+            .disabled(
+                purchaseContinuityPending ||
+                    supabase.isAuthTransitionInProgress
+            )
             .foregroundColor(.red)
             .accessibilityHint(
                 purchaseContinuityPending

@@ -1,6 +1,6 @@
 import {
   jsonResponse,
-  logStructuredError,
+  logIdentitySafeError,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { syncPublicAuthorIdentity } from "../_shared/explore.ts";
@@ -56,7 +56,8 @@ Deno.serve((req: Request) =>
             return jsonResponse(
               {
                 code: "ghost_session_required",
-                error: "A guest session is required to prepare an upgrade.",
+                error:
+                  "A signed-out session is required to prepare an upgrade.",
               },
               403,
             );
@@ -117,13 +118,12 @@ Deno.serve((req: Request) =>
               revenueCatHandoff.errorCode,
               supabaseAdmin,
             );
-            logStructuredError(
+            logIdentitySafeError(
               "ghost_profile_merge_revenuecat_handoff_pending",
               {
-                handoffId: receipt.handoffId,
-                ghostUserId: receipt.ghostUserId,
-                targetUserId: receipt.targetUserId,
-                errorCode: revenueCatHandoff.errorCode,
+                operation: "complete",
+                stage: "revenuecat_handoff",
+                code: revenueCatHandoff.errorCode,
               },
             );
             return publicErrorResponse(
@@ -145,11 +145,10 @@ Deno.serve((req: Request) =>
               cleanup.errorCode,
               supabaseAdmin,
             );
-            logStructuredError("ghost_profile_merge_auth_cleanup_pending", {
-              handoffId: receipt.handoffId,
-              ghostUserId: receipt.ghostUserId,
-              targetUserId: receipt.targetUserId,
-              errorCode: cleanup.errorCode,
+            logIdentitySafeError("ghost_profile_merge_auth_cleanup_pending", {
+              operation: "complete",
+              stage: "auth_cleanup",
+              code: cleanup.errorCode,
             });
             return publicErrorResponse(
               req,
@@ -172,7 +171,7 @@ Deno.serve((req: Request) =>
               target_user_id: receipt.targetUserId,
               merged_at: receipt.mergedAt,
               already_merged: receipt.alreadyMerged,
-              message: "Guest profile securely upgraded.",
+              message: "Signed-out profile securely upgraded.",
             },
             200,
           );
@@ -195,12 +194,10 @@ Deno.serve((req: Request) =>
       }
     } catch (error) {
       if (error instanceof GhostMergeDatabaseError) {
-        logStructuredError("ghost_profile_merge_rejected", {
-          userId: user.id,
+        logIdentitySafeError("ghost_profile_merge_rejected", {
           operation: request.operation,
           code: error.code,
           status: error.status,
-          internalMessage: error.internalMessage,
         });
         return publicErrorResponse(
           req,

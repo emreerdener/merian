@@ -16,6 +16,65 @@ final class EntitlementManagerTests: XCTestCase {
         RevenueCatManager.shared.synchronizeFunctionalEntitlement()
     }
 
+    func testSessionVerificationAcceptsOnlyExactCurrentAccountGenerationAndRow() {
+        let generation = UUID()
+
+        XCTAssertTrue(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: true,
+            expectedUserID: userID,
+            activeUserID: userID,
+            requestGeneration: generation,
+            activeGeneration: generation,
+            rowCount: 1
+        ))
+    }
+
+    func testSessionVerificationRejectsStaleOrAmbiguousAccountEvidence() {
+        let generation = UUID()
+        let otherUserID = UUID()
+
+        XCTAssertFalse(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: false,
+            expectedUserID: userID,
+            activeUserID: userID,
+            requestGeneration: generation,
+            activeGeneration: generation,
+            rowCount: 1
+        ))
+        XCTAssertFalse(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: true,
+            expectedUserID: userID,
+            activeUserID: otherUserID,
+            requestGeneration: generation,
+            activeGeneration: generation,
+            rowCount: 1
+        ))
+        XCTAssertFalse(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: true,
+            expectedUserID: userID,
+            activeUserID: userID,
+            requestGeneration: generation,
+            activeGeneration: UUID(),
+            rowCount: 1
+        ))
+        XCTAssertFalse(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: true,
+            expectedUserID: userID,
+            activeUserID: userID,
+            requestGeneration: generation,
+            activeGeneration: generation,
+            rowCount: 0
+        ))
+        XCTAssertFalse(EntitlementManager.acceptsSessionVerificationResult(
+            accountContextIsCurrent: true,
+            expectedUserID: userID,
+            activeUserID: userID,
+            requestGeneration: generation,
+            activeGeneration: generation,
+            rowCount: 2
+        ))
+    }
+
     func testComplimentaryAccessRequiresCurrentLaunchVerification() throws {
         XCTAssertFalse(EntitlementManager.shared.isVerifiedForCurrentLaunch)
         XCTAssertFalse(RevenueCatManager.shared.isProActive)

@@ -75,6 +75,13 @@ enum UserTagsMutationController {
         }
 
         Task(priority: .background) {
+            guard let accountWorkLease = try? SupabaseManager.shared
+                .beginUnownedAccountBoundWork() else { return }
+            defer {
+                SupabaseManager.shared.finishAccountBoundWork(
+                    accountWorkLease
+                )
+            }
             do {
                 try await SupabaseManager.shared.client
                     .rpc(
@@ -85,8 +92,14 @@ enum UserTagsMutationController {
                         )
                     )
                     .execute()
+                guard SupabaseManager.shared
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+                    return
+                }
             } catch {
-                MerianLog.data.error("UserTagsMutationController: failed to sync tags to cloud: \(error.localizedDescription, privacy: .public)")
+                MerianLog.data.error(
+                    "UserTagsMutationController: failed to sync tags to cloud; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                )
             }
         }
     }

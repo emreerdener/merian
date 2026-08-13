@@ -124,11 +124,13 @@ struct ProfileView: View {
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
+                .disabled(supabase.isAuthTransitionInProgress)
             }
         } label: {
             Image(systemName: "ellipsis")
         }
         .tint(.primary)
+        .disabled(supabase.isAuthTransitionInProgress)
         .accessibilityLabel("Profile options")
         .accessibilityIdentifier("ProfileToolbarOptions")
     }

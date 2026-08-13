@@ -692,6 +692,29 @@ private struct ConsentRestorationView: View {
     }
 }
 
+private struct AccountDeletionRecoveryView: View {
+    var body: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                Text("Finishing Account Deletion")
+                    .font(.headline)
+                Text(
+                    "Naturebook is confirming your request and securely clearing this device. Keep the app open and connected."
+                )
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 320)
+            }
+            .padding(24)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Main Execution Point
 @main
 struct MerianApp: App {
@@ -701,10 +724,11 @@ struct MerianApp: App {
     @State private var didRunInitialActivePhase = false
     @State private var isShowingManualAppleRevocationNotice =
         ManualAppleRevocationNoticeStore.isPending()
+    @State private var isAccountDeletionRecoveryPending: Bool
     
     // MARK: - App Dependencies
-    let diContainer = AppDIContainer.shared
-    let lifecycleManager = AppLifecycleManager(container: AppDIContainer.shared)
+    let diContainer: AppDIContainer
+    let lifecycleManager: AppLifecycleManager
     
     // MARK: - SwiftData Container
     let container: ModelContainer?
@@ -715,7 +739,14 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
+        _ = AccountDeletionRecoveryCapabilityStore
+            .restoreBarrierBeforeAuthBootstrap()
+        _isAccountDeletionRecoveryPending = State(
+            initialValue: AccountDeletionLocalCleanupStore.isPending()
+        )
         let dependencies = AppDIContainer.shared
+        diContainer = dependencies
+        lifecycleManager = AppLifecycleManager(container: dependencies)
         UITestSeedCoordinator.prepareRequiredConsentIfNeeded(
             consentManager: dependencies.consentManager
         )
@@ -739,7 +770,7 @@ struct MerianApp: App {
         startupRecoveryNotice = Self.combinedStartupNotice(storeNotice: bootstrapOutcome.startupNotice)
         if let container {
             let mainContext = container.mainContext
-            AppDIContainer.shared.scanRepository.configure(with: mainContext)
+            dependencies.scanRepository.configure(with: mainContext)
             SpeciesPreferredNameRepository.migrateLegacyPreferences(modelContext: mainContext)
 
             UITestSeedCoordinator.prepareIfNeeded(container: container)
@@ -1438,6 +1469,13 @@ struct MerianApp: App {
                     .background(Color(.systemBackground))
                 }
             }
+            .overlay {
+                if isAccountDeletionRecoveryPending {
+                    AccountDeletionRecoveryView()
+                        .transition(.opacity)
+                        .zIndex(1)
+                }
+            }
             .onAppear {
                 applyTheme(appSettings.themeMode)
                 isShowingManualAppleRevocationNotice =
@@ -1447,7 +1485,11 @@ struct MerianApp: App {
                     return
                 }
                 didRunInitialActivePhase = true
-                lifecycleManager.handleActivePhase()
+                Task { @MainActor in
+                    guard !AccountDeletionLocalCleanupStore.isPending()
+                    else { return }
+                    lifecycleManager.handleActivePhase()
+                }
             }
             .onChange(of: appSettings.themeMode) { _, newTheme in
                 applyTheme(newTheme)
@@ -1455,6 +1497,39 @@ struct MerianApp: App {
             .onReceive(diContainer.appEventPublisher.publisher) { event in
                 guard case .manualAppleRevocationNoticeRequired = event else { return }
                 isShowingManualAppleRevocationNotice = true
+            }
+            .onReceive(diContainer.appEventPublisher.publisher) { event in
+                guard case .accountDeletionRecoveryStateChanged = event else {
+                    return
+                }
+                isAccountDeletionRecoveryPending =
+                    AccountDeletionLocalCleanupStore.isPending()
+            }
+            .task(id: isAccountDeletionRecoveryPending) {
+                guard isAccountDeletionRecoveryPending,
+                      !TestExecutionCoordinator.isRunningTests else {
+                    return
+                }
+                let retryDelays: [Duration] = [
+                    .seconds(2), .seconds(5), .seconds(15), .seconds(30)
+                ]
+                var retryIndex = 0
+                while AccountDeletionLocalCleanupStore.isPending() {
+                    if await resumeAcceptedAccountDeletionCleanupIfNeeded() {
+                        lifecycleManager.handleActivePhase()
+                        return
+                    }
+                    do {
+                        try await Task.sleep(
+                            for: retryDelays[
+                                min(retryIndex, retryDelays.count - 1)
+                            ]
+                        )
+                    } catch {
+                        return
+                    }
+                    retryIndex += 1
+                }
             }
             .alert(
                 "Finish Sign in with Apple Cleanup",
@@ -1487,11 +1562,8 @@ struct MerianApp: App {
                     handleExternalImageImportURL(url)
                 case .supabaseAuthentication:
                     Task {
-                        do {
-                            try await diContainer.supabaseManager.client.auth.session(from: url)
-                        } catch {
-                            MerianLog.auth.error("Supabase auth session URL handler failed: \(error, privacy: .private)")
-                        }
+                        await diContainer.supabaseManager
+                            .handleAuthenticationCallbackURL(url)
                     }
                 }
             }
@@ -1506,22 +1578,51 @@ struct MerianApp: App {
 
             switch newPhase {
             case .background:
+                guard !AccountDeletionLocalCleanupStore.isPending() else {
+                    return
+                }
                 lifecycleManager.handleBackgroundPhase()
             case .inactive:
+                guard !AccountDeletionLocalCleanupStore.isPending() else {
+                    return
+                }
                 // Only dismiss modals and pause hardware when transitioning out of the foreground.
                 // Prevents wiping deep-link state (like open push notifications) when returning from the background.
                 if oldPhase == .active {
                     lifecycleManager.handleInactivePhase()
                 }
             case .active:
-                lifecycleManager.handleActivePhase()
-                if ManualAppleRevocationNoticeStore.isPending() {
-                    isShowingManualAppleRevocationNotice = true
+                Task { @MainActor in
+                    guard await resumeAcceptedAccountDeletionCleanupIfNeeded()
+                    else { return }
+                    lifecycleManager.handleActivePhase()
+                    if ManualAppleRevocationNoticeStore.isPending() {
+                        isShowingManualAppleRevocationNotice = true
+                    }
                 }
             @unknown default:
                 break
             }
         }
+    }
+
+    @MainActor
+    private func resumeAcceptedAccountDeletionCleanupIfNeeded() async -> Bool {
+        guard AccountDeletionLocalCleanupStore.isPending() else {
+            isAccountDeletionRecoveryPending = false
+            return true
+        }
+        isAccountDeletionRecoveryPending = true
+        guard let modelContext = container?.mainContext else { return false }
+        let completed = await diContainer.supabaseManager
+            .resumePendingAccountDeletionLocalCleanup {
+                diContainer.scanRepository.purgeAllData(
+                    modelContext: modelContext
+                )
+            }
+        isAccountDeletionRecoveryPending =
+            AccountDeletionLocalCleanupStore.isPending()
+        return completed
     }
 
     private func applyTheme(_ themeMode: ThemeMode) {

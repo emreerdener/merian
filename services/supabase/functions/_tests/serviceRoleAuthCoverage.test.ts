@@ -66,7 +66,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "export-dwca/index.ts",
   "identify-multimodal/index.ts",
   "process-community-consensus-jobs/index.ts",
-  "reconcile-account-deletions/index.ts",
+  "reconcile-account-deletions/handler.ts",
   "reconcile-dwca-archive-cleanup/index.ts",
   "reconcile-explore-media-health/handler.ts",
   "reconcile-ghost-profile-merges/index.ts",

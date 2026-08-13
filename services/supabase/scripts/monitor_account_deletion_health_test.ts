@@ -1,8 +1,12 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   type AccountDeletionHealth,
+  type AccountDeletionRecoveryHealth,
+  type AccountDeletionRecoveryPreparationHealth,
   accountDeletionStatus,
   assertAccountDeletionHealth,
+  assertAccountDeletionRecoveryHealth,
+  assertAccountDeletionRecoveryPreparationHealth,
   buildAccountDeletionSummary,
   parseAccountDeletionMonitorArgs,
   renderAccountDeletionMarkdown,
@@ -36,6 +40,26 @@ const HEALTHY: AccountDeletionHealth = {
   oldest_storage_due_age_seconds: null,
   reaper_cron_active: true,
   reaper_credentials_configured: true,
+};
+
+const RECOVERY_HEALTHY: AccountDeletionRecoveryHealth = {
+  generated_at: "2026-07-27T01:00:00.000Z",
+  active_unacknowledged_count: 0,
+  acknowledged_retained_count: 0,
+  expired_unacknowledged_count: 0,
+  oldest_active_issued_at: null,
+  oldest_active_age_seconds: null,
+  oldest_expired_at: null,
+  oldest_expired_age_seconds: null,
+  maximum_active_capabilities_per_job: 0,
+};
+
+const PREPARATION_HEALTHY: AccountDeletionRecoveryPreparationHealth = {
+  generated_at: "2026-07-27T01:00:00.000Z",
+  active_preparation_count: 0,
+  expired_preparation_count: 0,
+  oldest_active_age_seconds: null,
+  oldest_expired_age_seconds: null,
 };
 
 Deno.test("parseAccountDeletionMonitorArgs applies deletion SLA defaults", () => {
@@ -153,6 +177,55 @@ Deno.test("assertAccountDeletionHealth validates one consistent summary", () => 
   );
 });
 
+Deno.test("assertAccountDeletionRecoveryHealth validates aggregate-only state", () => {
+  const active: AccountDeletionRecoveryHealth = {
+    ...RECOVERY_HEALTHY,
+    active_unacknowledged_count: 2,
+    acknowledged_retained_count: 1,
+    expired_unacknowledged_count: 1,
+    oldest_active_issued_at: "2026-07-26T00:00:00.000Z",
+    oldest_active_age_seconds: 90_000,
+    oldest_expired_at: "2026-07-25T00:00:00.000Z",
+    oldest_expired_age_seconds: 176_400,
+    maximum_active_capabilities_per_job: 2,
+  };
+  assertEquals(assertAccountDeletionRecoveryHealth([active]), active);
+  assertThrows(() => assertAccountDeletionRecoveryHealth([]));
+  assertThrows(() =>
+    assertAccountDeletionRecoveryHealth([{
+      ...RECOVERY_HEALTHY,
+      active_unacknowledged_count: 1,
+    }])
+  );
+  assertThrows(() =>
+    assertAccountDeletionRecoveryHealth([{
+      ...RECOVERY_HEALTHY,
+      maximum_active_capabilities_per_job: 1,
+    }])
+  );
+});
+
+Deno.test("assertAccountDeletionRecoveryPreparationHealth validates aggregate-only state", () => {
+  const active: AccountDeletionRecoveryPreparationHealth = {
+    ...PREPARATION_HEALTHY,
+    active_preparation_count: 2,
+    expired_preparation_count: 1,
+    oldest_active_age_seconds: 120,
+    oldest_expired_age_seconds: 30,
+  };
+  assertEquals(
+    assertAccountDeletionRecoveryPreparationHealth([active]),
+    active,
+  );
+  assertThrows(() => assertAccountDeletionRecoveryPreparationHealth([]));
+  assertThrows(() =>
+    assertAccountDeletionRecoveryPreparationHealth([{
+      ...PREPARATION_HEALTHY,
+      active_preparation_count: 1,
+    }])
+  );
+});
+
 Deno.test("accountDeletionStatus alerts on configuration and job health", () => {
   const args = parseAccountDeletionMonitorArgs([]);
   assertEquals(accountDeletionStatus(HEALTHY, args), "ok");
@@ -252,6 +325,38 @@ Deno.test("accountDeletionStatus alerts on configuration and job health", () => 
     ),
     "warning",
   );
+  assertEquals(
+    accountDeletionStatus(HEALTHY, args, {
+      ...RECOVERY_HEALTHY,
+      expired_unacknowledged_count: 1,
+      oldest_expired_at: "2026-01-01T00:00:00.000Z",
+      oldest_expired_age_seconds: 1,
+    }),
+    "critical",
+  );
+  assertEquals(
+    accountDeletionStatus(HEALTHY, args, {
+      ...RECOVERY_HEALTHY,
+      active_unacknowledged_count: 8,
+      oldest_active_issued_at: "2026-07-27T00:59:00.000Z",
+      oldest_active_age_seconds: 60,
+      maximum_active_capabilities_per_job: 8,
+    }),
+    "warning",
+  );
+  assertEquals(
+    accountDeletionStatus(
+      HEALTHY,
+      args,
+      RECOVERY_HEALTHY,
+      {
+        ...PREPARATION_HEALTHY,
+        expired_preparation_count: 1,
+        oldest_expired_age_seconds: 1,
+      },
+    ),
+    "critical",
+  );
 });
 
 Deno.test("shouldFailAccountDeletionMonitor honors severity policy", () => {
@@ -273,6 +378,18 @@ Deno.test("renderAccountDeletionMarkdown includes recovery guidance", () => {
     unhealthy,
     parseAccountDeletionMonitorArgs([]),
     new Date("2026-07-27T01:00:00.000Z"),
+    {
+      ...RECOVERY_HEALTHY,
+      active_unacknowledged_count: 1,
+      oldest_active_issued_at: "2026-07-26T00:00:00.000Z",
+      oldest_active_age_seconds: 90_000,
+      maximum_active_capabilities_per_job: 1,
+    },
+    {
+      ...PREPARATION_HEALTHY,
+      active_preparation_count: 1,
+      oldest_active_age_seconds: 30,
+    },
   );
   const markdown = renderAccountDeletionMarkdown(summary);
 
@@ -281,5 +398,8 @@ Deno.test("renderAccountDeletionMarkdown includes recovery guidance", () => {
   assertStringIncludes(markdown, "# Account Deletion Health");
   assertStringIncludes(markdown, "- With retry errors: `2`");
   assertStringIncludes(markdown, "- Reaper credentials configured: `false`");
+  assertStringIncludes(markdown, "## Device Recovery");
+  assertStringIncludes(markdown, "Active unacknowledged capabilities: `1`");
+  assertStringIncludes(markdown, "Active non-destructive preparations: `1`");
   assertStringIncludes(markdown, "do not edit private job");
 });

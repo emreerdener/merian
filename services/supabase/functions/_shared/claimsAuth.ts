@@ -69,7 +69,7 @@ export async function requireClaimsAuth(
   const { data, error } = await supabaseClient.auth.getClaims(bearerToken);
   if (error || !data?.claims) {
     const message = error?.message || "Invalid or expired session token.";
-    console.error("requireClaimsAuth: Supabase getClaims() failed.", error);
+    console.error("auth_claims_validation_failed");
     return { user: null, response: unauthorizedClaimsResponse(message) };
   }
 

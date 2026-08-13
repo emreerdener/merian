@@ -170,6 +170,67 @@ Deno.test("reconciliation persists failures without aborting sibling claims", as
   assertEquals(failed, [CLAIM.userId]);
 });
 
+Deno.test("reconciliation failure logs omit customer and provider identity", async () => {
+  const logs: string[] = [];
+  const persistedCodes: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => logs.push(String(args[0]));
+
+  try {
+    const providerError = new Error(
+      `provider body leaked ${CLAIM.lookupAppUserId} ${CLAIM.userId}`,
+    );
+    providerError.name = CLAIM.userId;
+    await processRevenueCatReconciliations(
+      {} as never,
+      "sk_test_secret",
+      {
+        claim: pagedClaims([[CLAIM], []]),
+        claimPrincipal: () => Promise.resolve([]),
+        fetchCustomerInfo: () => Promise.reject(providerError),
+        apply: () => Promise.resolve(false),
+        fail: (_claim, errorCode) => {
+          persistedCodes.push(errorCode);
+          const persistenceError = new Error(
+            `database detail leaked ${CLAIM.claimToken}`,
+          );
+          persistenceError.name = CLAIM.claimToken;
+          return Promise.reject(persistenceError);
+        },
+        health: () => Promise.resolve(HEALTHY_QUEUE),
+        principalHealth: () => Promise.resolve(HEALTHY_PURCHASE_PRINCIPALS),
+        fetchImpl: fetch,
+        now: () => 1,
+        monotonicNow: () => 0,
+      },
+    );
+  } finally {
+    console.error = original;
+  }
+
+  assertEquals(logs.length, 2);
+  assertEquals(persistedCodes, ["reconciliation_failed"]);
+  const serialized = logs.join("\n");
+  for (
+    const forbidden of [
+      CLAIM.userId,
+      CLAIM.lookupAppUserId,
+      CLAIM.claimToken,
+      "provider body leaked",
+      "database detail leaked",
+    ]
+  ) {
+    assertEquals(serialized.includes(forbidden), false);
+  }
+  for (const log of logs) {
+    const parsed = JSON.parse(log);
+    assertEquals(parsed.identity_kind, "legacy");
+    assertEquals(typeof parsed.event, "string");
+    assertEquals(typeof parsed.code, "string");
+    assertEquals(typeof parsed.ts, "string");
+  }
+});
+
 Deno.test("reconciliation cannot restore a historical pass after revocation", async () => {
   const writes: Array<Record<string, unknown>> = [];
   await processRevenueCatReconciliations(

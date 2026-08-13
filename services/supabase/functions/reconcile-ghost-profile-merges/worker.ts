@@ -15,9 +15,7 @@ export type ReconcileGhostProfileMergesResult = {
   deleted: number;
   failed: number;
   errors: Array<{
-    handoffId: string;
-    ghostUserId: string;
-    reason: string;
+    code: string;
   }>;
 };
 
@@ -45,6 +43,25 @@ export type ReconcileGhostProfileMergeDependencies = {
     errorCode: string | null,
   ) => Promise<void>;
 };
+
+const SAFE_FAILURE_CODE = /^[a-z][a-z0-9_]{1,63}$/;
+
+function safeFailureCode(value: unknown): string {
+  const candidate = typeof value === "string"
+    ? value
+    : value instanceof Error
+    ? value.name
+    : typeof value;
+  return SAFE_FAILURE_CODE.test(candidate) ? candidate : "cleanup_failed";
+}
+
+function recordFailure(
+  result: ReconcileGhostProfileMergesResult,
+  value: unknown,
+): void {
+  result.failed += 1;
+  result.errors.push({ code: safeFailureCode(value) });
+}
 
 export async function reconcileGhostProfileMerges(
   supabaseAdmin: SupabaseClient,
@@ -87,12 +104,7 @@ export async function reconcileGhostProfileMerges(
           false,
           revenueCatHandoff.errorCode,
         );
-        result.failed += 1;
-        result.errors.push({
-          handoffId: cleanupClaim.handoffId,
-          ghostUserId: cleanupClaim.ghostUserId,
-          reason: revenueCatHandoff.errorCode,
-        });
+        recordFailure(result, revenueCatHandoff.errorCode);
         continue;
       }
 
@@ -110,20 +122,10 @@ export async function reconcileGhostProfileMerges(
       if (cleanup.succeeded) {
         result.deleted += 1;
       } else {
-        result.failed += 1;
-        result.errors.push({
-          handoffId: cleanupClaim.handoffId,
-          ghostUserId: cleanupClaim.ghostUserId,
-          reason: cleanup.errorCode,
-        });
+        recordFailure(result, cleanup.errorCode);
       }
     } catch (error) {
-      result.failed += 1;
-      result.errors.push({
-        handoffId: cleanupClaim.handoffId,
-        ghostUserId: cleanupClaim.ghostUserId,
-        reason: error instanceof Error ? error.message : String(error),
-      });
+      recordFailure(result, error);
     }
   }
 

@@ -570,7 +570,7 @@ final class ConsentManager {
             ledger = .empty
             isLedgerStorageUncertain = true
             MerianLog.auth.error(
-                "Consent ledger loading failed; all consent gates remain closed: \(error.localizedDescription, privacy: .private)"
+                "Consent ledger loading failed; all consent gates remain closed; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
         }
 
@@ -608,7 +608,7 @@ final class ConsentManager {
             pendingAnalyticsRevocationJournal = nil
             isRevocationIntentStorageUncertain = true
             MerianLog.auth.error(
-                "Analytics withdrawal journal loading failed; analytics remains disabled: \(error.localizedDescription, privacy: .private)"
+                "Analytics withdrawal journal loading failed; analytics remains disabled; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
         }
 
@@ -619,7 +619,7 @@ final class ConsentManager {
                 try recoverPendingAnalyticsRevocation()
             } catch {
                 MerianLog.auth.error(
-                    "Analytics withdrawal recovery remains pending: \(error.localizedDescription, privacy: .private)"
+                    "Analytics withdrawal recovery remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)."
                 )
             }
         }
@@ -1042,15 +1042,23 @@ final class ConsentManager {
             throw MerianError.aiConsentRequired
         }
 
-        await SupabaseManager.shared.initializeGhostSession()
-        let adoptionGeneration = synchronizationGeneration
-        let userId = try await SupabaseManager.shared.client.auth.session.user.id
-        try Task.checkCancellation()
-        guard synchronizationGeneration == adoptionGeneration else {
-            throw ConsentHandoffError.activeAccountChanged
+        if !SupabaseManager.shared.isAuthenticated {
+            guard await SupabaseManager.shared.initializeGhostSession() != nil
+            else {
+                throw SupabaseAuthTransitionError.signOutInProgress
+            }
         }
-        guard SupabaseManager.shared.client.auth.currentSession?.user.id
-                == userId else {
+        let accountWorkLease = try SupabaseManager.shared
+            .beginUnownedAccountBoundWork()
+        defer {
+            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
+        }
+        let adoptionGeneration = synchronizationGeneration
+        let userId = accountWorkLease.session.userID
+        try Task.checkCancellation()
+        guard synchronizationGeneration == adoptionGeneration,
+              SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
             throw ConsentHandoffError.activeAccountChanged
         }
         if hasObservedSession,
@@ -1069,12 +1077,14 @@ final class ConsentManager {
         }
 
         try await synchronize(for: userId)
-        guard hasCloudReadyCurrentConsent(for: userId) else {
+        guard SupabaseManager.shared
+                .isAccountBoundWorkLeaseCurrent(accountWorkLease),
+              hasCloudReadyCurrentConsent(for: userId) else {
             do {
                 try requireCurrentConsentReapprovalAfterServerRejection()
             } catch {
                 MerianLog.auth.error(
-                    "Required consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
+                    "Required consent reapproval could not be persisted; the in-memory gate remains closed; kind=\(MerianLog.errorKind(error), privacy: .public)."
                 )
             }
             throw MerianError.aiConsentRequired
@@ -1082,13 +1092,49 @@ final class ConsentManager {
     }
 
     func synchronizeWithCurrentSession() async throws {
+        let supabaseManager = SupabaseManager.shared
+        let accountWorkLease = try supabaseManager
+            .beginUnownedAccountBoundWork()
+        defer {
+            supabaseManager.finishAccountBoundWork(accountWorkLease)
+        }
+        try await synchronizeWithCurrentSession(
+            authorizationIsCurrent: {
+                supabaseManager
+                    .isAccountBoundWorkLeaseCurrent(accountWorkLease)
+            }
+        )
+    }
+
+    /// Auth-transition owners use the same consent adoption path without
+    /// attempting to enter the deliberately closed ordinary-work gate. The
+    /// exact transition token and expected SDK session are revalidated across
+    /// every suspension; callers cannot manufacture this authority.
+    func synchronizeWithCurrentSession(
+        ownedBy transition: AuthTransitionToken
+    ) async throws {
+        let supabaseManager = SupabaseManager.shared
+        try await synchronizeWithCurrentSession(
+            authorizationIsCurrent: {
+                supabaseManager.currentSessionMatchesAuthTransition(transition)
+            }
+        )
+    }
+
+    private func synchronizeWithCurrentSession(
+        authorizationIsCurrent: @MainActor () -> Bool
+    ) async throws {
         guard !TestExecutionCoordinator.isRunningTests else { return }
         try Task.checkCancellation()
+        guard authorizationIsCurrent() else {
+            throw ConsentHandoffError.activeAccountChanged
+        }
         let adoptionGeneration = synchronizationGeneration
         do {
             let userId = try await SupabaseManager.shared.client.auth.session.user.id
             try Task.checkCancellation()
-            guard synchronizationGeneration == adoptionGeneration else {
+            guard authorizationIsCurrent(),
+                  synchronizationGeneration == adoptionGeneration else {
                 throw ConsentHandoffError.activeAccountChanged
             }
             guard SupabaseManager.shared.client.auth.currentSession?.user.id
@@ -1106,6 +1152,9 @@ final class ConsentManager {
             applyAnalyticsPermissionToSDK()
             ensureAnalyticsConsentUpdates(for: userId)
             try await synchronize(for: userId)
+            guard authorizationIsCurrent() else {
+                throw ConsentHandoffError.activeAccountChanged
+            }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -1122,6 +1171,10 @@ final class ConsentManager {
 
     private func scheduleSynchronization(createAnonymousSessionIfNeeded: Bool) {
         guard !TestExecutionCoordinator.isRunningTests else { return }
+        guard !SupabaseManager.shared.isAuthTransitionInProgress,
+              !AccountDeletionLocalCleanupStore.isPending() else {
+            return
+        }
         scheduledSyncTask?.cancel()
         scheduledSyncTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -1872,7 +1925,7 @@ final class ConsentManager {
         }
 
         MerianLog.auth.error(
-            "Required consent restoration failed and remains unresolved: \(error.localizedDescription, privacy: .private)"
+            "Required consent restoration failed and remains unresolved; kind=\(MerianLog.errorKind(error), privacy: .public)."
         )
         requiredConsentRestorationRetryTask?.cancel()
         requiredConsentRestorationRetryTask = nil
@@ -2358,6 +2411,24 @@ final class ConsentManager {
         }
     }
 
+    /// Stops ordinary consent I/O and waits for its exact task boundary before
+    /// an Auth-transition owner is allowed to change the SDK session. The
+    /// transition gate prevents a replacement scheduled sync from entering
+    /// during this drain.
+    func cancelAndAwaitSynchronizationForAuthTransition() async {
+        let scheduledTask = scheduledSyncTask
+        let synchronizationTask = activeSyncTask
+        invalidateSynchronizationWork()
+        scheduledTask?.cancel()
+        synchronizationTask?.cancel()
+        if let scheduledTask {
+            await scheduledTask.value
+        }
+        if let synchronizationTask {
+            _ = try? await synchronizationTask.value
+        }
+    }
+
     private func validateSynchronization(
         for userId: UUID,
         generation: UInt
@@ -2490,7 +2561,7 @@ final class ConsentManager {
             // revocation and the retained intent continues to force analytics
             // off. Recovery will retry deletion on the next launch.
             MerianLog.auth.error(
-                "Analytics withdrawal journal cleanup remains pending: \(error.localizedDescription, privacy: .private)"
+                "Analytics withdrawal journal cleanup remains pending; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
         }
         isAnalyticsWithdrawalInProgress = false
@@ -2743,7 +2814,7 @@ final class ConsentManager {
             } catch {
                 shouldRetry = !Task.isCancelled
                 MerianLog.general.debug(
-                    "Analytics consent Realtime subscription failed: \(error.localizedDescription, privacy: .private)"
+                    "Analytics consent Realtime subscription failed; kind=\(MerianLog.errorKind(error), privacy: .public)."
                 )
             }
 

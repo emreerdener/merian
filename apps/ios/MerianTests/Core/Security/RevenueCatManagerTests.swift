@@ -1,4 +1,5 @@
 @testable import Merian
+@_spi(Internal) import RevenueCat
 import XCTest
 
 @MainActor
@@ -67,13 +68,52 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertTrue(
             RevenueCatEntitlementProvenancePolicy
                 .hasActiveStoreBackedSubscription(
-                    productIdentifiers: ["pro_annual", "rc_promo_pro_lifetime"]
+                    productIdentifiers: ["pro_annual", "rc_promo_pro_lifetime"],
+                    storeByProductIdentifier: ["pro_annual": .appStore],
+                    accountGrantsAllowed: false
                 )
         )
         XCTAssertFalse(
             RevenueCatEntitlementProvenancePolicy
                 .hasActiveStoreBackedSubscription(
-                    productIdentifiers: ["rc_promo_pro_lifetime"]
+                    productIdentifiers: ["rc_promo_pro_lifetime"],
+                    storeByProductIdentifier: [
+                        "rc_promo_pro_lifetime": .promotional
+                    ],
+                    accountGrantsAllowed: false
+                )
+        )
+    }
+
+    func testStablePrincipalRejectsPromotionalAnnualProductAlias() {
+        XCTAssertFalse(
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: ["pro_annual"],
+                    storeByProductIdentifier: ["pro_annual": .promotional],
+                    accountGrantsAllowed: false
+                )
+        )
+    }
+
+    func testLegacyAccountOwnerMayUsePromotionalAnnualGrant() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: ["pro_annual"],
+                    storeByProductIdentifier: ["pro_annual": .promotional],
+                    accountGrantsAllowed: true
+                )
+        )
+    }
+
+    func testActiveAnnualSubscriptionRequiresKnownStoreProvenance() {
+        XCTAssertFalse(
+            RevenueCatEntitlementProvenancePolicy
+                .hasActiveStoreBackedSubscription(
+                    productIdentifiers: ["pro_annual"],
+                    storeByProductIdentifier: [:],
+                    accountGrantsAllowed: false
                 )
         )
     }
@@ -205,23 +245,127 @@ final class RevenueCatManagerTests: XCTestCase {
         )
     }
 
-    func testStablePurchasePrincipalRejectsAccountScopedPromotions() {
-        XCTAssertTrue(
-            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
-                store: .appStore,
-                accountGrantsAllowed: false
+    func testStablePrincipalRebindAlwaysClosesPriorPaidReadiness() {
+        let firstAuthUserID = UUID()
+        let secondAuthUserID = UUID()
+        let appUserID = "MERIAN_PP_STABLE"
+
+        XCTAssertFalse(
+            RevenueCatIdentityRebindPolicy.requiresPaidReadinessReset(
+                linkedAppUserID: appUserID,
+                linkedAuthUserID: firstAuthUserID,
+                linkedBindingGeneration: 7,
+                linkedAccountKind: "authenticated",
+                nextAppUserID: appUserID,
+                nextAuthUserID: firstAuthUserID,
+                nextBindingGeneration: 7,
+                nextAccountKind: " Authenticated "
             )
         )
         XCTAssertTrue(
+            RevenueCatIdentityRebindPolicy.requiresPaidReadinessReset(
+                linkedAppUserID: appUserID,
+                linkedAuthUserID: firstAuthUserID,
+                linkedBindingGeneration: 7,
+                linkedAccountKind: "authenticated",
+                nextAppUserID: appUserID,
+                nextAuthUserID: secondAuthUserID,
+                nextBindingGeneration: 8,
+                nextAccountKind: "anonymous"
+            )
+        )
+        XCTAssertTrue(
+            RevenueCatIdentityRebindPolicy.requiresPaidReadinessReset(
+                linkedAppUserID: appUserID,
+                linkedAuthUserID: firstAuthUserID,
+                linkedBindingGeneration: 7,
+                linkedAccountKind: "authenticated",
+                nextAppUserID: appUserID,
+                nextAuthUserID: firstAuthUserID,
+                nextBindingGeneration: 8,
+                nextAccountKind: "authenticated"
+            )
+        )
+    }
+
+    func testRevenueCatCustomerInfoVerificationPolicyFailsClosed() {
+        XCTAssertTrue(
+            RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(.verified)
+        )
+        XCTAssertTrue(
+            RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(.verifiedOnDevice)
+        )
+        XCTAssertFalse(
+            RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(.notRequested)
+        )
+        XCTAssertFalse(
+            RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(.failed)
+        )
+    }
+
+    func testRevenueCatSDKLogPrivacyPolicyNeverReturnsProviderMessages() {
+        XCTAssertNil(RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .verbose))
+        XCTAssertNil(RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .debug))
+        XCTAssertNil(RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .info))
+        XCTAssertEqual(
+            RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .warn),
+            "RevenueCat SDK reported a warning."
+        )
+        XCTAssertEqual(
+            RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .error),
+            "RevenueCat SDK reported an error."
+        )
+    }
+
+    func testStoreProvenanceAcceptsOnlyAppStoreForStableReleaseAccess() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .appStore,
+                accountGrantsAllowed: false,
+                allowsTestStore: false
+            )
+        )
+        for rejectedStore in [
+            Store.macAppStore,
+            .playStore,
+            .stripe,
+            .unknownStore,
+            .amazon,
+            .rcBilling,
+            .external,
+            .paddle,
+            .galaxy
+        ] {
+            XCTAssertFalse(
+                RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                    store: rejectedStore,
+                    accountGrantsAllowed: true,
+                    allowsTestStore: false
+                )
+            )
+        }
+        XCTAssertFalse(
             RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
                 store: .testStore,
-                accountGrantsAllowed: false
+                accountGrantsAllowed: false,
+                allowsTestStore: false
             )
         )
         XCTAssertFalse(
             RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
                 store: .promotional,
-                accountGrantsAllowed: false
+                accountGrantsAllowed: false,
+                allowsTestStore: false
+            )
+        )
+    }
+
+    func testTestStoreRequiresExplicitDebugAllowance() {
+        XCTAssertTrue(
+            RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
+                store: .testStore,
+                accountGrantsAllowed: false,
+                allowsTestStore: true
             )
         )
     }
@@ -230,7 +374,8 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertTrue(
             RevenueCatEntitlementProvenancePolicy.allowsStoreBackedAccess(
                 store: .promotional,
-                accountGrantsAllowed: true
+                accountGrantsAllowed: true,
+                allowsTestStore: false
             )
         )
     }

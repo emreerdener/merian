@@ -29,8 +29,8 @@ synthetic viewer ID, direct user-table enrichment, or native Explore RPC.
 Browser verification should cover Boost → Boosted → original transitions because
 Web Audio context activation cannot be proven by TypeScript alone.
 `lib/appShareContract.test.ts` also proves the prelaunch iOS app-share payload
-uses the served canonical homepage rather than an unimplemented `/invite`
-route, and that changes to either Swift destination source enter the web-quality
+uses the served canonical homepage rather than an unimplemented `/invite` route,
+and that changes to either Swift destination source enter the web-quality
 workflow. After the App Store listing is live, update the contract and iOS TODO
 together to require the reviewed App Store Connect campaign link.
 
@@ -93,25 +93,25 @@ validation-only release gate for that complete sequence. It reports on every
 pull request, supports manual dispatch for an immutable candidate ref, and is
 reused as the prerequisite of `.github/workflows/deploy.yml`. A lightweight,
 full-history scope job reports the stable **Candidate readiness** check. The
-detector covers every root read or scanned by the suite:
-`.github`, `apps`, `docs`, `scripts`, `services/supabase`, and the maintained
-root contracts. An unresolved comparison requires full validation rather than
-silently skipping it, and a new unclassified repository root is in scope until
-explicitly reviewed as build-only. Manual, merge-queue, and reusable non-PR
-invocations always run the complete gate. The workflow verifies a clean exact
-checkout, pins Deno `2.9.4` and Supabase CLI `2.109.1`,
-checks every deployable Function graph, replays all migrations into a disposable
-database, discovers every pgTAP catalog, runs the complete Deno task with
-`SUPABASE_DB_TEST_URL`, and finishes with database lint plus security and
-performance advisors. It declares no Production environment, receives no
-production secrets, and contains no migration push, Function deployment, or
-production smoke. A green candidate run is therefore database/runtime evidence,
-not proof of deployment. Repository rules should require `Supabase Candidate
-Validation / Candidate readiness`, not the conditionally executed validation
-job.
-The shared Deno setup action makes at most three attempts with the same
-immutable installer SHA, then verifies exact version `2.9.4`; exhausted retries
-remain a failed candidate rather than being treated as passing evidence.
+detector covers every root read or scanned by the suite: `.github`, `apps`,
+`docs`, `scripts`, `services/supabase`, and the maintained root contracts. An
+unresolved comparison requires full validation rather than silently skipping it,
+and a new unclassified repository root is in scope until explicitly reviewed as
+build-only. Manual, merge-queue, and reusable non-PR invocations always run the
+complete gate. The workflow verifies a clean exact checkout, pins Deno `2.9.4`
+and Supabase CLI `2.109.1`, checks every deployable Function graph, replays all
+migrations into a disposable database, discovers every pgTAP catalog, runs the
+complete Deno task with `SUPABASE_DB_TEST_URL`, and finishes with database lint
+plus security and performance advisors. It declares no Production environment,
+receives no production secrets, and contains no migration push, Function
+deployment, or production smoke. A green candidate run is therefore
+database/runtime evidence, not proof of deployment. Repository rules should
+require `Supabase Candidate
+Validation / Candidate readiness`, not the
+conditionally executed validation job. The shared Deno setup action makes at
+most three attempts with the same immutable installer SHA, then verifies exact
+version `2.9.4`; exhausted retries remain a failed candidate rather than being
+treated as passing evidence.
 
 The complete repository-tooling suite is a separate discovery-based gate:
 
@@ -139,11 +139,10 @@ the production deploy lane.
 workflow. It rejects mutable third-party action tags, missing explicit
 workflow-level permissions, secret references outside individual steps, and
 unexpected `contents: write`. Its exact writer allowlist covers only the
-taxonomy checklist's isolated writer. iOS distribution needs no repository
-write grant because it runs through Xcode Organizer. Keep the security test in
-both the complete Edge suite and the focused deployment-planner gate so
-supply-chain regressions fail before any production credential or migration is
-used.
+taxonomy checklist's isolated writer. iOS distribution needs no repository write
+grant because it runs through Xcode Organizer. Keep the security test in both
+the complete Edge suite and the focused deployment-planner gate so supply-chain
+regressions fail before any production credential or migration is used.
 
 Explore database fixtures must represent the canonical write model. The shared
 post helper snapshots media through `refresh_explore_post_media`; disable that
@@ -239,9 +238,8 @@ pending. A fail-closed scope job starts the macOS work for:
 > merge before any ledger or analytics mutation. Provider authorization now
 > resolves the all-version stream head before disclosure compatibility, so an
 > older-disclosure head revocation cannot be hidden by a current-version grant.
-> Require a new hosted run on the
-> unchanged candidate SHA; older totals and local runs are diagnostic history,
-> not release evidence. See the
+> Require a new hosted run on the unchanged candidate SHA; older totals and
+> local runs are diagnostic history, not release evidence. See the
 > [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - anything under `apps/ios/` or the embedded companion under `apps/watch/`;
@@ -272,10 +270,10 @@ commits so a downgrade cannot silently restore a deprecated action runtime.
 A Dependabot pull request that crosses an action major is expected to stop at
 this guardrail even when its commit SHA is valid. Review the upstream release,
 including its runtime and runner requirements and any security changes; update
-every use to one immutable commit with its matching inline release comment;
-then advance the reviewed major in
-`scripts/test-ios-build-and-test-workflow.sh`. Do not relax commit pinning or
-accept a floating action tag to make the upgrade pass.
+every use to one immutable commit with its matching inline release comment; then
+advance the reviewed major in `scripts/test-ios-build-and-test-workflow.sh`. Do
+not relax commit pinning or accept a floating action tag to make the upgrade
+pass.
 
 ### Privacy Manifest Validation
 
@@ -285,10 +283,9 @@ The app privacy declaration has three independent evidence layers:
    `apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy`, requires the exact
    reviewed collected-data and required-reason declarations, and proves the
    generated `Merian` target includes it exactly once in Resources.
-2. The current-SHA Release archive requires
-   `Merian.app/PrivacyInfo.xcprivacy` at the application-bundle root, validates
-   the bundled copy, and records `privacy_manifest_valid: true` in archive
-   evidence.
+2. The current-SHA Release archive requires `Merian.app/PrivacyInfo.xcprivacy`
+   at the application-bundle root, validates the bundled copy, and records
+   `privacy_manifest_valid: true` in archive evidence.
 3. The exported-IPA validator requires exactly one
    `Payload/Merian.app/PrivacyInfo.xcprivacy`, validates the extracted plist,
    and rejects a missing, misplaced, malformed, tracking-enabled, or drifted
@@ -316,7 +313,8 @@ Transport security has the same three evidence layers:
 
 1. `make validate-ios-transport-security` parses the tracked main-app plist,
    rejects every broad/media/web/local/domain ATS exception, and permits only a
-   credential-free HTTPS `SUPABASE_URL` or the tracked build-setting placeholder.
+   credential-free HTTPS `SUPABASE_URL` or the tracked build-setting
+   placeholder.
 2. The current-SHA Release archive validator parses the final
    `Merian.app/Info.plist`, rejects unresolved settings and exceptions, and
    records `transport_security: "ats-default"` only after that check passes.
@@ -355,13 +353,13 @@ HTTP request is dispatched. See the
    matching suite, duplicate protected case, or failed-suite/passed-child
    contradiction is invalid evidence. The current validator protects 95 exact
    cases. Twenty-seven were added by the joined scan-reliability follow-up.
-   Eleven more form the live-connectivity follow-up: nine engine-level ownership,
-   presentation, and exact-generation recovery fences plus two network-client
-   replay-policy controls. One additional case protects the pre-queue admission
-   connectivity handoff: a path-satisfied transport failure plus local
-   eligibility selects queue-only, while local ineligibility still paywalls and
-   a non-connectivity preview failure still requires retry. One more protects
-   automatic single-capture chrome:
+   Eleven more form the live-connectivity follow-up: nine engine-level
+   ownership, presentation, and exact-generation recovery fences plus two
+   network-client replay-policy controls. One additional case protects the
+   pre-queue admission connectivity handoff: a path-satisfied transport failure
+   plus local eligibility selects queue-only, while local ineligibility still
+   paywalls and a non-connectivity preview failure still requires retry. One
+   more protects automatic single-capture chrome:
    `automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` requires
    pending automatic ownership to suppress `ActiveScanToolbar`, requires a
    failed attempt to restore the staged retry toolbar, preserves the toolbar
@@ -375,52 +373,49 @@ HTTP request is dispatched. See the
    controls to overlap the status bar. It also rejects a workspace-owned crop
    transition shield or persistent transition-state flag and requires the crop
    confirmation button to use the accent tint instead of an illegible white
-   prominent fill. One final case
-   protects pre-import admission:
+   prominent fill. One final case protects pre-import admission:
    `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid
    server denial to reach the paywall with no staged image or crop state, while
-   proving the prospective single-image RPC shape remains Flash-eligible.
-   Five menu/Field
-   Notes regressions exposed by the
-   prior failed hosted run are individually protected, two require the
-   bounded/redacted offline-queue support artifact, one prevents needs-attention
-   and live-path-ineligible rows
+   proving the prospective single-image RPC shape remains Flash-eligible. Five
+   menu/Field Notes regressions exposed by the prior failed hosted run are
+   individually protected, two require the bounded/redacted offline-queue
+   support artifact, one prevents needs-attention and live-path-ineligible rows
    from driving the Scan Library recovery loop while preserving staged and
    explicit-video-override eligibility, one preserves the current account by
    refreshing an invalid handler-owned session before replay, one fences
    attention rows from serialized claims, actor-owned global status selection,
    and orphan reconciliation, one proves the pending selector pages beyond
-   delayed, locally blocked, and media-less rows instead of starving ready work or spending
-   runnable capacity on quarantine candidates, one proves empty pending
-   quarantine is state/media bound and cannot touch advanced work, one proves
-   upload packing scans beyond empty/non-fitting head rows, admits later work
-   that fits, and locks final constrained/expensive request policy for normal
-   video, its mixed-media siblings, forced video, and standalone image
+   delayed, locally blocked, and media-less rows instead of starving ready work
+   or spending runnable capacity on quarantine candidates, one proves empty
+   pending quarantine is state/media bound and cannot touch advanced work, one
+   proves upload packing scans beyond empty/non-fitting head rows, admits later
+   work that fits, and locks final constrained/expensive request policy for
+   normal video, its mixed-media siblings, forced video, and standalone image
    transport, one proves the unsynced count excludes attention-only and
    non-runnable rows, one rejects empty queued staged media before upload
    signing, one rejects an empty foreground playback video before signing, one
    rejects manual retry of a legacy non-runnable import, one keeps required
    consent out of the network circuit while locking the **Approval needed** /
    **Scan saved** UX across visual and nonvisual inference, one keeps exact
-   `402`/`429` provider-admission UX out of the network circuit across both
-   live pipelines, one keeps exact terminal `400 observation_rejected` UX out
-   of the network circuit across both live pipelines, four protect
-   account-owned funded consent recovery plus lifecycle-gated onboarding
-   resume, and the media-incident compatibility case exercises the actual
-   network-client boundary:
+   `402`/`429` provider-admission UX out of the network circuit across both live
+   pipelines, one keeps exact terminal `400 observation_rejected` UX out of the
+   network circuit across both live pipelines, four protect account-owned funded
+   consent recovery plus lifecycle-gated onboarding resume, and the
+   media-incident compatibility case exercises the actual network-client
+   boundary:
 
    - foreground and background malformed-success rejection, required-consent
      approval UX and network-circuit isolation, provider-admission UX and
      network-circuit isolation, terminal observation-rejection UX and
-     network-circuit isolation, confidence-zero
-     source-media durability, retryable background HTTP-success disposition,
-     process-single-flight inference replay wake coalescing, exact
-     retryable-status dispatch, dual-copy durable retry-latch visibility,
-     bounded inference metadata-write backlog, retry preservation through media
-     re-staging, monotonic mirrored retry accounting, cloud-complete precedence,
-     durable offline enqueue, bounded/redacted queue diagnostics, atomic
-     queue/job completion, needs-attention library recovery quieting, serialized
-     attention claim/status/reconciliation fencing,
+     network-circuit isolation, confidence-zero source-media durability,
+     retryable background HTTP-success disposition, process-single-flight
+     inference replay wake coalescing, exact retryable-status dispatch,
+     dual-copy durable retry-latch visibility, bounded inference metadata-write
+     backlog, retry preservation through media re-staging, monotonic mirrored
+     retry accounting, cloud-complete precedence, durable offline enqueue,
+     bounded/redacted queue diagnostics, atomic queue/job completion,
+     needs-attention library recovery quieting, serialized attention
+     claim/status/reconciliation fencing,
      retry-deadline/deferred/network/media-less starvation prevention with the
      forced video override and an independent quarantine budget, atomic
      empty-pending quarantine, bounded upload-packer head-of-line starvation
@@ -518,12 +513,12 @@ HTTP request is dispatched. See the
    deterministic runtime UI smokes:
    `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and
    `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
-   `merianUITests/merianUITests`.
-   This is deliberately narrower than the complete UI suite, whose
-   camera/Photos/hardware cases remain separate. The focused result must report
-   exactly those two passed cases and zero failed or skipped cases. Its
-   structured tree must contain that exact named set under `merianUITests`; missing, wrong,
-   duplicated, malformed, empty, or contradictory evidence fails the job.
+   `merianUITests/merianUITests`. This is deliberately narrower than the
+   complete UI suite, whose camera/Photos/hardware cases remain separate. The
+   focused result must report exactly those two passed cases and zero failed or
+   skipped cases. Its structured tree must contain that exact named set under
+   `merianUITests`; missing, wrong, duplicated, malformed, empty, or
+   contradictory evidence fails the job.
    `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
    and `scripts/test-validate-ios-focused-test-results.sh` provides portable
    positive and adversarial fixtures. The seed writes a valid one-second PCM WAV
@@ -567,13 +562,13 @@ HTTP request is dispatched. See the
    requires and validates the app-owned privacy manifest at the root of the
    application bundle, and verifies ATS defaults plus HTTPS-only app
    configuration in the final `Info.plist`. It records
-   `privacy_manifest_valid: true` and
-   `transport_security: "ats-default"` only after those bundled-copy checks.
-   It records `ui_test_seed_markers_absent: true` only after the binary-string
-   audit above passes. Signing is disabled only because
-   hosted CI has no distribution identity; this is compile, link, archive,
-   provenance, privacy-manifest, transport-security, dSYM, and shipping-seed exclusion
-   validation—not a distributable App Store artifact.
+   `privacy_manifest_valid: true` and `transport_security: "ats-default"` only
+   after those bundled-copy checks. It records
+   `ui_test_seed_markers_absent: true` only after the binary-string audit above
+   passes. Signing is disabled only because hosted CI has no distribution
+   identity; this is compile, link, archive, provenance, privacy-manifest,
+   transport-security, dSYM, and shipping-seed exclusion validation—not a
+   distributable App Store artifact.
 
 The final Production readiness job uses `if: always()` and requires both macOS
 jobs to succeed whenever scope says the build is relevant. For an unrelated
@@ -605,8 +600,8 @@ Distribution is deliberately outside CI. After exact-SHA **iOS Build and Test**
 passes, an operator archives the clean revision with Xcode and uploads it with
 Organizer **TestFlight & App Store**. Automatic signing and **Manage version and
 build number** remain enabled. Apple credentials stay in Xcode and the macOS
-Keychain; no workflow receives signing certificates or App Store Connect
-private keys.
+Keychain; no workflow receives signing certificates or App Store Connect private
+keys.
 
 `scripts/test-ios-xcode-release-workflow.sh` proves that:
 
@@ -623,9 +618,8 @@ private keys.
 `scripts/test-ios-versioning.sh` supplies an isolated Git fixture for the source
 fingerprint and both preflight modes. It proves that CI cannot sign or allocate
 a validation build, Organizer requires automatic signing and a local team, all
-resolved version values match the repository baseline before archive,
-RevenueCat production configuration is present, and dirty or hidden Git source
-is rejected.
+resolved version values match the repository baseline before archive, RevenueCat
+production configuration is present, and dirty or hidden Git source is rejected.
 
 Repository source tests cannot prove current Apple account access, signing
 profiles, upload delivery, processing, aggregate SDK declarations, App Store
@@ -678,17 +672,17 @@ generated project changes.
 Start with the job summary, then use the retained artifact that matches the
 failure:
 
-| Failure                                                               | Artifact or local action                                                                                                                                |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                        |
-| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                     |
-| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact two protected cases. |
+| Failure                                                               | Artifact or local action                                                                                                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
+| Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
+| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact two protected cases.                 |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
-| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted. |
-| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                    |
-| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                        |
-| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.              |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                           |
+| Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
+| ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
+| ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                 |
+| Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                 |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                                              |
 
 For an executed test failure, the summary prints `testFailures` from Xcode's
 structured result summary. If that is unavailable, it prints failed test cases
@@ -758,9 +752,8 @@ MerianTests/
   capture, feature-flag reload, or network request before a current-disclosure
   grant at the all-version provider head and after withdrawal/account change. It
   must also lock every disabled automatic capture mode. The host-scoped
-  transport gate must close before the preserved
-  `reset → optOut → close` sequence so reset-time feature-flag reload is rejected
-  locally.
+  transport gate must close before the preserved `reset → optOut → close`
+  sequence so reset-time feature-flag reload is rejected locally.
 - **`ConsentLedgerStore` failure matrix**: Inject ledger read/write, revocation
   journal read/write/cleanup, and restart failures independently. Onboarding may
   complete only after a verified atomic ledger write. A failed analytics
@@ -775,10 +768,10 @@ MerianTests/
   revocation; ghost-to-permanent-account merge; account switching; foreground
   synchronization; Realtime startup/failure recovery; idempotent retry; and
   immutable/timestamp-protected RLS rows. Absence of an analytics grant must
-  remain off and analytics must never gate core functionality. The launch
-  matrix must distinguish unresolved evidence from resolved absence: clear the
-  local ledger for a completed account, verify no Ready frame appears while
-  remote evidence is restored, then verify the restored-evidence path opens the
+  remain off and analytics must never gate core functionality. The launch matrix
+  must distinguish unresolved evidence from resolved absence: clear the local
+  ledger for a completed account, verify no Ready frame appears while remote
+  evidence is restored, then verify the restored-evidence path opens the
   workspace and the truly-absent path opens Ready. Also cover first-launch
   Welcome and every non-cancellation restoration failure boundary. Network-like
   and durable-ledger-write failures must keep root presentation at
@@ -791,41 +784,39 @@ MerianTests/
   replacement must remain unresolved; duplicate same-account auth after
   resolution must not reopen restoration. For both Gemini and analytics, cover
   both inverse cross-device orders: a delayed offline grant after a synchronized
-  revocation is rejected, while a delayed offline revocation after a synchronized
-  grant is accepted and rebased to that grant.
-  Repeat the revocation case across an app upgrade: create it under the prior
-  disclosure and old observed parent, append a current-version grant, then
-  upload the queued revocation. Database coverage must assert that both RPCs
-  rebase its stored parent to the current grant; Edge and iOS coverage must
-  assert that the all-version revoked head denies even while a current-version
-  grant row exists.
+  revocation is rejected, while a delayed offline revocation after a
+  synchronized grant is accepted and rebased to that grant. Repeat the
+  revocation case across an app upgrade: create it under the prior disclosure
+  and old observed parent, append a current-version grant, then upload the
+  queued revocation. Database coverage must assert that both RPCs rebase its
+  stored parent to the current grant; Edge and iOS coverage must assert that the
+  all-version revoked head denies even while a current-version grant row exists.
   Retry the latter with its originally observed parent to prove event-ID
   idempotency, assert iOS persists the server-returned accepted parent and
   revision, and retain database assertions that the account-row lock precedes
   the provider-stream advisory lock. The disposable database suite must execute
   `_tests/legalConsentConcurrencyDb.test.ts`, which blocks both provider callers
   on the account row, releases them together, and requires a revoked final head
-  for both lock-acquisition orders.
-  Cross-disclosure ownership is split deliberately: `legal_consent_security.sql`
-  executes the stale-parent rebase and Gemini denial in PostgreSQL;
-  `_shared/posthog_test.ts`, `_shared/aiQuota_test.ts`, and
-  `_tests/legalConsentMigrationContract.test.ts` lock the Edge queries, denial
-  mapping, and head-before-rollout source contract; and
-  `SupabaseManagerTests` proves both iOS gates remain closed after merge and
-  restart when an older-disclosure revocation owns the greater revision.
-  Release closure additionally requires one exact-SHA new-install transaction:
-  complete Ready under a new anonymous account, observe all three required rows
-  upload and refetch for that same account, then complete the first ordinary
-  scan with exactly one Identify/provider dispatch. A forced missing-row variant
-  must return `403 ai_consent_required`, preserve scan/media across relaunch,
-  consume no included-Pro or daily-Flash allowance, schedule no automatic
-  inference retry while consent is invalid, and automatically resume exactly
-  one eligible original scan ID only after fresh head-anchored approval. Prove
-  released, deferred, mismatched, and cross-account rows stay paused. Run a real
-  `402 pro_required` and
-  `429 ai_quota_daily_exceeded` case separately to prove neither enters consent
-  recovery. Source type-checking or an injected network-unit test cannot replace
-  this account/Edge/database/device evidence. See the
+  for both lock-acquisition orders. Cross-disclosure ownership is split
+  deliberately: `legal_consent_security.sql` executes the stale-parent rebase
+  and Gemini denial in PostgreSQL; `_shared/posthog_test.ts`,
+  `_shared/aiQuota_test.ts`, and `_tests/legalConsentMigrationContract.test.ts`
+  lock the Edge queries, denial mapping, and head-before-rollout source
+  contract; and `SupabaseManagerTests` proves both iOS gates remain closed after
+  merge and restart when an older-disclosure revocation owns the greater
+  revision. Release closure additionally requires one exact-SHA new-install
+  transaction: complete Ready under a new anonymous account, observe all three
+  required rows upload and refetch for that same account, then complete the
+  first ordinary scan with exactly one Identify/provider dispatch. A forced
+  missing-row variant must return `403 ai_consent_required`, preserve scan/media
+  across relaunch, consume no included-Pro or daily-Flash allowance, schedule no
+  automatic inference retry while consent is invalid, and automatically resume
+  exactly one eligible original scan ID only after fresh head-anchored approval.
+  Prove released, deferred, mismatched, and cross-account rows stay paused. Run
+  a real `402 pro_required` and `429 ai_quota_daily_exceeded` case separately to
+  prove neither enters consent recovery. Source type-checking or an injected
+  network-unit test cannot replace this account/Edge/database/device evidence.
+  See the
   [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 - **`GamificationManagerTests.swift`**: Validates persistence, asserting correct
   math updates against user local scores so UI progression trackers do not skew
@@ -1039,8 +1030,8 @@ MerianTests/
   completion promotion requires the exact queued subject before releasing queued
   routing. The delayed Explore-onboarding regression proves the retained timer
   is bound to scan ID plus presentation generation and is cancelled by reset.
-  Field Notes tests cover the same ID-plus-generation boundary while
-  preserving editing for queued/offline scans.
+  Field Notes tests cover the same ID-plus-generation boundary while preserving
+  editing for queued/offline scans.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
@@ -1081,14 +1072,14 @@ MerianTests/
   name taxonomies, semantic tags, explicitly added `customTags`, and
   one-character unigram candidates). Asserts typed, main-actor `AppEvent`
   invalidation dynamically patches specific payloads
-  (`testCustomTag_DynamicHotSwap`) without OOM-burst re-renders. Search and indexing assertions now
-  wait on `ScansManager.SearchDebugEvent` completions instead of fixed
-  `Task.sleep` windows, including explicit debounce-cancellation coverage that
-  proves a superseded query never emits `searchCompleted`. Also verifies the
-  indexed query path preserves substring behavior
-  (`testSubstringSearchFilteringPreservesContainsSemantics`) so the candidate
-  index does not regress the user-facing `contains` search contract. Advanced
-  filter tests wait for `filterIndexingCompleted`, verify cached option
+  (`testCustomTag_DynamicHotSwap`) without OOM-burst re-renders. Search and
+  indexing assertions now wait on `ScansManager.SearchDebugEvent` completions
+  instead of fixed `Task.sleep` windows, including explicit
+  debounce-cancellation coverage that proves a superseded query never emits
+  `searchCompleted`. Also verifies the indexed query path preserves substring
+  behavior (`testSubstringSearchFilteringPreservesContainsSemantics`) so the
+  candidate index does not regress the user-facing `contains` search contract.
+  Advanced filter tests wait for `filterIndexingCompleted`, verify cached option
   dimensions refresh after a targeted mutation, confirm selected values are
   normalized without changing matching semantics, and exercise rapid targeted
   reindexes so a superseded task cannot drop another document. Batch-export
@@ -1103,11 +1094,11 @@ MerianTests/
   presentation dismissal, duplicate/stale callback rejection, external-route
   timeout suppression, and missing-target rejection. A rejected route must
   release the in-flight slot so later work cannot stall. Deferred-resume
-  regressions additionally prove that resume cannot exceed the pending bound,
-  a stronger live resume evicts exactly one eligible route, and an expired
-  resume cannot evict valid queued work. Capture workspace tests
-  separately prove a route remains deferred during root interactive teardown
-  and across a feature-local presentation until its exact `onDismiss` callback.
+  regressions additionally prove that resume cannot exceed the pending bound, a
+  stronger live resume evicts exactly one eligible route, and an expired resume
+  cannot evict valid queued work. Capture workspace tests separately prove a
+  route remains deferred during root interactive teardown and across a
+  feature-local presentation until its exact `onDismiss` callback.
 - **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
   delivery, cancellation behavior, main-actor ordering for framework publisher
   bridges, and generation-fenced media observation after player replacement and
@@ -1126,15 +1117,15 @@ MerianTests/
   to scan ordering, it locks the 32-item architecture through injectable bounds,
   stable duplicate coalescing, case-insensitive foreground/background scan-ID
   race deduplication without rewriting the resolver's caller-supplied ID,
-  account/session stale-callback rejection,
-  one-time haptic/accessibility claims with remaining lifetime across remounts,
-  nested-host restoration, bounded stale-host retention, and stack projection
-  that mounts the first payload only while forwarding the remaining queue depth
-  to the two-layer decorative-backplate clamp. It also covers the race where an
-  account transition occurs while a retryable progress resolver is suspended.
-  That race must not create a replacement retry after session cleanup. A paired
-  test proves the new session can immediately process the same canonical scan
-  key while the stale resolver remains suspended. Another locks completed-scan
+  account/session stale-callback rejection, one-time haptic/accessibility claims
+  with remaining lifetime across remounts, nested-host restoration, bounded
+  stale-host retention, and stack projection that mounts the first payload only
+  while forwarding the remaining queue depth to the two-layer
+  decorative-backplate clamp. It also covers the race where an account
+  transition occurs while a retryable progress resolver is suspended. That race
+  must not create a replacement retry after session cleanup. A paired test
+  proves the new session can immediately process the same canonical scan key
+  while the stale resolver remains suspended. Another locks completed-scan
   deduplication across a same-account session advance. Retry tests also inject a
   two-task global bound, schedule three scan keys, and require overflow plus
   session cleanup to retain no more than the configured number of sleepers.
@@ -1171,9 +1162,9 @@ MerianTests/
     `MerianConfig` matches the documented file, audio, and video budgets and
     locks the exact signed `Content-Length`/`Content-Type` response contract.
     File-mutation coverage proves a signing-time size mismatch is discarded for
-    re-signing before task creation. Also
-    covers the canonical video scan upload shape: five sampled inference frame
-    files plus one playback video file must fit in one signing batch.
+    re-signing before task creation. Also covers the canonical video scan upload
+    shape: five sampled inference frame files plus one playback video file must
+    fit in one signing batch.
   - **Background task identity and single-flight ownership**: Verifies current
     upload descriptions round-trip underscored scan IDs, media indices, and the
     batch UUID; verifies current `inference_v2|generation|scanId` and legacy
@@ -1218,10 +1209,10 @@ MerianTests/
     recovery.
   - **Post-approval consent recovery**: After explicit reapproval, assert the
     queue resumes only its newest needs-attention row with stable
-    `ai_consent_required`, an exact scan-ID match, the current account ID, and an
-    unreleased dispatchable funding reservation. It must resume no more than one
-    row and must skip unrelated, released, missing, deferred, mismatched, and
-    cross-account work.
+    `ai_consent_required`, an exact scan-ID match, the current account ID, and
+    an unreleased dispatchable funding reservation. It must resume no more than
+    one row and must skip unrelated, released, missing, deferred, mismatched,
+    and cross-account work.
   - **Description-only manual retry
     (`testManualRetryResetsBudgetForDescriptionOnlyScan`)**: Starting from a
     needs-attention staged observation and scan job at the automatic limit,
@@ -1369,8 +1360,8 @@ MerianTests/
   from external `UserDefaults`, and requires both completed onboarding and
   opt-in. The same suite locks the root matrix: incomplete onboarding presents
   onboarding, completed/current consent presents the workspace,
-  completed/pending consent presents restoration, and completed/resolved
-  missing consent returns to onboarding. `CaptureWorkspaceViewModelRefinementTests`
+  completed/pending consent presents restoration, and completed/resolved missing
+  consent returns to onboarding. `CaptureWorkspaceViewModelRefinementTests`
   initializes generic Explore, then verifies Photos/Files imports, Explore post
   routes, community requests, scan routes, and the Scans library replace it. The
   import case also sends the foreground timeout event and asserts the staged
@@ -1402,8 +1393,8 @@ MerianTests/
   rejection of unapproved remote video hosts, and separate mixed-media
   attempted/saved counts with partial-failure copy.
 
-PhotoKit completion, recorded-video audio, source-file lifetime during an
-actual import, and permission-denial UI require the physical-device checklist in
+PhotoKit completion, recorded-video audio, source-file lifetime during an actual
+import, and permission-denial UI require the physical-device checklist in
 [Camera Roll and Captured-Media Export](../features-and-hardware/27-camera-roll-media-export.md).
 
 ### Security, Network & Identity
@@ -1431,8 +1422,8 @@ actual import, and permission-denial UI require the physical-device checklist in
     `pinnedCertHashes` set accidentally being cleared (which would silently
     disable pinning in Release builds).
 - **`DeviceIdentityManagerTests.swift`, `PurchasePrincipalResolverTests.swift`,
-  `EntitlementManagerTests.swift`, `RevenueCatManagerTests.swift`**:
-  Isolates authentication loops away from live production identifiers.
+  `EntitlementManagerTests.swift`, `RevenueCatManagerTests.swift`**: Isolates
+  authentication loops away from live production identifiers.
   `DeviceIdentityManagerTests` reads `DeviceIdentityManager.shared.deviceId`
   (the public `@Observable` property) — it does **not** call the private
   `getOrGeneratePersistentIDFV()` method directly. The test wipes the relevant
@@ -1446,10 +1437,10 @@ actual import, and permission-denial UI require the physical-device checklist in
   that a generic `401` cannot rotate an anonymous UUID or discard pending
   identity evidence. This does not replace dashboard/App Store smoke testing or
   prove either stable principal continuity or legacy provider transfer on a
-  physical device. `EntitlementManagerTests` lock
-  current-launch verification, buffered replay metadata, stale-version
-  rejection, account isolation, balance validation, exhaustion, and the
-  difference between functional access and new-scan capacity.
+  physical device. `EntitlementManagerTests` lock current-launch verification,
+  buffered replay metadata, stale-version rejection, account isolation, balance
+  validation, exhaustion, and the difference between functional access and
+  new-scan capacity.
 - **`MerianConfigTests.swift` production-environment coverage**: Verifies that a
   Debug simulator pointed at production Supabase reports a configuration issue
   by default, remains configured so deliberate smoke tests can proceed, and
@@ -1483,24 +1474,23 @@ actual import, and permission-denial UI require the physical-device checklist in
 - **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
   normalized cloud values and existing tombstones are converged without an
   upsert, while real conflicts retain timestamp ordering.
-- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state machine,
-  the full inline Terms destination, final-screen required/optional switch
-  combinations, returning-user direct routing, and completion persistence. It
-  also proves missing evidence waits for the initial session, an expired cached
-  session retains the known account on the neutral root while refresh is
-  pending, authenticated
-  missing evidence remains pending through authoritative merge, fetch and
-  durable-write failures remain retryable, the 5-/10-/20-second budget is
-  bounded, duplicate auth preserves that budget, stale account retries are
-  rejected, and generation invalidation cannot orphan a canceled waiting state.
-  It also verifies a resolved same-account session cannot re-enter restoration.
-  Server-rejection cases additionally lock authoritative cloud-head proof,
-  durable relaunch routing to `.ready`, fresh head-anchored evidence, legacy
-  ledger decoding, and per-account fence isolation across restart and account
-  switch. These are deterministic boundary regressions; they do not claim the
-  exact-SHA new-account release transaction described above has run.
-  Every throwing assertion must be declared correctly so this file cannot
-  prevent the entire unit target from compiling.
+- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state
+  machine, the full inline Terms destination, final-screen required/optional
+  switch combinations, returning-user direct routing, and completion
+  persistence. It also proves missing evidence waits for the initial session, an
+  expired cached session retains the known account on the neutral root while
+  refresh is pending, authenticated missing evidence remains pending through
+  authoritative merge, fetch and durable-write failures remain retryable, the
+  5-/10-/20-second budget is bounded, duplicate auth preserves that budget,
+  stale account retries are rejected, and generation invalidation cannot orphan
+  a canceled waiting state. It also verifies a resolved same-account session
+  cannot re-enter restoration. Server-rejection cases additionally lock
+  authoritative cloud-head proof, durable relaunch routing to `.ready`, fresh
+  head-anchored evidence, legacy ledger decoding, and per-account fence
+  isolation across restart and account switch. These are deterministic boundary
+  regressions; they do not claim the exact-SHA new-account release transaction
+  described above has run. Every throwing assertion must be declared correctly
+  so this file cannot prevent the entire unit target from compiling.
 - **`SupabaseManagerTests.swift` auth-adoption coverage**: Locks the three cold-
   start classifications: nil is signed out, a current session is authenticated,
   and an expired cached session is awaiting refresh rather than signed out.
@@ -1508,8 +1498,8 @@ actual import, and permission-denial UI require the physical-device checklist in
 ## Testing Identify Requests and Activity
 
 Identify has a three-layer contract: root navigation/mode policy, concurrent iOS
-dashboard/full-feed state, and a service-only PostgreSQL Activity projection.
-Do not accept one layer as evidence for another.
+dashboard/full-feed state, and a service-only PostgreSQL Activity projection. Do
+not accept one layer as evidence for another.
 
 iOS focused coverage:
 
@@ -1538,8 +1528,8 @@ Backend focused coverage:
   covers the inclusive 60-minute boundary, chained/repeated suggestions,
   distinct top-three actor ordering, submission consensus folding, standalone
   consensus changes, separate resolutions, owner/group filters, equal-time
-  cursor stability, blocking, shadowban, tombstone, unshare, quarantine,
-  missing media, and reopened request generations.
+  cursor stability, blocking, shadowban, tombstone, unshare, quarantine, missing
+  media, and reopened request generations.
 
 The PostgreSQL suite may explicitly return early when no test database is
 available. That is discovery/compile evidence only. Production acceptance still
@@ -1550,8 +1540,8 @@ Manual root-UI acceptance requires:
 
 1. Exactly Observations, Field trips, and Identify in bottom navigation.
 2. Requests/Index at the Identify root and no Tree/galaxy entry point.
-3. **Identify requests**, banner, 12-card cap, larger section gap, then
-   **Recent activity** with 10-row cap.
+3. **Identify requests**, banner, 12-card cap, larger section gap, then **Recent
+   activity** with 10-row cap.
 4. Shared filter behavior across both previews and independent outage/Retry
    presentation.
 5. **See all requests** and **See all activity** preserving the filter and
@@ -2136,8 +2126,8 @@ production checks:
   ownership, replay-safe timeout guards, default-ACL/RLS behavior, supervised
   user-FK indexes, orphan triage, run-attempt-specific operational evidence, the
   active DwC-A/public-web release-hold navigation, and local links across the
-  maintained product, feature, architecture, operator, and service docs.
-  It also locks the joined 2026-08-03 remediation record against the canonical
+  maintained product, feature, architecture, operator, and service docs. It also
+  locks the joined 2026-08-03 remediation record against the canonical
   collection RPC/ACL, exact upload-header, durable funding-reservation,
   fixed-origin redirect, and raw-page taxonomy-checkpoint contracts.
 - `tests/privileged_routine_security.sql` verifies the same effective ACL and
@@ -2200,8 +2190,8 @@ layers:
 - `_tests/mergeGhostProfile.test.ts` exercises the real Edge error mapper. It
   must map both `ghost_merge_species_ledger_mismatch` and
   `user_species_scan_count_underflow` to HTTP 503
-  `merge_temporarily_unavailable` with the guest-data-unchanged message, while
-  retaining terminal versus retryable Keychain semantics.
+  `merge_temporarily_unavailable` with the signed-out-profile-data-unchanged
+  message, while retaining terminal versus retryable Keychain semantics.
 - `tests/ghost_profile_merge_security.sql` must execute provider authorization,
   replay, topology drift, collision handling, destination-only RevenueCat queue
   repair, exact species-ledger transfer, immutable attribution, and rollback
@@ -2210,9 +2200,9 @@ layers:
   RevenueCat claim that cannot apply stale state.
 - Two-session disposable-database probes must run merge versus RevenueCat
   reconciliation and merge versus a normal Community activity append in the
-  production workflow. Neither pairing may
-  deadlock, lose counts, apply a displaced claim, or leave the destination
-  provider queue absent or unclaimable.
+  production workflow. Neither pairing may deadlock, lose counts, apply a
+  displaced claim, or leave the destination provider queue absent or
+  unclaimable.
 
 Run `bash services/supabase/scripts/require_supabase_cli_version.sh`, then a
 clean `supabase --workdir services db reset`, then
@@ -2222,7 +2212,8 @@ file do not clear the deployment hold. The complete disposable-CI matrix is in
 the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
 
-Durable account deletion has twelve complementary checks:
+Durable account deletion has complementary source, catalog, client, and
+device-evidence checks:
 
 - `apps/web/lib/scientificRetentionContract.test.ts` keeps the public Terms,
   Privacy Policy, Privacy Choices page, iOS account-deletion confirmation,
@@ -2247,9 +2238,15 @@ Durable account deletion has twelve complementary checks:
   never calls Auth, `storage_pending` releases its claim without calling Auth,
   `auth_pending` recovery repeats idempotent cleanup before Auth, stored Apple
   credentials are revoked and transactionally completed before Auth, provider
-  failure preserves Auth and the Vault credential, legacy Apple intake returns
-  a manual disposition, Auth failure is deferred after verified storage, and a
+  failure preserves Auth and the Vault credential, legacy Apple intake returns a
+  manual disposition, Auth failure is deferred after verified storage, and a
   lost completion response remains retryable.
+- `safe-delete/protocol_test.ts`, `safe-delete/db_recovery_test.ts`, and
+  `recover-account-deletion/handler_test.ts` prove the exact legacy/capability
+  request union, 256-bit base64url syntax, SHA-256-only adapter boundary,
+  account-free public recover/acknowledge receipts, stable wrong/expired proof
+  errors, private no-store responses, and absence of a user Bearer-token
+  requirement.
 - `_tests/accountDeletionCoverage.test.ts` keeps source ordering, idempotent
   Auth-not-found handling, timing-safe reaper authentication, bounded parsing,
   `config.toml`, workflow wiring, iOS authorization-code capture and deletion
@@ -2260,19 +2257,23 @@ Durable account deletion has twelve complementary checks:
   machine, claim token, `SKIP LOCKED`, outbox-before-tombstone order, cleanup
   verification, required `storage_pending` phase, five-prefix keyset cursor,
   25-hour delayed verification, media/private-context clearing, unchanged
-  scientific-field retention, upload-signing
-  fence, profile-recreation guard, terminal UUID minimization, service-only
-  ACLs, five-minute cron, the failed-version no-op bridge, ownerless-tombstone
-  constraint, the Auth/profile foreign key, and the absence of synthetic user
-  creation. It also requires the storage-claim SQL to join a matching cleaned-up
-  `storage_pending` private job and to veto live profiles and owned scans, plus
-  indexed identity-free aggregate health with a service-only caller check. The
-  health contract must select Vault before the NULL-only app-setting fallback,
-  so a blank Vault value remains unhealthy instead of being masked. The Apple
-  migration contract additionally locks private credential/receipt tables,
-  Vault and Auth restrictive foreign keys, provider state coherence,
-  service-only allowlisting, secret destruction before provider completion, and
-  terminal provider fencing.
+  scientific-field retention, upload-signing fence, profile-recreation guard,
+  terminal UUID minimization, service-only ACLs, five-minute cron, the
+  failed-version no-op bridge, ownerless-tombstone constraint, the Auth/profile
+  foreign key, and the absence of synthetic user creation. It also requires the
+  storage-claim SQL to join a matching cleaned-up `storage_pending` private job
+  and to veto live profiles and owned scans, plus indexed identity-free
+  aggregate health with a service-only caller check. The health contract must
+  select Vault before the NULL-only app-setting fallback, so a blank Vault value
+  remains unhealthy instead of being masked. The Apple migration contract
+  additionally locks private credential/receipt tables, Vault and Auth
+  restrictive foreign keys, provider state coherence, service-only allowlisting,
+  secret destruction before provider completion, and terminal provider fencing.
+  The recovery migration extension locks the private hash-only table, maximum
+  active-proof cardinality, atomic intake wrapper, issue/recover advisory lock,
+  stable expired-match behavior, permanent acknowledged replay, total per-job
+  receipt bounds, identity-free health aggregation, service allowlist, and
+  denial to public API roles.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -2282,16 +2283,18 @@ Durable account deletion has twelve complementary checks:
   pre-existing scan-generation fence permits only that one detachment, stale
   post-detachment coordinate rewrites are rejected, a delayed individual-scan
   completion remains idempotent without deleting the retained observation, no
-  all-zero profile exists, active deletion blocks profile resurrection, a
-  stored Apple credential is claim-readable only in the provider phase and is
-  destroyed before provider completion, a legacy Apple fixture records the
-  manual disposition, Auth completion is rejected before provider completion,
-  retries preserve `auth_pending`, the service role sees that retry through
-  aggregate health while public roles cannot execute the health RPC, final
-  completion erases the direct UUID, and duplicate completion is idempotent.
-  Before deletion begins, the same fixture inserts a stale
-  storage outbox row for its live owner and proves the claim RPC cannot return
-  it.
+  all-zero profile exists, active deletion blocks profile resurrection, a stored
+  Apple credential is claim-readable only in the provider phase and is destroyed
+  before provider completion, a legacy Apple fixture records the manual
+  disposition, Auth completion is rejected before provider completion, retries
+  preserve `auth_pending`, the service role sees that retry through aggregate
+  health while public roles cannot execute the health RPC, final completion
+  erases the direct UUID, and duplicate completion is idempotent. Before
+  deletion begins, the same fixture inserts a stale storage outbox row for its
+  live owner and proves the claim RPC cannot return it. Recovery cases issue an
+  exact hash with intake, recover and acknowledge idempotently, reject another
+  proof, retain and distinguish an expired unacknowledged proof, expose only
+  aggregate health, and prove all recovery RPC ACLs.
 - `safe-delete/storageWorker_test.ts` proves one bounded page per claim, delete
   concurrency behavior, empty-prefix advancement, delayed verification,
   idempotent 404 deletion, retry persistence, and claim-token propagation.
@@ -2299,15 +2302,33 @@ Durable account deletion has twelve complementary checks:
   identity key is skipped only for the source profile row. This is the shared
   identity-lifecycle boundary needed by account deletion; its broader merge
   assertions remain part of the separate Ghost release gate.
-- `MerianNetworkClientTests` returns `202 Accepted` from the mock route, strictly
-  requires the manual-provider disposition, and rejects a missing field.
-  `SupabaseManagerTests` proves the registration retry is bounded while reusing
-  one durable request. It also locks the credential-state matrix: `.authorized`
-  preserves the session, revoked/not-found/transferred states clear it, and a
-  lookup failure fails closed. Static source coverage requires the
-  provider-specific subject lookup and stale-identity fence.
-  `AppDIContainerTests` proves the manual notice survives until explicit
-  resolution.
+- `MerianNetworkClientTests` returns `202 Accepted` from the mock route,
+  strictly requires the manual-provider disposition, and rejects a missing
+  field. `SupabaseManagerTests` proves the registration retry is bounded while
+  reusing one durable request. It also locks the credential-state matrix:
+  `.authorized` preserves the session, revoked/not-found/transferred states
+  clear it, and a lookup failure fails closed. Static source coverage requires
+  the provider-specific subject lookup and stale-identity fence.
+  Account-deletion transition tests separately prove the atomic two-proof
+  Keychain envelope is read-after-write verified before
+  `capability_preparation_pending`, non-destructive server prepare precedes
+  `capability_prepared_pending`, and the latter precedes destructive commit.
+  Persistence failure makes no request; ambiguous/lost-response failures and
+  legacy unknown recovery retain both authority and barrier; v2
+  `not_committed`/unknown recovery retires only unused intent; only explicit
+  `409 purchase_continuity_pending` advances an unaccepted intake through the
+  durable non-destructive `capability_rejection_retirement_pending` phase, a receipt is
+  owner-verified before `capability_cleanup_pending`, local sign-out precedes
+  purge, acknowledgement precedes capability retirement, verified Keychain
+  deletion precedes marker removal, accepted-retirement relaunch repeats local
+  cleanup, rejection-retirement relaunch removes only the unused proof and marker,
+  and matched-expired recovery takes only the
+  conservative cleanup-then-acknowledge path. `AppDIContainerTests` proves legacy Boolean and
+  pre-capability markers remain compatible, unknown future states fail closed
+  before local erasure, and the manual notice survives until explicit
+  resolution. `AccountDeletionRecoveryCapabilityTests` cover randomness,
+  existing-proof reuse, locked/unreadable Keychain, write verification, and
+  read-after-delete verification.
 - Release evidence must separately exercise the chosen older-binary control.
   Either an old client follows a clear enforced-update path back to in-app
   deletion, or an independent server fallback durably delivers Apple's manual
@@ -2317,9 +2338,11 @@ Durable account deletion has twelve complementary checks:
   parsing/invariants, threshold ordering, cron/configuration and orphan
   criticals, retry/expired-lease warnings, fail policy, and identity-free
   operator recovery guidance, including critical severity when configuration is
-  false. The migration contract statically locks the Vault-first, NULL-only
-  selection order. Workflow security checks separately keep its actions
-  immutable, permissions minimal, and secrets step-scoped.
+  false. It also proves strict recovery-health parsing, expired-unacknowledged
+  criticals, eight-per-job warning, cardinality-invariant failure, and combined
+  summary status. The migration contract statically locks the Vault-first,
+  NULL-only selection order. Workflow security checks separately keep its
+  actions immutable, permissions minimal, and secrets step-scoped.
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
@@ -2329,6 +2352,11 @@ Durable account deletion has twelve complementary checks:
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
 deletes Auth fixtures inside a transaction and rolls everything back.
+Source and catalog success do not replace the physical-device kill matrix:
+terminate before intake, after server commit with the response dropped, after
+Auth sign-out, after SwiftData purge, after acknowledgement, and after Keychain
+removal. Repeat with no cached Auth session and confirm public capability
+recovery converges without restoring an account or exposing an identity.
 
 Owned scan-image recovery has five complementary boundaries:
 
@@ -2417,9 +2445,9 @@ Authoritative AI quota and entitlement security has four complementary base
 checks:
 
 - `_shared/entitlement_test.ts` proves paid, complimentary, pre-cutover trial,
-  expired, and free resolution; dual-mode protocol 2–3 enforcement/internal replay bypass;
-  database errors and missing rows failing closed; and absence of isolate-local
-  reuse.
+  expired, and free resolution; dual-mode protocol 2–3 enforcement/internal
+  replay bypass; database errors and missing rows failing closed; and absence of
+  isolate-local reuse.
 - `_shared/aiQuota_test.ts` locks UUID request-key validation, trusted proxy
   address selection, daily-rotating/domain-separated HMAC behavior, optional
   server-key fallback, weak explicit-secret failure, fail-closed commit, and
@@ -2451,9 +2479,8 @@ The complimentary extension adds three required layers:
   admin aggregates, recovery callers, and privileged routine catalog.
 - `_tests/complimentaryScansConcurrencyDb.test.ts` overlaps three real
   reservation transactions behind one user lock and proves that the fourth
-  compatible scan resolves to the separate Flash fallback without a fourth
-  hold. A missing local database is an explicit skip and cannot count as
-  acceptance.
+  compatible scan resolves to the separate Flash fallback without a fourth hold.
+  A missing local database is an explicit skip and cannot count as acceptance.
 - `tests/complimentary_pro_scans_security.sql` exercises ACLs, three holds,
   replay linkage, fourth-scan Flash and daily separation, Pro-only rejection,
   durable and valid non-biological consumption, terminal release, ambiguous
@@ -2464,12 +2491,12 @@ The complimentary extension adds three required layers:
 On iOS, `EntitlementManagerTests.swift` covers launch verification, account and
 snapshot validation, active-hold-versus-startable capacity, failed-verification
 locking, paid-offline preservation, stale-version rejection, and the critical
-cold-launch rule: stored scan metadata is buffered until
-`get_my_entitlement()` establishes the current baseline, then cannot restore a
-newer exhausted balance. Network, UsageManager, AI persistence, Capture,
-Results, Settings, paywall, Profile, and Explore suites cover protocol headers,
-Flash reconciliation, optional historical envelopes, third-result persistence,
-countdowns/exhaustion, Pro-only modes, and paid-only badges. See the normative
+cold-launch rule: stored scan metadata is buffered until `get_my_entitlement()`
+establishes the current baseline, then cannot restore a newer exhausted balance.
+Network, UsageManager, AI persistence, Capture, Results, Settings, paywall,
+Profile, and Explore suites cover protocol headers, Flash reconciliation,
+optional historical envelopes, third-result persistence, countdowns/exhaustion,
+Pro-only modes, and paid-only badges. See the normative
 [`complimentary scan contract`](../backend-and-data/18-complimentary-pro-scans.md#verification-map).
 
 The reusable candidate gate—and the production workflow that requires it—apply
@@ -2479,8 +2506,8 @@ every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
 prevents a new catalog contract from being omitted by a selected CI list. When
 the aggregate run fails, it reruns only pg_prove's failed repository fixtures to
 surface isolated PostgreSQL diagnostics, then still exits nonzero; an isolated
-pass is ordering/shared-state evidence, not a recovered candidate. Do not replace
-executable catalog coverage with source inspection alone.
+pass is ordering/shared-state evidence, not a recovered candidate. Do not
+replace executable catalog coverage with source inspection alone.
 
 Focused source-inspection lanes have a separate Deno permission contract. Every
 repository root read through an explicit filesystem API must appear in that
@@ -2651,9 +2678,9 @@ then perform this ordering deliberately:
    hold;
 2. observe the first request at the transport boundary through a bounded
    rendezvous;
-3. for path-loss cases, simulate `releaseAllForegroundInferenceClaims` while
-   the request is still pending; for the black-hole timeout case, prove the path
-   and exact durable owner remain active instead;
+3. for path-loss cases, simulate `releaseAllForegroundInferenceClaims` while the
+   request is still pending; for the black-hole timeout case, prove the path and
+   exact durable owner remain active instead;
 4. release the matching transient transport failure to the engine; and
 5. allow durable retirement/replay work to settle without directly deleting
    process-local registries in test cleanup.
@@ -2672,16 +2699,15 @@ inference error placeholder for an exhausted queue-backed server failure.
 `testInferenceErrorPresentationRoleDoesNotDependOnDisplayCopy` separately proves
 that this classification comes from `SpeciesData.presentationRole`, not the
 localized title: arbitrary error copy remains an error, while result-role data
-cannot become an error merely by sharing legacy fallback text.
-Finally, a same-ID background/status completion must replace queued content,
-while a newer scan fences the delayed error.
+cannot become an error merely by sharing legacy fallback text. Finally, a
+same-ID background/status completion must replace queued content, while a newer
+scan fences the delayed error.
 
 The current source implements this matrix with the gated
 `queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual`,
 `queueBackedAttemptRequiresForegroundGenerationForAllMedia`, which rejects a
 durable scan ID without its exact queue-generation token before either pipeline
-can start,
-the network-client request-count controls
+can start, the network-client request-count controls
 `queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay` and
 `queueLessIdentifyRetainsOneReviewedInlineTransportReplay`, the queue-less
 engine presentation control, the server-failure separation test,
@@ -2715,22 +2741,21 @@ mounts the full-screen cover. The workflow source guard requires
 forbids manual top positioning from `GeometryProxy.safeAreaInsets.top` or
 `.safeAreaPadding(.top, ...)`. It also forbids a workspace-owned black crop
 shield or persistent transition flag and locks an accent-tinted, white-label
-confirmation action.
-`exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` locks the import entry
-boundary: a valid exhausted preview receives the prospective one-image Flash
-shape, opens the paywall, and leaves staging, crop state, and the admission
-in-flight flag empty before `PhotosPicker` can be presented. The external-import
-integration additionally requires the durable inbox receipt to survive the same
-server denial without staging or crop.
+confirmation action. `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop`
+locks the import entry boundary: a valid exhausted preview receives the
+prospective one-image Flash shape, opens the paywall, and leaves staging, crop
+state, and the admission in-flight flag empty before `PhotosPicker` can be
+presented. The external-import integration additionally requires the durable
+inbox receipt to survive the same server denial without staging or crop.
 `testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference`
 then drives an actual path-satisfied `.timedOut` preview through staged visual
 and direct nonvisual submission and requires both durable rows, no foreground
 generation, no analyzing Insight, no live engine processing, cleared staged
-input, and a still-online path. `testMalformedScanAdmissionPreviewRemainsFailClosed`
-proves an invalid server shape preserves the fail-closed retry path. The pure
-connectivity policy and pre-import boundary cases are in the exact protected
-inventory; the workflow source contract also requires their integration
-declarations to remain present.
+input, and a still-online path.
+`testMalformedScanAdmissionPreviewRemainsFailClosed` proves an invalid server
+shape preserves the fail-closed retry path. The pure connectivity policy and
+pre-import boundary cases are in the exact protected inventory; the workflow
+source contract also requires their integration declarations to remain present.
 
 The compiled hosted UI gate adds
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only
@@ -2743,11 +2768,12 @@ timeout**, successful sheet dismissal, and the same `QueuedScanTile_<scan-id>`
 in Scans. The marker exists only under the UI-test seed and contributes no
 visible layout or release accessibility element. This complements rather than
 replaces the URLSession regression: the unit test proves transport and ownership
-ordering; the UI smoke proves the open sheet consumes the resulting exact-ID state. Sheet
-dismissal must resolve the native `InsightSheetCloseButton` accessibility
-identifier through the current `InsightSheetView`. A global `Close` label query
-is not a valid test contract because layered SwiftUI presentations can expose
-both the active Insight control and an underlying close control.
+ordering; the UI smoke proves the open sheet consumes the resulting exact-ID
+state. Sheet dismissal must resolve the native `InsightSheetCloseButton`
+accessibility identifier through the current `InsightSheetView`. A global
+`Close` label query is not a valid test contract because layered SwiftUI
+presentations can expose both the active Insight control and an underlying close
+control.
 
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the
@@ -2817,11 +2843,11 @@ security-definer search paths, and global Field trip/Event ACL revocation. The
 confidence-policy contract locks the tier-specific Possible-match boundaries,
 explicit-review overrides, receipt revision/preference carryover, the
 evidence-update trigger, private downgrade-reconciliation helpers, prior-credit
-repair, and preservation of pending selected-goal preferences.
-The starter-level and enrollment contracts lock the 2/4/4 catalog, exact Dog
-criterion, active-template preflight, insert-only existing-account backfill,
-`public.users` trigger, initial activity period, no-resume conflict path, empty
-search path, and denied execution for every API role.
+repair, and preservation of pending selected-goal preferences. The starter-level
+and enrollment contracts lock the 2/4/4 catalog, exact Dog criterion,
+active-template preflight, insert-only existing-account backfill, `public.users`
+trigger, initial activity period, no-resume conflict path, empty search path,
+and denied execution for every API role.
 `_tests/fieldTripCaptureContextDb.test.ts` exercises those rules against local
 Postgres, including trigger-driven enrollment, exactly one open starter period,
 and empty results after Reset; it reports a skip when the local stack is not
@@ -2829,20 +2855,19 @@ available, and that skip must not be counted as database validation.
 `_tests/fieldTripProgressDb.test.ts` exercises standard and challenge
 credited-level responses across Backyard enrollment, explicit starts for other
 outings, challenge joins, one credit per experience, several active experiences,
-delayed upload after an outing/Event
-ends, preferred-goal priority, deterministic fallback, advancement, unfinished
-correction removal/move after deactivation, normal correction freeze after
-completion, ownership isolation, concurrency, exact confidence boundaries,
-weak-match confirmation, pending-preference retention, evidence-downgrade
-removal/reopening after completion, and idempotent reapplication under the same
-local-stack requirement. Its active-catalog matrix also locks the narrow goal
-boundaries introduced by `20260722211636_tighten_field_trip_goal_matching.sql`:
-butterfly versus moth, spider versus tick/scorpion, bee/wasp versus ant/sawfly,
-animal versus plant for ecology goals, flowering/fruiting plant kingdom gates,
-and meadow plant versus meadow animal. Every narrowed rule has representative
-positive and negative coverage; additions or label changes must update both that
-matrix and the canonical criteria table in
-`docs/features-and-hardware/25-field-trips.md`.
+delayed upload after an outing/Event ends, preferred-goal priority,
+deterministic fallback, advancement, unfinished correction removal/move after
+deactivation, normal correction freeze after completion, ownership isolation,
+concurrency, exact confidence boundaries, weak-match confirmation,
+pending-preference retention, evidence-downgrade removal/reopening after
+completion, and idempotent reapplication under the same local-stack requirement.
+Its active-catalog matrix also locks the narrow goal boundaries introduced by
+`20260722211636_tighten_field_trip_goal_matching.sql`: butterfly versus moth,
+spider versus tick/scorpion, bee/wasp versus ant/sawfly, animal versus plant for
+ecology goals, flowering/fruiting plant kingdom gates, and meadow plant versus
+meadow animal. Every narrowed rule has representative positive and negative
+coverage; additions or label changes must update both that matrix and the
+canonical criteria table in `docs/features-and-hardware/25-field-trips.md`.
 `_tests/fieldTripAtomicProgressDb.test.ts` executes ingestion-triggered standard
 and Event progress, preference and first-achievement evaluation, receipt replay,
 and an injected Event failure that must roll everything back.
@@ -2861,16 +2886,15 @@ renamed, or retired. `FieldTripCaptureContextModelsTests` covers capture-context
 decoding, while `FieldTripAPIModelsTests` covers the optional completing scan ID
 used by catalog/detail thumbnails, optional ordered reference-species media,
 published status, optional removed-item metadata, and standard/Event
-contribution decoding plus typed destinations. A
-separate legacy-payload test ensures absent publication fields decode as Private
-during rollout. The progress-response tests cover both the legacy shape and an
-extended level- advancement shape where current counts are `0/N` but credited
-counts are the completed full level. `AchievementToastPresenterTests` covers
-delayed strict ordering, multiple standard/challenge destinations, common-name
-fallback, progress failure, empty matches, completed-level rings,
-foreground/background scan-ID deduplication, bounded overflow, typed payload
-coalescing, session fencing, and foreground-host lifetime/effect ownership. The
-Field Trips Deno
+contribution decoding plus typed destinations. A separate legacy-payload test
+ensures absent publication fields decode as Private during rollout. The
+progress-response tests cover both the legacy shape and an extended level-
+advancement shape where current counts are `0/N` but credited counts are the
+completed full level. `AchievementToastPresenterTests` covers delayed strict
+ordering, multiple standard/challenge destinations, common-name fallback,
+progress failure, empty matches, completed-level rings, foreground/background
+scan-ID deduplication, bounded overflow, typed payload coalescing, session
+fencing, and foreground-host lifetime/effect ownership. The Field Trips Deno
 `referenceMedia_test.ts` suite locks all 20 current goal-to-illustrative-species
 mappings, target extraction, one-per-source Naturebook/Wikipedia/GBIF ordering,
 and item-scoped payload attachment; `db_test.ts` also executes the bounded
@@ -2878,49 +2902,49 @@ species/reference hydration projection. `InsightSheetViewModelTests` covers
 contribution loading, scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
-policy. `FieldTripFeaturedMediaTests` covers the standard outing hero progression:
-default illustrative references; exact completed photo, video-poster, and
-legacy-cover replacement; fallback for missing, archived, incomplete,
-nonvisual, posterless-video, reference-only, and repeated-scan records; strict
-Naturebook → Wikipedia → GBIF failure advancement; stable goal identity across
-reference-to-user replacement; active-level-only checklist ordering and its
-six-item cap; same-level source-exhaustion reserve refill; and mixed reference/photo/video
-full-screen order with muted video. It also locks provider/user VoiceOver copy
-and top-edge underlap whenever at least one featured item exists, plus the
-bottom-leading Naturebook contributor and bottom-trailing provider attribution
-policy, preventing empty-media detail from moving beneath transparent
-navigation chrome. `ActiveCaptureGoalStoreTests` also locks the inline-tip
-policy so completed, locked, guide-free, or fully completed outing states do
-not expose guidance. The focused Insight suite remains paired with this suite
-when the shared native pager, pagination, attribution, or top scroll-edge
-treatment changes, so reuse cannot regress Insight's mixed-media handoff
-behavior.
-`OfflineQueuedScanDeletionTests` verifies normal cancellation removes a
-goal hint while successful scan finalization preserves it until explicit
-progress acknowledgement. `MerianNetworkClientTests` locks the nested snake-case
-`preferred_goal` ingestion payload; ingestion intent/compatibility/replay Deno
-tests prove the preference survives server-side background reconstruction.
-`ActiveCaptureGoalStoreTests` covers the Field trip-to-`CaptureGoal` provider
-mapping, server-order preservation, typed destinations, bidirectional
-wraparound, completion advancement, account-isolated versioned caching,
-refresh-failure retention, single-fetch coalescing for overlapping startup
-freshness checks, indicator presentation/gesture policy, exact-art fallback,
-user-visibility gating, and focused Explore route compatibility. The exact-art
-test includes the renamed Park **Spider**, **Bird**, and **Meadow plant**
-prompts while retaining aliases for historical publication snapshots. Capture
-preference tests cover visible selected-goal priority across automatic,
-crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
-the camera-only media gate so gallery, mixed camera/gallery, audio, video,
-Describe, Record, refinement, and missing selections cannot persist a hint.
-Capture startup diagnostics must also exercise the user-configurable first-mode
-matrix. For each of Camera, Audio, and Description, persist that mode first,
-cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough
-for initial tasks and sheets to settle, and require no `AttributeGraph: cycle`
-output. Description-first QA must also confirm the question content scrolls, the
-keyboard dismisses on drag, the table-of-contents sheet opens, and dictation
-stops when leaving the mode. Preserve the lazy horizontal pager, the UIKit
-Describe vertical-scroll boundary, workspace-owned lifecycle/sheet state, and
-the fixed capture-bar layout reservation when extending these surfaces.
+policy. `FieldTripFeaturedMediaTests` covers the standard outing hero
+progression: default illustrative references; exact completed photo,
+video-poster, and legacy-cover replacement; fallback for missing, archived,
+incomplete, nonvisual, posterless-video, reference-only, and repeated-scan
+records; strict Naturebook → Wikipedia → GBIF failure advancement; stable goal
+identity across reference-to-user replacement; active-level-only checklist
+ordering and its six-item cap; same-level source-exhaustion reserve refill; and
+mixed reference/photo/video full-screen order with muted video. It also locks
+provider/user VoiceOver copy and top-edge underlap whenever at least one
+featured item exists, plus the bottom-leading Naturebook contributor and
+bottom-trailing provider attribution policy, preventing empty-media detail from
+moving beneath transparent navigation chrome. `ActiveCaptureGoalStoreTests` also
+locks the inline-tip policy so completed, locked, guide-free, or fully completed
+outing states do not expose guidance. The focused Insight suite remains paired
+with this suite when the shared native pager, pagination, attribution, or top
+scroll-edge treatment changes, so reuse cannot regress Insight's mixed-media
+handoff behavior. `OfflineQueuedScanDeletionTests` verifies normal cancellation
+removes a goal hint while successful scan finalization preserves it until
+explicit progress acknowledgement. `MerianNetworkClientTests` locks the nested
+snake-case `preferred_goal` ingestion payload; ingestion
+intent/compatibility/replay Deno tests prove the preference survives server-side
+background reconstruction. `ActiveCaptureGoalStoreTests` covers the Field
+trip-to-`CaptureGoal` provider mapping, server-order preservation, typed
+destinations, bidirectional wraparound, completion advancement, account-isolated
+versioned caching, refresh-failure retention, single-fetch coalescing for
+overlapping startup freshness checks, indicator presentation/gesture policy,
+exact-art fallback, user-visibility gating, and focused Explore route
+compatibility. The exact-art test includes the renamed Park **Spider**,
+**Bird**, and **Meadow plant** prompts while retaining aliases for historical
+publication snapshots. Capture preference tests cover visible selected-goal
+priority across automatic, crop-confirmed, and manual camera-still submission.
+`StagedCaptureTests` locks the camera-only media gate so gallery, mixed
+camera/gallery, audio, video, Describe, Record, refinement, and missing
+selections cannot persist a hint. Capture startup diagnostics must also exercise
+the user-configurable first-mode matrix. For each of Camera, Audio, and
+Description, persist that mode first, cold-launch with `AG_PRINT_CYCLES=3`,
+leave the default page idle long enough for initial tasks and sheets to settle,
+and require no `AttributeGraph: cycle` output. Description-first QA must also
+confirm the question content scrolls, the keyboard dismisses on drag, the
+table-of-contents sheet opens, and dictation stops when leaving the mode.
+Preserve the lazy horizontal pager, the UIKit Describe vertical-scroll boundary,
+workspace-owned lifecycle/sheet state, and the fixed capture-bar layout
+reservation when extending these surfaces.
 `merianUITests.testAudioFirstLaunchSelectsRecordMode` locks the reordered Audio
 launch selection. `testDescribeFirstLaunchRendersAndOpensPrompts` locks the
 Description-first selection, render path, and workspace-owned prompt-sheet
@@ -2964,15 +2988,14 @@ frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
 but proved that synthetic recomposition also prevents the caller's
 `ScanningStatusBadge` identifier from being found as a Button. The portable
 contract therefore rejects both animation patterns and that accessibility
-modifier. Both critical scan smokes share one
-`scanningStatusBadgeElement(in:)` helper containing the repository's single
-`app.buttons["ScanningStatusBadge"]` query, so neither test can retain dead
-native-query text while silently falling back to weaker element-class
-semantics. The queued-completion smoke requires the native Button's accessibility
-frame to be fully contained by the application frame before tapping and prints
-both rectangles on failure. This prevents XCTest from silently substituting an
-edge-of-window activation point for an invalid off-window rectangle and
-reporting the resulting no-op as a promotion failure.
+modifier. Both critical scan smokes share one `scanningStatusBadgeElement(in:)`
+helper containing the repository's single `app.buttons["ScanningStatusBadge"]`
+query, so neither test can retain dead native-query text while silently falling
+back to weaker element-class semantics. The queued-completion smoke requires the
+native Button's accessibility frame to be fully contained by the application
+frame before tapping and prints both rectangles on failure. This prevents XCTest
+from silently substituting an edge-of-window activation point for an invalid
+off-window rectangle and reporting the resulting no-op as a promotion failure.
 The completed state must also expose the identifier-scoped Field Chat and Share
 toolbar buttons. Their delayed reveal and Field Notes synchronization are keyed
 to the monotonic presentation generation, not the unchanged scan ID, ensuring
@@ -3040,18 +3063,18 @@ newly completed items, and credited rings.
 
 Presentation-handoff QA must also exercise interactive and programmatic
 dismissal for Candidate review, Confidence explanation, Insight Chat, and the
-Explore activity sheet. Select a candidate, ask the community, start
-reanalysis, trigger a Pro paywall, and open a reply-thread notification while
-rapidly changing or dismissing the source sheet. The destination must mount only
-after the source's real `onDismiss`; a stale scan/generation must produce no
-mutation, route, toast, or sibling sheet. Replace an ordinary toast during its
+Explore activity sheet. Select a candidate, ask the community, start reanalysis,
+trigger a Pro paywall, and open a reply-thread notification while rapidly
+changing or dismissing the source sheet. The destination must mount only after
+the source's real `onDismiss`; a stale scan/generation must produce no mutation,
+route, toast, or sibling sheet. Replace an ordinary toast during its
 three-second lifetime and mount/unmount a nested milestone host; the replacement
 must survive the old timer, and the milestone must not repeat haptics or
-VoiceOver or reset its remaining lifetime.
-While dismissing every Explore-owned comments, activity, Insight, profile,
-filter, editor, reply-thread, Field Notes, Field Chat, and paywall sheet, verify
-video remains paused until the presented content disappears. Nested sheets must
-not increment `resumeGeneration` until the final overlay token is released.
+VoiceOver or reset its remaining lifetime. While dismissing every Explore-owned
+comments, activity, Insight, profile, filter, editor, reply-thread, Field Notes,
+Field Chat, and paywall sheet, verify video remains paused until the presented
+content disappears. Nested sheets must not increment `resumeGeneration` until
+the final overlay token is released.
 
 Manual completion-evidence QA must use a non-leading checklist item to catch
 count-based slot inference, cover photo and video-poster thumbnails, verify the
@@ -3504,9 +3527,9 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   recurring/grace-period expiry persistence, explicit lifetime null expiry,
   exact seven-day pass expiry, pass-refund exclusion with a later purchase,
   signed pass-policy purchase/revocation decisions, stable-source-only transfer
-  inheritance, destination-history rejection, provider-lag retry,
-  transfer-side promotion preservation/audit,
-  server API authentication/URL encoding, and fail-closed CustomerInfo errors.
+  inheritance, destination-history rejection, provider-lag retry, transfer-side
+  promotion preservation/audit, server API authentication/URL encoding, and
+  fail-closed CustomerInfo errors.
 - **`handler_test.ts`**: Uses mocked RevenueCat and database boundaries to prove
   the order is signature verification → payload validation → durable duplicate
   lookup → authoritative lookup → one mutation transaction. A committed
@@ -3537,10 +3560,11 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   queues.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
-  CLI safety, and operator summary. It also proves that explicit
-  `expand-compatible` mode accepts only `PGRST202` for the exact undeployed
-  purchase-principal health RPC, emits null rather than false zero health, and
-  keeps required mode plus every unrelated RPC error fail-closed.
+  CLI safety, and operator summary. The production schedule invokes required
+  purchase-principal health; missing RPC `PGRST202`, malformed responses, and
+  every unrelated RPC error fail closed. Unit coverage retains the explicit
+  pre-deployment compatibility parser only so it cannot be broadened or used by
+  the scheduled workflow again.
 - **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
   offline exports, conservative customer classification, canonical UUID
   formatting, exact explicit-cohort selection independent of current
@@ -3561,6 +3585,48 @@ deployment runbook; it is not inferred from the launch-disabled posture.
 
 The identity test matrix now has two explicit lanes:
 
+- **Serialized client authentication**: `SupabaseManagerTests.swift` exercises
+  the generation-bound coordinator for competing Apple, Google, Sign out,
+  recovery, and deletion operations; wrong-controller Apple callbacks; stale
+  source/destination sessions; anonymous-bootstrap serialization; exact-session
+  account-work lease ownership and drain; consent-sync cancellation/await; and
+  terminal ownership. `EntitlementManagerTests.swift` rejects a response unless
+  account context, user, request generation, and the single-row result all
+  match. Authenticated-request tests must prove an A-bound body cannot dispatch
+  as B, including foreground and background inference request bodies, and that
+  a 401 releases its lease before recovery. Background inference dispatch must
+  prove its typed request remains bound to the same Auth UUID as the lease held
+  through the terminal URLSession callback—not merely `resume()`. Offline
+  staging tests must reject a canonical but different-owner R2 manifest, carry
+  the captured Auth UUID into URL signing and `upload_v2`, and hold that same
+  account lease through upload completion. Parser tests retain legacy task
+  compatibility but classify unprovable ownership as fail-closed.
+  `BackgroundDatabaseActorTests.swift` must prove upload/inference retirement
+  commits pending state and clears source-owned staging keys before task
+  cancellation. `OfflineQueueManagerTests.swift` must prove terminal callback
+  registration happens before the actor hop and that
+  `urlSessionDidFinishEvents` cannot invoke the system completion handler until
+  every asynchronous queue/result write is finished. Failed inference dispatch
+  must durably return `.inferencing` work to pending before cancellation or
+  return. The same suite must prove stale species metadata cannot overwrite a
+  replacement identification. `InferenceEngineTests.swift` must use a cancellation-ignoring
+  active write to prove an Auth transition remains blocked until that task
+  terminates and rejects newly submitted writes while the fence is closed. UI
+  tests require the competing buttons to
+  disable and forbid both “Ghost” and “guest session”
+  presentation. `BackgroundDatabaseActorTests.swift` proves collection sync
+  neither invokes Edge when an Auth transition owns the session nor removes a
+  tombstone when a transition begins during an in-flight request. RevenueCat
+  tests admit only `verified` or `verifiedOnDevice` CustomerInfo and prove
+  stable mode rejects promotional and missing/unknown store provenance for the
+  annual alias while the explicitly approved legacy/account lane may admit its
+  account grant. Shared authenticated-request tests also prove every recursive
+  retry remains pinned to the initiating account and cannot adopt a replacement
+  session. SDK/provider log bodies are discarded. Physical-device evidence remains
+  mandatory for double taps, delayed provider sheets, kill/relaunch at each
+  persistence boundary, first-unlock Keychain failure, 401 recovery, deletion,
+  and account switch.
+
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link
   → `syncPurchases()` → server completion → entitlement refresh → same-session
@@ -3570,36 +3636,50 @@ The identity test matrix now has two explicit lanes:
   completed replay, cancellation, and foreground reconciliation. The static
   migration contract and `signout_purchase_handoff_security.sql` cover caller-
   derived identities, one-destination replay, bound completion after pre-bind
-  expiry, deletion/cleanup/merge interlocks, lock order, and no profile movement.
+  expiry, deletion/cleanup/merge interlocks, lock order, and no profile
+  movement.
+- **Account deletion recovery v2**: protocol and handler tests prove strict
+  two-proof prepare/commit/recover/acknowledge request shapes and that prepare
+  never invokes destructive work. The migration contract and
+  `account_deletion_security.sql` prove private/RLS tables, service-only ACLs,
+  lexical proof locks, non-destructive `not_committed`, normal idempotent
+  commit, proof-role separation, bounded pruning/health, and the two-device
+  rule: a deletion-job insert converts only still-live preparations and
+  permanently tombstones expired hashes without promoting them to 180-day
+  capabilities. The fixture proves expiry before commit returns
+  `not_committed`, while expiry retired during another device's commit returns
+  the distinct non-authorizing preparation-expired state. iOS tests prove the
+  atomic Keychain envelope, phase ordering, and exact cached-session re-adoption
+  after definitive cancellation. Physical-device
+  evidence must kill the app after envelope write, server preparation, commit,
+  local sign-out, purge, acknowledgement, and proof removal, plus exercise a
+  second-device commit.
 - **Stable purchase principal**: `PurchasePrincipalResolverTests.swift` proves
   strict legacy/stable DTO decoding and rejects malformed or anonymous provider
   IDs. Source contracts prove the client generates and verifies a 256-bit
   `WhenUnlockedThisDeviceOnly` capability, serializes RevenueCat identity
   mutations, advances a persisted monotonic binding intent, clears legacy
   account attributes before stable readiness, writes no new account PII in
-  stable mode, and makes no receipt-sync call
-  for ordinary Auth rotation. Resolver protocol/DB/handler tests cover exact
-  body shape, hash-only database input, route-missing-only fallback, provider
-  fetch, StoreKit/promo separation, rollout changes, and public error mapping.
-  They also require exact current-projection evidence before first pass adoption,
-  locked completion revalidation, and reuse of an active principal's durable pass
-  policy.
+  stable mode, and makes no receipt-sync call for ordinary Auth rotation.
+  Resolver protocol/DB/handler tests cover exact body shape, hash-only database
+  input, route-missing-only fallback, provider fetch, StoreKit/promo separation,
+  rollout changes, and public error mapping. They also require exact
+  current-projection evidence before first pass adoption, locked completion
+  revalidation, and reuse of an active principal's durable pass policy.
   Webhook/reconciliation tests cover stable-first identity resolution, separate
   stable and UUID queues, claim fencing, authoritative promo exclusion, and the
-  previous bundle's mutation/scheduler adapters. The adapters share the
-  cutover advisory lock and principal-before-user row-lock order with
-  activation; the disposable
-  `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds an active
-  principal to a previously unrelated Auth UUID, forces completion to win that
-  race, and requires the delayed legacy mutation to leave no state, queue, or
-  event row. The fixture first proves that normal account creation established
-  a legacy queue, then proves binding removes that evidence-free queue and a
-  later identity update cannot recreate it. Static contracts keep durable
+  previous bundle's mutation/scheduler adapters. The adapters share the cutover
+  advisory lock and principal-before-user row-lock order with activation; the
+  disposable `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds
+  an active principal to a previously unrelated Auth UUID, forces completion to
+  win that race, and requires the delayed legacy mutation to leave no state,
+  queue, or a legacy queue, then proves binding removes that evidence-free queue
+  and a later identity update cannot recreate it. Static contracts keep durable
   legacy-provider state eligible for its separate compatibility queue rather
   than treating every stable relationship as grounds for deletion. A second
   schedule holds a pre-binding claimed queue, forces stable completion to own
-  the user lock before cleanup, and requires the delayed reconciliation apply
-  to lose its claim without state or synthetic-event writes.
+  the user lock before cleanup, and requires the delayed reconciliation apply to
+  lose its claim without state or synthetic-event writes.
   `purchasePrincipalMigrationContract.test.ts` plus
   `purchase_principal_security.sql` cover RLS/grants, capability replay, same-
   install Auth rotation, fixed grant ownership, stable-before-UUID delivery,
@@ -3637,6 +3717,17 @@ blocked until one exact revision also supplies all of the following:
    rollback, and explicit production authorization evidence from the stable
    rollout runbook.
 
+The purchase identity rollout is separately covered by
+`control_purchase_identity_rollout_test.ts`,
+`purchaseIdentityRolloutControlMigrationContract.test.ts`, and
+`purchase_identity_rollout_control_security.sql`. They prove dry-run-first
+exact-SHA planning, strict evidence shape, approved-plan binding, owner-only
+ACLs, exact checkout/project/database binding, freshness, idempotent exact
+replay, concurrent one-receipt serialization, one-axis transitions, single-use
+rollback references, and the absence of rollout mutation from candidate/deploy
+workflows. These controls do not replace the external matrix or authorize an
+apply.
+
 The complete production hold and customer-path smoke matrix are in the
 [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
@@ -3672,5 +3763,5 @@ tests must keep request IDs bounded to UUIDs, preserve original-analysis and
 complimentary linkage, accept only route-derived fallback eligibility, protect
 raw network addresses with a strong rotating HMAC, and fail closed when
 configuration is missing. Database atomicity and ACL behavior belong in
-`tests/ai_quota_security.sql` and
-`tests/complimentary_pro_scans_security.sql`, not a mocked TypeScript client.
+`tests/ai_quota_security.sql` and `tests/complimentary_pro_scans_security.sql`,
+not a mocked TypeScript client.

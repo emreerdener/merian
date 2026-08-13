@@ -18,6 +18,7 @@ make_fixture() {
   printf '%s\n' \
     'import Combine' \
     'enum AppEvent {' \
+    '  case accountDeletionRecoveryStateChanged' \
     '  case appDidResumeAfterTimeout' \
     '  case captureGoalContextInvalidated' \
     '  case communityIdentificationRequestChanged' \

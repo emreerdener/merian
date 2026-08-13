@@ -1,6 +1,15 @@
 import { assert, assertStringIncludes } from "@std/assert";
 
 const handlerUrl = new URL("../safe-delete/handler.ts", import.meta.url);
+const safeDeleteIndexUrl = new URL("../safe-delete/index.ts", import.meta.url);
+const recoveryHandlerUrl = new URL(
+  "../recover-account-deletion/handler.ts",
+  import.meta.url,
+);
+const recoveryProtocolUrl = new URL(
+  "../safe-delete/protocol.ts",
+  import.meta.url,
+);
 const workerUrl = new URL("../safe-delete/worker.ts", import.meta.url);
 const dbUrl = new URL("../safe-delete/db.ts", import.meta.url);
 const appleClientUrl = new URL("../_shared/appleSignIn.ts", import.meta.url);
@@ -17,7 +26,7 @@ const storageWorkerUrl = new URL(
   import.meta.url,
 );
 const reaperUrl = new URL(
-  "../reconcile-account-deletions/index.ts",
+  "../reconcile-account-deletions/handler.ts",
   import.meta.url,
 );
 const configUrl = new URL("../../config.toml", import.meta.url);
@@ -35,6 +44,22 @@ const monitorScriptUrl = new URL(
 );
 const catalogTestUrl = new URL(
   "../../tests/account_deletion_security.sql",
+  import.meta.url,
+);
+const recoveryMigrationUrl = new URL(
+  "../../migrations/20260813053000_add_account_deletion_recovery_capabilities.sql",
+  import.meta.url,
+);
+const preparedRecoveryV2MigrationUrl = new URL(
+  "../../migrations/20260813142638_prepare_account_deletion_recovery_v2.sql",
+  import.meta.url,
+);
+const swiftRecoveryCapabilityUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Security/AccountDeletionRecoveryCapability.swift",
+  import.meta.url,
+);
+const swiftDeletionStateUrl = new URL(
+  "../../../../apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift",
   import.meta.url,
 );
 
@@ -89,6 +114,11 @@ Deno.test("account deletion source preserves durable cleanup-provider-Auth order
   );
   assertStringIncludes(appleClient, "`${APPLE_ISSUER}/auth/revoke`");
   assertStringIncludes(appleClient, 'token_type_hint: "refresh_token"');
+  assertStringIncludes(handler, "logIdentitySafeError");
+  assert(
+    !handler.includes("job_id:"),
+    "Account-deletion logs must not expose the private job identity.",
+  );
   for (
     const fragment of [
       "claimStorageDeletionJobs",
@@ -195,13 +225,16 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
 
   for (
     const fragment of [
-      "authorizeServiceRoleRequestFromEnvironment(req)",
-      "createServiceRoleClient(",
+      "authorizeServiceRoleRequestFromEnvironment(request)",
+      "createServiceRoleClient",
       "auth.serverApiKey",
       'limit: "small"',
       "allowEmpty: true",
-      "processAccountDeletionJobs(supabaseAdmin",
-      "processPendingStorageDeletions(",
+      "processAccountDeletionJobs",
+      "processPendingStorageDeletions",
+      'parsed.kind === "dry_run"',
+      "{ success: true, dry_run: true }",
+      '"Cache-Control": "private, no-store"',
     ]
   ) {
     assertStringIncludes(reaper, fragment);
@@ -209,6 +242,11 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
   assert(
     !reaper.includes("targetUserId"),
     "The service reaper must never accept a caller-selected target user.",
+  );
+  assertStringIncludes(reaper, "logIdentitySafeError");
+  assert(
+    !reaper.includes("job_id:") && !reaper.includes("deletion_id:"),
+    "Account-deletion reconciliation logs must be aggregate and identity-free.",
   );
 
   const configStart = config.indexOf(
@@ -225,6 +263,209 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
     workflow,
     "supabase/tests/account_deletion_security.sql",
   );
+  for (
+    const fragment of [
+      '"/functions/v1/reconcile-account-deletions"',
+      "'{\"dry_run\":true}'",
+      '(keys | sort) == ["dry_run", "success"]',
+      ".success == true",
+      ".dry_run == true",
+    ]
+  ) {
+    assertStringIncludes(workflow, fragment);
+  }
+});
+
+Deno.test("lost deletion responses recover through a hash-only public capability", async () => {
+  const [
+    handler,
+    safeDeleteIndex,
+    protocol,
+    migration,
+    preparedRecoveryV2Migration,
+    swiftCapability,
+    swiftAuth,
+    swiftDeletionState,
+    config,
+    workflow,
+  ] = await Promise.all([
+    Deno.readTextFile(recoveryHandlerUrl),
+    Deno.readTextFile(safeDeleteIndexUrl),
+    Deno.readTextFile(recoveryProtocolUrl),
+    Deno.readTextFile(recoveryMigrationUrl),
+    Deno.readTextFile(preparedRecoveryV2MigrationUrl),
+    Deno.readTextFile(swiftRecoveryCapabilityUrl),
+    Deno.readTextFile(swiftAuthUrl),
+    Deno.readTextFile(swiftDeletionStateUrl),
+    Deno.readTextFile(configUrl),
+    Deno.readTextFile(workflowUrl),
+  ]);
+
+  for (
+    const fragment of [
+      "parseAccountDeletionRecoveryRequest",
+      "hashAccountDeletionCapability(",
+      '"v2_recovery"',
+      '"v2_acknowledgement"',
+      "parsed.protocolVersion === 2",
+      '"Cache-Control": "private, no-store"',
+    ]
+  ) {
+    assertStringIncludes(handler, fragment);
+  }
+  for (
+    const fragment of [
+      "hashAccountDeletionCapability(",
+      '"v2_recovery"',
+      '"v2_acknowledgement"',
+    ]
+  ) {
+    assertStringIncludes(safeDeleteIndex, fragment);
+  }
+  assertStringIncludes(protocol, "merian.account-deletion.v2.recovery");
+  assertStringIncludes(
+    protocol,
+    "merian.account-deletion.v2.acknowledgement",
+  );
+  assert(
+    !handler.includes("userId") && !handler.includes("user_id"),
+    "The public recovery route must not accept or return an account identity.",
+  );
+  for (
+    const forbidden of [
+      "target_user_id",
+      "auth_user_id",
+      "job_id",
+      "email",
+    ]
+  ) {
+    assert(
+      !protocol.includes(forbidden),
+      `The recovery protocol unexpectedly exposes ${forbidden}.`,
+    );
+  }
+  for (
+    const fragment of [
+      "internal.account_deletion_recovery_capabilities",
+      "secret_hash TEXT NOT NULL UNIQUE",
+      "PERFORM internal.require_service_role()",
+      "request_account_deletion_with_recovery",
+      "recover_account_deletion",
+      "account_deletion_recovery_expired",
+      "acknowledged_at IS NOT NULL",
+    ]
+  ) {
+    assertStringIncludes(migration, fragment);
+  }
+  for (
+    const fragment of [
+      ".whenUnlockedThisDeviceOnly",
+      "dataOrThrow(forKey: key) == encoded",
+      "recoveryCapability != acknowledgementCapability",
+      "removeObjectVerified",
+    ]
+  ) {
+    assertStringIncludes(swiftCapability, fragment);
+  }
+  assert(
+    swiftAuth.indexOf("recordCapabilityPreparationPending()") <
+        swiftAuth.indexOf("recoveryCapabilityStore.prepare()") &&
+      swiftAuth.indexOf("recoveryCapabilityStore.prepare()") <
+        swiftAuth.indexOf("prepareDeletionV2(") &&
+      swiftAuth.indexOf("prepareDeletionV2(") <
+        swiftAuth.indexOf("recordCapabilityPreparedPending()") &&
+      swiftAuth.indexOf("recordCapabilityPreparedPending()") <
+        swiftAuth.indexOf("commitDeletionV2("),
+    "The local barrier and verified two-proof Keychain envelope must precede non-destructive server preparation, and the prepared marker must precede destructive commit.",
+  );
+  assertStringIncludes(
+    swiftCapability,
+    "restoreBarrierBeforeAuthBootstrap",
+  );
+  for (
+    const fragment of [
+      "case capabilityRejectionRetirementPending =",
+      '"capability_rejection_retirement_pending"',
+      "recordCapabilityRejectionRetirementPending",
+    ]
+  ) {
+    assertStringIncludes(swiftDeletionState, fragment);
+  }
+  const rejectionMarker = swiftAuth.indexOf(
+    ".recordCapabilityRejectionRetirementPending()",
+  );
+  const rejectionProofRemoval = swiftAuth.indexOf(
+    "recoveryCapabilityStore.clearVerified()",
+    rejectionMarker,
+  );
+  const rejectionMarkerRemoval = swiftAuth.indexOf(
+    "AccountDeletionLocalCleanupStore.resolve()",
+    rejectionProofRemoval,
+  );
+  assert(
+    rejectionMarker >= 0 &&
+      rejectionProofRemoval > rejectionMarker &&
+      rejectionMarkerRemoval > rejectionProofRemoval,
+    "Definitive rejection must persist its phase before verified proof removal and clear the marker last.",
+  );
+  assertStringIncludes(
+    swiftAuth,
+    "recoveryState == .capabilityRejectionRetirementPending",
+  );
+  assertStringIncludes(
+    swiftAuth,
+    "performRejectedAccountDeletionRecoveryRetirement",
+  );
+  assertStringIncludes(
+    swiftAuth,
+    "static func performDefinitiveAccountDeletionIntakeRejectionRetirement",
+  );
+  assert(
+    (swiftAuth.match(
+      /\.performDefinitiveAccountDeletionIntakeRejectionRetirement\(/g,
+    ) ?? []).length >= 2,
+    "Both interactive and relaunched definitive rejections must use the crash-safe retirement ordering.",
+  );
+
+  const configStart = config.indexOf(
+    "[functions.recover-account-deletion]",
+  );
+  const configEnd = config.indexOf("\n[functions.", configStart + 1);
+  assert(configStart >= 0, "Recovery function configuration is missing.");
+  assertStringIncludes(
+    config.slice(configStart, configEnd),
+    "verify_jwt = false",
+  );
+  for (
+    const fragment of [
+      "/functions/v1/recover-account-deletion",
+      "request_account_deletion_with_recovery",
+      "recover_account_deletion",
+      "get_account_deletion_recovery_health",
+      "prepare_account_deletion_recovery_v2",
+      "request_account_deletion_with_recovery_v2",
+      "recover_account_deletion_v2",
+      "acknowledge_account_deletion_recovery_v2",
+      "prune_account_deletion_recovery_preparations",
+      "get_account_deletion_recovery_preparation_health",
+    ]
+  ) {
+    assertStringIncludes(workflow, fragment);
+  }
+
+  for (
+    const fragment of [
+      "internal.account_deletion_recovery_preparations",
+      "internal.bind_account_deletion_recovery_preparations",
+      "AFTER INSERT ON internal.account_deletion_jobs",
+      "'not_committed'::TEXT",
+      "acknowledgement_secret_hash",
+      "prune_account_deletion_recovery_preparations",
+      "get_account_deletion_recovery_preparation_health",
+    ]
+  ) {
+    assertStringIncludes(preparedRecoveryV2Migration, fragment);
+  }
 });
 
 Deno.test("account deletion catalog fixture follows the durable phase order", async () => {
@@ -301,12 +542,18 @@ Deno.test("account deletion health alert is independent of the database reaper",
   for (
     const fragment of [
       '"get_account_deletion_health"',
+      '"get_account_deletion_recovery_health"',
+      '"get_account_deletion_recovery_preparation_health"',
       "createServiceRoleClientFromEnvironment",
       "reaper_cron_active",
       "reaper_credentials_configured",
       "orphaned_storage_job_count",
       "oldest_pending_age_seconds",
       "oldest_storage_due_age_seconds",
+      "expired_unacknowledged_count",
+      "maximum_active_capabilities_per_job",
+      "active_preparation_count",
+      "expired_preparation_count",
     ]
   ) {
     assertStringIncludes(monitor, fragment);

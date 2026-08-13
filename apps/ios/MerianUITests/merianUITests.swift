@@ -197,6 +197,18 @@ final class merianUITests: XCTestCase {
             app.buttons["Continue as Ghost"].exists,
             "Retired Ghost copy must not return to the user-facing account UI"
         )
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "Ghost")
+            ).firstMatch.exists,
+            "Internal Ghost terminology must never be rendered"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any).matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "guest session")
+            ).firstMatch.exists,
+            "Internal guest-session terminology must never be rendered"
+        )
 
         let settingsTab = app.segmentedControls.buttons["Settings"]
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 4.0), "Settings tab did not appear")

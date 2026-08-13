@@ -230,6 +230,9 @@ struct MerianNetworkClientTests {
         
         // Inject so MerianNetworkClient hooks this instead of hitting live internet
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
+        MerianNetworkClient.shared.overridingAuthUserID = UUID(
+            uuidString: "11111111-1111-4111-8111-111111111111"
+        )
         MerianNetworkClient.shared.overridingInferenceConsentCheck = {}
         MerianNetworkClient.shared.overridingAuthSessionRefresh = nil
         MerianNetworkClient.shared.resetSpeciesDictionaryCacheForTesting()
@@ -300,6 +303,49 @@ struct MerianNetworkClientTests {
             isGuestUser: true,
             purchaseIdentityHandoffPending: true
         ))
+    }
+
+    @MainActor
+    @Test func testUnauthorizedRefreshStaysInsideItsAuthTransitionOwner() async {
+        let owner = AuthTransitionToken(
+            id: UUID(),
+            kind: .accountDeletion
+        )
+        var ordinaryRefreshes = 0
+        var ownedRefreshes = 0
+
+        let ownedResult = await MerianNetworkClient
+            .performSessionRefreshForUnauthorizedRequest(
+                authTransitionOwner: owner,
+                refreshOrdinary: {
+                    ordinaryRefreshes += 1
+                    return false
+                },
+                refreshTransitionOwned: { observedOwner in
+                    #expect(observedOwner == owner)
+                    ownedRefreshes += 1
+                    return true
+                }
+            )
+        #expect(ownedResult)
+        #expect(ordinaryRefreshes == 0)
+        #expect(ownedRefreshes == 1)
+
+        let ordinaryResult = await MerianNetworkClient
+            .performSessionRefreshForUnauthorizedRequest(
+                authTransitionOwner: nil,
+                refreshOrdinary: {
+                    ordinaryRefreshes += 1
+                    return true
+                },
+                refreshTransitionOwned: { _ in
+                    ownedRefreshes += 1
+                    return false
+                }
+            )
+        #expect(ordinaryResult)
+        #expect(ordinaryRefreshes == 1)
+        #expect(ownedRefreshes == 1)
     }
 
     @Test func testInferencePrewarmUsesPinnedClientSessionAndOptionsRoute() async {
@@ -4746,6 +4792,233 @@ struct MerianNetworkClientTests {
         #expect(receipt.manualProviderRevocationRequired)
     }
 
+    @Test func testSafeDeleteBindsExactRecoveryCapability() async throws {
+        let capability = String(repeating: "A", count: 43)
+        let expiry = "2099-02-09T12:34:56.123456+00:00"
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 202,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/safe-delete"] = { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload.count == 1)
+            #expect(payload["recovery_capability"] as? String == capability)
+            return (
+                mockResponse,
+                Data(
+                    """
+                    {"success":true,"status":"pending","manual_provider_revocation_required":false,"recovery_capability_expires_at":"\(expiry)"}
+                    """.utf8
+                )
+            )
+        }
+
+        let receipt = try await MerianNetworkClient.shared.safeDeleteAccount(
+            recoveryCapability: capability
+        )
+
+        #expect(receipt.status == .pending)
+        #expect(receipt.recoveryCapabilityExpiresAt == expiry)
+    }
+
+    @Test func testPreparedAccountDeletionPayloadsUseExactTwoStageProtocol() throws {
+        let recovery = String(repeating: "R", count: 43)
+        let acknowledgement = String(repeating: "K", count: 43)
+        let preparationData = try JSONEncoder().encode(
+            AccountDeletionPreparationPayload(
+                recoveryCapability: recovery,
+                acknowledgementCapability: acknowledgement
+            )
+        )
+        let preparation = try #require(
+            JSONSerialization.jsonObject(with: preparationData)
+                as? [String: Any]
+        )
+        #expect(preparation.count == 4)
+        #expect(preparation["protocol_version"] as? Int == 2)
+        #expect(preparation["operation"] as? String == "prepare")
+        #expect(preparation["recovery_capability"] as? String == recovery)
+        #expect(
+            preparation["acknowledgement_capability"] as? String
+                == acknowledgement
+        )
+
+        let commitData = try JSONEncoder().encode(
+            AccountDeletionCommitPayload(
+                recoveryCapability: recovery
+            )
+        )
+        let commit = try #require(
+            JSONSerialization.jsonObject(with: commitData)
+                as? [String: Any]
+        )
+        #expect(commit.count == 3)
+        #expect(commit["protocol_version"] as? Int == 2)
+        #expect(commit["operation"] as? String == "commit")
+        #expect(commit["recovery_capability"] as? String == recovery)
+        #expect(commit["acknowledgement_capability"] == nil)
+    }
+
+    @Test func testPreparedDeletionRecoverySeparatesRecoveryAndAcknowledgementProofs() async throws {
+        let recovery = String(repeating: "S", count: 43)
+        let acknowledgement = String(repeating: "T", count: 43)
+        let expiry = ISO8601DateFormatter().string(
+            from: Date().addingTimeInterval(24 * 60 * 60)
+        )
+        var expectedOperation = "recover"
+        MockURLProtocol.mockEndpoints["/recover-account-deletion"] = { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload["protocol_version"] as? Int == 2)
+            #expect(payload["operation"] as? String == expectedOperation)
+            if expectedOperation == "recover" {
+                #expect(payload["recovery_capability"] as? String == recovery)
+                #expect(payload["acknowledgement_capability"] == nil)
+                return (
+                    HTTPURLResponse(
+                        url: URL(string: "https://example.com")!,
+                        statusCode: 200,
+                        httpVersion: nil,
+                        headerFields: nil
+                    )!,
+                    Data(
+                        """
+                        {"success":true,"status":"not_committed","protocol_version":2,"manual_provider_revocation_required":false,"recovery_capability_expires_at":"\(expiry)","recovery_acknowledged":false}
+                        """.utf8
+                    )
+                )
+            }
+            #expect(
+                payload["acknowledgement_capability"] as? String
+                    == acknowledgement
+            )
+            #expect(payload["recovery_capability"] == nil)
+            return (
+                HTTPURLResponse(
+                    url: URL(string: "https://example.com")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!,
+                Data(
+                    """
+                    {"success":true,"status":"completed","protocol_version":2,"manual_provider_revocation_required":false,"recovery_capability_expires_at":"\(expiry)","recovery_acknowledged":true}
+                    """.utf8
+                )
+            )
+        }
+
+        let uncommitted = try await MerianNetworkClient.shared
+            .recoverPreparedAccountDeletionV2(
+                recoveryCapability: recovery
+            )
+        #expect(uncommitted.status == .notCommitted)
+        expectedOperation = "acknowledge"
+        let acknowledged = try await MerianNetworkClient.shared
+            .acknowledgeAccountDeletionRecoveryV2(
+                acknowledgementCapability: acknowledgement
+            )
+        #expect(acknowledged.recoveryAcknowledged == true)
+    }
+
+    @Test func testAccountDeletionRecoveryUsesOnlyPublicCapability() async throws {
+        let capability = String(repeating: "B", count: 43)
+        let expiry = ISO8601DateFormatter().string(
+            from: Date().addingTimeInterval(24 * 60 * 60)
+        )
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/recover-account-deletion"] = { request in
+            #expect(request.httpMethod == "POST")
+            #expect(request.value(forHTTPHeaderField: "apikey") != nil)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            #expect(payload.count == 2)
+            #expect(payload["operation"] as? String == "acknowledge")
+            #expect(payload["recovery_capability"] as? String == capability)
+            return (
+                mockResponse,
+                Data(
+                    """
+                    {"success":true,"status":"completed","manual_provider_revocation_required":true,"recovery_capability_expires_at":"\(expiry)","recovery_acknowledged":true}
+                    """.utf8
+                )
+            )
+        }
+
+        let receipt = try await MerianNetworkClient.shared
+            .recoverAcceptedAccountDeletion(
+                recoveryCapability: capability,
+                acknowledge: true
+            )
+
+        #expect(receipt.status == .completed)
+        #expect(receipt.manualProviderRevocationRequired)
+        #expect(receipt.recoveryAcknowledged == true)
+    }
+
+    @Test func testAcknowledgedDeletionRecoveryRemainsReplayableAfterExpiry() async throws {
+        let capability = String(repeating: "C", count: 43)
+        let expiredAt = "2025-01-01T00:00:00Z"
+        let mockResponse = HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        MockURLProtocol.mockEndpoints["/recover-account-deletion"] = { _ in
+            (
+                mockResponse,
+                Data(
+                    """
+                    {"success":true,"status":"completed","manual_provider_revocation_required":false,"recovery_capability_expires_at":"\(expiredAt)","recovery_acknowledged":true}
+                    """.utf8
+                )
+            )
+        }
+
+        let receipt = try await MerianNetworkClient.shared
+            .recoverAcceptedAccountDeletion(
+                recoveryCapability: capability,
+                acknowledge: false
+            )
+
+        #expect(receipt.recoveryAcknowledged == true)
+        #expect(receipt.recoveryCapabilityExpiresAt == expiredAt)
+    }
+
+    @Test func testAccountDeletionRecoveryRejectsMalformedCapabilityBeforeIO() async {
+        var invoked = false
+        MockURLProtocol.mockEndpoints["/recover-account-deletion"] = { _ in
+            invoked = true
+            throw URLError(.badServerResponse)
+        }
+
+        await #expect(throws: MerianError.invalidResponse) {
+            _ = try await MerianNetworkClient.shared
+                .recoverAcceptedAccountDeletion(
+                    recoveryCapability: "not-a-capability",
+                    acknowledge: false
+                )
+        }
+        #expect(!invoked)
+    }
+
     @Test func testSafeDeleteAccountRejectsMissingProviderRevocationDisposition() async throws {
         let mockResponse = HTTPURLResponse(
             url: URL(string: "https://example.com")!,
@@ -4944,6 +5217,82 @@ struct MerianNetworkClientTests {
     }
 
     // MARK: - buildMultiModalRequestBody
+
+    @Test func authenticatedInferenceRequestRemainsBoundToOriginalAuthSession() throws {
+        let sourceUserID = UUID()
+        let url = try #require(URL(string: "https://example.com/identify"))
+        let request = AuthenticatedInferenceRequest(
+            request: URLRequest(url: url),
+            expectedAuthUserID: sourceUserID
+        )
+
+        #expect(
+            request.isBound(
+                to: AuthTransitionSession(
+                    userID: sourceUserID,
+                    isAnonymous: false
+                )
+            )
+        )
+        #expect(
+            !request.isBound(
+                to: AuthTransitionSession(
+                    userID: UUID(),
+                    isAnonymous: true
+                )
+            )
+        )
+    }
+
+    @Test func authenticatedRetryChainNeverAdoptsReplacementAccount() {
+        let sourceUserID = UUID()
+        let replacementUserID = UUID()
+
+        let initiallyBound = AuthenticatedRetryAccountPolicy.boundUserID(
+            explicitUserID: nil,
+            initiatingUserID: sourceUserID
+        )
+        let recursiveRetry = AuthenticatedRetryAccountPolicy.boundUserID(
+            explicitUserID: initiallyBound,
+            initiatingUserID: replacementUserID
+        )
+
+        #expect(initiallyBound == sourceUserID)
+        #expect(recursiveRetry == sourceUserID)
+        #expect(recursiveRetry != replacementUserID)
+    }
+
+    @Test func inferenceObjectKeysMustBelongToExactRequestAccount() {
+        let sourceUserID = UUID()
+        let otherUserID = UUID()
+        let sourceKey = MediaStagingContract.objectKey(
+            userId: sourceUserID.uuidString,
+            fileName: "scan_image.webp"
+        )
+        let otherKey = MediaStagingContract.objectKey(
+            userId: otherUserID.uuidString,
+            fileName: "scan_audio.wav"
+        )
+
+        #expect(
+            MerianNetworkClient.inferenceObjectKeysBelongToExpectedUser(
+                [[sourceKey], []],
+                expectedAuthUserID: sourceUserID
+            )
+        )
+        #expect(
+            !MerianNetworkClient.inferenceObjectKeysBelongToExpectedUser(
+                [[sourceKey], [otherKey]],
+                expectedAuthUserID: sourceUserID
+            )
+        )
+        #expect(
+            !MerianNetworkClient.inferenceObjectKeysBelongToExpectedUser(
+                [["staging/not-a-uuid/scan.webp"]],
+                expectedAuthUserID: sourceUserID
+            )
+        )
+    }
 
     @Test func multimodalRequestBodyUsesActiveCamelCaseTelemetryContract() throws {
         let telemetry = CaptureTelemetry(

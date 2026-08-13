@@ -81,7 +81,9 @@ final class ScanAdmissionManager {
 #endif
 
         let supabaseManager = SupabaseManager.shared
-        guard let userID = supabaseManager.currentUser?.id,
+        guard let accountWorkLease = try? supabaseManager
+                .beginUnownedAccountBoundWork(),
+              let userID = supabaseManager.currentUser?.id,
               let session = supabaseManager.client.auth.currentSession,
               session.user.id == userID,
               let supabaseURL = SecureTransportPolicy.httpsURL(
@@ -89,6 +91,7 @@ final class ScanAdmissionManager {
               ) else {
             return .unavailable
         }
+        defer { supabaseManager.finishAccountBoundWork(accountWorkLease) }
 
         let urlSession = URLSession(configuration: Self.previewSessionConfiguration())
         defer { urlSession.invalidateAndCancel() }
@@ -119,8 +122,9 @@ final class ScanAdmissionManager {
                 .execute()
                 .value
             guard !Task.isCancelled,
-                  supabaseManager.currentUser?.id == userID,
-                  supabaseManager.client.auth.currentSession?.user.id == userID,
+                  supabaseManager.isAccountBoundWorkLeaseCurrent(
+                    accountWorkLease
+                  ),
                   rows.count == 1,
                   Self.isValid(rows[0]) else {
                 return .unavailable
@@ -128,7 +132,7 @@ final class ScanAdmissionManager {
             return .available(rows[0])
         } catch {
             MerianLog.auth.debug(
-                "Scan admission preview unavailable: \(error.localizedDescription, privacy: .private)"
+                "Scan admission preview unavailable; kind=\(MerianLog.errorKind(error), privacy: .public)."
             )
             return Self.result(for: error)
         }

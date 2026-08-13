@@ -89,15 +89,20 @@ to remain evidence-only; only the private account-grant ledger can then
 contribute that access.
 
 The independent `.github/workflows/revenuecat-reconciliation-health-monitor.yml`
-check runs every 15 minutes and reads both aggregate health RPCs. It fails by
-default when the oldest unclaimed/expired due row, pending sign-out handoff, or
-pending purchase principal is at least 30 minutes old, when any lease has
-expired, or when an active principal with current StoreKit access has no Auth
-binding; 60 minutes is critical. It writes JSON and Markdown artifacts without
-exposing subscriber, handoff, source, or destination identities. A failed RPC or
-network check also fails the monitor. Sign-out telemetry counts unexpired
-prepared proofs and every bound proof; expired unbound bearer capabilities are
-terminal and do not alert forever.
+check runs every 15 minutes and reads both aggregate health RPCs in required
+mode. A missing principal-health RPC is a failure, not an expand-compatible
+success. The check fails default when the oldest unclaimed/expired due row,
+pending sign-out handoff, or pending purchase principal is at least 30 minutes
+old, when any lease has expired, or when an active principal with current
+StoreKit access has no Auth binding; 60 minutes is critical. It writes JSON and
+Markdown artifacts without exposing subscriber, handoff, source, or destination
+identities. A failed RPC or network check also fails the monitor. Sign-out
+telemetry counts unexpired prepared proofs and every bound proof; expired
+unbound bearer capabilities are terminal and do not alert forever.
+
+Runtime diagnostics use fixed operation/error kinds and aggregate counts only.
+Neither queue lane logs an Auth UUID, RevenueCat App User ID, purchase-principal
+ID, provider response/body, URL, or raw error string.
 
 For an alert, inspect the worker's structured `revenuecat_reconciliation_health`
 event and the queue's bounded `last_error_code`/attempt state with the
@@ -105,22 +110,23 @@ owner-only runbook query. Fix provider/database configuration and allow the
 claim-fenced queue to retry; do not grant table access or directly edit tiers.
 
 For beta migration and customer-count investigation, use the offline
-`audit_revenuecat_customers.ts` export comparison and the dry-run-first
-`grant_revenuecat_beta_entitlements.ts` workflow documented in the deployment
-runbook. Never delete RevenueCat customer history as a reconciliation strategy;
-the separately authorized empty-shell cleanup can delete only a live-revalidated
-customer proven to have no such history and never writes this queue or Supabase.
-Promotional grants emit production `NON_RENEWING_PURCHASE` webhooks; the normal
-webhook/reconciliation path remains the only tier writer.
+`audit_revenuecat_customers.ts` export comparison. The legacy
+`grant_revenuecat_beta_entitlements.ts` workflow is audit-only and rejects
+apply; all new beta, promotion, and support access uses the dry-run-first
+`grant_account_access_entitlements.ts` private-ledger workflow documented in the
+deployment runbook. Never delete RevenueCat customer history as a reconciliation
+strategy; the separately authorized empty-shell cleanup can delete only a
+live-revalidated customer proven to have no such history and never writes this
+queue or Supabase. Existing provider promotions may still emit production
+`NON_RENEWING_PURCHASE` webhooks during the dual-read compatibility window. They
+are comparison input only after authoritative cutover; new account-owned grants
+are projected directly from the private Supabase ledger.
 
-The grant workflow is currently production-held and may be used only in dry-run
-mode. Its GET path must accept both successful CustomerInfo statuses (`200`
-found and `201` created), and beta membership must come from an explicit
-reviewed UUID cohort rather than current `subscription_tier`. The canonical
-migration makes normalized rows immediately due, so a future apply must pause
-only this named reconciler during the bounded migration/grant window, then
-restore its exact schedule and prove queue health. The full hold and exit
-criteria are in the
+The retired provider-grant workflow is permanently dry-run-only. Beta membership
+still comes from an explicit reviewed UUID cohort rather than current
+`subscription_tier`; the account-ledger apply binds that cohort to an exact
+source/database/plan digest and commits one immutable aggregate receipt. The
+full hold and exit criteria are in the
 [RevenueCat customer identity incident](../../../../docs/incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Unit coverage lives in `db_test.ts`, `worker_test.ts`, and

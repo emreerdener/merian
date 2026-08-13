@@ -22,7 +22,7 @@ triggers were maintaining the private per-user/per-species ledger. PostgreSQL
 rolled the transaction back, so the failure is fail-safe for ownership data, but
 the user could not complete the existing-account upgrade. The incident-baseline
 Edge mapper exposed this exact invariant failure as an unexpected HTTP 500
-instead of the intended retryable 503 guest-data-unchanged response. The
+instead of the intended retryable 503 signed-out-profile-data-unchanged response. The
 expanded mapper fixes that behavior in the repository; its production status
 is not verified here.
 

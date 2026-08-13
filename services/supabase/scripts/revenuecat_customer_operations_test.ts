@@ -10,9 +10,7 @@ import {
   parseRevenueCatCustomerAuditArgs,
 } from "./audit_revenuecat_customers.ts";
 import {
-  applyBetaEntitlementGrants,
   executeBetaEntitlementGrant,
-  isEntitlementActive,
   parseBetaEntitlementGrantArgs,
   selectBetaEntitlementCandidates,
   sha256Hex,
@@ -705,23 +703,11 @@ Deno.test("Beta grant expiration is finite and bounded", () => {
 });
 
 Deno.test("Beta grant dry-run performs zero RevenueCat requests", async () => {
-  let requestCount = 0;
-  const unexpectedFetch: typeof fetch = () => {
-    requestCount += 1;
-    throw new Error("Dry-run must not call RevenueCat.");
-  };
-
   const results = await executeBetaEntitlementGrant({
     apply: false,
     candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
-    entitlementID: "pro",
-    expiresAt: null,
-    apiKey: null,
-    concurrency: 1,
-    fetcher: unexpectedFetch,
   });
 
-  assertEquals(requestCount, 0);
   assertEquals(results, [{
     app_user_id: USER_ONE.toUpperCase(),
     status: "planned",
@@ -729,222 +715,16 @@ Deno.test("Beta grant dry-run performs zero RevenueCat requests", async () => {
   }]);
 });
 
-Deno.test("Beta grant skips active Pro and grants inactive canonical customers", async () => {
-  const expiresAt = "2026-12-01T00:00:00.000Z";
-  const requests: Array<{ url: string; method: string }> = [];
-  const fakeFetch: typeof fetch = (input, init) => {
-    const url = String(input);
-    const method = init?.method ?? "GET";
-    requests.push({ url, method });
-    const isFirstUser = url.includes(USER_ONE.toUpperCase());
-    const isGrant = method === "POST";
-    const entitlements = isFirstUser || isGrant
-      ? {
-        pro: {
-          expires_date: expiresAt,
-          grace_period_expires_date: null,
-        },
-      }
-      : {};
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({
-          request_date_ms: Date.parse("2026-08-09T00:00:00Z"),
-          subscriber: { entitlements },
-        }),
-        { status: isGrant ? 201 : 200 },
-      ),
-    );
-  };
-
-  const results = await applyBetaEntitlementGrants({
-    candidates: [
-      { app_user_id: USER_ONE.toUpperCase() },
-      { app_user_id: USER_TWO.toUpperCase() },
-    ],
-    entitlementID: "pro",
-    expiresAt,
-    apiKey: "server-side-fixture-key",
-    concurrency: 2,
-    fetcher: fakeFetch,
-  });
-
-  assertEquals(results.map((result) => result.status), [
-    "already_active",
-    "granted",
-  ]);
-  assertEquals(
-    requests.filter((request) => request.method === "GET").length,
-    2,
+Deno.test("legacy RevenueCat promotion apply is permanently retired", () => {
+  assertThrows(
+    () =>
+      executeBetaEntitlementGrant({
+        apply: true,
+        candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
+      }),
+    Error,
+    "legacy_revenuecat_promotion_apply_retired",
   );
-  assertEquals(
-    requests.filter((request) => request.method === "POST").length,
-    1,
-  );
-});
-
-Deno.test("Beta grant accepts get-or-create 201 and posts exactly once", async () => {
-  const expiresAt = "2026-12-01T00:00:00.000Z";
-  const requests: Array<{ url: string; method: string }> = [];
-  const fakeFetch: typeof fetch = (input, init) => {
-    const method = init?.method ?? "GET";
-    requests.push({ url: String(input), method });
-    const entitlements = method === "POST"
-      ? {
-        pro: {
-          expires_date: expiresAt,
-          grace_period_expires_date: null,
-        },
-      }
-      : {};
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({
-          request_date_ms: Date.parse("2026-08-09T00:00:00Z"),
-          subscriber: { entitlements },
-        }),
-        { status: 201 },
-      ),
-    );
-  };
-
-  const results = await applyBetaEntitlementGrants({
-    candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
-    entitlementID: "pro",
-    expiresAt,
-    apiKey: "server-side-fixture-key",
-    concurrency: 1,
-    fetcher: fakeFetch,
-  });
-
-  assertEquals(results[0].status, "granted");
-  assertEquals(requests.map((request) => request.method), ["GET", "POST"]);
-});
-
-Deno.test("Beta grant still requires promotional POST 201", async () => {
-  const fakeFetch: typeof fetch = () =>
-    Promise.resolve(
-      new Response(
-        JSON.stringify({ subscriber: { entitlements: {} } }),
-        { status: 200 },
-      ),
-    );
-
-  const results = await applyBetaEntitlementGrants({
-    candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
-    entitlementID: "pro",
-    expiresAt: "2026-12-01T00:00:00.000Z",
-    apiKey: "server-side-fixture-key",
-    concurrency: 1,
-    fetcher: fakeFetch,
-  });
-
-  assertEquals(results[0].error_code, "http_200");
-});
-
-Deno.test("Beta grant sends requests only for explicit cohort members", async () => {
-  const usersSource = [
-    "id,subscription_tier,subscription_expires_at",
-    `${USER_ONE},free,`,
-    `${USER_TWO},pro,`,
-  ].join("\n");
-  const authAuditSource = [
-    "user_id,auth_exists,auth_is_anonymous",
-    `${USER_ONE},true,false`,
-    `${USER_TWO},true,false`,
-  ].join("\n");
-  const selection = selectBetaEntitlementCandidates({
-    usersSource,
-    cohortSource: ["id", USER_ONE].join("\n"),
-    authAuditSource,
-  });
-  const requestedURLs: string[] = [];
-  const activeFetch: typeof fetch = (input) => {
-    requestedURLs.push(String(input));
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({
-          subscriber: {
-            entitlements: { pro: { expires_date: null } },
-          },
-        }),
-        { status: 200 },
-      ),
-    );
-  };
-
-  await executeBetaEntitlementGrant({
-    apply: true,
-    candidates: selection.candidates,
-    entitlementID: "pro",
-    expiresAt: "2026-12-01T00:00:00.000Z",
-    apiKey: "server-side-fixture-key",
-    concurrency: 1,
-    fetcher: activeFetch,
-  });
-
-  assertEquals(requestedURLs.length, 1);
-  assert(requestedURLs[0].includes(USER_ONE.toUpperCase()));
-  assert(!requestedURLs[0].includes(USER_TWO.toUpperCase()));
-});
-
-Deno.test("Beta entitlement activity accepts lifetime and future grants", () => {
-  assert(
-    isEntitlementActive(
-      { subscriber: { entitlements: { pro: { expires_date: null } } } },
-      "pro",
-    ),
-  );
-  assert(
-    !isEntitlementActive(
-      {
-        request_date_ms: Date.parse("2026-08-09T00:00:00Z"),
-        subscriber: {
-          entitlements: {
-            pro: { expires_date: "2026-08-08T00:00:00Z" },
-          },
-        },
-      },
-      "pro",
-    ),
-  );
-});
-
-Deno.test("Beta grant failures remain per-customer and secret-free", async () => {
-  const failingFetch: typeof fetch = () =>
-    Promise.resolve(new Response(null, { status: 403 }));
-  const results = await applyBetaEntitlementGrants({
-    candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
-    entitlementID: "pro",
-    expiresAt: "2026-12-01T00:00:00.000Z",
-    apiKey: "server-side-fixture-key",
-    concurrency: 1,
-    fetcher: failingFetch,
-  });
-  assertEquals(results, [{
-    app_user_id: USER_ONE.toUpperCase(),
-    status: "failed",
-    error_code: "http_403",
-  }]);
-});
-
-Deno.test("Beta grant bounds retryable RevenueCat failures", async () => {
-  let requestCount = 0;
-  const retryableFetch: typeof fetch = () => {
-    requestCount += 1;
-    return Promise.resolve(new Response(null, { status: 503 }));
-  };
-  const results = await applyBetaEntitlementGrants({
-    candidates: [{ app_user_id: USER_ONE.toUpperCase() }],
-    entitlementID: "pro",
-    expiresAt: "2026-12-01T00:00:00.000Z",
-    apiKey: "server-side-fixture-key",
-    concurrency: 1,
-    fetcher: retryableFetch,
-  });
-
-  assertEquals(requestCount, 3);
-  assertEquals(results[0].error_code, "http_503");
 });
 
 function cleanupCandidate(

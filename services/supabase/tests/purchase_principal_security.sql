@@ -41,8 +41,112 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'purchase identity resolver has an unsafe ACL';
   END IF;
+
+  IF has_table_privilege(
+    'service_role',
+    'internal.purchase_identity_rollout_operations',
+    'SELECT'
+  ) OR has_table_privilege(
+    'authenticated',
+    'internal.purchase_identity_rollout_operations',
+    'SELECT'
+  ) OR has_function_privilege(
+    'service_role',
+    'internal.apply_purchase_identity_rollout_operation(uuid,integer,text,text,text,text,text,text,text,text,text,text,integer,integer,uuid)',
+    'EXECUTE'
+  ) OR has_function_privilege(
+    'authenticated',
+    'internal.apply_purchase_identity_rollout_operation(uuid,integer,text,text,text,text,text,text,text,text,text,text,integer,integer,uuid)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'purchase identity rollout control is not owner-only';
+  END IF;
+
+  IF has_table_privilege(
+    'service_role',
+    'internal.account_access_grant_operations',
+    'SELECT'
+  ) OR has_table_privilege(
+    'authenticated',
+    'internal.account_access_grant_operations',
+    'INSERT'
+  ) OR has_table_privilege(
+    'anon',
+    'internal.account_access_grant_operations',
+    'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'account grant operation receipts are directly exposed';
+  END IF;
 END;
 $acl$;
+
+INSERT INTO internal.account_access_grant_operations (
+  id,
+  schema_version,
+  target_environment,
+  project_ref,
+  database_system_identifier,
+  source_sha,
+  approval_sha256,
+  plan_sha256,
+  candidate_set_sha256,
+  candidate_count,
+  grant_kind,
+  expires_at,
+  principal_mode,
+  account_grant_mode
+) VALUES (
+  '21000000-0000-4000-8000-0000000000aa',
+  1,
+  'production',
+  'qlarqavoqhkuwzmevrmf',
+  '1234567890123456789',
+  REPEAT('a', 40),
+  REPEAT('b', 64),
+  REPEAT('c', 64),
+  REPEAT('d', 64),
+  1,
+  'beta',
+  pg_catalog.NOW() + INTERVAL '30 days',
+  'legacy',
+  'dual_read'
+);
+
+DO $immutable_account_grant_operation_receipt$
+BEGIN
+  BEGIN
+    UPDATE internal.account_access_grant_operations
+    SET candidate_count = 2
+    WHERE id = '21000000-0000-4000-8000-0000000000aa';
+    RAISE EXCEPTION 'account grant operation receipt update was accepted';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      IF SQLERRM <> 'account_access_grant_operation_immutable' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
+    DELETE FROM internal.account_access_grant_operations
+    WHERE id = '21000000-0000-4000-8000-0000000000aa';
+    RAISE EXCEPTION 'account grant operation receipt deletion was accepted';
+  EXCEPTION
+    WHEN SQLSTATE '55000' THEN
+      IF SQLERRM <> 'account_access_grant_operation_immutable' THEN
+        RAISE;
+      END IF;
+  END;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM internal.account_access_grant_operations AS operation
+    WHERE operation.id = '21000000-0000-4000-8000-0000000000aa'
+      AND operation.candidate_count = 1
+  ) THEN
+    RAISE EXCEPTION 'account grant operation receipt was not retained';
+  END IF;
+END;
+$immutable_account_grant_operation_receipt$;
 
 INSERT INTO auth.users (
   instance_id,

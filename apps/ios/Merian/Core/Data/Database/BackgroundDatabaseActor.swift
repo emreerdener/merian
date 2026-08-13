@@ -501,6 +501,200 @@ actor BackgroundDatabaseActor {
 
     // MARK: - State Transitions
 
+    /// Persists the exact Auth/generation owner before a background URLSession
+    /// task is resumed. Task descriptions are transport evidence; this job-row
+    /// record is the durable local mutation fence after relaunch.
+    func activateBackgroundAccountWork(
+        scanId: String,
+        ownership: BackgroundAccountWorkOwnership
+    ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        guard !Task.isCancelled else {
+            await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+            return false
+        }
+        let didActivate = activateBackgroundAccountWorkLocked(
+            scanId: scanId,
+            ownership: ownership
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return didActivate
+    }
+
+    private func activateBackgroundAccountWorkLocked(
+        scanId: String,
+        ownership: BackgroundAccountWorkOwnership
+    ) -> Bool {
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(scanDescriptor).first else {
+            return false
+        }
+        let expectedState = ownership.phase == .upload
+            ? ScanQueueState.uploading.rawValue
+            : ScanQueueState.inferencing.rawValue
+        guard scan.scanStateRaw == expectedState else { return false }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId) ?? {
+            let created = OfflineJobRecord(
+                id: jobId,
+                kind: .scanIngestion,
+                subjectId: scanId,
+                status: .running
+            )
+            modelContext.insert(created)
+            return created
+        }()
+        if ownership.phase == .inference,
+           let durableGeneration = InferenceGenerationMetadataContract
+            .generation(in: job.metadataJSON),
+           durableGeneration != ownership.generation {
+            return false
+        }
+
+        job.metadataJSON = OfflineScanJobMetadataContract
+            .settingBackgroundAccountWork(
+                ownership,
+                in: job.metadataJSON
+            )
+        job.updatedAt = Date()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "activateBackgroundAccountWork: persistence failed."
+            )
+            return false
+        }
+    }
+
+    func backgroundAccountWorkIsCurrent(
+        scanId: String,
+        ownership: BackgroundAccountWorkOwnership
+    ) -> Bool {
+        var scanDescriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        scanDescriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(scanDescriptor).first,
+              let job = fetchOfflineJob(
+                  id: OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+              ),
+              OfflineScanJobMetadataContract.backgroundAccountWork(
+                  in: job.metadataJSON
+              ) == ownership else {
+            return false
+        }
+        switch ownership.phase {
+        case .upload:
+            return scan.scanStateRaw == ScanQueueState.uploading.rawValue
+        case .inference:
+            return scan.scanStateRaw == ScanQueueState.inferencing.rawValue
+                && InferenceGenerationMetadataContract.matches(
+                    ownership.generation,
+                    in: job.metadataJSON
+                )
+        }
+    }
+
+    /// Retires account-bound transport work before its URLSession task is
+    /// cancelled. The pending state and cleared staging manifest are committed
+    /// first, so a delayed cancellation callback cannot strand `.uploading` or
+    /// persist source-account media after Auth changes.
+    func retireBackgroundAccountWork(
+        scanId: String,
+        expectedOwnerUserID: UUID?,
+        expectedGeneration: UUID?,
+        phase: BackgroundAccountWorkPhase
+    ) async -> Bool {
+        await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
+        let didRetire = retireBackgroundAccountWorkLocked(
+            scanId: scanId,
+            expectedOwnerUserID: expectedOwnerUserID,
+            expectedGeneration: expectedGeneration,
+            phase: phase
+        )
+        await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+        return didRetire
+    }
+
+    private func retireBackgroundAccountWorkLocked(
+        scanId: String,
+        expectedOwnerUserID: UUID?,
+        expectedGeneration: UUID?,
+        phase: BackgroundAccountWorkPhase
+    ) -> Bool {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let scans: [OfflineQueuedScan]
+        do {
+            scans = try modelContext.fetch(descriptor)
+        } catch {
+            MerianLog.data.error(
+                "retireBackgroundAccountWork: fetch failed."
+            )
+            return false
+        }
+        guard let scan = scans.first else {
+            return true
+        }
+        let expectedState = phase == .upload
+            ? ScanQueueState.uploading.rawValue
+            : ScanQueueState.inferencing.rawValue
+        guard scan.scanStateRaw == expectedState else { return true }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId)
+        if let durable = OfflineScanJobMetadataContract.backgroundAccountWork(
+            in: job?.metadataJSON
+        ) {
+            guard durable.phase == phase,
+                  expectedOwnerUserID.map({ $0 == durable.ownerUserID }) ?? true,
+                  expectedGeneration.map({ $0 == durable.generation }) ?? true
+            else {
+                // The task being retired is stale relative to a newer durable
+                // owner. Cancelling that transport is safe, but it must not
+                // mutate the newer queue operation.
+                return true
+            }
+        }
+
+        let now = Date()
+        scan.scanStateRaw = ScanQueueState.pending.rawValue
+        scan.stagedR2Keys = nil
+        scan.queueNextRetryAt = nil
+        scan.queueNeedsAttention = false
+        scan.queueUpdatedAt = now
+        if let job {
+            job.status = .pending
+            job.updatedAt = now
+            job.nextRunAt = nil
+        }
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .retryScheduled,
+            message: "Retired account-bound background work before an authentication transition."
+        ))
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "retireBackgroundAccountWork: persistence failed."
+            )
+            return false
+        }
+    }
+
     /// Atomically transitions a scan from `.staged` to `.inferencing`.
     ///
     /// Returns `true` if the claim succeeded (the scan was runnable in `.staged`
@@ -2214,7 +2408,13 @@ actor BackgroundDatabaseActor {
     // MARK: - Wikipedia Enrichment
 
     /// Retroactively hydrates a scan record with Wikipedia data post-inference.
-    func updateScanWithWikipedia(scanId: String, extract: String?, url: String?, imageUrl: String?) {
+    func updateScanWithWikipedia(
+        scanId: String,
+        extract: String?,
+        url: String?,
+        imageUrl: String?,
+        expectedScientificName: String? = nil
+    ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         let record: LocalScanRecord?
@@ -2224,7 +2424,13 @@ actor BackgroundDatabaseActor {
             MerianLog.data.debug("updateScanWithWikipedia: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             return
         }
-        guard let record else { return }
+        guard let record,
+              expectedScientificName.map({
+                  record.scientificName.caseInsensitiveCompare($0)
+                      == .orderedSame
+              }) ?? true else {
+            return
+        }
 
         if let extract { record.wikipediaOverview = extract }
         if let url { record.wikipediaUrl = url }
@@ -2245,10 +2451,20 @@ actor BackgroundDatabaseActor {
 
     /// Fetches a single `LocalScanRecord` by ID, applies `mutation`, and saves.
     /// All point-update methods below delegate here to keep fetch-mutate-save DRY.
-    private func mutateScan(id: String, mutation: (LocalScanRecord) -> Void) {
+    private func mutateScan(
+        id: String,
+        expectedScientificName: String? = nil,
+        mutation: (LocalScanRecord) -> Void
+    ) {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
-        guard let record = try? modelContext.fetch(descriptor).first else { return }
+        guard let record = try? modelContext.fetch(descriptor).first,
+              expectedScientificName.map({
+                  record.scientificName.caseInsensitiveCompare($0)
+                      == .orderedSame
+              }) ?? true else {
+            return
+        }
         mutation(record)
         do { try modelContext.save() } catch {
             modelContext.rollback()
@@ -2266,9 +2482,13 @@ actor BackgroundDatabaseActor {
         gbifTaxonKey: Int?,
         similarSpeciesJsonData: Data?,
         taxonomy: EdgeResponse.Taxonomy?,
-        alternativeCommonNames: [String]? = nil
+        alternativeCommonNames: [String]? = nil,
+        expectedScientificName: String? = nil
     ) {
-        mutateScan(id: scanId) { record in
+        mutateScan(
+            id: scanId,
+            expectedScientificName: expectedScientificName
+        ) { record in
             if let habitat = habitatDescription { record.habitatDescription = habitat }
             if let key = gbifTaxonKey { record.gbifTaxonKey = key }
             if let jsonData = similarSpeciesJsonData { record.lookalikesData = jsonData }
@@ -2448,13 +2668,42 @@ actor BackgroundDatabaseActor {
     }
 
     func pushCollectionsToEdge() async -> Bool {
+        let supabaseManager = await SupabaseManager.shared
+        guard let accountWorkLease = try? await supabaseManager
+            .beginUnownedAccountBoundWork() else {
+            return false
+        }
+        let result = await pushCollectionsToEdge(
+            accountWorkAllowed: {
+                await supabaseManager.isAccountBoundWorkLeaseCurrent(
+                    accountWorkLease
+                )
+            },
+            invoke: { payload in
+                try await supabaseManager.client.functions.invoke(
+                    "sync-collections",
+                    options: .init(body: payload)
+                )
+            }
+        )
+        await supabaseManager.finishAccountBoundWork(accountWorkLease)
+        return result
+    }
+
+    /// Dependency-injected seam keeps the background mutation fenced by the
+    /// same Auth-transition policy before dispatch and before local commit.
+    /// A transition that starts while the HTTP request is in flight waits for
+    /// this task, while this method retains tombstones for an exact retry.
+    func pushCollectionsToEdge(
+        accountWorkAllowed: @escaping @Sendable () async -> Bool,
+        invoke: @escaping @Sendable (SyncRequestPayload) async throws -> Void
+    ) async -> Bool {
+        guard await accountWorkAllowed() else { return false }
         guard let payloadList = collectionSyncPayloads() else { return false }
 
         do {
-            try await SupabaseManager.shared.client.functions.invoke(
-                "sync-collections",
-                options: .init(body: SyncRequestPayload(collections: payloadList))
-            )
+            try await invoke(SyncRequestPayload(collections: payloadList))
+            guard await accountWorkAllowed() else { return false }
             
             // Cloud sync confirmed — purge soft-deleted tombstones so they cannot resurface on reinstall.
             let tombstoneIDs = payloadList.filter { $0.is_deleted }.map(\.id)

@@ -1,5 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { jsonResponse, logStructuredError } from "../_shared/edgeHandler.ts";
+import { jsonResponse, logIdentitySafeError } from "../_shared/edgeHandler.ts";
 import { publicErrorResponse } from "../_shared/http.ts";
 import { readRequestJsonWithinBudget } from "../_shared/mediaBudgets.ts";
 import { canonicalRevenueCatAppUserID } from "../_shared/revenuecatIdentity.ts";
@@ -84,9 +84,10 @@ export async function handleSignoutPurchaseHandoff(
     request.operation !== "bind" && request.operation !== "cancel" &&
     !apiKey.startsWith("sk_")
   ) {
-    logStructuredError("signout_purchase_handoff_configuration_invalid", {
+    logIdentitySafeError("signout_purchase_handoff_configuration_invalid", {
       operation: request.operation,
-      reason: apiKey.length === 0 ? "secret_missing" : "secret_invalid",
+      stage: "configuration",
+      code: apiKey.length === 0 ? "secret_missing" : "secret_invalid",
     });
     return publicErrorResponse(
       req,
@@ -204,7 +205,7 @@ export async function handleSignoutPurchaseHandoff(
           return jsonResponse(
             {
               code: "anonymous_session_required",
-              error: "An anonymous session is required after sign-out.",
+              error: "A signed-out session is required after sign-out.",
             },
             403,
           );
@@ -218,7 +219,7 @@ export async function handleSignoutPurchaseHandoff(
           throw new SignoutPurchaseHandoffDatabaseError(
             "handoff_identity_changed",
             503,
-            "The anonymous account changed during purchase continuity.",
+            "The signed-out session changed during purchase continuity.",
           );
         }
         return jsonResponse(
@@ -264,7 +265,7 @@ export async function handleSignoutPurchaseHandoff(
           return jsonResponse(
             {
               code: "anonymous_session_required",
-              error: "An anonymous session is required after sign-out.",
+              error: "A signed-out session is required after sign-out.",
             },
             403,
           );
@@ -280,7 +281,7 @@ export async function handleSignoutPurchaseHandoff(
           throw new SignoutPurchaseHandoffDatabaseError(
             "handoff_identity_changed",
             503,
-            "The anonymous account changed during purchase continuity.",
+            "The signed-out session changed during purchase continuity.",
           );
         }
 
@@ -415,10 +416,12 @@ export async function handleSignoutPurchaseHandoff(
               supabaseAdmin,
             );
           } catch (failureWriteError) {
-            logStructuredError(
+            logIdentitySafeError(
               "signout_purchase_handoff_failure_persistence_failed",
               {
-                failureName: safeErrorName(failureWriteError),
+                operation: request.operation,
+                stage: "persist_failure",
+                code: safeErrorName(failureWriteError),
               },
             );
           }
@@ -438,8 +441,9 @@ export async function handleSignoutPurchaseHandoff(
     }
   } catch (error) {
     if (error instanceof SignoutPurchaseHandoffDatabaseError) {
-      logStructuredError("signout_purchase_handoff_rejected", {
+      logIdentitySafeError("signout_purchase_handoff_rejected", {
         operation: request.operation,
+        stage: "database",
         code: error.code,
         status: error.status,
       });
@@ -451,9 +455,10 @@ export async function handleSignoutPurchaseHandoff(
       );
     }
 
-    logStructuredError("signout_purchase_handoff_failed", {
+    logIdentitySafeError("signout_purchase_handoff_failed", {
       operation: request.operation,
-      failureName: safeErrorName(error),
+      stage: "processing",
+      code: safeErrorName(error),
     });
     return publicErrorResponse(
       req,

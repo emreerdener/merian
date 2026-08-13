@@ -1,23 +1,30 @@
 import { assertEquals } from "@std/assert";
-import { parseResolvePurchasePrincipalRequest, sha256Hex } from "./protocol.ts";
+import {
+  parseResolvePurchasePrincipalRequest,
+  PURCHASE_PRINCIPAL_CLIENT_PROTOCOL,
+  sha256Hex,
+} from "./protocol.ts";
 
 const CAPABILITY = "A".repeat(43);
 
-Deno.test("purchase principal protocol accepts only its exact v1 body", () => {
-  assertEquals(
-    parseResolvePurchasePrincipalRequest({
-      operation: "resolve",
-      installation_capability: CAPABILITY,
-      client_protocol: 1,
-      binding_intent_generation: 7,
-    }),
-    {
-      operation: "resolve",
-      installationCapability: CAPABILITY,
-      clientProtocol: 1,
-      bindingIntentGeneration: 7,
-    },
-  );
+Deno.test("purchase principal protocol accepts v1 compatibility and exact v2 candidate bodies", () => {
+  assertEquals(PURCHASE_PRINCIPAL_CLIENT_PROTOCOL, 2);
+  for (const clientProtocol of [1, PURCHASE_PRINCIPAL_CLIENT_PROTOCOL]) {
+    assertEquals(
+      parseResolvePurchasePrincipalRequest({
+        operation: "resolve",
+        installation_capability: CAPABILITY,
+        client_protocol: clientProtocol,
+        binding_intent_generation: 7,
+      }),
+      {
+        operation: "resolve",
+        installationCapability: CAPABILITY,
+        clientProtocol,
+        bindingIntentGeneration: 7,
+      },
+    );
+  }
 
   for (
     const body of [

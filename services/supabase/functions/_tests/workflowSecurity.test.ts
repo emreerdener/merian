@@ -472,6 +472,29 @@ Deno.test("production smoke proves critical user Edge routes reach Merian handle
   }
 });
 
+Deno.test("production smoke authenticates the deletion reaper without mutating work", async () => {
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+
+  for (
+    const fragment of [
+      '"/functions/v1/reconcile-account-deletions"',
+      "'{\"dry_run\":true}'",
+      '(keys | sort) == ["dry_run", "success"]',
+      ".success == true",
+      ".dry_run == true",
+    ]
+  ) {
+    assertStringIncludes(deployWorkflow, fragment);
+  }
+  assert(
+    deployWorkflow.indexOf("probe_all_function_routes") <
+      deployWorkflow.indexOf('account_deletion_reaper_validation="$('),
+    "The authenticated non-mutating reaper probe must run after every route reaches a Merian handler.",
+  );
+});
+
 Deno.test("production smoke proves every Edge route reaches a Merian handler", async () => {
   const deployWorkflow = await Deno.readTextFile(
     new URL("deploy.yml", workflowsDirectory),
@@ -630,4 +653,66 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   assertStringIncludes(importWorkflow, "needs: import");
   assertStringIncludes(importWorkflow, 'gh run download "$GITHUB_RUN_ID"');
   assertStringIncludes(importWorkflow, "gh auth setup-git");
+});
+
+Deno.test("production RevenueCat monitoring requires purchase-principal health", async () => {
+  const monitor = await Deno.readTextFile(
+    new URL("revenuecat-reconciliation-health-monitor.yml", workflowsDirectory),
+  );
+
+  assertStringIncludes(
+    monitor,
+    "--purchase-principal-health-mode required",
+  );
+  assert(
+    !monitor.includes("--purchase-principal-health-mode expand-compatible"),
+    "The production schedule must not soft-pass a missing principal-health RPC.",
+  );
+});
+
+Deno.test("candidate and deploy workflows never mutate purchase identity rollout modes", async () => {
+  for (
+    const filename of [
+      "supabase-candidate-validation.yml",
+      "deploy.yml",
+    ]
+  ) {
+    const workflow = (await Deno.readTextFile(
+      new URL(filename, workflowsDirectory),
+    )).toLowerCase();
+
+    for (
+      const forbidden of [
+        "apply_purchase_identity_rollout_operation",
+        "control_purchase_identity_rollout.ts --apply",
+        "update internal.purchase_identity_rollout_config",
+      ]
+    ) {
+      assert(
+        !workflow.includes(forbidden),
+        `${filename} must not contain rollout mutation ${forbidden}.`,
+      );
+    }
+  }
+});
+
+Deno.test("complete release gates execute the purchase identity rollout tool tests", async () => {
+  const denoConfig = JSON.parse(
+    await Deno.readTextFile(functionsDenoConfig),
+  ) as { tasks?: Record<string, string> };
+  const completeTestTask = denoConfig.tasks?.test ?? "";
+
+  assertStringIncludes(
+    completeTestTask,
+    "../scripts/control_purchase_identity_rollout_test.ts",
+  );
+  for (const filename of ["supabase-candidate-validation.yml", "deploy.yml"]) {
+    const workflow = await Deno.readTextFile(
+      new URL(filename, workflowsDirectory),
+    );
+    assertStringIncludes(
+      workflow,
+      "deno task --config supabase/functions/deno.json test",
+    );
+  }
 });
