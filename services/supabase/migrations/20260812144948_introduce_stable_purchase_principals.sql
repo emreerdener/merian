@@ -629,6 +629,7 @@ DECLARE
     latest_expiry TIMESTAMPTZ;
     resolved_tier public.subscription_tier_enum;
     resolved_expiry TIMESTAMPTZ;
+    projection_now TIMESTAMPTZ;
 BEGIN
     IF p_user_id IS NULL THEN
         RETURN;
@@ -641,6 +642,10 @@ BEGIN
     IF NOT FOUND THEN
         RETURN;
     END IF;
+    -- Grant starts use CLOCK_TIMESTAMP(). Sample the same clock only after the
+    -- projection row lock so a new grant is immediately active and a lock wait
+    -- cannot preserve access past its real expiry.
+    projection_now := pg_catalog.CLOCK_TIMESTAMP();
 
     SELECT
         pg_catalog.BOOL_OR(access.expires_at IS NULL),
@@ -653,7 +658,7 @@ BEGIN
           AND legacy.target_tier = 'pro'::public.subscription_tier_enum
           AND (
               legacy.target_expires_at IS NULL
-              OR legacy.target_expires_at > pg_catalog.NOW()
+              OR legacy.target_expires_at > projection_now
           )
         UNION ALL
         SELECT state.target_expires_at AS expires_at
@@ -664,18 +669,18 @@ BEGIN
           AND state.target_tier = 'pro'::public.subscription_tier_enum
           AND (
               state.target_expires_at IS NULL
-              OR state.target_expires_at > pg_catalog.NOW()
+              OR state.target_expires_at > projection_now
           )
         UNION ALL
         SELECT grant_row.expires_at
         FROM internal.account_access_grants AS grant_row
         WHERE grant_row.account_user_id = p_user_id
           AND grant_row.grant_tier = 'pro'::public.subscription_tier_enum
-          AND grant_row.starts_at <= pg_catalog.NOW()
+          AND grant_row.starts_at <= projection_now
           AND grant_row.revoked_at IS NULL
           AND (
               grant_row.expires_at IS NULL
-              OR grant_row.expires_at > pg_catalog.NOW()
+              OR grant_row.expires_at > projection_now
           )
     ) AS access;
 

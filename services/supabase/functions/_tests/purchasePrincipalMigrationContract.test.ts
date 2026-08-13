@@ -187,6 +187,14 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
 
 Deno.test("StoreKit state and account-issued access remain separate", async () => {
   const sql = compact(await Deno.readTextFile(migrationUrl));
+  const recomputeStart = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION internal.recompute_purchase_principal_entitlement",
+  );
+  const recomputeEnd = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.refresh_expired_entitlement_projection",
+    recomputeStart,
+  );
+  const recompute = sql.slice(recomputeStart, recomputeEnd);
 
   for (
     const fragment of [
@@ -194,6 +202,9 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
       "provider_account_grant_frozen BOOLEAN NOT NULL DEFAULT FALSE",
       "allow_non_subscription_pass_grant BOOLEAN NOT NULL DEFAULT FALSE",
       "CREATE TABLE internal.account_access_grants",
+      "projection_now := pg_catalog.CLOCK_TIMESTAMP()",
+      "grant_row.starts_at <= projection_now",
+      "grant_row.expires_at > projection_now",
       "CREATE INDEX account_access_grants_account_user_idx ON internal.account_access_grants (account_user_id)",
       "grant_kind IN ('beta', 'promotion', 'support')",
       "source_kind IN ('revenuecat_legacy', 'operator', 'migration')",
@@ -220,6 +231,15 @@ Deno.test("StoreKit state and account-issued access remain separate", async () =
   ) {
     assertStringIncludes(sql, fragment);
   }
+  assert(
+    recomputeStart >= 0 &&
+      recomputeEnd > recomputeStart &&
+      recompute.indexOf("FOR UPDATE") >= 0 &&
+      recompute.indexOf("projection_now := pg_catalog.CLOCK_TIMESTAMP()") >
+        recompute.indexOf("FOR UPDATE") &&
+      !recompute.includes("pg_catalog.NOW()"),
+    "entitlement recomputation must evaluate CLOCK_TIMESTAMP-stamped grants against one current wall-clock instant",
+  );
 
   assert(
     !sql.includes(
