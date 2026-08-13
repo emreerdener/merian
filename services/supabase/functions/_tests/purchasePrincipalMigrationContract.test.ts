@@ -514,6 +514,25 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
     );
   }
 
+  const deletionSubjectStart = fixture.indexOf(
+    "INSERT INTO internal.purchase_principal_webhook_event_subjects",
+  );
+  const deletionSubjectEnd = fixture.indexOf(
+    "INSERT INTO internal.purchase_principals",
+    deletionSubjectStart,
+  );
+  const deletionSubject = fixture.slice(
+    deletionSubjectStart,
+    deletionSubjectEnd,
+  );
+  assert(
+    deletionSubjectStart >= 0 &&
+      deletionSubjectEnd > deletionSubjectStart &&
+      deletionSubject.includes("account_grant_update_applied") &&
+      deletionSubject.includes("NULL, FALSE, 'applied'"),
+    "the deletion-scrub subject fixture must explicitly record that it did not update an account grant",
+  );
+
   const passRefundStart = fixture.indexOf(
     "'purchase-principal-pass-refund-test'",
   );

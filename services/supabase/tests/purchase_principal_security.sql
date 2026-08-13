@@ -1169,6 +1169,7 @@ INSERT INTO internal.purchase_principal_webhook_event_subjects (
   target_store_expires_at,
   target_account_grant_tier,
   target_account_grant_expires_at,
+  account_grant_update_applied,
   outcome,
   projected_auth_user_id
 )
@@ -1181,6 +1182,7 @@ VALUES (
   NULL,
   'free',
   NULL,
+  FALSE,
   'applied',
   '21000000-0000-4000-8000-000000000002'
 );
