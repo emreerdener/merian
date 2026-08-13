@@ -1277,7 +1277,7 @@ RESET ROLE;
 CREATE TEMP TABLE stale_principal_reconciliation_snapshot ON COMMIT DROP AS
 SELECT
   (
-    SELECT pg_catalog.COALESCE(
+    SELECT COALESCE(
       pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(state)),
       '[]'::JSONB
     )
@@ -1285,7 +1285,7 @@ SELECT
     WHERE state.purchase_principal_id = fixture.purchase_principal_id
   ) AS store_state,
   (
-    SELECT pg_catalog.COALESCE(
+    SELECT COALESCE(
       pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(queue)),
       '[]'::JSONB
     )
@@ -1338,7 +1338,7 @@ DECLARE
   queue_state_after JSONB;
   event_count_after BIGINT;
 BEGIN
-  SELECT pg_catalog.COALESCE(
+  SELECT COALESCE(
     pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(state)),
     '[]'::JSONB
   )
@@ -1346,7 +1346,7 @@ BEGIN
   FROM internal.purchase_principal_store_state AS state
   WHERE state.purchase_principal_id = principal_id;
 
-  SELECT pg_catalog.COALESCE(
+  SELECT COALESCE(
     pg_catalog.JSONB_AGG(pg_catalog.TO_JSONB(queue)),
     '[]'::JSONB
   )

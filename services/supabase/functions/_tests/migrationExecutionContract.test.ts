@@ -1,6 +1,7 @@
 import { assert } from "@std/assert";
 
 const migrationsDirectoryUrl = new URL("../../migrations/", import.meta.url);
+const catalogTestsDirectoryUrl = new URL("../../tests/", import.meta.url);
 
 interface SqlLexicalView {
   executableSql: string;
@@ -218,6 +219,18 @@ async function migrationFileNames(): Promise<string[]> {
   return names.sort();
 }
 
+async function catalogTestFileNames(): Promise<string[]> {
+  const names: string[] = [];
+
+  for await (const entry of Deno.readDir(catalogTestsDirectoryUrl)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) {
+      names.push(entry.name);
+    }
+  }
+
+  return names.sort();
+}
+
 Deno.test("concurrent index detector ignores comments and catches DDL", () => {
   assert(
     !usesPipelineIncompatibleConcurrentIndexDdl(
@@ -362,6 +375,28 @@ Deno.test(
       violations.length === 0,
       "COALESCE, GREATEST, and LEAST are PostgreSQL conditional expressions, " +
         "not schema-qualifiable functions: " + violations.join(", "),
+    );
+  },
+);
+
+Deno.test(
+  "conditional expressions remain unqualified in Supabase catalog fixtures",
+  async () => {
+    const violations: string[] = [];
+    for (const fileName of await catalogTestFileNames()) {
+      const sql = await Deno.readTextFile(
+        new URL(fileName, catalogTestsDirectoryUrl),
+      );
+      if (usesSchemaQualifiedConditionalExpression(sql)) {
+        violations.push(fileName);
+      }
+    }
+
+    assert(
+      violations.length === 0,
+      "COALESCE, GREATEST, and LEAST are PostgreSQL conditional expressions, " +
+        "not schema-qualifiable functions in catalog fixtures: " +
+        violations.join(", "),
     );
   },
 );
