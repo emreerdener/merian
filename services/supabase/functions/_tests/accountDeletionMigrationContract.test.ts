@@ -44,10 +44,48 @@ const expiredPreparationRepairMigrationUrl = new URL(
   "../../migrations/20260813162506_reject_expired_account_deletion_preparation_promotion.sql",
   import.meta.url,
 );
+const accountDeletionSecurityFixtureUrl = new URL(
+  "../../tests/account_deletion_security.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
 }
+
+Deno.test("account deletion fixture preserves private-table ACLs while exercising expired preparations", async () => {
+  const fixtureSource = await Deno.readTextFile(
+    accountDeletionSecurityFixtureUrl,
+  );
+  const serviceRoleBlocks = [...fixtureSource.matchAll(
+    /SET LOCAL ROLE service_role;([\s\S]*?)RESET ROLE;/gi,
+  )];
+
+  assert(
+    serviceRoleBlocks.length > 0,
+    "service-role account-deletion fixture coverage is missing",
+  );
+  for (const match of serviceRoleBlocks) {
+    assert(
+      !/\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+(?:internal|auth)\.[a-z_]+\b(?!\s*\()/i
+        .test(match[1]),
+      "service_role account-deletion fixture phases must exercise guarded RPCs, not private tables",
+    );
+  }
+
+  assertStringIncludes(
+    normalized(fixtureSource),
+    "SET prepared_at = pg_catalog.NOW() - INTERVAL '2 seconds', expires_at = pg_catalog.NOW() - INTERVAL '1 second'",
+  );
+  const ownerInspectionComment =
+    "-- Runtime callers reach only service-only RPCs. Inspect private post-state as";
+  const ownerInspectionIndex = fixtureSource.indexOf(ownerInspectionComment);
+  assert(
+    ownerInspectionIndex >= 0 &&
+      fixtureSource.lastIndexOf("RESET ROLE;", ownerInspectionIndex) >= 0,
+    "private post-state inspection must begin only after restoring the fixture owner",
+  );
+});
 
 Deno.test("account deletion migration persists and fences every destructive phase", async () => {
   const sql = normalized(await Deno.readTextFile(migrationUrl));

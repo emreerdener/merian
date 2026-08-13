@@ -742,6 +742,7 @@ DECLARE
     prepared BOOLEAN;
     preparation_expiry TIMESTAMPTZ;
     deletion_job_id UUID;
+    cross_device_job_id UUID;
     replayed_job_id UUID;
     recovered_status TEXT;
     recovery_acknowledged BOOLEAN;
@@ -756,23 +757,7 @@ BEGIN
     FROM public.recover_account_deletion_v2(
         pg_catalog.REPEAT('9', 64)
     ) AS recovery;
-    IF recovered_status <> 'not_committed'
-       OR EXISTS (
-            SELECT 1
-            FROM internal.account_deletion_recovery_preparations AS preparation
-            WHERE preparation.user_id =
-                '00000000-0000-0000-0000-00000000d207'::UUID
-       ) OR EXISTS (
-            SELECT 1
-            FROM internal.account_deletion_recovery_capabilities AS capability
-            WHERE capability.secret_hash = pg_catalog.REPEAT('9', 64)
-       ) OR NOT EXISTS (
-            SELECT 1
-            FROM internal.account_deletion_expired_preparation_proofs AS expired
-            WHERE expired.proof_hash = pg_catalog.REPEAT('9', 64)
-              AND expired.proof_kind = 'recovery'
-              AND NOT expired.deletion_committed
-       ) THEN
+    IF recovered_status <> 'not_committed' THEN
         RAISE EXCEPTION
             'Public recovery promoted or retained an expired preparation';
     END IF;
@@ -806,13 +791,7 @@ BEGIN
     ) AS preparation;
 
     IF NOT prepared
-       OR preparation_expiry <= pg_catalog.NOW()
-       OR EXISTS (
-            SELECT 1
-            FROM internal.account_deletion_jobs AS jobs
-            WHERE jobs.user_id =
-                '00000000-0000-0000-0000-00000000d203'::UUID
-       ) THEN
+       OR preparation_expiry <= pg_catalog.NOW() THEN
         RAISE EXCEPTION
             'Protocol-v2 preparation created destructive state';
     END IF;
@@ -823,18 +802,7 @@ BEGIN
         pg_catalog.REPEAT('c', 64)
     ) AS recovery;
 
-    IF recovered_status <> 'not_committed'
-       OR EXISTS (
-            SELECT 1
-            FROM internal.account_deletion_recovery_preparations AS preparation
-            WHERE preparation.recovery_secret_hash =
-                pg_catalog.REPEAT('c', 64)
-       ) OR NOT EXISTS (
-            SELECT 1
-            FROM auth.users AS auth_user
-            WHERE auth_user.id =
-                '00000000-0000-0000-0000-00000000d203'::UUID
-       ) THEN
+    IF recovered_status <> 'not_committed' THEN
         RAISE EXCEPTION
             'Prepared recovery did not cancel without deleting the account';
     END IF;
@@ -861,21 +829,6 @@ BEGIN
         '00000000-0000-0000-0000-00000000d204'::UUID
     ) AS deletion;
 
-    IF EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_recovery_preparations AS preparation
-        WHERE preparation.user_id =
-            '00000000-0000-0000-0000-00000000d204'::UUID
-    ) OR (
-        SELECT pg_catalog.COUNT(*)
-        FROM internal.account_deletion_recovery_capabilities AS capability
-        WHERE capability.job_id = deletion_job_id
-          AND capability.protocol_version = 2
-    ) <> 2 THEN
-        RAISE EXCEPTION
-            'Deletion commit did not materialize every device receipt';
-    END IF;
-
     SELECT recovery.deletion_status
     INTO STRICT recovered_status
     FROM public.recover_account_deletion_v2(
@@ -889,32 +842,13 @@ BEGIN
     -- A cross-device deletion must prune the expired preparation before it
     -- converts the still-live preparation into a durable 180-day receipt.
     SELECT deletion.job_id
-    INTO STRICT deletion_job_id
+    INTO STRICT cross_device_job_id
     FROM public.request_account_deletion(
         '00000000-0000-0000-0000-00000000d206'::UUID
     ) AS deletion;
-
-    IF EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_recovery_preparations AS preparation
-        WHERE preparation.user_id =
-            '00000000-0000-0000-0000-00000000d206'::UUID
-    ) OR EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_recovery_capabilities AS capability
-        WHERE capability.job_id = deletion_job_id
-          AND capability.secret_hash = pg_catalog.REPEAT('5', 64)
-    ) OR NOT EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_recovery_capabilities AS capability
-        WHERE capability.job_id = deletion_job_id
-          AND capability.protocol_version = 2
-          AND capability.secret_hash = pg_catalog.REPEAT('7', 64)
-          AND capability.acknowledgement_secret_hash =
-              pg_catalog.REPEAT('8', 64)
-    ) THEN
+    IF cross_device_job_id IS NULL THEN
         RAISE EXCEPTION
-            'Cross-device deletion promoted an expired preparation or lost the live proof';
+            'Cross-device deletion did not return a durable job identifier';
     END IF;
 
     SELECT recovery.deletion_status
@@ -923,19 +857,7 @@ BEGIN
         pg_catalog.REPEAT('5', 64)
     ) AS recovery;
     expired_proof_rejected := recovered_status = 'preparation_expired';
-    IF NOT expired_proof_rejected OR NOT EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_expired_preparation_proofs AS expired
-        WHERE expired.proof_hash = pg_catalog.REPEAT('5', 64)
-          AND expired.proof_kind = 'recovery'
-          AND expired.deletion_committed
-    ) OR NOT EXISTS (
-        SELECT 1
-        FROM internal.account_deletion_expired_preparation_proofs AS expired
-        WHERE expired.proof_hash = pg_catalog.REPEAT('6', 64)
-          AND expired.proof_kind = 'acknowledgement'
-          AND expired.deletion_committed
-    ) THEN
+    IF NOT expired_proof_rejected THEN
         RAISE EXCEPTION
             'An expired preparation was resurrected after cross-device deletion';
     END IF;
@@ -1033,10 +955,128 @@ BEGIN
         '00000000-0000-0000-0000-00000000d205'::UUID,
         pg_catalog.REPEAT('3', 64)
     ) AS deletion;
+END;
+$$;
+
+RESET ROLE;
+
+-- Runtime callers reach only service-only RPCs. Inspect private post-state as
+-- the fixture owner so this test continues proving that service_role has no
+-- direct table grants.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_preparations AS preparation
+        WHERE preparation.user_id =
+            '00000000-0000-0000-0000-00000000d207'::UUID
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_capabilities AS capability
+        WHERE capability.secret_hash = pg_catalog.REPEAT('9', 64)
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_expired_preparation_proofs AS expired
+        WHERE expired.proof_hash = pg_catalog.REPEAT('9', 64)
+          AND expired.proof_kind = 'recovery'
+          AND NOT expired.deletion_committed
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_expired_preparation_proofs AS expired
+        WHERE expired.proof_hash = pg_catalog.REPEAT('0', 64)
+          AND expired.proof_kind = 'acknowledgement'
+          AND NOT expired.deletion_committed
+    ) THEN
+        RAISE EXCEPTION
+            'Public recovery promoted or retained an expired preparation';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_jobs AS jobs
+        WHERE jobs.user_id =
+            '00000000-0000-0000-0000-00000000d203'::UUID
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_preparations AS preparation
+        WHERE preparation.recovery_secret_hash =
+            pg_catalog.REPEAT('c', 64)
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM auth.users AS auth_user
+        WHERE auth_user.id =
+            '00000000-0000-0000-0000-00000000d203'::UUID
+    ) THEN
+        RAISE EXCEPTION
+            'Prepared recovery did not cancel without deleting the account';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_preparations AS preparation
+        WHERE preparation.user_id =
+            '00000000-0000-0000-0000-00000000d204'::UUID
+    ) OR (
+        SELECT pg_catalog.COUNT(*)
+        FROM internal.account_deletion_recovery_capabilities AS capability
+        INNER JOIN internal.account_deletion_jobs AS jobs
+            ON jobs.id = capability.job_id
+        WHERE jobs.user_id =
+                '00000000-0000-0000-0000-00000000d204'::UUID
+          AND capability.protocol_version = 2
+    ) <> 2 THEN
+        RAISE EXCEPTION
+            'Deletion commit did not materialize every device receipt';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_preparations AS preparation
+        WHERE preparation.user_id =
+            '00000000-0000-0000-0000-00000000d206'::UUID
+    ) OR EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_capabilities AS capability
+        INNER JOIN internal.account_deletion_jobs AS jobs
+            ON jobs.id = capability.job_id
+        WHERE jobs.user_id =
+                '00000000-0000-0000-0000-00000000d206'::UUID
+          AND capability.secret_hash = pg_catalog.REPEAT('5', 64)
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_recovery_capabilities AS capability
+        INNER JOIN internal.account_deletion_jobs AS jobs
+            ON jobs.id = capability.job_id
+        WHERE jobs.user_id =
+                '00000000-0000-0000-0000-00000000d206'::UUID
+          AND capability.protocol_version = 2
+          AND capability.secret_hash = pg_catalog.REPEAT('7', 64)
+          AND capability.acknowledgement_secret_hash =
+              pg_catalog.REPEAT('8', 64)
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_expired_preparation_proofs AS expired
+        WHERE expired.proof_hash = pg_catalog.REPEAT('5', 64)
+          AND expired.proof_kind = 'recovery'
+          AND expired.deletion_committed
+    ) OR NOT EXISTS (
+        SELECT 1
+        FROM internal.account_deletion_expired_preparation_proofs AS expired
+        WHERE expired.proof_hash = pg_catalog.REPEAT('6', 64)
+          AND expired.proof_kind = 'acknowledgement'
+          AND expired.deletion_committed
+    ) THEN
+        RAISE EXCEPTION
+            'Cross-device deletion promoted an expired preparation or lost the live proof';
+    END IF;
+
     IF NOT EXISTS (
         SELECT 1
         FROM internal.account_deletion_recovery_capabilities AS capability
-        WHERE capability.job_id = deletion_job_id
+        INNER JOIN internal.account_deletion_jobs AS jobs
+            ON jobs.id = capability.job_id
+        WHERE jobs.user_id =
+                '00000000-0000-0000-0000-00000000d205'::UUID
           AND capability.protocol_version = 2
           AND capability.secret_hash = pg_catalog.REPEAT('3', 64)
           AND capability.acknowledgement_secret_hash =
@@ -1047,6 +1087,8 @@ BEGIN
     END IF;
 END;
 $$;
+
+SET LOCAL ROLE service_role;
 
 DO $$
 DECLARE
