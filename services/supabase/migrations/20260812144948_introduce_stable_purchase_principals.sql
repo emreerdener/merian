@@ -1373,7 +1373,7 @@ BEGIN
         0,
         pg_catalog.CLOCK_TIMESTAMP()
     )
-    ON CONFLICT (purchase_principal_id) DO UPDATE
+    ON CONFLICT ON CONSTRAINT purchase_principal_store_state_pkey DO UPDATE
     SET target_tier = EXCLUDED.target_tier,
         target_expires_at = EXCLUDED.target_expires_at,
         allow_non_subscription_pass_grant = CASE
@@ -1479,7 +1479,7 @@ BEGIN
         pg_catalog.CLOCK_TIMESTAMP(),
         pg_catalog.CLOCK_TIMESTAMP()
     )
-    ON CONFLICT (purchase_principal_id) DO UPDATE
+    ON CONFLICT ON CONSTRAINT purchase_principal_bindings_pkey DO UPDATE
     SET auth_user_id = EXCLUDED.auth_user_id,
         binding_generation = EXCLUDED.binding_generation,
         bound_at = CASE
@@ -1511,7 +1511,8 @@ BEGIN
         pg_catalog.NOW() + INTERVAL '6 hours',
         pg_catalog.CLOCK_TIMESTAMP()
     )
-    ON CONFLICT (purchase_principal_id) DO UPDATE
+    ON CONFLICT ON CONSTRAINT purchase_principal_reconciliation_queue_pkey
+    DO UPDATE
     SET lookup_app_user_id = EXCLUDED.lookup_app_user_id,
         next_reconcile_at = LEAST(
             internal.purchase_principal_reconciliation_queue.next_reconcile_at,

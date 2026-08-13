@@ -158,13 +158,20 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
       "ORDER BY users.id FOR UPDATE OF users, auth_user",
       "purchase_principal_entitlement_projection_changed",
       "current_projection_expires_at IS DISTINCT FROM p_store_expires_at",
+      "ON CONFLICT ON CONSTRAINT purchase_principal_store_state_pkey DO UPDATE",
       "INSERT INTO internal.purchase_principal_bindings",
+      "ON CONFLICT ON CONSTRAINT purchase_principal_bindings_pkey DO UPDATE",
       "binding_generation = EXCLUDED.binding_generation",
+      "ON CONFLICT ON CONSTRAINT purchase_principal_reconciliation_queue_pkey DO UPDATE",
       "DELETE FROM internal.revenuecat_reconciliation_queue",
     ]
   ) {
     assertStringIncludes(complete, fragment);
   }
+  assert(
+    !complete.includes("ON CONFLICT (purchase_principal_id)"),
+    "resolution completion must not confuse its purchase_principal_id output with an ON CONFLICT inference column",
+  );
 
   for (
     const fragment of [
