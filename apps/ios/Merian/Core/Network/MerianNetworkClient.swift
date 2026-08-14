@@ -1598,6 +1598,36 @@ final class MerianNetworkClient {
         }
     }
 
+    /// Acquires the exact-session lease required by ordinary authenticated
+    /// work. Debug-only mock transports bypass the live account boundary.
+    private func acquireAccountWorkLeaseIfRequired(
+        expectedAuthUserID: UUID?
+    ) async throws -> AccountBoundWorkLease? {
+        #if DEBUG
+        guard overridingSession == nil,
+              !TestExecutionCoordinator.isRunningTests else {
+            return nil
+        }
+        #endif
+
+        if let admitted = try? await SupabaseManager.shared
+            .beginUnownedAccountBoundWork(
+                expectedUserID: expectedAuthUserID
+            ) {
+            return admitted
+        }
+
+        // A genuinely missing session may require the manager's serialized
+        // anonymous bootstrap. Re-read headers only to complete that bootstrap,
+        // then atomically admit the exact expected account before dispatch.
+        _ = try await SupabaseManager.shared.getValidAuthHeaders(
+            expectedUserID: expectedAuthUserID
+        )
+        return try await SupabaseManager.shared.beginUnownedAccountBoundWork(
+            expectedUserID: expectedAuthUserID
+        )
+    }
+
     private func makeAuthenticatedJSONRequest(
         url: URL,
         bodyData: Data,
@@ -1614,31 +1644,9 @@ final class MerianNetworkClient {
         }
         request.httpBody = bodyData
 
-        #if DEBUG
-        let enforcesLiveAccountContext = overridingSession == nil
-            && !TestExecutionCoordinator.isRunningTests
-        #else
-        let enforcesLiveAccountContext = true
-        #endif
-        let accountWorkLease: AccountBoundWorkLease?
-        if enforcesLiveAccountContext {
-            if let admitted = try? await SupabaseManager.shared
-                .beginUnownedAccountBoundWork(
-                    expectedUserID: expectedAuthUserID
-                ) {
-                accountWorkLease = admitted
-            } else {
-                _ = try await SupabaseManager.shared.getValidAuthHeaders(
-                    expectedUserID: expectedAuthUserID
-                )
-                accountWorkLease = try await SupabaseManager.shared
-                    .beginUnownedAccountBoundWork(
-                        expectedUserID: expectedAuthUserID
-                    )
-            }
-        } else {
-            accountWorkLease = nil
-        }
+        let accountWorkLease = try await acquireAccountWorkLeaseIfRequired(
+            expectedAuthUserID: expectedAuthUserID
+        )
 
         do {
             #if DEBUG
@@ -1687,33 +1695,11 @@ final class MerianNetworkClient {
         authTransitionOwner: AuthTransitionToken?,
         expectedAuthUserID: UUID?
     ) async throws -> AuthenticatedTransportResult {
-        #if DEBUG
-        let enforcesLiveAccountContext = overridingSession == nil
-            && !TestExecutionCoordinator.isRunningTests
-        #else
-        let enforcesLiveAccountContext = true
-        #endif
-
         let accountWorkLease: AccountBoundWorkLease?
-        if enforcesLiveAccountContext, authTransitionOwner == nil {
-            if let admitted = try? await SupabaseManager.shared
-                .beginUnownedAccountBoundWork(
-                    expectedUserID: expectedAuthUserID
-                ) {
-                accountWorkLease = admitted
-            } else {
-                // A genuinely missing session may require the manager's
-                // serialized anonymous bootstrap. Re-read headers only to
-                // complete that bootstrap, then atomically admit the exact
-                // expected account before dispatch.
-                _ = try await SupabaseManager.shared.getValidAuthHeaders(
-                    expectedUserID: expectedAuthUserID
-                )
-                accountWorkLease = try await SupabaseManager.shared
-                    .beginUnownedAccountBoundWork(
-                        expectedUserID: expectedAuthUserID
-                    )
-            }
+        if authTransitionOwner == nil {
+            accountWorkLease = try await acquireAccountWorkLeaseIfRequired(
+                expectedAuthUserID: expectedAuthUserID
+            )
         } else {
             accountWorkLease = nil
         }

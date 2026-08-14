@@ -85,6 +85,10 @@ only a camera/performance setting.
   patches beneath the stats and a divider. Tapping any patch opens the same
   zoomable full-screen viewer at that selection; when more patches are earned,
   the viewer supports horizontal paging and shows page dots.
+- The authenticated user's active Field trip Profile card shows the current-level
+  patch, Field trip name and level, and a trailing `GoalProgressRing` above the
+  existing device-local goal thumbnail strip. It does not use the former
+  horizontal progress bar or change the public Explore author-profile row.
 - A saved scan that completes at least one current-level goal queues one
   progress toast for every credited standard outing and joined live Seasonal
   Challenge. Each toast shows **Field trip progress**, contextual species/trip

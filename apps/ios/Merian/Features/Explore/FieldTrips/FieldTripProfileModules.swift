@@ -383,22 +383,42 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
     let onOpenTemplate: () -> Void
     let onOpenCompletedScan: (String) -> Void
 
+    private var patchImageName: String? {
+        FieldTripLevelArtwork.imageName(
+            templateSlug: item.template.slug,
+            levelNumber: item.currentLevelNumber
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
-                HStack(spacing: 8) {
-                    Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.primary.opacity(0.85))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
+                HStack(alignment: .center, spacing: 12) {
+                    FieldTripActiveProfilePatch(imageName: patchImageName)
+                        .frame(width: 52, height: 52)
                         .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text("Level \(item.currentLevelNumber)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    GoalProgressRing(
+                        completedCount: item.completedCount,
+                        targetCount: item.targetCount,
+                        lineWidth: 4.5,
+                        labelFontSize: 11,
+                        tint: .accentColor
+                    )
+                    .frame(width: 52, height: 52)
+                    .accessibilityHidden(true)
                 }
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -407,6 +427,14 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 12)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                "\(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug)), Level \(item.currentLevelNumber)"
+            )
+            .accessibilityValue(
+                "\(item.completedCount) of \(item.targetCount) goals complete"
+            )
+            .accessibilityHint("Opens this Field trip")
 
             FieldTripScanPreviewStrip(
                 targetCount: item.targetCount,
@@ -416,19 +444,6 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
                 onOpenTemplate: onOpenTemplate,
                 onOpenCompletedScan: onOpenCompletedScan
             )
-            .padding(.bottom, 12)
-
-            Button(action: onOpenTemplate) {
-                FieldTripLevelProgressBar(
-                    progress: FieldTripLevelProgressPresentation(
-                        completedCount: item.completedCount,
-                        targetCount: item.targetCount
-                    )
-                )
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
