@@ -2,6 +2,21 @@ import SwiftUI
 
 // MARK: - Description Overlay Component
 
+enum DescriptionTextCarouselLayout {
+    static let horizontalInset: CGFloat = 24
+    static let verticalInset: CGFloat = 108
+    static let cardVerticalOffset: CGFloat = 24
+    static let cardCornerRadius: CGFloat = 32
+    static let contentPadding: CGFloat = 28
+
+    static func cardSize(in containerSize: CGSize) -> CGSize {
+        CGSize(
+            width: max(0, containerSize.width - horizontalInset * 2),
+            height: max(0, containerSize.height - verticalInset * 2)
+        )
+    }
+}
+
 /// Dedicated visual abstraction managing the abbreviated visual representation explicitly mapping
 /// the textual node context dynamically anchored alongside photo assets within the timeline natively.
 struct DescriptionTextCarouselPage: View {
@@ -11,6 +26,8 @@ struct DescriptionTextCarouselPage: View {
     
     var body: some View {
         GeometryReader { geo in
+            let cardSize = DescriptionTextCarouselLayout.cardSize(in: geo.size)
+
             ZStack {
                 Color(uiColor: .systemBackground)
                     .opacity(0.95)
@@ -34,20 +51,26 @@ struct DescriptionTextCarouselPage: View {
                         .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .padding(28)
-                .frame(width: max(0, geo.size.width - 48), height: max(0, geo.size.height - 216))
+                .padding(DescriptionTextCarouselLayout.contentPadding)
+                .frame(width: cardSize.width, height: cardSize.height)
                 .background(
-                    colorScheme == .light 
-                        ? AnyShapeStyle(Color.white.opacity(0.8)) 
-                        : AnyShapeStyle(.ultraThinMaterial.opacity(0.75)), 
-                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    colorScheme == .light
+                        ? AnyShapeStyle(Color.white.opacity(0.8))
+                        : AnyShapeStyle(.ultraThinMaterial.opacity(0.75)),
+                    in: RoundedRectangle(
+                        cornerRadius: DescriptionTextCarouselLayout.cardCornerRadius,
+                        style: .continuous
+                    )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    RoundedRectangle(
+                        cornerRadius: DescriptionTextCarouselLayout.cardCornerRadius,
+                        style: .continuous
+                    )
                         .stroke(colorScheme == .light ? Color.black.opacity(0.1) : Color.white.opacity(0.2), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.10), radius: 12, y: 6)
-                .offset(y: 24)
+                .offset(y: DescriptionTextCarouselLayout.cardVerticalOffset)
                 
             }
             .frame(width: geo.size.width, height: geo.size.height)

@@ -595,6 +595,45 @@ Deno.test("buildRestoredAudioCapturedMedia replaces local legacy audio with dura
   );
 });
 
+Deno.test("buildRestoredAudioCapturedMedia preserves indexed durable audio identity", () => {
+  const durableUrl = "https://media.merian.app/already-durable.wav";
+  const restoredUrl = "https://media.merian.app/restored.wav";
+  const scan = makeVideoScan([
+    {
+      audio: {
+        _0: {
+          storage: "remoteURL",
+          path: durableUrl,
+          sourceIndex: 1,
+        },
+      },
+    },
+  ]);
+
+  assertEquals(
+    buildRestoredAudioCapturedMedia(scan, [durableUrl, restoredUrl]),
+    [
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: durableUrl,
+            sourceIndex: 1,
+          },
+        },
+      },
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: restoredUrl,
+          },
+        },
+      },
+    ],
+  );
+});
+
 Deno.test("video restoration preserves already-restored standalone audio", () => {
   const imageUrls = [0, 1, 2, 3, 4].map((index) =>
     `https://media.merian.app/frame-${index}.webp`

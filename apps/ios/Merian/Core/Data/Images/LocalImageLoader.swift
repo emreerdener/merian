@@ -214,7 +214,10 @@ enum LocalScanMediaRecoveryResolver {
                 let items = CapturedMediaSnapshot.cloudHydratedItems(
                     capturedMediaItems: response.captured_media,
                     imageStorageURLs: response.image_storage_urls,
-                    videoStorageURLs: response.video_storage_urls
+                    videoStorageURLs: response.video_storage_urls,
+                    audioStorageURLs: response.audio_storage_urls,
+                    observationContext:
+                        response.user_observation_context?.observationContext
                 )
                 return CurrentScanRecoveryMedia(
                     scanID: response.id,

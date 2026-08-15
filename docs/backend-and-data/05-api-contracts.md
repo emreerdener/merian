@@ -4340,8 +4340,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   `staging/{userId}/` WAV/M4A keys for legacy scans that still have local audio
   but no durable cloud audio. Successful repair promotes the objects, writes
   `audio_storage_urls`, replaces standalone local references in
-  `captured_media`, refreshes normalized assets, and then enters the normal
-  moderation gate. Promotion failure, or a returned persistence rejection plus
+  `captured_media`, preserves `sourceIndex` on already-durable audio items,
+  refreshes normalized assets, and then enters the normal moderation gate.
+  Newly restored legacy items remain unindexed when the restore request cannot
+  prove their original identity. Promotion failure, or a returned persistence rejection plus
   exact-owner proof that the URLs are absent, publishes nothing and rolls back
   promoted objects. A lost/unreadable update response returns retryable
   `scan_media_restore_unavailable` and preserves them until same-owner retry
@@ -5412,6 +5414,31 @@ ordered compositions of images, audio, and descriptive context.
   display/playback `scan_media_assets` rows from the same manifest and proves
   them before completion, so server-side composer and status checks no longer
   need to infer video assets directly from sampled frame arrays.
+- Each canonical standalone-audio reference may include `sourceIndex`, copied
+  from the corresponding `audioMediaItems` descriptor. The iOS queue stores the
+  same nonnegative index in its local `capturedMediaJSON`, giving a promoted URL
+  and its original Documents reference a stable per-scan clip identity even
+  when a server projection contains only one of two submitted recordings. The
+  client derives audio upload paths and descriptors from one chronological
+  projection, so interleaved video audio cannot shift the standalone URL into a
+  different descriptor slot. The persistence boundary retains identity only
+  when every standalone descriptor supplies the exact unique zero-based
+  sequence; fractional, negative, duplicate, missing, or gapped identities are
+  omitted from the entire stored standalone set without discarding the media.
+- Authenticated iOS history hydration prefers `captured_media` and dual-reads
+  `audio_storage_urls` plus `user_observation_context`. Those existing scan
+  columns are compatibility fallbacks when a legacy or incomplete manifest
+  omits the otherwise durable standalone recording or description provenance;
+  they are never public-feed projections. Because those columns do not retain
+  cross-modal positions, hydration appends missing audio in stored-array order
+  without filtering canonical manifest audio, then appends the stored context.
+  `audio_storage_urls` is supplemental recovery data, not deletion authority.
+  Cloud audio replaces an existing standalone clip only when its exact path or
+  a unique `sourceIndex` matches. Unindexed legacy and restore references never
+  consume a local clip by ordinal guess; unmatched references are retained,
+  which can temporarily expose both a local alias and a durable URL but cannot
+  delete the wrong recording. Unmatched local descriptions are retained because
+  this compatibility column stores only one context.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use

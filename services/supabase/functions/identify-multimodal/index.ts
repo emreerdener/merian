@@ -69,6 +69,12 @@ import {
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
+  type AudioMediaDescriptor,
+  buildCapturedMediaManifest,
+  capturedMediaVideoCount,
+  type VisualMediaDescriptor,
+} from "./capturedMedia.ts";
+import {
   resolveAudioBuffers,
   resolveImagePayloads,
   stagedImageSourceKeys,
@@ -167,14 +173,6 @@ const telemetryCount = (value: unknown): number => {
   return Math.trunc(value);
 };
 
-type VisualMediaDescriptor = {
-  kind: "image" | "video_frame";
-  sourceIndex?: number;
-  clipIndex?: number;
-  frameIndex?: number;
-  focusRegion?: NormalizedFocusRegion;
-};
-
 type NormalizedFocusRegion = {
   x: number;
   y: number;
@@ -183,34 +181,11 @@ type NormalizedFocusRegion = {
   source: "vision_objectness";
 };
 
-type AudioMediaDescriptor = {
-  kind: "audio" | "video_audio";
-  sourceIndex?: number;
-  clipIndex?: number;
-};
-
-type StoredMediaReferenceDTO = {
-  storage: "remoteURL";
-  path: string;
-};
-
-type SerializedMediaItemDTO =
-  | { image: { _0: StoredMediaReferenceDTO } }
-  | { audio: { _0: StoredMediaReferenceDTO } }
-  | {
-    video: {
-      _0: {
-        video: StoredMediaReferenceDTO;
-        thumbnail?: StoredMediaReferenceDTO;
-      };
-    };
-  };
-
 const optionalIndex = (value: unknown): number | undefined => {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     return undefined;
   }
-  return Math.trunc(value);
+  return value;
 };
 
 function normalizeFocusRegion(
@@ -436,10 +411,6 @@ function buildVisualMediaPrompt(
   return null;
 }
 
-function remoteMediaReference(url: string): StoredMediaReferenceDTO {
-  return { storage: "remoteURL", path: url };
-}
-
 function publicUrlsByStorageKey(
   storageKeys: string[],
   publicUrls: string[],
@@ -454,118 +425,6 @@ function publicUrlsByStorageKey(
     }
   }
   return urlsByStorageKey;
-}
-
-function buildCapturedMediaManifest(
-  imageStorageUrls: string[],
-  videoStorageUrls: string[],
-  audioStorageUrls: string[],
-  visualMediaItems: VisualMediaDescriptor[],
-  audioMediaItems: AudioMediaDescriptor[],
-): SerializedMediaItemDTO[] | null {
-  const sanitizedImageUrls = imageStorageUrls
-    .map((url) => url.trim())
-    .filter((url) => url.length > 0);
-  const sanitizedVideoUrls = videoStorageUrls
-    .map((url) => url.trim())
-    .filter((url) => url.length > 0);
-  const sanitizedAudioUrls = audioStorageUrls
-    .map((url) => url.trim())
-    .filter((url) => url.length > 0);
-
-  if (
-    sanitizedImageUrls.length === 0 && sanitizedVideoUrls.length === 0 &&
-    sanitizedAudioUrls.length === 0
-  ) {
-    return null;
-  }
-
-  const items: SerializedMediaItemDTO[] = [];
-  const emittedVideoClipIndexes = new Set<number>();
-
-  if (visualMediaItems.length === sanitizedImageUrls.length) {
-    for (const [inputIndex, descriptor] of visualMediaItems.entries()) {
-      const imageUrl = sanitizedImageUrls[inputIndex];
-      if (!imageUrl) continue;
-
-      if (descriptor.kind === "image") {
-        items.push({ image: { _0: remoteMediaReference(imageUrl) } });
-        continue;
-      }
-
-      const clipIndex = descriptor.clipIndex ?? 0;
-      if (emittedVideoClipIndexes.has(clipIndex)) continue;
-
-      const videoUrl = sanitizedVideoUrls[clipIndex];
-      if (!videoUrl) continue;
-
-      emittedVideoClipIndexes.add(clipIndex);
-      items.push({
-        video: {
-          _0: {
-            video: remoteMediaReference(videoUrl),
-            thumbnail: remoteMediaReference(imageUrl),
-          },
-        },
-      });
-    }
-  }
-
-  const standaloneAudioUrls =
-    audioMediaItems.length === sanitizedAudioUrls.length
-      ? audioMediaItems.flatMap((descriptor, index) =>
-        descriptor.kind === "audio" && sanitizedAudioUrls[index]
-          ? [sanitizedAudioUrls[index]]
-          : []
-      )
-      : sanitizedVideoUrls.length === 0
-      ? sanitizedAudioUrls
-      : [];
-
-  for (const audioUrl of standaloneAudioUrls) {
-    items.push({ audio: { _0: remoteMediaReference(audioUrl) } });
-  }
-
-  if (items.length > 0) {
-    return items;
-  }
-
-  if (sanitizedVideoUrls.length > 0) {
-    return sanitizedVideoUrls.map((videoUrl, index) => {
-      const thumbnailUrl = sanitizedImageUrls[index] ?? sanitizedImageUrls[0];
-      const video: SerializedMediaItemDTO = {
-        video: {
-          _0: {
-            video: remoteMediaReference(videoUrl),
-          },
-        },
-      };
-
-      if (thumbnailUrl) {
-        video.video._0.thumbnail = remoteMediaReference(thumbnailUrl);
-      }
-
-      return video;
-    });
-  }
-
-  const imageItems: SerializedMediaItemDTO[] = sanitizedImageUrls.map((
-    imageUrl,
-  ) => ({
-    image: { _0: remoteMediaReference(imageUrl) },
-  }));
-  return [
-    ...imageItems,
-    ...standaloneAudioUrls.map((audioUrl): SerializedMediaItemDTO => ({
-      audio: { _0: remoteMediaReference(audioUrl) },
-    })),
-  ];
-}
-
-function capturedMediaVideoCount(
-  capturedMedia: SerializedMediaItemDTO[] | null,
-): number {
-  return (capturedMedia ?? []).filter((item) => "video" in item).length;
 }
 
 function retryAfterIso(minutes = 5): string {

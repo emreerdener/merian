@@ -26,6 +26,46 @@ struct SerializedMediaItemTests {
         )
     }
 
+    @Test func storedMediaReferenceRoundTripsOptionalSourceIdentity() throws {
+        let reference = StoredMediaReference.remoteURL(
+            "https://cdn.example.com/second.wav",
+            sourceIndex: 1
+        )
+
+        let data = try JSONEncoder().encode(reference)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let decoded = try JSONDecoder().decode(
+            StoredMediaReference.self,
+            from: data
+        )
+        let snakeCase = try JSONDecoder().decode(
+            StoredMediaReference.self,
+            from: Data(
+                #"{"storage":"remoteURL","path":"https://cdn.example.com/second.wav","source_index":1}"#.utf8
+            )
+        )
+        let legacy = try JSONDecoder().decode(
+            StoredMediaReference.self,
+            from: Data(#""legacy.wav""#.utf8)
+        )
+        let malformedIdentity = try JSONDecoder().decode(
+            StoredMediaReference.self,
+            from: Data(
+                #"{"storage":"remoteURL","path":"https://cdn.example.com/second.wav","sourceIndex":"one"}"#.utf8
+            )
+        )
+
+        #expect(object["sourceIndex"] as? Int == 1)
+        #expect(object["source_index"] == nil)
+        #expect(decoded == reference)
+        #expect(snakeCase == reference)
+        #expect(legacy.sourceIndex == nil)
+        #expect(malformedIdentity.sourceIndex == nil)
+        #expect(malformedIdentity.serializedPath == reference.serializedPath)
+    }
+
     @Test func localScanRecordPrefersCapturedMediaJSONOverRelationshipMirror() throws {
         let jsonItems: [SerializedMediaItem] = [.image(.documents("json-primary.webp"))]
         let relationshipItems: [SerializedMediaItem] = [.image(.documents("relationship-stale.webp"))]
@@ -309,6 +349,179 @@ struct SerializedMediaItemTests {
         #expect(hydrated == [
             .audio(.remoteURL("https://cdn.example.com/call.wav")),
             .description(context)
+        ])
+    }
+
+    @Test func cloudHydrationRestoresNonvisualFallbacksInDeterministicOrder() {
+        var context = ObservationContext(freeText: "A distant rhythmic call")
+        context.addedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: nil,
+            imageStorageURLs: [],
+            videoStorageURLs: [],
+            audioStorageURLs: ["https://cdn.example.com/call.wav"],
+            observationContext: context
+        )
+
+        #expect(hydrated == [
+            .audio(.remoteURL("https://cdn.example.com/call.wav")),
+            .description(context)
+        ])
+    }
+
+    @Test func cloudHydrationPreservesLegacyImageAlongsideNonvisualFallbacks() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let audioURL = "https://cdn.example.com/call.wav"
+        let context = ObservationContext(freeText: "Calling from the upper branches")
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: nil,
+            imageStorageURLs: [imageURL],
+            videoStorageURLs: [],
+            audioStorageURLs: [audioURL],
+            observationContext: context
+        )
+
+        #expect(hydrated == [
+            .image(.remoteURL(imageURL)),
+            .audio(.remoteURL(audioURL)),
+            .description(context)
+        ])
+    }
+
+    @Test func cloudHydrationPreservesManifestAudioWhenCompatibilityArrayIsEmpty() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let manifestAudioURL = "https://cdn.example.com/manifest-call.wav"
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: [
+                .image(.remoteURL(imageURL)),
+                .audio(.remoteURL(manifestAudioURL))
+            ],
+            imageStorageURLs: [imageURL],
+            videoStorageURLs: [],
+            audioStorageURLs: []
+        )
+
+        #expect(hydrated == [
+            .image(.remoteURL(imageURL)),
+            .audio(.remoteURL(manifestAudioURL))
+        ])
+    }
+
+    @Test func cloudHydrationUnionsManifestAndCompatibilityAudio() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let manifestAudioURL = "https://cdn.example.com/manifest-call.wav"
+        let compatibilityAudioURL = "https://cdn.example.com/compatibility-call.wav"
+
+        let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: [
+                .image(.remoteURL(imageURL)),
+                .audio(.remoteURL(manifestAudioURL))
+            ],
+            imageStorageURLs: [imageURL],
+            videoStorageURLs: [],
+            audioStorageURLs: [compatibilityAudioURL]
+        )
+
+        #expect(hydrated == [
+            .image(.remoteURL(imageURL)),
+            .audio(.remoteURL(manifestAudioURL)),
+            .audio(.remoteURL(compatibilityAudioURL))
+        ])
+    }
+
+    @Test func preservingExistingNonVisualItemsRetainsSurplusLocalAudioAfterIndexedCloudRepair() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let remoteAudioURL = "https://cdn.example.com/first-call.wav"
+        let secondLocalAudio = StoredMediaReference.documents(
+            "second-call.wav",
+            sourceIndex: 1
+        )
+        let existing = CapturedMediaSnapshot(items: [
+            .image(.remoteURL(imageURL)),
+            .audio(.documents("first-call.wav", sourceIndex: 0)),
+            .audio(secondLocalAudio)
+        ])
+        let hydrated: [SerializedMediaItem] = [
+            .image(.remoteURL(imageURL)),
+            .audio(.remoteURL(remoteAudioURL, sourceIndex: 0))
+        ]
+
+        let reconciled = CapturedMediaSnapshot.preservingExistingNonVisualItems(
+            in: hydrated,
+            from: existing
+        )
+
+        #expect(reconciled == [
+            .image(.remoteURL(imageURL)),
+            .audio(.remoteURL(remoteAudioURL, sourceIndex: 0)),
+            .audio(secondLocalAudio)
+        ])
+    }
+
+    @Test func preservingExistingNonVisualItemsMatchesIndexedSecondCloudClip() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let firstLocalAudio = StoredMediaReference.documents(
+            "first-call.wav",
+            sourceIndex: 0
+        )
+        let secondLocalAudio = StoredMediaReference.documents(
+            "second-call.wav",
+            sourceIndex: 1
+        )
+        let remoteSecondAudio = StoredMediaReference.remoteURL(
+            "https://cdn.example.com/promoted-second.wav",
+            sourceIndex: 1
+        )
+        let existing = CapturedMediaSnapshot(items: [
+            .image(.remoteURL(imageURL)),
+            .audio(firstLocalAudio),
+            .audio(secondLocalAudio)
+        ])
+
+        let reconciled = CapturedMediaSnapshot.preservingExistingNonVisualItems(
+            in: [
+                .image(.remoteURL(imageURL)),
+                .audio(remoteSecondAudio)
+            ],
+            from: existing
+        )
+
+        #expect(reconciled == [
+            .image(.remoteURL(imageURL)),
+            .audio(firstLocalAudio),
+            .audio(remoteSecondAudio)
+        ])
+    }
+
+    @Test func preservingExistingNonVisualItemsNeverGuessesForUnindexedCloudAudio() {
+        let imageURL = "https://cdn.example.com/observation.webp"
+        let firstLocalAudio = StoredMediaReference.documents("first-call.wav")
+        let secondLocalAudio = StoredMediaReference.documents("second-call.wav")
+        let unindexedCloudAudio = StoredMediaReference.remoteURL(
+            "https://cdn.example.com/promoted-second.wav"
+        )
+        let existing = CapturedMediaSnapshot(items: [
+            .image(.remoteURL(imageURL)),
+            .audio(firstLocalAudio),
+            .audio(secondLocalAudio)
+        ])
+
+        let reconciled = CapturedMediaSnapshot.preservingExistingNonVisualItems(
+            in: [
+                .image(.remoteURL(imageURL)),
+                .audio(unindexedCloudAudio)
+            ],
+            from: existing
+        )
+
+        #expect(reconciled == [
+            .image(.remoteURL(imageURL)),
+            .audio(firstLocalAudio),
+            .audio(secondLocalAudio),
+            .audio(unindexedCloudAudio)
         ])
     }
 

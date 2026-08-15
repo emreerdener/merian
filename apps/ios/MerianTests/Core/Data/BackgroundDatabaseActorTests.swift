@@ -1337,6 +1337,14 @@ struct BackgroundDatabaseActorTests {
             let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
 
             assertSerializedItems(items, match: scenario.expected)
+            let audioSourceIndices = items.compactMap { item -> Int? in
+                guard case .audio(let reference) = item else { return nil }
+                return reference.sourceIndex
+            }
+            let expectedAudioCount = scenario.expected.reduce(into: 0) { count, item in
+                if case .audio = item { count += 1 }
+            }
+            #expect(audioSourceIndices == Array(0..<expectedAudioCount))
             cleanupSerializedItems(items)
         }
     }

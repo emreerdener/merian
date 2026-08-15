@@ -657,7 +657,8 @@ private struct AudioDoneButton: View {
             Image(systemName: "checkmark")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
-                .circularMaterialControl(colorScheme: .dark)
+                .frame(width: 50, height: 50)
+                .background(Color.accentColor, in: Circle())
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)

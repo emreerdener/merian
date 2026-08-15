@@ -800,6 +800,9 @@ enum CarouselImageAvailabilityPolicy {
         loadedReferenceIdentifiers: Set<String>,
         unavailableVideoPageIDs: Set<String> = []
     ) -> [CarouselPageItem] {
+        let hasSubmittedUserVisual = pages.contains { page in
+            isUserVisual(page) && !page.isUserMediaZeroState
+        }
         let resolvedVideoPages = pages.compactMap { page -> CarouselPageItem? in
             guard page.mediaKind == .video,
                   unavailableVideoPageIDs.contains(page.id) else {
@@ -834,6 +837,9 @@ enum CarouselImageAvailabilityPolicy {
                     return true
                 }
                 return !unavailableIdentifiers.contains(identifier)
+            }
+            guard hasSubmittedUserVisual else {
+                return pagesWithoutFailedUserVisuals
             }
             return pagesWithoutFailedUserVisuals + [userMediaZeroStatePage]
         }
@@ -1377,51 +1383,38 @@ private struct AnalyzingMediaOverlay: View {
         in size: CGSize,
         sweepProgress: CGFloat
     ) -> some View {
-        ZStack {
-            ForEach(0..<7, id: \.self) { index in
-                Capsule()
-                    .fill(Color.cyan.opacity(0.08 + Double(index) * 0.018))
-                    .frame(width: 1, height: size.height * (0.34 + CGFloat(index % 3) * 0.13))
-                    .offset(
-                        x: horizontalOffset(
-                            in: size,
-                            sweepProgress: sweepProgress
-                        ) - 42 + CGFloat(index) * 14
-                    )
-                    .blendMode(.plusLighter)
-            }
-
-            LinearGradient(
-                colors: [
-                    .clear,
-                    .cyan.opacity(0.32),
-                    .white.opacity(0.72),
-                    .cyan.opacity(0.28),
-                    .clear
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 96)
+        VisualLaserScanBand()
+            .frame(width: size.height)
+            .rotationEffect(.degrees(90))
             .offset(x: horizontalOffset(
                 in: size,
+                bandWidth: VisualLaserScanBand.height,
                 sweepProgress: sweepProgress
             ))
-            .blur(radius: 0.5)
             .blendMode(.plusLighter)
-        }
     }
 
     private func descriptionReadSweep(
         in size: CGSize,
         sweepProgress: CGFloat
     ) -> some View {
-        horizontalScanBand(color: .green, coreHeight: 1.2, glowHeight: 44)
+        let cardSize = DescriptionTextCarouselLayout.cardSize(in: size)
+
+        return horizontalScanBand(color: .green, coreHeight: 1.2, glowHeight: 44)
+            .frame(width: cardSize.width)
             .offset(y: verticalOffset(
-                in: size,
+                in: cardSize,
                 bandHeight: descriptionBandHeight,
                 sweepProgress: sweepProgress
             ))
+            .frame(width: cardSize.width, height: cardSize.height)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: DescriptionTextCarouselLayout.cardCornerRadius,
+                    style: .continuous
+                )
+            )
+            .offset(y: DescriptionTextCarouselLayout.cardVerticalOffset)
             .blendMode(.screen)
             .opacity(0.85)
     }
@@ -1462,9 +1455,13 @@ private struct AnalyzingMediaOverlay: View {
 
     private func horizontalOffset(
         in size: CGSize,
+        bandWidth: CGFloat,
         sweepProgress: CGFloat
     ) -> CGFloat {
-        return (sweepProgress * (size.width + 128)) - (size.width / 2) - 64
+        let startCenterX = -bandWidth / 2
+        let endCenterX = size.width + bandWidth / 2
+        let currentCenterX = startCenterX + (endCenterX - startCenterX) * sweepProgress
+        return currentCenterX - size.width / 2
     }
 }
 

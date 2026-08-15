@@ -125,6 +125,7 @@ struct CaptureWorkspaceView: View {
 
     // MARK: - Staged Description Sheet
     @State private var stagedDescriptionEditIndex: Int?
+    @State private var stagedAudioReviewIndex: Int?
     @State private var stagedVideoReviewIndex: Int?
     @State private var showFeedbackSurvey = false
     @State private var hasEvaluatedFeedbackSurveyPrompt = false
@@ -235,6 +236,17 @@ struct CaptureWorkspaceView: View {
         )
     }
 
+    private var isStagedAudioReviewPresented: Binding<Bool> {
+        Binding(
+            get: { stagedAudioReviewIndex != nil },
+            set: { isPresented in
+                if !isPresented {
+                    stagedAudioReviewIndex = nil
+                }
+            }
+        )
+    }
+
     private var isCropSheetPresented: Binding<Bool> {
         Binding(
             get: { viewModel.imageToCrop != nil },
@@ -251,6 +263,7 @@ struct CaptureWorkspaceView: View {
     private var isFeaturePresentationOccupied: Bool {
         stagedDescriptionEditIndex != nil
             || isDescribeQuestionsSheetPresented
+            || stagedAudioReviewIndex != nil
             || stagedVideoReviewIndex != nil
             || showFeedbackSurvey
             || viewModel.imageToCrop != nil
@@ -462,6 +475,7 @@ struct CaptureWorkspaceView: View {
                                 submitActiveStagedCapture()
                             },
                             onDescriptionTap: { index in stagedDescriptionEditIndex = index },
+                            onAudioTap: { index in stagedAudioReviewIndex = index },
                             onVideoTap: { index in stagedVideoReviewIndex = index }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -551,6 +565,21 @@ struct CaptureWorkspaceView: View {
             )
         }
         .fullScreenCover(
+            isPresented: isStagedAudioReviewPresented,
+            onDismiss: handleFeaturePresentationDismissed
+        ) {
+            if let selectedIndex = stagedAudioReviewIndex,
+               viewModel.stagedCapture.audios.indices.contains(selectedIndex) {
+                StagedAudioPreviewModal(
+                    audio: viewModel.stagedCapture.audios[selectedIndex],
+                    onRemove: {
+                        viewModel.removeStagedAudio(at: selectedIndex)
+                        stagedAudioReviewIndex = nil
+                    }
+                )
+            }
+        }
+        .fullScreenCover(
             isPresented: isStagedVideoReviewPresented,
             onDismiss: handleFeaturePresentationDismissed
         ) {
@@ -595,6 +624,11 @@ struct CaptureWorkspaceView: View {
     private var workspaceLifecycleContent: some View {
         workspacePresentedContent
         .onAppear {
+            #if DEBUG
+            UITestSeedCoordinator.prepareStagedAudioReviewIfNeeded(
+                viewModel: viewModel
+            )
+            #endif
             viewModel.updateNotificationSuppression()
             if captureMode == .visual,
                viewModel.activeSheet == nil,
@@ -1453,6 +1487,54 @@ private struct StagedVideoPreviewModal: View {
         withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
             dismissDragOffset = 0
         }
+    }
+}
+
+private struct StagedAudioPreviewModal: View {
+    let audio: StagedAudio
+    let onRemove: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        AudioPlaybackCarouselPage(filePath: audio.filePath)
+            .ignoresSafeArea()
+            .overlay(alignment: .top) {
+                controlsOverlay
+            }
+    }
+
+    private var controlsOverlay: some View {
+        HStack(spacing: 12) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Close audio preview")
+
+            Spacer()
+
+            Button(role: .destructive) {
+                onRemove()
+                dismiss()
+            } label: {
+                Label("Remove", systemImage: "trash")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.red)
+                    .padding(.horizontal, 14)
+                    .frame(height: 44)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .accessibilityLabel("Remove audio recording")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .environment(\.colorScheme, .dark)
     }
 }
 

@@ -2195,6 +2195,7 @@ actor BackgroundDatabaseActor {
         )
 
         var mediaItems: [SerializedMediaItem] = []
+        var standaloneAudioSourceIndex = 0
 
         for item in resolvedMediaTimeline {
             switch item {
@@ -2205,8 +2206,12 @@ actor BackgroundDatabaseActor {
                 guard !context.isEmpty else { continue }
                 mediaItems.append(.description(context))
             case .audio(let sourcePath):
+                defer { standaloneAudioSourceIndex += 1 }
                 if let persistedPath = await FileIOActor.shared.persistAudioFile(tempPath: sourcePath) {
-                    mediaItems.append(.audio(.documents(persistedPath)))
+                    mediaItems.append(.audio(.documents(
+                        persistedPath,
+                        sourceIndex: standaloneAudioSourceIndex
+                    )))
                 }
             case .video(let sourcePath, let posterImageIndex, let audioFilePath):
                 if let persistedPath = await FileIOActor.shared.persistVideoFile(tempPath: sourcePath) {

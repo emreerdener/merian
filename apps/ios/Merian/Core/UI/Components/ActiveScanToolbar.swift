@@ -21,6 +21,7 @@ struct ActiveScanToolbar: View {
     let onCancel: () -> Void
     let onSubmit: () -> Void
     let onDescriptionTap: (Int) -> Void
+    let onAudioTap: (Int) -> Void
     let onVideoTap: (Int) -> Void
 
     // MARK: - Body Layout
@@ -48,11 +49,13 @@ struct ActiveScanToolbar: View {
                         }
                         .buttonStyle(.plain)
                         
-                    case .audio:
-                        Button(action: {}) {
+                    case .audio(let index, _):
+                        Button(action: { onAudioTap(index) }) {
                             StagedAudioBadge()
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Review audio recording")
+                        .accessibilityIdentifier("StagedAudioBadge_\(index)")
 
                     case .video(let uiImage, let index, _):
                         Button(action: { onVideoTap(index) }) {
@@ -129,17 +132,17 @@ struct ActiveScanToolbar: View {
             .padding(8)
             .background(glassBackground)
             .overlay(glassBorder)
+            .overlay(alignment: .bottom) {
+                if showTooltip {
+                    ActiveScanTooltipOverlay()
+                        .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
+                        .allowsHitTesting(false)
+                }
+            }
             .disabled(isCheckingPhotoImportAdmission)
         }
         .environment(\.colorScheme, .dark)
         .padding(.horizontal, 16)
-        .overlay(alignment: .top) {
-            if showTooltip {
-                ActiveScanTooltipOverlay()
-                    .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
-                    .allowsHitTesting(false)
-            }
-        }
         .padding(.bottom, 24)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.images.count)
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: stagedCapture.observationContexts.count)
@@ -400,6 +403,6 @@ private struct ActiveScanTooltipOverlay: View {
                     .background(.ultraThinMaterial, in: Capsule())
             )
             .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-            .offset(y: -40) // Floats above the top edge of the toolbar without affecting layout
+            .offset(y: 40) // Floats below the staged-media panel without affecting layout
     }
 }

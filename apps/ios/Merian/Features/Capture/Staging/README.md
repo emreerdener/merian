@@ -27,6 +27,24 @@ the media remains staged, making **Identify** available for an explicit retry.
 Confirmation-enabled, multi-capture, mixed-media, and refinement flows never
 arm this suppression and continue to present the toolbar normally.
 
+Every staged-media badge remains reviewable before submission. Tapping an audio
+waveform opens the existing spectrogram player in a full-screen cover, where the
+recording can be played or scrubbed without removing it from the mixed-media
+timeline. Closing the player preserves the staged clip. Its destructive
+**Remove** action deletes the selected `StagedAudio` and routes the temporary
+file through the same staged-media cleanup owner used by cancel and queue
+rejection. The audio cover participates in the workspace presentation-occupancy
+fence so camera restoration waits for its exact dismissal callback.
+
+Submission assigns each standalone recording a zero-based `sourceIndex`. The
+offline queue stores that identity beside the local media reference and reuses
+it in `audioMediaItems`, so the Edge manifest can return the same identity after
+promotion. The index is per scan and counts standalone audio only; extracted
+video audio continues to use `clipIndex`. Queue replay derives audio upload paths
+and descriptors from one chronological projection, including video audio and
+interleaved descriptions, so descriptor position always names the uploaded clip
+at the same position.
+
 Required gallery crop presentation has a separate chrome fence. The image must
 enter `StagedCapture` before `CropSheetModifier` can edit it, but
 `shouldSuppressCaptureChromeForCrop` becomes true from that commit until the

@@ -12,6 +12,31 @@ entity. Foreground/background completion read the same hint, and every queued-
 scan deletion or orphan repair removes it. Persistent Insight contribution
 cards are server-backed and are intentionally not cached in SwiftData.
 
+Authenticated historical reconciliation treats `scans.captured_media` as the
+primary mixed-media projection. It also reads `audio_storage_urls` and
+`user_observation_context` and supplements missing audio/description entries
+before replacing local state, so an incomplete legacy manifest cannot turn an
+audio-plus-description scan into an empty visual placeholder. Legacy columns do
+not carry cross-modal positions: missing audio URLs are appended in stored-array
+order without filtering canonical manifest audio, followed by the stored
+observation context. The compatibility array is supplemental rather than
+deletion authority. New standalone audio carries the same optional
+`sourceIndex` in local and cloud `capturedMediaJSON`; reconciliation replaces a
+local clip only when that unique identity or its exact path matches. Unindexed
+legacy/restore media is merged conservatively rather than assigned to an audio
+slot by ordinal guess, so ambiguous recovery can retain an alias but cannot
+delete the wrong recording. Unmatched local descriptions are retained because
+the row stores only one observation context. `capturedMediaJSON` remains the
+primary read source, so this additive Codable field does not change the
+SwiftData model schema; relationship-only legacy fallback stays unindexed and
+therefore follows the conservative path.
+
+Offline inference replay builds audio upload paths and `audioMediaItems` from a
+single chronological projection of the captured timeline. Standalone recordings
+and video-extracted audio therefore cannot drift into different array positions;
+the Edge Function may safely use descriptor position to decide which promoted
+objects remain durable standalone media.
+
 ## Offline Scan Durability Boundary
 
 Admission is durable state, not a read of an entitlement boolean. Before this

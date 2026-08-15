@@ -507,6 +507,28 @@ struct StagedCaptureTests {
         )
     }
 
+    @Test func removeStagedAudioRemovesOnlyTheSelectedRecording() async {
+        await MainActor.run {
+            let firstPath = "staged_audio_remove_\(UUID().uuidString).wav"
+            let secondPath = "staged_audio_keep_\(UUID().uuidString).wav"
+            let viewModel = CaptureWorkspaceViewModel(
+                diContainer: .preview,
+                preparedImageLoader: { _ in nil },
+                prewarmHeadersOnInit: false
+            )
+            viewModel.stagedCapture.audios = [
+                StagedAudio(filePath: firstPath),
+                StagedAudio(filePath: secondPath)
+            ]
+
+            viewModel.removeStagedAudio(at: 0)
+
+            #expect(viewModel.stagedCapture.audios.map(\.filePath) == [secondPath])
+            viewModel.removeStagedAudio(at: 4)
+            #expect(viewModel.stagedCapture.audios.map(\.filePath) == [secondPath])
+        }
+    }
+
     @Test func availableSlotsUsesTotalMixedItemCount() {
         var capture = StagedCapture()
         capture.audios.append(StagedAudio(filePath: "bird.wav"))

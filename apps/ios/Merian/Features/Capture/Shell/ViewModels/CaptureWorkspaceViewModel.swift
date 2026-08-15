@@ -1169,6 +1169,12 @@ final class CaptureWorkspaceViewModel {
         )
     }
 
+    func removeStagedAudio(at index: Int) {
+        guard stagedCapture.audios.indices.contains(index) else { return }
+        let removedAudio = stagedCapture.audios.remove(at: index)
+        discardLocalMediaFiles(at: [removedAudio.filePath])
+    }
+
     func discardLocalMediaFiles(at paths: [String]) {
         let uniquePaths = Array(Set(paths.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }))
         guard !uniquePaths.isEmpty else { return }

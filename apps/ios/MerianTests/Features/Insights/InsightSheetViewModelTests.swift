@@ -2352,7 +2352,7 @@ struct InsightSheetViewModelTests {
         ) == nil)
     }
 
-    @Test func testAudioDescriptionAndLoadingPagesStillEndWithUserMediaZeroState() {
+    @Test func testAudioDescriptionAndLoadingPagesDoNotInventMissingPhotoState() {
         let context = ObservationContext(freeText: "A distant call")
         let sourcePages = CarouselPageBuilder.buildPages(
             for: ActiveScanMedia(
@@ -2373,9 +2373,9 @@ struct InsightSheetViewModelTests {
         #expect(visiblePages.map(\.id) == [
             "audio-documents/call.wav",
             "description-\(context.serialized())",
-            "reference-loading",
-            "user-media-unavailable"
+            "reference-loading"
         ])
+        #expect(visiblePages.map(\.isUserMediaZeroState) == [false, false, false])
     }
 
     @Test func testFailedVideoFallbackAlsoResolvesToFinalZeroState() {

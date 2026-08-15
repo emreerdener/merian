@@ -93,6 +93,7 @@ enum UITestSeedCoordinator {
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
     private static let liveQueueHandoffArgument = "-seedLiveQueueHandoffFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
+    private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
     private static let liveQueueHandoffScanId = "ui_test_live_queue_handoff"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
@@ -100,8 +101,10 @@ enum UITestSeedCoordinator {
     private static let missingVideoFallbackScanId = "ui_test_missing_video_fallback"
     private static let missingVideoFilename = "ui_test_missing_video.mp4"
     private static let missingVideoFallbackImageFilename = "ui_test_video_fallback.png"
+    private static let stagedAudioReviewFilename = "ui_test_staged_audio_review.wav"
     @MainActor private static var triggeredQueuedAudioHandoffs: Set<String> = []
     @MainActor private static var triggeredLiveQueueHandoffs: Set<String> = []
+    @MainActor private static var hasSeededStagedAudioReview = false
 
     static var isEnabled: Bool {
         return TestExecutionCoordinator.isRunningUITests
@@ -118,6 +121,37 @@ enum UITestSeedCoordinator {
         try? consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
             analyticsEnabled: false
         )
+    }
+
+    @MainActor
+    static func prepareStagedAudioReviewIfNeeded(
+        viewModel: CaptureWorkspaceViewModel
+    ) {
+        guard isEnabled,
+              ProcessInfo.processInfo.arguments.contains(stagedAudioReviewArgument),
+              !hasSeededStagedAudioReview else {
+            return
+        }
+
+        let audioURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            stagedAudioReviewFilename,
+            isDirectory: false
+        )
+
+        do {
+            try queuedAudioHandoffWAVData().write(to: audioURL, options: .atomic)
+            viewModel.stagedCapture.audios = [
+                StagedAudio(filePath: stagedAudioReviewFilename)
+            ]
+            hasSeededStagedAudioReview = true
+            MerianLog.general.debug(
+                "UITestSeedCoordinator seeded staged audio review flow."
+            )
+        } catch {
+            MerianLog.general.error(
+                "UITestSeedCoordinator failed to seed staged audio review: \(error.localizedDescription, privacy: .private)"
+            )
+        }
     }
 
     @MainActor
@@ -347,7 +381,10 @@ enum UITestSeedCoordinator {
 
     private static func queuedAudioHandoffCapturedMediaJSON() -> String? {
         let items: [SerializedMediaItem] = [
-            .audio(.documents(queuedAudioHandoffAudioFilename)),
+            .audio(.documents(
+                queuedAudioHandoffAudioFilename,
+                sourceIndex: 0
+            )),
             .image(.documents(queuedAudioHandoffImageFilename))
         ]
         guard let data = try? JSONEncoder().encode(items) else { return nil }

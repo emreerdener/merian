@@ -429,6 +429,16 @@ Progress updates run inside `.task(id: isPlaying)` only while the
 playback stops, completes, or the page disappears. This keeps idle insight
 carousels from burning battery just because an audio page is visible.
 
+**Staged multi-scan playback**: `ActiveScanToolbar` routes a waveform-badge tap
+to a selected staged-audio index. `CaptureWorkspaceView` presents that clip in
+`StagedAudioPreviewModal`, which reuses `AudioPlaybackCarouselPage` for bounded
+local-source resolution, spectrogram decoding, playback, and seeking. Closing
+the full-screen cover leaves the clip staged. **Remove** calls
+`removeStagedAudio(at:)`, updates the ordered mixed-media timeline, and deletes
+the temporary recording through `FileIOActor`. The cover is included in the
+workspace presentation-occupancy fence, so camera or route restoration cannot
+race its dismissal.
+
 The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with
 `.animation(.linear(duration: 0.15))` matching the 150 ms tick interval of the
 `recordingTask`.
@@ -616,7 +626,30 @@ For audio-only scans, `insertScan` persists `image_storage_urls: []`, durable
 timeline. Standalone audio is promoted into durable scan storage and normalized
 as a ready `scan_media_assets(kind = 'audio', role = 'audio')` row. Extracted
 `video_audio` remains inference-only: it is deleted after finalization because
-the shareable playback MP4 already contains its own audio track.
+the shareable playback MP4 already contains its own audio track. Canonical
+standalone-audio references also retain the request descriptor's optional
+`sourceIndex`, which identifies the original clip independently of its local or
+promoted path. Offline replay produces audio paths and descriptors from the same
+chronological timeline traversal, so a video's extracted audio cannot take the
+standalone recording's promotion slot. The server stores these identities only
+when they form the exact unique zero-based standalone sequence; malformed or
+legacy identity metadata is stripped while the audio remains durable.
+
+Owner-history sync prefers `captured_media`, then supplements an incomplete or
+legacy manifest from `audio_storage_urls` and `user_observation_context` before
+replacing the local mixed-media timeline. This keeps a submitted audio plus
+description scan playable and preserves its text provenance after reconciliation
+or restore on another device. Intentional nonvisual results never display the
+photo-specific `Original photo unavailable` carousel state. Legacy compatibility
+columns do not store cross-modal positions, so missing audio is appended in
+stored-array order without filtering canonical manifest audio, and the stored
+description follows it. The compatibility array is supplemental rather than
+deletion authority. History reconciliation replaces a local standalone clip
+only on an exact path match or a unique `sourceIndex` match. Legacy and restore
+references without that identity are merged conservatively instead of consuming
+a local clip by ordinal guess, so an ambiguous partial two-clip projection can
+duplicate an alias but cannot discard the other recording. Unmatched local
+descriptions are retained because the scan row stores only one context.
 
 ## 13. Explore Audio Publication
 

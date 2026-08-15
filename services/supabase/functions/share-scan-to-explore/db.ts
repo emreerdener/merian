@@ -116,16 +116,49 @@ function isStandaloneAudioManifestItem(value: unknown): boolean {
     Object.hasOwn(value as Record<string, unknown>, "audio");
 }
 
+function standaloneAudioManifestPath(value: unknown): string | null {
+  if (!isStandaloneAudioManifestItem(value)) return null;
+  const audio = (value as Record<string, unknown>).audio;
+  if (audio == null || typeof audio !== "object" || Array.isArray(audio)) {
+    return null;
+  }
+  const wrapper = audio as Record<string, unknown>;
+  const candidate = wrapper._0 ?? wrapper;
+  if (
+    candidate == null || typeof candidate !== "object" ||
+    Array.isArray(candidate)
+  ) {
+    return null;
+  }
+  const path = (candidate as Record<string, unknown>).path;
+  return typeof path === "string" && path.trim().length > 0
+    ? path.trim()
+    : null;
+}
+
 export function buildRestoredAudioCapturedMedia(
   row: ShareEligibleScanRow,
   audioUrls: string[],
 ): unknown[] | null {
   const sanitizedAudioUrls = cleanMediaUrls(audioUrls);
   if (sanitizedAudioUrls.length === 0) return row.captured_media ?? null;
-  const existingItems = Array.isArray(row.captured_media)
-    ? row.captured_media.filter((item) => !isStandaloneAudioManifestItem(item))
+  const existingManifest = Array.isArray(row.captured_media)
+    ? row.captured_media
+    : [];
+  const existingItems = existingManifest.length > 0
+    ? existingManifest.filter((item) => !isStandaloneAudioManifestItem(item))
     : cleanMediaUrls(row.image_storage_urls).map(imageManifestItem);
-  return [...existingItems, ...sanitizedAudioUrls.map(audioManifestItem)];
+  const existingAudioItemsByPath = new Map<string, unknown>();
+  for (const item of existingManifest) {
+    const path = standaloneAudioManifestPath(item);
+    if (path && !existingAudioItemsByPath.has(path)) {
+      existingAudioItemsByPath.set(path, item);
+    }
+  }
+  const audioItems = sanitizedAudioUrls.map((url) =>
+    existingAudioItemsByPath.get(url) ?? audioManifestItem(url)
+  );
+  return [...existingItems, ...audioItems];
 }
 
 function videoManifestItem(

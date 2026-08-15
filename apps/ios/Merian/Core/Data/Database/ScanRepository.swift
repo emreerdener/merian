@@ -14,7 +14,7 @@ final class ScanRepository {
     // MARK: - Singleton
 
     static let shared = ScanRepository()
-    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, captured_media, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
+    private static let historicalScanSelectColumns = "id, image_storage_urls, video_storage_urls, audio_storage_urls, captured_media, user_observation_context, timestamp, weather_condition, weather_temperature_f, ai_confidence_score, ecology_type, is_invasive, invasive_status_region, invasive_rationale, invasive_confidence, is_live_capture, colors, semantic_location, gps_lat_exact, gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, life_stage, reproductive_condition, sex, sex_confidence, sex_evidence, individual_count, ecological_interactions, inference_tier, custom_tags, candidates, user_identification_override, user_confirmed_identification, image_quality_score, pet_identification, species_dictionary!scans_species_id_fkey(scientific_name, kingdom, phylum, class, order, family, genus, wikipedia_url, reference_image_url, hazard_type, common_names, wikipedia_overview, iucn_red_list_status, habitat_description, group_tags)"
 
     // MARK: - Dependencies
 
@@ -385,12 +385,66 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
     let group_tags: [String]?
 }
 
+struct HistoricalObservationContext: Decodable, Sendable {
+    let freeText: String?
+    let addedAt: Date?
+
+    private enum CodingKeys: String, CodingKey {
+        case freeText
+        case free_text
+        case addedAt
+        case added_at
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        freeText = (try? container.decode(String.self, forKey: .freeText))
+            ?? (try? container.decode(String.self, forKey: .free_text))
+        addedAt = Self.decodeDate(
+            from: container,
+            keys: [.addedAt, .added_at]
+        )
+    }
+
+    var observationContext: ObservationContext? {
+        guard let normalizedText = freeText?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !normalizedText.isEmpty else {
+            return nil
+        }
+        var context = ObservationContext(freeText: normalizedText)
+        context.addedAt = addedAt
+        return context
+    }
+
+    private static func decodeDate(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        keys: [CodingKeys]
+    ) -> Date? {
+        for key in keys {
+            if let date = try? container.decode(Date.self, forKey: key) {
+                return date
+            }
+            if let seconds = try? container.decode(Double.self, forKey: key) {
+                return Date(timeIntervalSinceReferenceDate: seconds)
+            }
+            if let value = try? container.decode(String.self, forKey: key) {
+                return DateUtilities.iso8601FractionalFormatter.date(from: value)
+                    ?? DateUtilities.iso8601Formatter.date(from: value)
+            }
+        }
+        return nil
+    }
+}
+
 struct HistoricalScanResponse: Decodable, Sendable {
     let id: String
     let created_at: String?
     let image_storage_urls: [String]?
     let video_storage_urls: [String]?
+    let audio_storage_urls: [String]?
     let captured_media: [SerializedMediaItem]?
+    let user_observation_context: HistoricalObservationContext?
     let timestamp: String?
     let weather_condition: String?
     let weather_temperature_f: Double?
@@ -559,10 +613,17 @@ actor HistoricalDatabaseActor {
                 )
 
                 let existingMediaSnapshot = existing.capturedMediaSnapshot
-                let newItems = CapturedMediaSnapshot.cloudHydratedItems(
+                let hydratedItems = CapturedMediaSnapshot.cloudHydratedItems(
                     capturedMediaItems: res.captured_media,
                     imageStorageURLs: res.image_storage_urls,
-                    videoStorageURLs: res.video_storage_urls
+                    videoStorageURLs: res.video_storage_urls,
+                    audioStorageURLs: res.audio_storage_urls,
+                    observationContext:
+                        res.user_observation_context?.observationContext
+                )
+                let newItems = CapturedMediaSnapshot.preservingExistingNonVisualItems(
+                    in: hydratedItems,
+                    from: existingMediaSnapshot
                 )
                 if CloudMediaReplacementPolicy.shouldReplace(
                     existing: existingMediaSnapshot,
@@ -784,7 +845,10 @@ actor HistoricalDatabaseActor {
             let newItems = CapturedMediaSnapshot.cloudHydratedItems(
                 capturedMediaItems: scan.captured_media,
                 imageStorageURLs: scan.image_storage_urls,
-                videoStorageURLs: scan.video_storage_urls
+                videoStorageURLs: scan.video_storage_urls,
+                audioStorageURLs: scan.audio_storage_urls,
+                observationContext:
+                    scan.user_observation_context?.observationContext
             )
             record.replaceCapturedMedia(with: newItems)
 

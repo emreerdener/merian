@@ -1079,6 +1079,78 @@ struct OfflineQueueManagerTests {
         #expect(galleryItem.jsonObject["hasEmbeddedCaptureDate"] == nil)
     }
 
+    @Test func queueReplayReusesPersistedStandaloneAudioIdentity() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let items: [SerializedMediaItem] = [
+            .audio(.documents("first.wav", sourceIndex: 0))
+        ]
+        let data = try JSONEncoder().encode(items)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: String(decoding: data, as: UTF8.self)
+        )
+
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+
+        #expect(extracted.audioMediaItems == [.audio(sourceIndex: 0)])
+    }
+
+    @Test func queueReplayKeepsAudioPathsAlignedWithDescriptorsAcrossMixedTimeline() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let standalone = SerializedMediaItem.audio(
+            .documents("standalone.wav", sourceIndex: 0)
+        )
+        let video = SerializedMediaItem.video(StoredVideoMediaReference(
+            .documents("clip.mp4"),
+            audio: .documents("video-audio.wav")
+        ))
+        let description = SerializedMediaItem.description(
+            ObservationContext(freeText: "Interleaved field note")
+        )
+        let scenarios: [(
+            items: [SerializedMediaItem],
+            paths: [String],
+            descriptors: [IdentifyAudioMediaItem]
+        )] = [
+            (
+                [video, description, standalone],
+                ["video-audio.wav", "standalone.wav"],
+                [.videoAudio(clipIndex: 0), .audio(sourceIndex: 0)]
+            ),
+            (
+                [standalone, description, video],
+                ["standalone.wav", "video-audio.wav"],
+                [.audio(sourceIndex: 0), .videoAudio(clipIndex: 0)]
+            )
+        ]
+
+        for scenario in scenarios {
+            let data = try JSONEncoder().encode(scenario.items)
+            let scan = OfflineQueuedScan(
+                capturedMediaJSON: String(decoding: data, as: UTF8.self)
+            )
+            let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+                from: scan,
+                container: context.container
+            )
+
+            #expect(extracted.audioFilePaths == scenario.paths)
+            #expect(extracted.audioMediaItems == scenario.descriptors)
+            let durableStandalonePaths = zip(
+                extracted.audioFilePaths ?? [],
+                extracted.audioMediaItems ?? []
+            ).compactMap { pair -> String? in
+                let (path, descriptor) = pair
+                return descriptor.kind == .audio ? path : nil
+            }
+            #expect(durableStandalonePaths == ["standalone.wav"])
+        }
+    }
+
     @Test func galleryQueueReplayUsesEmbeddedCaptureDateWhenPresent() throws {
         let context = try createIsolatedContext()
         defer { OfflineQueueManager.shared.modelContext = nil }
@@ -2484,6 +2556,14 @@ struct OfflineQueueManagerTests {
             let capturedMediaJSON = try #require(fetched.capturedMediaJSON)
             let items = try #require(MediaJSONParser.serializedItems(jsonString: capturedMediaJSON))
             assertSerializedItems(items, match: scenario.expected)
+            let audioSourceIndices = items.compactMap { item -> Int? in
+                guard case .audio(let reference) = item else { return nil }
+                return reference.sourceIndex
+            }
+            let expectedAudioCount = scenario.expected.reduce(into: 0) { count, item in
+                if case .audio = item { count += 1 }
+            }
+            #expect(audioSourceIndices == Array(0..<expectedAudioCount))
             cleanupSerializedItems(items)
         }
     }

@@ -198,10 +198,10 @@ type AudioMediaDescriptor = {
 };
 
 function optionalIndex(value: unknown): number | undefined {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     return undefined;
   }
-  return Math.trunc(value);
+  return value;
 }
 
 function normalizeFocusRegion(
@@ -740,6 +740,18 @@ Deno.test("visual media prompt describes video audio as accompanying audio", () 
   assert(prompt.includes("sampled visual frames and accompanying audio"));
   assert(prompt.includes("evidence from that video"));
   assert(!prompt.includes("The following images"));
+});
+
+Deno.test("audio media normalization accepts only nonnegative safe integer indexes", () => {
+  const descriptors = normalizeAudioMediaItems([
+    { kind: "audio", sourceIndex: 0.5 },
+    { kind: "video_audio", clipIndex: Number.MAX_SAFE_INTEGER + 1 },
+  ], 2);
+
+  assertEquals(descriptors, [
+    { kind: "audio", sourceIndex: undefined, clipIndex: undefined },
+    { kind: "video_audio", sourceIndex: undefined, clipIndex: undefined },
+  ]);
 });
 
 Deno.test("visual media prompt keeps still-photo language for still photos", () => {

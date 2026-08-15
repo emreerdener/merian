@@ -1774,6 +1774,7 @@ extension OfflineQueueManager {
         persistedVideoNamesBySourcePath: [String: String] = [:]
     ) -> String? {
         var serializedItems: [SerializedMediaItem] = []
+        var standaloneAudioSourceIndex = 0
 
         for item in mediaTimeline {
             switch item {
@@ -1781,10 +1782,14 @@ extension OfflineQueueManager {
                 guard imageFileNames.indices.contains(index) else { continue }
                 serializedItems.append(.image(.documents(imageFileNames[index])))
             case .audio(let sourcePath):
+                defer { standaloneAudioSourceIndex += 1 }
                 let persistedName = persistedAudioNamesBySourcePath[sourcePath]
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent
                 guard !persistedName.isEmpty else { continue }
-                serializedItems.append(.audio(.documents(persistedName)))
+                serializedItems.append(.audio(.documents(
+                    persistedName,
+                    sourceIndex: standaloneAudioSourceIndex
+                )))
             case .video(let sourcePath, let posterImageIndex, let audioFilePath):
                 let persistedName = persistedVideoNamesBySourcePath[sourcePath]
                     ?? URL(fileURLWithPath: sourcePath).lastPathComponent

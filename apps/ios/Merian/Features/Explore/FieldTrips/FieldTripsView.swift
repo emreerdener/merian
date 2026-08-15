@@ -1594,7 +1594,7 @@ private enum FieldTripScanPreviewLayout {
 
 private enum FieldTripTemplateCardLayout {
     static let artworkSize: CGFloat = 80
-    static let previewTileSize: CGFloat = 80
+    static let previewTileSize = FieldTripScanPreviewLayout.tileSize
 }
 
 private enum FieldTripLevelHeaderLayout {

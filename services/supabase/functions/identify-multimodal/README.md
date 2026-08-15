@@ -173,8 +173,14 @@ removal, and final scan deletion erase the stored envelope.
 - Standalone audio and extracted video audio are Gemini audio inputs. Standalone
   audio is also durable scan media: it is promoted into `audio_storage_urls`,
   represented in `captured_media`, and normalized as a ready audio asset for
-  optional Explore sharing. Extracted `video_audio` remains inference-only and
-  is deleted after finalization because the playback MP4 is the public artifact.
+  optional Explore sharing. Its canonical stored reference retains the
+  standalone descriptor's optional `sourceIndex`, allowing owner-history sync to
+  match a promoted URL to the original local clip without relying on array
+  position. Identity is stored only when every standalone descriptor supplies
+  the exact unique zero-based sequence; malformed or incomplete identity values
+  are omitted from the complete standalone set without dropping its media.
+  Extracted `video_audio` remains inference-only and is deleted after
+  finalization because the playback MP4 is the public artifact.
 - Video inference is represented by sampled image frames plus optional extracted
   audio. The playback `.mp4` is not sent to Gemini.
 - New video scans require durable playback video promotion. If

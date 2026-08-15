@@ -87,6 +87,43 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testStagedAudioBadgeOpensPlaybackReview() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedStagedAudioReviewFlow"]
+        )
+
+        let stagedAudioBadge = app.buttons["StagedAudioBadge_0"]
+        XCTAssertTrue(
+            stagedAudioBadge.waitForExistence(timeout: 8.0),
+            "Seeded staged audio did not appear in the active scan toolbar"
+        )
+        XCTAssertTrue(stagedAudioBadge.isHittable)
+        stagedAudioBadge.tap()
+
+        let preview = app.otherElements[
+            "AudioPlaybackCarouselPage_ui_test_staged_audio_review.wav"
+        ]
+        XCTAssertTrue(
+            preview.waitForExistence(timeout: 8.0),
+            "Tapping the staged waveform did not open audio playback"
+        )
+
+        let playbackControl = app.buttons[
+            "AudioPlaybackControl_ui_test_staged_audio_review.wav"
+        ]
+        XCTAssertTrue(
+            playbackControl.waitForExistence(timeout: 8.0),
+            "The staged recording did not become playable"
+        )
+
+        let closeButton = app.buttons["Close audio preview"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 4.0))
+        closeButton.tap()
+        XCTAssertFalse(preview.waitForExistence(timeout: 4.0))
+        XCTAssertTrue(stagedAudioBadge.waitForExistence(timeout: 4.0))
+    }
+
+    @MainActor
     func testCameraHintPreservesClearanceAboveShutter() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: [

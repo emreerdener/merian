@@ -1468,6 +1468,10 @@ on gesture-driven layout abstractions.
   when thumbnails are generated. Video thumbnails carry a play badge and open
   `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar
   close and remove actions; removal deletes the staged clip plus companion WAV.
+  Audio waveform badges now route their staged index into
+  `StagedAudioPreviewModal`, a full-screen spectrogram player with close and
+  remove actions. Closing preserves the mixed-media timeline, while removal
+  deletes the selected temporary recording through the shared file owner.
   When the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed
   overlays hide `MediaModeToggle`, `CaptureButton`, `FlashButton`, and
   `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds

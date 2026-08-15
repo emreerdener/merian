@@ -1070,10 +1070,13 @@ struct ExtractedScanData: Sendable {
         capturedMediaSnapshot.observationContextsJSON
     }
 
-    /// Filename of the recorded WAV relative to the Documents directory, for audio-only scans.
-    /// `nil` for image and describe scans.
+    /// Audio inference paths in the exact same order as `audioMediaItems`.
+    ///
+    /// This order must come from one shared projection. Grouping standalone audio
+    /// ahead of video-extracted audio can make the Edge Function promote and delete
+    /// the opposite clips when the mixed-media timeline is interleaved.
     var audioFilePaths: [String]? {
-        let paths = capturedMediaSnapshot.audioPaths
+        let paths = orderedAudioInputs.map(\.path)
         return paths.isEmpty ? nil : paths
     }
 
@@ -1093,18 +1096,31 @@ struct ExtractedScanData: Sendable {
     }
 
     var audioMediaItems: [IdentifyAudioMediaItem]? {
-        var items: [IdentifyAudioMediaItem] = []
+        let items = orderedAudioInputs.map(\.descriptor)
+        return items.isEmpty ? nil : items
+    }
+
+    private var orderedAudioInputs: [(path: String, descriptor: IdentifyAudioMediaItem)] {
+        var inputs: [(path: String, descriptor: IdentifyAudioMediaItem)] = []
         var standaloneAudioIndex = 0
         var videoClipIndex = 0
 
         for item in capturedMediaItems {
             switch item {
-            case .audio:
-                items.append(.audio(sourceIndex: standaloneAudioIndex))
+            case .audio(let reference):
+                inputs.append((
+                    path: reference.serializedPath,
+                    descriptor: .audio(
+                        sourceIndex: reference.sourceIndex ?? standaloneAudioIndex
+                    )
+                ))
                 standaloneAudioIndex += 1
             case .video(let reference):
-                if reference.audio != nil {
-                    items.append(.videoAudio(clipIndex: videoClipIndex))
+                if let audioReference = reference.audio {
+                    inputs.append((
+                        path: audioReference.serializedPath,
+                        descriptor: .videoAudio(clipIndex: videoClipIndex)
+                    ))
                 }
                 videoClipIndex += 1
             case .image, .description:
@@ -1112,7 +1128,7 @@ struct ExtractedScanData: Sendable {
             }
         }
 
-        return items.isEmpty ? nil : items
+        return inputs
     }
 
     var capturedMediaJSON: String? {

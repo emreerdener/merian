@@ -14,10 +14,20 @@ enum MediaStorageLocation: String, Codable, Sendable, Equatable {
 struct StoredMediaReference: Codable, Equatable, Sendable {
     let storage: MediaStorageLocation
     let path: String
+    /// Stable ordinal from the original standalone-media submission.
+    ///
+    /// This is intentionally optional: legacy manifests and compatibility URL
+    /// arrays do not prove which original clip a durable URL represents.
+    let sourceIndex: Int?
 
-    init(storage: MediaStorageLocation, path: String) {
+    init(
+        storage: MediaStorageLocation,
+        path: String,
+        sourceIndex: Int? = nil
+    ) {
         self.storage = storage
         self.path = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.sourceIndex = sourceIndex.flatMap { $0 >= 0 ? $0 : nil }
     }
 
     init(legacyPath: String) {
@@ -31,16 +41,16 @@ struct StoredMediaReference: Codable, Equatable, Sendable {
         }
     }
 
-    static func documents(_ path: String) -> Self {
-        Self(storage: .documents, path: path)
+    static func documents(_ path: String, sourceIndex: Int? = nil) -> Self {
+        Self(storage: .documents, path: path, sourceIndex: sourceIndex)
     }
 
-    static func remoteURL(_ path: String) -> Self {
-        Self(storage: .remoteURL, path: path)
+    static func remoteURL(_ path: String, sourceIndex: Int? = nil) -> Self {
+        Self(storage: .remoteURL, path: path, sourceIndex: sourceIndex)
     }
 
-    static func absolutePath(_ path: String) -> Self {
-        Self(storage: .absolutePath, path: path)
+    static func absolutePath(_ path: String, sourceIndex: Int? = nil) -> Self {
+        Self(storage: .absolutePath, path: path, sourceIndex: sourceIndex)
     }
 
     var serializedPath: String {
@@ -83,6 +93,8 @@ struct StoredMediaReference: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case storage
         case path
+        case sourceIndex
+        case sourceIndexSnake = "source_index"
     }
 
     init(from decoder: Decoder) throws {
@@ -95,7 +107,16 @@ struct StoredMediaReference: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let storage = try container.decode(MediaStorageLocation.self, forKey: .storage)
         let path = try container.decode(String.self, forKey: .path)
-        self.init(storage: storage, path: path)
+        let sourceIndex = (try? container.decode(Int.self, forKey: .sourceIndex))
+            ?? (try? container.decode(Int.self, forKey: .sourceIndexSnake))
+        self.init(storage: storage, path: path, sourceIndex: sourceIndex)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(storage, forKey: .storage)
+        try container.encode(path, forKey: .path)
+        try container.encodeIfPresent(sourceIndex, forKey: .sourceIndex)
     }
 }
 
@@ -350,7 +371,9 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     static func cloudHydratedItems(
         capturedMediaItems: [SerializedMediaItem]?,
         imageStorageURLs: [String]?,
-        videoStorageURLs: [String]?
+        videoStorageURLs: [String]?,
+        audioStorageURLs: [String]? = nil,
+        observationContext: ObservationContext? = nil
     ) -> [SerializedMediaItem] {
         let imageURLs = (imageStorageURLs ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -358,26 +381,31 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         let videoURLs = (videoStorageURLs ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+        let resolvedCapturedMediaItems = addingCloudNonVisualFallbacks(
+            to: capturedMediaItems ?? [],
+            audioStorageURLs: audioStorageURLs,
+            observationContext: observationContext
+        )
 
         if let capturedMediaItems, !capturedMediaItems.isEmpty {
-            let snapshot = CapturedMediaSnapshot(items: capturedMediaItems)
+            let snapshot = CapturedMediaSnapshot(items: resolvedCapturedMediaItems)
             if snapshot.summary.hasVideo {
                 if videoStorageURLs != nil, videoURLs.isEmpty {
                     return demotingUnavailableVideos(
-                        in: capturedMediaItems,
+                        in: resolvedCapturedMediaItems,
                         imageURLs: imageURLs,
                         imageAvailabilityIsExplicit: imageStorageURLs != nil
                     )
                 }
                 return addingMissingVideoFallbacks(
-                    to: capturedMediaItems,
+                    to: resolvedCapturedMediaItems,
                     imageURLs: imageURLs,
                     imageAvailabilityIsExplicit: imageStorageURLs != nil
                 )
             }
             if videoURLs.isEmpty {
                 if imageStorageURLs != nil, imageURLs.isEmpty {
-                    return capturedMediaItems.filter { item in
+                    return resolvedCapturedMediaItems.filter { item in
                         switch item {
                         case .audio, .description:
                             return true
@@ -386,25 +414,27 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                         }
                     }
                 }
-                return middleFrameFallbackItems(from: capturedMediaItems) ?? capturedMediaItems
+                return middleFrameFallbackItems(from: resolvedCapturedMediaItems)
+                    ?? resolvedCapturedMediaItems
             }
         }
 
         guard !videoURLs.isEmpty else {
             if let middleFrame = middleFrameFallbackURL(from: imageURLs) {
-                return [.image(.remoteURL(middleFrame))]
+                return [.image(.remoteURL(middleFrame))] + resolvedCapturedMediaItems
             }
             return imageURLs.map { .image(.remoteURL($0)) }
+                + resolvedCapturedMediaItems
         }
 
-        let manifestImageURLs = capturedMediaItems?
+        let manifestImageURLs = resolvedCapturedMediaItems
             .compactMap { item -> String? in
                 guard case .image(let reference) = item else { return nil }
                 let path = reference.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
                 return path.isEmpty ? nil : path
-            } ?? []
+            }
         let availableImageURLs = imageURLs.isEmpty ? manifestImageURLs : imageURLs
-        let preservedManifestItems = capturedMediaItems?
+        let preservedManifestItems = resolvedCapturedMediaItems
             .filter { item in
                 switch item {
                 case .audio, .description:
@@ -412,7 +442,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                 case .image, .video:
                     return false
                 }
-            } ?? []
+            }
 
         let expectedVideoFrameCount = videoURLs.count * sampledVideoFrameCount
         let standaloneImageCount = max(availableImageURLs.count - expectedVideoFrameCount, 0)
@@ -427,11 +457,111 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
                 : fallbackThumbnailURL
             return SerializedMediaItem.video(StoredVideoMediaReference(
                 .remoteURL(videoURL),
-                thumbnail: thumbnailURL.map(StoredMediaReference.remoteURL)
+                thumbnail: thumbnailURL.map { .remoteURL($0) }
             ))
         }
 
         return standaloneImages + videos + preservedManifestItems
+    }
+
+    /// Retains nonvisual provenance that an incomplete historical projection cannot
+    /// authoritatively replace. A cloud audio reference replaces an existing clip only
+    /// when their exact paths or unique durable source indexes match. Unindexed legacy
+    /// references are merged conservatively because ordinal inference can delete the
+    /// wrong clip when a multi-audio projection is partial. The scan row stores only one
+    /// observation context, so unmatched local descriptions are always preserved.
+    static func preservingExistingNonVisualItems(
+        in hydratedItems: [SerializedMediaItem],
+        from existing: CapturedMediaSnapshot
+    ) -> [SerializedMediaItem] {
+        var resolvedItems = hydratedItems
+        let hydratedSnapshot = CapturedMediaSnapshot(items: hydratedItems)
+        let hydratedAudioPaths = hydratedSnapshot.audioReferences.map {
+            $0.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var representedAudioPaths = Set(hydratedAudioPaths)
+        let existingSourceIndexCounts = sourceIndexCounts(in: existing.audioReferences)
+        let hydratedSourceIndexCounts = sourceIndexCounts(in: hydratedSnapshot.audioReferences)
+        let uniquelyMatchedSourceIndexes = Set(existingSourceIndexCounts.compactMap { sourceIndex, count in
+            count == 1 && hydratedSourceIndexCounts[sourceIndex] == 1 ? sourceIndex : nil
+        })
+        var representedDescriptionTexts = Set(
+            hydratedSnapshot.observationContexts.map(\.trimmedFreeText)
+        )
+
+        for (existingIndex, item) in existing.items.enumerated() {
+            let shouldPreserve: Bool
+            switch item {
+            case .audio(let reference):
+                let path = reference.serializedPath
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if representedAudioPaths.contains(path) {
+                    shouldPreserve = false
+                } else if reference.sourceIndex.map(
+                    uniquelyMatchedSourceIndexes.contains
+                ) == true {
+                    shouldPreserve = false
+                } else {
+                    shouldPreserve = representedAudioPaths.insert(path).inserted
+                }
+            case .description(let context):
+                shouldPreserve = representedDescriptionTexts
+                    .insert(context.trimmedFreeText).inserted
+            case .image, .video:
+                shouldPreserve = false
+            }
+
+            if shouldPreserve {
+                resolvedItems.insert(item, at: min(existingIndex, resolvedItems.count))
+            }
+        }
+
+        return resolvedItems
+    }
+
+    private static func sourceIndexCounts(
+        in references: [StoredMediaReference]
+    ) -> [Int: Int] {
+        references.reduce(into: [:]) { counts, reference in
+            guard let sourceIndex = reference.sourceIndex else { return }
+            counts[sourceIndex, default: 0] += 1
+        }
+    }
+
+    private static func addingCloudNonVisualFallbacks(
+        to items: [SerializedMediaItem],
+        audioStorageURLs: [String]?,
+        observationContext: ObservationContext?
+    ) -> [SerializedMediaItem] {
+        let supplementalAudioURLs = (audioStorageURLs ?? []).compactMap { value -> String? in
+            let normalizedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalizedValue.isEmpty ? nil : normalizedValue
+        }
+        var resolvedItems = items
+        var representedAudioPaths = Set(
+            CapturedMediaSnapshot(items: resolvedItems).audioReferences.map {
+                $0.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        )
+
+        for normalizedURL in supplementalAudioURLs {
+            guard representedAudioPaths.insert(normalizedURL).inserted else {
+                continue
+            }
+            resolvedItems.append(.audio(.remoteURL(normalizedURL)))
+        }
+
+        if let observationContext, !observationContext.isEmpty {
+            let alreadyRepresented = resolvedItems.contains { item in
+                guard case .description(let existingContext) = item else { return false }
+                return existingContext.trimmedFreeText == observationContext.trimmedFreeText
+            }
+            if !alreadyRepresented {
+                resolvedItems.append(.description(observationContext))
+            }
+        }
+
+        return resolvedItems
     }
 
     /// Replaces each unavailable video in its original timeline position with one image.
@@ -450,7 +580,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             return reference
         }
         let manifestSampledFrames = videoFrameSuffix(in: manifestImages, videoCount: videoCount)
-        let remoteImages = imageURLs.map(StoredMediaReference.remoteURL)
+        let remoteImages = imageURLs.map { StoredMediaReference.remoteURL($0) }
         let sampledFrames: [StoredMediaReference]
         if !remoteImages.isEmpty {
             sampledFrames = videoFrameSuffix(in: remoteImages, videoCount: videoCount)
@@ -494,7 +624,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             return reference
         }
         let manifestSampledFrames = videoFrameSuffix(in: manifestImages, videoCount: videoCount)
-        let remoteImages = imageURLs.map(StoredMediaReference.remoteURL)
+        let remoteImages = imageURLs.map { StoredMediaReference.remoteURL($0) }
         let sampledFrames: [StoredMediaReference]
         if !remoteImages.isEmpty {
             sampledFrames = videoFrameSuffix(in: remoteImages, videoCount: videoCount)
@@ -586,6 +716,36 @@ enum CloudMediaReplacementPolicy {
         let hasRemoteVideo = existing.videoReferences.contains(where: \.isRemote)
         let onlyLocalOrMissingVisuals = existingVisualReferences.isEmpty || !hasRemoteVisual
         let repairsMissingVideo = !existing.summary.hasVideo && hydrated.summary.hasVideo
+        let existingAudioPaths = Set(existing.audioReferences.map {
+            $0.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        })
+        let repairsMissingAudio = hydrated.audioReferences.contains { reference in
+            !existingAudioPaths.contains(
+                reference.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
+        let existingAudioByPath = Dictionary(
+            existing.audioReferences.map {
+                ($0.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines), $0)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let repairsMissingAudioIdentity = hydrated.audioReferences.contains { reference in
+            guard let sourceIndex = reference.sourceIndex,
+                  let existingReference = existingAudioByPath[
+                    reference.serializedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+                  ] else {
+                return false
+            }
+            return existingReference.sourceIndex != sourceIndex
+        }
+        let existingDescriptionTexts = Set(existing.observationContexts.map(\.trimmedFreeText))
+        let repairsMissingDescription = hydrated.observationContexts.contains { context in
+            !existingDescriptionTexts.contains(context.trimmedFreeText)
+        }
+        let repairsMissingNonVisualMedia = repairsMissingAudio
+            || repairsMissingAudioIdentity
+            || repairsMissingDescription
         let explicitlyRemovedRemoteVideo = videoStorageURLs != nil
             && normalizedURLs(videoStorageURLs).isEmpty
             && hasRemoteVideo
@@ -603,6 +763,7 @@ enum CloudMediaReplacementPolicy {
         }
         return onlyLocalOrMissingVisuals
             || repairsMissingVideo
+            || repairsMissingNonVisualMedia
             || explicitlyRemovedRemoteVideo
             || explicitlyRemovedAllRemoteVisuals
     }

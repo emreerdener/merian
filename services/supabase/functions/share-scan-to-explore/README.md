@@ -187,14 +187,17 @@ legacy audio scans whose local WAV/M4A still exists but whose cloud scan
 predates durable `audio_storage_urls`. At most two staging keys are accepted.
 The function promotes them, replaces legacy local audio references in
 `captured_media`, updates `audio_storage_urls`, refreshes normalized media
-assets, and then applies the normal fail-closed publication moderation. Failed
-promotion or a returned database rejection whose exact-owner reread proves the
-URLs absent rolls back promoted R2 objects and publishes nothing. A lost update
-response or unavailable reread returns retryable
-`503 scan_media_restore_unavailable` and preserves promoted objects; deleting
-them could break a scan whose update actually committed. The retry recognizes
-the canonical durable URLs and does not consume the staging source twice. If the
-local recording is gone, the audio cannot be recovered.
+assets, and then applies the normal fail-closed publication moderation. When an
+already-durable audio URL is rebuilt alongside a restored clip, its existing
+optional `sourceIndex` is preserved; a newly restored legacy clip remains
+unindexed unless the request can prove its original identity. Failed promotion
+or a returned database rejection whose exact-owner reread proves the URLs absent
+rolls back promoted R2 objects and publishes nothing. A lost update response or
+unavailable reread returns retryable `503 scan_media_restore_unavailable` and
+preserves promoted objects; deleting them could break a scan whose update
+actually committed. The retry recognizes the canonical durable URLs and does not
+consume the staging source twice. If the local recording is gone, the audio
+cannot be recovered.
 
 Across images, playback video, and standalone audio, one repair request accepts
 at most six staging keys in total. A key cannot appear under two media kinds.
