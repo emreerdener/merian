@@ -27,10 +27,10 @@ Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
 
 Schema-v2 intents retain a validated `ownerMediaTimeline` when it was present on
-the accepted request. Older intents keep that field absent during reconstruction;
-the worker must not turn absence into an empty authoritative array, because legacy
-media descriptors are intentionally handled by multimodal's conservative retention
-path.
+the accepted request. Older intents keep that field absent during
+reconstruction; the worker must not turn absence into an empty authoritative
+array, because legacy media descriptors are intentionally handled by
+multimodal's conservative retention path.
 
 Automatic replay is capped at 10 claims per sanitized intent. Once
 `replay_attempt_count` reaches that ceiling, the claim RPC marks the paired job

@@ -170,32 +170,33 @@ removal, and final scan deletion erase the stored envelope.
   primary subject in the prompt while the complete image remains the only Gemini
   visual part. Invalid, out-of-bounds, non-finite, and video-frame focus regions
   are stripped without failing the request.
-- Standalone audio and extracted video audio are Gemini audio inputs. New clients
-  submit one complete `ownerMediaTimeline` alongside the aligned raw-audio
-  descriptors. An audio timeline item carries both the raw `audioInputIndex` and
-  its standalone `sourceIndex`, so an interleaved video companion cannot take a
-  recording's promotion slot. Only a fully validated timeline may classify an
-  input as inference-only `video_audio` and authorize its deletion after the
-  playback MP4 is finalized. Missing legacy timeline metadata is conservative:
-  every resolved audio input is retained as durable scan media rather than
-  risking user-media loss, and every validated description is appended after
-  the grouped legacy media because its original cross-modal position cannot be
-  reconstructed. Its replay intent records every unproven audio input as
-  unindexed durable audio, matching the retained URLs so post-insert recovery
-  cannot resurrect the former companion-deletion decision. Durable audio is
-  written to `audio_storage_urls`, represented in `captured_media`, and
-  normalized as a ready audio asset for optional Explore sharing.
+- Standalone audio and extracted video audio are Gemini audio inputs. New
+  clients submit one complete `ownerMediaTimeline` alongside the aligned
+  raw-audio descriptors. An audio timeline item carries both the raw
+  `audioInputIndex` and its standalone `sourceIndex`, so an interleaved video
+  companion cannot take a recording's promotion slot. Only a fully validated
+  timeline may classify an input as inference-only `video_audio` and authorize
+  its deletion after the playback MP4 is finalized. Missing legacy timeline
+  metadata is conservative: every resolved audio input is retained as durable
+  scan media rather than risking user-media loss, and every validated
+  description is appended after the grouped legacy media because its original
+  cross-modal position cannot be reconstructed. Its replay intent records every
+  unproven audio input as unindexed durable audio, matching the retained URLs so
+  post-insert recovery cannot resurrect the former companion-deletion decision.
+  Durable audio is written to `audio_storage_urls`, represented in
+  `captured_media`, and normalized as a ready audio asset for optional Explore
+  sharing.
 - Video inference is represented by sampled image frames plus optional extracted
   audio. The playback `.mp4` is not sent to Gemini.
 - New video scans require durable playback video promotion. If
   `videoR2ObjectKeys` is non-empty, every requested video must be promoted and
   persisted in `scans.video_storage_urls` and `scans.captured_media` before the
   request is successful.
-- `captured_media` is the canonical owner-visible scan timeline. With a validated
-  `ownerMediaTimeline`, images, standalone audio, collapsed playback videos, and
-  every description are emitted in the exact submitted order. Video frames
-  collapse behind one video item with a poster thumbnail; sampled frames and
-  extracted video audio must not become standalone shareable media.
+- `captured_media` is the canonical owner-visible scan timeline. With a
+  validated `ownerMediaTimeline`, images, standalone audio, collapsed playback
+  videos, and every description are emitted in the exact submitted order. Video
+  frames collapse behind one video item with a poster thumbnail; sampled frames
+  and extracted video audio must not become standalone shareable media.
 - Extracted video audio is request evidence, not an owner-visible standalone
   reference in server `captured_media`. Generated video rows must not infer
   `has_audio` merely from `kind === "video"`; that flag requires independent
