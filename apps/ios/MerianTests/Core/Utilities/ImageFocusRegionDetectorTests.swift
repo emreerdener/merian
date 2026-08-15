@@ -132,6 +132,110 @@ struct ImageFocusRegionDetectorTests {
         #expect(draggedRect == CGRect(x: 120, y: 110, width: 100, height: 140))
     }
 
+    @Test func preparesAVisibleMinimumSizedInteractiveFocusRect() {
+        let minimumDimension = ImageFocusOverlayLayout.minimumInteractiveDimension
+        let smallRect = ImageFocusOverlayLayout.interactiveRect(
+            from: CGRect(x: 100, y: 120, width: 40, height: 50),
+            in: CGSize(width: 390, height: 450),
+            minimumDimension: minimumDimension
+        )
+        let oversizedRect = ImageFocusOverlayLayout.interactiveRect(
+            from: CGRect(x: 20, y: 40, width: 500, height: 600),
+            in: CGSize(width: 390, height: 450),
+            minimumDimension: minimumDimension
+        )
+
+        #expect(smallRect == CGRect(x: 88, y: 113, width: 64, height: 64))
+        #expect(oversizedRect == CGRect(x: 0, y: 0, width: 390, height: 450))
+        #expect(ImageFocusOverlayLayout.interactiveRect(
+            from: smallRect,
+            in: .zero,
+            minimumDimension: minimumDimension
+        ) == .zero)
+    }
+
+    @Test func resizesEveryFocusOverlayCornerWithoutLockingAspectRatio() {
+        let baseRect = CGRect(x: 80, y: 120, width: 100, height: 140)
+        let containerSize = CGSize(width: 390, height: 450)
+        let samples: [(ImageFocusOverlayCorner, CGSize, CGRect)] = [
+            (
+                .topLeading,
+                CGSize(width: -20, height: -10),
+                CGRect(x: 60, y: 110, width: 120, height: 150)
+            ),
+            (
+                .topTrailing,
+                CGSize(width: 30, height: -10),
+                CGRect(x: 80, y: 110, width: 130, height: 150)
+            ),
+            (
+                .bottomTrailing,
+                CGSize(width: 30, height: 40),
+                CGRect(x: 80, y: 120, width: 130, height: 180)
+            ),
+            (
+                .bottomLeading,
+                CGSize(width: -20, height: 40),
+                CGRect(x: 60, y: 120, width: 120, height: 180)
+            )
+        ]
+
+        for (corner, translation, expectedRect) in samples {
+            let resizedRect = ImageFocusOverlayLayout.resizedRect(
+                from: baseRect,
+                corner: corner,
+                translation: translation,
+                minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
+                in: containerSize
+            )
+            #expect(resizedRect == expectedRect)
+            #expect(resizedRect.width / resizedRect.height != baseRect.width / baseRect.height)
+        }
+    }
+
+    @Test func clampsFocusOverlayResizeToMinimumAndVisibleEdges() {
+        let baseRect = CGRect(x: 80, y: 120, width: 100, height: 140)
+        let containerSize = CGSize(width: 390, height: 450)
+        let minimumDimension = ImageFocusOverlayLayout.minimumInteractiveDimension
+        let minimumResult = ImageFocusOverlayLayout.resizeResult(
+            from: baseRect,
+            corner: .topLeading,
+            translation: CGSize(width: 1_000, height: 1_000),
+            minimumDimension: minimumDimension,
+            in: containerSize
+        )
+        let topLeadingResult = ImageFocusOverlayLayout.resizeResult(
+            from: baseRect,
+            corner: .topLeading,
+            translation: CGSize(width: -1_000, height: -1_000),
+            minimumDimension: minimumDimension,
+            in: containerSize
+        )
+        let bottomTrailingResult = ImageFocusOverlayLayout.resizeResult(
+            from: baseRect,
+            corner: .bottomTrailing,
+            translation: CGSize(width: 1_000, height: 1_000),
+            minimumDimension: minimumDimension,
+            in: containerSize
+        )
+
+        #expect(minimumResult.rect == CGRect(x: 116, y: 196, width: 64, height: 64))
+        #expect(minimumResult.constraints == Set([.minimumWidth, .minimumHeight]))
+        #expect(topLeadingResult.rect.minX == 0)
+        #expect(topLeadingResult.rect.minY == 0)
+        #expect(topLeadingResult.constraints == Set([.leadingEdge, .topEdge]))
+        #expect(bottomTrailingResult.rect.maxX == containerSize.width)
+        #expect(bottomTrailingResult.rect.maxY == containerSize.height)
+        #expect(bottomTrailingResult.constraints == Set([.trailingEdge, .bottomEdge]))
+        #expect(ImageFocusOverlayLayout.resizedRect(
+            from: baseRect,
+            corner: .bottomTrailing,
+            translation: .zero,
+            minimumDimension: minimumDimension,
+            in: .zero
+        ) == .zero)
+    }
+
     @Test func clampsFocusOverlayDragToEveryVisibleEdge() {
         let baseRect = CGRect(x: 80, y: 120, width: 100, height: 140)
         let containerSize = CGSize(width: 390, height: 450)
@@ -175,7 +279,7 @@ struct ImageFocusRegionDetectorTests {
         ) == .zero)
     }
 
-    @Test func draggingFocusOverlayDoesNotMutateSubmittedRegion() {
+    @Test func editingFocusOverlayDoesNotMutateSubmittedRegion() {
         let region = NormalizedImageFocusRegion(
             x: 0.15,
             y: 0.2,
@@ -192,6 +296,13 @@ struct ImageFocusRegionDetectorTests {
             from: baseRect,
             committedOffset: .zero,
             activeTranslation: CGSize(width: 80, height: 45),
+            in: CGSize(width: 390, height: 450)
+        )
+        _ = ImageFocusOverlayLayout.resizedRect(
+            from: baseRect,
+            corner: .bottomTrailing,
+            translation: CGSize(width: 70, height: -30),
+            minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
             in: CGSize(width: 390, height: 450)
         )
 

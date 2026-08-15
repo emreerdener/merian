@@ -99,17 +99,21 @@ object, or image-token charge.
 During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
 image bounds through the carousel's aspect-fill transform, dims only the
 exterior by 22%, and draws four detached white corner brackets. The brackets
-resolve with a 200 ms entrance. While analysis remains active, the user may drag
-the fixed-size brackets within the visible carousel; the dimming cutout and
-illumination band move with them, and the band continues sweeping during and
-after the gesture. This drag is transient presentation state only: it does not
-rewrite `NormalizedImageFocusRegion`, queued metadata, or the already-dispatched
-AI request, whose original Vision coordinates remain the model hint. Reduce
-Motion holds the illumination band at the region's midpoint. If no region
-exists, the still image has no focus geometry and falls back to the original
-full-image scan animation. The full-image and isolated-region sweeps are
-mutually exclusive. Video keeps its existing laser animation, while audio and
-description keep their existing sweeps.
+resolve with a 200 ms entrance. While analysis remains active, dragging inside
+the frame translates it, while dragging any corner bracket resizes width and
+height independently. Resizing stays within the visible carousel and stops at a
+64 pt minimum on each axis; the existing haptic policy emits a selection tick
+when a corner is engaged and a light tick when it reaches an edge or minimum
+size. The dimming cutout and illumination band follow every interaction, and the
+band continues sweeping during and after the gesture. Translation and resizing
+are transient presentation state only: they do not rewrite
+`NormalizedImageFocusRegion`, queued metadata, or the already-dispatched AI
+request, whose original Vision coordinates remain the model hint. Reduce Motion
+holds the illumination band at the region's midpoint. If no region exists, the
+still image has no focus geometry and falls back to the original full-image scan
+animation. The full-image and isolated-region sweeps are mutually exclusive.
+Video keeps its existing laser animation, while audio and description keep their
+existing sweeps.
 
 The camera shutter path explicitly separates orchestration from ImageIO work.
 `executeCapture()` snapshots location, composing-zone center, and Pro tier on

@@ -1502,7 +1502,30 @@ private struct VisualLaserScanBand: View {
     }
 }
 
+enum ImageFocusOverlayCorner: CaseIterable, Hashable {
+    case topLeading
+    case topTrailing
+    case bottomTrailing
+    case bottomLeading
+}
+
+enum ImageFocusOverlayResizeConstraint: Hashable {
+    case leadingEdge
+    case trailingEdge
+    case topEdge
+    case bottomEdge
+    case minimumWidth
+    case minimumHeight
+}
+
+struct ImageFocusOverlayResizeResult: Equatable {
+    let rect: CGRect
+    let constraints: Set<ImageFocusOverlayResizeConstraint>
+}
+
 enum ImageFocusOverlayLayout {
+    static let minimumInteractiveDimension: CGFloat = 64
+
     static func rect(
         for region: NormalizedImageFocusRegion,
         in containerSize: CGSize,
@@ -1560,26 +1583,168 @@ enum ImageFocusOverlayLayout {
         )
     }
 
+    static func interactiveRect(
+        from sourceRect: CGRect,
+        in containerSize: CGSize,
+        minimumDimension: CGFloat
+    ) -> CGRect {
+        guard isValid(rect: sourceRect),
+              isValid(containerSize: containerSize),
+              minimumDimension.isFinite,
+              minimumDimension > 0 else {
+            return .zero
+        }
+
+        let minimumWidth = min(minimumDimension, containerSize.width)
+        let minimumHeight = min(minimumDimension, containerSize.height)
+        let width = min(max(sourceRect.width, minimumWidth), containerSize.width)
+        let height = min(max(sourceRect.height, minimumHeight), containerSize.height)
+        let originX = min(
+            max(sourceRect.midX - width / 2, 0),
+            containerSize.width - width
+        )
+        let originY = min(
+            max(sourceRect.midY - height / 2, 0),
+            containerSize.height - height
+        )
+
+        return CGRect(x: originX, y: originY, width: width, height: height)
+    }
+
+    static func resizedRect(
+        from baseRect: CGRect,
+        corner: ImageFocusOverlayCorner,
+        translation: CGSize,
+        minimumDimension: CGFloat,
+        in containerSize: CGSize
+    ) -> CGRect {
+        resizeResult(
+            from: baseRect,
+            corner: corner,
+            translation: translation,
+            minimumDimension: minimumDimension,
+            in: containerSize
+        ).rect
+    }
+
+    static func resizeResult(
+        from baseRect: CGRect,
+        corner: ImageFocusOverlayCorner,
+        translation: CGSize,
+        minimumDimension: CGFloat,
+        in containerSize: CGSize
+    ) -> ImageFocusOverlayResizeResult {
+        guard isValid(rect: baseRect),
+              isValid(containerSize: containerSize),
+              translation.width.isFinite,
+              translation.height.isFinite,
+              minimumDimension.isFinite,
+              minimumDimension > 0 else {
+            return ImageFocusOverlayResizeResult(rect: .zero, constraints: [])
+        }
+
+        let rect = interactiveRect(
+            from: baseRect,
+            in: containerSize,
+            minimumDimension: minimumDimension
+        )
+        let minimumWidth = min(minimumDimension, containerSize.width)
+        let minimumHeight = min(minimumDimension, containerSize.height)
+        var minX = rect.minX
+        var maxX = rect.maxX
+        var minY = rect.minY
+        var maxY = rect.maxY
+        var constraints: Set<ImageFocusOverlayResizeConstraint> = []
+
+        switch corner {
+        case .topLeading:
+            minX = clampedResizeEdge(
+                rect.minX + translation.width,
+                lowerBound: 0,
+                upperBound: rect.maxX - minimumWidth,
+                lowerConstraint: .leadingEdge,
+                upperConstraint: .minimumWidth,
+                constraints: &constraints
+            )
+            minY = clampedResizeEdge(
+                rect.minY + translation.height,
+                lowerBound: 0,
+                upperBound: rect.maxY - minimumHeight,
+                lowerConstraint: .topEdge,
+                upperConstraint: .minimumHeight,
+                constraints: &constraints
+            )
+        case .topTrailing:
+            maxX = clampedResizeEdge(
+                rect.maxX + translation.width,
+                lowerBound: rect.minX + minimumWidth,
+                upperBound: containerSize.width,
+                lowerConstraint: .minimumWidth,
+                upperConstraint: .trailingEdge,
+                constraints: &constraints
+            )
+            minY = clampedResizeEdge(
+                rect.minY + translation.height,
+                lowerBound: 0,
+                upperBound: rect.maxY - minimumHeight,
+                lowerConstraint: .topEdge,
+                upperConstraint: .minimumHeight,
+                constraints: &constraints
+            )
+        case .bottomTrailing:
+            maxX = clampedResizeEdge(
+                rect.maxX + translation.width,
+                lowerBound: rect.minX + minimumWidth,
+                upperBound: containerSize.width,
+                lowerConstraint: .minimumWidth,
+                upperConstraint: .trailingEdge,
+                constraints: &constraints
+            )
+            maxY = clampedResizeEdge(
+                rect.maxY + translation.height,
+                lowerBound: rect.minY + minimumHeight,
+                upperBound: containerSize.height,
+                lowerConstraint: .minimumHeight,
+                upperConstraint: .bottomEdge,
+                constraints: &constraints
+            )
+        case .bottomLeading:
+            minX = clampedResizeEdge(
+                rect.minX + translation.width,
+                lowerBound: 0,
+                upperBound: rect.maxX - minimumWidth,
+                lowerConstraint: .leadingEdge,
+                upperConstraint: .minimumWidth,
+                constraints: &constraints
+            )
+            maxY = clampedResizeEdge(
+                rect.maxY + translation.height,
+                lowerBound: rect.minY + minimumHeight,
+                upperBound: containerSize.height,
+                lowerConstraint: .minimumHeight,
+                upperConstraint: .bottomEdge,
+                constraints: &constraints
+            )
+        }
+
+        return ImageFocusOverlayResizeResult(
+            rect: CGRect(
+                x: minX,
+                y: minY,
+                width: maxX - minX,
+                height: maxY - minY
+            ),
+            constraints: constraints
+        )
+    }
+
     static func clampedOffset(
         for baseRect: CGRect,
         proposedOffset: CGSize,
         in containerSize: CGSize
     ) -> CGSize? {
-        let rectValues = [
-            baseRect.minX,
-            baseRect.minY,
-            baseRect.width,
-            baseRect.height,
-            baseRect.maxX,
-            baseRect.maxY
-        ]
-        guard rectValues.allSatisfy(\.isFinite),
-              baseRect.width > 0,
-              baseRect.height > 0,
-              containerSize.width.isFinite,
-              containerSize.height.isFinite,
-              containerSize.width > 0,
-              containerSize.height > 0,
+        guard isValid(rect: baseRect),
+              isValid(containerSize: containerSize),
               proposedOffset.width.isFinite,
               proposedOffset.height.isFinite else {
             return nil
@@ -1619,6 +1784,47 @@ enum ImageFocusOverlayLayout {
         let maximumOffset = containerLength - rectMaximum
         return min(max(proposedOffset, minimumOffset), maximumOffset)
     }
+
+    private static func clampedResizeEdge(
+        _ proposedValue: CGFloat,
+        lowerBound: CGFloat,
+        upperBound: CGFloat,
+        lowerConstraint: ImageFocusOverlayResizeConstraint,
+        upperConstraint: ImageFocusOverlayResizeConstraint,
+        constraints: inout Set<ImageFocusOverlayResizeConstraint>
+    ) -> CGFloat {
+        if proposedValue <= lowerBound {
+            constraints.insert(lowerConstraint)
+        }
+        if proposedValue >= upperBound {
+            constraints.insert(upperConstraint)
+        }
+        return min(max(proposedValue, lowerBound), upperBound)
+    }
+
+    private static func isValid(rect: CGRect) -> Bool {
+        let values = [
+            rect.minX,
+            rect.minY,
+            rect.width,
+            rect.height,
+            rect.maxX,
+            rect.maxY
+        ]
+        return values.allSatisfy(\.isFinite) && rect.width > 0 && rect.height > 0
+    }
+
+    private static func isValid(containerSize: CGSize) -> Bool {
+        containerSize.width.isFinite &&
+            containerSize.height.isFinite &&
+            containerSize.width > 0 &&
+            containerSize.height > 0
+    }
+}
+
+private struct ImageFocusOverlayResizeInteraction: Equatable {
+    let corner: ImageFocusOverlayCorner
+    let translation: CGSize
 }
 
 private struct LensFocusOverlay: View {
@@ -1627,17 +1833,31 @@ private struct LensFocusOverlay: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
-    @State private var committedDragOffset = CGSize.zero
-    @GestureState private var activeDragTranslation = CGSize.zero
+    @State private var committedFocusRect: CGRect?
+    @State private var hapticResizeCorner: ImageFocusOverlayCorner?
+    @State private var hapticResizeConstraints: Set<ImageFocusOverlayResizeConstraint> = []
+    @GestureState private var activeMoveTranslation = CGSize.zero
+    @GestureState private var activeResizeInteraction: ImageFocusOverlayResizeInteraction?
+
+    private static let dragCoordinateSpaceName = "LensFocusOverlay"
+    private let resizeHandleHitSize: CGFloat = 48
 
     var body: some View {
         GeometryReader { geometry in
             let bounds = CGRect(origin: .zero, size: geometry.size)
-            let baseFocusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
-            let focusRect = ImageFocusOverlayLayout.draggedRect(
-                from: baseFocusRect,
-                committedOffset: committedDragOffset,
-                activeTranslation: activeDragTranslation,
+            let detectedFocusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
+            let initialFocusRect = ImageFocusOverlayLayout.interactiveRect(
+                from: detectedFocusRect,
+                in: geometry.size,
+                minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension
+            )
+            let settledFocusRect = ImageFocusOverlayLayout.interactiveRect(
+                from: committedFocusRect ?? initialFocusRect,
+                in: geometry.size,
+                minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension
+            )
+            let focusRect = displayedFocusRect(
+                from: settledFocusRect,
                 in: geometry.size
             )
             let dragHitRect = dragHitRect(for: focusRect, in: bounds)
@@ -1645,6 +1865,11 @@ private struct LensFocusOverlay: View {
             let bracketArm = min(30, max(18, shortestSide * 0.075))
             let strokeWidth = min(2.5, max(1, shortestSide * 0.0125 - 2.5))
             let cornerRadius = min(12, max(8, shortestSide * 0.03))
+            let handleHitSize = min(
+                resizeHandleHitSize,
+                focusRect.width,
+                focusRect.height
+            )
 
             ZStack {
                 ZStack {
@@ -1690,12 +1915,30 @@ private struct LensFocusOverlay: View {
                     .contentShape(Rectangle())
                     .position(x: dragHitRect.midX, y: dragHitRect.midY)
                     .gesture(dragGesture(
-                        baseFocusRect: baseFocusRect,
+                        baseFocusRect: settledFocusRect,
                         containerSize: geometry.size
                     ))
                     .accessibilityHidden(true)
+
+                ForEach(ImageFocusOverlayCorner.allCases, id: \.self) { corner in
+                    Rectangle()
+                        .fill(.clear)
+                        .frame(width: handleHitSize, height: handleHitSize)
+                        .contentShape(Rectangle())
+                        .position(resizeHandleCenter(
+                            for: corner,
+                            in: focusRect
+                        ))
+                        .gesture(resizeGesture(
+                            corner: corner,
+                            baseFocusRect: settledFocusRect,
+                            containerSize: geometry.size
+                        ))
+                        .accessibilityHidden(true)
+                }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .coordinateSpace(name: Self.dragCoordinateSpaceName)
         }
         .accessibilityHidden(true)
         .onAppear {
@@ -1722,22 +1965,124 @@ private struct LensFocusOverlay: View {
         baseFocusRect: CGRect,
         containerSize: CGSize
     ) -> some Gesture {
-        DragGesture(minimumDistance: 0)
-            .updating($activeDragTranslation) { value, state, _ in
+        DragGesture(
+            minimumDistance: 0,
+            coordinateSpace: .named(Self.dragCoordinateSpaceName)
+        )
+            .updating($activeMoveTranslation) { value, state, _ in
                 state = value.translation
             }
             .onEnded { value in
-                let proposedOffset = CGSize(
-                    width: committedDragOffset.width + value.translation.width,
-                    height: committedDragOffset.height + value.translation.height
-                )
-                guard let clampedOffset = ImageFocusOverlayLayout.clampedOffset(
-                    for: baseFocusRect,
-                    proposedOffset: proposedOffset,
+                committedFocusRect = ImageFocusOverlayLayout.draggedRect(
+                    from: baseFocusRect,
+                    committedOffset: .zero,
+                    activeTranslation: value.translation,
                     in: containerSize
-                ) else { return }
-                committedDragOffset = clampedOffset
+                )
             }
+    }
+
+    private func resizeGesture(
+        corner: ImageFocusOverlayCorner,
+        baseFocusRect: CGRect,
+        containerSize: CGSize
+    ) -> some Gesture {
+        DragGesture(
+            minimumDistance: 0,
+            coordinateSpace: .named(Self.dragCoordinateSpaceName)
+        )
+            .updating($activeResizeInteraction) { value, state, _ in
+                state = ImageFocusOverlayResizeInteraction(
+                    corner: corner,
+                    translation: value.translation
+                )
+            }
+            .onChanged { value in
+                let result = ImageFocusOverlayLayout.resizeResult(
+                    from: baseFocusRect,
+                    corner: corner,
+                    translation: value.translation,
+                    minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
+                    in: containerSize
+                )
+                handleResizeHaptics(
+                    corner: corner,
+                    constraints: result.constraints
+                )
+            }
+            .onEnded { value in
+                committedFocusRect = ImageFocusOverlayLayout.resizedRect(
+                    from: baseFocusRect,
+                    corner: corner,
+                    translation: value.translation,
+                    minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
+                    in: containerSize
+                )
+                hapticResizeCorner = nil
+                hapticResizeConstraints.removeAll()
+            }
+    }
+
+    private func displayedFocusRect(
+        from settledFocusRect: CGRect,
+        in containerSize: CGSize
+    ) -> CGRect {
+        if let activeResizeInteraction {
+            return ImageFocusOverlayLayout.resizedRect(
+                from: settledFocusRect,
+                corner: activeResizeInteraction.corner,
+                translation: activeResizeInteraction.translation,
+                minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
+                in: containerSize
+            )
+        }
+
+        return ImageFocusOverlayLayout.draggedRect(
+            from: settledFocusRect,
+            committedOffset: .zero,
+            activeTranslation: activeMoveTranslation,
+            in: containerSize
+        )
+    }
+
+    private func resizeHandleCenter(
+        for corner: ImageFocusOverlayCorner,
+        in rect: CGRect
+    ) -> CGPoint {
+        // Center on the visible bracket vertices so the four hit targets remain
+        // distinct even when the frame reaches its minimum size.
+        switch corner {
+        case .topLeading:
+            return CGPoint(x: rect.minX, y: rect.minY)
+        case .topTrailing:
+            return CGPoint(x: rect.maxX, y: rect.minY)
+        case .bottomTrailing:
+            return CGPoint(x: rect.maxX, y: rect.maxY)
+        case .bottomLeading:
+            return CGPoint(x: rect.minX, y: rect.maxY)
+        }
+    }
+
+    private func handleResizeHaptics(
+        corner: ImageFocusOverlayCorner,
+        constraints: Set<ImageFocusOverlayResizeConstraint>
+    ) {
+        guard hapticResizeCorner == corner else {
+            hapticResizeCorner = corner
+            hapticResizeConstraints = constraints
+            HapticManager.shared.triggerSelectionPulse(
+                source: "insight.analysis.focus.resize.begin"
+            )
+            return
+        }
+
+        let newlyReachedConstraints = constraints.subtracting(hapticResizeConstraints)
+        hapticResizeConstraints = constraints
+        guard !newlyReachedConstraints.isEmpty else { return }
+        HapticManager.shared.triggerLightImpact(
+            intensity: 0.35,
+            source: "insight.analysis.focus.resize.constraint"
+        )
     }
 }
 
