@@ -37,8 +37,8 @@ owns native permission delegates such as `LocationPermissionDelegate`.
     free users.
 - **Final consent surface (`ReadyStepView`)**: Uses the title **One last step**,
   states, “Naturebook sends observation data to Google Gemini for AI-powered
-  identification,” and presents three horizontally centered, initially-off
-  switch-and-label rows in one continuous stack without visual section titles
+  identification,” and presents three initially-off switch-and-label rows on
+  a common leading edge in one continuous stack without visual section titles
   or a divider. The labels omit terminal periods. The 18+ self-attestation and
   inline-linked Terms/data-sharing permission are required; usage/diagnostics
   remains optional and changeable in Settings. Only the required pair enables

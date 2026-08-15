@@ -6,6 +6,12 @@ struct OnboardingIllustration: View {
     static let topPadding: CGFloat = 64
 
     let imageName: String
+    private let size: CGFloat
+
+    init(imageName: String, size: CGFloat = Self.stageSize) {
+        self.imageName = imageName
+        self.size = size
+    }
 
     private var scale: CGFloat {
         switch imageName {
@@ -25,7 +31,7 @@ struct OnboardingIllustration: View {
         Image(imageName)
             .resizable()
             .scaledToFit()
-            .frame(width: Self.stageSize, height: Self.stageSize)
+            .frame(width: size, height: size)
             .scaleEffect(scale)
             .offset(x: horizontalOffset)
             .accessibilityHidden(true)

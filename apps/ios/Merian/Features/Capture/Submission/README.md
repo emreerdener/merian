@@ -218,5 +218,7 @@ interior sweep. Images without a clear isolated subject use the uniform
 analyzing tint, status phrase, and original full-image scan sweep—there is no
 centered or full-image focus box. The full-image sweep is omitted whenever an
 accepted focus region exists, so it never competes with the isolated-region
-animation. Video, audio, and description animations retain their existing
-behavior.
+animation. All sweep positions are derived from the active animation timeline
+rather than a retained one-shot animation transaction, so carousel updates and
+foreground re-entry cannot strand a band at its last rendered position. Video,
+audio, and description animations retain their existing behavior.

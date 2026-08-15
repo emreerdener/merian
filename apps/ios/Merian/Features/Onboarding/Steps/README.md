@@ -9,7 +9,7 @@ The `Steps` directory contains the individual, user-facing screens that make up 
 - **LocationPermission**: The screen explaining the need for location access to provide accurate ecological context.
 - **Ready**: The final **One last step** screen names Google Gemini as the
   recipient of observation data for AI-powered identification. Three
-  horizontally centered switch-and-label rows appear in one continuous stack
+  switch-and-label rows share a common leading edge in one continuous stack
   without section titles or a divider. The three labels omit terminal periods.
   The 18+ self-attestation and Terms/data-sharing permission with an inline
   Terms link are required; usage/diagnostics remains optional and changeable in

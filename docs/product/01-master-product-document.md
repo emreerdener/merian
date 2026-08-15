@@ -692,8 +692,8 @@ Current onboarding contains four steps:
 4. Ready / **One last step**.
 
 The internal-testing screen discloses: “Naturebook sends observation data to
-Google Gemini for AI-powered identification.” It presents three initially-off,
-horizontally centered switch-and-label rows in one continuous stack without
+Google Gemini for AI-powered identification.” It presents three initially-off
+switch-and-label rows on a common leading edge in one continuous stack without
 section titles or a divider. The labels omit terminal periods:
 
 1. “I confirm I am 18 or older” — required.

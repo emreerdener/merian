@@ -19,6 +19,7 @@ struct ReadyStepView: View {
     static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
     static let termsURL = PublicBrand.websiteURL(path: "terms")
     static let requiredIndicator = " *"
+    private static let illustrationSize: CGFloat = 280
 
     static func appendingRequiredIndicator(to statement: AttributedString) -> AttributedString {
         var markedStatement = statement
@@ -51,7 +52,10 @@ struct ReadyStepView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    OnboardingIllustration(imageName: "bird-magnifier")
+                    OnboardingIllustration(
+                        imageName: "bird-magnifier",
+                        size: Self.illustrationSize
+                    )
                         .padding(.top, OnboardingIllustration.topPadding)
 
                     Text(Self.title)
@@ -114,7 +118,7 @@ struct ReadyStepView: View {
 
     // MARK: - Consent
     private var consentControls: some View {
-        VStack(alignment: .center, spacing: 18) {
+        VStack(alignment: .leading, spacing: 18) {
             consentRow(
                 isOn: $hasConfirmedAdultEligibility,
                 statement: Self.adultStatement,
@@ -132,7 +136,7 @@ struct ReadyStepView: View {
                 accessibilityIdentifier: "Ready_AnalyticsSwitch"
             )
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func consentRow(
@@ -163,7 +167,7 @@ struct ReadyStepView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var linkedGeminiConsentRow: some View {
@@ -186,7 +190,7 @@ struct ReadyStepView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Actions

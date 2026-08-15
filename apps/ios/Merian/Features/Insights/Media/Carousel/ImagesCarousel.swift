@@ -1025,7 +1025,12 @@ struct ImagesCarousel: View {
                             if isProcessing {
                                 AnalyzingMediaOverlay(
                                     kind: selectedMediaKind,
-                                    focusRegion: selectedFocusRegion
+                                    focusRegion: selectedFocusRegion,
+                                    focusInteractionIdentity: FocusInteractionIdentity(
+                                        scanID: scanId,
+                                        pageID: carouselPages[safe: selectedIndex]?.id,
+                                        region: selectedFocusRegion
+                                    )
                                 )
                                     .transition(.opacity)
                             }
@@ -1231,48 +1236,114 @@ enum StillImageAnalyzingMode: Equatable {
     }
 }
 
+private struct FocusInteractionIdentity: Hashable {
+    let scanID: String?
+    let pageID: String?
+    let region: NormalizedImageFocusRegion?
+}
+
+/// Derives motion from time so a retained overlay can recover after its render
+/// transaction is interrupted by carousel updates or scene transitions.
+enum AnalyzingMediaAnimationClock {
+    static func sweepProgress(
+        at date: Date,
+        startedAt: Date,
+        legDuration: TimeInterval,
+        reduceMotion: Bool
+    ) -> CGFloat {
+        guard !reduceMotion else { return 0.5 }
+        guard legDuration.isFinite, legDuration > 0 else { return 0 }
+
+        let elapsed = max(0, date.timeIntervalSince(startedAt))
+        let cyclePosition = elapsed
+            .truncatingRemainder(dividingBy: legDuration * 2) / legDuration
+        let linearProgress = cyclePosition <= 1
+            ? cyclePosition
+            : 2 - cyclePosition
+        return CGFloat(UnitCurve.easeInOut.value(at: linearProgress))
+    }
+}
+
 private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
     let focusRegion: NormalizedImageFocusRegion?
+    let focusInteractionIdentity: FocusInteractionIdentity
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sweepProgress: CGFloat = 0
-    @State private var pulse = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var animationStartedAt = Date()
 
     private let descriptionBandHeight: CGFloat = 89.2
+    private let pulseDuration: TimeInterval = 1.25
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                tintLayer
+            TimelineView(
+                .animation(paused: reduceMotion || scenePhase != .active)
+            ) { timeline in
+                let sweepProgress = AnalyzingMediaAnimationClock.sweepProgress(
+                    at: timeline.date,
+                    startedAt: animationStartedAt,
+                    legDuration: VisualLaserScanBand.sweepDuration,
+                    reduceMotion: reduceMotion
+                )
+                let pulseProgress = reduceMotion ? 1 :
+                    AnalyzingMediaAnimationClock.sweepProgress(
+                        at: timeline.date,
+                        startedAt: animationStartedAt,
+                        legDuration: pulseDuration,
+                        reduceMotion: false
+                    )
 
-                switch kind {
-                case .visual:
-                    switch StillImageAnalyzingMode(focusRegion: focusRegion) {
-                    case .isolatedFocus(let focusRegion):
-                        LensFocusOverlay(region: focusRegion)
-                            .id(focusRegion)
-                    case .fullImageScan:
-                        visualScan(in: geometry.size)
+                ZStack {
+                    tintLayer(pulseProgress: pulseProgress)
+                        .allowsHitTesting(false)
+
+                    switch kind {
+                    case .visual:
+                        switch StillImageAnalyzingMode(focusRegion: focusRegion) {
+                        case .isolatedFocus(let focusRegion):
+                            LensFocusOverlay(
+                                region: focusRegion,
+                                scanProgress: sweepProgress
+                            )
+                            .id(focusInteractionIdentity)
+                        case .fullImageScan:
+                            visualScan(
+                                in: geometry.size,
+                                sweepProgress: sweepProgress
+                            )
+                            .allowsHitTesting(false)
+                        }
+                    case .video:
+                        visualScan(
+                            in: geometry.size,
+                            sweepProgress: sweepProgress
+                        )
+                        .allowsHitTesting(false)
+                    case .audio:
+                        audioSweep(
+                            in: geometry.size,
+                            sweepProgress: sweepProgress
+                        )
+                        .allowsHitTesting(false)
+                    case .description:
+                        descriptionReadSweep(
+                            in: geometry.size,
+                            sweepProgress: sweepProgress
+                        )
+                        .allowsHitTesting(false)
                     }
-                case .video:
-                    visualScan(in: geometry.size)
-                case .audio:
-                    audioSweep(in: geometry.size)
-                case .description:
-                    descriptionReadSweep(in: geometry.size)
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
+                .accessibilityHidden(true)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipped()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .onAppear(perform: startAnimation)
         }
     }
 
     @ViewBuilder
-    private var tintLayer: some View {
+    private func tintLayer(pulseProgress: CGFloat) -> some View {
         switch kind {
         case .visual:
             if focusRegion == nil {
@@ -1281,27 +1352,42 @@ private struct AnalyzingMediaOverlay: View {
         case .video:
             Color.black.opacity(0.14)
         case .audio:
-            Color.cyan.opacity(pulse ? 0.11 : 0.05)
+            Color.cyan.opacity(0.05 + 0.06 * Double(pulseProgress))
                 .blendMode(.screen)
         case .description:
-            Color.green.opacity(pulse ? 0.08 : 0.04)
+            Color.green.opacity(0.04 + 0.04 * Double(pulseProgress))
         }
     }
 
-    private func visualScan(in size: CGSize) -> some View {
+    private func visualScan(
+        in size: CGSize,
+        sweepProgress: CGFloat
+    ) -> some View {
         VisualLaserScanBand()
             .frame(width: size.width)
-            .offset(y: verticalOffset(in: size, bandHeight: VisualLaserScanBand.height))
+            .offset(y: verticalOffset(
+                in: size,
+                bandHeight: VisualLaserScanBand.height,
+                sweepProgress: sweepProgress
+            ))
             .blendMode(.plusLighter)
     }
 
-    private func audioSweep(in size: CGSize) -> some View {
+    private func audioSweep(
+        in size: CGSize,
+        sweepProgress: CGFloat
+    ) -> some View {
         ZStack {
             ForEach(0..<7, id: \.self) { index in
                 Capsule()
                     .fill(Color.cyan.opacity(0.08 + Double(index) * 0.018))
                     .frame(width: 1, height: size.height * (0.34 + CGFloat(index % 3) * 0.13))
-                    .offset(x: horizontalOffset(in: size) - 42 + CGFloat(index) * 14)
+                    .offset(
+                        x: horizontalOffset(
+                            in: size,
+                            sweepProgress: sweepProgress
+                        ) - 42 + CGFloat(index) * 14
+                    )
                     .blendMode(.plusLighter)
             }
 
@@ -1317,15 +1403,25 @@ private struct AnalyzingMediaOverlay: View {
                 endPoint: .trailing
             )
             .frame(width: 96)
-            .offset(x: horizontalOffset(in: size))
+            .offset(x: horizontalOffset(
+                in: size,
+                sweepProgress: sweepProgress
+            ))
             .blur(radius: 0.5)
             .blendMode(.plusLighter)
         }
     }
 
-    private func descriptionReadSweep(in size: CGSize) -> some View {
+    private func descriptionReadSweep(
+        in size: CGSize,
+        sweepProgress: CGFloat
+    ) -> some View {
         horizontalScanBand(color: .green, coreHeight: 1.2, glowHeight: 44)
-            .offset(y: verticalOffset(in: size, bandHeight: descriptionBandHeight))
+            .offset(y: verticalOffset(
+                in: size,
+                bandHeight: descriptionBandHeight,
+                sweepProgress: sweepProgress
+            ))
             .blendMode(.screen)
             .opacity(0.85)
     }
@@ -1353,40 +1449,22 @@ private struct AnalyzingMediaOverlay: View {
         }
     }
 
-    private func verticalOffset(in size: CGSize, bandHeight: CGFloat) -> CGFloat {
-        guard !reduceMotion else { return 0 }
+    private func verticalOffset(
+        in size: CGSize,
+        bandHeight: CGFloat,
+        sweepProgress: CGFloat
+    ) -> CGFloat {
         let startCenterY = -bandHeight / 2
         let endCenterY = size.height + bandHeight / 2
         let currentCenterY = startCenterY + (endCenterY - startCenterY) * sweepProgress
         return currentCenterY - size.height / 2
     }
 
-    private func horizontalOffset(in size: CGSize) -> CGFloat {
-        guard !reduceMotion else { return 0 }
+    private func horizontalOffset(
+        in size: CGSize,
+        sweepProgress: CGFloat
+    ) -> CGFloat {
         return (sweepProgress * (size.width + 128)) - (size.width / 2) - 64
-    }
-
-    private func startAnimation() {
-        if kind == .visual,
-           case .isolatedFocus = StillImageAnalyzingMode(focusRegion: focusRegion) {
-            return
-        }
-
-        guard !reduceMotion else {
-            pulse = true
-            return
-        }
-
-        sweepProgress = 0
-        withAnimation(
-            .easeInOut(duration: VisualLaserScanBand.sweepDuration)
-                .repeatForever(autoreverses: true)
-        ) {
-            sweepProgress = 1
-        }
-        withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
-            pulse = true
-        }
     }
 }
 
@@ -1459,62 +1537,166 @@ enum ImageFocusOverlayLayout {
             height: region.height * renderedSize.height
         )
     }
+
+    static func draggedRect(
+        from baseRect: CGRect,
+        committedOffset: CGSize,
+        activeTranslation: CGSize,
+        in containerSize: CGSize
+    ) -> CGRect {
+        guard let clampedOffset = clampedOffset(
+            for: baseRect,
+            proposedOffset: CGSize(
+                width: committedOffset.width + activeTranslation.width,
+                height: committedOffset.height + activeTranslation.height
+            ),
+            in: containerSize
+        ) else {
+            return .zero
+        }
+        return baseRect.offsetBy(
+            dx: clampedOffset.width,
+            dy: clampedOffset.height
+        )
+    }
+
+    static func clampedOffset(
+        for baseRect: CGRect,
+        proposedOffset: CGSize,
+        in containerSize: CGSize
+    ) -> CGSize? {
+        let rectValues = [
+            baseRect.minX,
+            baseRect.minY,
+            baseRect.width,
+            baseRect.height,
+            baseRect.maxX,
+            baseRect.maxY
+        ]
+        guard rectValues.allSatisfy(\.isFinite),
+              baseRect.width > 0,
+              baseRect.height > 0,
+              containerSize.width.isFinite,
+              containerSize.height.isFinite,
+              containerSize.width > 0,
+              containerSize.height > 0,
+              proposedOffset.width.isFinite,
+              proposedOffset.height.isFinite else {
+            return nil
+        }
+
+        return CGSize(
+            width: clampedAxisOffset(
+                rectMinimum: baseRect.minX,
+                rectMaximum: baseRect.maxX,
+                rectMidpoint: baseRect.midX,
+                containerLength: containerSize.width,
+                proposedOffset: proposedOffset.width
+            ),
+            height: clampedAxisOffset(
+                rectMinimum: baseRect.minY,
+                rectMaximum: baseRect.maxY,
+                rectMidpoint: baseRect.midY,
+                containerLength: containerSize.height,
+                proposedOffset: proposedOffset.height
+            )
+        )
+    }
+
+    private static func clampedAxisOffset(
+        rectMinimum: CGFloat,
+        rectMaximum: CGFloat,
+        rectMidpoint: CGFloat,
+        containerLength: CGFloat,
+        proposedOffset: CGFloat
+    ) -> CGFloat {
+        let rectLength = rectMaximum - rectMinimum
+        guard rectLength < containerLength else {
+            return containerLength / 2 - rectMidpoint
+        }
+
+        let minimumOffset = -rectMinimum
+        let maximumOffset = containerLength - rectMaximum
+        return min(max(proposedOffset, minimumOffset), maximumOffset)
+    }
 }
 
 private struct LensFocusOverlay: View {
     let region: NormalizedImageFocusRegion
+    let scanProgress: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
-    @State private var scanProgress: CGFloat = 0
+    @State private var committedDragOffset = CGSize.zero
+    @GestureState private var activeDragTranslation = CGSize.zero
 
     var body: some View {
         GeometryReader { geometry in
             let bounds = CGRect(origin: .zero, size: geometry.size)
-            let focusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
+            let baseFocusRect = ImageFocusOverlayLayout.rect(for: region, in: geometry.size)
+            let focusRect = ImageFocusOverlayLayout.draggedRect(
+                from: baseFocusRect,
+                committedOffset: committedDragOffset,
+                activeTranslation: activeDragTranslation,
+                in: geometry.size
+            )
+            let dragHitRect = dragHitRect(for: focusRect, in: bounds)
             let shortestSide = min(geometry.size.width, geometry.size.height)
             let bracketArm = min(30, max(18, shortestSide * 0.075))
             let strokeWidth = min(2.5, max(1, shortestSide * 0.0125 - 2.5))
             let cornerRadius = min(12, max(8, shortestSide * 0.03))
 
             ZStack {
-                Path { path in
-                    path.addRect(bounds)
-                    path.addRoundedRect(
-                        in: focusRect,
-                        cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
+                ZStack {
+                    Path { path in
+                        path.addRect(bounds)
+                        path.addRoundedRect(
+                            in: focusRect,
+                            cornerSize: CGSize(width: cornerRadius, height: cornerRadius)
+                        )
+                    }
+                    .fill(.black.opacity(0.22), style: FillStyle(eoFill: true))
+                    .opacity(isResolved ? 1 : 0)
+
+                    LensFocusScanHighlight(
+                        focusRect: focusRect,
+                        cornerRadius: cornerRadius,
+                        progress: reduceMotion ? 0.5 : scanProgress
                     )
+                    .opacity(isResolved ? 1 : 0)
+
+                    LensFocusBracketShape(
+                        rect: focusRect,
+                        armLength: bracketArm,
+                        cornerRadius: cornerRadius
+                    )
+                    .stroke(
+                        .white,
+                        style: StrokeStyle(
+                            lineWidth: strokeWidth,
+                            lineCap: .round,
+                            lineJoin: .round
+                        )
+                    )
+                    .shadow(color: .black.opacity(0.22), radius: 1.5, y: 1)
+                    .scaleEffect(reduceMotion || isResolved ? 1 : 0.985)
+                    .opacity(isResolved ? 1 : 0)
                 }
-                .fill(.black.opacity(0.22), style: FillStyle(eoFill: true))
-                .opacity(isResolved ? 1 : 0)
+                .allowsHitTesting(false)
 
-                LensFocusScanHighlight(
-                    focusRect: focusRect,
-                    cornerRadius: cornerRadius,
-                    progress: reduceMotion ? 0.5 : scanProgress
-                )
-                .opacity(isResolved ? 1 : 0)
-
-                LensFocusBracketShape(
-                    rect: focusRect,
-                    armLength: bracketArm,
-                    cornerRadius: cornerRadius
-                )
-                .stroke(
-                    .white,
-                    style: StrokeStyle(
-                        lineWidth: strokeWidth,
-                        lineCap: .round,
-                        lineJoin: .round
-                    )
-                )
-                .shadow(color: .black.opacity(0.22), radius: 1.5, y: 1)
-                .scaleEffect(reduceMotion || isResolved ? 1 : 0.985)
-                .opacity(isResolved ? 1 : 0)
+                Rectangle()
+                    .fill(.clear)
+                    .frame(width: dragHitRect.width, height: dragHitRect.height)
+                    .contentShape(Rectangle())
+                    .position(x: dragHitRect.midX, y: dragHitRect.midY)
+                    .gesture(dragGesture(
+                        baseFocusRect: baseFocusRect,
+                        containerSize: geometry.size
+                    ))
+                    .accessibilityHidden(true)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onAppear {
             if reduceMotion {
@@ -1523,14 +1705,39 @@ private struct LensFocusOverlay: View {
                 withAnimation(.easeOut(duration: 0.20)) {
                     isResolved = true
                 }
-                withAnimation(
-                    .easeInOut(duration: VisualLaserScanBand.sweepDuration)
-                        .repeatForever(autoreverses: true)
-                ) {
-                    scanProgress = 1
-                }
             }
         }
+    }
+
+    private func dragHitRect(for focusRect: CGRect, in bounds: CGRect) -> CGRect {
+        guard !focusRect.isEmpty, !focusRect.isNull else { return .zero }
+        let horizontalExpansion = max(0, (44 - focusRect.width) / 2)
+        let verticalExpansion = max(0, (44 - focusRect.height) / 2)
+        return focusRect
+            .insetBy(dx: -horizontalExpansion, dy: -verticalExpansion)
+            .intersection(bounds)
+    }
+
+    private func dragGesture(
+        baseFocusRect: CGRect,
+        containerSize: CGSize
+    ) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .updating($activeDragTranslation) { value, state, _ in
+                state = value.translation
+            }
+            .onEnded { value in
+                let proposedOffset = CGSize(
+                    width: committedDragOffset.width + value.translation.width,
+                    height: committedDragOffset.height + value.translation.height
+                )
+                guard let clampedOffset = ImageFocusOverlayLayout.clampedOffset(
+                    for: baseFocusRect,
+                    proposedOffset: proposedOffset,
+                    in: containerSize
+                ) else { return }
+                committedDragOffset = clampedOffset
+            }
     }
 }
 

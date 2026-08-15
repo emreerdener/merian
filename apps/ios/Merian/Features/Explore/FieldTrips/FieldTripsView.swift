@@ -611,7 +611,7 @@ struct FieldTripTemplateDetailView: View {
             ScrollView(showsIndicators: false) {
                 if isLoading && template == nil {
                     FieldTripTemplateDetailSkeleton(
-                        showsCoverImage: false,
+                        kind: .outing,
                         showsFeaturedMediaHero: showsFeaturedMediaLoadingSkeleton,
                         onFeaturedHeroMaxYChange: { maxY in
                             updateFeaturedHeroScrollEdgeEffect(maxY: maxY)
@@ -1217,7 +1217,7 @@ struct FieldTripChallengeDetailView: View {
         ScrollViewReader { scrollProxy in
             ScrollView(showsIndicators: false) {
                 if viewModel.isLoading && viewModel.challenge == nil {
-                    FieldTripTemplateDetailSkeleton(showsCoverImage: true)
+                    FieldTripTemplateDetailSkeleton(kind: .event)
                         .padding(16)
                 } else if let errorMessage = viewModel.errorMessage, viewModel.challenge == nil {
                     FieldTripUnavailableCard(
@@ -4132,8 +4132,22 @@ private struct FieldTripRecentSkeletonCard: View {
     }
 }
 
+private enum FieldTripDetailSkeletonKind {
+    case outing
+    case event
+
+    var progressPlacement: FieldTripLevelProgressPlacement {
+        switch self {
+        case .outing:
+            .headerRing
+        case .event:
+            .bar
+        }
+    }
+}
+
 private struct FieldTripTemplateDetailSkeleton: View {
-    let showsCoverImage: Bool
+    let kind: FieldTripDetailSkeletonKind
     var showsFeaturedMediaHero = false
     var onFeaturedHeroMaxYChange: ((CGFloat) -> Void)?
 
@@ -4157,35 +4171,108 @@ private struct FieldTripTemplateDetailSkeleton: View {
             }
 
             VStack(alignment: .leading, spacing: 24) {
-                if showsCoverImage {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.12))
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                }
+                overview
 
-                VStack(alignment: .leading, spacing: 10) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.16))
-                        .frame(width: 220, height: 30)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.12))
-                        .frame(height: 16)
-
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.secondary.opacity(0.1))
-                        .frame(maxWidth: 250)
-                        .frame(height: 16)
-                }
-
-                FieldTripExpandedLevelSkeleton()
-                FieldTripCompactLevelSkeleton()
+                FieldTripExpandedLevelSkeleton(
+                    progressPlacement: kind.progressPlacement
+                )
+                FieldTripCompactLevelSkeleton(
+                    progressPlacement: kind.progressPlacement
+                )
             }
             .padding(.horizontal, showsFeaturedMediaHero ? 16 : 0)
             .padding(.top, showsFeaturedMediaHero ? 24 : 0)
         }
         .redacted(reason: .placeholder)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var overview: some View {
+        switch kind {
+        case .outing:
+            FieldTripOutingOverviewSkeleton()
+        case .event:
+            FieldTripEventOverviewSkeleton()
+        }
+    }
+}
+
+private struct FieldTripOutingOverviewSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.14))
+                .frame(width: 84, height: 27)
+
+            VStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(width: 250, height: 34)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(maxWidth: 300)
+                    .frame(height: 16)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(width: 230, height: 16)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(.vertical, 16)
+    }
+}
+
+private struct FieldTripEventOverviewSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .aspectRatio(16 / 9, contentMode: .fit)
+
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(maxWidth: 220)
+                    .frame(height: 30)
+
+                Spacer(minLength: 8)
+
+                Capsule(style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(width: 58, height: 23)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(height: 16)
+
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(width: 250, height: 16)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    metadataPill(width: 132)
+                    metadataPill(width: 108)
+                }
+
+                HStack(spacing: 8) {
+                    metadataPill(width: 124)
+                    metadataPill(width: 96)
+                }
+            }
+        }
+    }
+
+    private func metadataPill(width: CGFloat) -> some View {
+        Capsule(style: .continuous)
+            .fill(Color.secondary.opacity(0.12))
+            .frame(width: width, height: 27)
     }
 }
 
@@ -4216,57 +4303,43 @@ private struct FieldTripFeaturedMediaSkeleton: View {
 }
 
 private struct FieldTripExpandedLevelSkeleton: View {
-    private let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
+    let progressPlacement: FieldTripLevelProgressPlacement
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            levelHeader
-            progressBar
+            FieldTripLevelHeaderSkeleton(
+                trailingAccessory: expandedHeaderAccessory
+            )
 
-            LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(0..<4, id: \.self) { _ in
-                    VStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.secondary.opacity(0.1))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if case .bar = progressPlacement {
+                progressBar
+            }
 
-                        Capsule()
-                            .fill(Color.secondary.opacity(0.14))
-                            .frame(width: 72, height: 12)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.secondary.opacity(0.07))
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            VStack(spacing: 16) {
+                ForEach(0..<2, id: \.self) { _ in
+                    HStack(spacing: 16) {
+                        ForEach(0..<2, id: \.self) { _ in
+                            FieldTripGoalTileSkeleton()
+                        }
                     }
                 }
             }
         }
         .padding(12)
-        .background(levelCardShape.fill(Color.secondary.opacity(0.06)))
+        .background(
+            levelCardShape.fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
         .overlay {
             levelCardShape.stroke(Color.primary.opacity(0.08), lineWidth: 1)
         }
     }
 
-    private var levelHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Color.secondary.opacity(0.16))
-                .frame(width: 92, height: 20)
-
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .fill(Color.secondary.opacity(0.1))
-                .frame(width: 188, height: 11)
+    private var expandedHeaderAccessory: FieldTripLevelHeaderSkeleton.TrailingAccessory {
+        switch progressPlacement {
+        case .headerRing:
+            .progressRing
+        case .bar:
+            .balancedSpacer
         }
     }
 
@@ -4295,25 +4368,39 @@ private struct FieldTripExpandedLevelSkeleton: View {
     }
 }
 
+private struct FieldTripGoalTileSkeleton: View {
+    var body: some View {
+        VStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.secondary.opacity(0.1))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Capsule(style: .continuous)
+                .fill(Color.secondary.opacity(0.14))
+                .frame(width: 72, height: 12)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(uiColor: .tertiarySystemGroupedBackground))
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        }
+    }
+}
+
 private struct FieldTripCompactLevelSkeleton: View {
+    let progressPlacement: FieldTripLevelProgressPlacement
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 5) {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.secondary.opacity(0.16))
-                        .frame(width: 72, height: 16)
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(Color.secondary.opacity(0.1))
-                        .frame(width: 188, height: 11)
-                }
-
-                Spacer(minLength: 8)
-
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(Color.secondary.opacity(0.12))
-                    .frame(width: 12, height: 15)
-            }
+            FieldTripLevelHeaderSkeleton(
+                trailingAccessory: compactHeaderAccessory
+            )
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: FieldTripScanPreviewLayout.spacing) {
@@ -4322,7 +4409,7 @@ private struct FieldTripCompactLevelSkeleton: View {
                             cornerRadius: FieldTripScanPreviewLayout.cornerRadius,
                             style: .continuous
                         )
-                        .fill(Color.secondary.opacity(0.1))
+                        .fill(Color(uiColor: .tertiarySystemGroupedBackground))
                         .frame(
                             width: FieldTripScanPreviewLayout.tileSize,
                             height: FieldTripScanPreviewLayout.tileSize
@@ -4343,14 +4430,116 @@ private struct FieldTripCompactLevelSkeleton: View {
             .padding(.horizontal, -12)
         }
         .padding(12)
-        .background(levelCardShape.fill(Color.secondary.opacity(0.06)))
+        .background(
+            levelCardShape.fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
         .overlay {
             levelCardShape.stroke(Color.primary.opacity(0.08), lineWidth: 1)
         }
     }
 
+    private var compactHeaderAccessory: FieldTripLevelHeaderSkeleton.TrailingAccessory {
+        switch progressPlacement {
+        case .headerRing:
+            .lockedRing
+        case .bar:
+            .completionLabel
+        }
+    }
+
     private var levelCardShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
+    }
+}
+
+private struct FieldTripLevelHeaderSkeleton: View {
+    enum TrailingAccessory {
+        case progressRing
+        case lockedRing
+        case balancedSpacer
+        case completionLabel
+    }
+
+    let trailingAccessory: TrailingAccessory
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Circle()
+                .fill(Color.secondary.opacity(0.12))
+                .frame(
+                    width: FieldTripLevelHeaderLayout.accessorySize,
+                    height: FieldTripLevelHeaderLayout.accessorySize
+                )
+
+            VStack(alignment: .center, spacing: 8) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(width: 112, height: 20)
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.secondary.opacity(0.1))
+                    .frame(maxWidth: 164)
+                    .frame(height: 11)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            trailingAccessoryView
+        }
+    }
+
+    @ViewBuilder
+    private var trailingAccessoryView: some View {
+        switch trailingAccessory {
+        case .progressRing:
+            ZStack {
+                Circle()
+                    .stroke(
+                        Color.secondary.opacity(0.2),
+                        lineWidth: FieldTripLevelHeaderLayout.ringLineWidth
+                    )
+
+                Capsule(style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(width: 22, height: 10)
+            }
+            .frame(
+                width: FieldTripLevelHeaderLayout.accessorySize,
+                height: FieldTripLevelHeaderLayout.accessorySize
+            )
+
+        case .lockedRing:
+            ZStack {
+                Circle()
+                    .stroke(
+                        Color.secondary.opacity(0.2),
+                        lineWidth: FieldTripLevelHeaderLayout.ringLineWidth
+                    )
+
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(Color.secondary.opacity(0.16))
+                    .frame(width: 14, height: 18)
+            }
+            .frame(
+                width: FieldTripLevelHeaderLayout.accessorySize,
+                height: FieldTripLevelHeaderLayout.accessorySize
+            )
+
+        case .balancedSpacer:
+            Color.clear
+                .frame(
+                    width: FieldTripLevelHeaderLayout.accessorySize,
+                    height: FieldTripLevelHeaderLayout.accessorySize
+                )
+
+        case .completionLabel:
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.secondary.opacity(0.12))
+                .frame(width: 48, height: 12)
+                .frame(
+                    width: FieldTripLevelHeaderLayout.accessorySize,
+                    height: FieldTripLevelHeaderLayout.accessorySize
+                )
+        }
     }
 }
 

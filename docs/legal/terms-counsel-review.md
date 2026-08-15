@@ -72,7 +72,7 @@ Current onboarding has welcome, camera, location, and ready steps:
 The product-owner-approved internal-testing disclosure is: “Naturebook sends observation
 data to Google Gemini for AI-powered identification.” The **One last step** screen
 presents three initially-off switches in one continuous stack without section titles or a
-divider. Each switch-and-label row is horizontally centered, and the three labels omit
+divider. The switch-and-label rows share a common leading edge, and the three labels omit
 terminal periods. The 18+ self-attestation and agreement to the inline-linked Terms plus
 permission for that data sharing are required; usage and diagnostics is optional and
 changeable in Settings. Only the required pair enables **Start scanning**, and
