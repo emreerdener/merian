@@ -36,14 +36,18 @@ file through the same staged-media cleanup owner used by cancel and queue
 rejection. The audio cover participates in the workspace presentation-occupancy
 fence so camera restoration waits for its exact dismissal callback.
 
-Submission assigns each standalone recording a zero-based `sourceIndex`. The
-offline queue stores that identity beside the local media reference and reuses
-it in `audioMediaItems`, so the Edge manifest can return the same identity after
-promotion. The index is per scan and counts standalone audio only; extracted
-video audio continues to use `clipIndex`. Queue replay derives audio upload paths
-and descriptors from one chronological projection, including video audio and
-interleaved descriptions, so descriptor position always names the uploaded clip
-at the same position.
+Submission creates one `CaptureSubmissionMediaProjection` from the ordered tray.
+It emits aligned audio upload paths and descriptors, video paths, observation
+contexts, and the complete `ownerMediaTimeline` used by both live inference and
+queue replay. Each standalone recording has a zero-based `sourceIndex` plus an
+`audioInputIndex` naming its raw position among standalone and video-extracted
+audio; video and description entries use zero-based `clipIndex` and
+`contextIndex`. The Edge validates that every owner-visible item is covered once
+before provider or promotion work, so a descriptor cannot be paired with a
+different uploaded clip. Older queued visual rows that cannot prove this complete
+mapping omit the additive timeline and use the server's conservative legacy path;
+sparse persisted audio identities are preserved and never renumbered into a new
+authoritative sequence.
 
 Required gallery crop presentation has a separate chrome fence. The image must
 enter `StagedCapture` before `CropSheetModifier` can edit it, but

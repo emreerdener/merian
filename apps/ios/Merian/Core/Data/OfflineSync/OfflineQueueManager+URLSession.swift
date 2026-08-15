@@ -1633,6 +1633,7 @@ extension OfflineQueueManager {
             videoFrameCount: videoFrameCount,
             visualMediaItems: validVisualMediaItems,
             audioMediaItems: extracted.audioMediaItems,
+            ownerMediaTimeline: extracted.ownerMediaTimeline,
             observationContextsJSON: extracted.observationContextsJSON ?? [],
             telemetry: finalTelemetry,
             clientScanId: scanId,

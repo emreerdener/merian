@@ -149,25 +149,184 @@ struct IdentifyAudioMediaItem: Codable, Sendable, Equatable {
     }
 }
 
-extension Array where Element == CaptureSubmissionMediaItem {
-    var audioFilePaths: [String] {
-        compactMap { item in
+enum IdentifyOwnerMediaKind: String, Codable, Sendable {
+    case image
+    case audio
+    case video
+    case description
+}
+
+/// An owner-visible item in the canonical submission timeline.
+///
+/// The indices identify inputs in the request rather than storage locations. The server
+/// validates every reference before resolving it to a promoted URL; clients never place
+/// object keys or URLs in this structure.
+struct IdentifyOwnerMediaTimelineItem: Codable, Sendable, Equatable {
+    let kind: IdentifyOwnerMediaKind
+    let sourceIndex: Int?
+    let audioInputIndex: Int?
+    let clipIndex: Int?
+    let contextIndex: Int?
+
+    static func image(sourceIndex: Int) -> Self {
+        Self(
+            kind: .image,
+            sourceIndex: sourceIndex,
+            audioInputIndex: nil,
+            clipIndex: nil,
+            contextIndex: nil
+        )
+    }
+
+    static func audio(audioInputIndex: Int, sourceIndex: Int) -> Self {
+        Self(
+            kind: .audio,
+            sourceIndex: sourceIndex,
+            audioInputIndex: audioInputIndex,
+            clipIndex: nil,
+            contextIndex: nil
+        )
+    }
+
+    static func video(clipIndex: Int) -> Self {
+        Self(
+            kind: .video,
+            sourceIndex: nil,
+            audioInputIndex: nil,
+            clipIndex: clipIndex,
+            contextIndex: nil
+        )
+    }
+
+    static func description(contextIndex: Int) -> Self {
+        Self(
+            kind: .description,
+            sourceIndex: nil,
+            audioInputIndex: nil,
+            clipIndex: nil,
+            contextIndex: contextIndex
+        )
+    }
+
+    var jsonObject: [String: Any] {
+        var object: [String: Any] = ["kind": kind.rawValue]
+        if let sourceIndex {
+            object["sourceIndex"] = sourceIndex
+        }
+        if let audioInputIndex {
+            object["audioInputIndex"] = audioInputIndex
+        }
+        if let clipIndex {
+            object["clipIndex"] = clipIndex
+        }
+        if let contextIndex {
+            object["contextIndex"] = contextIndex
+        }
+        return object
+    }
+}
+
+/// The single ordered projection used by live submission and durable queue replay.
+///
+/// Audio paths and descriptors are deliberately emitted together so interleaved video
+/// companions can never be paired with a different standalone recording during upload.
+struct CaptureSubmissionMediaProjection: Sendable, Equatable {
+    let audioFilePaths: [String]
+    let audioMediaItems: [IdentifyAudioMediaItem]
+    let videoFilePaths: [String]
+    let observationContexts: [ObservationContext]
+    let ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]
+}
+
+enum CaptureSubmissionProjectionItem: Sendable, Equatable {
+    case image
+    case audio(String, sourceIndex: Int?)
+    case video(String, audioFilePath: String?)
+    case description(ObservationContext)
+}
+
+extension Array where Element == CaptureSubmissionProjectionItem {
+    var submissionMediaProjection: CaptureSubmissionMediaProjection {
+        var audioFilePaths: [String] = []
+        var audioMediaItems: [IdentifyAudioMediaItem] = []
+        var videoFilePaths: [String] = []
+        var observationContexts: [ObservationContext] = []
+        var ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem] = []
+        var imageSourceIndex = 0
+        var audioInputIndex = 0
+        var standaloneAudioSourceIndex = 0
+        var videoClipIndex = 0
+        var contextIndex = 0
+
+        for item in self {
             switch item {
-            case .audio(let path):
-                return path
-            case .video(_, _, let audioFilePath):
-                return audioFilePath
-            case .image, .description:
-                return nil
+            case .image:
+                ownerMediaTimeline.append(.image(sourceIndex: imageSourceIndex))
+                imageSourceIndex += 1
+
+            case .audio(let path, let persistedSourceIndex):
+                guard !path.isEmpty else { continue }
+                let sourceIndex = persistedSourceIndex ?? standaloneAudioSourceIndex
+                audioFilePaths.append(path)
+                audioMediaItems.append(.audio(sourceIndex: sourceIndex))
+                ownerMediaTimeline.append(.audio(
+                    audioInputIndex: audioInputIndex,
+                    sourceIndex: sourceIndex
+                ))
+                audioInputIndex += 1
+                standaloneAudioSourceIndex += 1
+
+            case .video(let path, let audioFilePath):
+                guard !path.isEmpty else { continue }
+                videoFilePaths.append(path)
+                ownerMediaTimeline.append(.video(clipIndex: videoClipIndex))
+                if let audioFilePath, !audioFilePath.isEmpty {
+                    audioFilePaths.append(audioFilePath)
+                    audioMediaItems.append(.videoAudio(clipIndex: videoClipIndex))
+                    audioInputIndex += 1
+                }
+                videoClipIndex += 1
+
+            case .description(let context):
+                guard !context.isEmpty else { continue }
+                observationContexts.append(context)
+                ownerMediaTimeline.append(.description(contextIndex: contextIndex))
+                contextIndex += 1
             }
         }
+
+        return CaptureSubmissionMediaProjection(
+            audioFilePaths: audioFilePaths,
+            audioMediaItems: audioMediaItems,
+            videoFilePaths: videoFilePaths,
+            observationContexts: observationContexts,
+            ownerMediaTimeline: ownerMediaTimeline
+        )
+    }
+}
+
+extension Array where Element == CaptureSubmissionMediaItem {
+    var submissionMediaProjection: CaptureSubmissionMediaProjection {
+        map { item in
+            switch item {
+            case .image:
+                return .image
+            case .audio(let path):
+                return .audio(path, sourceIndex: nil)
+            case .video(let path, _, let audioFilePath):
+                return .video(path, audioFilePath: audioFilePath)
+            case .description(let context):
+                return .description(context)
+            }
+        }.submissionMediaProjection
+    }
+
+    var audioFilePaths: [String] {
+        submissionMediaProjection.audioFilePaths
     }
 
     var videoFilePaths: [String] {
-        compactMap { item in
-            guard case .video(let path, _, _) = item else { return nil }
-            return path
-        }
+        submissionMediaProjection.videoFilePaths
     }
 
     var discardableLocalMediaFilePaths: [String] {
@@ -184,10 +343,7 @@ extension Array where Element == CaptureSubmissionMediaItem {
     }
 
     var observationContexts: [ObservationContext] {
-        compactMap { item in
-            guard case .description(let context) = item else { return nil }
-            return context
-        }
+        submissionMediaProjection.observationContexts
     }
 }
 

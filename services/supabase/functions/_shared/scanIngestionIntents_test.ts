@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 
+import { audioDescriptorsForDurableIntent } from "../identify-multimodal/capturedMedia.ts";
 import { buildScanIngestionIntent } from "./scanIngestionIntents.ts";
 
 Deno.test("buildScanIngestionIntent stores staged media intent without raw inline bytes", async () => {
@@ -18,6 +19,10 @@ Deno.test("buildScanIngestionIntent stores staged media intent without raw inlin
         { kind: "video_frame", clipIndex: 0, frameIndex: 0 },
       ],
       audioMediaItems: [{ kind: "video_audio", clipIndex: 0 }],
+      ownerMediaTimeline: [
+        { kind: "video", clipIndex: 0 },
+        { kind: "description", contextIndex: 0 },
+      ],
       observation_contexts: [{
         freeText: "Near a pond",
         addedAt: "2026-07-05T12:00:00.000Z",
@@ -70,12 +75,58 @@ Deno.test("buildScanIngestionIntent stores staged media intent without raw inlin
       frameIndex: 0,
     }],
     audioMediaItems: [{ kind: "video_audio", clipIndex: 0 }],
+    ownerMediaTimeline: [
+      { kind: "video", clipIndex: 0 },
+      { kind: "description", contextIndex: 0 },
+    ],
     mimeType: "image/webp",
   });
   assertEquals(intent.payload.preferredGoal, {
     userFieldTripId: "00000000-0000-4000-8000-000000000001",
     itemId: "00000000-0000-4000-8000-000000000002",
   });
+});
+
+Deno.test("legacy intent preserves timeline absence and the retain-all audio role", async () => {
+  const durableAudioDescriptors = audioDescriptorsForDurableIntent(
+    null,
+    [
+      { kind: "video_audio", clipIndex: 0 },
+      { kind: "audio", sourceIndex: 0 },
+    ],
+    2,
+  );
+  const intent = await buildScanIngestionIntent({
+    scanId: "00000000-0000-4000-8000-000000000010",
+    payload: {
+      user_id: "user-1",
+      audioR2ObjectKeys: [
+        "staging/user/video-audio.wav",
+        "staging/user/audio.wav",
+      ],
+      videoR2ObjectKeys: ["staging/user/video.mp4"],
+    },
+    mediaCounts: {
+      image_count: 0,
+      audio_count: 2,
+      video_count: 1,
+      required_video_count: 1,
+      video_frame_count: 0,
+    },
+    mediaObjectKeys: {
+      image: [],
+      audio: [
+        "staging/user/video-audio.wav",
+        "staging/user/audio.wav",
+      ],
+      video: ["staging/user/video.mp4"],
+    },
+    audioMediaItems: durableAudioDescriptors,
+  });
+
+  const media = intent.payload.media as Record<string, unknown>;
+  assertEquals("ownerMediaTimeline" in media, false);
+  assertEquals(media.audioMediaItems, [{ kind: "audio" }, { kind: "audio" }]);
 });
 
 Deno.test("buildScanIngestionIntent is stable for staged-only retry payloads", async () => {

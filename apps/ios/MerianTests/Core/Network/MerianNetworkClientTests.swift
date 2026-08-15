@@ -5442,6 +5442,57 @@ struct MerianNetworkClientTests {
         #expect(payload["client_scan_id"] as? String == "scan-audio-r2")
     }
 
+    @Test func multimodalRequestBodyCarriesCanonicalAudioDescriptionTimeline() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: "2026-08-15T05:30:00.000Z",
+            zoomFactor: nil,
+            estimatedSizeCm: nil
+        )
+        let contextJSON = """
+        {"freeText":"Low rhythmic sound in a quiet room","addedAt":808981800}
+        """
+
+        let bodyData = try MerianNetworkClient.buildMultiModalRequestBody(
+            audioBase64s: ["ZmFrZV9hdWRpbw=="],
+            audioMediaItems: [.audio(sourceIndex: 0)],
+            ownerMediaTimeline: [
+                .audio(audioInputIndex: 0, sourceIndex: 0),
+                .description(contextIndex: 0)
+            ],
+            observationContextsJSON: [contextJSON],
+            userId: "test-user",
+            telemetry: telemetry,
+            deviceLocale: "en",
+            deviceTimeZone: "America/Chicago",
+            deviceRegion: "US",
+            currentMonth: 8,
+            timeOfDay: "12:30 AM",
+            depthScaleText: nil,
+            clientScanId: "scan-audio-description"
+        )
+
+        let payload = try #require(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let audioItems = try #require(payload["audioMediaItems"] as? [[String: Any]])
+        #expect(audioItems.count == 1)
+        #expect(audioItems[0]["kind"] as? String == "audio")
+        #expect(audioItems[0]["sourceIndex"] as? Int == 0)
+        let timeline = try #require(payload["ownerMediaTimeline"] as? [[String: Any]])
+        #expect(timeline.count == 2)
+        #expect(timeline[0]["kind"] as? String == "audio")
+        #expect(timeline[0]["audioInputIndex"] as? Int == 0)
+        #expect(timeline[0]["sourceIndex"] as? Int == 0)
+        #expect(timeline[1]["kind"] as? String == "description")
+        #expect(timeline[1]["contextIndex"] as? Int == 0)
+    }
+
     @Test func multimodalRequestBodyCarriesVideoKeysAndOrderedFrameCount() throws {
         let telemetry = CaptureTelemetry(
             subjectDistanceInMeters: nil,

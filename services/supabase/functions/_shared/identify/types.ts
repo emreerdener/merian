@@ -18,8 +18,8 @@ export type PetIdentification = NonNullable<
 export interface ObservationContextDTO {
   freeText?: string;
   free_text?: string;
-  addedAt?: string;
-  added_at?: string;
+  addedAt?: string | number;
+  added_at?: string | number;
 }
 
 export interface PreferredFieldTripGoalDTO {
@@ -80,6 +80,8 @@ export interface MultimodalPayload {
   visual_media_items?: VisualMediaItemDTO[];
   audioMediaItems?: AudioMediaItemDTO[];
   audio_media_items?: AudioMediaItemDTO[];
+  ownerMediaTimeline?: OwnerMediaTimelineItemDTO[];
+  owner_media_timeline?: OwnerMediaTimelineItemDTO[];
   observation_contexts?: ObservationContextDTO[];
   r2ObjectKeys?: string[];
 
@@ -148,6 +150,18 @@ export interface AudioMediaItemDTO {
   source_index?: number;
   clipIndex?: number;
   clip_index?: number;
+}
+
+export interface OwnerMediaTimelineItemDTO {
+  kind?: "image" | "audio" | "video" | "description" | string;
+  sourceIndex?: number;
+  source_index?: number;
+  audioInputIndex?: number;
+  audio_input_index?: number;
+  clipIndex?: number;
+  clip_index?: number;
+  contextIndex?: number;
+  context_index?: number;
 }
 
 /** Row shape returned by fetchCachedSpecies — mirrors the species_dictionary SELECT columns. */

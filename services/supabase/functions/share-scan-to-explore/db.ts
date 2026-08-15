@@ -107,6 +107,11 @@ function imageManifestItem(url: string): Record<string, unknown> {
   return { image: { _0: remoteMediaReference(url) } };
 }
 
+function isImageManifestItem(value: unknown): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value as Record<string, unknown>, "image");
+}
+
 function audioManifestItem(url: string): Record<string, unknown> {
   return { audio: { _0: remoteMediaReference(url) } };
 }
@@ -145,20 +150,25 @@ export function buildRestoredAudioCapturedMedia(
   const existingManifest = Array.isArray(row.captured_media)
     ? row.captured_media
     : [];
-  const existingItems = existingManifest.length > 0
-    ? existingManifest.filter((item) => !isStandaloneAudioManifestItem(item))
-    : cleanMediaUrls(row.image_storage_urls).map(imageManifestItem);
-  const existingAudioItemsByPath = new Map<string, unknown>();
-  for (const item of existingManifest) {
-    const path = standaloneAudioManifestPath(item);
-    if (path && !existingAudioItemsByPath.has(path)) {
-      existingAudioItemsByPath.set(path, item);
-    }
+  if (existingManifest.length === 0) {
+    return [
+      ...cleanMediaUrls(row.image_storage_urls).map(imageManifestItem),
+      ...sanitizedAudioUrls.map(audioManifestItem),
+    ];
   }
-  const audioItems = sanitizedAudioUrls.map((url) =>
-    existingAudioItemsByPath.get(url) ?? audioManifestItem(url)
+
+  const existingPaths = new Set(
+    existingManifest.flatMap((item) => {
+      const path = standaloneAudioManifestPath(item);
+      return path ? [path] : [];
+    }),
   );
-  return [...existingItems, ...audioItems];
+  return [
+    ...existingManifest,
+    ...sanitizedAudioUrls
+      .filter((url) => !existingPaths.has(url))
+      .map(audioManifestItem),
+  ];
 }
 
 function videoManifestItem(
@@ -172,6 +182,59 @@ function videoManifestItem(
     payload.thumbnail = remoteMediaReference(thumbnailUrl);
   }
   return { video: { _0: payload } };
+}
+
+function isVideoManifestItem(value: unknown): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value as Record<string, unknown>, "video");
+}
+
+function replacingVideoManifestPath(
+  value: unknown,
+  path: string,
+  thumbnailUrl: string | undefined,
+): unknown {
+  if (!isVideoManifestItem(value)) {
+    return videoManifestItem(path, thumbnailUrl);
+  }
+  const item = value as Record<string, unknown>;
+  const wrapper = item.video;
+  if (
+    wrapper == null || typeof wrapper !== "object" || Array.isArray(wrapper)
+  ) {
+    return videoManifestItem(path, thumbnailUrl);
+  }
+  const wrapperRecord = wrapper as Record<string, unknown>;
+  const payload = wrapperRecord._0 ?? wrapperRecord;
+  if (
+    payload == null || typeof payload !== "object" || Array.isArray(payload)
+  ) {
+    return videoManifestItem(path, thumbnailUrl);
+  }
+  const payloadRecord = payload as Record<string, unknown>;
+  const videoReference = payloadRecord.video;
+  const nextVideoReference =
+    videoReference != null && typeof videoReference === "object" &&
+      !Array.isArray(videoReference)
+      ? {
+        ...(videoReference as Record<string, unknown>),
+        storage: "remoteURL",
+        path,
+      }
+      : remoteMediaReference(path);
+  return {
+    ...item,
+    video: {
+      ...wrapperRecord,
+      _0: {
+        ...payloadRecord,
+        video: nextVideoReference,
+        ...(payloadRecord.thumbnail == null && thumbnailUrl
+          ? { thumbnail: remoteMediaReference(thumbnailUrl) }
+          : {}),
+      },
+    },
+  };
 }
 
 export function buildRestoredVideoCapturedMedia(
@@ -196,6 +259,58 @@ export function buildRestoredVideoCapturedMedia(
   const standaloneImageUrls = imageUrls.slice(0, standaloneImageCount);
   const videoThumbnailUrls = imageUrls.slice(standaloneImageCount);
 
+  if (Array.isArray(row.captured_media) && row.captured_media.length > 0) {
+    if (!hasManifestVideo(row.captured_media)) {
+      const repairedItems: unknown[] = [];
+      let imageIndex = 0;
+      let insertedVideos = false;
+      const appendVideos = () => {
+        sanitizedVideoUrls.forEach((url, index) => {
+          const thumbnailUrl = videoThumbnailUrls[index * 5] ??
+            videoThumbnailUrls[0] ??
+            imageUrls[0];
+          repairedItems.push(videoManifestItem(url, thumbnailUrl));
+        });
+        insertedVideos = true;
+      };
+      for (const item of row.captured_media) {
+        if (!isImageManifestItem(item)) {
+          repairedItems.push(item);
+          continue;
+        }
+        if (imageIndex < standaloneImageCount) {
+          repairedItems.push(item);
+        } else if (!insertedVideos) {
+          appendVideos();
+        }
+        imageIndex += 1;
+      }
+      if (!insertedVideos) appendVideos();
+      return repairedItems;
+    }
+
+    let videoIndex = 0;
+    const items = row.captured_media.map((item) => {
+      if (!isVideoManifestItem(item)) return item;
+      const url = sanitizedVideoUrls[videoIndex];
+      if (!url) return item;
+      const thumbnailUrl = videoThumbnailUrls[videoIndex * 5] ??
+        videoThumbnailUrls[0] ??
+        imageUrls[0];
+      videoIndex += 1;
+      return replacingVideoManifestPath(item, url, thumbnailUrl);
+    });
+    for (; videoIndex < sanitizedVideoUrls.length; videoIndex += 1) {
+      const thumbnailUrl = videoThumbnailUrls[videoIndex * 5] ??
+        videoThumbnailUrls[0] ??
+        imageUrls[0];
+      items.push(
+        videoManifestItem(sanitizedVideoUrls[videoIndex], thumbnailUrl),
+      );
+    }
+    return items;
+  }
+
   const items: unknown[] = standaloneImageUrls.map(imageManifestItem);
   sanitizedVideoUrls.forEach((url, index) => {
     const thumbnailUrl = videoThumbnailUrls[index * 5] ??
@@ -203,10 +318,6 @@ export function buildRestoredVideoCapturedMedia(
       imageUrls[0];
     items.push(videoManifestItem(url, thumbnailUrl));
   });
-  if (Array.isArray(row.captured_media)) {
-    items.push(...row.captured_media.filter(isStandaloneAudioManifestItem));
-  }
-
   return items.length > 0 ? items : null;
 }
 

@@ -558,7 +558,7 @@ Deno.test("buildRestoredVideoCapturedMedia collapses frame-only video rows into 
   );
 });
 
-Deno.test("buildRestoredAudioCapturedMedia replaces local legacy audio with durable references", () => {
+Deno.test("buildRestoredAudioCapturedMedia preserves unproven legacy audio", () => {
   const scan = makeVideoScan([
     { audio: { _0: { storage: "localFile", path: "legacy.wav" } } },
     {
@@ -576,6 +576,14 @@ Deno.test("buildRestoredAudioCapturedMedia replaces local legacy audio with dura
     ]),
     [
       {
+        audio: {
+          _0: {
+            storage: "localFile",
+            path: "legacy.wav",
+          },
+        },
+      },
+      {
         image: {
           _0: {
             storage: "remoteURL",
@@ -589,6 +597,96 @@ Deno.test("buildRestoredAudioCapturedMedia replaces local legacy audio with dura
             storage: "remoteURL",
             path: "https://media.merian.app/restored.wav",
           },
+        },
+      },
+    ],
+  );
+});
+
+Deno.test("media restoration preserves descriptions around repaired media", () => {
+  const descriptionBefore = {
+    description: { _0: { freeText: "Before the call" } },
+  };
+  const descriptionAfter = {
+    description: { _0: { freeText: "After the call" } },
+  };
+  const localAudio = {
+    audio: {
+      _0: {
+        storage: "localFile",
+        path: "field.wav",
+        sourceIndex: 0,
+      },
+    },
+  };
+  const audioScan = makeVideoScan([
+    descriptionBefore,
+    localAudio,
+    descriptionAfter,
+  ]);
+  assertEquals(
+    buildRestoredAudioCapturedMedia(audioScan, [
+      "https://media.merian.app/field.wav",
+    ]),
+    [
+      descriptionBefore,
+      localAudio,
+      descriptionAfter,
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/field.wav",
+          },
+        },
+      },
+    ],
+  );
+
+  const imageUrls = [0, 1, 2, 3, 4].map((index) =>
+    `https://media.merian.app/frame-${index}.webp`
+  );
+  const videoScan = makeVideoScan([
+    descriptionBefore,
+    ...imageUrls.map((url) => ({
+      image: { _0: { storage: "remoteURL", path: url } },
+    })),
+    descriptionAfter,
+    localAudio,
+  ], imageUrls);
+  videoScan.video_storage_urls = [];
+  const repaired = buildRestoredVideoCapturedMedia(videoScan, [
+    "https://media.merian.app/clip.mp4",
+  ]);
+  assertEquals(repaired?.[0], descriptionBefore);
+  assertEquals(Object.hasOwn(repaired?.[1] as object, "video"), true);
+  assertEquals(repaired?.[2], descriptionAfter);
+  assertEquals(repaired?.[3], localAudio);
+});
+
+Deno.test("partial audio restoration never consumes a different local clip", () => {
+  const first = {
+    audio: {
+      _0: { storage: "localFile", path: "first.wav", sourceIndex: 0 },
+    },
+  };
+  const second = {
+    audio: {
+      _0: { storage: "localFile", path: "second.wav", sourceIndex: 1 },
+    },
+  };
+  const remoteSecond = "https://media.merian.app/second.wav";
+
+  assertEquals(
+    buildRestoredAudioCapturedMedia(makeVideoScan([first, second]), [
+      remoteSecond,
+    ]),
+    [
+      first,
+      second,
+      {
+        audio: {
+          _0: { storage: "remoteURL", path: remoteSecond },
         },
       },
     ],

@@ -1096,6 +1096,51 @@ struct OfflineQueueManagerTests {
         )
 
         #expect(extracted.audioMediaItems == [.audio(sourceIndex: 0)])
+        #expect(extracted.ownerMediaTimeline == [
+            .audio(audioInputIndex: 0, sourceIndex: 0)
+        ])
+    }
+
+    @Test func legacyQueueReplayDoesNotRenumberSparseAudioIdentity() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let items: [SerializedMediaItem] = [
+            .audio(.documents("second.wav", sourceIndex: 1))
+        ]
+        let data = try JSONEncoder().encode(items)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: String(decoding: data, as: UTF8.self)
+        )
+
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+
+        #expect(extracted.audioMediaItems == [.audio(sourceIndex: 1)])
+        #expect(extracted.ownerMediaTimeline == nil)
+    }
+
+    @Test func legacyVisualQueueWithoutDescriptorsUsesConservativeReplay() throws {
+        let context = try createIsolatedContext()
+        defer { OfflineQueueManager.shared.modelContext = nil }
+        let items: [SerializedMediaItem] = [
+            .image(.documents("legacy-image.webp"))
+        ]
+        let data = try JSONEncoder().encode(items)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: String(decoding: data, as: UTF8.self),
+            visualMediaItemsJSON: nil
+        )
+
+        let extracted = OfflineQueueManager.shared.buildExtractedScanData(
+            from: scan,
+            container: context.container
+        )
+
+        #expect(extracted.localImagePaths == ["legacy-image.webp"])
+        #expect(extracted.visualMediaItems == nil)
+        #expect(extracted.ownerMediaTimeline == nil)
     }
 
     @Test func queueReplayKeepsAudioPathsAlignedWithDescriptorsAcrossMixedTimeline() throws {
@@ -1111,27 +1156,46 @@ struct OfflineQueueManagerTests {
         let description = SerializedMediaItem.description(
             ObservationContext(freeText: "Interleaved field note")
         )
+        let visualMediaItemsJSON = String(
+            decoding: try JSONEncoder().encode([
+                IdentifyVisualMediaItem.videoFrame(clipIndex: 0, frameIndex: 0)
+            ]),
+            as: UTF8.self
+        )
         let scenarios: [(
             items: [SerializedMediaItem],
             paths: [String],
-            descriptors: [IdentifyAudioMediaItem]
+            descriptors: [IdentifyAudioMediaItem],
+            ownerTimeline: [IdentifyOwnerMediaTimelineItem]
         )] = [
             (
                 [video, description, standalone],
                 ["video-audio.wav", "standalone.wav"],
-                [.videoAudio(clipIndex: 0), .audio(sourceIndex: 0)]
+                [.videoAudio(clipIndex: 0), .audio(sourceIndex: 0)],
+                [
+                    .video(clipIndex: 0),
+                    .description(contextIndex: 0),
+                    .audio(audioInputIndex: 1, sourceIndex: 0)
+                ]
             ),
             (
                 [standalone, description, video],
                 ["standalone.wav", "video-audio.wav"],
-                [.audio(sourceIndex: 0), .videoAudio(clipIndex: 0)]
+                [.audio(sourceIndex: 0), .videoAudio(clipIndex: 0)],
+                [
+                    .audio(audioInputIndex: 0, sourceIndex: 0),
+                    .description(contextIndex: 0),
+                    .video(clipIndex: 0)
+                ]
             )
         ]
 
         for scenario in scenarios {
             let data = try JSONEncoder().encode(scenario.items)
             let scan = OfflineQueuedScan(
-                capturedMediaJSON: String(decoding: data, as: UTF8.self)
+                capturedMediaJSON: String(decoding: data, as: UTF8.self),
+                inferenceImagePaths: ["video-frame.webp"],
+                visualMediaItemsJSON: visualMediaItemsJSON
             )
             let extracted = OfflineQueueManager.shared.buildExtractedScanData(
                 from: scan,
@@ -1140,6 +1204,36 @@ struct OfflineQueueManagerTests {
 
             #expect(extracted.audioFilePaths == scenario.paths)
             #expect(extracted.audioMediaItems == scenario.descriptors)
+            #expect(extracted.ownerMediaTimeline == scenario.ownerTimeline)
+            #expect(extracted.capturedMediaSnapshot.audioPaths == scenario.paths)
+            let pendingPayload = PendingScanPayload(
+                id: scan.id,
+                localImagePaths: [],
+                localAudioPaths: extracted.capturedMediaSnapshot.audioPaths,
+                localVideoPaths: extracted.videoFilePaths ?? []
+            )
+            let uploadItems = MediaStagingContract.uploadItems(
+                for: pendingPayload,
+                userId: "00000000-0000-4000-8000-000000000001"
+            )
+            #expect(
+                uploadItems
+                    .filter { $0.mediaKind == .audio }
+                    .map(\.localPath) == scenario.paths
+            )
+            let splitKeys = MediaStagingContract.splitObjectKeys(
+                uploadItems.map(\.objectKey),
+                scanId: scan.id,
+                localImagePaths: [],
+                localAudioPaths: scenario.paths,
+                localVideoPaths: extracted.videoFilePaths ?? []
+            )
+            #expect(
+                splitKeys.audioR2ObjectKeys
+                    == uploadItems
+                        .filter { $0.mediaKind == .audio }
+                        .map(\.objectKey)
+            )
             let durableStandalonePaths = zip(
                 extracted.audioFilePaths ?? [],
                 extracted.audioMediaItems ?? []

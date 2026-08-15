@@ -131,9 +131,7 @@ extension CaptureWorkspaceViewModel {
         var capturedDisplayImages: [StagedImage] = []
         var capturedInferenceImages: [StagedImage] = []
         var capturedVisualMediaItems: [IdentifyVisualMediaItem] = []
-        var capturedAudioMediaItems: [IdentifyAudioMediaItem] = []
         var stillImageSourceIndex = 0
-        var standaloneAudioSourceIndex = 0
         var videoClipIndex = 0
         var hasCameraStillImage = false
         var hasGalleryStillImage = false
@@ -168,9 +166,6 @@ extension CaptureWorkspaceViewModel {
                 for frameIndex in stagedVideo.sampledImages.indices {
                     capturedVisualMediaItems.append(.videoFrame(clipIndex: videoClipIndex, frameIndex: frameIndex))
                 }
-                if let audioFilePath = stagedVideo.audioFilePath, !audioFilePath.isEmpty {
-                    capturedAudioMediaItems.append(.videoAudio(clipIndex: videoClipIndex))
-                }
                 videoClipIndex += 1
                 capturedMediaTimeline.append(.video(
                     stagedVideo.filePath,
@@ -178,8 +173,6 @@ extension CaptureWorkspaceViewModel {
                     audioFilePath: stagedVideo.audioFilePath
                 ))
             case .audio(_, let stagedAudio):
-                capturedAudioMediaItems.append(.audio(sourceIndex: standaloneAudioSourceIndex))
-                standaloneAudioSourceIndex += 1
                 capturedMediaTimeline.append(.audio(stagedAudio.filePath))
             case .description(_, let stagedObservationContext):
                 capturedMediaTimeline.append(.description(stagedObservationContext.context))
@@ -529,7 +522,6 @@ extension CaptureWorkspaceViewModel {
                             observationContexts: capturedObservationContexts,
                             mediaTimeline: capturedMediaTimeline,
                             visualMediaItems: capturedVisualMediaItems,
-                            audioMediaItems: capturedAudioMediaItems,
                             preferredGoal: capturedPreferredGoal,
                             modelContext: modelContext,
                             targetEradicationScanId: targetEradicationScanId,

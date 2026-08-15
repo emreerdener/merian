@@ -98,13 +98,17 @@ Every producer HTTP `200` guarantees the shared boundary below:
 3. Provider quota has been reserved under the stable scan UUID and selected
    operation. The route commits immediately before provider dispatch.
 4. `scan_ingestion_jobs` and its sanitized `scan_ingestion_intents` row were
-   established atomically before provider work.
+   established atomically before provider work. For new multimodal requests the
+   intent includes the validated complete owner-media timeline; no raw media or
+   local path enters the ledger.
 5. Gemini returned a response that passes the executable provider schema, and
    the final server-enriched success envelope passes the executable Identify
    wire schema.
 6. Moderation accepted the observation.
 7. Every required staged image, standalone audio item, and playback video was
-   promoted or explicitly disposed of under its exact owner-bound manifest.
+   promoted or explicitly disposed of under its exact owner-bound manifest. Only
+   a validated owner timeline may prove that an audio input is a disposable
+   video companion; legacy unknown audio is retained.
 8. The primary species state needed by the scan row was resolved.
 9. The owned `public.scans` row was inserted idempotently and reread with both
    `scan_id` and authenticated `user_id`.
@@ -113,8 +117,9 @@ Every producer HTTP `200` guarantees the shared boundary below:
 A fresh, provider-owning `/identify-multimodal` invocation has the stricter
 initial-delivery boundary:
 
-11. Canonical `captured_media` and ready `scan_media_assets` rows prove every
-    required promoted image, audio, and video representation.
+11. Canonical `captured_media` preserves the validated owner order, including
+    every description, while ready `scan_media_assets` rows prove each promoted
+    image, audio, and video representation at its corresponding manifest ordinal.
 12. `complete_scan_ingestion_finalization` wrote `media_finalization_complete`
     last under the database completion fence.
 13. The validated success envelope was durably stored or reconstructed from the

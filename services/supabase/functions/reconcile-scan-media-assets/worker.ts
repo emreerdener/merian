@@ -110,6 +110,11 @@ function imageManifestItem(url: string): Record<string, unknown> {
   return { image: { _0: remoteMediaReference(url) } };
 }
 
+function isImageManifestItem(value: unknown): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value as Record<string, unknown>, "image");
+}
+
 function videoManifestItem(
   url: string,
   thumbnailUrl: string | undefined,
@@ -131,6 +136,57 @@ function hasManifestVideo(value: unknown[] | null | undefined): boolean {
     !Array.isArray(entry) &&
     Object.hasOwn(entry as Record<string, unknown>, "video")
   );
+}
+
+function isVideoManifestItem(value: unknown): boolean {
+  return value != null && typeof value === "object" && !Array.isArray(value) &&
+    Object.hasOwn(value as Record<string, unknown>, "video");
+}
+
+function replacingVideoManifestPath(
+  value: unknown,
+  path: string,
+  thumbnailUrl: string | undefined,
+): unknown {
+  if (!isVideoManifestItem(value)) return videoManifestItem(path, thumbnailUrl);
+  const item = value as Record<string, unknown>;
+  const wrapper = item.video;
+  if (
+    wrapper == null || typeof wrapper !== "object" || Array.isArray(wrapper)
+  ) {
+    return videoManifestItem(path, thumbnailUrl);
+  }
+  const wrapperRecord = wrapper as Record<string, unknown>;
+  const payload = wrapperRecord._0 ?? wrapperRecord;
+  if (
+    payload == null || typeof payload !== "object" || Array.isArray(payload)
+  ) {
+    return videoManifestItem(path, thumbnailUrl);
+  }
+  const payloadRecord = payload as Record<string, unknown>;
+  const videoReference = payloadRecord.video;
+  const nextVideoReference =
+    videoReference != null && typeof videoReference === "object" &&
+      !Array.isArray(videoReference)
+      ? {
+        ...(videoReference as Record<string, unknown>),
+        storage: "remoteURL",
+        path,
+      }
+      : remoteMediaReference(path);
+  return {
+    ...item,
+    video: {
+      ...wrapperRecord,
+      _0: {
+        ...payloadRecord,
+        video: nextVideoReference,
+        ...(payloadRecord.thumbnail == null && thumbnailUrl
+          ? { thumbnail: remoteMediaReference(thumbnailUrl) }
+          : {}),
+      },
+    },
+  };
 }
 
 function capturedManifestVideoCount(
@@ -217,6 +273,58 @@ export function buildRepairedVideoCapturedMedia(
   );
   const standaloneImageUrls = imageUrls.slice(0, standaloneImageCount);
   const videoThumbnailUrls = imageUrls.slice(standaloneImageCount);
+
+  if (Array.isArray(scan.captured_media) && scan.captured_media.length > 0) {
+    if (!hasManifestVideo(scan.captured_media)) {
+      const repairedItems: unknown[] = [];
+      let imageIndex = 0;
+      let insertedVideos = false;
+      const appendVideos = () => {
+        sanitizedVideoUrls.forEach((url, index) => {
+          const thumbnailUrl = videoThumbnailUrls[index * VIDEO_FRAME_COUNT] ??
+            videoThumbnailUrls[0] ??
+            imageUrls[0];
+          repairedItems.push(videoManifestItem(url, thumbnailUrl));
+        });
+        insertedVideos = true;
+      };
+      for (const item of scan.captured_media) {
+        if (!isImageManifestItem(item)) {
+          repairedItems.push(item);
+          continue;
+        }
+        if (imageIndex < standaloneImageCount) {
+          repairedItems.push(item);
+        } else if (!insertedVideos) {
+          appendVideos();
+        }
+        imageIndex += 1;
+      }
+      if (!insertedVideos) appendVideos();
+      return repairedItems;
+    }
+
+    let videoIndex = 0;
+    const items = scan.captured_media.map((item) => {
+      if (!isVideoManifestItem(item)) return item;
+      const url = sanitizedVideoUrls[videoIndex];
+      if (!url) return item;
+      const thumbnailUrl = videoThumbnailUrls[videoIndex * VIDEO_FRAME_COUNT] ??
+        videoThumbnailUrls[0] ??
+        imageUrls[0];
+      videoIndex += 1;
+      return replacingVideoManifestPath(item, url, thumbnailUrl);
+    });
+    for (; videoIndex < sanitizedVideoUrls.length; videoIndex += 1) {
+      const thumbnailUrl = videoThumbnailUrls[videoIndex * VIDEO_FRAME_COUNT] ??
+        videoThumbnailUrls[0] ??
+        imageUrls[0];
+      items.push(
+        videoManifestItem(sanitizedVideoUrls[videoIndex], thumbnailUrl),
+      );
+    }
+    return items;
+  }
 
   const items: unknown[] = standaloneImageUrls.map(imageManifestItem);
   sanitizedVideoUrls.forEach((url, index) => {
@@ -360,14 +468,18 @@ async function reconcileExistingScanAsset(
       return scan;
     }
 
-    // Audio absent from the scan's standalone-audio URL list is a video
-    // companion. It is inference-only and must be deleted, while standalone
-    // audio keeps its already-promoted public object and promoted asset row.
+    // Absence from the compatibility URL array does not prove an audio clip was
+    // an inference-only video companion. New submissions delete proven companions
+    // during canonical finalization; unknown legacy assets remain recoverable.
     if (!options.dryRun) {
-      await options.deleteObject(storageKey, options.r2Config);
-      await options.markDeleted(asset.id, scan.id, supabaseAdmin);
+      await options.markFailed(
+        asset.id,
+        "unproven_audio_role",
+        false,
+        supabaseAdmin,
+      );
     }
-    result.deletedStagingObjects++;
+    result.failedAssets++;
     return scan;
   }
 

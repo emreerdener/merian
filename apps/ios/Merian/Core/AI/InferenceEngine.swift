@@ -1147,7 +1147,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         observationContexts: [ObservationContext] = [],
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
-        audioMediaItems: [IdentifyAudioMediaItem]? = nil,
         preferredGoal: FieldTripPreferredGoal? = nil,
         modelContext: ModelContext? = nil,
         targetEradicationScanId: String? = nil,
@@ -1248,6 +1247,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             audioFilePaths: audioFilePaths ?? [],
             videoFilePaths: videoFilePaths ?? []
         )
+        let submissionProjection = resolvedMediaTimeline.submissionMediaProjection
+        let ownerMediaTimeline = mediaTimeline == nil
+            ? nil
+            : submissionProjection.ownerMediaTimeline
         self.activeMedia.items = mediaItems(
             from: resolvedMediaTimeline,
             liveImageDatas: datasToUse,
@@ -1375,20 +1378,19 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 let inferenceStart = CFAbsoluteTimeGetCurrent()
                 // Encode ObservationContext to JSON once: used for DB persistence (observationContextJSON)
                 // and already serialised to plain text for the Gemini prompt (description).
-                let observationContextsJSON = observationContextJSONStrings(from: resolvedObservationContexts)
+                let observationContextsJSON = observationContextJSONStrings(
+                    from: submissionProjection.observationContexts
+                )
                 let validVisualMediaItems = visualMediaItems?.count == validBase64Strings.count
                     ? visualMediaItems
                     : nil
-                let validAudioMediaItems = audioMediaItems?.count == (audioFilePaths ?? []).count
-                    ? audioMediaItems
-                    : nil
                 let videoFrameCount = validVisualMediaItems?
                     .filter { $0.kind == .videoFrame }
-                    .count ?? ((videoFilePaths?.isEmpty == false) ? imageDatas.count : nil)
+                    .count ?? (submissionProjection.videoFilePaths.isEmpty ? nil : imageDatas.count)
                 let videoR2ObjectKeys: [String]
-                if let videoFilePaths, !videoFilePaths.isEmpty {
+                if !submissionProjection.videoFilePaths.isEmpty {
                     videoR2ObjectKeys = try await client.uploadStagedVideoFiles(
-                        videoFilePaths: videoFilePaths,
+                        videoFilePaths: submissionProjection.videoFilePaths,
                         scanId: resolvedClientScanId
                     )
                     try self.checkLiveInferenceAttempt(
@@ -1418,11 +1420,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     r2ObjectKeys: [],
                     base64ImageDatas: validBase64Strings,
                     mimeType: imageMimeType,
-                    audioFilePaths: audioFilePaths ?? [],
+                    audioFilePaths: submissionProjection.audioFilePaths,
                     videoR2ObjectKeys: videoR2ObjectKeys,
                     videoFrameCount: videoFrameCount,
                     visualMediaItems: validVisualMediaItems,
-                    audioMediaItems: validAudioMediaItems,
+                    audioMediaItems: submissionProjection.audioMediaItems,
+                    ownerMediaTimeline: ownerMediaTimeline,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: resolvedClientScanId,
@@ -1462,8 +1465,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     compressedDatas: compressedDatas,
                     displayDatas: capturedDisplayDatas,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: audioFilePaths,
-                    videoFilePaths: videoFilePaths,
+                    audioFilePaths: submissionProjection.audioFilePaths.isEmpty
+                        ? nil
+                        : submissionProjection.audioFilePaths,
+                    videoFilePaths: submissionProjection.videoFilePaths.isEmpty
+                        ? nil
+                        : submissionProjection.videoFilePaths,
                     mediaTimeline: resolvedMediaTimeline,
                     persistenceFence: ownedScanId.flatMap { scanId in
                         ownedForegroundInferenceGeneration.map { generation in
@@ -1786,6 +1793,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             audioFilePaths: filteredAudioFilePaths,
             videoFilePaths: filteredVideoFilePaths
         )
+        let submissionProjection = resolvedMediaTimeline.submissionMediaProjection
+        let ownerMediaTimeline = mediaTimeline == nil
+            ? nil
+            : submissionProjection.ownerMediaTimeline
 
         guard !resolvedMediaTimeline.isEmpty else {
             if let scanId, let foregroundInferenceGeneration {
@@ -1842,7 +1853,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.enrichmentWriteTask = nil
 
         self.prepareForNewScan()
-        self.scanningPhaseText = filteredAudioFilePaths.isEmpty ? "Identifying describe..." : "Listening..."
+        self.scanningPhaseText = submissionProjection.audioFilePaths.isEmpty
+            ? "Identifying describe..."
+            : "Listening..."
 
         let attemptGeneration =
             foregroundInferenceGeneration ?? UUID()
@@ -1899,7 +1912,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     throw URLError(.notConnectedToInternet)
                 }
 
-                let observationContextsJSON = observationContextJSONStrings(from: filteredObservationContexts)
+                let observationContextsJSON = observationContextJSONStrings(
+                    from: submissionProjection.observationContexts
+                )
                 try self.checkLiveInferenceAttempt(
                     scanId: ownedScanId,
                     attemptGeneration: attemptGeneration,
@@ -1907,7 +1922,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         ownedForegroundInferenceGeneration
                 )
                 let resultData = try await MerianNetworkClient.shared.identifyMultiModal(
-                    audioFilePaths: filteredAudioFilePaths,
+                    audioFilePaths: submissionProjection.audioFilePaths,
+                    audioMediaItems: submissionProjection.audioMediaItems,
+                    ownerMediaTimeline: ownerMediaTimeline,
                     observationContextsJSON: observationContextsJSON,
                     telemetry: telemetry,
                     clientScanId: scanId,
@@ -1931,8 +1948,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     displayDatas: [],
                     skipImageRequirement: true,
                     observationContextsJSON: observationContextsJSON,
-                    audioFilePaths: filteredAudioFilePaths.isEmpty ? nil : filteredAudioFilePaths,
-                    videoFilePaths: filteredVideoFilePaths.isEmpty ? nil : filteredVideoFilePaths,
+                    audioFilePaths: submissionProjection.audioFilePaths.isEmpty
+                        ? nil
+                        : submissionProjection.audioFilePaths,
+                    videoFilePaths: submissionProjection.videoFilePaths.isEmpty
+                        ? nil
+                        : submissionProjection.videoFilePaths,
                     mediaTimeline: resolvedMediaTimeline,
                     persistenceFence: ownedScanId.flatMap { scanId in
                         ownedForegroundInferenceGeneration.map { generation in

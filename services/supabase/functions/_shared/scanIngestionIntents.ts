@@ -4,6 +4,7 @@ import type {
   AudioMediaItemDTO,
   MultimodalPayload,
   ObservationContextDTO,
+  OwnerMediaTimelineItemDTO,
   VisualMediaItemDTO,
 } from "./identify/types.ts";
 import type {
@@ -11,7 +12,7 @@ import type {
   ScanIngestionMediaObjectKeys,
 } from "./scanIngestionJobs.ts";
 
-export const SCAN_INGESTION_INTENT_SCHEMA_VERSION = 1;
+export const SCAN_INGESTION_INTENT_SCHEMA_VERSION = 2;
 
 export interface SanitizedScanIngestionIntent {
   payload: Record<string, unknown>;
@@ -30,6 +31,7 @@ export interface BuildScanIngestionIntentInput {
   manifestChecksum?: string | null;
   visualMediaItems?: VisualMediaItemDTO[];
   audioMediaItems?: AudioMediaItemDTO[];
+  ownerMediaTimeline?: OwnerMediaTimelineItemDTO[];
   normalizedTelemetry?: Record<string, unknown>;
 }
 
@@ -57,6 +59,12 @@ function cleanString(value: unknown): string | undefined {
 
 function cleanNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function cleanIndex(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : undefined;
 }
@@ -103,13 +111,33 @@ function sanitizeObservationContexts(
   return (contexts ?? [])
     .map((context) => {
       const freeText = cleanString(context.freeText ?? context.free_text);
-      const addedAt = cleanString(context.addedAt ?? context.added_at);
+      const rawAddedAt = context.addedAt ?? context.added_at;
+      const addedAt = cleanString(rawAddedAt) ?? cleanNumber(rawAddedAt);
       return stripUndefined({
         freeText,
         addedAt,
       }) as Record<string, unknown>;
     })
     .filter((context) => Object.keys(context).length > 0);
+}
+
+function sanitizeOwnerMediaTimeline(
+  items: OwnerMediaTimelineItemDTO[] | undefined,
+): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(items)) return undefined;
+  return items
+    .map((item) =>
+      stripUndefined({
+        kind: cleanString(item.kind),
+        sourceIndex: cleanIndex(item.sourceIndex ?? item.source_index),
+        audioInputIndex: cleanIndex(
+          item.audioInputIndex ?? item.audio_input_index,
+        ),
+        clipIndex: cleanIndex(item.clipIndex ?? item.clip_index),
+        contextIndex: cleanIndex(item.contextIndex ?? item.context_index),
+      }) as Record<string, unknown>
+    )
+    .filter((item) => Object.keys(item).length > 0);
 }
 
 function sanitizeFocusRegion(
@@ -301,7 +329,7 @@ export async function buildScanIngestionIntent(
     schemaVersion: SCAN_INGESTION_INTENT_SCHEMA_VERSION,
     clientScanId: input.scanId,
     endpoint: "identify-multimodal",
-    media: {
+    media: stripUndefined({
       r2ObjectKeys: cleanStringArray(input.mediaObjectKeys.image),
       audioR2ObjectKeys: cleanStringArray(input.mediaObjectKeys.audio),
       videoR2ObjectKeys: cleanStringArray(input.mediaObjectKeys.video),
@@ -314,8 +342,12 @@ export async function buildScanIngestionIntent(
         input.audioMediaItems ?? payload.audioMediaItems ??
           payload.audio_media_items,
       ),
+      ownerMediaTimeline: sanitizeOwnerMediaTimeline(
+        input.ownerMediaTimeline ?? payload.ownerMediaTimeline ??
+          payload.owner_media_timeline,
+      ),
       mimeType: cleanString(payload.mimeType),
-    },
+    }),
     telemetry,
     observationContexts: sanitizeObservationContexts(
       payload.observation_contexts,

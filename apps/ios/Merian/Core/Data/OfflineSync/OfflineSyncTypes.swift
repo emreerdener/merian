@@ -1046,6 +1046,10 @@ struct ExtractedScanData: Sendable {
         CapturedMediaSnapshot(items: capturedMediaItems)
     }
 
+    var submissionMediaProjection: CaptureSubmissionMediaProjection {
+        capturedMediaSnapshot.submissionMediaProjection
+    }
+
     /// Filenames of local inference images relative to the Documents directory.
     var localImagePaths: [String] {
         if let inferenceImagePaths, !inferenceImagePaths.isEmpty {
@@ -1076,7 +1080,7 @@ struct ExtractedScanData: Sendable {
     /// ahead of video-extracted audio can make the Edge Function promote and delete
     /// the opposite clips when the mixed-media timeline is interleaved.
     var audioFilePaths: [String]? {
-        let paths = orderedAudioInputs.map(\.path)
+        let paths = submissionMediaProjection.audioFilePaths
         return paths.isEmpty ? nil : paths
     }
 
@@ -1096,39 +1100,60 @@ struct ExtractedScanData: Sendable {
     }
 
     var audioMediaItems: [IdentifyAudioMediaItem]? {
-        let items = orderedAudioInputs.map(\.descriptor)
+        let items = submissionMediaProjection.audioMediaItems
         return items.isEmpty ? nil : items
     }
 
-    private var orderedAudioInputs: [(path: String, descriptor: IdentifyAudioMediaItem)] {
-        var inputs: [(path: String, descriptor: IdentifyAudioMediaItem)] = []
-        var standaloneAudioIndex = 0
-        var videoClipIndex = 0
+    var ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]? {
+        let projection = submissionMediaProjection
+        let timeline = projection.ownerMediaTimeline
+        guard !timeline.isEmpty else { return nil }
 
-        for item in capturedMediaItems {
-            switch item {
-            case .audio(let reference):
-                inputs.append((
-                    path: reference.serializedPath,
-                    descriptor: .audio(
-                        sourceIndex: reference.sourceIndex ?? standaloneAudioIndex
-                    )
-                ))
-                standaloneAudioIndex += 1
-            case .video(let reference):
-                if let audioReference = reference.audio {
-                    inputs.append((
-                        path: audioReference.serializedPath,
-                        descriptor: .videoAudio(clipIndex: videoClipIndex)
-                    ))
-                }
-                videoClipIndex += 1
-            case .image, .description:
-                continue
-            }
+        // Persisted standalone-audio identities can be sparse after a partial legacy
+        // repair. Preserve those descriptors, but do not claim a new authoritative
+        // timeline unless the durable source identities are complete zero-based ordinals.
+        let standaloneAudioSourceIndexes = projection.audioMediaItems.compactMap { item in
+            item.kind == .audio ? item.sourceIndex : nil
+        }
+        guard standaloneAudioSourceIndexes.sorted()
+                == Array(0..<standaloneAudioSourceIndexes.count) else {
+            return nil
         }
 
-        return inputs
+        let ownerImageIndexes = timeline.compactMap { item in
+            item.kind == .image ? item.sourceIndex : nil
+        }
+        let ownerVideoIndexes = timeline.compactMap { item in
+            item.kind == .video ? item.clipIndex : nil
+        }
+        guard !ownerImageIndexes.isEmpty || !ownerVideoIndexes.isEmpty else {
+            return timeline
+        }
+
+        // Older queued visual records predate persisted visual descriptors. Sending a
+        // reconstructed timeline for them would turn a safe legacy replay into a strict
+        // validation failure, so only opt into the new contract when every visual input
+        // and owner-visible source can be proven locally.
+        guard let visualMediaItems,
+              visualMediaItems.count == localImagePaths.count,
+              ownerImageIndexes.sorted() == Array(0..<ownerImageIndexes.count),
+              ownerVideoIndexes.sorted() == Array(0..<ownerVideoIndexes.count),
+              ownerVideoIndexes.count == (videoFilePaths?.count ?? 0) else {
+            return nil
+        }
+        let visualImageIndexes = visualMediaItems.compactMap { item in
+            item.kind == .image ? item.sourceIndex : nil
+        }
+        let videoFrameClipIndexes = visualMediaItems.compactMap { item in
+            item.kind == .videoFrame ? item.clipIndex : nil
+        }
+        let ownerVideoIndexSet = Set(ownerVideoIndexes)
+        guard visualImageIndexes.sorted() == ownerImageIndexes.sorted(),
+              videoFrameClipIndexes.allSatisfy(ownerVideoIndexSet.contains),
+              ownerVideoIndexSet.isSubset(of: Set(videoFrameClipIndexes)) else {
+            return nil
+        }
+        return timeline
     }
 
     var capturedMediaJSON: String? {

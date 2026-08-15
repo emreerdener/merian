@@ -148,6 +148,9 @@ export function buildReplayIdentifyPayload(
   const observationContexts = cleanObjectArray(
     requestPayload.observationContexts,
   );
+  const ownerMediaTimeline = Array.isArray(media.ownerMediaTimeline)
+    ? cleanObjectArray(media.ownerMediaTimeline)
+    : undefined;
 
   return stripUndefined({
     user_id: row.user_id,
@@ -158,6 +161,7 @@ export function buildReplayIdentifyPayload(
     videoFrameCount: cleanNumber(media.videoFrameCount),
     visualMediaItems: cleanObjectArray(media.visualMediaItems),
     audioMediaItems: cleanObjectArray(media.audioMediaItems),
+    ownerMediaTimeline,
     mimeType: cleanString(media.mimeType),
     observation_contexts: observationContexts,
     timestamp: cleanString(telemetry.timestamp),

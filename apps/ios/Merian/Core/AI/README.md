@@ -68,6 +68,14 @@ resolution, output-token limits, or the single Gemini `generateContent` call per
 scan. If measured Gemini time dominates, report it as the remaining latency
 floor rather than silently changing these economics or behavior.
 
+An explicit capture timeline is also a request invariant. `InferenceEngine`
+projects the ordered image, standalone-audio, video, and description items once,
+then uses that same projection for audio file order, `audioMediaItems`,
+observation contexts, video paths, and `ownerMediaTimeline`. Both live visual and
+live nonvisual paths must send the projection. Do not independently aggregate
+audio paths or descriptors: their raw input positions are the durable identity
+used by Edge validation and promotion.
+
 External-reference suppressions are also an invariant: they target an immutable
 media identity, never a species name, result index, or provider host. A denied
 first URL must promote the next permitted URL rather than removing the species

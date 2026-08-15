@@ -625,25 +625,25 @@ For audio-only scans, `insertScan` persists `image_storage_urls: []`, durable
 `audio_storage_urls`, and an audio item in the canonical `captured_media`
 timeline. Standalone audio is promoted into durable scan storage and normalized
 as a ready `scan_media_assets(kind = 'audio', role = 'audio')` row. Extracted
-`video_audio` remains inference-only: it is deleted after finalization because
-the shareable playback MP4 already contains its own audio track. Canonical
-standalone-audio references also retain the request descriptor's optional
-`sourceIndex`, which identifies the original clip independently of its local or
-promoted path. Offline replay produces audio paths and descriptors from the same
-chronological timeline traversal, so a video's extracted audio cannot take the
-standalone recording's promotion slot. The server stores these identities only
-when they form the exact unique zero-based standalone sequence; malformed or
-legacy identity metadata is stripped while the audio remains durable.
+`video_audio` is inference-only only when a complete validated
+`ownerMediaTimeline` proves that role; then it is deleted after finalization
+because the shareable playback MP4 already contains its own audio track. The
+timeline binds each standalone `sourceIndex` to its raw `audioInputIndex`, and
+live submission plus offline replay produce paths, descriptors, and that
+timeline from one chronological traversal. Missing legacy timeline metadata is
+non-destructive: all resolved audio remains durable and ambiguous identity is
+stripped rather than guessed.
 
-Owner-history sync prefers `captured_media`, then supplements an incomplete or
-legacy manifest from `audio_storage_urls` and `user_observation_context` before
+New `captured_media` manifests preserve every audio and description item in its
+submitted position. Owner-history sync supplements an incomplete or legacy
+manifest from `audio_storage_urls` and `user_observation_context` before
 replacing the local mixed-media timeline. This keeps a submitted audio plus
 description scan playable and preserves its text provenance after reconciliation
 or restore on another device. Intentional nonvisual results never display the
 photo-specific `Original photo unavailable` carousel state. Legacy compatibility
 columns do not store cross-modal positions, so missing audio is appended in
-stored-array order without filtering canonical manifest audio, and the stored
-description follows it. The compatibility array is supplemental rather than
+stored-array order and the stored description follows it. The compatibility
+array is supplemental rather than
 deletion authority. History reconciliation replaces a local standalone clip
 only on an exact path match or a unique `sourceIndex` match. Legacy and restore
 references without that identity are merged conservatively instead of consuming

@@ -69,9 +69,14 @@ import {
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import { processWAV } from "./audio.ts";
 import {
+  audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
   buildCapturedMediaManifest,
   capturedMediaVideoCount,
+  descriptorsForProcessedAudioInputs,
+  durableAudioInputIndexes,
+  normalizeOwnerObservationContexts,
+  validateOwnerMediaTimeline,
   type VisualMediaDescriptor,
 } from "./capturedMedia.ts";
 import {
@@ -506,10 +511,19 @@ export async function handleIdentifyMultimodalRequest(
     visual_media_items,
     audioMediaItems,
     audio_media_items,
+    ownerMediaTimeline,
+    owner_media_timeline,
     observation_contexts = [],
     r2ObjectKeys = [],
     mimeType = "image/webp",
   } = payload;
+
+  if (audioBase64s.length > 0 && audioR2ObjectKeys.length > 0) {
+    return jsonResponse({
+      error: "Use exactly one audio transport per request.",
+      code: "ambiguous_audio_transport",
+    }, 400);
+  }
 
   // The active Swift client sends camelCase telemetry while older queued payloads and
   // some server-side tooling still use snake_case. Accept both forms so the live path
@@ -708,7 +722,7 @@ export async function handleIdentifyMultimodalRequest(
   );
 
   // 2. WAV Preprocessing Loop
-  const processedAudios: string[] = [];
+  let resolvedAudioBuffers: ArrayBuffer[] = [];
   if (audioBase64s.length > 0 || audioR2ObjectKeys.length > 0) {
     const { audioBuffers, errorResponse: audioErrorResponse } =
       await resolveAudioBuffers({
@@ -719,10 +733,48 @@ export async function handleIdentifyMultimodalRequest(
         r2FetchFailedEvent: "multimodal/audio_r2_fetch_failed",
       });
     if (audioErrorResponse) return audioErrorResponse;
+    resolvedAudioBuffers = audioBuffers;
+  }
+  const normalizedAudioMediaItems = normalizeAudioMediaItems(
+    audioMediaItems ?? audio_media_items,
+    resolvedAudioBuffers.length,
+  );
+  const normalizedObservationContexts = normalizeOwnerObservationContexts(
+    observation_contexts,
+  );
+  const ownerTimelineValidation = validateOwnerMediaTimeline({
+    rawTimeline: ownerMediaTimeline ?? owner_media_timeline,
+    visualMediaItems: normalizedVisualMediaItems,
+    resolvedImageCount: resolvedImageBase64s.length,
+    audioMediaItems: normalizedAudioMediaItems,
+    resolvedAudioCount: resolvedAudioBuffers.length,
+    videoCount: videoR2ObjectKeys.length,
+    observationContextCount: normalizedObservationContexts.length,
+  });
+  if (ownerTimelineValidation.error) {
+    return jsonResponse({
+      error: "Invalid owner media timeline.",
+      code: "invalid_owner_media_timeline",
+      detail: ownerTimelineValidation.error,
+    }, 400);
+  }
+  const normalizedOwnerMediaTimeline = ownerTimelineValidation.timeline;
+  const durableIntentAudioMediaItems = audioDescriptorsForDurableIntent(
+    normalizedOwnerMediaTimeline,
+    normalizedAudioMediaItems,
+    resolvedAudioBuffers.length,
+  );
+
+  const processedAudios: string[] = [];
+  const processedAudioInputIndexes: number[] = [];
+  if (resolvedAudioBuffers.length > 0) {
     const hasVisualEvidence = resolvedImageBase64s.length > 0;
-    for (const audioBuffer of audioBuffers) {
+    for (
+      const [audioInputIndex, audioBuffer] of resolvedAudioBuffers.entries()
+    ) {
       try {
         processedAudios.push(await processWAV(audioBuffer));
+        processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
         logStructuredError("multimodal/wav_parse_failed", {
           user_id: user.id,
@@ -735,24 +787,16 @@ export async function handleIdentifyMultimodalRequest(
       }
     }
   }
-  const normalizedAudioMediaItems = normalizeAudioMediaItems(
-    audioMediaItems ?? audio_media_items,
-    processedAudios.length,
+  const processedAudioMediaItems = descriptorsForProcessedAudioInputs(
+    normalizedAudioMediaItems,
+    processedAudioInputIndexes,
   );
   const hasVideoAudio =
-    normalizedAudioMediaItems.some((item) => item.kind === "video_audio") ||
+    processedAudioMediaItems.some((item) => item.kind === "video_audio") ||
     (mediaTelemetry.hasVideo && processedAudios.length > 0);
-  const observationEvidenceTexts = observation_contexts
-    .map((context) =>
-      typeof context.freeText === "string" &&
-        context.freeText.trim().length > 0
-        ? context.freeText.trim()
-        : (typeof context.free_text === "string" &&
-            context.free_text.trim().length > 0
-          ? context.free_text.trim()
-          : null)
-    )
-    .filter((text): text is string => text != null);
+  const observationEvidenceTexts = normalizedObservationContexts.map(
+    (context) => context.freeText,
+  );
 
   // Reject malformed evidence before entitlement reservation. A video object
   // is durable source media, but Gemini still requires at least one frame,
@@ -905,7 +949,7 @@ export async function handleIdentifyMultimodalRequest(
 
   const mediaCounts = {
     image_count: mediaTelemetry.imageCount,
-    audio_count: processedAudios.length,
+    audio_count: resolvedAudioBuffers.length,
     video_count: mediaTelemetry.videoClipCount,
     required_video_count: videoR2ObjectKeys.length,
     video_frame_count: mediaTelemetry.declaredVideoFrameCount,
@@ -937,7 +981,8 @@ export async function handleIdentifyMultimodalRequest(
     uploadSessionIds,
     manifestChecksum,
     visualMediaItems: normalizedVisualMediaItems,
-    audioMediaItems: normalizedAudioMediaItems,
+    audioMediaItems: durableIntentAudioMediaItems,
+    ownerMediaTimeline: normalizedOwnerMediaTimeline ?? undefined,
     normalizedTelemetry: {
       timestamp,
       gpsLatitude: safeGpsLat,
@@ -1435,9 +1480,7 @@ export async function handleIdentifyMultimodalRequest(
   payloadReadyForClient.wikipedia_overview = wikipediaOverview;
   payloadReadyForClient.alternative_common_names = alternativeCommonNames;
 
-  const persistedObservationContext = observation_contexts.find((context) =>
-    context != null && typeof context === "object" && !Array.isArray(context)
-  ) as Record<string, unknown> | undefined;
+  const persistedObservationContext = normalizedObservationContexts[0];
 
   let responseEnvelope: IdentifySuccessEnvelope;
   try {
@@ -1580,6 +1623,7 @@ export async function handleIdentifyMultimodalRequest(
       let audioStorageUrls: string[] = [];
       let standaloneAudioStorageKeys: string[] = [];
       let companionAudioStorageKeys: string[] = [];
+      let allPromotedAudioUrls: string[] = [];
       if (videoR2ObjectKeys.length > 0) {
         try {
           await updateIngestionJobBestEffort(
@@ -1628,6 +1672,7 @@ export async function handleIdentifyMultimodalRequest(
           contentType: "audio/wav",
           fallbackExtension: "wav",
         });
+        allPromotedAudioUrls = promotedAudioUrls;
         promotedAudioUrlsForRollback = promotedAudioUrls;
         const expectedAudioCount = audioR2ObjectKeys.length > 0
           ? audioR2ObjectKeys.length
@@ -1637,8 +1682,12 @@ export async function handleIdentifyMultimodalRequest(
             `Audio promotion returned ${promotedAudioUrls.length}/${expectedAudioCount} URL(s).`,
           );
         }
-        const standaloneIndexes = normalizedAudioMediaItems.flatMap(
-          (descriptor, index) => descriptor.kind === "audio" ? [index] : [],
+        // Only a complete, validated owner timeline can prove that an audio input is
+        // an inference-only video companion. Legacy/malformed role metadata is handled
+        // conservatively by retaining every submitted clip as durable owner media.
+        const standaloneIndexes = durableAudioInputIndexes(
+          normalizedOwnerMediaTimeline,
+          promotedAudioUrls.length,
         );
         audioStorageUrls = standaloneIndexes.flatMap((index) =>
           promotedAudioUrls[index] ? [promotedAudioUrls[index]] : []
@@ -1716,13 +1765,16 @@ export async function handleIdentifyMultimodalRequest(
         }
       }
 
-      const capturedMedia = buildCapturedMediaManifest(
-        modResult?.publicUrls ?? [],
+      const capturedMedia = buildCapturedMediaManifest({
+        imageStorageUrls: modResult?.publicUrls ?? [],
         videoStorageUrls,
         audioStorageUrls,
-        normalizedVisualMediaItems,
-        normalizedAudioMediaItems,
-      );
+        allPromotedAudioUrls,
+        visualMediaItems: normalizedVisualMediaItems,
+        audioMediaItems: normalizedAudioMediaItems,
+        ownerMediaTimeline: normalizedOwnerMediaTimeline,
+        observationContexts: normalizedObservationContexts,
+      });
 
       await updateIngestionJobBestEffort(
         "finalizing",

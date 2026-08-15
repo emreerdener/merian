@@ -276,6 +276,27 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         }
     }
 
+    var submissionMediaProjection: CaptureSubmissionMediaProjection {
+        items.map { item in
+            switch item {
+            case .image:
+                return CaptureSubmissionProjectionItem.image
+            case .audio(let reference):
+                return .audio(
+                    reference.serializedPath,
+                    sourceIndex: reference.sourceIndex
+                )
+            case .video(let reference):
+                return .video(
+                    reference.video.serializedPath,
+                    audioFilePath: reference.audio?.serializedPath
+                )
+            case .description(let context):
+                return .description(context)
+            }
+        }.submissionMediaProjection
+    }
+
     var imagePaths: [String] {
         imageReferences.map(\.serializedPath)
     }
@@ -289,7 +310,7 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
     }
 
     var audioPaths: [String] {
-        audioReferences.map(\.serializedPath) + videoAudioReferences.map(\.serializedPath)
+        submissionMediaProjection.audioFilePaths
     }
 
     var videoPaths: [String] {

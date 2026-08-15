@@ -13,29 +13,30 @@ scan deletion or orphan repair removes it. Persistent Insight contribution
 cards are server-backed and are intentionally not cached in SwiftData.
 
 Authenticated historical reconciliation treats `scans.captured_media` as the
-primary mixed-media projection. It also reads `audio_storage_urls` and
-`user_observation_context` and supplements missing audio/description entries
-before replacing local state, so an incomplete legacy manifest cannot turn an
-audio-plus-description scan into an empty visual placeholder. Legacy columns do
-not carry cross-modal positions: missing audio URLs are appended in stored-array
-order without filtering canonical manifest audio, followed by the stored
-observation context. The compatibility array is supplemental rather than
-deletion authority. New standalone audio carries the same optional
-`sourceIndex` in local and cloud `capturedMediaJSON`; reconciliation replaces a
-local clip only when that unique identity or its exact path matches. Unindexed
-legacy/restore media is merged conservatively rather than assigned to an audio
-slot by ordinal guess, so ambiguous recovery can retain an alias but cannot
-delete the wrong recording. Unmatched local descriptions are retained because
-the row stores only one observation context. `capturedMediaJSON` remains the
-primary read source, so this additive Codable field does not change the
-SwiftData model schema; relationship-only legacy fallback stays unindexed and
-therefore follows the conservative path.
+primary mixed-media projection. New canonical manifests contain every image,
+standalone audio clip, playback video, and description in submitted order. The
+reader also dual-reads `audio_storage_urls` and `user_observation_context` for
+older or incomplete rows, so an audio-plus-description scan cannot become an
+empty visual placeholder. Those compatibility columns carry no cross-modal
+positions: missing audio URLs are appended in stored-array order, followed by
+the stored context, and they are supplemental rather than deletion authority.
+Standalone audio carries the same `sourceIndex` in local and cloud
+`capturedMediaJSON`; reconciliation replaces a local clip only when that unique
+identity or its exact path matches. Unindexed legacy/restore media is merged
+conservatively rather than assigned by ordinal guess, so ambiguous recovery can
+retain an alias but cannot delete the wrong recording. `capturedMediaJSON`
+remains the primary read source, so the expanded JSON union does not change the
+SwiftData schema.
 
-Offline inference replay builds audio upload paths and `audioMediaItems` from a
-single chronological projection of the captured timeline. Standalone recordings
-and video-extracted audio therefore cannot drift into different array positions;
-the Edge Function may safely use descriptor position to decide which promoted
-objects remain durable standalone media.
+Live inference and offline replay build audio upload paths, `audioMediaItems`,
+observation contexts, video paths, and `ownerMediaTimeline` from one chronological
+projection. `audioInputIndex` names the matching raw upload position while
+`sourceIndex` names the standalone clip. The Edge Function may delete an
+inference-only companion only after validating the complete owner timeline;
+legacy or incomplete metadata retains audio conservatively. Queue replay omits
+the authoritative timeline when an older visual row lacks aligned
+`visualMediaItemsJSON`, or when a partial snapshot has sparse standalone-audio
+identities; it preserves any stored `sourceIndex` instead of renumbering it.
 
 ## Offline Scan Durability Boundary
 

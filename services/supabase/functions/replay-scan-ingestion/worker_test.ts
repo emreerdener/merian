@@ -40,7 +40,7 @@ function replayRow(
     payload_checksum: "payload",
     replay_attempt_count: 1,
     request_payload: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       clientScanId: "scan-1",
       endpoint: "identify-multimodal",
       media: {
@@ -56,6 +56,10 @@ function replayRow(
           { kind: "video_frame", clipIndex: 0, frameIndex: 1 },
         ],
         audioMediaItems: [{ kind: "video_audio", clipIndex: 0 }],
+        ownerMediaTimeline: [
+          { kind: "video", clipIndex: 0 },
+          { kind: "description", contextIndex: 0 },
+        ],
         mimeType: "image/webp",
       },
       telemetry: {
@@ -104,7 +108,29 @@ Deno.test("buildReplayIdentifyPayload reconstructs top-level multimodal request 
   assertEquals("audioBase64s" in payload, false);
   assertEquals(Array.isArray(payload.visualMediaItems), true);
   assertEquals(Array.isArray(payload.audioMediaItems), true);
+  assertEquals(payload.ownerMediaTimeline, [
+    { kind: "video", clipIndex: 0 },
+    { kind: "description", contextIndex: 0 },
+  ]);
   assertEquals(Array.isArray(payload.observation_contexts), true);
+});
+
+Deno.test("buildReplayIdentifyPayload omits the owner timeline for legacy intents", () => {
+  const row = replayRow({
+    request_payload: {
+      schemaVersion: 1,
+      clientScanId: "scan-1",
+      endpoint: "identify-multimodal",
+      media: {
+        audioR2ObjectKeys: ["staging/user-1/audio.wav"],
+        audioMediaItems: [{ kind: "audio", sourceIndex: 0 }],
+      },
+      observationContexts: [],
+    },
+  });
+
+  const payload = buildReplayIdentifyPayload(row);
+  assertEquals("ownerMediaTimeline" in payload, false);
 });
 
 Deno.test("identify replay carries a deadline and bounds provider errors", async () => {

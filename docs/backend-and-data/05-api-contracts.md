@@ -5292,6 +5292,11 @@ ordered compositions of images, audio, and descriptive context.
   "audioMediaItems": [
     { "kind": "video_audio", "clipIndex": 0 }
   ],
+  "ownerMediaTimeline": [
+    { "kind": "image", "sourceIndex": 0 },
+    { "kind": "video", "clipIndex": 0 },
+    { "kind": "description", "contextIndex": 0 }
+  ],
   "audioR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_audio.wav"
   ],
@@ -5336,19 +5341,30 @@ ordered compositions of images, audio, and descriptive context.
   one entry per resolved visual input so the prompt can distinguish still photos
   from ordered `video_frame` samples by `clipIndex` and `frameIndex`;
   `audioMediaItems` (or `audio_media_items`) identifies standalone audio versus
-  `video_audio` by `clipIndex`. If the visual metadata count does not match the
-  resolved image count, the edge ignores it and falls back to the legacy
-  `videoFrameCount` hint; if the audio metadata count does not match the
-  resolved audio buffer count, the prompt treats the audio as ordinary
-  standalone audio. The playback clip is promoted only after those frames pass
+  `video_audio` by `clipIndex`. New clients also send `ownerMediaTimeline` (or
+  `owner_media_timeline`) in user order. Its image item uses `sourceIndex`; an
+  audio item uses both raw `audioInputIndex` and standalone `sourceIndex`; video
+  and description items use `clipIndex` and `contextIndex`. A present owner
+  timeline must exactly and uniquely cover every owner-visible input and agree
+  with the raw descriptors; invalid, duplicate, gapped, or out-of-range metadata
+  fails with `400 invalid_owner_media_timeline` before quota, provider, R2
+  promotion, or deletion work. Without this additive field, legacy requests are
+  processed conservatively and every resolved audio input remains durable. iOS
+  therefore omits the field when an older queued visual scan lacks aligned
+  `visualMediaItems`, or when persisted standalone-audio identities are sparse;
+  those stored identities are preserved rather than renumbered. Replay intents
+  also preserve absent versus explicitly present timelines, so schema-v1 jobs do
+  not become invalid empty authoritative timelines after an upgrade. The
+  playback clip is promoted only after its sampled frames pass
   moderation and is not used as Gemini inference or reference-media input. If
   `videoR2ObjectKeys` is non-empty, the scan is only successful when every
   requested video key is promoted and persisted into `video_storage_urls` and
   `captured_media`; otherwise the client receives a retryable failure rather
   than a frame-only video scan. Uploads signed with `clientScanId`/`mediaRole`
   already have staged `scan_media_assets` rows; this endpoint links those rows
-  to the scan as durable media, marks consumed extracted `video_audio` rows
-  `deleted`, and marks failed finalization rows `failed`.
+  to the scan as durable media. Only a validated owner timeline authorizes
+  consumed extracted `video_audio` rows to become `deleted`; failed
+  finalization rows become `failed`.
 - Still-photo descriptors may include `focusRegion` using top-left-normalized
   coordinates for the same complete post-crop image. The edge accepts only
   finite positive rectangles contained within `[0, 1]` with
@@ -5374,7 +5390,7 @@ ordered compositions of images, audio, and descriptive context.
   inline-image bytes prove queued image keys are real sources. Every real
   image/audio/video key requires one exact active owner upload row and a
   one-to-one canonical URL filename match. Only migration-marked superseded
-  registration rows may coexist. Sanitized audio descriptors prove standalone
+  registration rows may coexist. A validated owner timeline proves standalone
   promotion versus companion deletion. Ambiguous shapes return `not_applicable`;
   exact shapes recompute both ledgers and call the canonical finalizer in one
   transaction.
@@ -5386,9 +5402,9 @@ ordered compositions of images, audio, and descriptive context.
   for at most 70 seconds. Successful replay carries
   `X-Merian-Idempotent-Replay: stored|reconstructed` and cannot dispatch Gemini.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
-  That row stores a sanitized replay payload with telemetry, observation
-  context, media descriptors, staged keys, upload-session ids, and a
-  `payload_checksum`. It never stores raw base64 media bytes or local device
+  That row stores a sanitized replay payload with telemetry, every observation
+  context, media descriptors, the owner timeline, staged keys, upload-session
+  ids, and a `payload_checksum`. It never stores raw base64 media bytes or local device
   paths. Requests that used inline foreground media are marked
   `resumable = false` with `inline_media_redacted = true`; queued/staged
   media/audio/video and text-only requests are resumable. Server-side replay of
@@ -5404,34 +5420,35 @@ ordered compositions of images, audio, and descriptive context.
   media reconciliation use this routine rather than updating the ledger
   directly. Scan deletion clears the envelope at tombstone insertion before
   asynchronous media erasure starts.
-- The edge writes `captured_media` for new multimodal scan rows. That JSON keeps
-  still photos as image items but collapses ordered `video_frame` samples into a
-  single video media item with a thumbnail reference, preserving playback-first
-  Insight hydration for biological and non-biological video scans. The video
-  item carries an audio reference only when extracted video audio exists, so
-  downstream `scan_media_assets` and Explore rows can set `has_audio`
-  accurately. The required finalization transaction refreshes ready
-  display/playback `scan_media_assets` rows from the same manifest and proves
-  them before completion, so server-side composer and status checks no longer
-  need to infer video assets directly from sampled frame arrays.
-- Each canonical standalone-audio reference may include `sourceIndex`, copied
-  from the corresponding `audioMediaItems` descriptor. The iOS queue stores the
-  same nonnegative index in its local `capturedMediaJSON`, giving a promoted URL
-  and its original Documents reference a stable per-scan clip identity even
-  when a server projection contains only one of two submitted recordings. The
-  client derives audio upload paths and descriptors from one chronological
-  projection, so interleaved video audio cannot shift the standalone URL into a
-  different descriptor slot. The persistence boundary retains identity only
-  when every standalone descriptor supplies the exact unique zero-based
-  sequence; fractional, negative, duplicate, missing, or gapped identities are
-  omitted from the entire stored standalone set without discarding the media.
+- The edge writes `captured_media` for new multimodal scan rows. With a validated
+  owner timeline, that JSON preserves the exact submitted order of still images,
+  standalone audio, collapsed playback videos, and every description. Ordered
+  `video_frame` samples become one video item with a thumbnail reference.
+  Extracted companion audio is inference-only and is not emitted as a standalone
+  or nested server media reference. Downstream video `has_audio` must therefore
+  come from independent durable playback metadata, never from video kind alone.
+  The required finalization transaction refreshes ready image/audio/video
+  `scan_media_assets` rows from the same manifest, aligns their `order_index` to
+  manifest ordinality (description positions intentionally leave gaps), and
+  proves them before completion.
+- Each canonical standalone-audio reference includes `sourceIndex`, copied from
+  the validated descriptor. The request timeline's `audioInputIndex` binds that
+  identity to its raw audio byte/key position, including when extracted video
+  audio is interleaved. The client derives both arrays and the owner timeline
+  from one projection. A malformed present timeline is rejected; a request with
+  no timeline follows the legacy conservative builder, retains every audio clip,
+  strips ambiguous standalone identity rather than guessing, and appends every
+  validated description after the grouped legacy media. The legacy projection
+  cannot reconstruct the original cross-modal interleaving. Its sanitized replay
+  intent classifies every unproven audio input as unindexed durable audio, so
+  post-insert recovery uses the same retain-all decision as the original write.
 - Authenticated iOS history hydration prefers `captured_media` and dual-reads
   `audio_storage_urls` plus `user_observation_context`. Those existing scan
   columns are compatibility fallbacks when a legacy or incomplete manifest
   omits the otherwise durable standalone recording or description provenance;
   they are never public-feed projections. Because those columns do not retain
-  cross-modal positions, hydration appends missing audio in stored-array order
-  without filtering canonical manifest audio, then appends the stored context.
+  cross-modal positions, legacy hydration appends missing audio in stored-array
+  order, then appends the stored context.
   `audio_storage_urls` is supplemental recovery data, not deletion authority.
   Cloud audio replaces an existing standalone clip only when its exact path or
   a unique `sourceIndex` matches. Unindexed legacy and restore references never
@@ -5450,7 +5467,8 @@ ordered compositions of images, audio, and descriptive context.
   validated through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
   `semanticLocation`, `publicLocationLabel`, `geoprivacy`, `deviceTimeZone`,
-  etc.) plus `observation_contexts: [{ freeText, addedAt? }]`, matching
+  etc.), `ownerMediaTimeline`, plus
+  `observation_contexts: [{ freeText, addedAt? }]`, matching
   `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
   `ObservationContext` model. The same Swift inference payload builder also
   backs `/identify` so visual and multimodal requests share telemetry
@@ -5606,10 +5624,12 @@ ID semantics as image and audio requests.
 
 The current iOS client does not send a top-level `description` field on this
 path. The edge function concatenates the `observation_contexts[*].freeText`
-entries into the multimodal prompt server-side. The first structured context
-object is also persisted to `public.scans.user_observation_context` for
-scan-level provenance. The iOS client guards on `ObservationContext.isEmpty`
-before allowing submission.
+entries into the multimodal prompt server-side. A validated owner timeline
+places every context into canonical `captured_media` at its submitted position;
+the first structured context is also persisted to
+`public.scans.user_observation_context` as a legacy compatibility projection.
+The iOS client guards on `ObservationContext.isEmpty` before allowing
+submission.
 
 Legacy `/identify-describe` requests still use a top-level `description` field,
 but that compatibility endpoint records a multimodal-shaped

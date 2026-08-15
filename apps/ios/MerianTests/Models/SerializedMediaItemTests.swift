@@ -370,6 +370,30 @@ struct SerializedMediaItemTests {
         ])
     }
 
+    @Test func canonicalManifestDecodesDescriptionsAndAudioInServerOrder() throws {
+        let payload = Data(
+            """
+            [
+              {"description":{"_0":{"freeText":"Before the call","addedAt":123456}}},
+              {"audio":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/call.wav","sourceIndex":0}}},
+              {"description":{"_0":{"freeText":"After the call"}}}
+            ]
+            """.utf8
+        )
+        var before = ObservationContext(freeText: "Before the call")
+        before.addedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+        var after = ObservationContext(freeText: "After the call")
+        after.addedAt = nil
+
+        let decoded = try JSONDecoder().decode([SerializedMediaItem].self, from: payload)
+
+        #expect(decoded == [
+            .description(before),
+            .audio(.remoteURL("https://cdn.example.com/call.wav", sourceIndex: 0)),
+            .description(after)
+        ])
+    }
+
     @Test func cloudHydrationPreservesLegacyImageAlongsideNonvisualFallbacks() {
         let imageURL = "https://cdn.example.com/observation.webp"
         let audioURL = "https://cdn.example.com/call.wav"

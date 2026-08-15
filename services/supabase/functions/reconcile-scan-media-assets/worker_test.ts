@@ -104,6 +104,44 @@ Deno.test("buildRepairedVideoCapturedMedia collapses sampled frames behind a pla
   });
 });
 
+Deno.test("buildRepairedVideoCapturedMedia preserves nonvisual timeline items", () => {
+  const description = {
+    description: { _0: { freeText: "A note before the video" } },
+  };
+  const audio = {
+    audio: {
+      _0: {
+        storage: "remoteURL",
+        path: "https://media.merian.app/field.wav",
+        sourceIndex: 0,
+      },
+    },
+  };
+  const scan = scanRow({
+    captured_media: [
+      description,
+      ...[1, 2, 3, 4, 5].map((index) => ({
+        image: {
+          _0: {
+            storage: "remoteURL",
+            path:
+              `https://media.merian.app/public_uploads/pro/user-1/frame-${index}.webp`,
+          },
+        },
+      })),
+      audio,
+    ],
+  });
+
+  const capturedMedia = buildRepairedVideoCapturedMedia(scan, [
+    "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+  ]);
+
+  assertEquals(capturedMedia?.[0], description);
+  assertEquals(Object.hasOwn(capturedMedia?.[1] as object, "video"), true);
+  assertEquals(capturedMedia?.[2], audio);
+});
+
 Deno.test("reconcileScanMediaAssets repairs an existing scan with a stranded playback video", async () => {
   const promotedInputs: unknown[] = [];
   const scanUpdates: unknown[] = [];
@@ -219,9 +257,9 @@ Deno.test("reconcileScanMediaAssets leaves recent orphan uploads for client retr
   assert(!headCalled);
 });
 
-Deno.test("reconcileScanMediaAssets deletes consumed audio staging when the scan exists", async () => {
+Deno.test("reconcileScanMediaAssets retains audio when companion role is unproven", async () => {
   const deletedKeys: string[] = [];
-  const deletedAssets: unknown[] = [];
+  const failedAssets: unknown[] = [];
 
   const result = await reconcileScanMediaAssets({} as never, {
     now: NOW,
@@ -245,19 +283,21 @@ Deno.test("reconcileScanMediaAssets deletes consumed audio staging when the scan
       deletedKeys.push(key);
       return Promise.resolve(new Response(null, { status: 204 }));
     },
-    markDeleted: (assetId, scanId) => {
-      deletedAssets.push({ assetId, scanId });
+    markFailed: (assetId, failureReason, objectDeleted) => {
+      failedAssets.push({ assetId, failureReason, objectDeleted });
       return Promise.resolve();
     },
     recordRun: noopRecordRun,
   });
 
   assertEquals(result.scanned, 1);
-  assertEquals(result.deletedStagingObjects, 1);
-  assertEquals(deletedKeys, ["staging/user-1/video-audio.wav"]);
-  assertEquals(deletedAssets, [{
+  assertEquals(result.deletedStagingObjects, 0);
+  assertEquals(result.failedAssets, 1);
+  assertEquals(deletedKeys, []);
+  assertEquals(failedAssets, [{
     assetId: "audio-asset",
-    scanId: "00000000-0000-0000-0000-000000000001",
+    failureReason: "unproven_audio_role",
+    objectDeleted: false,
   }]);
 });
 

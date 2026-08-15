@@ -763,13 +763,13 @@ together separate image-only arrays.
    `scans.captured_media` when present; owner-history hydration also dual-reads
    `audio_storage_urls` and `user_observation_context` so an incomplete or
    legacy manifest cannot erase durable audio or submitted description text.
-   These compatibility columns lack cross-modal positions, so missing audio is
-   appended in stored-array order without filtering canonical manifest audio,
-   and the stored context follows it. The compatibility array is not deletion
-   authority. Unmatched cloud audio replaces existing standalone clips in
-   stable audio order; if an incomplete projection exposes fewer clips than the
-   existing timeline, surplus existing audio remains. Unmatched local
-   descriptions survive because the scan row stores only one context.
+   New canonical manifests preserve every audio and description position. The
+   compatibility columns lack cross-modal positions, so only legacy missing
+   audio is appended in stored-array order and the stored context follows it.
+   They are not deletion authority. Cloud audio replaces a local standalone clip
+   only on an exact path or unique `sourceIndex` match; unindexed ambiguous media
+   and unmatched descriptions are retained rather than consumed by ordinal
+   guess.
    Legacy rows with `video_storage_urls` collapse sampled frame URLs into the
    video thumbnail instead of rendering those frames as standalone pages.
 

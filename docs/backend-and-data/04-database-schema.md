@@ -1316,11 +1316,13 @@ The transaction log for every successful identification.
   video companion audio is not stored here because the playback MP4 is the
   public artifact.
 - `captured_media` (JSONB): Canonical captured-media timeline using the iOS
-  `SerializedMediaItem` shape. Video entries attach the playback clip and poster
-  thumbnail together so sampled inference frames do not hydrate as standalone
-  Insight carousel images, and include an audio reference only when extracted
-  video audio was actually persisted. Video rows should be present whenever
-  `video_storage_urls` is present. Ready display/playback rows in
+  `SerializedMediaItem` shape. New validated owner timelines preserve every
+  image, standalone audio clip, playback video, and description in submitted
+  order. Video entries attach the playback clip and poster thumbnail together so
+  sampled inference frames do not hydrate as standalone Insight carousel images,
+  while inference-only extracted video audio is not retained as a server media
+  reference. Video rows should be present whenever `video_storage_urls` is
+  present. Ready display/playback rows in
   `scan_media_assets` are refreshed from this manifest when present and fall
   back to legacy media arrays for older rows. The compatibility image array is
   therefore not itself the canonical display-image set for a video scan.
@@ -2602,6 +2604,13 @@ owners read their lifecycle rows; public open-scan reads are limited to ready
 display/playback rows so staged/failed diagnostics stay private. The refresh
 helpers are service-role-only RPC surfaces; app roles should read
 `scan_media_assets`, not call refresh functions directly.
+
+Migration `20260815145546_preserve_canonical_scan_media_order.sql` aligns each
+generated ready image/audio/video row's `order_index` to its matching
+`captured_media` ordinal. Description entries deliberately leave index gaps, and
+unmatched legacy extras are retained after the canonical timeline. The internal
+alignment helper is `SECURITY INVOKER` with no API-role execute grant; the public
+wrapper remains service-role-only and enforces `internal.require_service_role()`.
 
 `/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
 when structured scan uploads include `clientScanId` and `mediaRole`.

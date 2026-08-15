@@ -671,6 +671,7 @@ private enum InferencePayloadBuilder {
         videoFrameCount: Int? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
+        ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]? = nil,
         observationContextsJSON: [String],
         mimeType: String,
         telemetry: CaptureTelemetry,
@@ -711,6 +712,9 @@ private enum InferencePayloadBuilder {
         }
         if let audioMediaItems, !audioMediaItems.isEmpty {
             payload["audioMediaItems"] = audioMediaItems.map(\.jsonObject)
+        }
+        if let ownerMediaTimeline, !ownerMediaTimeline.isEmpty {
+            payload["ownerMediaTimeline"] = ownerMediaTimeline.map(\.jsonObject)
         }
 
         let observationContexts = observationContextObjects(from: observationContextsJSON)
@@ -2281,6 +2285,7 @@ final class MerianNetworkClient {
         videoFrameCount: Int? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
+        ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]? = nil,
         observationContextsJSON: [String] = [],
         userId: String,
         mimeType: String = "image/webp",
@@ -2316,6 +2321,7 @@ final class MerianNetworkClient {
             videoFrameCount: videoFrameCount,
             visualMediaItems: visualMediaItems,
             audioMediaItems: audioMediaItems,
+            ownerMediaTimeline: ownerMediaTimeline,
             observationContextsJSON: observationContextsJSON,
             mimeType: mimeType,
             telemetry: telemetry,
@@ -2335,6 +2341,7 @@ final class MerianNetworkClient {
         videoFrameCount: Int? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
+        ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String,
@@ -2355,6 +2362,7 @@ final class MerianNetworkClient {
         let capturedVideoFrameCount = videoFrameCount
         let capturedVisualMediaItems = visualMediaItems
         let capturedAudioMediaItems = audioMediaItems
+        let capturedOwnerMediaTimeline = ownerMediaTimeline
         let capturedContextsJSON = observationContextsJSON
         let capturedTelemetry = telemetry
         let capturedMimeType = mimeType
@@ -2371,6 +2379,7 @@ final class MerianNetworkClient {
                 videoFrameCount: capturedVideoFrameCount,
                 visualMediaItems: capturedVisualMediaItems,
                 audioMediaItems: capturedAudioMediaItems,
+                ownerMediaTimeline: capturedOwnerMediaTimeline,
                 observationContextsJSON: capturedContextsJSON,
                 userId: context.userId,
                 mimeType: capturedMimeType,
@@ -2472,6 +2481,7 @@ final class MerianNetworkClient {
         videoFrameCount: Int? = nil,
         visualMediaItems: [IdentifyVisualMediaItem]? = nil,
         audioMediaItems: [IdentifyAudioMediaItem]? = nil,
+        ownerMediaTimeline: [IdentifyOwnerMediaTimelineItem]? = nil,
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String? = nil,
@@ -2488,6 +2498,7 @@ final class MerianNetworkClient {
             videoFrameCount: videoFrameCount,
             visualMediaItems: visualMediaItems,
             audioMediaItems: audioMediaItems,
+            ownerMediaTimeline: ownerMediaTimeline,
             observationContextsJSON: observationContextsJSON,
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
