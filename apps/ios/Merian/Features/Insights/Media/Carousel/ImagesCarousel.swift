@@ -1834,13 +1834,14 @@ private struct LensFocusOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
     @State private var committedFocusRect: CGRect?
+    @State private var isMoveHapticActive = false
     @State private var hapticResizeCorner: ImageFocusOverlayCorner?
     @State private var hapticResizeConstraints: Set<ImageFocusOverlayResizeConstraint> = []
     @GestureState private var activeMoveTranslation = CGSize.zero
     @GestureState private var activeResizeInteraction: ImageFocusOverlayResizeInteraction?
 
     private static let dragCoordinateSpaceName = "LensFocusOverlay"
-    private let resizeHandleHitSize: CGFloat = 48
+    private let resizeHandleHitSize = ImageFocusOverlayLayout.minimumInteractiveDimension
 
     var body: some View {
         GeometryReader { geometry in
@@ -1921,10 +1922,10 @@ private struct LensFocusOverlay: View {
                     .accessibilityHidden(true)
 
                 ForEach(ImageFocusOverlayCorner.allCases, id: \.self) { corner in
-                    Rectangle()
+                    Circle()
                         .fill(.clear)
                         .frame(width: handleHitSize, height: handleHitSize)
-                        .contentShape(Rectangle())
+                        .contentShape(Circle())
                         .position(resizeHandleCenter(
                             for: corner,
                             in: focusRect
@@ -1972,6 +1973,9 @@ private struct LensFocusOverlay: View {
             .updating($activeMoveTranslation) { value, state, _ in
                 state = value.translation
             }
+            .onChanged { _ in
+                handleMoveHapticIfNeeded()
+            }
             .onEnded { value in
                 committedFocusRect = ImageFocusOverlayLayout.draggedRect(
                     from: baseFocusRect,
@@ -1979,6 +1983,7 @@ private struct LensFocusOverlay: View {
                     activeTranslation: value.translation,
                     in: containerSize
                 )
+                isMoveHapticActive = false
             }
     }
 
@@ -2070,7 +2075,8 @@ private struct LensFocusOverlay: View {
         guard hapticResizeCorner == corner else {
             hapticResizeCorner = corner
             hapticResizeConstraints = constraints
-            HapticManager.shared.triggerSelectionPulse(
+            HapticManager.shared.triggerLightImpact(
+                intensity: 0.5,
                 source: "insight.analysis.focus.resize.begin"
             )
             return
@@ -2079,9 +2085,16 @@ private struct LensFocusOverlay: View {
         let newlyReachedConstraints = constraints.subtracting(hapticResizeConstraints)
         hapticResizeConstraints = constraints
         guard !newlyReachedConstraints.isEmpty else { return }
-        HapticManager.shared.triggerLightImpact(
-            intensity: 0.35,
+        HapticManager.shared.triggerSelectionPulse(
             source: "insight.analysis.focus.resize.constraint"
+        )
+    }
+
+    private func handleMoveHapticIfNeeded() {
+        guard !isMoveHapticActive else { return }
+        isMoveHapticActive = true
+        HapticManager.shared.triggerSelectionPulse(
+            source: "insight.analysis.focus.move.begin"
         )
     }
 }

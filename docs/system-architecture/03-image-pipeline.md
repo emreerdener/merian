@@ -102,11 +102,14 @@ exterior by 22%, and draws four detached white corner brackets. The brackets
 resolve with a 200 ms entrance. While analysis remains active, dragging inside
 the frame translates it, while dragging any corner bracket resizes width and
 height independently. Resizing stays within the visible carousel and stops at a
-64 pt minimum on each axis; the existing haptic policy emits a selection tick
-when a corner is engaged and a light tick when it reaches an edge or minimum
-size. The dimming cutout and illumination band follow every interaction, and the
-band continues sweeping during and after the gesture. Translation and resizing
-are transient presentation state only: they do not rewrite
+64 pt minimum on each axis. Each bracket vertex has a 64 pt circular touch
+target, sized so the targets stay distinct from the frame's draggable center.
+The existing haptic policy distinguishes the gestures: whole-frame movement
+begins with a selection tick, corner resizing begins with a firmer light impact,
+and a selection tick marks an edge or minimum-size constraint. The dimming
+cutout and illumination band follow every interaction, and the band continues
+sweeping during and after the gesture. Translation and resizing are transient
+presentation state only: they do not rewrite
 `NormalizedImageFocusRegion`, queued metadata, or the already-dispatched AI
 request, whose original Vision coordinates remain the model hint. Reduce Motion
 holds the illumination band at the region's midpoint. If no region exists, the
