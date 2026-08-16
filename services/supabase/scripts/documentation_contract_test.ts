@@ -4601,6 +4601,28 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
   );
   assertStringIncludes(runbook, "100 concurrent prepared rows");
   assertStringIncludes(runbook, "critical volume of 500 concurrent rows");
+  assertStringIncludes(
+    runbook,
+    "CLI exposes no compatibility flag for that RPC",
+  );
+  assertStringIncludes(
+    runbook,
+    "--purchase-principal-signout-rotation-health-mode expand-compatible",
+  );
+  assertStringIncludes(
+    api,
+    "--purchase-principal-signout-rotation-health-mode expand-compatible",
+  );
+  assertStringIncludes(
+    testing,
+    "additive rotation aggregate alone uses `--purchase-principal-signout-rotation-health-mode expand-compatible`",
+  );
+  for (const source of [api, runbook, testing]) {
+    assert(
+      !source.includes("--purchase-principal-health-mode"),
+      "Established principal health must not document a compatibility flag.",
+    );
+  }
   for (
     const source of [
       rfc,

@@ -127,10 +127,11 @@ jobs:
           critical_prepared_rotations="${INPUT_CRITICAL_PREPARED_ROTATIONS:-500}"
           fail_on="${INPUT_FAIL_ON:-warning}"
 
-          # The deployed purchase-principal migrations and post-deploy smoke
-          # make both aggregate health RPCs mandatory. Missing or malformed
-          # principal or rotation health is an alertable production failure,
-          # not a compatibility success.
+          # The established purchase-principal aggregate remains mandatory.
+          # Until the additive protocol-3 rotation migration and hosted smoke
+          # succeed, only that exact missing rotation RPC may report
+          # not_deployed. Every other catalog, authorization, transport, or
+          # response error remains fatal.
           set +e
           deno run --frozen \
             --config services/supabase/functions/deno.json \
@@ -143,7 +144,7 @@ jobs:
             --warning-prepared-rotations "$warning_prepared_rotations" \
             --critical-prepared-rotations "$critical_prepared_rotations" \
             --fail-on "$fail_on" \
-            --purchase-principal-health-mode required \
+            --purchase-principal-signout-rotation-health-mode expand-compatible \
             --summary-json "$summary_json" \
             --summary-md "$summary_md"
           exit_code=$?

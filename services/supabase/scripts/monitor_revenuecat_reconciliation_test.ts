@@ -57,7 +57,7 @@ Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
     warningPreparedRotations: 100,
     criticalPreparedRotations: 500,
     failOn: "warning",
-    purchasePrincipalHealthMode: "required",
+    purchasePrincipalSignoutRotationHealthMode: "required",
     summaryJsonPath: null,
     summaryMarkdownPath: null,
   });
@@ -71,7 +71,7 @@ Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
       "--critical-prepared-rotations=1000",
       "--fail-on",
       "critical",
-      "--purchase-principal-health-mode",
+      "--purchase-principal-signout-rotation-health-mode",
       "expand-compatible",
       "--summary-json=/tmp/revenuecat.json",
       "--summary-md",
@@ -83,7 +83,7 @@ Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
       warningPreparedRotations: 250,
       criticalPreparedRotations: 1_000,
       failOn: "critical",
-      purchasePrincipalHealthMode: "expand-compatible",
+      purchasePrincipalSignoutRotationHealthMode: "expand-compatible",
       summaryJsonPath: "/tmp/revenuecat.json",
       summaryMarkdownPath: "/tmp/revenuecat.md",
     },
@@ -114,6 +114,12 @@ Deno.test("parseRevenueCatMonitorArgs rejects unsafe thresholds and arguments", 
   assertThrows(() =>
     parseRevenueCatMonitorArgs([
       "--purchase-principal-health-mode",
+      "required",
+    ])
+  );
+  assertThrows(() =>
+    parseRevenueCatMonitorArgs([
+      "--purchase-principal-signout-rotation-health-mode",
       "optional",
     ])
   );
@@ -201,12 +207,11 @@ Deno.test("assertPurchasePrincipalSignoutRotationHealth validates exact aggregat
   );
 });
 
-Deno.test("purchase-principal health compatibility accepts only its exact missing RPC", () => {
+Deno.test("purchase-principal health is unconditionally required", () => {
   assertEquals(
     resolvePurchasePrincipalHealthRpcResult(
       [PRINCIPAL_HEALTHY],
       null,
-      "required",
     ),
     PRINCIPAL_HEALTHY,
   );
@@ -215,17 +220,7 @@ Deno.test("purchase-principal health compatibility accepts only its exact missin
     message:
       "Could not find the function public.get_purchase_principal_health without parameters in the schema cache",
   };
-  assertEquals(
-    resolvePurchasePrincipalHealthRpcResult(
-      null,
-      missingRpc,
-      "expand-compatible",
-    ),
-    null,
-  );
-  assertThrows(() =>
-    resolvePurchasePrincipalHealthRpcResult(null, missingRpc, "required")
-  );
+  assertThrows(() => resolvePurchasePrincipalHealthRpcResult(null, missingRpc));
   assertThrows(() =>
     resolvePurchasePrincipalHealthRpcResult(
       null,
@@ -234,7 +229,6 @@ Deno.test("purchase-principal health compatibility accepts only its exact missin
         message:
           "Could not find the function public.get_another_health_rpc without parameters in the schema cache",
       },
-      "expand-compatible",
     )
   );
   assertThrows(() =>
@@ -245,14 +239,12 @@ Deno.test("purchase-principal health compatibility accepts only its exact missin
         message:
           "Could not find the function public.get_purchase_principal_health_extra without parameters in the schema cache",
       },
-      "expand-compatible",
     )
   );
   assertThrows(() =>
     resolvePurchasePrincipalHealthRpcResult(
       null,
       { code: "42501", message: "permission denied" },
-      "expand-compatible",
     )
   );
 });
@@ -300,12 +292,16 @@ Deno.test("rotation health compatibility accepts only its exact missing RPC", ()
 });
 
 Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
-  assertEquals(revenueCatBacklogStatus(HEALTHY, 30, 60), "ok");
+  assertEquals(
+    revenueCatBacklogStatus(HEALTHY, 30, 60, PRINCIPAL_HEALTHY),
+    "ok",
+  );
   assertEquals(
     revenueCatBacklogStatus(
       { ...HEALTHY, expired_claim_count: 1 },
       30,
       60,
+      PRINCIPAL_HEALTHY,
     ),
     "warning",
   );
@@ -319,6 +315,7 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
       },
       30,
       60,
+      PRINCIPAL_HEALTHY,
     ),
     "warning",
   );
@@ -332,6 +329,7 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
       },
       30,
       60,
+      PRINCIPAL_HEALTHY,
     ),
     "critical",
   );
@@ -345,6 +343,7 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
       },
       30,
       60,
+      PRINCIPAL_HEALTHY,
     ),
     "warning",
   );
@@ -469,29 +468,31 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
   assertStringIncludes(markdown, "discard bound proofs");
 });
 
-Deno.test("monitor summary exposes an undeployed principal RPC without fake zeroes", () => {
+Deno.test("monitor summary exposes only an undeployed rotation RPC without fake zeroes", () => {
   const summary = buildRevenueCatMonitorSummary(
     HEALTHY,
     parseRevenueCatMonitorArgs([
-      "--purchase-principal-health-mode",
+      "--purchase-principal-signout-rotation-health-mode",
       "expand-compatible",
     ]),
     new Date("2026-07-26T03:30:00.000Z"),
-    null,
+    PRINCIPAL_HEALTHY,
     null,
   );
   const markdown = renderRevenueCatMonitorMarkdown(summary);
 
   assertEquals(summary.status, "ok");
   assertEquals(summary.failure_policy.should_fail, false);
-  assertEquals(summary.purchase_principal_health_availability, "not_deployed");
-  assertEquals(summary.purchase_principal_health, null);
+  assertEquals(summary.purchase_principal_health_availability, "available");
+  assertEquals(summary.purchase_principal_health, PRINCIPAL_HEALTHY);
   assertEquals(
     summary.purchase_principal_signout_rotation_health_availability,
     "not_deployed",
   );
   assertEquals(summary.purchase_principal_signout_rotation_health, null);
   assertStringIncludes(markdown, "- Availability: `not_deployed`");
-  assertStringIncludes(markdown, "legacy reconciliation");
-  assertStringIncludes(markdown, "switch the scheduled monitor to required");
+  assertStringIncludes(
+    markdown,
+    "unavailable rotation aggregate",
+  );
 });

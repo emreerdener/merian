@@ -655,14 +655,14 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   assertStringIncludes(importWorkflow, "gh auth setup-git");
 });
 
-Deno.test("production RevenueCat monitoring requires principal and rotation health", async () => {
+Deno.test("production RevenueCat monitoring isolates the additive rotation-health window", async () => {
   const monitor = await Deno.readTextFile(
     new URL("revenuecat-reconciliation-health-monitor.yml", workflowsDirectory),
   );
 
   assertStringIncludes(
     monitor,
-    "--purchase-principal-health-mode required",
+    "--purchase-principal-signout-rotation-health-mode expand-compatible",
   );
   assertStringIncludes(monitor, "--warning-prepared-rotations");
   assertStringIncludes(monitor, "--critical-prepared-rotations");
@@ -674,10 +674,19 @@ Deno.test("production RevenueCat monitoring requires principal and rotation heal
     monitor,
     "INPUT_CRITICAL_PREPARED_ROTATIONS: ${{ inputs.critical_prepared_rotations || '500' }}",
   );
-  assertStringIncludes(monitor, "make both aggregate health RPCs mandatory");
+  assertStringIncludes(
+    monitor,
+    "The established purchase-principal aggregate remains mandatory",
+  );
   assert(
-    !monitor.includes("--purchase-principal-health-mode expand-compatible"),
-    "The production schedule must not soft-pass a missing principal-health RPC.",
+    !monitor.includes("--purchase-principal-health-mode"),
+    "The established principal-health RPC must not expose a compatibility flag.",
+  );
+  assert(
+    !monitor.includes(
+      "--purchase-principal-signout-rotation-health-mode required",
+    ),
+    "The additive rotation-health RPC cannot become required before its hosted smoke passes.",
   );
 });
 

@@ -168,9 +168,16 @@ workflow. The service-only rotation-health aggregate atomically terminalizes
 expired preparations, reports the newly expired count for that health pass, and
 returns the remaining prepared count, oldest prepared age, and terminal
 throughput. The scheduled RevenueCat/purchase-principal monitor requires that
-RPC after deployment, applies the same warning/critical age thresholds as the
-other identity backlogs, and warns at 100 prepared rotations or becomes critical
-at 500 by default.
+RPC after deployment. During the additive pre-deploy window, the already-hosted
+principal aggregate remains unconditionally required and exposes no
+compatibility flag; the schedule selects
+`--purchase-principal-signout-rotation-health-mode expand-compatible` only for
+the rotation aggregate. That narrow mode accepts only the exact named
+zero-argument `PGRST202`, records `not_deployed` with a null payload, and leaves
+every established backlog check active. After the migration and hosted smoke
+pass, switch the rotation flag to `required`. Rotation health applies the same
+warning/critical age thresholds as the other identity backlogs and warns at 100
+prepared rotations or becomes critical at 500 by default.
 
 Migration `20260813040000_add_purchase_identity_rollout_control.sql` adds the
 private `purchase_identity_rollout_operations` exact-SHA ledger and the

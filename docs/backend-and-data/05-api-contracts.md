@@ -9295,12 +9295,9 @@ minutes or any claim expires and marking 60 minutes critical.
 The stable-principal migration adds the separate service-role-only
 `get_purchase_principal_health()` aggregate. The monitor JSON records its
 contract as `purchase_principal_health_availability: available` plus the bounded
-aggregate row. During the documented pre-deploy expand window only, an exact
-`PGRST202` for that named zero-argument RPC produces
-`purchase_principal_health_availability: not_deployed` and
-`purchase_principal_health: null`; it never substitutes zero counts. The monitor
-CLI defaults to `required`, and authorization, transport, response-shape, and
-all unrelated missing-RPC failures remain fatal.
+aggregate row. This established aggregate is unconditionally required: the CLI
+exposes no compatibility switch for it, and a missing RPC, authorization or
+transport error, or malformed response is fatal.
 
 Protocol 3 adds `get_purchase_principal_signout_rotation_health()` under the
 same service-only monitor boundary. Its one aggregate row contains
@@ -9313,8 +9310,11 @@ invocation, not the retained lifetime total, while `prepared_count` contains
 only still-live rows. Any newly expired preparation is at least a warning.
 Oldest prepared age shares the configured 30/60-minute warning/critical
 thresholds; prepared volume warns at 100 and becomes critical at 500 by default.
-In `expand-compatible` mode only, an exact `PGRST202` naming this zero-argument
-RPC yields
+With `--purchase-principal-signout-rotation-health-mode expand-compatible`, an
+exact `PGRST202` naming this zero-argument RPC yields
 `purchase_principal_signout_rotation_health_availability: not_deployed` and a
-null payload. Required mode treats absence, malformed shape, authorization, and
-transport failures as fatal.
+null payload. This rotation-only flag is independent from the already-deployed
+principal aggregate, which has no compatibility mode and always remains
+required. Malformed shape, authorization, transport, and every unrelated catalog
+failure remain fatal. After the rotation migration and hosted smoke pass, its
+flag must also change to `required`.

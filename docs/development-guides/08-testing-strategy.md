@@ -3575,11 +3575,16 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   `expired_prepared_count` is the number newly terminalized by that invocation,
   the returned prepared count/oldest age includes only still-live rows, any
   newly expired row warns, and live volume warns at 100 or becomes critical at
-  500 by default. The production schedule invokes both required
-  purchase-principal health RPCs; missing `PGRST202`, malformed responses, and
-  every unrelated RPC error fail closed. Unit coverage retains the explicit
-  pre-deployment compatibility parser only so it cannot be broadened or used by
-  the scheduled workflow again.
+  500 by default. The production schedule makes the already-deployed principal
+  aggregate unconditionally required, with no compatibility CLI flag, while the
+  additive rotation aggregate alone uses
+  `--purchase-principal-signout-rotation-health-mode expand-compatible` until
+  its production migration and hosted smoke pass. Unit and workflow coverage
+  prove that only the exact named rotation `PGRST202` becomes
+  `not_deployed`/null, while a missing established principal RPC, malformed
+  response, authorization failure, and every unrelated RPC error fail closed.
+  The same workflow contract must switch the rotation flag to `required` before
+  stable canary activation.
 - **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
   offline exports, conservative customer classification, canonical UUID
   formatting, exact explicit-cohort selection independent of current

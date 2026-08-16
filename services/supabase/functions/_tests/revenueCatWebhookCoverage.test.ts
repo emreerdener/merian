@@ -172,15 +172,14 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       'values.get("warning-prepared-rotations")',
       'values.get("critical-prepared-rotations")',
       'values.get("fail-on") ?? "warning"',
-      'values.get("purchase-principal-health-mode") ?? "required"',
+      'values.get("purchase-principal-signout-rotation-health-mode")',
       'error.code === "PGRST202"',
-      '"function public.get_purchase_principal_health without parameters"',
       '"function public.get_purchase_principal_signout_rotation_health without parameters"',
       "expired_claim_count > 0",
       "oldestDueAgeSeconds >= criticalAfterMinutes * 60",
       "oldest_signout_pending_age_seconds",
-      "purchasePrincipalHealth?.expired_claim_count",
-      "purchasePrincipalHealth?.unbound_active_principal_count",
+      "purchasePrincipalHealth.expired_claim_count",
+      "purchasePrincipalHealth.unbound_active_principal_count",
       "purchasePrincipalSignoutRotationHealth?.expired_prepared_count",
       "purchasePrincipalSignoutRotationHealth?.prepared_count",
       "oldest_prepared_age_seconds",
@@ -197,13 +196,21 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "--critical-after-minutes",
       "--warning-prepared-rotations",
       "--critical-prepared-rotations",
-      "--purchase-principal-health-mode required",
+      "--purchase-principal-signout-rotation-health-mode expand-compatible",
       "SUPABASE_SERVER_API_KEY",
       "resolve_project_api_keys.ts",
     ]
   ) {
     assertStringIncludes(workflow, fragment);
   }
+  assert(
+    !script.includes('values.get("purchase-principal-health-mode")'),
+    "Established principal health must not expose an expand-compatible CLI mode.",
+  );
+  assert(
+    !workflow.includes("--purchase-principal-health-mode"),
+    "Established principal health must remain unconditionally required.",
+  );
 });
 
 Deno.test("authentication and purchase identity failures use the zero-identity logger", async () => {

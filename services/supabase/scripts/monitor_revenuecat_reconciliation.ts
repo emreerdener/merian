@@ -20,7 +20,9 @@ const DEFAULT_CRITICAL_PREPARED_ROTATIONS = 500;
 
 export type RevenueCatMonitorFailurePolicy = "critical" | "warning" | "never";
 export type RevenueCatBacklogStatus = "ok" | "warning" | "critical";
-export type PurchasePrincipalHealthMode = "expand-compatible" | "required";
+export type PurchasePrincipalSignoutRotationHealthMode =
+  | "expand-compatible"
+  | "required";
 export type PurchasePrincipalHealthAvailability = "available" | "not_deployed";
 
 export interface RevenueCatMonitorArgs {
@@ -29,7 +31,8 @@ export interface RevenueCatMonitorArgs {
   warningPreparedRotations: number;
   criticalPreparedRotations: number;
   failOn: RevenueCatMonitorFailurePolicy;
-  purchasePrincipalHealthMode: PurchasePrincipalHealthMode;
+  purchasePrincipalSignoutRotationHealthMode:
+    PurchasePrincipalSignoutRotationHealthMode;
   summaryJsonPath: string | null;
   summaryMarkdownPath: string | null;
 }
@@ -83,8 +86,8 @@ export interface RevenueCatMonitorSummary {
     should_fail: boolean;
   };
   health: RevenueCatReconciliationHealth;
-  purchase_principal_health_availability: PurchasePrincipalHealthAvailability;
-  purchase_principal_health: PurchasePrincipalHealth | null;
+  purchase_principal_health_availability: "available";
+  purchase_principal_health: PurchasePrincipalHealth;
   purchase_principal_signout_rotation_health_availability:
     PurchasePrincipalHealthAvailability;
   purchase_principal_signout_rotation_health:
@@ -117,10 +120,10 @@ export async function runRevenueCatMonitor(
     purchasePrincipalSignoutRotationHealth,
   ] = await Promise.all([
     fetchRevenueCatReconciliationHealth(supabase),
-    fetchPurchasePrincipalHealth(supabase, args.purchasePrincipalHealthMode),
+    fetchPurchasePrincipalHealth(supabase),
     fetchPurchasePrincipalSignoutRotationHealth(
       supabase,
-      args.purchasePrincipalHealthMode,
+      args.purchasePrincipalSignoutRotationHealthMode,
     ),
   ]);
   const summary = buildRevenueCatMonitorSummary(
@@ -161,15 +164,14 @@ async function fetchRevenueCatReconciliationHealth(
 
 async function fetchPurchasePrincipalHealth(
   supabase: SupabaseClient,
-  mode: PurchasePrincipalHealthMode,
-): Promise<PurchasePrincipalHealth | null> {
+): Promise<PurchasePrincipalHealth> {
   const { data, error } = await supabase.rpc("get_purchase_principal_health");
-  return resolvePurchasePrincipalHealthRpcResult(data, error, mode);
+  return resolvePurchasePrincipalHealthRpcResult(data, error);
 }
 
 async function fetchPurchasePrincipalSignoutRotationHealth(
   supabase: SupabaseClient,
-  mode: PurchasePrincipalHealthMode,
+  mode: PurchasePrincipalSignoutRotationHealthMode,
 ): Promise<PurchasePrincipalSignoutRotationHealth | null> {
   const { data, error } = await supabase.rpc(
     "get_purchase_principal_signout_rotation_health",
@@ -184,22 +186,9 @@ async function fetchPurchasePrincipalSignoutRotationHealth(
 export function resolvePurchasePrincipalHealthRpcResult(
   data: unknown,
   error: HealthRpcError | null,
-  mode: PurchasePrincipalHealthMode,
-): PurchasePrincipalHealth | null {
+): PurchasePrincipalHealth {
   if (error === null) {
     return assertPurchasePrincipalHealth(data);
-  }
-  if (
-    mode === "expand-compatible" &&
-    error.code === "PGRST202" &&
-    error.message.includes(
-      "function public.get_purchase_principal_health without parameters",
-    )
-  ) {
-    console.warn(
-      "Purchase principal health is not deployed; continuing in explicit expand-compatible mode.",
-    );
-    return null;
   }
   throw new Error(
     `Purchase principal health returned an error: ${error.message} (Code: ${error.code})`,
@@ -209,7 +198,7 @@ export function resolvePurchasePrincipalHealthRpcResult(
 export function resolvePurchasePrincipalSignoutRotationHealthRpcResult(
   data: unknown,
   error: HealthRpcError | null,
-  mode: PurchasePrincipalHealthMode,
+  mode: PurchasePrincipalSignoutRotationHealthMode,
 ): PurchasePrincipalSignoutRotationHealth | null {
   if (error === null) {
     return assertPurchasePrincipalSignoutRotationHealth(data);
@@ -435,7 +424,7 @@ export function revenueCatBacklogStatus(
   health: RevenueCatReconciliationHealth,
   warningAfterMinutes: number,
   criticalAfterMinutes: number,
-  purchasePrincipalHealth: PurchasePrincipalHealth | null = null,
+  purchasePrincipalHealth: PurchasePrincipalHealth,
   purchasePrincipalSignoutRotationHealth:
     | PurchasePrincipalSignoutRotationHealth
     | null = null,
@@ -445,8 +434,8 @@ export function revenueCatBacklogStatus(
   const oldestDueAgeSeconds = Math.max(
     health.oldest_due_age_seconds ?? 0,
     health.oldest_signout_pending_age_seconds ?? 0,
-    purchasePrincipalHealth?.oldest_due_age_seconds ?? 0,
-    purchasePrincipalHealth?.oldest_pending_age_seconds ?? 0,
+    purchasePrincipalHealth.oldest_due_age_seconds ?? 0,
+    purchasePrincipalHealth.oldest_pending_age_seconds ?? 0,
     purchasePrincipalSignoutRotationHealth
       ?.oldest_prepared_age_seconds ?? 0,
   );
@@ -461,8 +450,8 @@ export function revenueCatBacklogStatus(
   }
   if (
     health.expired_claim_count > 0 ||
-    (purchasePrincipalHealth?.expired_claim_count ?? 0) > 0 ||
-    (purchasePrincipalHealth?.unbound_active_principal_count ?? 0) > 0 ||
+    purchasePrincipalHealth.expired_claim_count > 0 ||
+    purchasePrincipalHealth.unbound_active_principal_count > 0 ||
     (purchasePrincipalSignoutRotationHealth?.expired_prepared_count ?? 0) > 0 ||
     (purchasePrincipalSignoutRotationHealth?.prepared_count ?? 0) >=
       warningPreparedRotations ||
@@ -477,7 +466,7 @@ export function buildRevenueCatMonitorSummary(
   health: RevenueCatReconciliationHealth,
   args: RevenueCatMonitorArgs,
   now: Date,
-  purchasePrincipalHealth: PurchasePrincipalHealth | null = null,
+  purchasePrincipalHealth: PurchasePrincipalHealth,
   purchasePrincipalSignoutRotationHealth:
     | PurchasePrincipalSignoutRotationHealth
     | null = null,
@@ -505,9 +494,7 @@ export function buildRevenueCatMonitorSummary(
       should_fail: shouldFailRevenueCatMonitor(status, args.failOn),
     },
     health,
-    purchase_principal_health_availability: purchasePrincipalHealth === null
-      ? "not_deployed"
-      : "available",
+    purchase_principal_health_availability: "available",
     purchase_principal_health: purchasePrincipalHealth,
     purchase_principal_signout_rotation_health_availability:
       purchasePrincipalSignoutRotationHealth === null
@@ -538,11 +525,11 @@ export function renderRevenueCatMonitorMarkdown(
     ? "none"
     : `${summary.health.oldest_signout_pending_age_seconds}s`;
   const oldestPrincipalDueAge = summary.purchase_principal_health
-      ?.oldest_due_age_seconds == null
+      .oldest_due_age_seconds == null
     ? "none"
     : `${summary.purchase_principal_health.oldest_due_age_seconds}s`;
   const oldestPrincipalPendingAge = summary.purchase_principal_health
-      ?.oldest_pending_age_seconds == null
+      .oldest_pending_age_seconds == null
     ? "none"
     : `${summary.purchase_principal_health.oldest_pending_age_seconds}s`;
   const oldestRotationAge = summary
@@ -550,21 +537,16 @@ export function renderRevenueCatMonitorMarkdown(
       ?.oldest_prepared_age_seconds == null
     ? "none"
     : `${summary.purchase_principal_signout_rotation_health.oldest_prepared_age_seconds}s`;
-  const purchasePrincipalLines = summary.purchase_principal_health === null
-    ? [
-      `- Availability: \`${summary.purchase_principal_health_availability}\``,
-      "- The aggregate health RPC is not deployed; legacy reconciliation and sign-out handoff health remain enforced.",
-    ]
-    : [
-      `- Availability: \`${summary.purchase_principal_health_availability}\``,
-      `- Active principals: \`${summary.purchase_principal_health.active_principal_count}\``,
-      `- Pending principals: \`${summary.purchase_principal_health.pending_principal_count}\``,
-      `- Unbound active principals with current StoreKit access: \`${summary.purchase_principal_health.unbound_active_principal_count}\``,
-      `- Due reconciliations: \`${summary.purchase_principal_health.due_reconciliation_count}\``,
-      `- Expired claims: \`${summary.purchase_principal_health.expired_claim_count}\``,
-      `- Oldest due age: \`${oldestPrincipalDueAge}\``,
-      `- Oldest pending age: \`${oldestPrincipalPendingAge}\``,
-    ];
+  const purchasePrincipalLines = [
+    `- Availability: \`${summary.purchase_principal_health_availability}\``,
+    `- Active principals: \`${summary.purchase_principal_health.active_principal_count}\``,
+    `- Pending principals: \`${summary.purchase_principal_health.pending_principal_count}\``,
+    `- Unbound active principals with current StoreKit access: \`${summary.purchase_principal_health.unbound_active_principal_count}\``,
+    `- Due reconciliations: \`${summary.purchase_principal_health.due_reconciliation_count}\``,
+    `- Expired claims: \`${summary.purchase_principal_health.expired_claim_count}\``,
+    `- Oldest due age: \`${oldestPrincipalDueAge}\``,
+    `- Oldest pending age: \`${oldestPrincipalPendingAge}\``,
+  ];
   const purchasePrincipalRotationLines = summary
       .purchase_principal_signout_rotation_health === null
     ? [
@@ -581,9 +563,8 @@ export function renderRevenueCatMonitorMarkdown(
     ];
   const operatorAction = summary.status !== "ok"
     ? "Inspect the reconciliation, stable purchase-principal, server-authorized rotation, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, expired rotations, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly."
-    : summary.purchase_principal_health === null ||
-        summary.purchase_principal_signout_rotation_health === null
-    ? "No deployed backlog action required. Keep expand-compatible mode only until both purchase-principal migrations and hosted health-RPC smokes pass, then switch the scheduled monitor to required mode."
+    : summary.purchase_principal_signout_rotation_health === null
+    ? "No deployed backlog action required. Keep only the unavailable rotation aggregate in expand-compatible mode until its migration and hosted health-RPC smoke pass, then switch that aggregate's scheduled flag to required mode."
     : "No action required.";
   return [
     "# RevenueCat Reconciliation Health",
@@ -678,9 +659,12 @@ export function parseRevenueCatMonitorArgs(
     warningPreparedRotations,
     criticalPreparedRotations,
     failOn: parseFailurePolicy(values.get("fail-on") ?? "warning"),
-    purchasePrincipalHealthMode: parsePurchasePrincipalHealthMode(
-      values.get("purchase-principal-health-mode") ?? "required",
-    ),
+    purchasePrincipalSignoutRotationHealthMode:
+      parsePurchasePrincipalSignoutRotationHealthMode(
+        values.get("purchase-principal-signout-rotation-health-mode") ??
+          "required",
+        "--purchase-principal-signout-rotation-health-mode",
+      ),
     summaryJsonPath: optionalPath(
       values.get("summary-json"),
       "--summary-json",
@@ -699,7 +683,7 @@ function argumentValues(rawArgs: string[]): Map<string, string | boolean> {
     "warning-prepared-rotations",
     "critical-prepared-rotations",
     "fail-on",
-    "purchase-principal-health-mode",
+    "purchase-principal-signout-rotation-health-mode",
     "summary-json",
     "summary-md",
   ]);
@@ -787,14 +771,15 @@ function parseFailurePolicy(
   throw new Error("--fail-on must be critical, warning, or never.");
 }
 
-function parsePurchasePrincipalHealthMode(
+function parsePurchasePrincipalSignoutRotationHealthMode(
   value: string | boolean,
-): PurchasePrincipalHealthMode {
+  label: string,
+): PurchasePrincipalSignoutRotationHealthMode {
   if (value === "expand-compatible" || value === "required") {
     return value;
   }
   throw new Error(
-    "--purchase-principal-health-mode must be expand-compatible or required.",
+    `${label} must be expand-compatible or required.`,
   );
 }
 
@@ -841,16 +826,10 @@ function printSummary(summary: RevenueCatMonitorSummary): void {
     `purchase_principal_health_availability: ${summary.purchase_principal_health_availability}`,
   );
   console.log(
-    `purchase_principal_due_count: ${
-      summary.purchase_principal_health?.due_reconciliation_count ??
-        "unavailable"
-    }`,
+    `purchase_principal_due_count: ${summary.purchase_principal_health.due_reconciliation_count}`,
   );
   console.log(
-    `purchase_principal_unbound_active_count: ${
-      summary.purchase_principal_health?.unbound_active_principal_count ??
-        "unavailable"
-    }`,
+    `purchase_principal_unbound_active_count: ${summary.purchase_principal_health.unbound_active_principal_count}`,
   );
   console.log(
     `purchase_principal_signout_rotation_health_availability: ${summary.purchase_principal_signout_rotation_health_availability}`,

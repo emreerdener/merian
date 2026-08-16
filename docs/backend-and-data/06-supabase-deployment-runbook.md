@@ -3390,8 +3390,8 @@ Use this order for a separately authorized rollout on one reviewed exact SHA:
    StoreKit access. Investigate every dual-read divergence and webhook identity
    mismatch; require each stable claim's pass-policy value to match the latest
    signed pass event, and do not repair any mismatch by moving a binding or
-   editing `public.users` directly. The scheduled monitor must run in required
-   mode for both `get_purchase_principal_health()` and
+   editing `public.users` directly. The scheduled monitor must require
+   successful responses from both `get_purchase_principal_health()` and
    `get_purchase_principal_signout_rotation_health()`; a missing or malformed
    aggregate, any preparation newly expired by the health pass, a prepared age
    over the configured warning/critical threshold, 100 concurrent prepared rows
@@ -6340,12 +6340,18 @@ read health. Start with the structured reconciliation and sign-out handoff logs
 plus queue error codes; preserve claim fencing and device proofs, and let
 idempotent recovery finish. Do not cancel or delete a bound proof manually.
 
-The scheduled command uses `--purchase-principal-health-mode required` after the
-production migration and hosted health-RPC smoke. A missing RPC, malformed
-response, authorization failure, timeout, or either unhealthy aggregate fails
-closed even while stable adoption remains disabled. The script retains its
-explicit compatibility parser only for a pre-deployment manual check; the
-production schedule must not select it again.
+The scheduled command makes the already-deployed principal aggregate
+unconditionally required; the CLI exposes no compatibility flag for that RPC.
+Until the additive protocol-3 rotation migration and its hosted health-RPC smoke
+pass, the command independently uses
+`--purchase-principal-signout-rotation-health-mode expand-compatible`. Only an
+exact `PGRST202` naming that zero-argument rotation RPC becomes
+`not_deployed`/null; the established reconciliation and principal aggregates
+remain required, and malformed responses, authorization failures, timeouts, and
+unrelated catalog errors remain fatal. After the exact deployed SHA passes the
+rotation health smoke, change only the rotation flag to `required` in a reviewed
+follow-up. Both aggregates must return valid health before stable canary
+activation.
 
 ## DwC-A Export and Archive Health Automation
 
