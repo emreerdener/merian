@@ -85,7 +85,12 @@ VALUES (
     'canonical_media_order',
     'Canonical Media',
     'alias'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source;
 
 INSERT INTO public.scans (
     id,

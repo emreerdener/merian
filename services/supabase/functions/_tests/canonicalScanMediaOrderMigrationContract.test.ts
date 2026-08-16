@@ -46,6 +46,7 @@ Deno.test("canonical media catalog fixture covers description gaps", async () =>
     fixture,
     "ARRAY['audio:1', 'image:2', 'video:4']::TEXT[]",
   );
+  assertStringIncludes(fixture, "ON CONFLICT (id) DO UPDATE");
   assertStringIncludes(
     fixture,
     "canonical alignment neither drops nor duplicates owner media",
