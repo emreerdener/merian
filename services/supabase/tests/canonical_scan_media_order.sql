@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(4);
+SELECT extensions.plan(5);
 
 SELECT extensions.ok(
     NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -142,6 +142,36 @@ SELECT extensions.is(
     ),
     3,
     'canonical alignment neither drops nor duplicates owner media'
+);
+
+INSERT INTO public.scans (
+    id,
+    user_id,
+    ai_confidence_score,
+    image_storage_urls,
+    captured_media
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000c112',
+    '00000000-0000-4000-8000-00000000c101',
+    0.9,
+    ARRAY['https://media.merian.app/legacy-image.webp'],
+    NULL
+);
+
+SELECT extensions.is(
+    (
+        SELECT pg_catalog.ARRAY_AGG(
+            asset.kind::TEXT || ':' || asset.order_index::TEXT
+            ORDER BY asset.order_index
+        )
+        FROM public.scan_media_assets AS asset
+        WHERE asset.scan_id = '00000000-0000-4000-8000-00000000c112'
+          AND asset.status = 'ready'
+          AND asset.source = 'scan_refresh'
+    ),
+    ARRAY['image:0']::TEXT[],
+    'legacy array refresh bypasses canonical alignment without nulling order'
 );
 
 SELECT * FROM extensions.finish();

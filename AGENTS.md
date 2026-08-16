@@ -14,7 +14,8 @@ here and load task procedures from the project skills discovered through
   change `project.yml` and run `make xcodegen`; never hand-edit generated Xcode
   project files.
 - Never place credentials, personal data, raw coordinates, auth/session state,
-  or production response bodies in source, fixtures, logs, prompts, or artifacts.
+  or production response bodies in source, fixtures, logs, prompts, or
+  artifacts.
 
 ## Deployment authorization
 
@@ -35,6 +36,12 @@ here and load task procedures from the project skills discovered through
   boundaries, security or privacy contracts, operational controls, CI gates, or
   release procedures change. A local refactor with no externally meaningful
   contract change does not require broad documentation churn.
+- Never treat Markdown-only edits as formatter-exempt. After editing Markdown,
+  run `deno fmt` on every changed `.md` file before handoff. If the change
+  touches `services/supabase/functions` or `services/supabase/scripts`, also run
+  the exact candidate gate:
+  `deno fmt --check services/supabase/functions services/supabase/scripts`. Do
+  not rely on manual line wrapping as a substitute for the formatter.
 
 ## Supabase skill order
 
@@ -46,8 +53,8 @@ here and load task procedures from the project skills discovered through
   `skills/merian-supabase/SKILL.md`.
 - Follow every conditionally required reference. The reviewed packages under
   `skills/user/` remain separate; verify their user-level links with
-  `bash skills/user/install.sh --check`. Merian's checked-in contracts, commands,
-  and exact tool pins take precedence over generic guidance.
+  `bash skills/user/install.sh --check`. Merian's checked-in contracts,
+  commands, and exact tool pins take precedence over generic guidance.
 
 ## Verification
 
@@ -64,10 +71,11 @@ here and load task procedures from the project skills discovered through
 ## Read-only subagent delegation
 
 - Delegate only when ownership or execution flow is unknown, a task spans at
-  least two major subsystems, or a schema, API, security, concurrency, or release
-  contract needs independent review.
+  least two major subsystems, or a schema, API, security, concurrency, or
+  release contract needs independent review.
 - Use the matching read-only project agent: `merian_explorer` for evidence and
   path tracing, `merian_reviewer` for correctness and safety review, and
   `merian_contract_auditor` for cross-surface drift.
-- Do not delegate routine single-file work or parallelize edits. Subagents return
-  file-and-symbol evidence or review findings; the primary agent owns all writes.
+- Do not delegate routine single-file work or parallelize edits. Subagents
+  return file-and-symbol evidence or review findings; the primary agent owns all
+  writes.

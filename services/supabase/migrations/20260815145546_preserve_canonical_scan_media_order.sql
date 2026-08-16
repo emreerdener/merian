@@ -24,12 +24,16 @@ BEGIN
     WHERE scan.id = target_scan_id;
 
     IF NOT FOUND
-       OR pg_catalog.JSONB_TYPEOF(media_manifest) <> 'array'
-       OR pg_catalog.JSONB_ARRAY_LENGTH(media_manifest) = 0 THEN
+       OR media_manifest IS NULL
+       OR pg_catalog.JSONB_TYPEOF(media_manifest) IS DISTINCT FROM 'array' THEN
         RETURN;
     END IF;
 
     manifest_length := pg_catalog.JSONB_ARRAY_LENGTH(media_manifest);
+
+    IF manifest_length = 0 THEN
+        RETURN;
+    END IF;
 
     SELECT
         COUNT(*)::INTEGER,

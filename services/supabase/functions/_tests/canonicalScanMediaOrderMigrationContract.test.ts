@@ -17,6 +17,8 @@ Deno.test("canonical scan media order migration preserves the hardened refresh b
       "SET statement_timeout = '60s'",
       "CREATE OR REPLACE FUNCTION internal.align_scan_media_asset_order",
       "SECURITY INVOKER SET search_path = ''",
+      "media_manifest IS NULL",
+      "JSONB_TYPEOF(media_manifest) IS DISTINCT FROM 'array'",
       "JSONB_ARRAY_ELEMENTS(media_manifest) WITH ORDINALITY",
       "public.scan_media_reference_path(raw.media_item #> '{audio,_0}')",
       "ROW_NUMBER() OVER ( PARTITION BY manifest.kind, manifest.url",
@@ -47,5 +49,9 @@ Deno.test("canonical media catalog fixture covers description gaps", async () =>
   assertStringIncludes(
     fixture,
     "canonical alignment neither drops nor duplicates owner media",
+  );
+  assertStringIncludes(
+    fixture,
+    "legacy array refresh bypasses canonical alignment without nulling order",
   );
 });
