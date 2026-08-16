@@ -536,7 +536,13 @@ VALUES (
   'Principal Old Anonymous',
   'alias',
   'free'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source,
+    subscription_tier = EXCLUDED.subscription_tier;
 
 SET LOCAL ROLE service_role;
 DO $prepare_stable_signout_rotation$
@@ -700,7 +706,13 @@ VALUES (
   'Principal Anonymous',
   'alias',
   'free'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source,
+    subscription_tier = EXCLUDED.subscription_tier;
 
 INSERT INTO internal.ghost_profile_merge_handoffs (
   ghost_user_id,

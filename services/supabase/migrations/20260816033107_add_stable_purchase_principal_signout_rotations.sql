@@ -519,7 +519,7 @@ DECLARE
     binding internal.purchase_principal_bindings%ROWTYPE;
     existing internal.purchase_principal_signout_rotations%ROWTYPE;
     source_is_anonymous BOOLEAN;
-    prepared_at TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
+    rotation_prepared_at TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP();
     rotation_expires_at TIMESTAMPTZ;
 BEGIN
     PERFORM internal.require_service_role();
@@ -614,7 +614,7 @@ BEGIN
             SELECT 1
             FROM internal.account_deletion_recovery_preparations AS preparation
             WHERE preparation.user_id = p_auth_user_id
-              AND preparation.expires_at > prepared_at
+              AND preparation.expires_at > rotation_prepared_at
        ) THEN
         RAISE EXCEPTION
             'purchase_principal_signout_account_deletion_in_progress'
@@ -623,10 +623,10 @@ BEGIN
 
     UPDATE internal.purchase_principal_signout_rotations AS rotation
     SET status = 'expired',
-        updated_at = prepared_at
+        updated_at = rotation_prepared_at
     WHERE rotation.purchase_principal_id = principal.id
       AND rotation.status = 'prepared'
-      AND rotation.expires_at <= prepared_at;
+      AND rotation.expires_at <= rotation_prepared_at;
 
     SELECT rotation.*
     INTO existing
@@ -690,9 +690,9 @@ BEGIN
         3,
         binding.binding_generation,
         principal.latest_binding_intent_generation,
-        prepared_at + INTERVAL '30 days',
-        prepared_at,
-        prepared_at
+        rotation_prepared_at + INTERVAL '30 days',
+        rotation_prepared_at,
+        rotation_prepared_at
     )
     RETURNING
         internal.purchase_principal_signout_rotations.expires_at

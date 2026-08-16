@@ -297,6 +297,7 @@ Deno.test("stable sign-out rotations are private, one-use, and resolver-exclusiv
       "CREATE OR REPLACE FUNCTION public.prepare_purchase_principal_signout_rotation",
       "binding.auth_user_id <> p_auth_user_id",
       "source_is_anonymous IS DISTINCT FROM FALSE",
+      "preparation.expires_at > rotation_prepared_at",
       "CREATE OR REPLACE FUNCTION public.claim_purchase_principal_signout_rotation",
       "'purchase-principal-legacy-compatibility'",
       "ORDER BY profile.id FOR UPDATE OF profile, auth_user",
@@ -331,6 +332,10 @@ Deno.test("stable sign-out rotations are private, one-use, and resolver-exclusiv
   assert(
     !sql.includes("current_time TIMESTAMPTZ"),
     "rotation routines must not shadow PostgreSQL's CURRENT_TIME value function",
+  );
+  assert(
+    !sql.includes("preparation.expires_at > prepared_at"),
+    "rotation preparation must not ambiguously reference the recovery preparation's prepared_at column",
   );
 });
 
@@ -707,6 +712,14 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
   ) {
     assertStringIncludes(fixture, fragment);
   }
+  const profileInsertCount =
+    (fixture.match(/INSERT INTO public\.users/g) ?? []).length;
+  const profileUpsertCount =
+    (fixture.match(/ON CONFLICT \(id\) DO UPDATE/g) ?? []).length;
+  assert(
+    profileInsertCount > 0 && profileUpsertCount === profileInsertCount,
+    "Every explicit Auth-trigger-backed purchase-principal profile must be upserted instead of inserted twice",
+  );
 
   for (const block of serviceRoleBlocks(fixtureSource)) {
     assert(
