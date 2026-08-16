@@ -766,6 +766,27 @@ Deno.test("purchase-principal sign-out rotation DB - expiry is terminal before o
       binding_generation: null,
     });
 
+    const cancelledAfterHealth = await client.queryObject<{
+      rotation_status: string;
+      already_cancelled: boolean;
+    }>(
+      `
+        SELECT result.rotation_status, result.already_cancelled
+        FROM public.cancel_purchase_principal_signout_rotation(
+          $1::UUID,
+          $2,
+          $3::UUID,
+          $4,
+          3
+        ) AS result
+      `,
+      [sourceUserId, capabilityHash, rotationId, secretHash],
+    );
+    assertEquals(cancelledAfterHealth.rows[0], {
+      rotation_status: "expired",
+      already_cancelled: false,
+    });
+
     const resumed = await client.queryObject<{
       resolution_mode: string;
       purchase_principal_id: string;
@@ -921,7 +942,7 @@ Deno.test("purchase-principal sign-out rotation DB - resolver completion begun b
       await client.queryArray("SET ROLE service_role");
       const delayedBegin = await client.queryObject<{
         purchase_principal_id: string;
-        binding_intent_generation: number;
+        binding_intent_generation: bigint;
       }>(
         `
           SELECT
@@ -938,7 +959,7 @@ Deno.test("purchase-principal sign-out rotation DB - resolver completion begun b
       );
       assertEquals(delayedBegin.rows[0], {
         purchase_principal_id: purchasePrincipalId,
-        binding_intent_generation: 2,
+        binding_intent_generation: 2n,
       });
       await client.queryArray("RESET ROLE");
 
@@ -1078,7 +1099,7 @@ Deno.test("purchase-principal sign-out rotation DB - resolver completion begun b
       await client.queryArray("SET ROLE service_role");
       const resumed = await client.queryObject<{
         purchase_principal_id: string;
-        binding_intent_generation: number;
+        binding_intent_generation: bigint;
       }>(
         `
           SELECT
@@ -1095,7 +1116,7 @@ Deno.test("purchase-principal sign-out rotation DB - resolver completion begun b
       );
       assertEquals(resumed.rows[0], {
         purchase_principal_id: purchasePrincipalId,
-        binding_intent_generation: 3,
+        binding_intent_generation: 3n,
       });
       await client.queryArray(
         `

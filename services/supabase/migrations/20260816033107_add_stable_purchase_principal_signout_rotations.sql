@@ -844,6 +844,22 @@ BEGIN
         RETURN;
     END IF;
 
+    -- Expiry may be terminalized by the aggregate health pass before the
+    -- destination retries. Preserve the same proof-bound terminal receipt
+    -- regardless of which routine won that race.
+    IF rotation.status = 'expired' THEN
+        RETURN QUERY SELECT
+            rotation.id,
+            principal.id,
+            principal.revenuecat_app_user_id,
+            NULL::BIGINT,
+            FALSE,
+            rotation.status,
+            rotation.expires_at,
+            FALSE;
+        RETURN;
+    END IF;
+
     IF rotation.status = 'prepared'
        AND rotation.expires_at <= observed_at THEN
         UPDATE internal.purchase_principal_signout_rotations AS rotation_row
@@ -1184,6 +1200,14 @@ BEGIN
             rotation.status,
             rotation.expires_at,
             TRUE;
+        RETURN;
+    END IF;
+    IF rotation.status = 'expired' THEN
+        RETURN QUERY SELECT
+            rotation.id,
+            rotation.status,
+            rotation.expires_at,
+            FALSE;
         RETURN;
     END IF;
     IF rotation.status = 'prepared'

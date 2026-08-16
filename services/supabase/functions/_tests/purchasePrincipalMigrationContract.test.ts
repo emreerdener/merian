@@ -337,6 +337,10 @@ Deno.test("stable sign-out rotations are private, one-use, and resolver-exclusiv
     !sql.includes("preparation.expires_at > prepared_at"),
     "rotation preparation must not ambiguously reference the recovery preparation's prepared_at column",
   );
+  assert(
+    (sql.match(/IF rotation\.status = 'expired' THEN/g) ?? []).length === 2,
+    "claim and cancellation must replay health-terminalized expiry receipts",
+  );
 });
 
 Deno.test("StoreKit state and account-issued access remain separate", async () => {
