@@ -27,6 +27,27 @@ function request(body: Record<string, unknown> = {}): Request {
   });
 }
 
+function rotationRequest(
+  operation:
+    | "prepare_signout_rotation"
+    | "claim_signout_rotation"
+    | "cancel_signout_rotation",
+  extra: Record<string, unknown> = {},
+): Request {
+  return new Request("https://example.test/resolve-purchase-principal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      operation,
+      installation_capability: CAPABILITY,
+      client_protocol: PURCHASE_PRINCIPAL_CLIENT_PROTOCOL,
+      rotation_id: "750e8400-e29b-41d4-a716-446655440000",
+      rotation_secret: "B".repeat(43),
+      ...extra,
+    }),
+  });
+}
+
 function user(): User {
   return { id: AUTH_USER_ID, is_anonymous: false } as User;
 }
@@ -71,6 +92,144 @@ Deno.test("legacy mode returns without reading RevenueCat", async () => {
     minimum_client_protocol: 1,
   });
   assertEquals(providerFetchCount, 0);
+});
+
+Deno.test("stable sign-out preparation is proof-hashed and RevenueCat-free", async () => {
+  let providerFetchCount = 0;
+  let receivedSecretHash = "";
+  const response = await handleResolvePurchasePrincipal(
+    rotationRequest("prepare_signout_rotation", {
+      expected_binding_generation: 4,
+    }),
+    user(),
+    supabaseAdmin,
+    {
+      fetchCustomerInfo: () => {
+        providerFetchCount += 1;
+        return Promise.reject(new Error("must not fetch"));
+      },
+      prepareSignoutRotation: (
+        _admin,
+        _authUserId,
+        _capabilityHash,
+        rotationId,
+        secretHash,
+      ) => {
+        receivedSecretHash = secretHash;
+        return Promise.resolve({
+          rotationId,
+          purchasePrincipalId: PRINCIPAL_ID,
+          revenueCatAppUserId: APP_USER_ID,
+          bindingGeneration: 4,
+          status: "prepared",
+          expiresAt: "2026-09-15T00:00:00.000Z",
+          alreadyPrepared: false,
+        });
+      },
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(response.headers.get("Cache-Control"), "no-store");
+  assertEquals(providerFetchCount, 0);
+  assertEquals(receivedSecretHash.length, 64);
+  assertEquals(receivedSecretHash.includes("B".repeat(43)), false);
+  assertEquals((await response.json()).rotation_status, "prepared");
+});
+
+Deno.test("stable sign-out claim returns the atomic binding without provider transfer", async () => {
+  const response = await handleResolvePurchasePrincipal(
+    rotationRequest("claim_signout_rotation"),
+    { id: AUTH_USER_ID, is_anonymous: true } as User,
+    supabaseAdmin,
+    {
+      claimSignoutRotation: (
+        _admin,
+        _authUserId,
+        _capabilityHash,
+        rotationId,
+      ) =>
+        Promise.resolve({
+          rotationId,
+          purchasePrincipalId: PRINCIPAL_ID,
+          revenueCatAppUserId: APP_USER_ID,
+          bindingGeneration: 5,
+          accountGrantsAllowed: false,
+          status: "completed",
+          expiresAt: "2026-09-15T00:00:00.000Z",
+          alreadyClaimed: false,
+        }),
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    success: true,
+    operation: "claim_signout_rotation",
+    rotation_id: "750e8400-e29b-41d4-a716-446655440000",
+    rotation_status: "completed",
+    expires_at: "2026-09-15T00:00:00.000Z",
+    purchase_principal_id: PRINCIPAL_ID,
+    revenuecat_app_user_id: APP_USER_ID,
+    binding_generation: 5,
+    account_grants_allowed: false,
+    already_claimed: false,
+  });
+});
+
+Deno.test("stable sign-out cancellation returns only the source receipt", async () => {
+  const response = await handleResolvePurchasePrincipal(
+    rotationRequest("cancel_signout_rotation"),
+    user(),
+    supabaseAdmin,
+    {
+      cancelSignoutRotation: (
+        _admin,
+        _authUserId,
+        _capabilityHash,
+        rotationId,
+      ) =>
+        Promise.resolve({
+          rotationId,
+          status: "cancelled",
+          expiresAt: "2026-09-15T00:00:00.000Z",
+          alreadyCancelled: false,
+        }),
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    success: true,
+    operation: "cancel_signout_rotation",
+    rotation_id: "750e8400-e29b-41d4-a716-446655440000",
+    rotation_status: "cancelled",
+    expires_at: "2026-09-15T00:00:00.000Z",
+    already_cancelled: false,
+  });
+});
+
+Deno.test("pending stable sign-out blocks ordinary resolution without retry", async () => {
+  const response = await handleResolvePurchasePrincipal(
+    request(),
+    user(),
+    supabaseAdmin,
+    {
+      begin: () =>
+        Promise.reject(
+          new PurchasePrincipalDatabaseError(
+            "purchase_principal_signout_rotation_required",
+            false,
+            "rotation required",
+          ),
+        ),
+    },
+  );
+  assertEquals(response.status, 409);
+  assertEquals(
+    (await response.json()).code,
+    "purchase_principal_signout_rotation_required",
+  );
 });
 
 Deno.test("stable mode separates StoreKit state from account promotions", async () => {

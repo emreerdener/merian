@@ -2,7 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   beginPurchasePrincipalResolution,
+  cancelPurchasePrincipalSignoutRotation,
+  claimPurchasePrincipalSignoutRotation,
   completePurchasePrincipalResolution,
+  preparePurchasePrincipalSignoutRotation,
   PurchasePrincipalDatabaseError,
   readCurrentEntitlementProjection,
 } from "./db.ts";
@@ -10,6 +13,7 @@ import {
 const AUTH_USER_ID = "550e8400-e29b-41d4-a716-446655440000";
 const PRINCIPAL_ID = "650e8400-e29b-41d4-a716-446655440000";
 const CAPABILITY_HASH = "a".repeat(64);
+const SECRET_HASH = "b".repeat(64);
 const APP_USER_ID = "MERIAN_PP_00112233445566778899AABBCCDDEEFF";
 
 function rpcClient(
@@ -161,6 +165,124 @@ Deno.test("stable resolution completion validates continuity and exact state", a
     PurchasePrincipalDatabaseError,
     "stable identity continuity",
   );
+});
+
+Deno.test("stable sign-out rotation RPCs preserve exact proof and identity fields", async () => {
+  const rotationId = "750e8400-e29b-41d4-a716-446655440000";
+  const calls: Array<{ name: string; args?: Record<string, unknown> }> = [];
+  const preparation = await preparePurchasePrincipalSignoutRotation(
+    rpcClient(
+      [{
+        rotation_id: rotationId,
+        purchase_principal_id: PRINCIPAL_ID,
+        revenuecat_app_user_id: APP_USER_ID,
+        binding_generation: 4,
+        rotation_status: "prepared",
+        expires_at: "2026-09-15T00:00:00.000Z",
+        already_prepared: false,
+      }],
+      null,
+      calls,
+    ),
+    AUTH_USER_ID,
+    CAPABILITY_HASH,
+    rotationId,
+    SECRET_HASH,
+    4,
+    3,
+  );
+  assertEquals(preparation.rotationId, rotationId);
+  assertEquals(calls[0], {
+    name: "prepare_purchase_principal_signout_rotation",
+    args: {
+      p_auth_user_id: AUTH_USER_ID,
+      p_capability_hash: CAPABILITY_HASH,
+      p_rotation_id: rotationId,
+      p_secret_hash: SECRET_HASH,
+      p_expected_binding_generation: 4,
+      p_client_protocol: 3,
+    },
+  });
+
+  const claim = await claimPurchasePrincipalSignoutRotation(
+    rpcClient([{
+      rotation_id: rotationId,
+      purchase_principal_id: PRINCIPAL_ID,
+      revenuecat_app_user_id: APP_USER_ID,
+      binding_generation: 5,
+      account_grants_allowed: false,
+      rotation_status: "completed",
+      expires_at: "2026-09-15T00:00:00.000Z",
+      already_claimed: false,
+    }]),
+    AUTH_USER_ID,
+    CAPABILITY_HASH,
+    rotationId,
+    SECRET_HASH,
+    3,
+  );
+  assertEquals(claim.purchasePrincipalId, PRINCIPAL_ID);
+  assertEquals(claim.bindingGeneration, 5);
+  assertEquals(claim.accountGrantsAllowed, false);
+
+  const cancellation = await cancelPurchasePrincipalSignoutRotation(
+    rpcClient([{
+      rotation_id: rotationId,
+      rotation_status: "cancelled",
+      expires_at: "2026-09-15T00:00:00.000Z",
+      already_cancelled: true,
+    }]),
+    AUTH_USER_ID,
+    CAPABILITY_HASH,
+    rotationId,
+    SECRET_HASH,
+    3,
+  );
+  assertEquals(cancellation.status, "cancelled");
+  assertEquals(cancellation.alreadyCancelled, true);
+});
+
+Deno.test("expired rotation claims are terminal and ordinary resolution interlocks do not retry", async () => {
+  const rotationId = "750e8400-e29b-41d4-a716-446655440000";
+  const expired = await assertRejects(
+    () =>
+      claimPurchasePrincipalSignoutRotation(
+        rpcClient([{
+          rotation_id: rotationId,
+          purchase_principal_id: PRINCIPAL_ID,
+          revenuecat_app_user_id: APP_USER_ID,
+          binding_generation: null,
+          account_grants_allowed: false,
+          rotation_status: "expired",
+          expires_at: "2026-09-15T00:00:00.000Z",
+          already_claimed: false,
+        }]),
+        AUTH_USER_ID,
+        CAPABILITY_HASH,
+        rotationId,
+        SECRET_HASH,
+        3,
+      ),
+    PurchasePrincipalDatabaseError,
+  );
+  assertEquals(expired.code, "purchase_principal_signout_rotation_expired");
+  assertEquals(expired.retryable, false);
+
+  const interlock = await assertRejects(
+    () =>
+      beginPurchasePrincipalResolution(
+        rpcClient(null, {
+          message: "purchase_principal_signout_rotation_required",
+          code: "55P03",
+        }),
+        AUTH_USER_ID,
+        CAPABILITY_HASH,
+        3,
+        8,
+      ),
+    PurchasePrincipalDatabaseError,
+  );
+  assertEquals(interlock.retryable, false);
 });
 
 Deno.test("entitlement projection read validates one exact server row", async () => {

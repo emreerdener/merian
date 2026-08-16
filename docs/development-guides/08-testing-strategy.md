@@ -2279,8 +2279,8 @@ device-evidence checks:
   disposable-database schedules for deletion-first and pruner-first ownership.
   It proves pruning skips a locked Auth account, a pruned proof remains a
   noncommitted tombstone after later deletion, no expired proof becomes a
-  capability, and `p_limit = 1` skips a locked lower UUID to retire one available
-  candidate without waiting.
+  capability, and `p_limit = 1` skips a locked lower UUID to retire one
+  available candidate without waiting.
 - `tests/account_deletion_security.sql` executes the live catalog transitions:
   durable intake leaves Auth/data intact, the restrictive profile FK rejects an
   Auth-first delete, premature Auth completion is denied, all five sweep and all
@@ -2321,17 +2321,17 @@ device-evidence checks:
   `capability_preparation_pending`, non-destructive server prepare precedes
   `capability_prepared_pending`, and the latter precedes destructive commit.
   Both preparation markers admit only the deletion-owned recovery transition
-  after relaunch. Persistence failure makes no request; ambiguous/lost-response failures and
-  legacy unknown recovery retain both authority and barrier; v2
+  after relaunch. Persistence failure makes no request; ambiguous/lost-response
+  failures and legacy unknown recovery retain both authority and barrier; v2
   `not_committed`/unknown recovery retires only unused intent; only explicit
   `409 purchase_continuity_pending` advances an unaccepted intake through the
-  durable non-destructive `capability_rejection_retirement_pending` phase, a receipt is
-  owner-verified before `capability_cleanup_pending`, local sign-out precedes
-  purge, acknowledgement precedes capability retirement, verified Keychain
-  deletion precedes marker removal, accepted-retirement relaunch repeats local
-  cleanup, rejection-retirement relaunch removes only the unused proof and marker,
-  and matched-expired recovery takes only the
-  conservative cleanup-then-acknowledge path. `AppDIContainerTests` proves legacy Boolean and
+  durable non-destructive `capability_rejection_retirement_pending` phase, a
+  receipt is owner-verified before `capability_cleanup_pending`, local sign-out
+  precedes purge, acknowledgement precedes capability retirement, verified
+  Keychain deletion precedes marker removal, accepted-retirement relaunch
+  repeats local cleanup, rejection-retirement relaunch removes only the unused
+  proof and marker, and matched-expired recovery takes only the conservative
+  cleanup-then-acknowledge path. `AppDIContainerTests` proves legacy Boolean and
   pre-capability markers remain compatible, unknown future states fail closed
   before local erasure, and the manual notice survives until explicit
   resolution. `AccountDeletionRecoveryCapabilityTests` cover randomness,
@@ -2348,11 +2348,11 @@ device-evidence checks:
   operator recovery guidance, including critical severity when configuration is
   false. It also proves strict recovery-health parsing, the exact named
   `PGRST202`-only additive compatibility boundary with explicit
-  `not_deployed`/null evidence, expired-unacknowledged
-  criticals, eight-per-job warning, cardinality-invariant failure, and combined
-  summary status. The migration contract statically locks the Vault-first,
-  NULL-only selection order. Workflow security checks separately keep its
-  actions immutable, permissions minimal, and secrets step-scoped.
+  `not_deployed`/null evidence, expired-unacknowledged criticals, eight-per-job
+  warning, cardinality-invariant failure, and combined summary status. The
+  migration contract statically locks the Vault-first, NULL-only selection
+  order. Workflow security checks separately keep its actions immutable,
+  permissions minimal, and secrets step-scoped.
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
@@ -2361,12 +2361,12 @@ device-evidence checks:
   complete valid/ready leading-index inventory for user foreign keys.
 
 Run the pgTAP fixture only against the disposable local stack. It inserts and
-deletes Auth fixtures inside a transaction and rolls everything back.
-Source and catalog success do not replace the physical-device kill matrix:
-terminate before intake, after server commit with the response dropped, after
-Auth sign-out, after SwiftData purge, after acknowledgement, and after Keychain
-removal. Repeat with no cached Auth session and confirm public capability
-recovery converges without restoring an account or exposing an identity.
+deletes Auth fixtures inside a transaction and rolls everything back. Source and
+catalog success do not replace the physical-device kill matrix: terminate before
+intake, after server commit with the response dropped, after Auth sign-out,
+after SwiftData purge, after acknowledgement, and after Keychain removal. Repeat
+with no cached Auth session and confirm public capability recovery converges
+without restoring an account or exposing an identity.
 
 Owned scan-image recovery has five complementary boundaries:
 
@@ -3570,8 +3570,13 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   queues.
 - **`scripts/monitor_revenuecat_reconciliation_test.ts`**: Proves the 30/60
   minute age thresholds, expired-lease warning, fail policy, response schema,
-  CLI safety, and operator summary. The production schedule invokes required
-  purchase-principal health; missing RPC `PGRST202`, malformed responses, and
+  CLI safety, and operator summary. It also locks the protocol-3 rotation-health
+  contract: the service RPC atomically terminalizes overdue `prepared` rows,
+  `expired_prepared_count` is the number newly terminalized by that invocation,
+  the returned prepared count/oldest age includes only still-live rows, any
+  newly expired row warns, and live volume warns at 100 or becomes critical at
+  500 by default. The production schedule invokes both required
+  purchase-principal health RPCs; missing `PGRST202`, malformed responses, and
   every unrelated RPC error fail closed. Unit coverage retains the explicit
   pre-deployment compatibility parser only so it cannot be broadened or used by
   the scheduled workflow again.
@@ -3603,8 +3608,8 @@ The identity test matrix now has two explicit lanes:
   terminal ownership. `EntitlementManagerTests.swift` rejects a response unless
   account context, user, request generation, and the single-row result all
   match. Authenticated-request tests must prove an A-bound body cannot dispatch
-  as B, including foreground and background inference request bodies, and that
-  a 401 releases its lease before recovery. Background inference dispatch must
+  as B, including foreground and background inference request bodies, and that a
+  401 releases its lease before recovery. Background inference dispatch must
   prove its typed request remains bound to the same Auth UUID as the lease held
   through the terminal URLSession callback—not merely `resume()`. Offline
   staging tests must reject a canonical but different-owner R2 manifest, carry
@@ -3614,28 +3619,27 @@ The identity test matrix now has two explicit lanes:
   `BackgroundDatabaseActorTests.swift` must prove upload/inference retirement
   commits pending state and clears source-owned staging keys before task
   cancellation. `OfflineQueueManagerTests.swift` must prove terminal callback
-  registration happens before the actor hop and that
-  `urlSessionDidFinishEvents` cannot invoke the system completion handler until
-  every asynchronous queue/result write is finished. Failed inference dispatch
-  must durably return `.inferencing` work to pending before cancellation or
-  return. The same suite must prove stale species metadata cannot overwrite a
-  replacement identification. `InferenceEngineTests.swift` must use a cancellation-ignoring
+  registration happens before the actor hop and that `urlSessionDidFinishEvents`
+  cannot invoke the system completion handler until every asynchronous
+  queue/result write is finished. Failed inference dispatch must durably return
+  `.inferencing` work to pending before cancellation or return. The same suite
+  must prove stale species metadata cannot overwrite a replacement
+  identification. `InferenceEngineTests.swift` must use a cancellation-ignoring
   active write to prove an Auth transition remains blocked until that task
   terminates and rejects newly submitted writes while the fence is closed. UI
-  tests require the competing buttons to
-  disable and forbid both “Ghost” and “guest session”
-  presentation. `BackgroundDatabaseActorTests.swift` proves collection sync
-  neither invokes Edge when an Auth transition owns the session nor removes a
-  tombstone when a transition begins during an in-flight request. RevenueCat
-  tests admit only `verified` or `verifiedOnDevice` CustomerInfo and prove
-  stable mode rejects promotional and missing/unknown store provenance for the
-  annual alias while the explicitly approved legacy/account lane may admit its
-  account grant. Shared authenticated-request tests also prove every recursive
-  retry remains pinned to the initiating account and cannot adopt a replacement
-  session. SDK/provider log bodies are discarded. Physical-device evidence remains
-  mandatory for double taps, delayed provider sheets, kill/relaunch at each
-  persistence boundary, first-unlock Keychain failure, 401 recovery, deletion,
-  and account switch.
+  tests require the competing buttons to disable and forbid both “Ghost” and
+  “guest session” presentation. `BackgroundDatabaseActorTests.swift` proves
+  collection sync neither invokes Edge when an Auth transition owns the session
+  nor removes a tombstone when a transition begins during an in-flight request.
+  RevenueCat tests admit only `verified` or `verifiedOnDevice` CustomerInfo and
+  prove stable mode rejects promotional and missing/unknown store provenance for
+  the annual alias while the explicitly approved legacy/account lane may admit
+  its account grant. Shared authenticated-request tests also prove every
+  recursive retry remains pinned to the initiating account and cannot adopt a
+  replacement session. SDK/provider log bodies are discarded. Physical-device
+  evidence remains mandatory for double taps, delayed provider sheets,
+  kill/relaunch at each persistence boundary, first-unlock Keychain failure, 401
+  recovery, deletion, and account switch.
 
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link
@@ -3656,14 +3660,13 @@ The identity test matrix now has two explicit lanes:
   commit, proof-role separation, bounded pruning/health, and the two-device
   rule: a deletion-job insert converts only still-live preparations and
   permanently tombstones expired hashes without promoting them to 180-day
-  capabilities. The fixture proves expiry before commit returns
-  `not_committed`, while expiry retired during another device's commit returns
-  the distinct non-authorizing preparation-expired state. iOS tests prove the
-  atomic Keychain envelope, phase ordering, and exact cached-session re-adoption
-  after definitive cancellation. Physical-device
-  evidence must kill the app after envelope write, server preparation, commit,
-  local sign-out, purge, acknowledgement, and proof removal, plus exercise a
-  second-device commit.
+  capabilities. The fixture proves expiry before commit returns `not_committed`,
+  while expiry retired during another device's commit returns the distinct
+  non-authorizing preparation-expired state. iOS tests prove the atomic Keychain
+  envelope, phase ordering, and exact cached-session re-adoption after
+  definitive cancellation. Physical-device evidence must kill the app after
+  envelope write, server preparation, commit, local sign-out, purge,
+  acknowledgement, and proof removal, plus exercise a second-device commit.
 - **Stable purchase principal**: `PurchasePrincipalResolverTests.swift` proves
   strict legacy/stable DTO decoding and rejects malformed or anonymous provider
   IDs. Source contracts prove the client generates and verifies a 256-bit
@@ -3673,32 +3676,52 @@ The identity test matrix now has two explicit lanes:
   stable mode, and makes no receipt-sync call for ordinary Auth rotation.
   Resolver protocol/DB/handler tests cover exact body shape, hash-only database
   input, route-missing-only fallback, provider fetch, StoreKit/promo separation,
-  rollout changes, and public error mapping. They also require exact
-  current-projection evidence before first pass adoption, locked completion
-  revalidation, and reuse of an active principal's durable pass policy.
-  Webhook/reconciliation tests cover stable-first identity resolution, separate
-  stable and UUID queues, claim fencing, authoritative promo exclusion, and the
-  previous bundle's mutation/scheduler adapters. The adapters share the cutover
-  advisory lock and principal-before-user row-lock order with activation; the
-  disposable `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds
-  an active principal to a previously unrelated Auth UUID, forces completion to
-  win that race, and requires the delayed legacy mutation to leave no state,
-  queue, or a legacy queue, then proves binding removes that evidence-free queue
-  and a later identity update cannot recreate it. Static contracts keep durable
+  rollout changes, and public error mapping. Protocol-3 cases additionally prove
+  exact prepare/claim/cancel request and response shapes, no client-supplied
+  Auth or principal IDs, raw-secret exclusion from database input and logs,
+  fresh- anonymous-only claims, exact completed replay, source-only
+  cancellation, and fail-closed expiry/terminal conflicts. iOS source and unit
+  coverage must keep the `preparing` proof journal durable before prepare, the
+  `prepared` receipt durable before local sign-out, unrelated permanent sessions
+  off ordinary resolution and RevenueCat linking, and the journal present until
+  claim, RevenueCat readiness, a `true` entitlement-session result, and current
+  Auth generation are all verified. Tests also require exact current-projection
+  evidence before first pass adoption, locked completion revalidation, and reuse
+  of an active principal's durable pass policy. Webhook/reconciliation tests
+  cover stable-first identity resolution, separate stable and UUID queues, claim
+  fencing, authoritative promo exclusion, and the previous bundle's
+  mutation/scheduler adapters. The adapters share the cutover advisory lock and
+  principal-before-user row-lock order with activation; the disposable
+  `purchasePrincipalCompatibilityConcurrencyDb.test.ts` test rebinds an active
+  principal to a previously unrelated Auth UUID, forces completion to win that
+  race, and requires the delayed legacy mutation to leave no state, queue, or a
+  legacy queue, then proves binding removes that evidence-free queue and a later
+  identity update cannot recreate it. Static contracts keep durable
   legacy-provider state eligible for its separate compatibility queue rather
   than treating every stable relationship as grounds for deletion. A second
   schedule holds a pre-binding claimed queue, forces stable completion to own
   the user lock before cleanup, and requires the delayed reconciliation apply to
   lose its claim without state or synthetic-event writes.
+  `purchasePrincipalSignoutRotationConcurrencyDb.test.ts` holds preparation
+  against an unrelated permanent resolver, runs both claim-versus-source-cancel
+  lock orders, expires a live preparation before claim, and pauses an ordinary
+  resolver after begin so claim, cancellation, and expiry each prove the
+  terminal `binding_intent_generation_fence` rejects its delayed completion. A
+  later begin must advance above that fence before normal resolution can resume.
+  These are disposable-database tests: a connection-refused self-skip is
+  reported as unexecuted and cannot satisfy release evidence.
   `purchasePrincipalMigrationContract.test.ts` plus
   `purchase_principal_security.sql` cover RLS/grants, capability replay, same-
   install Auth rotation, fixed grant ownership, stable-before-UUID delivery,
-  authoritative cutover, deletion-time audit UUID scrubbing, and rollback-only
-  catalog execution. Source review also requires a failed local sign-out to
-  clear only an unused proof and restore the exact linked provider/entitlement
-  session rather than waiting for a later Auth event. Lifecycle coverage proves
-  foreground activation invokes exact-identity recovery even while the current
-  consent gate is closed; device testing must still prove the live retry.
+  authoritative cutover, direct rotation-RPC denial, permanent/old-anonymous/
+  wrong-proof rejection, deletion and Ghost-merge interlocks, exact claim
+  replay, terminal intent fencing, deletion-time Auth-reference scrubbing, and
+  rollback- only catalog execution. Source review also requires a failed local
+  sign-out to cancel only from the exact restored source and restore the exact
+  linked provider/entitlement session rather than waiting for a later Auth
+  event. Lifecycle coverage proves foreground activation invokes exact-identity
+  recovery even while the current consent gate is closed; device testing must
+  still prove the live retry.
 
 Neither lane's unit/static coverage proves a live RevenueCat/StoreKit identity
 transition or either OAuth provider. The rollout remains release-evidence-
@@ -3717,15 +3740,32 @@ blocked until one exact revision also supplies all of the following:
    **Sign out** → cold relaunch → anonymous session → each provider, account
    switch, deletion, offline retry, first-unlock Keychain unavailability,
    reinstall/new capability, refund, renewal, pass, lifetime, promo-only, and
-   mixed StoreKit/promo state. One installation must retain the same server-
-   issued provider ID through ordinary Auth changes, perform zero receipt syncs
-   or provider transfers, and leave beta/promotion/support access on the owning
-   account. A new installation must require explicit store restore rather than
-   recovering a principal from account sign-in.
+   mixed StoreKit/promo state. Kill once after the local `preparing` journal,
+   once after server preparation, and once after a successful claim response;
+   relaunch must reuse the same rotation proof and permit exactly one fresh-
+   anonymous destination. Restore the source and prove exact cancellation;
+   separately prove expiry stays closed, an older anonymous user is rejected,
+   and an unrelated permanent session cannot call ordinary resolution or link
+   RevenueCat while the journal exists. Inject an entitlement-session failure
+   after a valid claim and require the journal and paid-operation fence to
+   remain until the same destination completes RevenueCat and entitlement
+   verification. One installation must retain the same server-issued provider ID
+   through ordinary Auth changes, perform zero receipt syncs or provider
+   transfers, and leave beta/promotion/support access on the owning account. A
+   new installation must require explicit store restore rather than recovering a
+   principal from account sign-in.
 4. Old-client compatibility, adopted-customer PII scrub, dual-read projection
    comparison, account-grant migration/issuance, aggregate health, canary,
    rollback, and explicit production authorization evidence from the stable
    rollout runbook.
+
+Record these artifacts with
+`docs/release-evidence/purchase-identity-rollout-template.json` schema
+version 2. Its rotation-specific database concurrency, iOS recovery,
+unrelated-session rejection, entitlement-gate retention, live-rotation rollback
+support, required rotation health, and expiry/count-threshold fields must each
+be `passed`; broad `concurrency`, `kill_relaunch`, or
+`required_principal_health` values do not subsume them.
 
 The purchase identity rollout is separately covered by
 `control_purchase_identity_rollout_test.ts`,

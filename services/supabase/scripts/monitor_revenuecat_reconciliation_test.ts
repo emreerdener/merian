@@ -1,12 +1,15 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   assertPurchasePrincipalHealth,
+  assertPurchasePrincipalSignoutRotationHealth,
   assertRevenueCatReconciliationHealth,
   buildRevenueCatMonitorSummary,
   parseRevenueCatMonitorArgs,
   type PurchasePrincipalHealth,
+  type PurchasePrincipalSignoutRotationHealth,
   renderRevenueCatMonitorMarkdown,
   resolvePurchasePrincipalHealthRpcResult,
+  resolvePurchasePrincipalSignoutRotationHealthRpcResult,
   revenueCatBacklogStatus,
   type RevenueCatReconciliationHealth,
   shouldFailRevenueCatMonitor,
@@ -37,10 +40,22 @@ const PRINCIPAL_HEALTHY: PurchasePrincipalHealth = {
   oldest_pending_age_seconds: null,
 };
 
+const ROTATION_HEALTHY: PurchasePrincipalSignoutRotationHealth = {
+  generated_at: "2026-07-26T03:30:00.000Z",
+  prepared_count: 0,
+  expired_prepared_count: 0,
+  oldest_prepared_at: null,
+  oldest_prepared_age_seconds: null,
+  completed_last_24h: 3,
+  cancelled_last_24h: 1,
+};
+
 Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
   assertEquals(parseRevenueCatMonitorArgs([]), {
     warningAfterMinutes: 30,
     criticalAfterMinutes: 60,
+    warningPreparedRotations: 100,
+    criticalPreparedRotations: 500,
     failOn: "warning",
     purchasePrincipalHealthMode: "required",
     summaryJsonPath: null,
@@ -51,6 +66,9 @@ Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
       "--warning-after-minutes=45",
       "--critical-after-minutes",
       "90",
+      "--warning-prepared-rotations",
+      "250",
+      "--critical-prepared-rotations=1000",
       "--fail-on",
       "critical",
       "--purchase-principal-health-mode",
@@ -62,6 +80,8 @@ Deno.test("parseRevenueCatMonitorArgs applies alerting defaults", () => {
     {
       warningAfterMinutes: 45,
       criticalAfterMinutes: 90,
+      warningPreparedRotations: 250,
+      criticalPreparedRotations: 1_000,
       failOn: "critical",
       purchasePrincipalHealthMode: "expand-compatible",
       summaryJsonPath: "/tmp/revenuecat.json",
@@ -81,6 +101,14 @@ Deno.test("parseRevenueCatMonitorArgs rejects unsafe thresholds and arguments", 
   );
   assertThrows(() =>
     parseRevenueCatMonitorArgs(["--critical-after-minutes", "0"])
+  );
+  assertThrows(() =>
+    parseRevenueCatMonitorArgs([
+      "--warning-prepared-rotations",
+      "500",
+      "--critical-prepared-rotations",
+      "500",
+    ])
   );
   assertThrows(() => parseRevenueCatMonitorArgs(["--fail-on", "always"]));
   assertThrows(() =>
@@ -153,6 +181,26 @@ Deno.test("assertPurchasePrincipalHealth validates bounded aggregate health", ()
   );
 });
 
+Deno.test("assertPurchasePrincipalSignoutRotationHealth validates exact aggregate health", () => {
+  assertEquals(
+    assertPurchasePrincipalSignoutRotationHealth([ROTATION_HEALTHY]),
+    ROTATION_HEALTHY,
+  );
+  assertThrows(() => assertPurchasePrincipalSignoutRotationHealth([]));
+  assertThrows(() =>
+    assertPurchasePrincipalSignoutRotationHealth([{
+      ...ROTATION_HEALTHY,
+      prepared_count: 1,
+    }])
+  );
+  assertThrows(() =>
+    assertPurchasePrincipalSignoutRotationHealth([{
+      ...ROTATION_HEALTHY,
+      expired_prepared_count: -1,
+    }])
+  );
+});
+
 Deno.test("purchase-principal health compatibility accepts only its exact missing RPC", () => {
   assertEquals(
     resolvePurchasePrincipalHealthRpcResult(
@@ -204,6 +252,48 @@ Deno.test("purchase-principal health compatibility accepts only its exact missin
     resolvePurchasePrincipalHealthRpcResult(
       null,
       { code: "42501", message: "permission denied" },
+      "expand-compatible",
+    )
+  );
+});
+
+Deno.test("rotation health compatibility accepts only its exact missing RPC", () => {
+  assertEquals(
+    resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+      [ROTATION_HEALTHY],
+      null,
+      "required",
+    ),
+    ROTATION_HEALTHY,
+  );
+  const missingRpc = {
+    code: "PGRST202",
+    message:
+      "Could not find the function public.get_purchase_principal_signout_rotation_health without parameters in the schema cache",
+  };
+  assertEquals(
+    resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+      null,
+      missingRpc,
+      "expand-compatible",
+    ),
+    null,
+  );
+  assertThrows(() =>
+    resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+      null,
+      missingRpc,
+      "required",
+    )
+  );
+  assertThrows(() =>
+    resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+      null,
+      {
+        code: "PGRST202",
+        message:
+          "Could not find the function public.get_purchase_principal_signout_rotation_health_extra without parameters in the schema cache",
+      },
       "expand-compatible",
     )
   );
@@ -281,6 +371,55 @@ Deno.test("revenueCatBacklogStatus alerts on age and expired leases", () => {
     ),
     "critical",
   );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+      { ...ROTATION_HEALTHY, expired_prepared_count: 1 },
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+      {
+        ...ROTATION_HEALTHY,
+        prepared_count: 1,
+        oldest_prepared_at: "2026-07-26T02:30:00.000Z",
+        oldest_prepared_age_seconds: 60 * 60,
+      },
+    ),
+    "critical",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+      { ...ROTATION_HEALTHY, prepared_count: 100 },
+      100,
+      500,
+    ),
+    "warning",
+  );
+  assertEquals(
+    revenueCatBacklogStatus(
+      HEALTHY,
+      30,
+      60,
+      PRINCIPAL_HEALTHY,
+      { ...ROTATION_HEALTHY, prepared_count: 500 },
+      100,
+      500,
+    ),
+    "critical",
+  );
 });
 
 Deno.test("shouldFailRevenueCatMonitor honors the configured severity", () => {
@@ -304,6 +443,7 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
     parseRevenueCatMonitorArgs([]),
     new Date("2026-07-26T03:30:00.000Z"),
     PRINCIPAL_HEALTHY,
+    ROTATION_HEALTHY,
   );
   const markdown = renderRevenueCatMonitorMarkdown(summary);
 
@@ -321,6 +461,10 @@ Deno.test("renderRevenueCatMonitorMarkdown includes backlog and operator action"
     markdown,
     "- Unbound active principals with current StoreKit access: `0`",
   );
+  assertStringIncludes(markdown, "## Stable Sign-Out Rotations");
+  assertStringIncludes(markdown, "- Prepared rotations: `0`");
+  assertStringIncludes(markdown, "- Completed in 24h: `3`");
+  assertStringIncludes(markdown, "Prepared-rotation warning count: `100`");
   assertStringIncludes(markdown, "Do not edit subscription tiers");
   assertStringIncludes(markdown, "discard bound proofs");
 });
@@ -334,6 +478,7 @@ Deno.test("monitor summary exposes an undeployed principal RPC without fake zero
     ]),
     new Date("2026-07-26T03:30:00.000Z"),
     null,
+    null,
   );
   const markdown = renderRevenueCatMonitorMarkdown(summary);
 
@@ -341,6 +486,11 @@ Deno.test("monitor summary exposes an undeployed principal RPC without fake zero
   assertEquals(summary.failure_policy.should_fail, false);
   assertEquals(summary.purchase_principal_health_availability, "not_deployed");
   assertEquals(summary.purchase_principal_health, null);
+  assertEquals(
+    summary.purchase_principal_signout_rotation_health_availability,
+    "not_deployed",
+  );
+  assertEquals(summary.purchase_principal_signout_rotation_health, null);
   assertStringIncludes(markdown, "- Availability: `not_deployed`");
   assertStringIncludes(markdown, "legacy reconciliation");
   assertStringIncludes(markdown, "switch the scheduled monitor to required");

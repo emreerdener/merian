@@ -15,6 +15,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const MONITOR_REQUEST_TIMEOUT_MS = 15_000;
 const MONITOR_MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
+const DEFAULT_WARNING_PREPARED_ROTATIONS = 100;
+const DEFAULT_CRITICAL_PREPARED_ROTATIONS = 500;
 
 export type RevenueCatMonitorFailurePolicy = "critical" | "warning" | "never";
 export type RevenueCatBacklogStatus = "ok" | "warning" | "critical";
@@ -24,6 +26,8 @@ export type PurchasePrincipalHealthAvailability = "available" | "not_deployed";
 export interface RevenueCatMonitorArgs {
   warningAfterMinutes: number;
   criticalAfterMinutes: number;
+  warningPreparedRotations: number;
+  criticalPreparedRotations: number;
   failOn: RevenueCatMonitorFailurePolicy;
   purchasePrincipalHealthMode: PurchasePrincipalHealthMode;
   summaryJsonPath: string | null;
@@ -55,12 +59,24 @@ export interface PurchasePrincipalHealth {
   oldest_pending_age_seconds: number | null;
 }
 
+export interface PurchasePrincipalSignoutRotationHealth {
+  generated_at: string;
+  prepared_count: number;
+  expired_prepared_count: number;
+  oldest_prepared_at: string | null;
+  oldest_prepared_age_seconds: number | null;
+  completed_last_24h: number;
+  cancelled_last_24h: number;
+}
+
 export interface RevenueCatMonitorSummary {
   generated_at: string;
   status: RevenueCatBacklogStatus;
   thresholds: {
     warning_after_minutes: number;
     critical_after_minutes: number;
+    warning_prepared_rotations: number;
+    critical_prepared_rotations: number;
   };
   failure_policy: {
     fail_on: RevenueCatMonitorFailurePolicy;
@@ -69,6 +85,11 @@ export interface RevenueCatMonitorSummary {
   health: RevenueCatReconciliationHealth;
   purchase_principal_health_availability: PurchasePrincipalHealthAvailability;
   purchase_principal_health: PurchasePrincipalHealth | null;
+  purchase_principal_signout_rotation_health_availability:
+    PurchasePrincipalHealthAvailability;
+  purchase_principal_signout_rotation_health:
+    | PurchasePrincipalSignoutRotationHealth
+    | null;
 }
 
 interface HealthRpcError {
@@ -90,15 +111,24 @@ export async function runRevenueCatMonitor(
     maximumResponseBytes: MONITOR_MAXIMUM_RESPONSE_BYTES,
   });
 
-  const [health, purchasePrincipalHealth] = await Promise.all([
+  const [
+    health,
+    purchasePrincipalHealth,
+    purchasePrincipalSignoutRotationHealth,
+  ] = await Promise.all([
     fetchRevenueCatReconciliationHealth(supabase),
     fetchPurchasePrincipalHealth(supabase, args.purchasePrincipalHealthMode),
+    fetchPurchasePrincipalSignoutRotationHealth(
+      supabase,
+      args.purchasePrincipalHealthMode,
+    ),
   ]);
   const summary = buildRevenueCatMonitorSummary(
     health,
     args,
     new Date(),
     purchasePrincipalHealth,
+    purchasePrincipalSignoutRotationHealth,
   );
 
   printSummary(summary);
@@ -137,6 +167,20 @@ async function fetchPurchasePrincipalHealth(
   return resolvePurchasePrincipalHealthRpcResult(data, error, mode);
 }
 
+async function fetchPurchasePrincipalSignoutRotationHealth(
+  supabase: SupabaseClient,
+  mode: PurchasePrincipalHealthMode,
+): Promise<PurchasePrincipalSignoutRotationHealth | null> {
+  const { data, error } = await supabase.rpc(
+    "get_purchase_principal_signout_rotation_health",
+  );
+  return resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+    data,
+    error,
+    mode,
+  );
+}
+
 export function resolvePurchasePrincipalHealthRpcResult(
   data: unknown,
   error: HealthRpcError | null,
@@ -159,6 +203,31 @@ export function resolvePurchasePrincipalHealthRpcResult(
   }
   throw new Error(
     `Purchase principal health returned an error: ${error.message} (Code: ${error.code})`,
+  );
+}
+
+export function resolvePurchasePrincipalSignoutRotationHealthRpcResult(
+  data: unknown,
+  error: HealthRpcError | null,
+  mode: PurchasePrincipalHealthMode,
+): PurchasePrincipalSignoutRotationHealth | null {
+  if (error === null) {
+    return assertPurchasePrincipalSignoutRotationHealth(data);
+  }
+  if (
+    mode === "expand-compatible" &&
+    error.code === "PGRST202" &&
+    error.message.includes(
+      "function public.get_purchase_principal_signout_rotation_health without parameters",
+    )
+  ) {
+    console.warn(
+      "Purchase principal sign-out rotation health is not deployed; continuing in explicit expand-compatible mode.",
+    );
+    return null;
+  }
+  throw new Error(
+    `Purchase principal sign-out rotation health returned an error: ${error.message} (Code: ${error.code})`,
   );
 }
 
@@ -312,25 +381,91 @@ export function assertPurchasePrincipalHealth(
   return health;
 }
 
+export function assertPurchasePrincipalSignoutRotationHealth(
+  value: unknown,
+): PurchasePrincipalSignoutRotationHealth {
+  if (!Array.isArray(value) || value.length !== 1) {
+    throw new Error(
+      "Purchase principal sign-out rotation health response must contain one row.",
+    );
+  }
+  const row = value[0] as Record<string, unknown>;
+  const health: PurchasePrincipalSignoutRotationHealth = {
+    generated_at: timestamp(row.generated_at, "generated_at"),
+    prepared_count: nonnegativeInteger(
+      row.prepared_count,
+      "prepared_count",
+    ),
+    expired_prepared_count: nonnegativeInteger(
+      row.expired_prepared_count,
+      "expired_prepared_count",
+    ),
+    oldest_prepared_at: row.oldest_prepared_at === null
+      ? null
+      : timestamp(row.oldest_prepared_at, "oldest_prepared_at"),
+    oldest_prepared_age_seconds: row.oldest_prepared_age_seconds === null
+      ? null
+      : nonnegativeInteger(
+        row.oldest_prepared_age_seconds,
+        "oldest_prepared_age_seconds",
+      ),
+    completed_last_24h: nonnegativeInteger(
+      row.completed_last_24h,
+      "completed_last_24h",
+    ),
+    cancelled_last_24h: nonnegativeInteger(
+      row.cancelled_last_24h,
+      "cancelled_last_24h",
+    ),
+  };
+  if (
+    (health.oldest_prepared_at === null) !==
+      (health.oldest_prepared_age_seconds === null) ||
+    (health.prepared_count === 0 && health.oldest_prepared_at !== null) ||
+    (health.prepared_count > 0 && health.oldest_prepared_at === null)
+  ) {
+    throw new Error(
+      "Purchase principal sign-out rotation health response is inconsistent.",
+    );
+  }
+  return health;
+}
+
 export function revenueCatBacklogStatus(
   health: RevenueCatReconciliationHealth,
   warningAfterMinutes: number,
   criticalAfterMinutes: number,
   purchasePrincipalHealth: PurchasePrincipalHealth | null = null,
+  purchasePrincipalSignoutRotationHealth:
+    | PurchasePrincipalSignoutRotationHealth
+    | null = null,
+  warningPreparedRotations = DEFAULT_WARNING_PREPARED_ROTATIONS,
+  criticalPreparedRotations = DEFAULT_CRITICAL_PREPARED_ROTATIONS,
 ): RevenueCatBacklogStatus {
   const oldestDueAgeSeconds = Math.max(
     health.oldest_due_age_seconds ?? 0,
     health.oldest_signout_pending_age_seconds ?? 0,
     purchasePrincipalHealth?.oldest_due_age_seconds ?? 0,
     purchasePrincipalHealth?.oldest_pending_age_seconds ?? 0,
+    purchasePrincipalSignoutRotationHealth
+      ?.oldest_prepared_age_seconds ?? 0,
   );
   if (oldestDueAgeSeconds >= criticalAfterMinutes * 60) {
+    return "critical";
+  }
+  if (
+    (purchasePrincipalSignoutRotationHealth?.prepared_count ?? 0) >=
+      criticalPreparedRotations
+  ) {
     return "critical";
   }
   if (
     health.expired_claim_count > 0 ||
     (purchasePrincipalHealth?.expired_claim_count ?? 0) > 0 ||
     (purchasePrincipalHealth?.unbound_active_principal_count ?? 0) > 0 ||
+    (purchasePrincipalSignoutRotationHealth?.expired_prepared_count ?? 0) > 0 ||
+    (purchasePrincipalSignoutRotationHealth?.prepared_count ?? 0) >=
+      warningPreparedRotations ||
     oldestDueAgeSeconds >= warningAfterMinutes * 60
   ) {
     return "warning";
@@ -343,12 +478,18 @@ export function buildRevenueCatMonitorSummary(
   args: RevenueCatMonitorArgs,
   now: Date,
   purchasePrincipalHealth: PurchasePrincipalHealth | null = null,
+  purchasePrincipalSignoutRotationHealth:
+    | PurchasePrincipalSignoutRotationHealth
+    | null = null,
 ): RevenueCatMonitorSummary {
   const status = revenueCatBacklogStatus(
     health,
     args.warningAfterMinutes,
     args.criticalAfterMinutes,
     purchasePrincipalHealth,
+    purchasePrincipalSignoutRotationHealth,
+    args.warningPreparedRotations,
+    args.criticalPreparedRotations,
   );
   return {
     generated_at: now.toISOString(),
@@ -356,6 +497,8 @@ export function buildRevenueCatMonitorSummary(
     thresholds: {
       warning_after_minutes: args.warningAfterMinutes,
       critical_after_minutes: args.criticalAfterMinutes,
+      warning_prepared_rotations: args.warningPreparedRotations,
+      critical_prepared_rotations: args.criticalPreparedRotations,
     },
     failure_policy: {
       fail_on: args.failOn,
@@ -366,6 +509,12 @@ export function buildRevenueCatMonitorSummary(
       ? "not_deployed"
       : "available",
     purchase_principal_health: purchasePrincipalHealth,
+    purchase_principal_signout_rotation_health_availability:
+      purchasePrincipalSignoutRotationHealth === null
+        ? "not_deployed"
+        : "available",
+    purchase_principal_signout_rotation_health:
+      purchasePrincipalSignoutRotationHealth,
   };
 }
 
@@ -396,6 +545,11 @@ export function renderRevenueCatMonitorMarkdown(
       ?.oldest_pending_age_seconds == null
     ? "none"
     : `${summary.purchase_principal_health.oldest_pending_age_seconds}s`;
+  const oldestRotationAge = summary
+      .purchase_principal_signout_rotation_health
+      ?.oldest_prepared_age_seconds == null
+    ? "none"
+    : `${summary.purchase_principal_signout_rotation_health.oldest_prepared_age_seconds}s`;
   const purchasePrincipalLines = summary.purchase_principal_health === null
     ? [
       `- Availability: \`${summary.purchase_principal_health_availability}\``,
@@ -411,10 +565,25 @@ export function renderRevenueCatMonitorMarkdown(
       `- Oldest due age: \`${oldestPrincipalDueAge}\``,
       `- Oldest pending age: \`${oldestPrincipalPendingAge}\``,
     ];
+  const purchasePrincipalRotationLines = summary
+      .purchase_principal_signout_rotation_health === null
+    ? [
+      `- Availability: \`${summary.purchase_principal_signout_rotation_health_availability}\``,
+      "- The aggregate rotation health RPC is not deployed; server-authorized stable sign-out monitoring is unavailable.",
+    ]
+    : [
+      `- Availability: \`${summary.purchase_principal_signout_rotation_health_availability}\``,
+      `- Prepared rotations: \`${summary.purchase_principal_signout_rotation_health.prepared_count}\``,
+      `- Expired prepared rotations: \`${summary.purchase_principal_signout_rotation_health.expired_prepared_count}\``,
+      `- Oldest prepared age: \`${oldestRotationAge}\``,
+      `- Completed in 24h: \`${summary.purchase_principal_signout_rotation_health.completed_last_24h}\``,
+      `- Cancelled in 24h: \`${summary.purchase_principal_signout_rotation_health.cancelled_last_24h}\``,
+    ];
   const operatorAction = summary.status !== "ok"
-    ? "Inspect the reconciliation, stable purchase-principal, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly."
-    : summary.purchase_principal_health === null
-    ? "No legacy backlog action required. Keep expand-compatible mode only until the purchase-principal migration and hosted health-RPC smoke pass, then switch the scheduled monitor to required mode."
+    ? "Inspect the reconciliation, stable purchase-principal, server-authorized rotation, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, expired rotations, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly."
+    : summary.purchase_principal_health === null ||
+        summary.purchase_principal_signout_rotation_health === null
+    ? "No deployed backlog action required. Keep expand-compatible mode only until both purchase-principal migrations and hosted health-RPC smokes pass, then switch the scheduled monitor to required mode."
     : "No action required.";
   return [
     "# RevenueCat Reconciliation Health",
@@ -444,10 +613,16 @@ export function renderRevenueCatMonitorMarkdown(
     "",
     ...purchasePrincipalLines,
     "",
+    "## Stable Sign-Out Rotations",
+    "",
+    ...purchasePrincipalRotationLines,
+    "",
     "## Thresholds",
     "",
     `- Warning after: \`${summary.thresholds.warning_after_minutes}m\``,
     `- Critical after: \`${summary.thresholds.critical_after_minutes}m\``,
+    `- Prepared-rotation warning count: \`${summary.thresholds.warning_prepared_rotations}\``,
+    `- Prepared-rotation critical count: \`${summary.thresholds.critical_prepared_rotations}\``,
     "",
     "## Operator Action",
     "",
@@ -477,10 +652,31 @@ export function parseRevenueCatMonitorArgs(
       "--critical-after-minutes must exceed --warning-after-minutes.",
     );
   }
+  const warningPreparedRotations = parseInteger(
+    values.get("warning-prepared-rotations") ??
+      String(DEFAULT_WARNING_PREPARED_ROTATIONS),
+    "--warning-prepared-rotations",
+    1,
+    1_000_000,
+  );
+  const criticalPreparedRotations = parseInteger(
+    values.get("critical-prepared-rotations") ??
+      String(DEFAULT_CRITICAL_PREPARED_ROTATIONS),
+    "--critical-prepared-rotations",
+    2,
+    10_000_000,
+  );
+  if (criticalPreparedRotations <= warningPreparedRotations) {
+    throw new Error(
+      "--critical-prepared-rotations must exceed --warning-prepared-rotations.",
+    );
+  }
 
   return {
     warningAfterMinutes,
     criticalAfterMinutes,
+    warningPreparedRotations,
+    criticalPreparedRotations,
     failOn: parseFailurePolicy(values.get("fail-on") ?? "warning"),
     purchasePrincipalHealthMode: parsePurchasePrincipalHealthMode(
       values.get("purchase-principal-health-mode") ?? "required",
@@ -500,6 +696,8 @@ function argumentValues(rawArgs: string[]): Map<string, string | boolean> {
   const supported = new Set([
     "warning-after-minutes",
     "critical-after-minutes",
+    "warning-prepared-rotations",
+    "critical-prepared-rotations",
     "fail-on",
     "purchase-principal-health-mode",
     "summary-json",
@@ -652,6 +850,21 @@ function printSummary(summary: RevenueCatMonitorSummary): void {
     `purchase_principal_unbound_active_count: ${
       summary.purchase_principal_health?.unbound_active_principal_count ??
         "unavailable"
+    }`,
+  );
+  console.log(
+    `purchase_principal_signout_rotation_health_availability: ${summary.purchase_principal_signout_rotation_health_availability}`,
+  );
+  console.log(
+    `purchase_principal_signout_prepared_count: ${
+      summary.purchase_principal_signout_rotation_health?.prepared_count ??
+        "unavailable"
+    }`,
+  );
+  console.log(
+    `purchase_principal_signout_newly_expired_count: ${
+      summary.purchase_principal_signout_rotation_health
+        ?.expired_prepared_count ?? "unavailable"
     }`,
   );
   console.log(`should_fail: ${summary.failure_policy.should_fail}`);

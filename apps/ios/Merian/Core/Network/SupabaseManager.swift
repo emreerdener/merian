@@ -22,12 +22,66 @@ private struct RevenueCatPublicIdentity: Decodable {
     }
 }
 
-private struct PendingPurchasePrincipalAuthRotation: Codable, Equatable {
+private struct LegacyPrincipalRotation: Codable, Equatable {
     let sourceUserId: String
     let purchasePrincipalId: String
     let revenueCatAppUserId: String
     let installationCapabilityFingerprint: String
     let startedAt: String
+}
+
+private enum PrincipalRotationLocalState: String, Codable {
+    case preparing
+    case prepared
+}
+
+private struct ServerPrincipalRotation: Codable, Equatable {
+    let protocolVersion: Int
+    let localState: PrincipalRotationLocalState
+    let rotationId: String
+    let rotationSecret: String
+    let sourceUserId: String
+    let purchasePrincipalId: String
+    let revenueCatAppUserId: String
+    let bindingGeneration: Int64
+    let installationCapabilityFingerprint: String
+    let startedAt: String
+    let expiresAt: String?
+}
+
+private enum PendingPurchasePrincipalAuthRotation: Equatable {
+    case legacy(LegacyPrincipalRotation)
+    case server(ServerPrincipalRotation)
+
+    var sourceUserId: String {
+        switch self {
+        case let .legacy(rotation): rotation.sourceUserId
+        case let .server(rotation): rotation.sourceUserId
+        }
+    }
+
+    var purchasePrincipalId: String {
+        switch self {
+        case let .legacy(rotation): rotation.purchasePrincipalId
+        case let .server(rotation): rotation.purchasePrincipalId
+        }
+    }
+
+    var revenueCatAppUserId: String {
+        switch self {
+        case let .legacy(rotation): rotation.revenueCatAppUserId
+        case let .server(rotation): rotation.revenueCatAppUserId
+        }
+    }
+
+    var installationCapabilityFingerprint: String {
+        switch self {
+        case let .legacy(rotation):
+            rotation.installationCapabilityFingerprint
+        case let .server(rotation):
+            rotation.installationCapabilityFingerprint
+        }
+    }
 }
 
 enum SupabaseAuthTransitionError: LocalizedError {
@@ -1151,15 +1205,41 @@ final class AuthTransitionSingleFlight {
                                     for: session.user,
                                 )
                         }
+                        if !session.user.isAnonymous,
+                           RevenueCatManager.shared
+                            .isPurchaseIdentityHandoffPending,
+                           !isUserSignOutTransitionInProgress {
+                            await abandonPendingPurchasePrincipalRotationIfSourceRestored(
+                                sourceUserId: session.user.id
+                            )
+                            await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
+                                sourceUserId: session.user.id.uuidString
+                            )
+                            if !RevenueCatManager.shared
+                                .isPurchaseIdentityHandoffPending {
+                                didLinkExternalIdentity = await self
+                                    .ensureTelemetryLinkedWhenSafe(
+                                        for: session.user
+                                    )
+                            }
+                        }
                     }
                     guard authSessionGeneration == eventAuthGeneration,
                           currentUser?.id == session.user.id else {
                         continue
                     }
-                    await EntitlementManager.shared.beginSession(
-                        userID: session.user.id,
-                        client: client
-                    )
+                    if RevenueCatManager.shared
+                        .isPurchaseIdentityHandoffPending {
+                        // An unrelated permanent session must not gain either
+                        // provider-backed or account-backed paid readiness
+                        // while another source's sign-out rotation is live.
+                        EntitlementManager.shared.handleSignOut()
+                    } else {
+                        await EntitlementManager.shared.beginSession(
+                            userID: session.user.id,
+                            client: client
+                        )
+                    }
                     if didLinkExternalIdentity {
                         // Trigger historical sync only when the active user identity changes.
                         // The Supabase SDK fires two auth events on cold start (local cache +
@@ -1176,16 +1256,6 @@ final class AuthTransitionSingleFlight {
                                 await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(modelContext: context)
                             }
                         }
-                    }
-                    if !TestExecutionCoordinator.isRunningTests,
-                       !session.user.isAnonymous,
-                       !isUserSignOutTransitionInProgress {
-                        await abandonPendingPurchasePrincipalRotationIfSourceRestored(
-                            sourceUserId: session.user.id
-                        )
-                        await abandonPendingSignOutPurchaseHandoffIfSourceRestored(
-                            sourceUserId: session.user.id.uuidString
-                        )
                     }
                 case .awaitingRefresh(let userId):
                     guard !isSigningOut else {
@@ -1469,7 +1539,8 @@ final class AuthTransitionSingleFlight {
         isAnonymous: Bool,
         purchaseIdentityHandoffPending: Bool
     ) -> Bool {
-        isAnonymous && purchaseIdentityHandoffPending
+        _ = isAnonymous
+        return purchaseIdentityHandoffPending
     }
 
     nonisolated static func shouldRestoreSourceIdentityAfterFailedSignOut(
@@ -3057,8 +3128,15 @@ final class AuthTransitionSingleFlight {
                 )
                 return false
             }
+            guard let startingUser else { return false }
+            await abandonPendingPurchasePrincipalRotationIfSourceRestored(
+                sourceUserId: startingUser.id,
+                ownedBy: transition
+            )
             do {
-                try clearPendingPurchasePrincipalAuthRotation()
+                guard try loadPendingPurchasePrincipalAuthRotation() == nil else {
+                    return false
+                }
                 RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
                     pendingHandoff != nil
                 )
@@ -3164,7 +3242,8 @@ final class AuthTransitionSingleFlight {
                           self.authSessionGeneration == sourceAuthGeneration else {
                         throw SupabaseAuthTransitionError.signOutSessionChanged
                     }
-                    try self.persistPendingPurchasePrincipalAuthRotation(
+                    try await self
+                        .prepareAndPersistPendingPurchasePrincipalAuthRotation(
                         sourceUserId: startingUser.id,
                         binding: binding
                     )
@@ -3510,11 +3589,14 @@ final class AuthTransitionSingleFlight {
                 )
                 return false
             }
-            await EntitlementManager.shared.beginSession(
+            guard await EntitlementManager.shared.beginSession(
                 userID: session.user.id,
                 client: client,
                 authTransitionOwner: transition
-            )
+            ) else {
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseContinuityPending
+            }
             let verifiedSession = try await client.auth.session
             guard verifiedSession.user.isAnonymous,
                   verifiedSession.user.id == session.user.id,
@@ -4593,7 +4675,7 @@ final class AuthTransitionSingleFlight {
         expectedAuthGeneration: UInt64?,
         ownedBy transition: AuthTransitionToken?
     ) async -> Bool {
-        let pending: PendingPurchasePrincipalAuthRotation
+        let pending: ServerPrincipalRotation
         do {
             guard let loaded = try loadPendingPurchasePrincipalAuthRotation() else {
                 let legacyPending = try loadPendingSignOutPurchaseHandoff() != nil
@@ -4602,7 +4684,16 @@ final class AuthTransitionSingleFlight {
                 )
                 return true
             }
-            pending = loaded
+            guard case let .server(serverRotation) = loaded,
+                  serverRotation.localState == .prepared else {
+                // A legacy client-only marker or a preparation that never
+                // durably received its server expiry cannot authorize an Auth
+                // destination. Keep the purchase boundary closed.
+                RevenueCatManager.shared
+                    .setPurchaseIdentityHandoffPending(true)
+                return false
+            }
+            pending = serverRotation
         } catch {
             RevenueCatManager.shared.setPurchaseIdentityHandoffPending(true)
             return false
@@ -4623,30 +4714,55 @@ final class AuthTransitionSingleFlight {
                 throw SupabaseAuthTransitionError.signOutSessionChanged
             }
 
-            _ = await ensureTelemetryLinkedIfNeeded(
-                for: session.user,
-                expectedAuthGeneration: generation,
-                expectedCapabilityFingerprint:
-                    pending.installationCapabilityFingerprint,
-                allowsCapabilityCreation: false
-            )
-            guard let binding = activePurchasePrincipalBinding,
+            guard let rotationId = UUID(uuidString: pending.rotationId) else {
+                throw SupabaseAuthTransitionError
+                    .purchasePrincipalRotationPersistenceFailed
+            }
+            let binding = try await purchasePrincipalResolver
+                .claimSignoutRotation(
+                    rotationId: rotationId,
+                    rotationSecret: pending.rotationSecret,
+                    expectedCapabilityFingerprint:
+                        pending.installationCapabilityFingerprint
+                )
+            guard authSessionGeneration == generation,
+                  currentUser?.id == session.user.id,
+                  client.auth.currentSession?.user.id == session.user.id,
                   binding.mode == .stable,
                   binding.purchasePrincipalId?.uuidString.lowercased()
                     == pending.purchasePrincipalId.lowercased(),
                   binding.revenueCatAppUserId == pending.revenueCatAppUserId,
-                  RevenueCatManager.shared.isIdentityReady,
+                  binding.bindingGeneration.map({
+                      $0 > pending.bindingGeneration
+                  }) == true else {
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseContinuityPending
+            }
+
+            activePurchasePrincipalBinding = binding
+            RevenueCatManager.shared.beginPurchaseIdentityResolution()
+            await RevenueCatManager.shared.linkResolvedPurchasePrincipal(
+                binding,
+                authUserID: session.user.id,
+                accountKind: RevenueCatAccountMutationPolicy.accountKind(
+                    isAnonymous: true
+                )
+            )
+            guard RevenueCatManager.shared.isIdentityReady,
                   RevenueCatManager.shared.linkedAuthUserID == session.user.id,
                   authSessionGeneration == generation else {
                 throw SupabaseAuthTransitionError
                     .signOutPurchaseContinuityPending
             }
 
-            await EntitlementManager.shared.beginSession(
+            guard await EntitlementManager.shared.beginSession(
                 userID: session.user.id,
                 client: client,
                 authTransitionOwner: transition
-            )
+            ) else {
+                throw SupabaseAuthTransitionError
+                    .signOutPurchaseContinuityPending
+            }
             let verifiedSession = try await client.auth.session
             guard verifiedSession.user.isAnonymous,
                   verifiedSession.user.id == session.user.id,
@@ -4659,8 +4775,12 @@ final class AuthTransitionSingleFlight {
             RevenueCatManager.shared.setPurchaseIdentityHandoffPending(
                 legacyPending
             )
+            if !legacyPending {
+                await RevenueCatManager.shared.refreshCustomerInfo()
+            }
+            lastLinkedUserId = session.user.id
             MerianLog.auth.debug(
-                "Rebound the stable purchase identity after sign-out."
+                "Claimed the server-authorized stable purchase identity after sign-out."
             )
             return true
         } catch {
@@ -4905,44 +5025,63 @@ final class AuthTransitionSingleFlight {
         ) else {
             return nil
         }
-        guard let pending = try? JSONDecoder().decode(
-            PendingPurchasePrincipalAuthRotation.self,
+        if let pending = try? JSONDecoder().decode(
+            ServerPrincipalRotation.self,
+            from: data
+        ) {
+            guard pending.protocolVersion == 3,
+                  UUID(uuidString: pending.rotationId) != nil,
+                  pending.rotationSecret.range(
+                    of: #"^[A-Za-z0-9_-]{43}$"#,
+                    options: .regularExpression
+                  ) != nil,
+                  UUID(uuidString: pending.sourceUserId) != nil,
+                  UUID(uuidString: pending.purchasePrincipalId) != nil,
+                  pending.bindingGeneration > 0,
+                  PurchasePrincipalBinding.isValidRevenueCatAppUserId(
+                    pending.revenueCatAppUserId
+                  ),
+                  PurchasePrincipalCapabilityPolicy.isValidFingerprint(
+                    pending.installationCapabilityFingerprint
+                  ),
+                  ISO8601DateFormatter().date(from: pending.startedAt) != nil,
+                  (pending.localState == .preparing && pending.expiresAt == nil)
+                    || (
+                        pending.localState == .prepared
+                            && pending.expiresAt.map(
+                                PurchasePrincipalBinding.isValidServerTimestamp
+                            ) == true
+                    ) else {
+                throw SupabaseAuthTransitionError
+                    .purchasePrincipalRotationPersistenceFailed
+            }
+            return .server(pending)
+        }
+        if let legacy = try? JSONDecoder().decode(
+            LegacyPrincipalRotation.self,
             from: data
         ),
-        UUID(uuidString: pending.sourceUserId) != nil,
-        UUID(uuidString: pending.purchasePrincipalId) != nil,
+        UUID(uuidString: legacy.sourceUserId) != nil,
+        UUID(uuidString: legacy.purchasePrincipalId) != nil,
         PurchasePrincipalBinding.isValidRevenueCatAppUserId(
-            pending.revenueCatAppUserId
+            legacy.revenueCatAppUserId
         ),
         PurchasePrincipalCapabilityPolicy.isValidFingerprint(
-            pending.installationCapabilityFingerprint
+            legacy.installationCapabilityFingerprint
         ),
-        ISO8601DateFormatter().date(from: pending.startedAt) != nil else {
-            throw SupabaseAuthTransitionError
-                .purchasePrincipalRotationPersistenceFailed
+        ISO8601DateFormatter().date(from: legacy.startedAt) != nil {
+            // Protocol-v1 was client-only evidence. It may be retired only
+            // from its exact restored source; it can never authorize a new
+            // anonymous binding.
+            return .legacy(legacy)
         }
-        return pending
+        throw SupabaseAuthTransitionError
+            .purchasePrincipalRotationPersistenceFailed
     }
 
     private func persistPendingPurchasePrincipalAuthRotation(
-        sourceUserId: UUID,
-        binding: PurchasePrincipalBinding
+        _ pending: ServerPrincipalRotation
     ) throws {
-        guard binding.mode == .stable,
-              let principalId = binding.purchasePrincipalId,
-              let appUserId = binding.revenueCatAppUserId else {
-            throw SupabaseAuthTransitionError
-                .purchasePrincipalRotationPersistenceFailed
-        }
-        let capabilityFingerprint = try purchasePrincipalResolver
-            .currentInstallationCapabilityFingerprint()
-        let pending = PendingPurchasePrincipalAuthRotation(
-            sourceUserId: sourceUserId.uuidString.lowercased(),
-            purchasePrincipalId: principalId.uuidString.lowercased(),
-            revenueCatAppUserId: appUserId,
-            installationCapabilityFingerprint: capabilityFingerprint,
-            startedAt: ISO8601DateFormatter().string(from: Date())
-        )
         let data = try JSONEncoder().encode(pending)
         guard KeychainManager.shared.set(
             data,
@@ -4955,6 +5094,64 @@ final class AuthTransitionSingleFlight {
             throw SupabaseAuthTransitionError
                 .purchasePrincipalRotationPersistenceFailed
         }
+    }
+
+    private func prepareAndPersistPendingPurchasePrincipalAuthRotation(
+        sourceUserId: UUID,
+        binding: PurchasePrincipalBinding
+    ) async throws {
+        guard binding.mode == .stable,
+              let principalId = binding.purchasePrincipalId,
+              let appUserId = binding.revenueCatAppUserId,
+              let bindingGeneration = binding.bindingGeneration,
+              bindingGeneration > 0 else {
+            throw SupabaseAuthTransitionError
+                .purchasePrincipalRotationPersistenceFailed
+        }
+        let capabilityFingerprint = try purchasePrincipalResolver
+            .currentInstallationCapabilityFingerprint()
+        let rotationId = UUID()
+        let rotationSecret = try PurchasePrincipalResolver
+            .generateSignoutRotationSecret()
+        let draft = ServerPrincipalRotation(
+            protocolVersion: 3,
+            localState: .preparing,
+            rotationId: rotationId.uuidString.lowercased(),
+            rotationSecret: rotationSecret,
+            sourceUserId: sourceUserId.uuidString.lowercased(),
+            purchasePrincipalId: principalId.uuidString.lowercased(),
+            revenueCatAppUserId: appUserId,
+            bindingGeneration: bindingGeneration,
+            installationCapabilityFingerprint: capabilityFingerprint,
+            startedAt: ISO8601DateFormatter().string(from: Date()),
+            expiresAt: nil
+        )
+        // Persist the idempotency key and proof before network I/O. The Auth
+        // session is still intact, and a relaunch can safely cancel an absent,
+        // in-flight, or already-prepared server reservation with the same ID.
+        try persistPendingPurchasePrincipalAuthRotation(draft)
+        let preparation = try await purchasePrincipalResolver
+            .prepareSignoutRotation(
+                rotationId: rotationId,
+                rotationSecret: rotationSecret,
+                expectedBinding: binding,
+                expectedCapabilityFingerprint: capabilityFingerprint
+            )
+        let prepared = ServerPrincipalRotation(
+            protocolVersion: 3,
+            localState: .prepared,
+            rotationId: rotationId.uuidString.lowercased(),
+            rotationSecret: rotationSecret,
+            sourceUserId: sourceUserId.uuidString.lowercased(),
+            purchasePrincipalId:
+                preparation.purchasePrincipalId.uuidString.lowercased(),
+            revenueCatAppUserId: preparation.revenueCatAppUserId,
+            bindingGeneration: preparation.bindingGeneration,
+            installationCapabilityFingerprint: capabilityFingerprint,
+            startedAt: draft.startedAt,
+            expiresAt: preparation.expiresAt
+        )
+        try persistPendingPurchasePrincipalAuthRotation(prepared)
     }
 
     private func clearPendingPurchasePrincipalAuthRotation() throws {
@@ -4996,10 +5193,32 @@ final class AuthTransitionSingleFlight {
             if let pending = try loadPendingPurchasePrincipalAuthRotation(),
                pending.sourceUserId.lowercased()
                 == sourceUserId.uuidString.lowercased() {
+                switch pending {
+                case .legacy:
+                    // The pre-v3 marker never created server state. It is safe
+                    // to retire only because its exact source is still active.
+                    break
+                case let .server(rotation):
+                    guard let rotationId = UUID(
+                        uuidString: rotation.rotationId
+                    ) else {
+                        return
+                    }
+                    _ = try await purchasePrincipalResolver
+                        .cancelSignoutRotation(
+                            rotationId: rotationId,
+                            rotationSecret: rotation.rotationSecret,
+                            expectedCapabilityFingerprint:
+                                rotation.installationCapabilityFingerprint
+                        )
+                }
                 guard transition.map(ownsAuthTransition) ??
                         accountWorkLease.map(isAccountBoundWorkLeaseCurrent)
                         ?? false,
-                      client.auth.currentSession?.user.id == sourceUserId else {
+                      client.auth.currentSession?.user.id == sourceUserId,
+                      let reverified = try? await client.auth.session,
+                      !reverified.user.isAnonymous,
+                      reverified.user.id == sourceUserId else {
                     return
                 }
                 try clearPendingPurchasePrincipalAuthRotation()

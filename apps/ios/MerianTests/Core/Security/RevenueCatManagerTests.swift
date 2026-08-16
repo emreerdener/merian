@@ -245,6 +245,19 @@ final class RevenueCatManagerTests: XCTestCase {
         )
     }
 
+    func testPendingStableRotationClosesEveryPaidReadinessSurface() {
+        revenueCatManager.isSubscribed = true
+        revenueCatManager.isProActive = true
+
+        revenueCatManager.setPurchaseIdentityHandoffPending(true)
+
+        XCTAssertTrue(revenueCatManager.isPurchaseIdentityHandoffPending)
+        XCTAssertFalse(revenueCatManager.isSubscribed)
+        XCTAssertFalse(revenueCatManager.isProActive)
+        XCTAssertFalse(revenueCatManager.canStartProScan)
+        XCTAssertFalse(revenueCatManager.isPurchaseIdentityReady)
+    }
+
     func testStablePrincipalRebindAlwaysClosesPriorPaidReadiness() {
         let firstAuthUserID = UUID()
         let secondAuthUserID = UUID()

@@ -36,7 +36,7 @@ BEGIN
       'legacy',
       'dual_read',
       1,
-      2,
+      3,
       NULL
     );
     RAISE EXCEPTION 'wrong Supabase project target was accepted';
@@ -62,7 +62,7 @@ BEGIN
       'legacy',
       'dual_read',
       1,
-      2,
+      3,
       NULL
     );
     RAISE EXCEPTION 'wrong database system target was accepted';
@@ -88,13 +88,13 @@ BEGIN
     'legacy',
     'dual_read',
     1,
-    2,
+    3,
     NULL
   );
   IF receipt.already_applied
      OR receipt.principal_mode <> 'stable'
      OR receipt.account_grant_mode <> 'dual_read'
-     OR receipt.minimum_client_protocol <> 2 THEN
+     OR receipt.minimum_client_protocol <> 3 THEN
     RAISE EXCEPTION 'stable rollout receipt is invalid';
   END IF;
 
@@ -113,7 +113,7 @@ BEGIN
     'legacy',
     'dual_read',
     1,
-    2,
+    3,
     NULL
   );
   IF NOT receipt.already_applied THEN
@@ -135,7 +135,7 @@ BEGIN
       'legacy',
       'dual_read',
       1,
-      2,
+      3,
       NULL
     );
     RAISE EXCEPTION 'mismatched rollout replay was accepted';
@@ -159,8 +159,8 @@ BEGIN
     REPEAT('9', 64),
     'stable',
     'dual_read',
-    2,
-    2,
+    3,
+    3,
     NULL
   );
   PERFORM internal.apply_purchase_identity_rollout_operation(
@@ -176,8 +176,8 @@ BEGIN
     REPEAT('d', 64),
     'stable',
     'authoritative',
-    2,
-    2,
+    3,
+    3,
     '31000000-0000-4000-8000-000000000002'
   );
   PERFORM internal.apply_purchase_identity_rollout_operation(
@@ -193,8 +193,8 @@ BEGIN
     REPEAT('1', 64),
     'stable',
     'dual_read',
-    2,
-    2,
+    3,
+    3,
     '31000000-0000-4000-8000-000000000001'
   );
 
@@ -211,8 +211,8 @@ BEGIN
     REPEAT('5', 64),
     'legacy',
     'dual_read',
-    2,
-    2,
+    3,
+    3,
     NULL
   );
   BEGIN
@@ -229,8 +229,8 @@ BEGIN
       REPEAT('e', 64),
       'stable',
       'dual_read',
-      2,
-      2,
+      3,
+      3,
       '31000000-0000-4000-8000-000000000001'
     );
     RAISE EXCEPTION 'a consumed rollback reference was reused';
@@ -243,7 +243,7 @@ BEGIN
   WHERE config.config_key = 'current';
   IF current_config.principal_mode <> 'stable'
      OR current_config.account_grant_mode <> 'dual_read'
-     OR current_config.minimum_client_protocol <> 2 THEN
+     OR current_config.minimum_client_protocol <> 3 THEN
     RAISE EXCEPTION 'failed rollback reuse changed rollout state';
   END IF;
 
@@ -260,8 +260,8 @@ BEGIN
     REPEAT('f', 64),
     'stable',
     'dual_read',
-    2,
-    2,
+    3,
+    3,
     '31000000-0000-4000-8000-000000000005'
   );
 
@@ -270,7 +270,7 @@ BEGIN
   WHERE config.config_key = 'current';
   IF current_config.principal_mode <> 'legacy'
      OR current_config.account_grant_mode <> 'dual_read'
-     OR current_config.minimum_client_protocol <> 2
+     OR current_config.minimum_client_protocol <> 3
      OR (
        SELECT COUNT(*)
        FROM internal.purchase_identity_rollout_operations
@@ -297,8 +297,8 @@ BEGIN
       REPEAT('4', 64),
       'legacy',
       'dual_read',
-      2,
-      2,
+      3,
+      3,
       NULL
     );
     RAISE EXCEPTION 'service role invoked the owner-only rollout routine';

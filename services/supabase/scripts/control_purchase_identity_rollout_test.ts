@@ -68,6 +68,21 @@ Deno.test("evidence parser rejects unknown fields and cutover requires every ext
   );
   validatePurchaseIdentityRolloutEvidence(parsed, baseArgs());
 
+  const legacyVersion = JSON.parse(JSON.stringify(evidence)) as Record<
+    string,
+    unknown
+  >;
+  legacyVersion.schema_version = 1;
+  assertThrows(
+    () =>
+      validatePurchaseIdentityRolloutEvidence(
+        parsePurchaseIdentityRolloutEvidence(JSON.stringify(legacyVersion)),
+        baseArgs(),
+      ),
+    Error,
+    "evidence_identity_mismatch",
+  );
+
   const unknown = { ...evidence, customer_id: "must-not-be-accepted" };
   assertThrows(
     () => parsePurchaseIdentityRolloutEvidence(JSON.stringify(unknown)),
@@ -100,6 +115,14 @@ Deno.test("evidence parser rejects unknown fields and cutover requires every ext
   );
 
   evidence.ios.kill_relaunch = "passed";
+  evidence.monitoring.required_signout_rotation_health = "pending";
+  assertThrows(
+    () => validatePurchaseIdentityRolloutEvidence(evidence, baseArgs()),
+    Error,
+    "required_evidence_incomplete",
+  );
+
+  evidence.monitoring.required_signout_rotation_health = "passed";
   evidence.reviewed_at = "2026-08-10T00:00:00.000Z";
   assertThrows(
     () =>
@@ -127,8 +150,21 @@ Deno.test("stable cutover changes only principal mode and minimum protocol", () 
   assertEquals(plan.after, {
     principal_mode: "stable",
     account_grant_mode: "dual_read",
-    minimum_client_protocol: 2,
+    minimum_client_protocol: 3,
   });
+});
+
+Deno.test("stable cutover rejects clients without server-owned rotation proof", () => {
+  assertThrows(
+    () =>
+      buildPurchaseIdentityRolloutPlan(
+        baseArgs({ minimumClientProtocol: 2 }),
+        EVIDENCE_SHA,
+        cleanLegacySnapshot(),
+      ),
+    Error,
+    "invalid_stable_cutover_state",
+  );
 });
 
 Deno.test("cutover fails on queue or lease debt while rollback remains available", () => {
@@ -150,6 +186,17 @@ Deno.test("cutover fails on queue or lease debt while rollback remains available
   rollbackEvidence.revenuecat.refund = "pending";
   rollbackEvidence.revenuecat.anonymous_app_user_id_count = -1;
   rollbackEvidence.account_grants.projection_divergence_count = -1;
+  rollbackEvidence.compatibility.live_rotation_rollback_support = "pending";
+  assertThrows(
+    () =>
+      validatePurchaseIdentityRolloutEvidence(
+        rollbackEvidence,
+        rollbackArgs,
+      ),
+    Error,
+    "required_evidence_incomplete",
+  );
+  rollbackEvidence.compatibility.live_rotation_rollback_support = "passed";
   validatePurchaseIdentityRolloutEvidence(
     rollbackEvidence,
     rollbackArgs,
@@ -157,7 +204,7 @@ Deno.test("cutover fails on queue or lease debt while rollback remains available
   const stableSnapshot: PurchaseIdentityRolloutDatabaseSnapshot = {
     ...unhealthy,
     principal_mode: "stable",
-    minimum_client_protocol: 2,
+    minimum_client_protocol: 3,
   };
   const plan = buildPurchaseIdentityRolloutPlan(
     rollbackArgs,
@@ -165,13 +212,13 @@ Deno.test("cutover fails on queue or lease debt while rollback remains available
     stableSnapshot,
   );
   assertEquals(plan.after.principal_mode, "legacy");
-  assertEquals(plan.after.minimum_client_protocol, 2);
+  assertEquals(plan.after.minimum_client_protocol, 3);
 });
 
 Deno.test("account-grant authority requires issuance and rollback evidence", () => {
   const args = baseArgs({
     action: "enable_authoritative",
-    minimumClientProtocol: 2,
+    minimumClientProtocol: 3,
   });
   const evidence = completeEvidence();
   evidence.account_grants.issuance_cutover = "pending";
@@ -191,7 +238,7 @@ Deno.test("account-grant authority requires issuance and rollback evidence", () 
     {
       ...cleanLegacySnapshot(),
       principal_mode: "stable",
-      minimum_client_protocol: 2,
+      minimum_client_protocol: 3,
     },
   );
   assertEquals(plan.after.account_grant_mode, "authoritative");
@@ -316,7 +363,7 @@ function baseCLI(): string[] {
     "--source-sha",
     SOURCE_SHA,
     "--minimum-client-protocol",
-    "2",
+    "3",
     "--evidence-json",
     "evidence.json",
     "--operation-id",
@@ -337,7 +384,7 @@ function baseArgs(
     action: "enable_stable",
     target: "production",
     sourceSha: SOURCE_SHA,
-    minimumClientProtocol: 2,
+    minimumClientProtocol: 3,
     evidenceJsonPath: "evidence.json",
     operationId: OPERATION_ID,
     approvalSha256: APPROVAL_SHA,
@@ -370,7 +417,7 @@ function cleanLegacySnapshot(): PurchaseIdentityRolloutDatabaseSnapshot {
 
 function completeEvidence(): PurchaseIdentityRolloutEvidence {
   return {
-    schema_version: 1,
+    schema_version: 2,
     source_sha: SOURCE_SHA,
     reviewed_at: new Date().toISOString(),
     artifacts: {
@@ -389,6 +436,7 @@ function completeEvidence(): PurchaseIdentityRolloutEvidence {
       disposable_replay: "passed",
       pgtap: "passed",
       concurrency: "passed",
+      signout_rotation_concurrency: "passed",
       lint: "passed",
       security_advisor: "passed",
     },
@@ -402,6 +450,9 @@ function completeEvidence(): PurchaseIdentityRolloutEvidence {
       offline_retry: "passed",
       account_switch: "passed",
       account_deletion: "passed",
+      signout_rotation_recovery: "passed",
+      signout_rotation_unrelated_session_rejection: "passed",
+      signout_rotation_entitlement_gate: "passed",
     },
     revenuecat: {
       restore_behavior: "transfer_to_new_app_user_id",
@@ -424,9 +475,12 @@ function completeEvidence(): PurchaseIdentityRolloutEvidence {
       old_client_new_backend: "passed",
       legacy_handoff_retained: "passed",
       stable_rollback_rehearsal: "passed",
+      live_rotation_rollback_support: "passed",
     },
     monitoring: {
       required_principal_health: "passed",
+      required_signout_rotation_health: "passed",
+      signout_rotation_expiry_and_thresholds: "passed",
       queue_and_lease_health: "passed",
     },
     account_grants: {

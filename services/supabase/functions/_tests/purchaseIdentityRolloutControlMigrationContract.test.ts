@@ -16,6 +16,22 @@ const baseMigration = normalized(
     ),
   ),
 );
+const rotationMigration = normalized(
+  await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260816033107_add_stable_purchase_principal_signout_rotations.sql",
+      import.meta.url,
+    ),
+  ),
+);
+const securityFixture = normalized(
+  await Deno.readTextFile(
+    new URL(
+      "../../tests/purchase_identity_rollout_control_security.sql",
+      import.meta.url,
+    ),
+  ),
+);
 const tool = normalized(
   await Deno.readTextFile(
     new URL(
@@ -109,6 +125,36 @@ Deno.test("rollout mutation is owner-only, replay-safe, and changes one axis", (
   );
 });
 
+Deno.test("stable rollout fixtures honor the protocol-3 rotation floor", () => {
+  assert(
+    rotationMigration.includes(
+      "new.principal_mode = 'stable' and new.minimum_client_protocol < 3",
+    ),
+    "The stable rollout database guard must retain the protocol-3 floor.",
+  );
+
+  const stableTargets = [
+    ...securityFixture.matchAll(
+      /'enable_stable', repeat\('[0-9a-f]', 40\), repeat\('[0-9a-f]', 64\), repeat\('[0-9a-f]', 64\), repeat\('[0-9a-f]', 64\), 'legacy', 'dual_read', (\d+), (\d+), (?:null|'[^']+')/g,
+    ),
+  ];
+  assertEquals(stableTargets.length, 7);
+  for (const target of stableTargets) {
+    assert(
+      Number(target[2]) >= 3,
+      "Every pgTAP stable activation must target client protocol 3 or newer.",
+    );
+  }
+  assert(
+    securityFixture.includes("receipt.minimum_client_protocol <> 3"),
+    "The pgTAP receipt must prove the protocol-3 activation state.",
+  );
+  assert(
+    securityFixture.includes("current_config.minimum_client_protocol <> 3"),
+    "The pgTAP rollback sequence must preserve the protocol-3 minimum.",
+  );
+});
+
 Deno.test("rollout tool is dry-run-first and binds apply to exact evidence", () => {
   for (
     const fragment of [
@@ -133,6 +179,13 @@ Deno.test("rollout tool is dry-run-first and binds apply to exact evidence", () 
       "auth_rotation_customer_transfer_count !== 0",
       "projection_divergence_count !== 0",
       "required_principal_health",
+      "signout_rotation_concurrency",
+      "signout_rotation_recovery",
+      "signout_rotation_unrelated_session_rejection",
+      "signout_rotation_entitlement_gate",
+      "live_rotation_rollback_support",
+      "required_signout_rotation_health",
+      "signout_rotation_expiry_and_thresholds",
       "rollout_health_not_clean",
     ]
   ) {

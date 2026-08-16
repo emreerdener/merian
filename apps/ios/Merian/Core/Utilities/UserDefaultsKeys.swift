@@ -429,8 +429,10 @@ enum KeychainKeys {
     /// stable principal. It blocks later missing-route or legacy fallback.
     static let purchasePrincipalStableActivationFingerprint =
         "Merian_PurchasePrincipalStableActivationFingerprint_v1"
-    /// Write-ahead marker retained across a local Auth rotation until the same
-    /// stable purchase principal is server-bound to the replacement session.
+    /// Write-ahead journal for a server-prepared, capability-bound Auth
+    /// rotation. The raw one-use proof stays device-only until the exact fresh
+    /// anonymous destination claims it; the v1 key also recognizes older
+    /// client-only markers and keeps them fail-closed.
     static let pendingPurchasePrincipalAuthRotation =
         "Merian_PendingPurchasePrincipalAuthRotation_v1"
     /// Device-only proof used only to recover or acknowledge a deletion that

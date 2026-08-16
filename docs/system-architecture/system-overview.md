@@ -1,24 +1,37 @@
 # Naturebook System Architecture Overview
 
-Naturebook is a biological field identification app for iOS. Point the camera at any plant, insect, fungus, or animal — or describe a subject by voice in the Describe mode — and Naturebook identifies it using Gemini AI, records GPS telemetry and weather context, and builds a personal species journal that works fully offline. The repository, Xcode project, targets, modules, and stable service identifiers retain the Merian engineering identity.
+Naturebook is a biological field identification app for iOS. Point the camera at
+any plant, insect, fungus, or animal — or describe a subject by voice in the
+Describe mode — and Naturebook identifies it using Gemini AI, records GPS
+telemetry and weather context, and builds a personal species journal that works
+fully offline. The repository, Xcode project, targets, modules, and stable
+service identifiers retain the Merian engineering identity.
 
-Naturebook is built around a "Zero-OOM" (Out Of Memory) design philosophy targeting stable, native performance on iOS hardware. Expensive machine learning work is offloaded to Supabase Serverless Edge infrastructure to protect device battery and memory.
+Naturebook is built around a "Zero-OOM" (Out Of Memory) design philosophy
+targeting stable, native performance on iOS hardware. Expensive machine learning
+work is offloaded to Supabase Serverless Edge infrastructure to protect device
+battery and memory.
 
 ## High-Level Pipeline
 
 When the user captures an image or imports one from Photos, the architecture
 triggers a coordinated sequence of container-owned services and scoped legacy
-singletons. A shared Photos image first
-passes through `MerianApp.onOpenURL` and `ExternalImageImportStore`, which owns a
-durable app-sandbox copy before Capture begins this pipeline:
+singletons. A shared Photos image first passes through `MerianApp.onOpenURL` and
+`ExternalImageImportStore`, which owns a durable app-sandbox copy before Capture
+begins this pipeline:
 
 1. **Capture Context**: Live camera input uses `HardwareOrchestrator` and
    `CameraManager` to lock white balance and read shutter-time coordinates,
    elevation, and LiDAR distance while WeatherKit and reverse geocoding are
-   prefetched. PhotosPicker and shared-file imports use their embedded historical
-   context instead; shared files preserve only valid EXIF date/GPS values and do
-   not invent missing metadata.
-2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media timeline and one stable `scan_id` before live inference. Eligible online work also persists a single-use foreground inference UUID on its scan-ingestion job; the live provider, persistence, UI, and cleanup paths carry that exact owner. An eligible live-camera still scan is temporarily excluded from background upload so it does not compete with the inline request.
+   prefetched. PhotosPicker and shared-file imports use their embedded
+   historical context instead; shared files preserve only valid EXIF date/GPS
+   values and do not invent missing metadata.
+2. **Durable Acceptance**: `OfflineQueueManager` persists the ordered media
+   timeline and one stable `scan_id` before live inference. Eligible online work
+   also persists a single-use foreground inference UUID on its scan-ingestion
+   job; the live provider, persistence, UI, and cleanup paths carry that exact
+   owner. An eligible live-camera still scan is temporarily excluded from
+   background upload so it does not compete with the inline request.
 3. **Biological Inference (`InferenceEngine.swift`)**: The pinned network client
    sends all current still, gallery, audio, Describe, mixed-media, and video
    submissions to `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
@@ -31,9 +44,9 @@ durable app-sandbox copy before Capture begins this pipeline:
    and uses at most one combined cached dictionary-hydration RPC for eligible
    biological results. It then awaits moderation, required media promotion,
    primary cache-miss species resolution, scan creation, and authenticated-owner
-   read-back before `200`. iOS persists and renders `speciesData` only after that
-   durable success. Analytics, group tags, candidate enrichment, awards, and
-   Field trips remain secondary work.
+   read-back before `200`. iOS persists and renders `speciesData` only after
+   that durable success. Analytics, group tags, candidate enrichment, awards,
+   and Field trips remain secondary work.
 5. **Offline Resilience**: If a user is off-grid, capture first makes a
    serialized account/scan funding claim, then writes media to
    `.documentDirectory` and inserts a `SwiftData` row with `scanStateRaw = 0`
@@ -68,16 +81,26 @@ durable app-sandbox copy before Capture begins this pipeline:
    remain release-gated. See the
    [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
-Free inference remains `gemini-2.5-flash` and Pro remains
-`gemini-2.5-pro`. The latency path does not change prompts, schema, thinking
-budgets, image resolution, output limits, or the one-model-call contract.
-The staged introductory offer derives three lifetime complimentary Pro scans
-from a private held/consumed/released ledger, separate from the daily Flash scan
-and provider-cost counters. It activates only with the atomic protocol-3
-cutover described in the
+Free inference remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. The
+latency path does not change prompts, schema, thinking budgets, image
+resolution, output limits, or the one-model-call contract. The staged
+introductory offer derives three lifetime complimentary Pro scans from a private
+held/consumed/released ledger, separate from the daily Flash scan and
+provider-cost counters. It activates only with the atomic protocol-3 cutover
+described in the
 [`normative entitlement contract`](../backend-and-data/18-complimentary-pro-scans.md).
 
-The species dictionary is the reusable public content layer that sits beside scan-specific inference. Insight similar-species cards and Explore post detail similar-species cards route into `/species-dictionary`; the scheduled `/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and group tags, and `/refresh-merian-reference-images` promotes high-quality published Explore media into Merian-sourced reference images. The public species payload never exposes source scan/post/location provenance; for a currently promoted Naturebook image it purposefully resolves only the contributor's public user ID and current public username so iOS can link the photo badge to the existing public profile sheet.
+The species dictionary is the reusable public content layer that sits beside
+scan-specific inference. Insight similar-species cards and Explore post detail
+similar-species cards route into `/species-dictionary`; the scheduled
+`/refresh-species-content` worker keeps GBIF/Wikipedia-backed dictionary fields
+fresh, `/refresh-species-model-content` fills queued habitat, lookalikes, and
+group tags, and `/refresh-merian-reference-images` promotes high-quality
+published Explore media into Merian-sourced reference images. The public species
+payload never exposes source scan/post/location provenance; for a currently
+promoted Naturebook image it purposefully resolves only the contributor's public
+user ID and current public username so iOS can link the photo badge to the
+existing public profile sheet.
 
 Naturebook also has a small public web frontend in `apps/web/`.
 `https://naturebook.earth/explore/post/{postId}` server-renders a public Explore
@@ -129,22 +152,30 @@ finite RevenueCat beta promotion receives this gate only after authoritative
 CustomerInfo is projected to Supabase as Pro; the developer's RevenueCat account
 plan and an iOS-only entitlement display are not server authorization.
 
-The RevenueCat customer key is the uppercase Supabase Auth UUID for both Ghost
-and linked sessions. Ghost is a durable, purchasable identity; login normally
-links credentials to the same UUID. Explicit **Sign out** secures a durable
-StoreKit handoff before requesting a fresh anonymous identity and reports
-completion only after RevenueCat receipt transfer and server reconciliation.
-Account-bound beta/promotional access remains on the linked source. A later
-**Continue with Apple** or **Continue with Google** either links the anonymous
-identity or enters the existing-account conflict merge. That
-merge preserves active provider access before source Auth deletion and
-synchronizes the store receipt. Exact
+Purchase identity has two staged lanes. The deployed-default `legacy` lane uses
+the uppercase Supabase Auth UUID as its case-sensitive RevenueCat custom ID.
+Explicit **Sign out** prepares a StoreKit-only handoff before requesting one
+fresh anonymous identity and reports completion only after RevenueCat receipt
+sync plus server reconciliation. The additive, disabled-by-default `stable` lane
+uses a server-owned purchase principal selected by a separate 256-bit
+installation capability; Supabase Auth UUIDs authenticate sessions but do not
+select the RevenueCat customer. Protocol-3 stable sign-out prepares a server
+reservation from the exact linked source, lets only one newly created anonymous
+session claim it, and performs no receipt sync or customer transfer. Account-
+bound beta, promotional, and support grants remain on the linked source in both
+lanes. **Continue with Apple** or **Continue with Google** either links the
+anonymous identity or enters the existing-account conflict merge. Exact
 prelaunch cleanup can delete only live-revalidated empty RevenueCat shells and
-never deletes Supabase users or app data.
+never deletes Supabase users or app data. The canonical target and rollout hold
+are documented in the
+[purchase-principal RFC](../rfcs/purchase-principal-auth-separation.md).
 
 ## Core Decoupling (AppDIContainer)
 
-The Merian app module does not use `@EnvironmentObject` for its core architectural engines. All complex business logic is bound using `@Observable` macros and `@Environment()` injection to keep the `View` lifecycle free from recursive updates or `EXC_BAD_ACCESS` warnings.
+The Merian app module does not use `@EnvironmentObject` for its core
+architectural engines. All complex business logic is bound using `@Observable`
+macros and `@Environment()` injection to keep the `View` lifecycle free from
+recursive updates or `EXC_BAD_ACCESS` warnings.
 
 Everything is wired in `AppDIContainer.swift`:
 
@@ -154,7 +185,17 @@ Everything is wired in `AppDIContainer.swift`:
   `ScanMilestoneCoordinator`. Ordinary feedback remains a view-owned
   `ToastPayload`; application code never uses `NotificationCenter` as an event
   bus or creates a second root sheet.
-- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and `.handleBackgroundPhase()` lifecycle handlers to manage hardware state, historical sync, non-biological cleanup, and queue recovery. It also manages the background inference race: `CaptureWorkspaceViewModel` observes the inactive phase to reset view state but does not nil out active ML payloads — that is reserved for `handleBackgroundPhase()`. When the app backgrounds mid-inference, Pro users have their capture enqueued to `OfflineQueueManager` (resuming via background URLSession) and the live request is cancelled. Free users have their in-flight request left running within iOS's ~30-second background window; on completion, `InferenceEngine.analyze()` dispatches a push notification.
+- Centralizes `.handleActivePhase()`, `.handleInactivePhase()`, and
+  `.handleBackgroundPhase()` lifecycle handlers to manage hardware state,
+  historical sync, non-biological cleanup, and queue recovery. It also manages
+  the background inference race: `CaptureWorkspaceViewModel` observes the
+  inactive phase to reset view state but does not nil out active ML payloads —
+  that is reserved for `handleBackgroundPhase()`. When the app backgrounds
+  mid-inference, Pro users have their capture enqueued to `OfflineQueueManager`
+  (resuming via background URLSession) and the live request is cancelled. Free
+  users have their in-flight request left running within iOS's ~30-second
+  background window; on completion, `InferenceEngine.analyze()` dispatches a
+  push notification.
 - App backgrounding also releases any process-local live-upload suppression so
   the already-durable queue row becomes eligible for background recovery. App
   termination cannot strand a row because the suppression set is not persisted.
@@ -163,25 +204,35 @@ Everything is wired in `AppDIContainer.swift`:
 
 A structured schema built on native SwiftData migrations:
 
-- `LocalScanRecord` models map their UUIDs **1-to-1 with Postgres `/scans` rows**. An earlier architecture attempted to merge multiple scans of the same species into an `additionalImagePaths` array locally, which caused the background `ScanRepository` synchronizer to spawn duplicate tiles because the cloud ID didn't match the local random UUID.
-- *Grid Rendering Rule*: Every shutter press generates a distinct tile in the `Scans` view, matching the iOS Photos app pattern and preventing cloud duplication. Gamification telemetry hashes against `scientificName` to prevent duplicate local unique-species progress for the same biological subject, while global "New to Naturebook" milestones use the technically stable `is_new_to_merian_dictionary` identify response flag and are suppressed for non-biological or processed-material results.
-- *Scan Milestone Boundary*: `ScanMilestoneCoordinator` is the shared
+- `LocalScanRecord` models map their UUIDs **1-to-1 with Postgres `/scans`
+  rows**. An earlier architecture attempted to merge multiple scans of the same
+  species into an `additionalImagePaths` array locally, which caused the
+  background `ScanRepository` synchronizer to spawn duplicate tiles because the
+  cloud ID didn't match the local random UUID.
+- _Grid Rendering Rule_: Every shutter press generates a distinct tile in the
+  `Scans` view, matching the iOS Photos app pattern and preventing cloud
+  duplication. Gamification telemetry hashes against `scientificName` to prevent
+  duplicate local unique-species progress for the same biological subject, while
+  global "New to Naturebook" milestones use the technically stable
+  `is_new_to_merian_dictionary` identify response flag and are suppressed for
+  non-biological or processed-material results.
+- _Scan Milestone Boundary_: `ScanMilestoneCoordinator` is the shared
   foreground/background completion boundary keyed by the final Postgres scan
   UUID. Server scan ingestion applies Field trip progress transactionally; the
   coordinator waits for persistence, retrieves the durable progress receipt,
-  then batches standard outings, Seasonal Challenges, achievements, and
-  **New to Naturebook** in that order. This prevents the live inference task and
-  background URLSession completion from presenting duplicate notifications.
-  The container-owned visual queue is capped and payload-deduplicated; auth and
+  then batches standard outings, Seasonal Challenges, achievements, and **New to
+  Naturebook** in that order. This prevents the live inference task and
+  background URLSession completion from presenting duplicate notifications. The
+  container-owned visual queue is capped and payload-deduplicated; auth and
   foreground-timeout generations reject stale callbacks, while the active host
   registry preserves timeout/effect ownership across nested screens.
-- *Starter Field Trip Enrollment*: inserting any signed-in or ghost
+- _Starter Field Trip Enrollment_: inserting any signed-in or ghost
   `public.users` profile invokes a database-only, deny-by-default trigger that
   creates Backyard Safari Level 1 and one open activity period. The rollout
   migration performs the same insert-only backfill for existing accounts;
   stopped, reset, and completed rows are preserved, and older scans remain
   outside the new activity window.
-- *Durable Field Trip Progress*: the ingestion intent retains the optional live
+- _Durable Field Trip Progress_: the ingestion intent retains the optional live
   Capture preference, and a scan insert/evidence-change trigger atomically
   applies standard outings, joined Events, preference state, and first-outing
   achievement state. Automatic AI evidence must meet the tier-specific
@@ -191,61 +242,93 @@ A structured schema built on native SwiftData migrations:
   idempotent and allowing a later review change to add or revoke credit. The
   local SwiftData hint remains an outbox until the server acknowledges the
   result and is replayed after relaunch if queue cleanup finished first.
-- *Persistent Field Trip Attribution*: after progress settles, saved biological
+- _Persistent Field Trip Attribution_: after progress settles, saved biological
   Insights query the private scan-contribution projection and render every
   credited outing/Event. The read model contains labels, counts, artwork, and
   typed routes only; it is not local cache data and exposes no media, location,
   or notes.
 - Schema versioning handles migrations cleanly.
-- `#Predicate` constraints use `.localizedStandardContains()` for robust case-insensitive SQLite matches across `ScanRepository`.
-- Keeps biological scan media durable in cloud storage; `ArchiveManager.swift` is limited to generated dataset archive downloads rather than timed scan-media rescue.
-- **Transactional Deletions**: `ScanRepository.eradicateScan` commits SwiftData changes first (delete record, insert cloud task, save) and only purges local scan media via `FileIOActor` after the save succeeds. A save failure rolls back pending context changes and leaves state fully consistent — no orphaned database records with missing media.
-- **Historical Sync**: `syncHistoricalScansDown` paginates both scans and collections cloud fetches (via `.range(from:to:)`), then reconciles data dynamically via `HistoricalDatabaseActor.reconcileScanPage`, avoiding memory accumulation of the entire scan library.
-- **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, and retention window constants are defined in `MerianConfig.swift`. Tuning any policy constant requires exactly one change.
+- `#Predicate` constraints use `.localizedStandardContains()` for robust
+  case-insensitive SQLite matches across `ScanRepository`.
+- Keeps biological scan media durable in cloud storage; `ArchiveManager.swift`
+  is limited to generated dataset archive downloads rather than timed scan-media
+  rescue.
+- **Transactional Deletions**: `ScanRepository.eradicateScan` commits SwiftData
+  changes first (delete record, insert cloud task, save) and only purges local
+  scan media via `FileIOActor` after the save succeeds. A save failure rolls
+  back pending context changes and leaves state fully consistent — no orphaned
+  database records with missing media.
+- **Historical Sync**: `syncHistoricalScansDown` paginates both scans and
+  collections cloud fetches (via `.range(from:to:)`), then reconciles data
+  dynamically via `HistoricalDatabaseActor.reconcileScanPage`, avoiding memory
+  accumulation of the entire scan library.
+- **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, and
+  retention window constants are defined in `MerianConfig.swift`. Tuning any
+  policy constant requires exactly one change.
 
 ## Identity Pipeline
 
-- `DeviceIdentityManager` reads `identifierForVendor` from the OS.
-- Passed into `SupabaseManager.signInAnonymously()` to generate an "Explorer Tier" Ghost identity.
-- Apple/Google OAuth normally links the provider to the existing Ghost UUID. If
-  that provider already belongs to another permanent account, only the
-  source-proof fallback may move ownership into the permanent UUID. That UUID
-  becomes the RevenueCat App User ID and PostHog distinct ID;
-  RevenueCat subscriber attributes carry auth email and public identity fields
-  for dashboard support lookups. The pending fallback hardening requires
-  completion to make the permanent RevenueCat reconciliation row due; the client
-  SDK login is not the durable recovery authority, and the rollout remains
-  release-gated until that server repair is proven.
-- Both the Ghost UUID and permanent UUID are custom RevenueCat IDs. RevenueCat
-  does not transfer purchases or promotions when a non-anonymous custom ID logs
-  into another custom ID. Database ownership repair therefore cannot by itself
-  preserve provider access across the existing-account conflict path. Guest
-  purchases and beta promotions remain release-held until Merian requires a
-  stable permanent identity or implements an idempotent provider-aware handoff.
+- `DeviceIdentityManager` reads `identifierForVendor` as an install/analytics
+  fallback. It is not billing authority. `SupabaseManager` creates and restores
+  anonymous Supabase sessions independently, under the serialized
+  `AuthTransitionCoordinator`.
+- Stable purchase identity uses a separate random 256-bit
+  `WhenUnlockedThisDeviceOnly` installation capability. The authenticated
+  `/resolve-purchase-principal` route stores only SHA-256, derives the Auth user
+  from the live JWT, and returns an immutable server-selected purchase
+  principal, case-sensitive RevenueCat App User ID, and binding generation. A
+  monotonic device intent plus server completion fencing prevents a delayed old
+  Auth request from overwriting a newer binding.
+- Apple/Google OAuth normally links the provider to the existing anonymous UUID.
+  If that provider already belongs to another permanent account, only the
+  source-proof fallback may move profile ownership into the permanent UUID. Its
+  server completion makes provider reconciliation due before obsolete source
+  Auth cleanup. PostHog identity remains a separate analytics-consent boundary;
+  account/profile identity never selects a stable RevenueCat customer.
+- In `legacy` mode, anonymous and permanent Auth UUIDs remain custom RevenueCat
+  IDs and account attributes are written only to that compatibility customer.
+  The explicit `/transfer-signout-purchases` protocol moves StoreKit receipt
+  access to one fresh anonymous UUID and leaves promotional access on the
+  source. In `stable` mode, RevenueCat uses the server-owned principal and
+  receives no account email, username, avatar, display name, account kind, or
+  Auth UUID subscriber attribute.
+- Protocol-3 stable sign-out persists and verifies a rotation UUID/raw secret
+  journal before the source-authenticated prepare call, persists the server
+  expiry before local sign-out, and lets only a different anonymous Auth
+  identity created after preparation claim the binding. The server reservation
+  blocks ordinary resolution and other binding writers; its terminal intent
+  fence also invalidates any phase-two resolver completion begun before
+  preparation. An unrelated permanent session cannot become the destination. The
+  exact restored source may cancel. iOS clears the journal only after the
+  unchanged RevenueCat identity, a successful entitlement session, and the same
+  anonymous Auth generation are verified. No stable sign-out receipt sync or
+  customer transfer occurs.
 - RevenueCat webhook delivery is an external-provider boundary, so its Supabase
   JWT check is disabled only for that route. The handler replaces it with a
   configured bearer check and timestamped raw-body HMAC, then fetches
   authoritative CustomerInfo with a server-only key.
-- A private event ledger deduplicates RevenueCat IDs, and a per-user database
-  watermark prevents delayed events from rolling subscription state backward.
-  `TRANSFER` source and destination updates share one transaction. Accepted
-  tier/expiry changes advance `users.entitlement_version`, which the
-  server-side AI quota reservation reads before provider dispatch.
-- The case-sensitive App User ID invariant is the uppercase Supabase UUID for
-  every database-generated and iOS-configured lookup. RevenueCat subscriber GET
-  is get-or-create, so a different case manufactures a different customer
-  shell. Provider customer counts are therefore audit inputs, not a required
-  one-to-one match with `public.users`; historical aliases and rows are not
-  deleted as normalization.
+- A private event ledger deduplicates RevenueCat IDs, resolves active stable
+  principals before uppercase-UUID fallback, and uses authoritative snapshot
+  watermarks to prevent delayed events from rolling subscription state backward.
+  `TRANSFER` source and destination updates share one transaction. Stable
+  StoreKit state and account grants remain separate projection inputs. Accepted
+  tier/expiry changes advance `users.entitlement_version`, which server-side AI
+  quota reservation reads before provider dispatch.
+- RevenueCat App User IDs are case-sensitive. Legacy lookups use uppercase RFC
+  4122 Auth UUIDs; stable lookups use the exact opaque ID returned by the
+  server. RevenueCat subscriber GET is get-or-create, so changing either
+  representation manufactures a different customer shell. Provider customer
+  counts are audit inputs, not a required one-to-one match with `public.users`;
+  historical aliases and rows are not deleted as normalization.
 - `EntitlementManager` verifies `get_my_entitlement()` for the active Supabase
   user each launch, derives complimentary functional access from only that
   current versioned snapshot, buffers stored replay metadata until the launch
-  baseline succeeds, and rejects stale responses. `RevenueCatManager` continues
-  to own paid access and paid-only public badge state. It may link an exact
-  custom Ghost UUID for reads and provider mutations. Purchase, restore, and
-  offer-code redemption require the requested and linked UUID/account-kind
-  fences to agree; both `anonymous` and `authenticated` are valid. Generic
-  unauthorized route responses preserve the current UUID.
+  baseline succeeds, and rejects stale responses. `RevenueCatManager` owns paid
+  access and paid-only public badge state. Purchase, restore, and offer-code
+  redemption require the requested Auth user, account kind, provider identity,
+  binding generation, and pending-handoff fences to agree. Both anonymous and
+  permanent Supabase users are valid sessions; a generic unauthorized response
+  never authorizes identity rotation.
 
 The active production hold, explicit beta-cohort contract, supervised worker
 cutover, and no-deletion policy are maintained in the
@@ -255,5 +338,7 @@ cutover, and no-deletion policy are maintained in the
 
 GPS and coordinate logging complies with European GDPR policies:
 
-- Edge nodes convert "Endangered" species taxonomies, wiping exact coordinates and reducing precision to a 50km offset.
-- `user_blocks` SQL logic executes on Edge nodes to prevent IDOR vulnerabilities.
+- Edge nodes convert "Endangered" species taxonomies, wiping exact coordinates
+  and reducing precision to a 50km offset.
+- `user_blocks` SQL logic executes on Edge nodes to prevent IDOR
+  vulnerabilities.

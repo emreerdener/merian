@@ -11,6 +11,10 @@ BEGIN
     'internal.purchase_principals',
     'SELECT'
   ) OR has_table_privilege(
+    'service_role',
+    'internal.purchase_principal_signout_rotations',
+    'SELECT'
+  ) OR has_table_privilege(
     'authenticated',
     'internal.purchase_principal_bindings',
     'SELECT'
@@ -30,9 +34,33 @@ BEGIN
     'service_role',
     'public.complete_purchase_principal_resolution(uuid,uuid,text,bigint,bigint,text,timestamptz,boolean,text,timestamptz)',
     'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'service_role',
+    'public.prepare_purchase_principal_signout_rotation(uuid,text,uuid,text,bigint,integer)',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'service_role',
+    'public.claim_purchase_principal_signout_rotation(uuid,text,uuid,text,integer)',
+    'EXECUTE'
+  ) OR NOT has_function_privilege(
+    'service_role',
+    'public.cancel_purchase_principal_signout_rotation(uuid,text,uuid,text,integer)',
+    'EXECUTE'
   ) OR has_function_privilege(
     'authenticated',
     'public.begin_purchase_principal_resolution(uuid,text,integer,bigint)',
+    'EXECUTE'
+  ) OR has_function_privilege(
+    'authenticated',
+    'public.prepare_purchase_principal_signout_rotation(uuid,text,uuid,text,bigint,integer)',
+    'EXECUTE'
+  ) OR has_function_privilege(
+    'anon',
+    'public.claim_purchase_principal_signout_rotation(uuid,text,uuid,text,integer)',
+    'EXECUTE'
+  ) OR has_function_privilege(
+    'authenticated',
+    'public.cancel_purchase_principal_signout_rotation(uuid,text,uuid,text,integer)',
     'EXECUTE'
   ) OR has_function_privilege(
     'anon',
@@ -192,11 +220,6 @@ FROM (VALUES
     FALSE
   ),
   (
-    '21000000-0000-4000-8000-000000000002'::UUID,
-    'principal-anonymous@naturebook.invalid',
-    TRUE
-  ),
-  (
     '21000000-0000-4000-8000-000000000003'::UUID,
     'principal-second-account@naturebook.invalid',
     FALSE
@@ -223,15 +246,6 @@ VALUES
     'principal-owner@naturebook.invalid',
     'principal_owner_01',
     'Principal Owner',
-    'alias',
-    'free',
-    NULL
-  ),
-  (
-    '21000000-0000-4000-8000-000000000002',
-    'principal-anonymous@naturebook.invalid',
-    'principal_anonymous_02',
-    'Principal Anonymous',
     'alias',
     'free',
     NULL
@@ -265,6 +279,7 @@ SET email = EXCLUDED.email,
 UPDATE internal.purchase_identity_rollout_config
 SET principal_mode = 'stable',
     account_grant_mode = 'dual_read',
+    minimum_client_protocol = 3,
     updated_at = CLOCK_TIMESTAMP()
 WHERE config_key = 'current';
 
@@ -320,7 +335,7 @@ SELECT *
 FROM public.begin_purchase_principal_resolution(
   '21000000-0000-4000-8000-000000000001',
   REPEAT('a', 64),
-  1,
+  3,
   1
 );
 
@@ -475,8 +490,327 @@ BEGIN
 END;
 $legacy_compatibility_not_recreated$;
 
+-- Protocol 3 reserves the exact source before local sign-out. Ordinary
+-- resolver calls, permanent destinations, stale anonymous sessions, and wrong
+-- proofs must all lose before one fresh anonymous destination can claim.
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  email_confirmed_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  is_anonymous
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  '21000000-0000-4000-8000-000000000006',
+  'authenticated',
+  'authenticated',
+  'principal-old-anonymous@naturebook.invalid',
+  NOW(),
+  NOW(),
+  jsonb_build_object('provider', 'anonymous', 'providers', '[]'::JSONB),
+  '{}'::JSONB,
+  NOW(),
+  NOW(),
+  TRUE
+);
+INSERT INTO public.users (
+  id,
+  email,
+  public_username,
+  public_author_name,
+  public_identity_source,
+  subscription_tier
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000006',
+  'principal-old-anonymous@naturebook.invalid',
+  'principal_old_anon_06',
+  'Principal Old Anonymous',
+  'alias',
+  'free'
+);
+
+SET LOCAL ROLE service_role;
+DO $prepare_stable_signout_rotation$
+DECLARE
+  prepared RECORD;
+BEGIN
+  SELECT * INTO STRICT prepared
+  FROM public.prepare_purchase_principal_signout_rotation(
+    '21000000-0000-4000-8000-000000000001',
+    REPEAT('a', 64),
+    '21000000-0000-4000-8000-0000000000b0',
+    REPEAT('b', 64),
+    1,
+    3
+  );
+  IF prepared.rotation_status <> 'prepared'
+     OR prepared.purchase_principal_id <> (
+       SELECT purchase_principal_id
+       FROM purchase_principal_resolution_fixture
+     )
+     OR prepared.binding_generation <> 1
+     OR prepared.already_prepared THEN
+    RAISE EXCEPTION 'stable sign-out rotation was not prepared exactly';
+  END IF;
+END;
+$prepare_stable_signout_rotation$;
+
+DO $stable_signout_rejects_bypass$
+BEGIN
+  BEGIN
+    PERFORM *
+    FROM public.begin_purchase_principal_resolution(
+      '21000000-0000-4000-8000-000000000003',
+      REPEAT('a', 64),
+      3,
+      2
+    );
+    RAISE EXCEPTION
+      'prepared sign-out rotation allowed a permanent resolver bypass';
+  EXCEPTION
+    WHEN lock_not_available THEN
+      IF SQLERRM <> 'purchase_principal_signout_rotation_required' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
+    PERFORM *
+    FROM public.claim_purchase_principal_signout_rotation(
+      '21000000-0000-4000-8000-000000000003',
+      REPEAT('a', 64),
+      '21000000-0000-4000-8000-0000000000b0',
+      REPEAT('b', 64),
+      3
+    );
+    RAISE EXCEPTION 'permanent destination claimed stable sign-out rotation';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      IF SQLERRM <>
+          'purchase_principal_signout_anonymous_destination_required' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
+    PERFORM *
+    FROM public.claim_purchase_principal_signout_rotation(
+      '21000000-0000-4000-8000-000000000006',
+      REPEAT('a', 64),
+      '21000000-0000-4000-8000-0000000000b0',
+      REPEAT('c', 64),
+      3
+    );
+    RAISE EXCEPTION 'wrong proof claimed stable sign-out rotation';
+  EXCEPTION
+    WHEN no_data_found THEN
+      IF SQLERRM <> 'purchase_principal_signout_rotation_invalid' THEN
+        RAISE;
+      END IF;
+  END;
+
+  BEGIN
+    PERFORM *
+    FROM public.claim_purchase_principal_signout_rotation(
+      '21000000-0000-4000-8000-000000000006',
+      REPEAT('a', 64),
+      '21000000-0000-4000-8000-0000000000b0',
+      REPEAT('b', 64),
+      3
+    );
+    RAISE EXCEPTION 'stale anonymous destination claimed rotation';
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      IF SQLERRM <>
+          'purchase_principal_signout_fresh_anonymous_destination_required'
+      THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$stable_signout_rejects_bypass$;
+RESET ROLE;
+
+DO $stable_signout_blocks_source_deletion$
+BEGIN
+  BEGIN
+    INSERT INTO internal.account_deletion_jobs (user_id, status)
+    VALUES ('21000000-0000-4000-8000-000000000001', 'pending');
+    RAISE EXCEPTION
+      'prepared stable sign-out allowed source account deletion';
+  EXCEPTION
+    WHEN lock_not_available THEN
+      IF SQLERRM <>
+          'purchase_principal_signout_account_deletion_in_progress' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$stable_signout_blocks_source_deletion$;
+
+INSERT INTO auth.users (
+  instance_id,
+  id,
+  aud,
+  role,
+  email,
+  email_confirmed_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  is_anonymous
+)
+VALUES (
+  '00000000-0000-0000-0000-000000000000',
+  '21000000-0000-4000-8000-000000000002',
+  'authenticated',
+  'authenticated',
+  'principal-anonymous@naturebook.invalid',
+  pg_catalog.CLOCK_TIMESTAMP(),
+  pg_catalog.CLOCK_TIMESTAMP(),
+  jsonb_build_object('provider', 'anonymous', 'providers', '[]'::JSONB),
+  '{}'::JSONB,
+  pg_catalog.CLOCK_TIMESTAMP(),
+  pg_catalog.CLOCK_TIMESTAMP(),
+  TRUE
+);
+INSERT INTO public.users (
+  id,
+  email,
+  public_username,
+  public_author_name,
+  public_identity_source,
+  subscription_tier
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000002',
+  'principal-anonymous@naturebook.invalid',
+  'principal_anonymous_02',
+  'Principal Anonymous',
+  'alias',
+  'free'
+);
+
+INSERT INTO internal.ghost_profile_merge_handoffs (
+  ghost_user_id,
+  target_user_id,
+  expected_provider,
+  expected_provider_subject,
+  secret_hash,
+  status,
+  expires_at
+)
+VALUES (
+  '21000000-0000-4000-8000-000000000002',
+  '21000000-0000-4000-8000-000000000003',
+  'google',
+  'principal-stable-signout-ghost-merge',
+  REPEAT('8', 64),
+  'prepared',
+  NOW() + INTERVAL '30 days'
+);
+
+SET LOCAL ROLE service_role;
+DO $stable_signout_blocks_ghost_merge_claim$
+BEGIN
+  BEGIN
+    PERFORM *
+    FROM public.claim_purchase_principal_signout_rotation(
+      '21000000-0000-4000-8000-000000000002',
+      REPEAT('a', 64),
+      '21000000-0000-4000-8000-0000000000b0',
+      REPEAT('b', 64),
+      3
+    );
+    RAISE EXCEPTION
+      'prepared Ghost merge allowed a stable sign-out claim';
+  EXCEPTION
+    WHEN lock_not_available THEN
+      IF SQLERRM <>
+          'purchase_principal_signout_ghost_merge_in_progress' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$stable_signout_blocks_ghost_merge_claim$;
+RESET ROLE;
+
+DELETE FROM internal.ghost_profile_merge_handoffs
+WHERE ghost_user_id = '21000000-0000-4000-8000-000000000002'
+  AND status = 'prepared';
+
+SET LOCAL ROLE service_role;
+INSERT INTO purchase_principal_binding_fixture
+SELECT
+  '21000000-0000-4000-8000-000000000002'::UUID,
+  claimed.purchase_principal_id,
+  claimed.revenuecat_app_user_id,
+  claimed.binding_generation,
+  claimed.account_grants_allowed,
+  claimed.already_claimed
+FROM public.claim_purchase_principal_signout_rotation(
+  '21000000-0000-4000-8000-000000000002',
+  REPEAT('a', 64),
+  '21000000-0000-4000-8000-0000000000b0',
+  REPEAT('b', 64),
+  3
+) AS claimed;
+
+DO $stable_signout_claim_replay$
+DECLARE
+  replayed RECORD;
+BEGIN
+  SELECT * INTO STRICT replayed
+  FROM public.claim_purchase_principal_signout_rotation(
+    '21000000-0000-4000-8000-000000000002',
+    REPEAT('a', 64),
+    '21000000-0000-4000-8000-0000000000b0',
+    REPEAT('b', 64),
+    3
+  );
+  IF replayed.rotation_status <> 'completed'
+     OR replayed.already_claimed IS DISTINCT FROM TRUE
+     OR replayed.account_grants_allowed IS DISTINCT FROM FALSE THEN
+    RAISE EXCEPTION 'stable sign-out claim replay changed its receipt';
+  END IF;
+
+  BEGIN
+    PERFORM *
+    FROM public.claim_purchase_principal_signout_rotation(
+      '21000000-0000-4000-8000-000000000006',
+      REPEAT('a', 64),
+      '21000000-0000-4000-8000-0000000000b0',
+      REPEAT('b', 64),
+      3
+    );
+    RAISE EXCEPTION
+      'completed stable sign-out rotation replayed to another destination';
+  EXCEPTION
+    WHEN unique_violation THEN
+      IF SQLERRM <>
+          'purchase_principal_signout_rotation_terminal_conflict' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$stable_signout_claim_replay$;
+RESET ROLE;
+
 -- The same device capability moves only StoreKit access to the anonymous
--- session. The imported promotional grant remains on its original account.
+-- session through the prepared claim. Ordinary resolution may now refresh the
+-- already-bound destination, while the imported promotional grant remains on
+-- its original account.
 SET LOCAL ROLE service_role;
 DO $same_capability$
 DECLARE
@@ -486,7 +820,7 @@ BEGIN
   FROM public.begin_purchase_principal_resolution(
     '21000000-0000-4000-8000-000000000002',
     REPEAT('a', 64),
-    1,
+    3,
     2
   );
   IF resolved.purchase_principal_id <> (
@@ -931,7 +1265,7 @@ SELECT *
 FROM public.begin_purchase_principal_resolution(
   '21000000-0000-4000-8000-000000000003',
   REPEAT('a', 64),
-  1,
+  3,
   3
 );
 SELECT *
@@ -1145,7 +1479,7 @@ BEGIN
     FROM public.begin_purchase_principal_resolution(
       '21000000-0000-4000-8000-000000000003',
       REPEAT('a', 64),
-      1,
+      3,
       4
     );
     RAISE EXCEPTION 'active account deletion allowed principal begin';
@@ -1167,7 +1501,7 @@ SELECT *
 FROM public.begin_purchase_principal_resolution(
   '21000000-0000-4000-8000-000000000003',
   REPEAT('a', 64),
-  1,
+  3,
   4
 );
 RESET ROLE;
@@ -1224,7 +1558,7 @@ BEGIN
   FROM public.begin_purchase_principal_resolution(
     '21000000-0000-4000-8000-000000000003',
     REPEAT('a', 64),
-    1,
+    3,
     5
   );
   IF resolved.resolution_mode <> 'stable'
@@ -1259,7 +1593,7 @@ BEGIN
   FROM public.begin_purchase_principal_resolution(
     '21000000-0000-4000-8000-000000000003',
     REPEAT('d', 64),
-    1,
+    3,
     1
   );
   IF resolved.resolution_mode <> 'legacy'

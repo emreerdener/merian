@@ -1220,6 +1220,18 @@ jobs:
             '{"p_auth_user_id":null,"p_purchase_principal_id":null,"p_capability_hash":null,"p_binding_intent_generation":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_allow_non_subscription_pass_grant":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}' \
             "purchase_principal_invalid_resolution"
           probe_server_rpc_validation_boundary \
+            "prepare_purchase_principal_signout_rotation" \
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_expected_binding_generation":null,"p_client_protocol":null}' \
+            "purchase_principal_signout_rotation_invalid"
+          probe_server_rpc_validation_boundary \
+            "claim_purchase_principal_signout_rotation" \
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_client_protocol":null}' \
+            "purchase_principal_signout_rotation_invalid"
+          probe_server_rpc_validation_boundary \
+            "cancel_purchase_principal_signout_rotation" \
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_client_protocol":null}' \
+            "purchase_principal_signout_rotation_invalid"
+          probe_server_rpc_validation_boundary \
             "record_account_access_grant" \
             '{"p_account_user_id":null,"p_grant_kind":null,"p_expires_at":null,"p_source_reference_hash":null}' \
             "account_access_grant_invalid"
@@ -1312,6 +1324,28 @@ jobs:
             )
           ' > /dev/null
 
+          purchase_principal_rotation_health_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_purchase_principal_signout_rotation_health" \
+              '{}'
+          )"
+          echo "$purchase_principal_rotation_health_response" | jq -e '
+            length == 1
+            and (.[0].generated_at | type) == "string"
+            and (.[0].prepared_count | type) == "number"
+            and (.[0].expired_prepared_count | type) == "number"
+            and (.[0].completed_last_24h | type) == "number"
+            and (.[0].cancelled_last_24h | type) == "number"
+            and (
+              .[0].oldest_prepared_at == null
+              or (.[0].oldest_prepared_at | type) == "string"
+            )
+            and (
+              .[0].oldest_prepared_age_seconds == null
+              or (.[0].oldest_prepared_age_seconds | type) == "number"
+            )
+          ' > /dev/null
+
           account_deletion_recovery_health_response="$(
             post_server_json \
               "/rest/v1/rpc/get_account_deletion_recovery_health" \
@@ -1366,6 +1400,9 @@ jobs:
             get_revenuecat_reconciliation_health
             begin_purchase_principal_resolution
             complete_purchase_principal_resolution
+            prepare_purchase_principal_signout_rotation
+            claim_purchase_principal_signout_rotation
+            cancel_purchase_principal_signout_rotation
             record_account_access_grant
             revoke_account_access_grant
             resolve_revenuecat_identity_subjects
@@ -1375,6 +1412,7 @@ jobs:
             apply_purchase_principal_reconciliation
             fail_purchase_principal_reconciliation
             get_purchase_principal_health
+            get_purchase_principal_signout_rotation_health
             request_account_deletion_with_recovery
             recover_account_deletion
             get_account_deletion_recovery_health
@@ -1399,6 +1437,9 @@ jobs:
             '{}'
             '{"p_auth_user_id":null,"p_capability_hash":null,"p_client_protocol":null,"p_binding_intent_generation":null}'
             '{"p_auth_user_id":null,"p_purchase_principal_id":null,"p_capability_hash":null,"p_binding_intent_generation":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_allow_non_subscription_pass_grant":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}'
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_expected_binding_generation":null,"p_client_protocol":null}'
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_client_protocol":null}'
+            '{"p_auth_user_id":null,"p_capability_hash":null,"p_rotation_id":null,"p_secret_hash":null,"p_client_protocol":null}'
             '{"p_account_user_id":null,"p_grant_kind":null,"p_expires_at":null,"p_source_reference_hash":null}'
             '{"p_grant_id":null}'
             '{"p_subjects":null}'
@@ -1407,6 +1448,7 @@ jobs:
             '{"p_limit":0}'
             '{"p_purchase_principal_id":null,"p_claim_token":null,"p_authoritative_snapshot_at_ms":null,"p_store_tier":null,"p_store_expires_at":null,"p_account_grant_tier":null,"p_account_grant_expires_at":null}'
             '{"p_purchase_principal_id":null,"p_claim_token":null,"p_error_code":null}'
+            '{}'
             '{}'
             '{"p_user_id":null,"p_secret_hash":null}'
             '{"p_secret_hash":null,"p_acknowledge":false}'
@@ -1418,6 +1460,13 @@ jobs:
             '{"p_limit":0}'
             '{}'
           )
+          if ((
+            ${#critical_service_rpc_names[@]} !=
+              ${#critical_service_rpc_payloads[@]}
+          )); then
+            echo "Critical service RPC smoke names and payloads are misaligned." >&2
+            exit 1
+          fi
           public_key_count="$(jq 'length' "$RUNNER_TEMP/supabase-public-api-keys.json")"
           for ((index = 0; index < public_key_count; index++)); do
             public_key="$(

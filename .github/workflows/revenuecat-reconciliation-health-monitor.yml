@@ -24,6 +24,24 @@ on:
           - "60"
           - "90"
           - "120"
+      warning_prepared_rotations:
+        description: Prepared stable sign-out rotation count that produces a warning.
+        required: true
+        default: "100"
+        type: choice
+        options:
+          - "50"
+          - "100"
+          - "250"
+      critical_prepared_rotations:
+        description: Prepared stable sign-out rotation count that produces a critical result.
+        required: true
+        default: "500"
+        type: choice
+        options:
+          - "500"
+          - "1000"
+          - "2500"
       fail_on:
         description: Monitor severity that should fail the workflow.
         required: true
@@ -97,17 +115,22 @@ jobs:
           SUPABASE_URL: https://${{ env.PROJECT_ID }}.supabase.co
           INPUT_WARNING_AFTER_MINUTES: ${{ inputs.warning_after_minutes || '30' }}
           INPUT_CRITICAL_AFTER_MINUTES: ${{ inputs.critical_after_minutes || '60' }}
+          INPUT_WARNING_PREPARED_ROTATIONS: ${{ inputs.warning_prepared_rotations || '100' }}
+          INPUT_CRITICAL_PREPARED_ROTATIONS: ${{ inputs.critical_prepared_rotations || '500' }}
           INPUT_FAIL_ON: ${{ inputs.fail_on || 'warning' }}
         run: |
           summary_json="${RUNNER_TEMP}/revenuecat-reconciliation-health.json"
           summary_md="${RUNNER_TEMP}/revenuecat-reconciliation-health.md"
           warning_after="${INPUT_WARNING_AFTER_MINUTES:-30}"
           critical_after="${INPUT_CRITICAL_AFTER_MINUTES:-60}"
+          warning_prepared_rotations="${INPUT_WARNING_PREPARED_ROTATIONS:-100}"
+          critical_prepared_rotations="${INPUT_CRITICAL_PREPARED_ROTATIONS:-500}"
           fail_on="${INPUT_FAIL_ON:-warning}"
 
-          # The deployed purchase-principal migration and post-deploy smoke
-          # make this RPC mandatory. Missing or malformed principal health is
-          # an alertable production failure, not a compatibility success.
+          # The deployed purchase-principal migrations and post-deploy smoke
+          # make both aggregate health RPCs mandatory. Missing or malformed
+          # principal or rotation health is an alertable production failure,
+          # not a compatibility success.
           set +e
           deno run --frozen \
             --config services/supabase/functions/deno.json \
@@ -117,6 +140,8 @@ jobs:
             services/supabase/scripts/monitor_revenuecat_reconciliation.ts \
             --warning-after-minutes "$warning_after" \
             --critical-after-minutes "$critical_after" \
+            --warning-prepared-rotations "$warning_prepared_rotations" \
+            --critical-prepared-rotations "$critical_prepared_rotations" \
             --fail-on "$fail_on" \
             --purchase-principal-health-mode required \
             --summary-json "$summary_json" \

@@ -4,10 +4,10 @@ import Security
 import Supabase
 
 private enum PurchasePrincipalProtocol {
-    /// Protocol 2 is the first client contract eligible for stable-principal
-    /// activation. Protocol 1 remains server-supported only for the additive
-    /// legacy compatibility window.
-    static let current = 2
+    /// Protocol 3 adds server-authorized stable sign-out rotations. Protocol 2
+    /// stable responses remain readable during the additive rollout, but new
+    /// stable activation is release-gated on protocol 3.
+    static let current = 3
     static let stableMinimum = 2
 }
 
@@ -124,6 +124,32 @@ struct PurchasePrincipalBinding: Codable, Equatable {
         }
     }
 
+    init(signOutRotationClaim response: PrincipalRotationClaimResponse) throws {
+        guard response.success,
+              response.operation == "claim_signout_rotation",
+              response.rotation_status == "completed",
+              UUID(uuidString: response.rotation_id) != nil,
+              let principalId = UUID(
+                uuidString: response.purchase_principal_id
+              ),
+              Self.isValidRevenueCatAppUserId(
+                response.revenuecat_app_user_id
+              ),
+              response.binding_generation > 0,
+              response.account_grants_allowed == false,
+              Self.isValidServerTimestamp(response.expires_at) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        self.init(
+            mode: .stable,
+            purchasePrincipalId: principalId,
+            revenueCatAppUserId: response.revenuecat_app_user_id,
+            bindingGeneration: response.binding_generation,
+            accountGrantsAllowed: false,
+            minimumClientProtocol: PurchasePrincipalProtocol.current
+        )
+    }
+
     static let legacyFallback = PurchasePrincipalBinding(
         mode: .legacy,
         purchasePrincipalId: nil,
@@ -140,6 +166,10 @@ struct PurchasePrincipalBinding: Codable, Equatable {
             && value.unicodeScalars.allSatisfy {
                 $0.value > 31 && $0.value != 127
             }
+    }
+
+    static func isValidServerTimestamp(_ value: String) -> Bool {
+        ISO8601DateFormatter().date(from: value) != nil
     }
 }
 
@@ -249,6 +279,31 @@ private struct PurchasePrincipalResolvePayload: Encodable {
     let binding_intent_generation: Int64
 }
 
+private struct PrincipalRotationPreparePayload: Encodable {
+    let operation = "prepare_signout_rotation"
+    let installation_capability: String
+    let client_protocol = PurchasePrincipalProtocol.current
+    let rotation_id: String
+    let rotation_secret: String
+    let expected_binding_generation: Int64
+}
+
+private struct PrincipalRotationClaimPayload: Encodable {
+    let operation = "claim_signout_rotation"
+    let installation_capability: String
+    let client_protocol = PurchasePrincipalProtocol.current
+    let rotation_id: String
+    let rotation_secret: String
+}
+
+private struct PrincipalRotationCancelPayload: Encodable {
+    let operation = "cancel_signout_rotation"
+    let installation_capability: String
+    let client_protocol = PurchasePrincipalProtocol.current
+    let rotation_id: String
+    let rotation_secret: String
+}
+
 struct PurchasePrincipalResolveResponse: Decodable {
     let success: Bool
     let mode: String
@@ -257,6 +312,54 @@ struct PurchasePrincipalResolveResponse: Decodable {
     let binding_generation: Int64?
     let account_grants_allowed: Bool?
     let minimum_client_protocol: Int
+}
+
+struct PrincipalRotationPreparation: Equatable {
+    let rotationId: UUID
+    let purchasePrincipalId: UUID
+    let revenueCatAppUserId: String
+    let bindingGeneration: Int64
+    let expiresAt: String
+}
+
+struct PrincipalRotationCancellation: Equatable {
+    let rotationId: UUID
+    let status: String
+    let expiresAt: String
+}
+
+struct PrincipalRotationPrepareResponse: Decodable {
+    let success: Bool
+    let operation: String
+    let rotation_id: String
+    let rotation_status: String
+    let expires_at: String
+    let purchase_principal_id: String
+    let revenuecat_app_user_id: String
+    let binding_generation: Int64
+    let already_prepared: Bool
+}
+
+struct PrincipalRotationClaimResponse: Decodable {
+    let success: Bool
+    let operation: String
+    let rotation_id: String
+    let rotation_status: String
+    let expires_at: String
+    let purchase_principal_id: String
+    let revenuecat_app_user_id: String
+    let binding_generation: Int64
+    let account_grants_allowed: Bool
+    let already_claimed: Bool
+}
+
+struct PrincipalRotationCancelResponse: Decodable {
+    let success: Bool
+    let operation: String
+    let rotation_id: String
+    let rotation_status: String
+    let expires_at: String
+    let already_cancelled: Bool
 }
 
 @MainActor
@@ -338,6 +441,144 @@ final class PurchasePrincipalResolver {
         }
     }
 
+    static func generateSignoutRotationSecret() throws -> String {
+        var bytes = Data(count: 32)
+        let status = bytes.withUnsafeMutableBytes { buffer in
+            guard let baseAddress = buffer.baseAddress else {
+                return errSecParam
+            }
+            return SecRandomCopyBytes(kSecRandomDefault, 32, baseAddress)
+        }
+        guard status == errSecSuccess else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        return base64URL(bytes)
+    }
+
+    func prepareSignoutRotation(
+        rotationId: UUID,
+        rotationSecret: String,
+        expectedBinding: PurchasePrincipalBinding,
+        expectedCapabilityFingerprint: String
+    ) async throws -> PrincipalRotationPreparation {
+        guard expectedBinding.mode == .stable,
+              let expectedPrincipalId = expectedBinding.purchasePrincipalId,
+              let expectedAppUserId = expectedBinding.revenueCatAppUserId,
+              let expectedGeneration = expectedBinding.bindingGeneration,
+              expectedGeneration > 0,
+              Self.isValidRotationSecret(rotationSecret) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        let capability = try activatedInstallationCapability(
+            expectedFingerprint: expectedCapabilityFingerprint
+        )
+        let response: PrincipalRotationPrepareResponse =
+            try await client.functions.invoke(
+                "resolve-purchase-principal",
+                options: .init(
+                    body: PrincipalRotationPreparePayload(
+                        installation_capability: capability,
+                        rotation_id: rotationId.uuidString.lowercased(),
+                        rotation_secret: rotationSecret,
+                        expected_binding_generation: expectedGeneration
+                    )
+                )
+            )
+        guard response.success,
+              response.operation == "prepare_signout_rotation",
+              response.rotation_status == "prepared",
+              let responseRotationId = UUID(uuidString: response.rotation_id),
+              responseRotationId == rotationId,
+              let responsePrincipalId = UUID(
+                uuidString: response.purchase_principal_id
+              ),
+              responsePrincipalId == expectedPrincipalId,
+              response.revenuecat_app_user_id == expectedAppUserId,
+              response.binding_generation == expectedGeneration,
+              PurchasePrincipalBinding.isValidRevenueCatAppUserId(
+                response.revenuecat_app_user_id
+              ),
+              PurchasePrincipalBinding.isValidServerTimestamp(
+                response.expires_at
+              ) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        return PrincipalRotationPreparation(
+            rotationId: responseRotationId,
+            purchasePrincipalId: responsePrincipalId,
+            revenueCatAppUserId: response.revenuecat_app_user_id,
+            bindingGeneration: response.binding_generation,
+            expiresAt: response.expires_at
+        )
+    }
+
+    func claimSignoutRotation(
+        rotationId: UUID,
+        rotationSecret: String,
+        expectedCapabilityFingerprint: String
+    ) async throws -> PurchasePrincipalBinding {
+        guard Self.isValidRotationSecret(rotationSecret) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        let capability = try activatedInstallationCapability(
+            expectedFingerprint: expectedCapabilityFingerprint
+        )
+        let response: PrincipalRotationClaimResponse =
+            try await client.functions.invoke(
+                "resolve-purchase-principal",
+                options: .init(
+                    body: PrincipalRotationClaimPayload(
+                        installation_capability: capability,
+                        rotation_id: rotationId.uuidString.lowercased(),
+                        rotation_secret: rotationSecret
+                    )
+                )
+            )
+        guard UUID(uuidString: response.rotation_id) == rotationId else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        return try PurchasePrincipalBinding(signOutRotationClaim: response)
+    }
+
+    func cancelSignoutRotation(
+        rotationId: UUID,
+        rotationSecret: String,
+        expectedCapabilityFingerprint: String
+    ) async throws -> PrincipalRotationCancellation {
+        guard Self.isValidRotationSecret(rotationSecret) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        let capability = try activatedInstallationCapability(
+            expectedFingerprint: expectedCapabilityFingerprint
+        )
+        let response: PrincipalRotationCancelResponse =
+            try await client.functions.invoke(
+                "resolve-purchase-principal",
+                options: .init(
+                    body: PrincipalRotationCancelPayload(
+                        installation_capability: capability,
+                        rotation_id: rotationId.uuidString.lowercased(),
+                        rotation_secret: rotationSecret
+                    )
+                )
+            )
+        guard response.success,
+              response.operation == "cancel_signout_rotation",
+              let responseRotationId = UUID(uuidString: response.rotation_id),
+              responseRotationId == rotationId,
+              ["cancelled", "expired"].contains(response.rotation_status),
+              PurchasePrincipalBinding.isValidServerTimestamp(
+                response.expires_at
+              ) else {
+            throw PurchasePrincipalResolverError.invalidResponse
+        }
+        return PrincipalRotationCancellation(
+            rotationId: responseRotationId,
+            status: response.rotation_status,
+            expiresAt: response.expires_at
+        )
+    }
+
     func currentInstallationCapabilityFingerprint() throws -> String {
         let capability = try capabilityStore.loadExisting()
         let fingerprint = PurchasePrincipalCapabilityPolicy.fingerprint(
@@ -349,6 +590,25 @@ final class PurchasePrincipalResolver {
             throw PurchasePrincipalResolverError.capabilityUnavailable
         }
         return fingerprint
+    }
+
+    private func activatedInstallationCapability(
+        expectedFingerprint: String
+    ) throws -> String {
+        guard PurchasePrincipalCapabilityPolicy.isValidFingerprint(
+            expectedFingerprint
+        ) else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        let capability = try capabilityStore.loadExisting()
+        let fingerprint = PurchasePrincipalCapabilityPolicy.fingerprint(
+            capability
+        )
+        guard fingerprint == expectedFingerprint,
+              try loadStableActivationFingerprint() == fingerprint else {
+            throw PurchasePrincipalResolverError.capabilityUnavailable
+        }
+        return Self.base64URL(capability)
     }
 
     private func loadStableActivationFingerprint() throws -> String? {
@@ -426,6 +686,13 @@ final class PurchasePrincipalResolver {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+
+    private static func isValidRotationSecret(_ value: String) -> Bool {
+        value.range(
+            of: #"^[A-Za-z0-9_-]{43}$"#,
+            options: .regularExpression
+        ) != nil
     }
 
     private static func isUnsupportedRoute(_ error: FunctionsError) -> Bool {

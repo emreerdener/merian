@@ -11,7 +11,10 @@ import {
 } from "../revenuecat-webhook/subscriber.ts";
 import {
   beginPurchasePrincipalResolution,
+  cancelPurchasePrincipalSignoutRotation,
+  claimPurchasePrincipalSignoutRotation,
   completePurchasePrincipalResolution,
+  preparePurchasePrincipalSignoutRotation,
   PurchasePrincipalDatabaseError,
   readCurrentEntitlementProjection,
 } from "./db.ts";
@@ -28,6 +31,9 @@ export interface PurchasePrincipalResolverDependencies {
   apiKey?: string;
   begin?: typeof beginPurchasePrincipalResolution;
   complete?: typeof completePurchasePrincipalResolution;
+  prepareSignoutRotation?: typeof preparePurchasePrincipalSignoutRotation;
+  claimSignoutRotation?: typeof claimPurchasePrincipalSignoutRotation;
+  cancelSignoutRotation?: typeof cancelPurchasePrincipalSignoutRotation;
   readCurrentEntitlement?: typeof readCurrentEntitlementProjection;
   fetchCustomerInfo?: typeof fetchRevenueCatCustomerInfo;
   now?: () => number;
@@ -72,12 +78,95 @@ export async function handleResolvePurchasePrincipal(
 
   const begin = dependencies.begin ?? beginPurchasePrincipalResolution;
   const complete = dependencies.complete ?? completePurchasePrincipalResolution;
+  const prepareSignoutRotation = dependencies.prepareSignoutRotation ??
+    preparePurchasePrincipalSignoutRotation;
+  const claimSignoutRotation = dependencies.claimSignoutRotation ??
+    claimPurchasePrincipalSignoutRotation;
+  const cancelSignoutRotation = dependencies.cancelSignoutRotation ??
+    cancelPurchasePrincipalSignoutRotation;
   const fetchCustomerInfo = dependencies.fetchCustomerInfo ??
     fetchRevenueCatCustomerInfo;
   const now = dependencies.now ?? Date.now;
   const capabilityHash = await sha256Hex(request.installationCapability);
 
   try {
+    if (request.operation !== "resolve") {
+      const secretHash = await sha256Hex(request.rotationSecret);
+      if (request.operation === "prepare_signout_rotation") {
+        const preparation = await prepareSignoutRotation(
+          supabaseAdmin,
+          user.id,
+          capabilityHash,
+          request.rotationId,
+          secretHash,
+          request.expectedBindingGeneration,
+          request.clientProtocol,
+        );
+        return jsonResponse(
+          {
+            success: true,
+            operation: request.operation,
+            rotation_id: preparation.rotationId,
+            rotation_status: preparation.status,
+            expires_at: preparation.expiresAt,
+            purchase_principal_id: preparation.purchasePrincipalId,
+            revenuecat_app_user_id: preparation.revenueCatAppUserId,
+            binding_generation: preparation.bindingGeneration,
+            already_prepared: preparation.alreadyPrepared,
+          },
+          200,
+          { "Cache-Control": "no-store", "Pragma": "no-cache" },
+        );
+      }
+      if (request.operation === "claim_signout_rotation") {
+        const claim = await claimSignoutRotation(
+          supabaseAdmin,
+          user.id,
+          capabilityHash,
+          request.rotationId,
+          secretHash,
+          request.clientProtocol,
+        );
+        return jsonResponse(
+          {
+            success: true,
+            operation: request.operation,
+            rotation_id: claim.rotationId,
+            rotation_status: claim.status,
+            expires_at: claim.expiresAt,
+            purchase_principal_id: claim.purchasePrincipalId,
+            revenuecat_app_user_id: claim.revenueCatAppUserId,
+            binding_generation: claim.bindingGeneration,
+            account_grants_allowed: claim.accountGrantsAllowed,
+            already_claimed: claim.alreadyClaimed,
+          },
+          200,
+          { "Cache-Control": "no-store", "Pragma": "no-cache" },
+        );
+      }
+
+      const cancellation = await cancelSignoutRotation(
+        supabaseAdmin,
+        user.id,
+        capabilityHash,
+        request.rotationId,
+        secretHash,
+        request.clientProtocol,
+      );
+      return jsonResponse(
+        {
+          success: true,
+          operation: request.operation,
+          rotation_id: cancellation.rotationId,
+          rotation_status: cancellation.status,
+          expires_at: cancellation.expiresAt,
+          already_cancelled: cancellation.alreadyCancelled,
+        },
+        200,
+        { "Cache-Control": "no-store", "Pragma": "no-cache" },
+      );
+    }
+
     const start = await begin(
       supabaseAdmin,
       user.id,
@@ -179,11 +268,13 @@ export async function handleResolvePurchasePrincipal(
       const status = error.code ===
           "purchase_principal_client_upgrade_required"
         ? 426
+        : error.code === "purchase_principal_signout_rotation_expired"
+        ? 410
         : error.retryable
         ? 503
         : 409;
       logIdentitySafeError("purchase_principal_resolution_rejected", {
-        operation: "resolve",
+        operation: request.operation,
         stage: "database",
         code: error.code,
         status,
@@ -194,6 +285,22 @@ export async function handleResolvePurchasePrincipal(
           status,
           error.code,
           "Update Merian to keep purchase access connected.",
+        );
+      }
+      if (error.code === "purchase_principal_signout_rotation_expired") {
+        return publicErrorResponse(
+          req,
+          status,
+          error.code,
+          "The pending sign-out purchase transition expired. Sign back in to recover it.",
+        );
+      }
+      if (error.code === "purchase_principal_signout_rotation_required") {
+        return publicErrorResponse(
+          req,
+          status,
+          error.code,
+          "Complete or cancel the pending sign-out purchase transition first.",
         );
       }
       return publicErrorResponse(
@@ -208,7 +315,7 @@ export async function handleResolvePurchasePrincipal(
     }
 
     logIdentitySafeError("purchase_principal_resolution_failed", {
-      operation: "resolve",
+      operation: request.operation,
       stage: "processing",
       code: safeErrorName(error),
     });

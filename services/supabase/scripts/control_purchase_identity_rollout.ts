@@ -40,7 +40,7 @@ export interface PurchaseIdentityRolloutArgs {
 }
 
 export interface PurchaseIdentityRolloutEvidence {
-  schema_version: 1;
+  schema_version: 2;
   source_sha: string;
   reviewed_at: string;
   artifacts: {
@@ -59,6 +59,7 @@ export interface PurchaseIdentityRolloutEvidence {
     disposable_replay: EvidenceStatus;
     pgtap: EvidenceStatus;
     concurrency: EvidenceStatus;
+    signout_rotation_concurrency: EvidenceStatus;
     lint: EvidenceStatus;
     security_advisor: EvidenceStatus;
   };
@@ -72,6 +73,9 @@ export interface PurchaseIdentityRolloutEvidence {
     offline_retry: EvidenceStatus;
     account_switch: EvidenceStatus;
     account_deletion: EvidenceStatus;
+    signout_rotation_recovery: EvidenceStatus;
+    signout_rotation_unrelated_session_rejection: EvidenceStatus;
+    signout_rotation_entitlement_gate: EvidenceStatus;
   };
   revenuecat: {
     restore_behavior: "transfer_to_new_app_user_id" | "unverified";
@@ -94,9 +98,12 @@ export interface PurchaseIdentityRolloutEvidence {
     old_client_new_backend: EvidenceStatus;
     legacy_handoff_retained: EvidenceStatus;
     stable_rollback_rehearsal: EvidenceStatus;
+    live_rotation_rollback_support: EvidenceStatus;
   };
   monitoring: {
     required_principal_health: EvidenceStatus;
+    required_signout_rotation_health: EvidenceStatus;
+    signout_rotation_expiry_and_thresholds: EvidenceStatus;
     queue_and_lease_health: EvidenceStatus;
   };
   account_grants: {
@@ -542,6 +549,7 @@ export function parsePurchaseIdentityRolloutEvidence(
     "disposable_replay",
     "pgtap",
     "concurrency",
+    "signout_rotation_concurrency",
     "lint",
     "security_advisor",
   ]);
@@ -555,6 +563,9 @@ export function parsePurchaseIdentityRolloutEvidence(
     "offline_retry",
     "account_switch",
     "account_deletion",
+    "signout_rotation_recovery",
+    "signout_rotation_unrelated_session_rejection",
+    "signout_rotation_entitlement_gate",
   ]);
   assertExactNestedKeys(value, "revenuecat", [
     "restore_behavior",
@@ -577,9 +588,12 @@ export function parsePurchaseIdentityRolloutEvidence(
     "old_client_new_backend",
     "legacy_handoff_retained",
     "stable_rollback_rehearsal",
+    "live_rotation_rollback_support",
   ]);
   assertExactNestedKeys(value, "monitoring", [
     "required_principal_health",
+    "required_signout_rotation_health",
+    "signout_rotation_expiry_and_thresholds",
     "queue_and_lease_health",
   ]);
   assertExactNestedKeys(value, "account_grants", [
@@ -598,7 +612,7 @@ export function validatePurchaseIdentityRolloutEvidence(
 ): void {
   const reviewedAt = Date.parse(evidence.reviewed_at);
   if (
-    evidence.schema_version !== 1 || evidence.source_sha !== args.sourceSha ||
+    evidence.schema_version !== 2 || evidence.source_sha !== args.sourceSha ||
     !SHA_1.test(evidence.source_sha) ||
     !Number.isFinite(reviewedAt) ||
     evidence.approval.reference_sha256 !== args.approvalSha256 ||
@@ -648,6 +662,7 @@ export function validatePurchaseIdentityRolloutEvidence(
     evidence.ios.ui_tests,
     ...Object.values(evidence.compatibility),
     evidence.monitoring.required_principal_health,
+    evidence.monitoring.required_signout_rotation_health,
   ];
   const enableRequired = [
     ...Object.values(evidence.ios),
@@ -717,7 +732,7 @@ export function buildPurchaseIdentityRolloutPlan(
       if (
         before.principal_mode !== "legacy" ||
         before.account_grant_mode !== "dual_read" ||
-        args.minimumClientProtocol < 2 ||
+        args.minimumClientProtocol < 3 ||
         args.minimumClientProtocol < before.minimum_client_protocol
       ) {
         throw new RolloutControlError("invalid_stable_cutover_state");

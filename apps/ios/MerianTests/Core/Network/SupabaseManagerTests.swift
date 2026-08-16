@@ -15,7 +15,6 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertFalse(message.localizedCaseInsensitiveContains("guest"))
     }
 
-
     var supabaseManager: SupabaseManager!
 
     override func setUp() async throws {
@@ -33,7 +32,7 @@ final class SupabaseManagerTests: XCTestCase {
         // it may alter this behavior. This asserts the logic flows without crashing.
         let isGuest = supabaseManager.isGuestUser
         let authState = supabaseManager.isAuthenticated
-        
+
         XCTAssertNotNil(isGuest)
         XCTAssertNotNil(authState)
     }
@@ -1360,7 +1359,7 @@ final class SupabaseManagerTests: XCTestCase {
         XCTAssertEqual(events, ["signout"])
     }
 
-    func testAnonymousExternalIdentityLinkWaitsForPurchaseHandoffBinding() {
+    func testEveryExternalIdentityLinkWaitsForPurchaseHandoffBinding() {
         XCTAssertTrue(
             SupabaseManager.shouldDeferExternalIdentityLink(
                 isAnonymous: true,
@@ -1373,10 +1372,16 @@ final class SupabaseManagerTests: XCTestCase {
                 purchaseIdentityHandoffPending: false
             )
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             SupabaseManager.shouldDeferExternalIdentityLink(
                 isAnonymous: false,
                 purchaseIdentityHandoffPending: true
+            )
+        )
+        XCTAssertFalse(
+            SupabaseManager.shouldDeferExternalIdentityLink(
+                isAnonymous: false,
+                purchaseIdentityHandoffPending: false
             )
         )
     }

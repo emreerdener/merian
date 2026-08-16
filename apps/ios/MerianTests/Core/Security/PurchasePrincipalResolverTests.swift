@@ -198,7 +198,7 @@ struct PurchasePrincipalResolverTests {
                     revenuecat_app_user_id: nil,
                     binding_generation: nil,
                     account_grants_allowed: nil,
-                    minimum_client_protocol: 3
+                    minimum_client_protocol: 4
                 )
             )
         }
@@ -281,9 +281,72 @@ struct PurchasePrincipalResolverTests {
                     revenuecat_app_user_id: "MERIAN_PP_REQUIRES_NEW_CLIENT",
                     binding_generation: 1,
                     account_grants_allowed: false,
-                    minimum_client_protocol: 3
+                    minimum_client_protocol: 4
                 )
             )
         }
+    }
+
+    @Test("Stable sign-out claim accepts only a completed anonymous binding")
+    func stableSignOutClaimResponse() throws {
+        let rotationID = UUID()
+        let principalID = UUID()
+        let binding = try PurchasePrincipalBinding(
+            signOutRotationClaim: PrincipalRotationClaimResponse(
+                success: true,
+                operation: "claim_signout_rotation",
+                rotation_id: rotationID.uuidString.lowercased(),
+                rotation_status: "completed",
+                expires_at: "2026-09-15T00:00:00Z",
+                purchase_principal_id: principalID.uuidString.lowercased(),
+                revenuecat_app_user_id: "MERIAN_PP_ROTATED",
+                binding_generation: 8,
+                account_grants_allowed: false,
+                already_claimed: false
+            )
+        )
+
+        #expect(binding.mode == .stable)
+        #expect(binding.purchasePrincipalId == principalID)
+        #expect(binding.bindingGeneration == 8)
+        #expect(binding.accountGrantsAllowed == false)
+
+        for (status, accountGrantsAllowed) in [
+            ("prepared", false),
+            ("completed", true)
+        ] {
+            #expect(throws: PurchasePrincipalResolverError.self) {
+                try PurchasePrincipalBinding(
+                    signOutRotationClaim: PrincipalRotationClaimResponse(
+                        success: true,
+                        operation: "claim_signout_rotation",
+                        rotation_id: rotationID.uuidString,
+                        rotation_status: status,
+                        expires_at: "2026-09-15T00:00:00Z",
+                        purchase_principal_id: principalID.uuidString,
+                        revenuecat_app_user_id: "MERIAN_PP_ROTATED",
+                        binding_generation: 8,
+                        account_grants_allowed: accountGrantsAllowed,
+                        already_claimed: false
+                    )
+                )
+            }
+        }
+    }
+
+    @Test("Stable sign-out secrets are exact one-use base64url values")
+    @MainActor
+    func stableSignOutSecretGeneration() throws {
+        let first = try PurchasePrincipalResolver
+            .generateSignoutRotationSecret()
+        let second = try PurchasePrincipalResolver
+            .generateSignoutRotationSecret()
+
+        #expect(first.utf8.count == 43)
+        #expect(first != second)
+        #expect(first.range(
+            of: #"^[A-Za-z0-9_-]{43}$"#,
+            options: .regularExpression
+        ) != nil)
     }
 }

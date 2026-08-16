@@ -289,9 +289,10 @@ enum RevenueCatStableIdentityPrivacyPolicy {
     /// Funding policy for a new scan. An active complimentary hold preserves
     /// functional Pro access but cannot be spent by another analysis.
     var canStartProScan: Bool {
-        isSubscribed || EntitlementManager.shared.canStartProFundedScan
+        !isPurchaseIdentityHandoffPending
+            && (isSubscribed || EntitlementManager.shared.canStartProFundedScan)
     }
-    
+
     var currentOfferings: Offerings?
     var isFetchingOfferings: Bool = false
 
@@ -333,6 +334,9 @@ enum RevenueCatStableIdentityPrivacyPolicy {
 
     func setPurchaseIdentityHandoffPending(_ pending: Bool) {
         isPurchaseIdentityHandoffPending = pending
+        if pending {
+            closePaidReadiness()
+        }
     }
 
     /// Closes provider mutation readiness before an asynchronous server mode
@@ -683,6 +687,10 @@ enum RevenueCatStableIdentityPrivacyPolicy {
     }
 
     private func updateEntitlements(with info: CustomerInfo) {
+        guard !isPurchaseIdentityHandoffPending else {
+            closePaidReadiness()
+            return
+        }
         guard RevenueCatCustomerInfoVerificationPolicy.allowsPaidAccess(
             info.entitlements.verification
         ) else {
@@ -739,7 +747,11 @@ enum RevenueCatStableIdentityPrivacyPolicy {
     /// entitlement. Legacy trial mode is server-owned until cutover; no client
     /// trial window is inferred.
     func synchronizeFunctionalEntitlement() {
-        isProActive = isSubscribed || EntitlementManager.shared.hasVerifiedFunctionalProAccess
+        isProActive = !isPurchaseIdentityHandoffPending
+            && (
+                isSubscribed
+                    || EntitlementManager.shared.hasVerifiedFunctionalProAccess
+            )
         HardwareOrchestrator.shared.evaluateConstraints()
     }
 

@@ -391,17 +391,16 @@ triggering excessive SwiftUI view rebuilds.
   first actual result frame. `ScanMilestoneCoordinator` runs in follow-up work,
   polls `/check-scan-status` before retrieving the server-applied Field trip
   progress receipt, then calculates awards and batches standard outings,
-  Seasonal Challenges, achievements, and **New to Naturebook**.
-  The coordinator derives a lowercase coordination key at ingress but preserves
-  the caller's trimmed ID for network and durable-store operations. The queue
-  generates lowercase UUIDs but preserves caller-supplied stable IDs. This
-  prevents server/client casing from splitting milestone ownership without
-  changing a caller's queue identity contract.
-  Tools requiring server persistence stay disabled until the existing ingestion
-  ledger confirms the final scan ID. The progress call may carry the durable
-  camera-only selected-goal hint, and its completion publishes a scan-specific
-  contribution invalidation so an open historical Insight reloads without
-  replaying milestone celebrations.
+  Seasonal Challenges, achievements, and **New to Naturebook**. The coordinator
+  derives a lowercase coordination key at ingress but preserves the caller's
+  trimmed ID for network and durable-store operations. The queue generates
+  lowercase UUIDs but preserves caller-supplied stable IDs. This prevents
+  server/client casing from splitting milestone ownership without changing a
+  caller's queue identity contract. Tools requiring server persistence stay
+  disabled until the existing ingestion ledger confirms the final scan ID. The
+  progress call may carry the durable camera-only selected-goal hint, and its
+  completion publishes a scan-specific contribution invalidation so an open
+  historical Insight reloads without replaying milestone celebrations.
 - **Inline/background upload handoff**: `analyze()` installs a two-second
   fail-safe, then asks `MerianNetworkClient` to release the live scan's deferred
   queue row when request-body upload completes. Network failure releases the row
@@ -572,14 +571,14 @@ triggering excessive SwiftUI view rebuilds.
   `inference_v3|ownerUUID|generation|scanId`; parsers retain legacy
   compatibility for tasks created by older app builds. Carrying both the exact
   Auth owner and server-issued key prevents a cold-launch identity guess from
-  changing the upload owner.
-  Queue-backed foreground inference additionally persists its UUID on the
-  scan-ingestion job and atomically consumes it before provider dispatch.
-  `InferenceEngine` checks the scan, presentation UUID, and foreground UUID at
-  task entry, after suspension, immediately before provider dispatch, and before
-  each result or failure effect. A current failure handler snapshots that proof
-  before synchronous retirement; a stale handler cannot emit telemetry, update
-  the circuit breaker, trigger a haptic, or replace the UI with an error.
+  changing the upload owner. Queue-backed foreground inference additionally
+  persists its UUID on the scan-ingestion job and atomically consumes it before
+  provider dispatch. `InferenceEngine` checks the scan, presentation UUID, and
+  foreground UUID at task entry, after suspension, immediately before provider
+  dispatch, and before each result or failure effect. A current failure handler
+  snapshots that proof before synchronous retirement; a stale handler cannot
+  emit telemetry, update the circuit breaker, trigger a haptic, or replace the
+  UI with an error.
 - **Orphaned `.uploading` Reconciliation**: `markScansAsUploading` runs before
   `generateUploadURLs`, returns the scan IDs whose `.pending → .uploading`
   transition actually committed, and `syncPendingScans` signs/dispatches only
@@ -635,18 +634,18 @@ triggering excessive SwiftUI view rebuilds.
   authority. The same manifest is sent to `/generate-upload-urls`, whose Edge
   parser validates kind/type/size/role before signing and creates staged
   media-asset session rows for scan uploads. The complete position-aligned
-  signed response is validated before any PUT. Every response item declares
-  the exact signed `Content-Type` and `Content-Length`; iOS applies both, and a
+  signed response is validated before any PUT. Every response item declares the
+  exact signed `Content-Type` and `Content-Length`; iOS applies both, and a
   signing-time file-size snapshot is rechecked immediately before task creation.
   Changed files discard their URL and re-sign on the next scheduler pass. Exact
   server keys—not locally predicted owner segments—travel in task descriptions.
-  Swift and Deno
-  tests both load `docs/contracts/media-staging-upload-manifest.json` to catch
-  drift in limits, allowed content types, and optional session fields. This
-  prevents upload completion, replay, request construction, and Edge signing
-  from reconstructing object keys differently. The server later recovers those
-  upload-session ids from `scan_media_assets` and includes them in the
-  ingestion-job manifest checksum.
+  Swift and Deno tests both load
+  `docs/contracts/media-staging-upload-manifest.json` to catch drift in limits,
+  allowed content types, and optional session fields. This prevents upload
+  completion, replay, request construction, and Edge signing from reconstructing
+  object keys differently. The server later recovers those upload-session ids
+  from `scan_media_assets` and includes them in the ingestion-job manifest
+  checksum.
 - **Concurrent upload staging (`withTaskGroup`)**: File copy and
   `URLSession.uploadTask` creation for each image in a batch are fanned out via
   `withTaskGroup`. Pre-flight guards (URL validation, file existence,
@@ -655,32 +654,31 @@ triggering excessive SwiftUI view rebuilds.
   head-of-line blocking before the OS background session takes over.
 - **Serialized funding admission at enqueue time**: before writing files or
   allowing foreground inference, `insertAndPersistRecord` and
-  `enqueueNonVisualCapture` synchronously call
-  `EntitlementManager.claimFunding` for the active account and stable scan ID.
-  Observable entitlement booleans remain UI hints. The manager subtracts
-  unresolved local complimentary/legacy blockers from verified server
-  availability and records paid Pro, complimentary Pro, immediate Flash, or
-  deferred Flash. Only one image, standalone audio, or description with no
-  video is Flash-eligible; mixed/multi-item/video work without Pro funding is
-  rejected rather than queued. Immediate and deferred Flash reserve the
-  advisory daily token before SwiftData commit. Save failure rolls back and
-  refunds both local admissions before deleting staged files;
+  `enqueueNonVisualCapture` synchronously call `EntitlementManager.claimFunding`
+  for the active account and stable scan ID. Observable entitlement booleans
+  remain UI hints. The manager subtracts unresolved local complimentary/legacy
+  blockers from verified server availability and records paid Pro, complimentary
+  Pro, immediate Flash, or deferred Flash. Only one image, standalone audio, or
+  description with no video is Flash-eligible; mixed/multi-item/video work
+  without Pro funding is rejected rather than queued. Immediate and deferred
+  Flash reserve the advisory daily token before SwiftData commit. Save failure
+  rolls back and refunds both local admissions before deleting staged files;
   `AppTelemetry.trackOfflineQueued()` is not fired on rejection.
-- **Durable funding lifecycle**: the scan job persists
-  `funding_reservation` beside `inference_generation`. Relaunch restores active
-  claims; legacy jobs without funding are conservative blockers. Proven
-  pre-dispatch failure first saves `funding_reservation_released: true`; a failed
-  marker save keeps capacity reserved. Ambiguous delivery remains reserved, and
-  manual retry of released work makes a fresh exact-shape claim. The scheduler
-  dispatches complimentary claims first, uses one bulk funding-state read,
-  refreshes entitlement for released/absent or terminal-consumed blockers, and
-  persists paid/complimentary/immediate-Flash reclassification before dispatch.
+- **Durable funding lifecycle**: the scan job persists `funding_reservation`
+  beside `inference_generation`. Relaunch restores active claims; legacy jobs
+  without funding are conservative blockers. Proven pre-dispatch failure first
+  saves `funding_reservation_released: true`; a failed marker save keeps
+  capacity reserved. Ambiguous delivery remains reserved, and manual retry of
+  released work makes a fresh exact-shape claim. The scheduler dispatches
+  complimentary claims first, uses one bulk funding-state read, refreshes
+  entitlement for released/absent or terminal-consumed blockers, and persists
+  paid/complimentary/immediate-Flash reclassification before dispatch.
   `syncPendingScans` performs no second advisory admission check. Supabase still
   applies authoritative entitlement and quota before provider work. Completion
-  reconciles both `plan_used` and `credit_consumed`; paid or truly
-  complimentary funding refunds an optimistic Flash token. Valid
-  non-biological results count under their funding plan, and correction
-  reanalysis does not bypass daily accounting.
+  reconciles both `plan_used` and `credit_consumed`; paid or truly complimentary
+  funding refunds an optimistic Flash token. Valid non-biological results count
+  under their funding plan, and correction reanalysis does not bypass daily
+  accounting.
 - **Sync Phase Transitions**: Drives `SyncStateManager` through
   `.uploading(count:)` → `.inferencing` → `.finalizing` → `.idle` as the
   pipeline progresses.
@@ -691,11 +689,10 @@ triggering excessive SwiftUI view rebuilds.
   to its exact binary. It intentionally omits raw media paths and payload
   contents, descriptions, Field notes, location/GPS, raw metadata, and arbitrary
   persisted error/event messages. Retained error/status/stage fields accept
-  canonical lowercase machine tokens only.
-  The versioned export caps jobs, scans, and events at 500 rows each and clamps
-  all requested event limits to 1...500; zero never falls through to a
-  persistence API's “no limit” behavior. The temporary JSON uses complete data
-  protection.
+  canonical lowercase machine tokens only. The versioned export caps jobs,
+  scans, and events at 500 rows each and clamps all requested event limits to
+  1...500; zero never falls through to a persistence API's “no limit” behavior.
+  The temporary JSON uses complete data protection.
 
 ### `MessageScanShareCacheWriter`
 
@@ -946,32 +943,32 @@ triggering excessive SwiftUI view rebuilds.
 - **Do not inline string literals for these keys anywhere in the codebase.**
   Always reference the constant.
 
-| Constant                               | Key string                               | Sites                                                                                                                                                                                                                                                                                      |
-| -------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hasUnseenScan`                        | `"hasUnseenScan"`                        | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                             |
-| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`               | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent.                            |
-| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                        |
-| `themeMode`                            | `"themeMode"`                            | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                               |
-| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                 | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`. |
-| `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`           | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                        |
-| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                                                                                                                                      |
-| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`             | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off. |
-| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                   | one-time migration in `MerianApp`                                                                                                                                                                                                                                                          |
-| `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"` | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                |
-| `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`             | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                                                                                                                                     |
-| `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                 | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                                                                                                                             |
-| `lastSeenExplorePostSharedAt`          | `"lastSeenExplorePostSharedAt"`          | `AppSettings` typed property. Updated by `ExploreFeedViewModel` after the Recent feed loads and used by `MainTabBar` badge refresh.                                                                                                                                                        |
-| `suppressInferenceBanners`             | `"suppressInferenceBanners"`             | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                                                                                                                        |
-| `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                 | `AppLifecycleManager`                                                                                                                                                                                                                                                                      |
-| `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`               | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                                                                                                                                   |
-| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`            | `InferenceEngine`                                                                                                                                                                                                                                                                          |
-| `isLiveInferencePaused`                | `"isLiveInferencePaused"`                | `CameraSettingsView`, `CameraManager`                                                                                                                                                                                                                                                      |
-| `invertZoomDirection`                  | `"invertZoomDirection"`                  | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                                                                                                                                  |
-| `zoomSideLeft`                         | `"zoomSideLeft"`                         | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                                                                                                                                  |
-| `zoomSliderVisible`                    | `"zoomSliderVisible"`                    | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                                                                                                                                     |
-| `needsCollectionSync`                  | `"needsCollectionSync"`                  | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.                                                                                                                  |
-| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`             | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                                                                                                                                 |
-| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                                                                                                                                    |
+| Constant                               | Key string                                | Sites                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hasUnseenScan`                        | `"hasUnseenScan"`                         | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansSheetView`.                                                                                                                                        |
+| `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`                | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent. |
+| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                                                          |
+| `themeMode`                            | `"themeMode"`                             | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                                                          |
+| `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                  | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                   |
+| `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`            | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                                                   |
+| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                 | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                                                                                                                                                                 |
+| `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`              | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                            |
+| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | one-time migration in `MerianApp`                                                                                                                                                                                                                                                                                     |
+| `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"`  | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                                           |
+| `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`              | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                                                                                                                                                                |
+| `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                  | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                                                                                                                                                        |
+| `lastSeenExplorePostSharedAt`          | `"lastSeenExplorePostSharedAt"`           | `AppSettings` typed property. Updated by `ExploreFeedViewModel` after the Recent feed loads and used by `MainTabBar` badge refresh.                                                                                                                                                                                   |
+| `suppressInferenceBanners`             | `"suppressInferenceBanners"`              | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                                                                                                                                                   |
+| `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                  | `AppLifecycleManager`                                                                                                                                                                                                                                                                                                 |
+| `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`                | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                                                                                                                                                              |
+| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`             | `InferenceEngine`                                                                                                                                                                                                                                                                                                     |
+| `isLiveInferencePaused`                | `"isLiveInferencePaused"`                 | `CameraSettingsView`, `CameraManager`                                                                                                                                                                                                                                                                                 |
+| `invertZoomDirection`                  | `"invertZoomDirection"`                   | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                                                                                                                                                             |
+| `zoomSideLeft`                         | `"zoomSideLeft"`                          | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                                                                                                                                                             |
+| `zoomSliderVisible`                    | `"zoomSliderVisible"`                     | `ZoomSliderView`, `CameraSettingsView`                                                                                                                                                                                                                                                                                |
+| `needsCollectionSync`                  | `"needsCollectionSync"`                   | Legacy one-release bridge only. `ScanRepository.configure(with:)` imports it into `OfflineJobRecord(id: "collection-sync")`; active scheduling should use the job record.                                                                                                                                             |
+| `hiddenSmartCollectionIDs`             | `"hiddenSmartCollectionIDs"`              | `SmartCollectionPreferences` stores locally hidden smart collection ids; these are UI-only and are not synced through `/sync-collections`.                                                                                                                                                                            |
+| `speciesPreferredNamePrefix`           | `"speciesPreferredName_"`                 | `SpeciesPreferredNameStore` bridge for per-species display-name overrides used by Insights and Explore.                                                                                                                                                                                                               |
 
 `KeychainKeys.hasAuthenticatedOAuth` is the single source of truth for the
 authenticated-session marker used by `SupabaseManager`, `MerianNetworkClient`,
@@ -1273,18 +1270,20 @@ consults that Keychain entry.
   session, a valid session, and an expired cached session awaiting SDK refresh.
   The awaiting-refresh path leaves `isAuthenticated` false and `currentUser`
   unset, but passes the cached user ID to `ConsentManager` so required-consent
-  restoration cannot briefly resolve to Ready. The subsequent
-  `tokenRefreshed` or `signedOut` event completes the decision.
-- **Purchase-principal resolver**: each usable Auth session passes through one
-  single-flight `resolveAndLinkPurchasePrincipal` operation. A 256-bit
-  `WhenUnlockedThisDeviceOnly` installation capability is generated and
-  read-verified before first use; Edge stores only SHA-256 and returns explicit
-  `legacy` or `stable` mode. The client never selects or persists a RevenueCat
-  App User ID as authority. A device-only binding-intent counter advances and
-  read-verifies before network I/O; the server rejects older intents, while
-  Auth-event generation checks before and after the
-  serialized SDK identity mutation prevent a late result from an old session
-  from installing paid readiness for a new one.
+  restoration cannot briefly resolve to Ready. The subsequent `tokenRefreshed`
+  or `signedOut` event completes the decision.
+- **Purchase-principal resolver**: each usable Auth session outside a pending
+  protocol-3 stable sign-out passes through one single-flight
+  `resolveAndLinkPurchasePrincipal` operation. A pending fresh-anonymous
+  destination uses the exact reservation claim described below and never enters
+  this ordinary path. A 256-bit `WhenUnlockedThisDeviceOnly` installation
+  capability is generated and read-verified before first use; Edge stores only
+  SHA-256 and returns explicit `legacy` or `stable` mode. The client never
+  selects or persists a RevenueCat App User ID as authority. A device-only
+  binding-intent counter advances and read-verifies before network I/O; the
+  server rejects older intents, while Auth-event generation checks before and
+  after the serialized SDK identity mutation prevent a late result from an old
+  session from installing paid readiness for a new one.
 - **Unified Auth-transition ownership**: one `AuthTransitionCoordinator` owns
   Apple, Google, Sign out, recovery, Apple credential revocation, and account
   deletion. Its token records kind, phase, source, expected destination, and
@@ -1296,32 +1295,42 @@ consults that Keychain entry.
 - **Stable versus legacy identity**: stable mode passes the immutable
   server-issued purchase-principal ID and binding generation to
   `RevenueCatManager`. It clears and synchronizes legacy account attributes,
-  then writes no account email, username, display name,
-  avatar, account kind, or Auth UUID subscriber attribute because that customer
-  can survive an account switch. Legacy mode keeps the uppercase Auth UUID and
-  historical attribute path for old-client compatibility. A definite missing
-  additive route may fall back to legacy; auth, timeout, configuration, provider,
-  and database failures remain fail-closed. RevenueCat is never configured with
-  an anonymous SDK ID and sign-out never calls SDK logout.
+  then writes no account email, username, display name, avatar, account kind, or
+  Auth UUID subscriber attribute because that customer can survive an account
+  switch. Legacy mode keeps the uppercase Auth UUID and historical attribute
+  path for old-client compatibility. A definite missing additive route may fall
+  back to legacy; auth, timeout, configuration, provider, and database failures
+  remain fail-closed. RevenueCat is never configured with an anonymous SDK ID
+  and sign-out never calls SDK logout.
 - **`ghostSessionTask` single-flight**:
   `@ObservationIgnored private var ghostSessionTask: Task<User?, Never>?` —
   serializes anonymous session creation across all callers and returns the
-  resolved Supabase user to each waiter. This closes the
-  suspension-window race where multiple `getValidAuthHeaders()` calls could each
-  enter `initializeGhostSession()` and perform overlapping `signInAnonymously()`
+  resolved Supabase user to each waiter. This closes the suspension-window race
+  where multiple `getValidAuthHeaders()` calls could each enter
+  `initializeGhostSession()` and perform overlapping `signInAnonymously()`
   requests.
-- **Sign-out identity single-flights**: stable mode writes and verifies a
-  purchase-principal Auth-rotation marker before local sign-out, creates one
-  anonymous session, resolves the same principal, serially relinks the unchanged
-  provider ID, refreshes Merian entitlement, verifies the same Auth generation,
-  and removes the marker last. The marker pins a non-secret fingerprint of the
-  exact installation capability and disables capability creation while pending;
-  a missing or replaced Keychain value fails before server or provider identity
-  mutation. It makes no receipt-sync or provider-transfer call. Legacy mode
-  retains `signOutPurchaseHandoffTask`: bind → uppercase UUID
-  RevenueCat link → `syncPurchases()` → authoritative server verification and
-  reconciliation → entitlement refresh → same-session verification → verified
-  proof removal. Either pending boundary keeps purchase/restore/redeem disabled.
+- **Sign-out identity single-flights**: protocol-3 stable mode creates a random
+  rotation UUID and 256-bit secret, persists/read-verifies a `preparing`
+  Keychain journal, and prepares a server-owned reservation while the exact
+  linked source and binding generation are still live through
+  `prepare_signout_rotation`. It persists and verifies the returned `prepared`
+  receipt and expiry before local sign-out. One newly created anonymous session
+  then invokes `claim_signout_rotation` for that exact reservation; it never
+  enters ordinary purchase-principal resolution. The claim atomically returns
+  the same principal/provider ID with an advanced binding generation. iOS
+  validates that receipt, serially relinks RevenueCat, requires
+  `EntitlementManager.beginSession(...)` to return `true`, rechecks the same
+  Auth generation, and removes the journal last. The exact restored source may
+  invoke `cancel_signout_rotation` with the same proof; every unrelated
+  permanent session, old anonymous session, expired claim, malformed journal, or
+  unreadable Keychain stays fail-closed and cannot invoke the generic resolver
+  or provider link. The journal pins the exact installation-capability
+  fingerprint and disables capability creation while pending. It makes no
+  receipt-sync or provider-transfer call. Legacy mode retains
+  `signOutPurchaseHandoffTask`: bind → uppercase UUID RevenueCat link →
+  `syncPurchases()` → authoritative server verification and reconciliation →
+  entitlement refresh → same-session verification → verified proof removal.
+  Either pending boundary keeps purchase/restore/redeem disabled.
 - **Unauthorized identity preservation**: a generic route `401` is not proof
   that Auth deleted the user and never rotates the current UUID. A Ghost can be
   replaced only when the response carries the stable missing/invalid-session
@@ -1336,9 +1345,9 @@ consults that Keychain entry.
 - **Apple revocation credential**: Apple completion also requires the one-use
   authorization code. After Supabase installs the session,
   `register-apple-revocation-token` receives the code, identity token, and one
-  stable registration UUID with a bounded response-loss retry. Server-side
-  Apple verification and Vault persistence are part of sign-in success; failure
-  clears the new local session. The manager treats Apple's credential-revoked
+  stable registration UUID with a bounded response-loss retry. Server-side Apple
+  verification and Vault persistence are part of sign-in success; failure clears
+  the new local session. The manager treats Apple's credential-revoked
   notification as a revalidation signal. It snapshots the active Apple
   identity's provider-specific `UserIdentity.id`, calls
   `getCredentialState(forUserID:)`, and applies the asynchronous result only if
@@ -1364,39 +1373,38 @@ consults that Keychain entry.
   paths were collapsed into a single `isSessionMissing` check, removing the
   duplicate `signInAnonymously()` block.
 - Maps Apple and Google OAuth hooks to migrate anonymous accounts, then resolves
-  the current session's stable or legacy purchase identity before paid readiness.
+  the current session's stable or legacy purchase identity before paid
+  readiness.
 - The database Ghost merge's destination reconciliation row repairs Merian's
   provider lookup schedule only. After commit, the server separately reads both
   RevenueCat customers, mirrors/verifies the source's active finite or lifetime
-  Pro horizon, and blocks source Auth deletion on any failure. The durable client
-  calls `syncPurchases()` before local evidence rebind and proof removal. Ghosts
-  may purchase, restore, redeem, and receive reviewed beta grants.
+  Pro horizon, and blocks source Auth deletion on any failure. The durable
+  client calls `syncPurchases()` before local evidence rebind and proof removal.
+  Ghosts may purchase, restore, redeem, and receive reviewed beta grants.
   - User-facing **Sign out** calls `transitionToGhostSession()` while presenting
-  only **Sign out**, **Continue with Apple**, and **Continue with Google**. Stable
-  mode rotates Supabase Auth under the same purchase principal and keeps
-    StoreKit access there; beta/promotion/support grants remain attached to their
-    account owner. Legacy mode uses `/transfer-signout-purchases` and receipt sync
-    until the supported-client rollback window closes. Account deletion owns
-    its own transition and atomically verifies distinct recovery and
-    acknowledgement capabilities in one device-only Keychain envelope. It
+    only **Sign out**, **Continue with Apple**, and **Continue with Google**.
+    Stable mode rotates Supabase Auth under the same purchase principal and
+    keeps StoreKit access there; beta/promotion/support grants remain attached
+    to their account owner. Legacy mode uses `/transfer-signout-purchases` and
+    receipt sync until the supported-client rollback window closes. Account
+    deletion owns its own transition and atomically verifies distinct recovery
+    and acknowledgement capabilities in one device-only Keychain envelope. It
     records `capability_preparation_pending`, completes non-destructive server
     prepare, records `capability_prepared_pending`, and only then records
     `capability_intake_pending` before destructive commit. A lost response
     therefore replays only the same server-idempotent commit or uses the
     account-free public recovery route while all other account work stays
     fenced. `not_committed` retires only the proof/marker; a successful receipt
-    advances through cleanup and capability
-    retirement; iOS signs out without replacement or purchase transfer, purges
-    SwiftData, acknowledges, verifies proof removal, and removes the marker
-    last. Foreground and cold launch present a blocking recovery surface and
-    retry the exact interrupted phase. Only the server's explicit
-    `409 purchase_continuity_pending` may move an unaccepted intake into the
-    durable `capability_rejection_retirement_pending` phase. That phase verifies
-    removal of only the unused proof before removing the marker and never signs
-    out or purges local data;
-    unknown or ambiguous recovery never does.
-    Global
-    sign-out remains inappropriate because it would revoke other active devices.
+    advances through cleanup and capability retirement; iOS signs out without
+    replacement or purchase transfer, purges SwiftData, acknowledges, verifies
+    proof removal, and removes the marker last. Foreground and cold launch
+    present a blocking recovery surface and retry the exact interrupted phase.
+    Only the server's explicit `409 purchase_continuity_pending` may move an
+    unaccepted intake into the durable `capability_rejection_retirement_pending`
+    phase. That phase verifies removal of only the unused proof before removing
+    the marker and never signs out or purges local data; unknown or ambiguous
+    recovery never does. Global sign-out remains inappropriate because it would
+    revoke other active devices.
   - `AppLifecycleManager` retries an unresolved purchase-identity binding on
     foreground activation, including while the required-consent gate is closed.
     The retry is bound to the exact current Auth generation and durable Keychain
@@ -1454,16 +1462,16 @@ consults that Keychain entry.
   defer and resume through `onDismiss`, not an assumed animation delay. Capture
   crop/video/description/question/survey presentations report the same UIKit
   slot as occupied and resume deferred routes from their own exact callbacks.
-- Candidate and confidence review, Insight Chat follow-ups, and Explore
-  activity navigation use small typed pending-action values at their feature
-  owner. They dismiss the source and execute from its exact `onDismiss` after
-  revalidating scan/presentation identity; elapsed animation delays are not a
-  routing primitive.
+- Candidate and confidence review, Insight Chat follow-ups, and Explore activity
+  navigation use small typed pending-action values at their feature owner. They
+  dismiss the source and execute from its exact `onDismiss` after revalidating
+  scan/presentation identity; elapsed animation delays are not a routing
+  primitive.
 - `SupabaseManager` distinguishes the SDK's explicit `initialSession` restore
   from runtime sign-in. Only the former may adopt a cold-launch private route;
   runtime account transitions advance the account generation and reject it.
-- `NotificationCenter` remains only at reviewed Apple-framework boundaries.
-  The production allowlist and CI guard reject application-defined notification
+- `NotificationCenter` remains only at reviewed Apple-framework boundaries. The
+  production allowlist and CI guard reject application-defined notification
   names/posts, bus singleton access, duplicate AppEvent subjects, and route-like
   AppEvent cases. Framework publishers with unknown originating executors use
   `sinkOnMainActor`; lifecycle-owned SwiftUI `.onReceive` subscriptions apply
@@ -1495,13 +1503,12 @@ consults that Keychain entry.
 ### `RevenueCatManager`
 
 - Owns RevenueCat customer identity, paid access, paid-offline behavior,
-  offerings, purchase, and restore. `isSubscribed` is paid status;
-  `isProActive` combines paid status with current-launch server-verified
-  functional access; and `canStartProScan` additionally requires capacity to
-  fund a new analysis.
+  offerings, purchase, and restore. `isSubscribed` is paid status; `isProActive`
+  combines paid status with current-launch server-verified functional access;
+  and `canStartProScan` additionally requires capacity to fund a new analysis.
 - Treats exact RevenueCat identity linkage and permission to mutate provider
-  state as separate conditions. Stable readiness requires one exact provider
-  App User ID, active Auth UUID, and server binding generation. SDK identity
+  state as separate conditions. Stable readiness requires one exact provider App
+  User ID, active Auth UUID, and server binding generation. SDK identity
   mutations run serially, and the newest request always runs last; stale
   anonymous-to-authenticated results cannot reopen purchase admission.
 - Handles RevenueCat `CustomerInfo` refreshes, evaluates standard Pro
@@ -1511,26 +1518,24 @@ consults that Keychain entry.
   `verified` or `verifiedOnDevice`; an unverified snapshot fails closed. The
   active binding must also authorize the RevenueCat store behind each active
   product. Stable mode rejects promotional, missing, and unknown store
-  provenance for `pro_annual`, entitlement rows, and the detached seven-day
-  pass even when `activeSubscriptions` contains the product identifier.
-  Account-owned promotions enter only through the approved account-grant or
-  legacy compatibility lane. The
-  SDK log handler drops provider message bodies and emits only fixed severity
-  categories, never customer/account IDs or raw errors.
+  provenance for `pro_annual`, entitlement rows, and the detached seven-day pass
+  even when `activeSubscriptions` contains the product identifier. Account-owned
+  promotions enter only through the approved account-grant or legacy
+  compatibility lane. The SDK log handler drops provider message bodies and
+  emits only fixed severity categories, never customer/account IDs or raw
+  errors.
 - A store introductory trial activates through its receipt without a manual
-  RevenueCat approval. A beta promotion is different: it is an explicit,
-  finite secret-key grant of the same `pro` entitlement. Once either is
-  projected to Supabase, it resolves as `pro_paid` and includes Field Chat for
-  the active period. RevenueCat project-level Pro billing grants neither state.
+  RevenueCat approval. A beta promotion is different: it is an explicit, finite
+  secret-key grant of the same `pro` entitlement. Once either is projected to
+  Supabase, it resolves as `pro_paid` and includes Field Chat for the active
+  period. RevenueCat project-level Pro billing grants neither state.
 - Connects anonymous and authenticated sessions to the resolved purchase
-  identity; the
-  `revenuecat-webhook` Edge
-  function remains the server-side purchase authority. It verifies signed
-  delivery, fetches authoritative CustomerInfo, persists recurring/grace expiry,
-  and writes snapshot-primary tier/timed-pass state through the service-only
-  transaction. The durable `reconcile-revenuecat-subscribers` sweep repairs
-  missed deliveries; the iOS manager is never the database entitlement
-  authority.
+  identity; the `revenuecat-webhook` Edge function remains the server-side
+  purchase authority. It verifies signed delivery, fetches authoritative
+  CustomerInfo, persists recurring/grace expiry, and writes snapshot-primary
+  tier/timed-pass state through the service-only transaction. The durable
+  `reconcile-revenuecat-subscribers` sweep repairs missed deliveries; the iOS
+  manager is never the database entitlement authority.
 - `RevenueCatOfferingPolicy` defines the paywall's required App Store product
   identifiers: `pro_week` and `pro_annual`. `fetchOfferings()` logs an error
   when there is no current offering, no available packages, or either required
@@ -1556,9 +1561,8 @@ consults that Keychain entry.
   unheld scans available to start, in-flight holds, and the monotonic
   entitlement version.
 - Buffers the newest valid scan-response snapshot until the launch RPC
-  establishes a baseline. It then accepts only same-user snapshots whose
-  version is at least current, preventing a stored replay from restoring stale
-  capacity.
+  establishes a baseline. It then accepts only same-user snapshots whose version
+  is at least current, preventing a stored replay from restoring stale capacity.
 - An active hold grants functional Pro access for recovery and capped non-scan
   actions but cannot fund another analysis. Paid RevenueCat offline access is
   unchanged.
@@ -1566,9 +1570,9 @@ consults that Keychain entry.
   account and scan. `locallyAvailableComplimentaryCredits` subtracts unresolved
   local and conservative legacy blockers from verified server availability.
 - Owns deferred ordering and blocker state. A terminal consumed state is not
-  removed until a later successful entitlement refresh; released/absent
-  terminal state also requires refresh, while current paid proof safely promotes
-  deferred work to paid Pro.
+  removed until a later successful entitlement refresh; released/absent terminal
+  state also requires refresh, while current paid proof safely promotes deferred
+  work to paid Pro.
 - Releases proven local pre-dispatch failures only after the durable job marker
   is saved. HTTP 402 invalidates current complimentary proof. Successful scan
   metadata is reconciled from `plan_used` plus `credit_consumed`.
@@ -1579,8 +1583,8 @@ consults that Keychain entry.
 
 - Lives at `Core/Security/ScanAdmissionManager.swift`. Before online Capture
   starts camera/audio hardware or submits staged evidence, it calls the
-  authenticated `get_my_scan_admission_preview(...)` RPC for the active
-  Supabase account.
+  authenticated `get_my_scan_admission_preview(...)` RPC for the active Supabase
+  account.
 - Validates the exact decision/plan/daily-count shape and never caches a
   response. An exhausted daily allowance or unavailable Pro path opens the
   existing paywall before inference or queue mutation. An unavailable online
@@ -1599,8 +1603,8 @@ consults that Keychain entry.
   `RevenueCatManager.canStartProScan` for presentation, while actual queue
   admission uses `EntitlementManager.claimFunding` before reserving Flash.
 - `consumeScan(scanId:)` — called once at enqueue time inside
-  `OfflineQueueManager.insertAndPersistRecord` / `enqueueNonVisualCapture`,
-  only for an immediate/deferred Flash funding claim and before the
+  `OfflineQueueManager.insertAndPersistRecord` / `enqueueNonVisualCapture`, only
+  for an immediate/deferred Flash funding claim and before the
   `OfflineQueuedScan` record is committed. `syncPendingScans` has no second
   local check.
 - `refundScan(scanId:)` — idempotently restores an optimistic local token when
@@ -1651,11 +1655,11 @@ consults that Keychain entry.
   It never imports or invokes the in-app visual presenter;
   `ScanMilestoneCoordinator` batches the returned typed awards after Field trip
   progress. Cat and dog achievements use a July 4, 2026 notification cutoff so
-  historical qualifying scans are seeded silently instead of showing
-  retroactive unlock banners.
+  historical qualifying scans are seeded silently instead of showing retroactive
+  unlock banners.
 - **The Field Naturalist** is the server-authoritative exception to the local
-  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest
-  standard outing or Seasonal Challenge result, saves it in an account-scoped
+  scan calculator. `ScanMilestoneCoordinator` merges the typed earliest standard
+  outing or Seasonal Challenge result, saves it in an account-scoped
   `UserDefaults` cache, and passes it to `GamificationManager` only when the
   current server mutation reports a new unlock. There is no rollout cutoff
   because Field trips had no prior user engagement.
@@ -1665,11 +1669,13 @@ consults that Keychain entry.
 ### `MilestoneToastPresenter`
 
 - Lives at `Core/UI/Feedback/AchievementToastPresenter.swift` and is kept under
-  the legacy filename for Xcode/project continuity. It is an `@MainActor
-  @Observable` DI-owned FIFO in-app milestone queue. `AppDIContainer` constructs
-  the one production presenter, `MilestoneToastHostRegistry`, injectable
-  `MilestoneToastClock`, and `ScanMilestoneCoordinator`; previews/tests receive
-  isolated graphs, and none of these types exposes a production `.shared`.
+  the legacy filename for Xcode/project continuity. It is an
+  `@MainActor
+  @Observable` DI-owned FIFO in-app milestone queue.
+  `AppDIContainer` constructs the one production presenter,
+  `MilestoneToastHostRegistry`, injectable `MilestoneToastClock`, and
+  `ScanMilestoneCoordinator`; previews/tests receive isolated graphs, and none
+  of these types exposes a production `.shared`.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
@@ -1677,23 +1683,23 @@ consults that Keychain entry.
 - `ScanMilestoneCoordinator` is the production scan-completion boundary shared
   by foreground `InferenceEngine` and background `OfflineQueueManager` paths. It
   deduplicates by a trimmed, lowercase coordination key while preserving the
-  caller's transport/store ID, awaits the existing persistence/progress
-  attempt, gathers achievements without presenting them immediately, evaluates
+  caller's transport/store ID, awaits the existing persistence/progress attempt,
+  gathers achievements without presenting them immediately, evaluates
   `SpeciesData.isNewToMerianDictionary`, and synchronously enqueues standard
   Field trips, Seasonal Challenges, achievements, then **New to Naturebook**.
-  Identification corrections reapply progress through the
-  same coordinator but do not replay the original scan-achievement/dictionary
-  batch. When Field trips are disabled, the coordinator skips its progress
-  resolver while ordinary scan achievements and dictionary milestones continue
-  normally. `.fieldTrips` is currently enabled in the central `FeatureFlags`
-  registry; availability injection remains as a test seam and future emergency
-  client-build control. Retryable failures keep the selected-goal SwiftData row as a
-  durable outbox, release ordinary milestones through a separate once-per-scan
-  guard, and use the 2/5/15-second per-scan budget plus a global cap of 16
-  sleeping in-process retries. Oldest overflow releases process-local captures;
-  `OfflineJobScheduler` replays
-  leftover hints after relaunch; only success, terminal ingestion failure, or
-  disabled Field trips acknowledges and removes the hint.
+  Identification corrections reapply progress through the same coordinator but
+  do not replay the original scan-achievement/dictionary batch. When Field trips
+  are disabled, the coordinator skips its progress resolver while ordinary scan
+  achievements and dictionary milestones continue normally. `.fieldTrips` is
+  currently enabled in the central `FeatureFlags` registry; availability
+  injection remains as a test seam and future emergency client-build control.
+  Retryable failures keep the selected-goal SwiftData row as a durable outbox,
+  release ordinary milestones through a separate once-per-scan guard, and use
+  the 2/5/15-second per-scan budget plus a global cap of 16 sleeping in-process
+  retries. Oldest overflow releases process-local captures;
+  `OfflineJobScheduler` replays leftover hints after relaunch; only success,
+  terminal ingestion failure, or disabled Field trips acknowledges and removes
+  the hint.
 - The presenter controls only in-app banner presentation. It does not mutate
   Field trip progress, achievement progress, dictionary state, analytics, or
   native notification authorization. DEBUG Settings preview entry points enqueue
@@ -1709,11 +1715,10 @@ consults that Keychain entry.
   UUID array is never used as an animation key.
 - The foreground-host registry retains at most eight UUIDs, gives the latest
   mounted feedback surface exclusive presentation ownership, and restores the
-  prior host on unmount.
-  The presenter—not a remounted banner—owns presentation start time plus the
-  one-time haptic and VoiceOver claim, so host changes preserve the remaining
-  3.5-second lifetime and cannot repeat effects. Only the front banner accepts
-  hit testing.
+  prior host on unmount. The presenter—not a remounted banner—owns presentation
+  start time plus the one-time haptic and VoiceOver claim, so host changes
+  preserve the remaining 3.5-second lifetime and cannot repeat effects. Only the
+  front banner accepts hit testing.
 - The feedback modifier obtains `AppRouteCoordinator` from the SwiftUI
   environment for achievement and Field-trip taps. It must not route through
   `AppDIContainer.shared`; preview and test containers own isolated route queues
@@ -1726,7 +1731,8 @@ consults that Keychain entry.
   account/session generation, and checks the captured token after every resolver
   suspension. Account replacement clears recent-scan history; a same-account
   timeout retains completed/released deduplication. Late callbacks cannot block
-  current work, schedule a new retry, or enqueue visual items for another session.
+  current work, schedule a new retry, or enqueue visual items for another
+  session.
 - Do not add another global milestone presenter or let this visual queue become
   domain authority.
 - Completed Field Naturalist cards and unlock toasts carry a typed
@@ -1739,17 +1745,16 @@ consults that Keychain entry.
   value containing a unique presentation ID, title, optional body,
   `ToastSeverity`, and optional typed `ToastActionDescriptor`. It never stores
   images, models, scan arrays, or executable closures.
-- Feature view models bind `ToastPayload?` into
-  `MerianSystemFeedbackModifier`. The modifier owns one identity-keyed,
-  cancellable three-second task and clears a separately view-owned action
-  closure with the matching payload. Replacing a payload cancels the prior
-  task, so an old timer cannot remove a newer message.
+- Feature view models bind `ToastPayload?` into `MerianSystemFeedbackModifier`.
+  The modifier owns one identity-keyed, cancellable three-second task and clears
+  a separately view-owned action closure with the matching payload. Replacing a
+  payload cancels the prior task, so an old timer cannot remove a newer message.
 - Passive banners render no controls, and passive banners plus visual backing
   layers disable hit testing. Action toasts receive input only inside the
-  compact banner. Feedback animations are scoped to the overlay rather than
-  the host screen. Ordinary feedback waits while the milestone stack owns the
-  same alignment, preventing Z-index overlap; different top/bottom alignments
-  remain independently visible and interactive.
+  compact banner. Feedback animations are scoped to the overlay rather than the
+  host screen. Ordinary feedback waits while the milestone stack owns the same
+  alignment, preventing Z-index overlap; different top/bottom alignments remain
+  independently visible and interactive.
 - Message text is display copy, not an event or action protocol. Never infer
   severity, navigation, or retry behavior from substrings; add a typed case or
   descriptor instead.
@@ -1760,9 +1765,9 @@ consults that Keychain entry.
   provider gate. It resolves the current Supabase account, pushes pending
   adult/Terms/Gemini evidence, performs a fresh remote fetch, and opens its
   process-local cloud-ready marker only when that fetched state contains the
-  same account's current adult and Terms rows plus a current granted
-  all-version Gemini stream head. Persisted `syncedUserId` fields are never
-  sufficient by themselves.
+  same account's current adult and Terms rows plus a current granted all-version
+  Gemini stream head. Persisted `syncedUserId` fields are never sufficient by
+  themselves.
 - `requireCurrentConsentReapprovalAfterServerRejection()` converts an exact
   server `403 ai_consent_required` into durable account state. It closes the
   process-local gate before persistence, stores the affected user ID, resets the
@@ -1776,17 +1781,17 @@ consults that Keychain entry.
   succeed before inference. The queue retains the original scan/media and does
   not automatically redispatch the policy-rejected request.
 - Root presentation distinguishes unknown account evidence from authoritative
-  absence with `.awaitingInitialSession`, `.reconciling`,
-  `.waitingToRetry`, `.retryRequired`, and `.resolved`.
-- A cached session whose access token is expired enters `.reconciling` under
-  its known user ID while Supabase refreshes it; token expiry alone never
-  resolves restoration as unauthenticated.
+  absence with `.awaitingInitialSession`, `.reconciling`, `.waitingToRetry`,
+  `.retryRequired`, and `.resolved`.
+- A cached session whose access token is expired enters `.reconciling` under its
+  known user ID while Supabase refreshes it; token expiry alone never resolves
+  restoration as unauthenticated.
 - Once an authenticated account enters restoration because local required
   evidence is missing, only `merge(_:for:generation:)`, after identity
   validation and a verified ledger write, may resolve it. A successful empty
   merge is authoritative absence; network, decoding, pending-row push, and
-  persistence errors are not. An account that already has current local
-  required evidence bypasses this restoration state.
+  persistence errors are not. An account that already has current local required
+  evidence bypasses this restoration state.
 - Failures receive three outer retries after 5, 10, and 20 seconds. The neutral
   root exposes **Try Again** during the wait and after exhaustion; manual retry
   resets the automatic budget.
@@ -1820,10 +1825,10 @@ consults that Keychain entry.
   grant rejections as superseded local evidence, and fetches the all-version
   stream head before a new action can extend it. The RPC rebases revocations to
   the locked head so withdrawal wins a concurrent grant. Local and remote
-  permission checks also evaluate that all-version head first: any head revocation
-  closes the provider regardless of disclosure version, and only the exact head
-  grant may be checked against current policy. A fetch-before-push reorder is not
-  an acceptable substitute for that atomic database decision.
+  permission checks also evaluate that all-version head first: any head
+  revocation closes the provider regardless of disclosure version, and only the
+  exact head grant may be checked against current policy. A fetch-before-push
+  reorder is not an acceptable substitute for that atomic database decision.
 - Tracks `isConfigured: Bool` set at the end of `configure()`. `identifyUser()`
   buffers only a consented pending user ID if a call races setup.
 - PostHog's dedicated session carries a configured-host-only `URLProtocol`

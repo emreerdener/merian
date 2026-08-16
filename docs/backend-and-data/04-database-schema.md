@@ -127,8 +127,8 @@ an unqualified name is not visible when `internal` is absent from `search_path`.
 
 Migration `20260801210102_make_ghost_merge_schema_aware.sql` adds the private
 `internal.ghost_profile_merge_reference_policies` manifest. Each current
-single-column foreign key to `public.users` or each non-Auth-internal foreign key
-to `auth.users` is assigned reviewed merge semantics: direct `reparent`,
+single-column foreign key to `public.users` or each non-Auth-internal foreign
+key to `auth.users` is assigned reviewed merge semantics: direct `reparent`,
 `handler_then_reparent`, source-owned `derived`, immutable `preserve`, the sole
 source-profile `delete_source`, or fail-closed `blocked`. The manifest is not an
 API or a dynamic handler registry: RLS is enabled, all API-role table access is
@@ -148,16 +148,16 @@ rows. Its statement trigger is the sole owner of corresponding OLD/NEW deltas in
 directly. Before source deletion, a bounded invariant compares exact per-species
 scan aggregates with ledger rows for both users.
 
-The migration is not production-ready merely because policy coverage passes.
-The completed handler contract must also provide these table-level guarantees:
+The migration is not production-ready merely because policy coverage passes. The
+completed handler contract must also provide these table-level guarantees:
 
 - `internal.revenuecat_reconciliation_queue` always has a destination row after
   a merge, even when the anonymous source had no row. The destination lookup is
   its permanent uppercase UUID from
   `internal.canonical_revenuecat_app_user_id(...)`, `next_reconcile_at` is no
   later than the transaction time, and attempt, lease, and error fields are
-  reset. Provider recovery therefore does not depend on a source queue row or
-  on receiving a webhook.
+  reset. Provider recovery therefore does not depend on a source queue row or on
+  receiving a webhook.
 - RevenueCat reconciliation locks `public.users` before its queue row, matching
   the merge's parent-before-child order. The queue lease is checked again under
   lock before any entitlement or watermark write.
@@ -167,9 +167,9 @@ The completed handler contract must also provide these table-level guarantees:
   actors and thereby invert the activity-group-before-actor order used by normal
   writers.
 
-These are release-blocking requirements for the pending schema-aware change,
-not guarantees supplied by the current migration draft. They must be added in a
-new forward migration and proven through the
+These are release-blocking requirements for the pending schema-aware change, not
+guarantees supplied by the current migration draft. They must be added in a new
+forward migration and proven through the
 [deployment runbook](./06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout)
 before production deployment.
 
@@ -189,18 +189,18 @@ provider-wide greatest revision the mandatory first authorization decision:
   displayed statement, platform, app version/build, and server-controlled
   `recorded_at`; no birth date or exact age;
 - `public.user_terms_acceptance_receipts`: UUID primary key, `user_id`,
-  `terms_version`, device `accepted_at`, exact `acceptance_text`, platform,
-  app version/build, and server-controlled `recorded_at`;
+  `terms_version`, device `accepted_at`, exact `acceptance_text`, platform, app
+  version/build, and server-controlled `recorded_at`;
 - `public.user_ai_consent_events`: UUID primary key, `user_id`, constrained
   provider, `disclosure_version`, `event_kind` (`granted` or `revoked`), device
   `occurred_at`, exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`, server-only monotonic `consent_revision`,
-  and the accepted event's `causal_parent_id`;
+  server-controlled `recorded_at`, server-only monotonic `consent_revision`, and
+  the accepted event's `causal_parent_id`;
 - `public.user_analytics_consent_events`: UUID primary key, `user_id`, PostHog
   disclosure version, `granted` / `revoked` event kind, device action time,
   exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`, server-only monotonic `consent_revision`,
-  and the accepted event's `causal_parent_id`.
+  server-controlled `recorded_at`, server-only monotonic `consent_revision`, and
+  the accepted event's `causal_parent_id`.
 
 Authenticated users may select only their own rows under RLS. Adult and Terms
 receipts retain narrow column-level insert ACLs. AI and analytics event tables
@@ -220,8 +220,7 @@ Reusing an event ID with different immutable content raises
 observed parent after server rebasing; the existing stored parent is returned.
 Exact `(user_id, provider, consent_revision DESC)` stream-head indexes and
 partial causal-parent indexes support authorization lookup and the self-foreign
-keys. All four user foreign keys
-are registered as conflict-free `reparent`
+keys. All four user foreign keys are registered as conflict-free `reparent`
 entries in the ghost-profile merge manifest so all evidence follows the
 canonical signed-in account without deleting or combining rows.
 `user_analytics_consent_events` is also added to the Supabase Realtime
@@ -231,33 +230,31 @@ confirmed channel ownership, generation-fences stale callbacks, retries bounded
 failures for the same account, and repairs the subscription on foreground or
 session adoption.
 
-Database merge policies can reparent only rows already synchronized to
-Supabase. After a confirmed server handoff, iOS now transforms the complete
-local ledger in one verified write: ghost-synchronized evidence becomes
-permanent-account synchronized evidence, while every other ghost-owned record
-becomes pending for that permanent account. It preserves record IDs, exact
-text, versions, client/server timestamps, platform, and app metadata, then
-pushes and refetches. The final client merge independently rechecks
-cancellation, observed user, the synchronous Supabase SDK session, and
-synchronization generation before mutating or persisting evidence or applying
-analytics; durable queue removal follows successful reconciliation. All tracked
-client findings are closed in source. Production remains held until the same
-candidate SHA passes **iOS Build and Test** and validation-only **Supabase
-Candidate Validation**, including a fresh required-version catalog replay; see
-the
+Database merge policies can reparent only rows already synchronized to Supabase.
+After a confirmed server handoff, iOS now transforms the complete local ledger
+in one verified write: ghost-synchronized evidence becomes permanent-account
+synchronized evidence, while every other ghost-owned record becomes pending for
+that permanent account. It preserves record IDs, exact text, versions,
+client/server timestamps, platform, and app metadata, then pushes and refetches.
+The final client merge independently rechecks cancellation, observed user, the
+synchronous Supabase SDK session, and synchronization generation before mutating
+or persisting evidence or applying analytics; durable queue removal follows
+successful reconciliation. All tracked client findings are closed in source.
+Production remains held until the same candidate SHA passes **iOS Build and
+Test** and validation-only **Supabase Candidate Validation**, including a fresh
+required-version catalog replay; see the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 `internal.require_current_ai_consent(uuid)` first selects the all-version
 `google_gemini` provider head by `consent_revision DESC`. A missing head or a
 head revocation under any disclosure version denies immediately, before rollout
-configuration is read. Only a head grant proceeds to the rollout
-matrix: the current bundle requires adult policy
-`2026-08-03`, Terms `2026-08-03`, and Gemini disclosure `2026-08-04.1`; older
-complete grants remain bounded by `enforcement_mode`. Unknown future versions
-fail closed. Device time and `recorded_at` remain evidence, not authorization
-clocks. Both
-service-only `reserve_ai_quota` overloads call the helper before provider
-admission and before entitlement or provider-counter reservation. Consequently,
+configuration is read. Only a head grant proceeds to the rollout matrix: the
+current bundle requires adult policy `2026-08-03`, Terms `2026-08-03`, and
+Gemini disclosure `2026-08-04.1`; older complete grants remain bounded by
+`enforcement_mode`. Unknown future versions fail closed. Device time and
+`recorded_at` remain evidence, not authorization clocks. Both service-only
+`reserve_ai_quota` overloads call the helper before provider admission and
+before entitlement or provider-counter reservation. Consequently,
 `ai_consent_required` creates no quota reservation, included-Pro hold, or daily
 Flash consumption and is not evidence that a new account has no scans left.
 Clients must upload and freshly read the active account's evidence before its
@@ -276,12 +273,11 @@ Tracks the global state of the anonymous/authenticated user.
   is the PostHog distinct ID and, in uppercase RFC 4122 form, the case-sensitive
   RevenueCat App User ID; RevenueCat subscriber attributes also mirror auth
   email and public identity fields for support lookups.
-- `subscription_tier` (ENUM): `'free'` | `'pro'`. This is the durable
-  projection of authoritative RevenueCat-backed Pro state, not
-  beta-membership data or an operator-controlled entitlement switch.
-  Webhook/reconciliation is expected to overwrite a direct manual edit. Three
-  introductory Pro scans are represented by the separate private entitlement
-  ledger.
+- `subscription_tier` (ENUM): `'free'` | `'pro'`. This is the durable projection
+  of authoritative RevenueCat-backed Pro state, not beta-membership data or an
+  operator-controlled entitlement switch. Webhook/reconciliation is expected to
+  overwrite a direct manual edit. Three introductory Pro scans are represented
+  by the separate private entitlement ledger.
 - `subscription_expires_at` (TIMESTAMPTZ, nullable): For recurring RevenueCat
   access, the later of entitlement expiration and grace-period expiration. It is
   also set for timed grants such as the detached `pro_week` non-renewing
@@ -331,13 +327,13 @@ Tracks the global state of the anonymous/authenticated user.
   `20260425000000_add_explore_posts.sql`.
 - `public_username` (TEXT, NOT NULL): Canonical public handle stored without
   `@`, unique across users, and used for profile handles and comment mentions.
-  Validation requires lowercase ASCII letters, numbers, and
-  underscores; 3 to 24 characters; a leading letter; a trailing letter or
-  number; no repeated underscores; and no protected brand namespace,
-  official/system role, or exact brand-role combination in either order. The
-  policy is exact rather than prefix-based and carries no authorization
-  semantics. Added in migration `20260526090000_add_public_usernames.sql` and
-  expanded in `20260808144244_expand_reserved_public_username_policy.sql`.
+  Validation requires lowercase ASCII letters, numbers, and underscores; 3 to 24
+  characters; a leading letter; a trailing letter or number; no repeated
+  underscores; and no protected brand namespace, official/system role, or exact
+  brand-role combination in either order. The policy is exact rather than
+  prefix-based and carries no authorization semantics. Added in migration
+  `20260526090000_add_public_usernames.sql` and expanded in
+  `20260808144244_expand_reserved_public_username_policy.sql`.
 - `public_identity_source` (TEXT, NOT NULL): Source marker for the Explore
   author label. CHECK-constrained to `alias` | `derived_name` | `display_name`.
   Added in migration `20260425000000_add_explore_posts.sql`.
@@ -606,8 +602,8 @@ images first, then Wikipedia, then GBIF, with `sort_order`, `created_at`, and
 
 ### `species_country_occurrences`
 
-Normalized country occurrence evidence for species dictionary browsing. Added
-in migration `20260731151344_add_species_country_occurrence_index.sql`.
+Normalized country occurrence evidence for species dictionary browsing. Added in
+migration `20260731151344_add_species_country_occurrence_index.sql`.
 
 - `species_id` (UUID FK -> `species_dictionary.id`, CASCADE DELETE) and
   `country_code` (uppercase ISO 3166-1 alpha-2 text) form the primary key.
@@ -621,8 +617,8 @@ in migration `20260731151344_add_species_country_occurrence_index.sql`.
 - Index: `(country_code, occurrence_count DESC, species_id)` supports exact
   country catalogs, counts, and representative-species selection.
 - RLS: enabled with no public policies. `anon` and `authenticated` have no table
-  privileges; `service_role` is granted only the operations required by the
-  Edge read and replacement boundaries.
+  privileges; `service_role` is granted only the operations required by the Edge
+  read and replacement boundaries.
 
 `public.replace_species_country_occurrences(...)` validates at most 300 facet
 rows, locks the current dictionary taxon identity against concurrent rematches,
@@ -791,9 +787,8 @@ Changing an ID withdraws the old active row and inserts a new row.
 
 ### Internal Community Identify activity projection
 
-Migration
-`20260731050009_add_community_identification_activity.sql` creates and backfills
-this projection. Companion migration
+Migration `20260731050009_add_community_identification_activity.sql` creates and
+backfills this projection. Companion migration
 `20260731063804_index_community_identification_activity_actor_user_fk.sql` adds
 the reverse `user_id` lookup needed for actor foreign-key enforcement during
 account deletion and identity maintenance. Migration
@@ -806,26 +801,24 @@ suggestion bursts, standalone consensus changes, and immutable resolution
 milestones for each request generation.
 `internal.community_identification_activity_actors` stores normalized per-burst
 actor IDs, counts, and latest suggestion times; it stores no actor names.
-Suggestions chain into one burst at intervals of up to and including 60
-minutes. Consensus events caused by a suggestion enrich the associated burst,
-while unrelated consensus changes and every resolution remain separate.
+Suggestions chain into one burst at intervals of up to and including 60 minutes.
+Consensus events caused by a suggestion enrich the associated burst, while
+unrelated consensus changes and every resolution remain separate.
 
 `trg_record_community_identification_suggestion_activity` projects
-`explore_identifications` inserts.
-`trg_record_community_consensus_activity` projects
-`community_consensus_events` inserts. Both trigger functions are
+`explore_identifications` inserts. `trg_record_community_consensus_activity`
+projects `community_consensus_events` inserts. Both trigger functions are
 `SECURITY INVOKER`; their internal maintenance helpers are revoked from client
 roles and granted to `service_role`. Activity is historical: later suggestion
 withdrawal does not rewrite an already emitted suggestion burst, while its
 resulting consensus event may create or enrich the appropriate consensus
 metadata.
 
-Both tables have RLS enabled and no direct `PUBLIC`, `anon`, or
-`authenticated` privileges. Only `service_role` can maintain or read the
-projection. The service-only
-`public.get_community_identification_activity(...)` RPC resolves visible actor
-public usernames at read time, applies the request feed's visibility and shared
-scope/taxonomy filters, and paginates deterministically on
+Both tables have RLS enabled and no direct `PUBLIC`, `anon`, or `authenticated`
+privileges. Only `service_role` can maintain or read the projection. The
+service-only `public.get_community_identification_activity(...)` RPC resolves
+visible actor public usernames at read time, applies the request feed's
+visibility and shared scope/taxonomy filters, and paginates deterministically on
 `(activity_at, activity_id)`. Migration backfill includes only each request's
 current `requested_at` generation; older withdrawn/reopened generations remain
 available through request audit detail. The RPC joins projection rows back to
@@ -1150,15 +1143,14 @@ Operational queue for species-level hydration work. Added in
 `refresh-species-content` claims `gbif_wikipedia_reference` jobs first and uses
 the older provenance queue only as a fallback. That group also refreshes the
 normalized GBIF country-occurrence index and its provenance clock.
-`refresh-species-model-content`
-claims `habitat`, `lookalikes`, and `group_tags` jobs and reuses the same
-species-level primitives behind `enrich-scan`. New GBIF-backed species
-materialized from Community ID publish enqueue all four content groups so
-external refresh and model-heavy enrichment can proceed independently.
-`20260707153931_species_dictionary_enrichment_queue_backfill.sql` adds an insert
-trigger on `species_dictionary` so every future species row, regardless of
-creator, queues only the enrichment groups it is missing. The same migration
-backfills existing sparse rows into `species_enrichment_jobs` with
+`refresh-species-model-content` claims `habitat`, `lookalikes`, and `group_tags`
+jobs and reuses the same species-level primitives behind `enrich-scan`. New
+GBIF-backed species materialized from Community ID publish enqueue all four
+content groups so external refresh and model-heavy enrichment can proceed
+independently. `20260707153931_species_dictionary_enrichment_queue_backfill.sql`
+adds an insert trigger on `species_dictionary` so every future species row,
+regardless of creator, queues only the enrichment groups it is missing. The same
+migration backfills existing sparse rows into `species_enrichment_jobs` with
 `source_trigger = 'species_dictionary_sparse_backfill'`.
 `community-taxonomy-status` exposes queue counts, next queued jobs, and recent
 failures for service-role monitoring.
@@ -1175,8 +1167,8 @@ Bounded taxonomy-completeness targets for future gamification. Added in
   Coverage metric where enriched Dictionary species are compared with indexed
   GBIF species in the target scope.
 - `last_imported_offset`: Most recent GBIF page offset that was successfully
-  fetched and checkpointed for the target. It advances even when a raw
-  nonempty page produces zero normalized taxa.
+  fetched and checkpointed for the target. It advances even when a raw nonempty
+  page produces zero normalized taxa.
 - `next_import_offset`: Machine cursor used by `sync-community-taxonomy-index`
   when `offset` is omitted. This is the preferred continuation pointer for
   operator scripts and cron.
@@ -1189,8 +1181,8 @@ Bounded taxonomy-completeness targets for future gamification. Added in
 The Birds target is populated by bounded `sync-community-taxonomy-index`
 imports. Every successfully fetched live page checkpoints its raw next offset,
 including pages whose results all normalize out; a later failure retains those
-earlier checkpoints. Dry runs advance only a simulated response cursor and
-write none of these fields. Individual GBIF upsert pages pass
+earlier checkpoints. Dry runs advance only a simulated response cursor and write
+none of these fields. Individual GBIF upsert pages pass
 `refresh_coverage = false`, and the worker calls
 `refresh_taxonomy_coverage_targets()` once only when the completed run imported
 at least one row and requested a refresh. Do not show gamified completion claims
@@ -1322,21 +1314,20 @@ The transaction log for every successful identification.
   sampled inference frames do not hydrate as standalone Insight carousel images,
   while inference-only extracted video audio is not retained as a server media
   reference. Video rows should be present whenever `video_storage_urls` is
-  present. Ready display/playback rows in
-  `scan_media_assets` are refreshed from this manifest when present and fall
-  back to legacy media arrays for older rows. The compatibility image array is
-  therefore not itself the canonical display-image set for a video scan.
+  present. Ready display/playback rows in `scan_media_assets` are refreshed from
+  this manifest when present and fall back to legacy media arrays for older
+  rows. The compatibility image array is therefore not itself the canonical
+  display-image set for a video scan.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
 - `is_tombstoned` (Boolean): Managed via `00006_apply_user_tombstone.sql` and
   the ownerless forward migrations for account deletion. Retained rows have no
-  owner and clear media, semantic/public location labels, device context,
-  custom tags, and free-form intervention notes. Exact coordinates, elevation,
-  time, taxonomy, identification, environmental, quality, and provenance facts
-  remain unchanged as mandatory Scientific Data. Tombstones are available only
-  to reviewed backend scientific paths and are excluded from the broad
-  anonymous scans policy.
-  See the
+  owner and clear media, semantic/public location labels, device context, custom
+  tags, and free-form intervention notes. Exact coordinates, elevation, time,
+  taxonomy, identification, environmental, quality, and provenance facts remain
+  unchanged as mandatory Scientific Data. Tombstones are available only to
+  reviewed backend scientific paths and are excluded from the broad anonymous
+  scans policy. See the
   [canonical retention contract](./17-scientific-observation-retention.md) for
   the complete retained-versus-cleared boundary and required change procedure.
 - `custom_tags` (Text Array): User-defined plain-text labels for personal
@@ -1455,9 +1446,8 @@ many-to-many membership table. They were introduced by
 `20260803180211_harden_collection_ownership_and_memberships.sql`, with
 `20260803215309_fix_collection_owner_upsert_ordinality.sql` and
 `20260803215310_grant_collection_sync_invoker_privileges.sql`, then
-`20260804002819_fix_collection_membership_conflict_ambiguity.sql`, providing
-its forward execution, invoker-privilege, and PL/pgSQL conflict-resolution
-repairs.
+`20260804002819_fix_collection_membership_conflict_ambiguity.sql`, providing its
+forward execution, invoker-privilege, and PL/pgSQL conflict-resolution repairs.
 
 - `collections.id` (UUID): client-stable primary key.
 - `collections.user_id` (UUID FK -> `auth.users.id`, cascade delete): immutable
@@ -1465,15 +1455,15 @@ repairs.
   existing reviewed Ghost merge function.
 - `collections.name` (TEXT) and `created_at` (TIMESTAMPTZ): the only mutable
   fields accepted by the synchronization upsert.
-- `collection_scans.collection_id` (UUID FK -> `collections.id`, cascade
-  delete) and `scan_id` (UUID FK -> `scans.id`, cascade delete): composite
-  primary key. Every valid row must join parents with the same non-null owner.
+- `collection_scans.collection_id` (UUID FK -> `collections.id`, cascade delete)
+  and `scan_id` (UUID FK -> `scans.id`, cascade delete): composite primary key.
+  Every valid row must join parents with the same non-null owner.
 
-The hardening migration removes historical rows whose two parent owners
-provably differ, then installs `enforce_collection_scan_owner_match` before
-insert or parent-ID update. The trigger is `SECURITY INVOKER`, has an empty
-search path, and rejects missing or differently owned parents with SQLSTATE
-`23514`. It protects direct service access in addition to RLS.
+The hardening migration removes historical rows whose two parent owners provably
+differ, then installs `enforce_collection_scan_owner_match` before insert or
+parent-ID update. The trigger is `SECURITY INVOKER`, has an empty search path,
+and rejects missing or differently owned parents with SQLSTATE `23514`. It
+protects direct service access in addition to RLS.
 
 Authenticated `collection_scans` policies are operation-specific:
 
@@ -1487,10 +1477,12 @@ The route uses two service-only invoker RPCs rather than a privileged
 SELECT-then-upsert preflight:
 
 - `public.upsert_owned_collections(p_user_id UUID, p_collections JSONB)` accepts
-  at most 200 rows and performs one atomic `INSERT ... ON CONFLICT ... DO
-  UPDATE`. It updates only `name` and `created_at` when the existing owner
-  matches, and returns `(collection_id, accepted)` for every deduplicated input.
-  A foreign or concurrent UUID collision is rejected without mutation.
+  at most 200 rows and performs one atomic
+  `INSERT ... ON CONFLICT ... DO
+  UPDATE`. It updates only `name` and
+  `created_at` when the existing owner matches, and returns
+  `(collection_id, accepted)` for every deduplicated input. A foreign or
+  concurrent UUID collision is rejected without mutation.
 - `public.insert_owned_collection_scans(p_user_id UUID, p_rows JSONB)` accepts
   at most 1,000 rows, joins both parents to `p_user_id`, inserts the admitted
   deduplicated pairs, and returns inserted pairs. Missing or foreign parents are
@@ -2085,10 +2077,9 @@ paths. `/check-scan-status` keeps returning `status: "found" | "not_found"` for
 client compatibility, and includes optional `job_status`, `job_stage`,
 `job_attempt_count`, `retry_after`, and failed-job `last_error` fields when a
 scan row is not yet complete. It also exposes additive owner-scoped
-`complimentary_state` (`held`, `consumed`, `released`, or null) through one
-bulk service RPC. RLS allows owners to read their own job rows;
-service-role writers own mutation, and the claim RPC is executable only by
-`service_role`.
+`complimentary_state` (`held`, `consumed`, `released`, or null) through one bulk
+service RPC. RLS allows owners to read their own job rows; service-role writers
+own mutation, and the claim RPC is executable only by `service_role`.
 
 Migration `20260715153946_reduce_identification_latency_round_trips.sql` adds
 `public.begin_scan_ingestion(...)`. It performs upload-session lookup, job
@@ -2215,8 +2206,8 @@ committed normal attempt with no charged replay. It must also match the audited
 multimodal post-safety error lineage, excluding the known pre-safety
 user-prerequisite and moderation failure messages. The exact-ID snapshot
 prevents a lock-blocked post-migration insert from gaining legacy authority
-through its backdated transaction timestamp. The chronological indexes keep
-this proof bounded as dead-letter history grows. Unproven abandonment remains
+through its backdated transaction timestamp. The chronological indexes keep this
+proof bounded as dead-letter history grows. Unproven abandonment remains
 deferred. A recovery-first winner makes the next ingestion claim return
 `already_complete` before a provider call.
 
@@ -2609,8 +2600,9 @@ Migration `20260815145546_preserve_canonical_scan_media_order.sql` aligns each
 generated ready image/audio/video row's `order_index` to its matching
 `captured_media` ordinal. Description entries deliberately leave index gaps, and
 unmatched legacy extras are retained after the canonical timeline. The internal
-alignment helper is `SECURITY INVOKER` with no API-role execute grant; the public
-wrapper remains service-role-only and enforces `internal.require_service_role()`.
+alignment helper is `SECURITY INVOKER` with no API-role execute grant; the
+public wrapper remains service-role-only and enforces
+`internal.require_service_role()`.
 
 `/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
 when structured scan uploads include `clientScanId` and `mediaRole`.
@@ -2883,12 +2875,12 @@ separated from the current profile policy by
 - Composite primary key: `(comment_id, mentioned_user_id)` deduplicates repeated
   tokens for the same user in one comment.
 
-`explore_comment_mentions_username_valid_check` is intentionally structural:
-the token must be 3–24 lowercase ASCII username characters, start with a letter,
-end with an alphanumeric character, and contain no repeated underscore. It does
-not call `is_valid_public_username(...)`, because that function includes the
-current reservation list and PostgreSQL does not rewrite the immutable comment
-body when policy changes. Current profile handles remain policy-aware through
+`explore_comment_mentions_username_valid_check` is intentionally structural: the
+token must be 3–24 lowercase ASCII username characters, start with a letter, end
+with an alphanumeric character, and contain no repeated underscore. It does not
+call `is_valid_public_username(...)`, because that function includes the current
+reservation list and PostgreSQL does not rewrite the immutable comment body when
+policy changes. Current profile handles remain policy-aware through
 `users_public_username_valid_check`, so the resolver cannot create a new mention
 for a currently reserved handle.
 
@@ -3223,8 +3215,8 @@ coordinates to the client contract.
   requester through either a currently visible Explore post or a visible Field
   Trip profile surface. `set-user-follow` uses this before inserting follows so
   only profile-visible accounts can be followed. Automatic profile-visible
-  Backyard Safari enrollment means a known account ID normally passes this
-  gate until the unfinished starter is stopped or reset; no endpoint enumerates
+  Backyard Safari enrollment means a known account ID normally passes this gate
+  until the unfinished starter is stopped or reset; no endpoint enumerates
   account IDs.
 - `public.get_user_follow_state(self_id UUID, target_author_user_id UUID)`:
   Returns `author_user_id`, aggregate `follower_count`, aggregate
@@ -3291,10 +3283,9 @@ coordinates to the client contract.
 - `public.user_field_trip_item_completions`: Idempotent item completion rows
   linking a Field trip item to the saved scan that completed it. Rows are
   written only for caller-owned scans whose capture timestamp belongs to an
-  eligible persisted activity period. A unique
-  `(user_field_trip_id, scan_id)` index limits the scan to one credit in that
-  outing, while a scan-first `(scan_id, user_field_trip_id)` index supports
-  Insight lookup. The same scan
+  eligible persisted activity period. A unique `(user_field_trip_id, scan_id)`
+  index limits the scan to one credit in that outing, while a scan-first
+  `(scan_id, user_field_trip_id)` index supports Insight lookup. The same scan
   may still link to one item in several outings.
 - `public.field_trip_scan_goal_preferences`: Private scan-keyed live-Capture
   preference with owner, standard outing, and checklist item IDs. It contains no
@@ -3404,8 +3395,8 @@ coordinates to the client contract.
   starts other outings and resumes stopped/reset state.
 - `internal.auto_enroll_backyard_safari_level_one()`: Deny-by-default
   `public.users` insert trigger that creates Backyard Safari Level 1 and its
-  initial private activity period for future signed-in and ghost accounts. It
-  is `SECURITY DEFINER` with an empty search path; execute is revoked from
+  initial private activity period for future signed-in and ghost accounts. It is
+  `SECURITY DEFINER` with an empty search path; execute is revoked from
   `PUBLIC`, `anon`, `authenticated`, and `service_role`. The migration preflight
   requires an active accessible Level 1 with at least one checklist item, then
   backfills only users missing a Backyard Safari row. The trigger is named
@@ -3448,18 +3439,17 @@ coordinates to the client contract.
   can move or remove credit in the original credited level and recompute the
   earliest incomplete level; completed experiences are immutable for normal
   identification corrections. Evidence-policy invalidation is the exception.
-  Migration
-  `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a one-time
-  correction of ant-backed **Bee or wasp** completions, reopens affected
-  standard/Event progress, clears derived receipts/preferences and badges, and
-  hides any now-invalid completion publication until the goal is legitimately
-  completed again. `20260722211636_tighten_field_trip_goal_matching.sql`
-  performs the equivalent repair for other corrected active goals, including
-  Butterfly, Spider, flowering/fruiting plants, animal ecology goals, wild
-  plants, and Meadow plant.
-  `20260730023042_gate_field_trip_progress_by_confidence.sql` removes prior
-  weak-unreviewed credit and repairs its derived progress/publication state
-  while retaining selected-goal preferences for later confirmation. Future
+  Migration `20260722195453_exclude_ants_from_bee_wasp_goal.sql` performs a
+  one-time correction of ant-backed **Bee or wasp** completions, reopens
+  affected standard/Event progress, clears derived receipts/preferences and
+  badges, and hides any now-invalid completion publication until the goal is
+  legitimately completed again.
+  `20260722211636_tighten_field_trip_goal_matching.sql` performs the equivalent
+  repair for other corrected active goals, including Butterfly, Spider,
+  flowering/fruiting plants, animal ecology goals, wild plants, and Meadow
+  plant. `20260730023042_gate_field_trip_progress_by_confidence.sql` removes
+  prior weak-unreviewed credit and repairs its derived progress/publication
+  state while retaining selected-goal preferences for later confirmation. Future
   confidence, inference-tier, or confirmation downgrades run the same repair
   even after completion: affected standard/Event progress reopens, Event badges
   are cleared, and completion publications/entries are soft-deleted. Its
@@ -3478,8 +3468,8 @@ coordinates to the client contract.
   `public.remove_ineligible_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
   Internal reconciliation helpers called only from the database-owned progress
   wrappers. They delete ineligible completion rows, reopen the earliest
-  incomplete level, and withdraw completion-derived publication/Event
-  artifacts. Execute is denied to every API role, including `service_role`.
+  incomplete level, and withdraw completion-derived publication/Event artifacts.
+  Execute is denied to every API role, including `service_role`.
 - `public.apply_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`:
   Compatibility wrapper that calls V2 without a preference, preserving older
   Edge/client behavior.
@@ -3488,8 +3478,8 @@ coordinates to the client contract.
   a matching scan-revision receipt when available, otherwise applies standard
   outing and joined Event progress, persists the validated preference, evaluates
   the first Field trip achievement, and writes the receipt in the same
-  transaction. Confidence, inference tier, and explicit confirmation are part
-  of the scan revision. Any error rolls back every component. Scan-ingestion and
+  transaction. Confidence, inference tier, and explicit confirmation are part of
+  the scan revision. Any error rolls back every component. Scan-ingestion and
   evidence-changing correction triggers call this function; the Edge progress
   action calls it again to retrieve the response for notifications.
 - `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
@@ -3748,10 +3738,9 @@ Append-only source of truth for internal AI analytics:
 - Non-content extension data: `metadata JSONB`
 
 `effective_plan` is `free`, `pro_paid`, `pro_complimentary`, historical
-`pro_trial`, or `unknown`;
-`input_modality` is `text`, `image`, `audio`, `video`, `mixed`, or `unknown`;
-`outcome` is `success`, `refusal`, or `error`. Token/cost values are nullable
-but cannot be negative.
+`pro_trial`, or `unknown`; `input_modality` is `text`, `image`, `audio`,
+`video`, `mixed`, or `unknown`; `outcome` is `success`, `refusal`, or `error`.
+Token/cost values are nullable but cannot be negative.
 
 Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
 normalized modality breakdown:
@@ -3796,8 +3785,8 @@ service-role definer RPCs.
   `(user_id, operation, request_id)`. Captures `reserved`, `committed`,
   `failed`, or `refunded` state; attempt/refund/stale-recovery counts;
   `lease_token` and `lease_expires_at`; effective/raw tier; entitlement and
-  policy versions; selected model; and daily remaining after reservation.
-  The complimentary extension adds nullable `original_analysis_id`, nullable
+  policy versions; selected model; and daily remaining after reservation. The
+  complimentary extension adds nullable `original_analysis_id`, nullable
   `complimentary_client_scan_id`, nullable `client_protocol`, and
   `flash_fallback_used`. A complimentary link must equal the original analysis
   UUID; Flash fallback is valid only for a free primary scan operation.
@@ -3817,23 +3806,23 @@ the later service-only reservation remains authoritative.
 
 The database shape is intentionally independent from iOS reachability. The
 client gives this advisory read a two-second, no-wait/no-retry transport bound.
-Only a classified URL transport failure may select a locally eligible
-queue-only route, which creates no foreground provider attempt; malformed,
+Only a classified URL transport failure may select a locally eligible queue-only
+route, which creates no foreground provider attempt; malformed,
 authentication/TLS, and server failures stay blocked. Replay still reaches the
-service-only reservation below, so a local connectivity fallback cannot grant
-or spend quota.
+service-only reservation below, so a local connectivity fallback cannot grant or
+spend quota.
 
 `reserve_ai_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)` locks the
 user before quota or ledger rows, serializes an identical request key, resolves
 paid Pro → complimentary Pro → free under the rollout fence, and consumes all
-applicable counters atomically. The final boolean is true only for
-authenticated internal replay; it bypasses the public protocol fence but does
-not bypass ownership, analysis linkage, entitlement, quota, or settlement.
-`finalize_ai_quota_reservation(...)` requires the
-current per-attempt fencing token and performs an idempotent commit/fail/refund
-transition. Committed provider failures retain their consumed counters but may
-be reserved as a newly metered retry; stale callbacks with an older token are
-rejected. Both public RPCs use `SECURITY DEFINER SET search_path = ''`, call
+applicable counters atomically. The final boolean is true only for authenticated
+internal replay; it bypasses the public protocol fence but does not bypass
+ownership, analysis linkage, entitlement, quota, or settlement.
+`finalize_ai_quota_reservation(...)` requires the current per-attempt fencing
+token and performs an idempotent commit/fail/refund transition. Committed
+provider failures retain their consumed counters but may be reserved as a newly
+metered retry; stale callbacks with an older token are rejected. Both public
+RPCs use `SECURITY DEFINER SET search_path = ''`, call
 `internal.require_service_role()`, and are allowlisted only to `service_role`.
 `internal.refund_expired_ai_quota_reservations()` uses `FOR UPDATE SKIP LOCKED`
 every five minutes to refund abandoned `reserved` attempts after their
@@ -3863,26 +3852,25 @@ current entitlement state:
   advances the account's monotonic `entitlement_version`. Browser roles cannot
   update it.
 - `internal.entitlement_rollout_config`: one owner-only `current` row containing
-  `legacy_trial`/protocol `0` or `complimentary`/protocol `2` or `3`, fixed grant
-  `3`, and monotonic `mode_version`. Protocol 2 is the dual-mode rollout state;
-  protocol 3 requires reservation-safe clients. The migration inserts legacy
-  mode so schema deployment alone cannot strand older clients.
+  `legacy_trial`/protocol `0` or `complimentary`/protocol `2` or `3`, fixed
+  grant `3`, and monotonic `mode_version`. Protocol 2 is the dual-mode rollout
+  state; protocol 3 requires reservation-safe clients. The migration inserts
+  legacy mode so schema deployment alone cannot strand older clients.
 - `internal.complimentary_scan_usage`: private ledger keyed by
   `(user_id, client_scan_id)`, with `held`, `consumed`, or `released` state;
   hold/settlement times; validated `settlement_reason`; and reacquisition count.
   A partial `(held_at, user_id, client_scan_id)` index supports stale-hold
   operations; a partial state/reason/time index supports aggregate telemetry.
 
-No balance is stored. The fixed grant minus consumed rows is
-`scans_remaining`; subtracting held rows also produces
-`scans_available_to_start`; held rows produce `in_flight_count`. Paid accounts
-retain their derived balance, but paid scans do not create or settle ledger
-rows.
+No balance is stored. The fixed grant minus consumed rows is `scans_remaining`;
+subtracting held rows also produces `scans_available_to_start`; held rows
+produce `in_flight_count`. Paid accounts retain their derived balance, but paid
+scans do not create or settle ledger rows.
 
 `public.get_my_entitlement()` is the sole authenticated own-account read and
 derives identity from `auth.uid()`. Service-only reads use
-`get_user_entitlement_service(uuid)` and
-`get_entitlement_rollout_service()`. Completion and terminal settlement use
+`get_user_entitlement_service(uuid)` and `get_entitlement_rollout_service()`.
+Completion and terminal settlement use
 `complete_scan_ingestion_with_entitlement(...)` and
 `fail_scan_ingestion_terminal(...)`; both acquire the user lock before existing
 ingestion/scan/media locks. Completion/terminal trigger fences prevent direct
@@ -3890,10 +3878,9 @@ lower-level state transitions after cutover.
 
 All rollout and ledger tables have RLS enabled and revoke direct access from
 `PUBLIC`, `anon`, `authenticated`, and `service_role`. Definer RPCs use empty
-search paths, in-body role checks where applicable, explicit minimum grants,
-and privileged-routine catalog entries. The full state machine and merge cap
-are normative in
-[`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
+search paths, in-body role checks where applicable, explicit minimum grants, and
+privileged-routine catalog entries. The full state machine and merge cap are
+normative in [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 ### `internal.revenuecat_webhook_events` and customer state
 
@@ -3920,12 +3907,12 @@ All three tables have RLS enabled and revoke all direct access from `PUBLIC`,
 through `public.apply_revenuecat_identity_state(...)`; the immediately previous
 bundle's exact `public.apply_revenuecat_customer_state(...)` and
 `public.schedule_revenuecat_reconciliation(...)` signatures are temporary
-compatibility adapters that delegate only legacy UUID subjects into the
-identity ledger and scheduler. They share a cutover advisory lock with stable
-completion before locking related principals and users, then recheck under
-lock, rejecting an activation that wins either race. All are
-service-role-allowlisted `SECURITY DEFINER` routines with empty search paths and
-in-function caller checks. The identically protected
+compatibility adapters that delegate only legacy UUID subjects into the identity
+ledger and scheduler. They share a cutover advisory lock with stable completion
+before locking related principals and users, then recheck under lock, rejecting
+an activation that wins either race. All are service-role-allowlisted
+`SECURITY DEFINER` routines with empty search paths and in-function caller
+checks. The identically protected
 `public.get_revenuecat_webhook_event_result(...)` returns an existing committed
 receipt without granting direct ledger access, avoiding another RevenueCat API
 call for ordinary at-least-once retries.
@@ -3988,17 +3975,17 @@ access, and the monitor receives no user or handoff IDs.
 ### `internal.signout_purchase_handoffs`
 
 Migration `20260812011914_add_signout_purchase_handoffs.sql` adds the private
-purchase-continuity capability used only by explicit linked-account sign-out.
-It does not reparent application data, merge profiles, delete Auth users, or
-mirror account-issued promotional access.
+purchase-continuity capability used only by explicit linked-account sign-out. It
+does not reparent application data, merge profiles, delete Auth users, or mirror
+account-issued promotional access.
 
 Each row stores the linked `source_user_id`, one nullable anonymous
 `destination_user_id`, a unique SHA-256 `secret_hash`, the authoritative source
 snapshot time, the exact expected StoreKit tier/expiry, status and transition
 timestamps, and—after completion—the exact verified destination StoreKit
-tier/expiry alongside its provider snapshot time. Status is `prepared`,
-`bound`, `completed`, `superseded`, or `expired`. Partial unique indexes permit
-one active source proof and one bound or completed receipt per destination. The
+tier/expiry alongside its provider snapshot time. Status is `prepared`, `bound`,
+`completed`, `superseded`, or `expired`. Partial unique indexes permit one
+active source proof and one bound or completed receipt per destination. The
 30-day expiry limits only an unbound capability; after bind, completion remains
 retryable because receipt ownership may already have changed.
 
@@ -4015,19 +4002,18 @@ timeouts, explicit grants, and privileged-routine catalog entries:
   its anonymous destination from `auth.uid()`; cancel derives and verifies the
   restored linked source and works only before bind.
 - `complete_signout_purchase_handoff(uuid,text,uuid,bigint,text,timestamptz)` is
-  service-role-only.
-  The authenticated Edge boundary supplies its live-user-derived destination
-  and authoritative RevenueCat snapshot plus exact verified StoreKit tier and
-  expiry. For an active prepared horizon, Edge caps this attestation to that
-  horizon. If a finite prepared horizon has already elapsed, Edge first
-refreshes the source and requires the destination to cover its current state,
-allowing either a verified renewal or natural expiry to free. Detached pass
-history is excluded from this post-expiry comparison because passes cannot
-renew while purchase mutations are fenced. The RPC locks both surviving
-`public.users` parents before RevenueCat queue rows in sorted
+  service-role-only. The authenticated Edge boundary supplies its
+  live-user-derived destination and authoritative RevenueCat snapshot plus exact
+  verified StoreKit tier and expiry. For an active prepared horizon, Edge caps
+  this attestation to that horizon. If a finite prepared horizon has already
+  elapsed, Edge first refreshes the source and requires the destination to cover
+  its current state, allowing either a verified renewal or natural expiry to
+  free. Detached pass history is excluded from this post-expiry comparison
+  because passes cannot renew while purchase mutations are fenced. The RPC locks
+  both surviving `public.users` parents before RevenueCat queue rows in sorted
   UUID order, records that immutable attestation in an idempotent receipt, and
-  resets canonical source/destination reconciliation rows to immediately due.
-  It never grants entitlement itself.
+  resets canonical source/destination reconciliation rows to immediately due. It
+  never grants entitlement itself.
 - `claim_revenuecat_reconciliation_for_user(uuid)` is service-role-only and
   leases exactly one due customer for the foreground Edge completion. The
   existing claim-token-fenced apply/fail routines remain the only entitlement
@@ -4035,20 +4021,20 @@ renew while purchase mutations are fenced. The RPC locks both surviving
 
 Issue, bind/cancel, and complete serialize on the same per-source advisory key.
 Bind additionally locks both Auth identities in UUID order and requires the
-anonymous destination's Auth creation timestamp to be no earlier than the
-proof. External
-RevenueCat calls and StoreKit synchronization occur outside these database
-transactions.
+anonymous destination's Auth creation timestamp to be no earlier than the proof.
+External RevenueCat calls and StoreKit synchronization occur outside these
+database transactions.
 
 Forward migration
 `20260812032543_harden_signout_purchase_handoff_interlocks.sql` serializes bind
 against durable account deletion on the same Auth rows. Either side of a bound
 handoff is not a deletion candidate. Before binding, deletion may win without
 stranding a device-lost proof; bind then observes the active deletion job and
-performs no RevenueCat identity mutation. The bound destination is also an explicit
-`signout_purchase_handoff_active` blocker for empty-anonymous inspection, and a
-database trigger rejects guest-profile merge preparation or consumption until
-handoff completion. These interlocks do not delete, reparent, or grant data.
+performs no RevenueCat identity mutation. The bound destination is also an
+explicit `signout_purchase_handoff_active` blocker for empty-anonymous
+inspection, and a database trigger rejects guest-profile merge preparation or
+consumption until handoff completion. These interlocks do not delete, reparent,
+or grant data.
 
 ### Stable purchase principals and account grants
 
@@ -4079,6 +4065,23 @@ The private identity boundary consists of:
   trigger nulls either Auth UUID reference (and any webhook projection UUID)
   while retaining non-identifying operational evidence. The same trigger
   permanently freezes provider-promotion import for a deleted grant owner.
+- `internal.purchase_principal_signout_rotations`: protocol-3, server-owned
+  one-use authorization for stable sign-out. Each row contains one client UUID,
+  principal ID, source/destination Auth references, SHA-256 proof digest,
+  binding generations, `binding_intent_generation_fence` as the highest
+  two-phase resolver intent issued before preparation, expiry, and `prepared`,
+  `completed`, `cancelled`, or `expired` state. A partial unique index permits
+  only one prepared rotation per principal; the same account may still own
+  multiple installation principals. The preparation lifetime is 30 days. Raw
+  proofs never enter Postgres. Terminal rows remain private replay/audit
+  tombstones; they retain the principal and proof hash needed for exact replay
+  defense, while the profile-deletion trigger scrubs their Auth references
+  without erasing the remaining operational evidence. The service-only
+  `get_purchase_principal_signout_rotation_health()` routine atomically marks
+  overdue prepared rows expired, then exposes only the count newly terminalized
+  by that invocation, the remaining prepared count and oldest age, and recent
+  terminal throughput for the scheduled identity monitor. It retains every
+  terminal tombstone and exposes no identity or proof.
 - `internal.purchase_principal_store_state`: StoreKit-only tier/expiry,
   authoritative provider watermarks, and the durable
   `allow_non_subscription_pass_grant` policy. That policy is the signed-event
@@ -4086,13 +4089,13 @@ The private identity boundary consists of:
   access; a periodic CustomerInfo read cannot enable it by itself.
 - `internal.legacy_revenuecat_entitlement_state`: compatibility input for an
   existing Auth-UUID customer while old apps remain supported.
-- `internal.account_access_grants` and
-  `internal.account_access_grant_audit`: account-owned beta, promotion, and
-  support access, including start/expiry/revocation and hashed operator or
-  migration provenance. Account deletion cascades the grant and its identifying
-  audit evidence; purchase-principal StoreKit history remains independent. A
-  full leading account-user index supports that foreign key, while the separate
-  partial `(account_user_id, expires_at)` index serves active-grant projection.
+- `internal.account_access_grants` and `internal.account_access_grant_audit`:
+  account-owned beta, promotion, and support access, including
+  start/expiry/revocation and hashed operator or migration provenance. Account
+  deletion cascades the grant and its identifying audit evidence;
+  purchase-principal StoreKit history remains independent. A full leading
+  account-user index supports that foreign key, while the separate partial
+  `(account_user_id, expires_at)` index serves active-grant projection.
 - `internal.account_access_grant_operations`: one immutable, database-owner-only
   receipt for a dry-run-approved cohort issuance. It stores the clean source
   SHA, target database identity, approval/plan/input-set digests, aggregate
@@ -4112,87 +4115,120 @@ Resolution is split into two service-role-only transactions invoked by the
 authenticated Edge route. `begin_purchase_principal_resolution(...)` serializes
 the capability, validates the supplied Edge-derived Auth user against
 `auth.users` and `public.users`, and returns either explicit `legacy` mode or a
-server-selected stable principal. The first unclaimed installation may adopt
-the existing uppercase UUID customer; collisions receive an opaque
-`MERIAN_PP_…` ID. `complete_purchase_principal_resolution(...)` revalidates the
-rollout, capability, principal, and Auth user, locks principal then every
-affected user in deterministic order, stores the authoritative StoreKit and
-dual-read promotion snapshot, advances the binding, and schedules principal
-reconciliation. A rollback refuses completion for a merely pending principal
-but continues completion for an already active one. Callers cannot select a
-provider ID or write these tables. First adoption enables detached-pass history
-only when the current Supabase Pro expiry exactly matches the StoreKit pass
-horizon, and completion repeats that comparison while holding the user row lock.
-An active principal returns its existing pass policy during begin; re-resolution
-cannot infer or overwrite it from historical CustomerInfo.
+server-selected stable principal. The first unclaimed installation may adopt the
+existing uppercase UUID customer; collisions receive an opaque `MERIAN_PP_…` ID.
+`complete_purchase_principal_resolution(...)` revalidates the rollout,
+capability, principal, and Auth user, locks principal then every affected user
+in deterministic order, stores the authoritative StoreKit and dual-read
+promotion snapshot, advances the binding, and schedules principal
+reconciliation. A rollback refuses completion for a merely pending principal but
+continues completion for an already active one. Callers cannot select a provider
+ID or write these tables. First adoption enables detached-pass history only when
+the current Supabase Pro expiry exactly matches the StoreKit pass horizon, and
+completion repeats that comparison while holding the user row lock. An active
+principal returns its existing pass policy during begin; re-resolution cannot
+infer or overwrite it from historical CustomerInfo.
+
+Migration `20260816033107_add_stable_purchase_principal_signout_rotations.sql`
+makes stable sign-out a separate service-role-only transition. Preparation
+validates the exact active capability, current non-anonymous binding, binding
+generation, and deletion state before reserving the principal. Claim takes the
+shared legacy compatibility advisory lock, then the principal lock and row,
+rotation row, and all source/destination Auth and public rows in UUID order. It
+accepts only a different anonymous destination created no earlier than
+preparation, rejects deletion and Ghost-merge interlocks, advances the binding
+atomically, and marks the matching audit row `stable_signout_rotation`. Exact
+replay is allowed only for the recorded destination with the same proof.
+Cancellation is available only to the exact still-linked source and can create a
+cancelled tombstone for a write-ahead request whose preparation response was
+lost.
+
+Prepared rotations are exclusive: triggers reject ordinary resolver-intent
+advancement and every binding mutation unless the exact claim transaction sets
+its local rotation authorization. Every terminal row keeps its captured intent
+fence, so a phase-two completion begun before preparation remains stale after
+claim, cancellation, or expiry; a later normal begin advances above the fence.
+Resolver/claim/cancel expiry paths terminalize the row while holding the
+principal transition lock before normal resolution resumes. The aggregate health
+RPC may independently terminalize already-overdue rows by updating only the
+rotation rows; it never acquires a principal after taking a rotation lock.
+Account-deletion intake and recovery preparation reject a live source rotation;
+claim independently checks both source and destination plus Ghost-merge state.
+The table has RLS enabled and no API-role or `service_role` table privileges.
+Only `prepare_purchase_principal_signout_rotation(...)`,
+`claim_purchase_principal_signout_rotation(...)`,
+`cancel_purchase_principal_signout_rotation(...)`, and the identity-free
+aggregate health RPC are executable by `service_role`. Stable rollout is
+database-rejected below minimum client protocol 3.
 
 An active account-deletion job rejects both resolver phases before a binding can
 move. `complete_account_deletion_cleanup` first locks related principals in the
 same principal-then-user order as resolver completion, detaches the deleting
 Auth binding, clears its fixed grant owner, and permanently freezes provider
 promotion import. Account-owned grant rows then cascade with the account, while
-the non-identifying StoreKit principal remains available to the same installation
-after signed-out resolution. This prevents a later account from claiming a
-deleted account's provider promotion and prevents cleanup/resolution deadlocks.
+the non-identifying StoreKit principal remains available to the same
+installation after signed-out resolution. This prevents a later account from
+claiming a deleted account's provider promotion and prevents cleanup/resolution
+deadlocks.
 
-Stable RevenueCat delivery uses
-`resolve_revenuecat_identity_subjects(jsonb)` before legacy UUID fallback and
-commits with `apply_revenuecat_identity_state(...)`. The latter locks every
-stable principal in UUID order before affected user rows, so a two-sided
-`TRANSFER`, resolver completion, and reconciliation cannot acquire the same
-objects in opposite order. Stable webhook evidence is stored in
+Stable RevenueCat delivery uses `resolve_revenuecat_identity_subjects(jsonb)`
+before legacy UUID fallback and commits with
+`apply_revenuecat_identity_state(...)`. The latter locks every stable principal
+in UUID order before affected user rows, so a two-sided `TRANSFER`, resolver
+completion, and reconciliation cannot acquire the same objects in opposite
+order. Stable webhook evidence is stored in
 `internal.purchase_principal_webhook_event_subjects`; old event receipts remain
 the global idempotency boundary. A signed pass purchase may enable detached-pass
 inference directly. A transfer destination may inherit it only from a resolved
 stable source whose durable policy is enabled and only after its authoritative
 snapshot contains an active App Store pass; destination history alone cannot
 enable it. Refund/revocation or transfer source disables it. Unrelated events
-persist a null policy decision and preserve the existing flag.
-Each stable subject also records `account_grant_update_applied`. It is true only
-when a newer, non-transfer snapshot actually updates the temporary dual-read
-provider grant. It is false for every `TRANSFER`, stale event, authoritative-mode
+persist a null policy decision and preserve the existing flag. Each stable
+subject also records `account_grant_update_applied`. It is true only when a
+newer, non-transfer snapshot actually updates the temporary dual-read provider
+grant. It is false for every `TRANSFER`, stale event, authoritative-mode
 snapshot, and post-transfer frozen principal: promotional CustomerInfo observed
 on either side cannot create, extend, revoke, or move the private account-owned
 grant. Unfrozen non-transfer webhook and reconciliation snapshots retain the
-reviewed dual-read behavior until the account-grant ledger becomes authoritative.
-The transfer also sets
+reviewed dual-read behavior until the account-grant ledger becomes
+authoritative. The transfer also sets
 `purchase_principals.provider_account_grant_frozen` on every resolved stable
 side, so later resolver/reconciliation reads cannot import the provider-moved
 promotion; StoreKit reconciliation continues normally.
 
 `internal.purchase_principal_reconciliation_queue` is a separate two-minute,
-claim-token-fenced queue keyed by purchase principal. Service-only claim,
-apply, fail, and health RPCs mirror the legacy worker boundary without
-reinterpreting a principal ID as a user UUID. Each claim carries the durable
-pass-policy flag, and reconciliation preserves rather than derives that flag, so
-retained refunded transaction history cannot restore access. Provider snapshots
-outside the 15-minute-past/five-minute-future window fail without mutation. A
-claim also deletes at most 100 unbound, state-free pending principals with no
-activity for 24 hours. A begin retry refreshes `updated_at` while holding the
-principal lock, so cleanup cannot delete live work between begin and completion.
-Those abandoned preparations never mutated RevenueCat and cannot reserve an
-identity or alert indefinitely. The aggregate health row reports
-active, pending, unbound-active-with-current-StoreKit-access, due,
-expired-claim, oldest-due, and oldest-pending values and exposes no identities.
-It is exposed only through the service-role-only
-`public.get_purchase_principal_health()` routine; API roles have no table access
-and no execute grant. Stable-principal reconciliation locks a live claim with a
-lock-only `PERFORM 1 ... FOR UPDATE`; an absent or expired claim returns stable
-SQLSTATE `55000` before any snapshot mutation. The stable identity ledger uses
-the integer `FOR` loop's implicit index so strict database lint remains clean.
+claim-token-fenced queue keyed by purchase principal. Service-only claim, apply,
+fail, and health RPCs mirror the legacy worker boundary without reinterpreting a
+principal ID as a user UUID. Each claim carries the durable pass-policy flag,
+and reconciliation preserves rather than derives that flag, so retained refunded
+transaction history cannot restore access. Provider snapshots outside the
+15-minute-past/five-minute-future window fail without mutation. A claim also
+deletes at most 100 unbound, state-free pending principals with no activity for
+24 hours. A begin retry refreshes `updated_at` while holding the principal lock,
+so cleanup cannot delete live work between begin and completion. Those abandoned
+preparations never mutated RevenueCat and cannot reserve an identity or alert
+indefinitely. The aggregate health row reports active, pending,
+unbound-active-with-current-StoreKit-access, due, expired-claim, oldest-due, and
+oldest-pending values and exposes no identities. It is exposed only through the
+service-role-only `public.get_purchase_principal_health()` routine; API roles
+have no table access and no execute grant. Stable-principal reconciliation locks
+a live claim with a lock-only `PERFORM 1 ... FOR UPDATE`; an absent or expired
+claim returns stable SQLSTATE `55000` before any snapshot mutation. The stable
+identity ledger uses the integer `FOR` loop's implicit index so strict database
+lint remains clean.
 
 Free abandoned principals do not create permanent operational alerts. In
 `account_grant_mode = authoritative`, provider promotional records are observed
-but forced to free; the private grant ledger is the only account-grant authority.
-That flag may be changed only after the runbook's migration and dual-read gates.
+but forced to free; the private grant ledger is the only account-grant
+authority. That flag may be changed only after the runbook's migration and
+dual-read gates.
 
 ### Purchase identity rollout operations
 
-Forward migration
-`20260813040000_add_purchase_identity_rollout_control.sql` adds
-`internal.purchase_identity_rollout_operations`, an RLS-enabled private ledger
-with no API-role or `service_role` grants. Each row records version 1, target
-environment, fixed production project reference, live PostgreSQL system
+Forward migration `20260813040000_add_purchase_identity_rollout_control.sql`
+adds `internal.purchase_identity_rollout_operations`, an RLS-enabled private
+ledger with no API-role or `service_role` grants. Each row records version 1,
+target environment, fixed production project reference, live PostgreSQL system
 identifier, one action, reviewed source SHA, evidence/approval/approved-plan
 SHA-256 digests, exact before/after modes and protocol, optional rollback
 source, and database-owner application time. It stores no account, Auth,
@@ -4201,19 +4237,20 @@ unique approved plan prevents one approval from naming multiple operations; a
 unique `rollback_of` makes each enabling operation reversible at most once.
 
 `internal.apply_purchase_identity_rollout_operation(...)` is `SECURITY
-INVOKER`, empty-search-path, database-owner-only, and executable by none of
-`PUBLIC`, `anon`, `authenticated`, or `service_role`. It takes one global
-advisory lock followed by the singleton rollout-row lock, rejects state drift,
-changes exactly one axis, and inserts the receipt atomically. The allowed
-sequence is `legacy/dual_read → stable/dual_read`, then optionally
-`stable/authoritative`; rollbacks reverse those operations separately without
-lowering the stable minimum client protocol or deleting any principal/binding
-state. Candidate/deploy workflows never call this routine.
+INVOKER`,
+empty-search-path, database-owner-only, and executable by none of `PUBLIC`,
+`anon`, `authenticated`, or `service_role`. It takes one global advisory lock
+followed by the singleton rollout-row lock, rejects state drift, changes exactly
+one axis, and inserts the receipt atomically. The allowed sequence is
+`legacy/dual_read → stable/dual_read`, then optionally `stable/authoritative`;
+rollbacks reverse those operations separately without lowering the stable
+minimum client protocol or deleting any principal/binding state.
+Candidate/deploy workflows never call this routine.
 
-During coexistence, the legacy reconciliation apply routine remains
-claim-token fenced. It locks the exact live lease without retaining a lint-only
-row value, returns stable SQLSTATE `55000` when the claim is absent or expired,
-and represents a synthetic zero-subject reconciliation seed with event outcome
+During coexistence, the legacy reconciliation apply routine remains claim-token
+fenced. It locks the exact live lease without retaining a lint-only row value,
+returns stable SQLSTATE `55000` when the claim is absent or expired, and
+represents a synthetic zero-subject reconciliation seed with event outcome
 `ignored` so the immutable event-ledger CHECK remains valid.
 
 Forward migration
@@ -4277,8 +4314,8 @@ The service-only RPCs are:
 
 The intake takes the Ghost-merge advisory lock, locks Auth/profile rows, reruns
 all blockers, creates and claims the durable account-deletion job, and completes
-the relational phase in the same transaction. Success must be
-`storage_pending`; Auth is intentionally retained for delayed R2 verification.
+the relational phase in the same transaction. Success must be `storage_pending`;
+Auth is intentionally retained for delayed R2 verification.
 `internal.empty_ghost_account_deletion_receipts` stores only the deletion job,
 plan hash, provider project, verification timestamp, checked count, and request
 time. It has RLS and no direct API-role access. A merge-handoff trigger rejects
@@ -4312,8 +4349,8 @@ Important columns and invariants:
 Partial indexes cover due active work and expired claims. The service-only state
 transitions are:
 
-- `request_account_deletion(uuid)` — idempotent durable intake returning the
-  job ID/status and legacy manual-provider disposition
+- `request_account_deletion(uuid)` — idempotent durable intake returning the job
+  ID/status and legacy manual-provider disposition
 - `request_account_deletion_with_recovery(uuid,text)` — the supporting-client
   intake wrapper that atomically binds a SHA-256 recovery-capability hash to
   that same job and returns its expiry
@@ -4338,62 +4375,61 @@ Migration `20260813053000_add_account_deletion_recovery_capabilities.sql` adds a
 private recovery ledger for the HTTP intake/receipt crash boundary. Each row
 contains a UUID primary key, restrictive deletion-job foreign key, unique
 lowercase SHA-256 `secret_hash`, `issued_at`, `expires_at`, optional
-`last_recovered_at`, and optional `acknowledged_at`. It never stores the raw capability or
-an account, provider, purchase-principal, request, or device identifier. RLS is
-enabled and every table privilege is revoked, including from `service_role`.
-Indexes cover job/cardinality checks, active-expiry health, and acknowledged
-receipt counts. At most eight total proofs, including acknowledged receipts,
-may exist for one job.
+`last_recovered_at`, and optional `acknowledged_at`. It never stores the raw
+capability or an account, provider, purchase-principal, request, or device
+identifier. RLS is enabled and every table privilege is revoked, including from
+`service_role`. Indexes cover job/cardinality checks, active-expiry health, and
+acknowledged receipt counts. At most eight total proofs, including acknowledged
+receipts, may exist for one job.
 
 The service-only routines are:
 
 - `recover_account_deletion(text,boolean)` — derives the job only from the hash,
-  takes the same hash advisory lock used by issue, returns only pending/completed
-  state, manual-provider disposition, expiry, and acknowledgement, and records
-  acknowledgement when requested;
+  takes the same hash advisory lock used by issue, returns only
+  pending/completed state, manual-provider disposition, expiry, and
+  acknowledgement, and records acknowledgement when requested;
 - `get_account_deletion_recovery_health()` — returns aggregate active,
   acknowledged-retained, expired-unacknowledged, oldest-age, and maximum
   per-job-cardinality state without identifiers.
 
 All three recovery routines, including the intake wrapper, are empty-search-path
 `SECURITY DEFINER`, call `internal.require_service_role()`, are present in
-`internal.privileged_routine_grants`, and grant execute only to
-`service_role`. A hash match after the 180-day inspection window raises the
-distinctive `account_deletion_recovery_expired` code; a missing hash remains
-ambiguous and cannot authorize client cleanup. Acknowledged hashes remain
-replayable even after that window. No recovery receipt is age-pruned: the
-acknowledgement response may itself be lost, so deletion would reintroduce the
-same ambiguity this ledger exists to close. The total eight-row-per-job issue
-bound includes acknowledged receipts, and the restrictive parent foreign key
-prevents an operator or future cleanup from deleting their minimized terminal
-job underneath a still-offline device.
-Expiry blocks ordinary inspection only. The same expired matched proof may
-acknowledge completed local cleanup, after which every replay returns the
-permanent acknowledged receipt.
+`internal.privileged_routine_grants`, and grant execute only to `service_role`.
+A hash match after the 180-day inspection window raises the distinctive
+`account_deletion_recovery_expired` code; a missing hash remains ambiguous and
+cannot authorize client cleanup. Acknowledged hashes remain replayable even
+after that window. No recovery receipt is age-pruned: the acknowledgement
+response may itself be lost, so deletion would reintroduce the same ambiguity
+this ledger exists to close. The total eight-row-per-job issue bound includes
+acknowledged receipts, and the restrictive parent foreign key prevents an
+operator or future cleanup from deleting their minimized terminal job underneath
+a still-offline device. Expiry blocks ordinary inspection only. The same expired
+matched proof may acknowledge completed local cleanup, after which every replay
+returns the permanent acknowledged receipt.
 
 Migration `20260813142638_prepare_account_deletion_recovery_v2.sql` extends the
-ledger with `protocol_version` and an independent
-`acknowledgement_secret_hash`, then adds the private/RLS-enabled
+ledger with `protocol_version` and an independent `acknowledgement_secret_hash`,
+then adds the private/RLS-enabled
 `internal.account_deletion_recovery_preparations` table. A preparation contains
 only its exact Auth-user foreign key, two distinct lowercase SHA-256 hashes, and
 a 24-hour expiry. Edge derives those hashes with separate protocol-v2 recovery
-and acknowledgement domain prefixes, so an acknowledgement value cannot match
-a legacy or v2 recovery digest. Multiple devices may prepare independently, up to the same
-eight-proof account bound; one device never supersedes another device's proof.
-The table has non-partial user and expiry indexes, no API-role table grants, and
-a reviewed `preserve` Ghost-merge policy so an Auth identity cannot be merged
-while deletion intent is unresolved.
+and acknowledgement domain prefixes, so an acknowledgement value cannot match a
+legacy or v2 recovery digest. Multiple devices may prepare independently, up to
+the same eight-proof account bound; one device never supersedes another device's
+proof. The table has non-partial user and expiry indexes, no API-role table
+grants, and a reviewed `preserve` Ghost-merge policy so an Auth identity cannot
+be merged while deletion intent is unresolved.
 
 Forward repair
-`20260813162506_reject_expired_account_deletion_preparation_promotion.sql`
-adds the private, RLS-enabled
-`internal.account_deletion_expired_preparation_proofs` table. It retains only a
-lowercase SHA-256 proof hash, proof kind, the preparation expiry, recorded time,
-and whether a deletion had already committed when the proof was retired. It has
-no account, job, provider, purchase-principal, request, or device identifier and
-no API-role privileges, including `service_role`. These permanent, identity-free
-tombstones prevent an old client from later treating a discarded proof as
-unknown or reusing the hash in a fresh preparation.
+`20260813162506_reject_expired_account_deletion_preparation_promotion.sql` adds
+the private, RLS-enabled `internal.account_deletion_expired_preparation_proofs`
+table. It retains only a lowercase SHA-256 proof hash, proof kind, the
+preparation expiry, recorded time, and whether a deletion had already committed
+when the proof was retired. It has no account, job, provider,
+purchase-principal, request, or device identifier and no API-role privileges,
+including `service_role`. These permanent, identity-free tombstones prevent an
+old client from later treating a discarded proof as unknown or reusing the hash
+in a fresh preparation.
 
 Protocol v2 is a two-stage state machine:
 
@@ -4405,9 +4441,9 @@ Protocol v2 is a two-stage state machine:
   job's insert trigger locks every device preparation, tombstones expired proof
   hashes as committed, and atomically converts only still-live preparations for
   that user into protocol-v2 receipts before cleanup can run.
-- `recover_account_deletion_v2(text)` cancels only a still-uncommitted
-  live preparation and returns `not_committed`. An expired preparation is
-  retired to the tombstone table while holding the Auth-user lock: it returns
+- `recover_account_deletion_v2(text)` cancels only a still-uncommitted live
+  preparation and returns `not_committed`. An expired preparation is retired to
+  the tombstone table while holding the Auth-user lock: it returns
   `not_committed` when no deletion exists and the non-authorizing
   `preparation_expired` state when another device committed. It never promotes
   an expired preparation into a 180-day capability. A live preparation that was
@@ -4418,12 +4454,12 @@ Protocol v2 is a two-stage state machine:
 - `prune_account_deletion_recovery_preparations(integer)` first writes both
   hashes from a bounded set of expired, non-destructive preparations to the
   identity-free tombstone table with `deletion_committed = false`, then removes
-  those preparations. Its outer Auth-user set and inner preparation set are
-  both bounded by the requested batch size. It locks candidate Auth users in
-  UUID order before any preparation row and skips users already locked by
-  deletion or recovery, so a cleanup batch neither waits behind an account nor
-  retires its proof before the lock owner commits classification. Committed
-  receipts remain subject to the permanent v1 retention rule above.
+  those preparations. Its outer Auth-user set and inner preparation set are both
+  bounded by the requested batch size. It locks candidate Auth users in UUID
+  order before any preparation row and skips users already locked by deletion or
+  recovery, so a cleanup batch neither waits behind an account nor retires its
+  proof before the lock owner commits classification. Committed receipts remain
+  subject to the permanent v1 retention rule above.
 - `get_account_deletion_recovery_preparation_health()` returns only aggregate
   active/expired counts and oldest ages.
 
@@ -4449,17 +4485,17 @@ API-role privileges, including `service_role`.
 `internal.apple_sign_in_credential_registrations` stores token-free,
 client-generated registration UUID receipts for response-loss idempotency. Its
 Auth foreign key cascades only when the user is legitimately deleted, and
-successful provider completion removes the user's receipts first. Receipts
-older than 24 hours are pruned on later successful registration.
+successful provider completion removes the user's receipts first. Receipts older
+than 24 hours are pruned on later successful registration.
 
 `apple_revocation_registration_exists(uuid,uuid)` checks a receipt before the
-one-use code is exchanged. `store_apple_revocation_credential(uuid,uuid,text,text)`
-locks the permanent Auth user, rejects active deletion, binds the Apple subject
-to `auth.identities`, and creates or updates the Vault secret atomically. Both
+one-use code is exchanged.
+`store_apple_revocation_credential(uuid,uuid,text,text)` locks the permanent
+Auth user, rejects active deletion, binds the Apple subject to
+`auth.identities`, and creates or updates the Vault secret atomically. Both
 routines, plus the two claimed deletion routines above, are empty-search-path,
 in-body-authorized, service-role-only entries in
-`internal.privileged_routine_grants`.
-See the
+`internal.privileged_routine_grants`. See the
 [Sign in with Apple account-deletion contract](./20-sign-in-with-apple-account-deletion.md)
 for runtime ordering, secrets, legacy fallback, and rollout evidence.
 
@@ -5057,17 +5093,17 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
   mirrors for scan jobs.
 - `requiresUnconstrainedNetwork`, `allowsCellular`: Bool policy hints.
 - `approximateBytes`: Int64 redacted local footprint estimate.
-- `metadataJSON`: String? object for non-media scheduler metadata. Scan-ingestion
-  jobs may carry `inference_generation` and `funding_reservation` at the same
-  time. `funding_reservation` encodes account ID, stable scan ID, source
-  (`paid_pro`, `complimentary_pro`, `immediate_flash`, or `deferred_flash`),
-  earlier blocker scan IDs, and creation time. Generation and funding helpers
-  remove only the property they own. A proven pre-dispatch local failure removes
-  the reservation and durably sets `funding_reservation_released: true` while
-  preserving all other metadata. A fresh claim removes that marker. Relaunch
-  restores nonterminal reservations; a pre-protocol-3 job lacking funding is a
-  conservative potential complimentary blocker unless the durable release
-  marker proves otherwise.
+- `metadataJSON`: String? object for non-media scheduler metadata.
+  Scan-ingestion jobs may carry `inference_generation` and `funding_reservation`
+  at the same time. `funding_reservation` encodes account ID, stable scan ID,
+  source (`paid_pro`, `complimentary_pro`, `immediate_flash`, or
+  `deferred_flash`), earlier blocker scan IDs, and creation time. Generation and
+  funding helpers remove only the property they own. A proven pre-dispatch local
+  failure removes the reservation and durably sets
+  `funding_reservation_released: true` while preserving all other metadata. A
+  fresh claim removes that marker. Relaunch restores nonterminal reservations; a
+  pre-protocol-3 job lacking funding is a conservative potential complimentary
+  blocker unless the durable release marker proves otherwise.
 
 ### `OfflineQueueEvent`
 

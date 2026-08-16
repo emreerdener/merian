@@ -12,6 +12,10 @@ const stablePrincipalLintRepairMigrationUrl = new URL(
   "../../migrations/20260813020636_repair_stable_purchase_principal_lint_warnings.sql",
   import.meta.url,
 );
+const signoutRotationMigrationUrl = new URL(
+  "../../migrations/20260816033107_add_stable_purchase_principal_signout_rotations.sql",
+  import.meta.url,
+);
 const resolverHandlerUrl = new URL(
   "../resolve-purchase-principal/handler.ts",
   import.meta.url,
@@ -42,6 +46,10 @@ const revenueCatSecurityFixtureUrl = new URL(
 );
 const compatibilityConcurrencyFixtureUrl = new URL(
   "./purchasePrincipalCompatibilityConcurrencyDb.test.ts",
+  import.meta.url,
+);
+const signoutRotationConcurrencyFixtureUrl = new URL(
+  "./purchasePrincipalSignoutRotationConcurrencyDb.test.ts",
   import.meta.url,
 );
 
@@ -261,6 +269,69 @@ Deno.test("purchase-principal resolution is service-only and uses one lock order
   ) {
     assertStringIncludes(sql, fragment);
   }
+});
+
+Deno.test("stable sign-out rotations are private, one-use, and resolver-exclusive", async () => {
+  const sql = compact(await Deno.readTextFile(signoutRotationMigrationUrl));
+
+  for (
+    const fragment of [
+      "CREATE TABLE internal.purchase_principal_signout_rotations",
+      "secret_hash TEXT NOT NULL UNIQUE",
+      "protocol_version INTEGER NOT NULL DEFAULT 3",
+      "binding_intent_generation_fence BIGINT NOT NULL",
+      "binding_intent_generation_fence BETWEEN 0 AND 9007199254740991",
+      "status IN ('prepared', 'completed', 'cancelled', 'expired')",
+      "CREATE UNIQUE INDEX purchase_principal_signout_one_prepared_idx",
+      "WHERE status = 'prepared'",
+      "CREATE INDEX purchase_principal_signout_rotation_intent_fence_idx",
+      "purchase_principal_id, binding_intent_generation_fence DESC",
+      "ALTER TABLE internal.purchase_principal_signout_rotations ENABLE ROW LEVEL SECURITY",
+      "REVOKE ALL ON TABLE internal.purchase_principal_signout_rotations FROM PUBLIC, anon, authenticated, service_role",
+      "purchase_principal_signout_protocol_upgrade_required",
+      "CREATE TRIGGER guard_purchase_principal_intent_during_signout_rotation",
+      "CREATE TRIGGER guard_purchase_principal_binding_during_signout_rotation",
+      "purchase_principal_signout_rotation_required",
+      "rotation.binding_intent_generation_fence >= latest_binding_intent_generation",
+      "purchase_principal_binding_intent_stale",
+      "CREATE OR REPLACE FUNCTION public.prepare_purchase_principal_signout_rotation",
+      "binding.auth_user_id <> p_auth_user_id",
+      "source_is_anonymous IS DISTINCT FROM FALSE",
+      "CREATE OR REPLACE FUNCTION public.claim_purchase_principal_signout_rotation",
+      "'purchase-principal-legacy-compatibility'",
+      "ORDER BY profile.id FOR UPDATE OF profile, auth_user",
+      "auth_user.is_anonymous IS TRUE",
+      "destination_created_at < rotation.created_at",
+      "SET reason = 'stable_signout_rotation'",
+      "CREATE OR REPLACE FUNCTION public.cancel_purchase_principal_signout_rotation",
+      "CREATE OR REPLACE FUNCTION public.get_purchase_principal_signout_rotation_health",
+      "generated_at TIMESTAMPTZ",
+      "oldest_prepared_age_seconds BIGINT",
+      "WITH expired_rotations AS ( UPDATE internal.purchase_principal_signout_rotations",
+      "SELECT pg_catalog.COUNT(*) FROM expired_rotations",
+      "reject_account_deletion_preparation_during_purchase_signout",
+      "purchase_principal_signout_ghost_merge_in_progress",
+      "identities_scrubbed_at = pg_catalog.CLOCK_TIMESTAMP()",
+      "GRANT EXECUTE ON FUNCTION public.prepare_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, BIGINT, INTEGER ) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.claim_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.cancel_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.get_purchase_principal_signout_rotation_health() TO service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(sql, fragment);
+  }
+  assert(
+    !sql.includes(
+      "GRANT SELECT ON TABLE internal.purchase_principal_signout_rotations",
+    ),
+    "rotation proofs must never be directly exposed to API roles",
+  );
+  assert(
+    !sql.includes("current_time TIMESTAMPTZ"),
+    "rotation routines must not shadow PostgreSQL's CURRENT_TIME value function",
+  );
 });
 
 Deno.test("StoreKit state and account-issued access remain separate", async () => {
@@ -500,7 +571,7 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
   assertStringIncludes(manager, "!usesStablePurchasePrincipal,");
   assertStringIncludes(manager, "The newest request always runs last.");
   assertStringIncludes(manager, "func beginPurchaseIdentityResolution()");
-  assertStringIncludes(resolver, "static let current = 2");
+  assertStringIncludes(resolver, "static let current = 3");
   assertStringIncludes(
     supabaseManager,
     "RevenueCatManager.shared.beginPurchaseIdentityResolution()",
@@ -529,6 +600,14 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
     supabaseManager,
     ".linkLegacyRevenueCatIdentityForSignOutHandoff(",
   );
+  assertStringIncludes(
+    supabaseManager,
+    ".claimSignoutRotation(",
+  );
+  assertStringIncludes(
+    supabaseManager,
+    "return purchaseIdentityHandoffPending",
+  );
   const compactSupabaseManager = supabaseManager.replaceAll(/\s+/g, " ")
     .trim();
   const compatibilityCompletion = compactSupabaseManager.slice(
@@ -552,6 +631,29 @@ Deno.test("stable iOS linkage does not transfer receipts or write account PII", 
         ),
     "an issued compatibility proof must finish on its legacy UUID before stable adoption",
   );
+
+  const stableCompletion = compactSupabaseManager.slice(
+    compactSupabaseManager.indexOf(
+      "private func completePendingPurchasePrincipalAuthRotationIfNeeded",
+    ),
+    compactSupabaseManager.indexOf(
+      "private func performPendingSignOutPurchaseHandoff",
+    ),
+  );
+  assert(
+    stableCompletion.indexOf(".claimSignoutRotation(") >= 0 &&
+      stableCompletion.indexOf(
+          "guard await EntitlementManager.shared.beginSession(",
+        ) >
+        stableCompletion.indexOf(".claimSignoutRotation(") &&
+      stableCompletion.indexOf(
+          "try clearPendingPurchasePrincipalAuthRotation()",
+        ) >
+        stableCompletion.indexOf(
+          "guard await EntitlementManager.shared.beginSession(",
+        ),
+    "stable rotation proof must survive until exact claim and server entitlement verification",
+  );
 });
 
 Deno.test("disposable database coverage exercises rotation and grant separation", async () => {
@@ -563,6 +665,13 @@ Deno.test("disposable database coverage exercises rotation and grant separation"
       "SET principal_mode = 'stable'",
       "FROM public.begin_purchase_principal_resolution",
       "FROM public.complete_purchase_principal_resolution",
+      "FROM public.prepare_purchase_principal_signout_rotation",
+      "FROM public.claim_purchase_principal_signout_rotation",
+      "prepared sign-out rotation allowed a permanent resolver bypass",
+      "prepared stable sign-out allowed source account deletion",
+      "stale anonymous destination claimed rotation",
+      "prepared Ghost merge allowed a stable sign-out claim",
+      "completed stable sign-out rotation replayed to another destination",
       "same capability did not resolve the same principal",
       "stale binding intent was allowed to overwrite a newer Auth session",
       "rollback rotated an activated purchase principal",
@@ -669,6 +778,69 @@ Deno.test("legacy compatibility mutation loses a concurrent stable activation", 
       "revenuecat_reconciliation_claim_lost",
       "claimed legacy reconciliation unexpectedly survived stable binding",
       "seed_event_exists: false",
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
+  }
+});
+
+Deno.test("prepared sign-out rotation defeats a concurrent permanent resolver", async () => {
+  const fixture = compact(
+    await Deno.readTextFile(signoutRotationConcurrencyFixtureUrl),
+  );
+  for (
+    const fragment of [
+      "public.prepare_purchase_principal_signout_rotation",
+      "public.begin_purchase_principal_resolution",
+      "resolverApplicationName, preparationPid",
+      "purchase_principal_signout_rotation_required",
+      "unrelated permanent resolver survived a committed sign-out rotation",
+      'rotation_status: "prepared"',
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
+  }
+});
+
+Deno.test("stable sign-out terminal races and expiry stay in the disposable database gate", async () => {
+  const fixture = compact(
+    await Deno.readTextFile(signoutRotationConcurrencyFixtureUrl),
+  );
+  for (
+    const fragment of [
+      "claim and source cancellation have one terminal winner",
+      'for (const winningOperation of ["claim", "cancel"] as const)',
+      "waitUntilBlocked(observer, applicationName, winnerPid)",
+      "purchase_principal_signout_rotation_terminal_conflict",
+      'rotation_status: "completed"',
+      'rotation_status: "cancelled"',
+      "expiry is terminal before ordinary resolution resumes",
+      "created_at = pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '2 days'",
+      "expires_at = pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 day'",
+      "public.get_purchase_principal_signout_rotation_health",
+      "The health pass must report and terminalize the overdue preparation",
+      'rotation_status: "expired"',
+      "binding_generation: null",
+      "public.begin_purchase_principal_resolution",
+    ]
+  ) {
+    assertStringIncludes(fixture, fragment);
+  }
+});
+
+Deno.test("terminal sign-out rotations fence every resolver begun before preparation", async () => {
+  const fixture = compact(
+    await Deno.readTextFile(signoutRotationConcurrencyFixtureUrl),
+  );
+  for (
+    const fragment of [
+      "resolver completion begun before prepare stays stale after every terminal outcome",
+      'for (const terminalOperation of ["claim", "cancel", "expire"] as const)',
+      "public.begin_purchase_principal_resolution",
+      "public.prepare_purchase_principal_signout_rotation",
+      "public.complete_purchase_principal_resolution",
+      "purchase_principal_binding_intent_stale",
+      "delayed resolver overwrote the terminal sign-out binding",
     ]
   ) {
     assertStringIncludes(fixture, fragment);

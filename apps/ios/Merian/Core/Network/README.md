@@ -587,76 +587,94 @@ mutation, historical reconciliation, collection sync, and ordinary
 The transition closes admission synchronously, cancels and awaits consent
 synchronization, closes `InferenceEngine` write admission, cancels and awaits
 even non-cooperative presentation/metadata tasks, waits for all admitted leases
-and collection work, and only then mutates the Auth SDK session. HTTP retries release their lease before 401
-recovery so recovery cannot deadlock on its initiating request; payloads that
-embed an Auth UUID also pass that UUID as an expected owner and fail before
-dispatch if the live account differs. Every recursive transport, route,
-refresh, and service retry remains pinned to the account that initiated the
-request; an unowned request cannot silently recapture a replacement session.
-Foreground and background inference keep
-the request body, JWT, and expected Auth UUID in one typed request value; the
-background dispatcher persists that Auth UUID plus generation in the job
-metadata and `inference_v3` task description before resume, then retains the
-exact account lease until the URLSession terminal callback. Offline media
-staging does the same through `upload_v2`, requires every returned R2 key to
-equal the prepared owner key, and retains one exact lease per task through its
-terminal callback. The transition drain first commits each affected queue row
-back to pending and clears its source-owned staging keys, then cancels every
-matching task and waits for both URLSession disappearance and lease release;
-there is no timeout that allows Auth mutation to outrun a presigned PUT, and a
-failed durable retreat, task cancellation, or bounded drain expiry aborts the
-transition and leaves the source session intact for retry.
-Callbacks and relaunched tasks may mutate local state only when their explicit
-owner/generation matches both the live Auth session and durable job metadata.
-Before a relaunched terminal callback crosses its first actor boundary, it
-atomically reacquires and retains an exact-session account-work lease, so the
-transition drain cannot overtake persistence merely because the original
-process-local lease was lost.
-Legacy or unprovable tasks are cancelled and restaged rather than adopted by a
-replacement account. Inference refuses any staged key whose canonical owner
-differs from its typed request account. Realtime channels are keyed to
-the final account and close while a transition is active. If collection work was already
-in flight, the source session remains stable until it finishes, and local
-tombstones are retained whenever the transition began before the local commit.
-Each URLSession terminal delegate callback registers its asynchronous durable
-work synchronously before crossing actors. The background-session
-`urlSessionDidFinishEvents` callback waits for that tracker to drain before
-invoking the system completion handler, preventing suspension between network
-completion and final queue/result persistence.
-Anonymous bootstrap is itself a coordinator-owned transition, so restore/create
-cannot be overtaken by Apple, Google, Sign out, recovery, or deletion.
+and collection work, and only then mutates the Auth SDK session. HTTP retries
+release their lease before 401 recovery so recovery cannot deadlock on its
+initiating request; payloads that embed an Auth UUID also pass that UUID as an
+expected owner and fail before dispatch if the live account differs. Every
+recursive transport, route, refresh, and service retry remains pinned to the
+account that initiated the request; an unowned request cannot silently recapture
+a replacement session. Foreground and background inference keep the request
+body, JWT, and expected Auth UUID in one typed request value; the background
+dispatcher persists that Auth UUID plus generation in the job metadata and
+`inference_v3` task description before resume, then retains the exact account
+lease until the URLSession terminal callback. Offline media staging does the
+same through `upload_v2`, requires every returned R2 key to equal the prepared
+owner key, and retains one exact lease per task through its terminal callback.
+The transition drain first commits each affected queue row back to pending and
+clears its source-owned staging keys, then cancels every matching task and waits
+for both URLSession disappearance and lease release; there is no timeout that
+allows Auth mutation to outrun a presigned PUT, and a failed durable retreat,
+task cancellation, or bounded drain expiry aborts the transition and leaves the
+source session intact for retry. Callbacks and relaunched tasks may mutate local
+state only when their explicit owner/generation matches both the live Auth
+session and durable job metadata. Before a relaunched terminal callback crosses
+its first actor boundary, it atomically reacquires and retains an exact-session
+account-work lease, so the transition drain cannot overtake persistence merely
+because the original process-local lease was lost. Legacy or unprovable tasks
+are cancelled and restaged rather than adopted by a replacement account.
+Inference refuses any staged key whose canonical owner differs from its typed
+request account. Realtime channels are keyed to the final account and close
+while a transition is active. If collection work was already in flight, the
+source session remains stable until it finishes, and local tombstones are
+retained whenever the transition began before the local commit. Each URLSession
+terminal delegate callback registers its asynchronous durable work synchronously
+before crossing actors. The background-session `urlSessionDidFinishEvents`
+callback waits for that tracker to drain before invoking the system completion
+handler, preventing suspension between network completion and final queue/result
+persistence. Anonymous bootstrap is itself a coordinator-owned transition, so
+restore/create cannot be overtaken by Apple, Google, Sign out, recovery, or
+deletion.
 
-Every usable session first calls the additive `/resolve-purchase-principal`
-route. Its explicit `mode` selects the stable or legacy branch; only a definite
-missing route may use legacy fallback, while auth, timeout, provider, and
-database failures remain fail-closed. Once an installation has activated a
-stable principal, server rollback keeps returning that exact principal; it never
-instructs iOS to rotate back to the current Auth UUID. A response requiring a
-newer stable protocol also fails closed until the app is updated. A verified
-device-only activation fingerprint makes that transition monotonic: later `404`
-or `mode: legacy` responses are rejected rather than used as compatibility
-fallback.
+Every usable session outside a pending protocol-3 stable sign-out first calls
+the additive `/resolve-purchase-principal` route. Its explicit `mode` selects
+the stable or legacy branch; only a definite missing route may use legacy
+fallback, while auth, timeout, provider, and database failures remain
+fail-closed. A fresh anonymous destination owned by a pending stable journal
+uses the exact reservation claim below and never enters ordinary resolution.
+Once an installation has activated a stable principal, server rollback keeps
+returning that exact principal; it never instructs iOS to rotate back to the
+current Auth UUID. A response requiring a newer stable protocol also fails
+closed until the app is updated. A verified device-only activation fingerprint
+makes that transition monotonic: later `404` or `mode: legacy` responses are
+rejected rather than used as compatibility fallback.
 
 In stable mode, the client read-verifies a device-only installation capability
 and advances/read-verifies its device-monotonic binding intent before each
-resolver request. The server rejects any older intent, so a cancelled Auth
-request that finishes late cannot replace the current binding. The client also
-persists a write-ahead Auth-rotation marker before closing the local linked
-session. One fresh anonymous identity resolves the same server-owned purchase
-principal, `RevenueCatManager` serially links the unchanged App User ID, Merian
-entitlement refreshes, the same Auth generation is verified, and the marker is
-removed last. If a transient resolver, account-cleanup, Keychain, or provider
-failure finishes without another Auth event, foreground activation retries that
-exact durable capability or handoff. It never rotates Auth or creates a
-replacement provider customer, and paid readiness remains closed until the same
-session and server entitlement are verified. If local Supabase sign-out fails
-and the source account remains active, the unused marker is cleared only after
-verification and the exact source RevenueCat/entitlement session is restored
-before the transition returns. There is no `syncPurchases()` or RevenueCat
+ordinary resolver request. The server rejects any older intent, so a cancelled
+Auth request that finishes late cannot replace the current binding. Stable
+**Sign out** uses a separate protocol-3 state machine:
+
+1. While the exact linked source session and binding generation are live, iOS
+   generates a rotation UUID and 256-bit secret, persists/read-verifies a
+   `preparing` Keychain journal, and invokes `prepare_signout_rotation`.
+2. iOS validates the same principal, App User ID, binding generation, and
+   server-issued expiry, then persists/read-verifies the `prepared` journal
+   before closing the source session.
+3. Only one different anonymous identity created no earlier than preparation may
+   invoke `claim_signout_rotation`. A prepared reservation blocks generic
+   resolver intent and binding writes. Its terminal intent fence also rejects
+   any resolver completion begun before preparation after claim, cancellation,
+   or expiry.
+4. The client validates the atomic claim receipt and advanced generation,
+   serially links the unchanged RevenueCat App User ID, requires
+   `EntitlementManager.beginSession(...)` to return `true`, revalidates the same
+   anonymous Auth generation, and removes the journal last.
+
+An unrelated permanent session, old anonymous session, malformed/unreadable
+journal, expired claim, provider failure, or entitlement failure remains closed
+and cannot invoke the generic resolver or RevenueCat link. If local sign-out
+fails or the exact source is restored first, that source invokes
+`cancel_signout_rotation` with the same proof and clears the journal only after
+a terminal `cancelled` or `expired` receipt; a `preparing` cancellation safely
+tombstones a request whose prepare response was lost. Foreground activation
+retries the exact durable destination and proof without creating a replacement
+capability or provider customer. There is no `syncPurchases()` or RevenueCat
 customer-transfer call. Email, username, display name, avatar, account kind, and
 Auth UUID are never written to the shared stable provider customer; adoption
 deletes any legacy values and synchronizes that deletion before stable paid
-readiness opens.
+readiness opens. The rotation UUID, raw secret, capability/fingerprint, and
+every journal identity field are bearer or identity material and never enter
+logs, analytics, crash metadata, or request URLs.
 
 In legacy mode, the client first calls `/transfer-signout-purchases` to snapshot
 authoritative StoreKit-backed access and persists its one-use proof under
@@ -719,8 +737,9 @@ invalidated.
 Low-level `signOut()` cannot later recover the same Supabase anonymous account.
 Ordinary user logout therefore calls `transitionToGhostSession()` to request one
 replacement anonymous identity after the mode-specific durable boundary is
-prepared. Stable success means the replacement Auth session resolves and links
-the same purchase principal, then refreshes entitlement. Legacy success means
+prepared. Stable success means that replacement Auth session claims the exact
+server reservation, links the unchanged purchase principal, establishes a
+current entitlement session, and clears the journal last. Legacy success means
 the anonymous Supabase identity, exact custom RevenueCat identity, receipt sync,
 server verification/reconciliation, and current entitlement read all completed.
 An anonymous-session result by itself is not success. The same identity rotation
@@ -754,48 +773,47 @@ provider-specific lifecycle is canonical in the
 Before `/safe-delete` can commit, iOS generates an atomic Keychain envelope with
 independent 256-bit recovery and acknowledgement capabilities and verifies the
 exact encoded bytes. It writes `capability_preparation_pending`, performs the
-server's non-destructive v2 preparation, writes
-`capability_prepared_pending`, then writes `capability_intake_pending` before
-destructive commit. This closes both lost-request and lost-response windows: a
-relaunch from either preparation phase re-enters the deletion transition; a
-crash before commit publicly cancels as `not_committed` without erasing Auth or
-SwiftData, while a crash after commit recovers the job receipt. If another
-device commits first, the database atomically binds every still-live prepared
-proof to the same deletion job and tombstones expired proof hashes as committed.
-No expired preparation is promoted into a 180-day recovery capability. While
-commit is unresolved, the only permitted authenticated call is an
-exact-transition replay. If the cached Auth session is gone, the app submits
-only the recovery capability to `/recover-account-deletion`; acknowledgement
-after verified cleanup uses only its distinct proof. Neither request contains
-an account, job, provider, or purchase identity.
+server's non-destructive v2 preparation, writes `capability_prepared_pending`,
+then writes `capability_intake_pending` before destructive commit. This closes
+both lost-request and lost-response windows: a relaunch from either preparation
+phase re-enters the deletion transition; a crash before commit publicly cancels
+as `not_committed` without erasing Auth or SwiftData, while a crash after commit
+recovers the job receipt. If another device commits first, the database
+atomically binds every still-live prepared proof to the same deletion job and
+tombstones expired proof hashes as committed. No expired preparation is promoted
+into a 180-day recovery capability. While commit is unresolved, the only
+permitted authenticated call is an exact-transition replay. If the cached Auth
+session is gone, the app submits only the recovery capability to
+`/recover-account-deletion`; acknowledgement after verified cleanup uses only
+its distinct proof. Neither request contains an account, job, provider, or
+purchase identity.
 
-A returned durable receipt promotes the marker to
-`capability_cleanup_pending`; only then may iOS sign out locally and purge
-SwiftData. After cleanup, iOS acknowledges recovery, records
-`capability_retirement_pending`, read-after-delete verifies Keychain removal,
-and clears the marker last. Relaunch from retirement re-verifies local Auth
-absence and repeats the idempotent SwiftData purge before proof removal, so a
-marker-writing durability failure cannot skip either cleanup boundary. A
-definitive `409 purchase_continuity_pending` first records
+A returned durable receipt promotes the marker to `capability_cleanup_pending`;
+only then may iOS sign out locally and purge SwiftData. After cleanup, iOS
+acknowledges recovery, records `capability_retirement_pending`,
+read-after-delete verifies Keychain removal, and clears the marker last.
+Relaunch from retirement re-verifies local Auth absence and repeats the
+idempotent SwiftData purge before proof removal, so a marker-writing durability
+failure cannot skip either cleanup boundary. A definitive
+`409 purchase_continuity_pending` first records
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
-unused proof is gone, and clears the marker last. Relaunch in this phase performs
-only that proof-and-marker retirement; it never signs out or purges local data
-because the server proved the deletion intake did not win.
-Transport, Auth, gateway, `5xx`, cancellation, and malformed responses retain
-the proof and barrier because commit may still be in flight. An unknown legacy
-v1 proof also remains ambiguous. An unknown v2 proof permits proof-only
-retirement because commit requires the missing server preparation. A
-`not_committed` or genuinely unknown v2 proof first retires the unused proof,
-then adopts only the exact cached unexpired Supabase session into the transition
-coordinator while the barrier remains. It clears the barrier before publishing
-that same UUID and anonymous/account kind or reopening account work. The distinct
+unused proof is gone, and clears the marker last. Relaunch in this phase
+performs only that proof-and-marker retirement; it never signs out or purges
+local data because the server proved the deletion intake did not win. Transport,
+Auth, gateway, `5xx`, cancellation, and malformed responses retain the proof and
+barrier because commit may still be in flight. An unknown legacy v1 proof also
+remains ambiguous. An unknown v2 proof permits proof-only retirement because
+commit requires the missing server preparation. A `not_committed` or genuinely
+unknown v2 proof first retires the unused proof, then adopts only the exact
+cached unexpired Supabase session into the transition coordinator while the
+barrier remains. It clears the barrier before publishing that same UUID and
+anonymous/account kind or reopening account work. The distinct
 `account_deletion_recovery_preparation_expired` response is a non-authorizing
 tombstone match and retains the barrier. Only a matched committed capability's
 `account_deletion_recovery_expired` `410` is positive evidence that deletion was
-accepted; it permits conservative local erasure, after which
-the independent acknowledgement proof remains valid and then permits verified
-retirement.
-It does not reveal pre-cleanup job state. Legacy `intake_pending` and
+accepted; it permits conservative local erasure, after which the independent
+acknowledgement proof remains valid and then permits verified retirement. It
+does not reveal pre-cleanup job state. Legacy `intake_pending` and
 `cleanup_pending` remain readable during the installed-client compatibility
 window. No marker or proof stores an account, provider, job, or request
 identifier. A refreshable `401` renews only the transition's exact expected

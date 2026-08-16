@@ -4341,13 +4341,13 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   but no durable cloud audio. Successful repair promotes the objects, writes
   `audio_storage_urls`, replaces standalone local references in
   `captured_media`, preserves `sourceIndex` on already-durable audio items,
-  refreshes normalized assets, and then enters the normal moderation gate.
-  Newly restored legacy items remain unindexed when the restore request cannot
-  prove their original identity. Promotion failure, or a returned persistence rejection plus
-  exact-owner proof that the URLs are absent, publishes nothing and rolls back
-  promoted objects. A lost/unreadable update response returns retryable
-  `scan_media_restore_unavailable` and preserves them until same-owner retry
-  settles the outcome.
+  refreshes normalized assets, and then enters the normal moderation gate. Newly
+  restored legacy items remain unindexed when the restore request cannot prove
+  their original identity. Promotion failure, or a returned persistence
+  rejection plus exact-owner proof that the URLs are absent, publishes nothing
+  and rolls back promoted objects. A lost/unreadable update response returns
+  retryable `scan_media_restore_unavailable` and preserves them until same-owner
+  retry settles the outcome.
 - If any selected item is standalone audio or an audio-bearing video, every
   audible item must have a matching content-addressed attestation or pass the
   database-selected structured audio classifier (currently `gemini-2.5-flash`)
@@ -5355,16 +5355,16 @@ ordered compositions of images, audio, and descriptive context.
   those stored identities are preserved rather than renumbered. Replay intents
   also preserve absent versus explicitly present timelines, so schema-v1 jobs do
   not become invalid empty authoritative timelines after an upgrade. The
-  playback clip is promoted only after its sampled frames pass
-  moderation and is not used as Gemini inference or reference-media input. If
-  `videoR2ObjectKeys` is non-empty, the scan is only successful when every
-  requested video key is promoted and persisted into `video_storage_urls` and
-  `captured_media`; otherwise the client receives a retryable failure rather
-  than a frame-only video scan. Uploads signed with `clientScanId`/`mediaRole`
-  already have staged `scan_media_assets` rows; this endpoint links those rows
-  to the scan as durable media. Only a validated owner timeline authorizes
-  consumed extracted `video_audio` rows to become `deleted`; failed
-  finalization rows become `failed`.
+  playback clip is promoted only after its sampled frames pass moderation and is
+  not used as Gemini inference or reference-media input. If `videoR2ObjectKeys`
+  is non-empty, the scan is only successful when every requested video key is
+  promoted and persisted into `video_storage_urls` and `captured_media`;
+  otherwise the client receives a retryable failure rather than a frame-only
+  video scan. Uploads signed with `clientScanId`/`mediaRole` already have staged
+  `scan_media_assets` rows; this endpoint links those rows to the scan as
+  durable media. Only a validated owner timeline authorizes consumed extracted
+  `video_audio` rows to become `deleted`; failed finalization rows become
+  `failed`.
 - Still-photo descriptors may include `focusRegion` using top-left-normalized
   coordinates for the same complete post-crop image. The edge accepts only
   finite positive rectangles contained within `[0, 1]` with
@@ -5404,8 +5404,8 @@ ordered compositions of images, audio, and descriptive context.
 - The endpoint also records a `scan_ingestion_intents` row for server recovery.
   That row stores a sanitized replay payload with telemetry, every observation
   context, media descriptors, the owner timeline, staged keys, upload-session
-  ids, and a `payload_checksum`. It never stores raw base64 media bytes or local device
-  paths. Requests that used inline foreground media are marked
+  ids, and a `payload_checksum`. It never stores raw base64 media bytes or local
+  device paths. Requests that used inline foreground media are marked
   `resumable = false` with `inline_media_redacted = true`; queued/staged
   media/audio/video and text-only requests are resumable. Server-side replay of
   those resumable intents is capped at 10 automatic claims before the paired job
@@ -5420,17 +5420,17 @@ ordered compositions of images, audio, and descriptive context.
   media reconciliation use this routine rather than updating the ledger
   directly. Scan deletion clears the envelope at tombstone insertion before
   asynchronous media erasure starts.
-- The edge writes `captured_media` for new multimodal scan rows. With a validated
-  owner timeline, that JSON preserves the exact submitted order of still images,
-  standalone audio, collapsed playback videos, and every description. Ordered
-  `video_frame` samples become one video item with a thumbnail reference.
-  Extracted companion audio is inference-only and is not emitted as a standalone
-  or nested server media reference. Downstream video `has_audio` must therefore
-  come from independent durable playback metadata, never from video kind alone.
-  The required finalization transaction refreshes ready image/audio/video
-  `scan_media_assets` rows from the same manifest, aligns their `order_index` to
-  manifest ordinality (description positions intentionally leave gaps), and
-  proves them before completion.
+- The edge writes `captured_media` for new multimodal scan rows. With a
+  validated owner timeline, that JSON preserves the exact submitted order of
+  still images, standalone audio, collapsed playback videos, and every
+  description. Ordered `video_frame` samples become one video item with a
+  thumbnail reference. Extracted companion audio is inference-only and is not
+  emitted as a standalone or nested server media reference. Downstream video
+  `has_audio` must therefore come from independent durable playback metadata,
+  never from video kind alone. The required finalization transaction refreshes
+  ready image/audio/video `scan_media_assets` rows from the same manifest,
+  aligns their `order_index` to manifest ordinality (description positions
+  intentionally leave gaps), and proves them before completion.
 - Each canonical standalone-audio reference includes `sourceIndex`, copied from
   the validated descriptor. The request timeline's `audioInputIndex` binds that
   identity to its raw audio byte/key position, including when extracted video
@@ -5444,18 +5444,18 @@ ordered compositions of images, audio, and descriptive context.
   post-insert recovery uses the same retain-all decision as the original write.
 - Authenticated iOS history hydration prefers `captured_media` and dual-reads
   `audio_storage_urls` plus `user_observation_context`. Those existing scan
-  columns are compatibility fallbacks when a legacy or incomplete manifest
-  omits the otherwise durable standalone recording or description provenance;
-  they are never public-feed projections. Because those columns do not retain
-  cross-modal positions, legacy hydration appends missing audio in stored-array
-  order, then appends the stored context.
-  `audio_storage_urls` is supplemental recovery data, not deletion authority.
-  Cloud audio replaces an existing standalone clip only when its exact path or
-  a unique `sourceIndex` matches. Unindexed legacy and restore references never
-  consume a local clip by ordinal guess; unmatched references are retained,
-  which can temporarily expose both a local alias and a durable URL but cannot
-  delete the wrong recording. Unmatched local descriptions are retained because
-  this compatibility column stores only one context.
+  columns are compatibility fallbacks when a legacy or incomplete manifest omits
+  the otherwise durable standalone recording or description provenance; they are
+  never public-feed projections. Because those columns do not retain cross-modal
+  positions, legacy hydration appends missing audio in stored-array order, then
+  appends the stored context. `audio_storage_urls` is supplemental recovery
+  data, not deletion authority. Cloud audio replaces an existing standalone clip
+  only when its exact path or a unique `sourceIndex` matches. Unindexed legacy
+  and restore references never consume a local clip by ordinal guess; unmatched
+  references are retained, which can temporarily expose both a local alias and a
+  durable URL but cannot delete the wrong recording. Unmatched local
+  descriptions are retained because this compatibility column stores only one
+  context.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -6615,15 +6615,15 @@ uses `verify_jwt = false` only to keep JWT validation inside the shared handler;
 `withEdgeHandler` still requires a live user from
 `supabaseAdmin.auth.getUser()`.
 
-The current iOS candidate sends the exact protocol-v2 request. Protocol 1
-remains accepted only by the additive server while rollout is in the legacy
-compatibility window:
+The current iOS candidate sends the exact protocol-v3 resolve request. Earlier
+resolve protocols remain accepted only while rollout is in the legacy
+compatibility window; stable activation requires minimum protocol 3:
 
 ```json
 {
   "operation": "resolve",
   "installation_capability": "43-character base64url value",
-  "client_protocol": 2,
+  "client_protocol": 3,
   "binding_intent_generation": 42
 }
 ```
@@ -6649,7 +6649,7 @@ pending capability receives the successful compatibility response:
 {
   "success": true,
   "mode": "legacy",
-  "minimum_client_protocol": 2
+  "minimum_client_protocol": 3
 }
 ```
 
@@ -6684,7 +6684,7 @@ RevenueCat history. Success is:
   "revenuecat_app_user_id": "server-owned custom ID",
   "binding_generation": 2,
   "account_grants_allowed": false,
-  "minimum_client_protocol": 2
+  "minimum_client_protocol": 3
 }
 ```
 
@@ -6694,25 +6694,131 @@ binds readiness to the returned provider ID, Auth UUID, and binding generation,
 and writes no email, display name, avatar, username, or Auth UUID attribute to a
 stable customer. When a legacy customer is first adopted, iOS deletes those
 legacy attributes and synchronizes the deletion before declaring the stable
-identity ready. Ordinary stable-mode sign-out, anonymous Auth rotation, Apple
-continuation, and Google continuation resolve the same principal and do not call
-`syncPurchases()` or a RevenueCat customer-transfer API. The legacy sign-out
-proof remains unchanged while mode is `legacy`.
+identity ready. Apple and Google continuation use ordinary resolution. Stable
+sign-out instead uses three exact protocol-3 operations on this route. While the
+linked source JWT is live, iOS persists a random rotation UUID and 43-character,
+256-bit base64url secret before sending:
+
+```json
+{
+  "operation": "prepare_signout_rotation",
+  "installation_capability": "43-character base64url value",
+  "client_protocol": 3,
+  "rotation_id": "UUIDv4",
+  "rotation_secret": "43-character base64url value",
+  "expected_binding_generation": 2
+}
+```
+
+Edge hashes both secrets and Postgres accepts preparation only from the exact
+linked, non-anonymous source at that generation. The 30-day authorization
+lifetime is returned by the server; clients must never manufacture or extend it.
+Preparation succeeds with HTTP 200:
+
+```json
+{
+  "success": true,
+  "operation": "prepare_signout_rotation",
+  "rotation_id": "UUIDv4",
+  "rotation_status": "prepared",
+  "expires_at": "RFC 3339 timestamp",
+  "purchase_principal_id": "UUID",
+  "revenuecat_app_user_id": "server-owned custom ID",
+  "binding_generation": 2,
+  "already_prepared": false
+}
+```
+
+The client validates every continuity field and persists the server expiry
+before closing the source session. A live reservation blocks ordinary resolution
+and every other binding writer. Preparation also records the latest two-phase
+resolver intent, permanently invalidating every completion begun before the
+reservation even after claim, cancellation, or expiry. A later normal resolver
+must begin with a newer intent. After local Auth sign-out, only a different
+anonymous JWT identity whose `auth.users.created_at` is not older than the
+reservation may claim it:
+
+```json
+{
+  "operation": "claim_signout_rotation",
+  "installation_capability": "43-character base64url value",
+  "client_protocol": 3,
+  "rotation_id": "UUIDv4",
+  "rotation_secret": "43-character base64url value"
+}
+```
+
+The atomic claim response is HTTP 200:
+
+```json
+{
+  "success": true,
+  "operation": "claim_signout_rotation",
+  "rotation_id": "UUIDv4",
+  "rotation_status": "completed",
+  "expires_at": "RFC 3339 timestamp",
+  "purchase_principal_id": "same UUID",
+  "revenuecat_app_user_id": "same server-owned custom ID",
+  "binding_generation": 3,
+  "account_grants_allowed": false,
+  "already_claimed": false
+}
+```
+
+Exact same-destination replay with the same secret returns this receipt with
+`already_claimed: true`; a different, older, or permanent destination is
+terminal. If the original source remains or is restored, it may send the same
+request shape with `operation: "cancel_signout_rotation"`. Cancellation also
+safely tombstones a write-ahead request whose prepare response was lost and
+returns HTTP 200:
+
+```json
+{
+  "success": true,
+  "operation": "cancel_signout_rotation",
+  "rotation_id": "UUIDv4",
+  "rotation_status": "cancelled",
+  "expires_at": "RFC 3339 timestamp",
+  "already_cancelled": false
+}
+```
+
+An exact cancellation replay sets `already_cancelled: true`. If the exact source
+cancels after the preparation has expired, the successful receipt instead uses
+`rotation_status: "expired"`; an anonymous claim after expiry returns the 410
+error below. iOS removes the Keychain journal only after exact claim, RevenueCat
+identity readiness, a `true` result from `EntitlementManager.beginSession(...)`,
+and current-session verification, or after exact source cancellation. Every
+other session remains fail-closed. No stable operation calls `syncPurchases()`
+or a RevenueCat customer-transfer API. The rotation secret, its hash, the
+rotation UUID, and journal fields never enter logs. The legacy sign-out proof
+remains unchanged while mode is `legacy`.
 
 Errors use `{ "code": "...", "error": "..." }` plus the shared request ID.
 
-| HTTP    | Code                                                | Meaning / client action                                                                                                             |
-| ------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| 400/413 | `invalid_request`                                   | Malformed, oversized, non-exact, or invalid capability payload                                                                      |
-| 401     | shared auth error                                   | Missing, expired, invalid, or non-live JWT                                                                                          |
-| 409     | `purchase_principal_capability_revoked`             | Terminal device capability; block paid mutations and require reviewed recovery                                                      |
-| 426     | `purchase_principal_client_upgrade_required`        | Active stable identity requires a newer supported protocol; retain its provider identity and require an app update                  |
-| 503     | `purchase_principal_rollout_changed`                | Mode changed between begin and completion; retry resolution from the current session                                                |
-| 503     | `purchase_principal_binding_intent_stale`           | An older Auth request lost the monotonic ordering race; ignore it and let the newest current-session resolution finish              |
-| 503     | `purchase_principal_entitlement_projection_changed` | The pass-adoption projection changed between read and locked completion; retry from current authoritative state                     |
-| 503     | `purchase_principal_account_deletion_in_progress`   | Account deletion won the lifecycle race; do not mutate provider identity and retry only while the current Auth session remains live |
-| 503     | `purchase_principal_user_not_available`             | Auth/profile lifecycle race; retain the session and retry                                                                           |
-| 503     | `purchase_principal_unavailable`                    | Provider, secret, timeout, lock, or database dependency unavailable; retain the session and retry                                   |
+| HTTP    | Code                                                                                                                            | Meaning / client action                                                                                                             |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 400/413 | `invalid_request`                                                                                                               | Malformed, oversized, non-exact, or invalid capability payload                                                                      |
+| 401     | shared auth error                                                                                                               | Missing, expired, invalid, or non-live JWT                                                                                          |
+| 409     | `purchase_principal_capability_revoked`                                                                                         | Terminal device capability; block paid mutations and require reviewed recovery                                                      |
+| 409     | `purchase_principal_signout_rotation_required`                                                                                  | A prepared sign-out owns this principal; do not resolve normally, link RevenueCat, or open paid readiness                           |
+| 409     | `purchase_principal_signout_rotation_invalid`                                                                                   | Rotation, proof, capability, or caller does not match; retain the journal and fail closed                                           |
+| 409     | `purchase_principal_signout_rotation_unavailable`                                                                               | Capability or active principal is unavailable; retain or restore the exact source and never select a fallback                       |
+| 409     | `purchase_principal_signout_rotation_already_prepared`                                                                          | Another live reservation owns this principal; retain the current journal and require reviewed source recovery                       |
+| 409     | `purchase_principal_signout_rotation_terminal_conflict`                                                                         | Rotation is terminal for another state or destination; retain the journal and require source recovery                               |
+| 409     | `purchase_principal_signout_anonymous_destination_required` / `purchase_principal_signout_fresh_anonymous_destination_required` | Caller is not the exact fresh anonymous destination; never fall back to ordinary resolution                                         |
+| 409     | `purchase_principal_signout_binding_changed`                                                                                    | Expected source binding or generation no longer matches; retain the journal and investigate the conflicting transition              |
+| 410     | `purchase_principal_signout_rotation_expired`                                                                                   | Claim window expired; retain the journal, close paid readiness, and restore the source to cancel/recover                            |
+| 426     | `purchase_principal_client_upgrade_required`                                                                                    | Active stable identity requires a newer supported protocol; retain its provider identity and require an app update                  |
+| 503     | `purchase_principal_rollout_changed`                                                                                            | Mode changed between begin and completion; retry resolution from the current session                                                |
+| 503     | `purchase_principal_binding_intent_stale`                                                                                       | An older Auth request lost the monotonic ordering race; ignore it and let the newest current-session resolution finish              |
+| 503     | `purchase_principal_entitlement_projection_changed`                                                                             | The pass-adoption projection changed between read and locked completion; retry from current authoritative state                     |
+| 503     | `purchase_principal_account_deletion_in_progress`                                                                               | Account deletion won the lifecycle race; do not mutate provider identity and retry only while the current Auth session remains live |
+| 409/503 | `purchase_principal_signout_source_not_available`                                                                               | Source is anonymous/ineligible or its Auth/profile row disappeared; retain the journal and retry only after exact source recovery   |
+| 503     | `purchase_principal_signout_account_deletion_in_progress` / `purchase_principal_signout_ghost_merge_in_progress`                | A lifecycle transition conflicts with prepare or claim; keep the journal and let one exact transition reach terminal state          |
+| 503     | `purchase_principal_signout_binding_audit_missing`                                                                              | Atomic binding-audit invariant failed; no client repair is authorized, so retain the journal and escalate                           |
+| 503     | `purchase_principal_user_not_available`                                                                                         | Auth/profile lifecycle race; retain the session and retry                                                                           |
+| 503     | `purchase_principal_unavailable`                                                                                                | Provider, secret, timeout, lock, or database dependency unavailable; retain the session and retry                                   |
 
 The checked-in endpoint is not a rollout authorization. The database defaults to
 `legacy` / `dual_read`; stable activation requires the release runbook's exact-
@@ -6749,6 +6855,14 @@ IDs, zero stable-rotation sync/transfer calls, old-client compatibility,
 attribute scrub, required health, and zero projection divergence. Account-grant
 authority also requires issuance cutover and rollback rehearsal.
 
+Evidence schema version 2 makes the protocol-3 safety matrix explicit. It
+requires rotation-specific database concurrency, device recovery,
+unrelated-session rejection, entitlement-gate retention, live-rotation rollback
+support, required rotation health, and expiry/count-threshold evidence in
+addition to the earlier aggregate statuses. The parser rejects unknown fields
+and version-1 evidence rather than silently treating a broad `concurrency` or
+`required_principal_health` result as proof of those distinct controls.
+
 `enable_stable`, `rollback_stable`, `enable_authoritative`, and
 `rollback_authoritative` are distinct operations. A rollback names the unique,
 unused enable receipt it reverses. The tool and ledger enforce evidence; they do
@@ -6769,15 +6883,15 @@ aggregate counts and SHA-256 digests—never account IDs.
 
 Apply requires the unchanged dry-run JSON, exact plan digest, and
 `MERIAN_ACCOUNT_ACCESS_GRANT_APPLY_CONFIRMATION` equal to
-`<target>:account-access-grant:<source-sha>:<operation-id>:<plan-sha256>`.
-Under one serializable transaction it revalidates the live plan, invokes the
-existing service-guarded `record_account_access_grant(...)` routine for every
-sorted account, and records `internal.account_access_grant_operations`. The
-receipt is immutable and identity-free. Exact replay after a lost response is a
-no-op; a changed cohort, grant, database, rollout mode, or reused conflicting
-operation ID fails closed. This tool never calls RevenueCat, and running it
-against production still requires separate explicit authorization naming the
-target and operation.
+`<target>:account-access-grant:<source-sha>:<operation-id>:<plan-sha256>`. Under
+one serializable transaction it revalidates the live plan, invokes the existing
+service-guarded `record_account_access_grant(...)` routine for every sorted
+account, and records `internal.account_access_grant_operations`. The receipt is
+immutable and identity-free. Exact replay after a lost response is a no-op; a
+changed cohort, grant, database, rollout mode, or reused conflicting operation
+ID fails closed. This tool never calls RevenueCat, and running it against
+production still requires separate explicit authorization naming the target and
+operation.
 
 ---
 
@@ -7115,8 +7229,7 @@ The exact retained-versus-cleared field boundary is normative in the
 
 ### Request Payload
 
-Legacy clients send either the exact empty object or one exact capability
-field:
+Legacy clients send either the exact empty object or one exact capability field:
 
 ```json
 {}
@@ -7154,11 +7267,11 @@ commit with the same recovery proof:
 
 The two v2 values must be different. Recovery can inspect/cancel a preparation;
 acknowledgement can only retire a committed receipt after verified device
-cleanup. Neither selects an account.
-Unknown keys, padding, malformed lengths, arrays, and nonobjects return
-`400 invalid_request`. The endpoint still derives the deletion target only from
-the verified JWT identity; the capability authorizes later recovery and never
-selects a user, job, provider, or purchase principal.
+cleanup. Neither selects an account. Unknown keys, padding, malformed lengths,
+arrays, and nonobjects return `400 invalid_request`. The endpoint still derives
+the deletion target only from the verified JWT identity; the capability
+authorizes later recovery and never selects a user, job, provider, or purchase
+principal.
 
 ### Authentication Enforcement
 
@@ -7169,16 +7282,17 @@ selects a user, job, provider, or purchase principal.
    domains before hashing, so neither proof can be replayed through v1 or the
    other v2 operation. Protocol-v2 `prepare` calls
    `prepare_account_deletion_recovery_v2(user.id, recovery_hash,
-   acknowledgement_hash)` and cannot create a deletion job. After local
-   prepared-state persistence, v2 `commit` calls
+   acknowledgement_hash)`
+   and cannot create a deletion job. After local prepared-state persistence, v2
+   `commit` calls
    `request_account_deletion_with_recovery_v2(user.id, recovery_hash)`; the
    database requires the preparation, converts every still-live concurrently
    prepared device proof into a receipt, and tombstones expired hashes as
-   committed in the same deletion-intake transaction. Legacy
-   capability clients call `request_account_deletion_with_recovery(user.id,
-   hash)` and legacy `{}` callers use `request_account_deletion(user.id)`. All
-   destructive paths record the Apple provider disposition plus legacy
-   manual-fallback boolean.
+   committed in the same deletion-intake transaction. Legacy capability clients
+   call `request_account_deletion_with_recovery(user.id,
+   hash)` and legacy
+   `{}` callers use `request_account_deletion(user.id)`. All destructive paths
+   record the Apple provider disposition plus legacy manual-fallback boolean.
 3. Attempts a target-bound lease through
    `claim_account_deletion_jobs(1, user.id)`. Another live claim produces a
    durable `202` response rather than duplicate work.
@@ -7238,7 +7352,8 @@ race.
 
 ### Responses
 
-- `200 OK`, `{ "success": true, "status": "prepared",
+- `200 OK`,
+  `{ "success": true, "status": "prepared",
   "protocol_version": 2, "recovery_capability_expires_at": "..." }`:
   only the 24-hour non-destructive preparation is durable. No deletion job,
   cleanup, provider revocation, or Auth mutation has started. If another device
@@ -7284,21 +7399,20 @@ Before dispatch, supporting iOS clients atomically read-after-write verify a
 protocol-v2 Keychain envelope containing two independent 256-bit capabilities
 under `WhenUnlockedThisDeviceOnly` protection. They persist
 `capability_preparation_pending`, call the non-destructive prepare operation,
-persist `capability_prepared_pending`, then persist
-`capability_intake_pending` before destructive commit. They retain the exact
-cached session and permit only an owner-token commit replay until a receipt
-arrives. Relaunch from either preparation marker is admitted only to that same
-deletion-owned recovery transition. A crash before commit uses public v2
-recovery: `not_committed` retires
-only the proof and marker and preserves Auth and SwiftData; pending/completed
-proves another device or the interrupted commit created the job and proceeds to
-cleanup. An unknown v2 proof is also evidence of no commit because v2 commit
-cannot run without a server preparation. Legacy v1 unknown proofs remain
-ambiguous and fail closed. Transport, Auth, gateway, `5xx`, cancellation, or
-decode failure cannot reopen normal account work or cause a different account
-to inherit cleanup. The explicit `409 purchase_continuity_pending` is the only
-authenticated rejection that retires an uncommitted intent immediately. iOS
-first persists
+persist `capability_prepared_pending`, then persist `capability_intake_pending`
+before destructive commit. They retain the exact cached session and permit only
+an owner-token commit replay until a receipt arrives. Relaunch from either
+preparation marker is admitted only to that same deletion-owned recovery
+transition. A crash before commit uses public v2 recovery: `not_committed`
+retires only the proof and marker and preserves Auth and SwiftData;
+pending/completed proves another device or the interrupted commit created the
+job and proceeds to cleanup. An unknown v2 proof is also evidence of no commit
+because v2 commit cannot run without a server preparation. Legacy v1 unknown
+proofs remain ambiguous and fail closed. Transport, Auth, gateway, `5xx`,
+cancellation, or decode failure cannot reopen normal account work or cause a
+different account to inherit cleanup. The explicit
+`409 purchase_continuity_pending` is the only authenticated rejection that
+retires an uncommitted intent immediately. iOS first persists
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
 unused proof is gone before clearing the marker. Relaunch in this phase performs
 neither local sign-out nor local data erasure.
@@ -7308,17 +7422,16 @@ After either success response, iOS advances the marker to
 verified local Supabase sign-out, and drops all local SQLite `ModelContext`
 state through `ScanRepository.purgeAllData()`. It then acknowledges through the
 public recovery route using only the independent acknowledgement capability,
-records `capability_retirement_pending`, verifies
-local Auth absence and idempotent SwiftData purge again on relaunch, verifies
-Keychain proof removal, and clears the marker last. Foreground and cold-launch
-recovery repeat the exact phase behind a blocking screen. Only a matched
-committed capability's `account_deletion_recovery_expired` `410` permits
-conservative local cleanup; the subsequent independent
-acknowledgement remains valid after expiry and converts the row to a permanent
-replay receipt before local retirement. An unknown legacy proof does not.
-An authenticated duplicate that arrives after acknowledgement returns the same
-permanent receipt and cannot clear acknowledgement or extend its expiry.
-The app establishes its ordinary
+records `capability_retirement_pending`, verifies local Auth absence and
+idempotent SwiftData purge again on relaunch, verifies Keychain proof removal,
+and clears the marker last. Foreground and cold-launch recovery repeat the exact
+phase behind a blocking screen. Only a matched committed capability's
+`account_deletion_recovery_expired` `410` permits conservative local cleanup;
+the subsequent independent acknowledgement remains valid after expiry and
+converts the row to a permanent replay receipt before local retirement. An
+unknown legacy proof does not. An authenticated duplicate that arrives after
+acknowledgement returns the same permanent receipt and cannot clear
+acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility
@@ -7326,10 +7439,10 @@ window.
 
 ### Public `/recover-account-deletion` continuation
 
-This POST-only route recovers or acknowledges an already accepted deletion
-after the cached Auth session is unavailable. It requires the project
-publishable `apikey` for gateway routing but deliberately sends no user Bearer
-token. Its exact body is:
+This POST-only route recovers or acknowledges an already accepted deletion after
+the cached Auth session is unavailable. It requires the project publishable
+`apikey` for gateway routing but deliberately sends no user Bearer token. Its
+exact body is:
 
 ```json
 {
@@ -7344,14 +7457,14 @@ Protocol v2 adds `"protocol_version": 2`. Recovery continues to use
 terminal receipt `{ "status": "not_committed", "protocol_version": 2, ... }`.
 That status means the server cancelled a non-destructive preparation and no
 deletion job exists for the proof. If any device committed first while this
-preparation remained live, recovery returns pending/completed. If this proof
-had already expired, the commit records its non-reusable tombstone and recovery
+preparation remained live, recovery returns pending/completed. If this proof had
+already expired, the commit records its non-reusable tombstone and recovery
 returns the distinct non-authorizing preparation-expired state instead.
 
 `operation` is exactly `recover` or `acknowledge`; unknown fields and malformed
-proofs return `400 invalid_request`. Edge hashes the proof and calls the matching
-service-only v1 or v2 recovery/acknowledgement RPC. A successful
-`200` response is exact account-free state:
+proofs return `400 invalid_request`. Edge hashes the proof and calls the
+matching service-only v1 or v2 recovery/acknowledgement RPC. A successful `200`
+response is exact account-free state:
 
 ```json
 {
@@ -7375,19 +7488,19 @@ happened before deletion committed, recovery returns `not_committed`; if another
 device committed in the transaction that retired this expired proof, recovery
 returns the distinct fail-closed
 `410 account_deletion_recovery_preparation_expired`. That code is not a deletion
-receipt and never authorizes local erasure. Its permanent hash tombstone prevents
-an older client from later interpreting the proof as unknown or reusing it to
-mint a new capability. A retained proof whose 180-day inspection window elapsed returns
-`410 account_deletion_recovery_expired` only after a server-side hash match.
-After local cleanup, the same expired proof may be submitted with
+receipt and never authorizes local erasure. Its permanent hash tombstone
+prevents an older client from later interpreting the proof as unknown or reusing
+it to mint a new capability. A retained proof whose 180-day inspection window
+elapsed returns `410 account_deletion_recovery_expired` only after a server-side
+hash match. After local cleanup, the same expired proof may be submitted with
 `operation: "acknowledge"`; that operation returns the ordinary acknowledged
 receipt and removes it from expired-unacknowledged health without deleting the
-hash.
-Dependency failure or malformed database state returns retryable
+hash. Dependency failure or malformed database state returns retryable
 `503 account_deletion_recovery_unavailable` or
 `account_deletion_recovery_invalid_response`. Responses are `private,
-no-store`; no route response or log contains the proof, hash, account, job, or
-provider identity.
+no-store`;
+no route response or log contains the proof, hash, account, job, or provider
+identity.
 
 ### Service-only reaper
 
@@ -7401,19 +7514,17 @@ returns only aggregate `account_claimed`, `account_completed`,
 `account_deferred`, `waiting_for_storage`, `storage_claimed`,
 `storage_completed`, and `storage_deferred` counts. Claim expiry, persisted
 prefix cursors, delayed verification, idempotent Auth-not-found handling, and
-database-calculated backoff make crashes and lost responses resumable.
-It also prunes a bounded number of expired, non-destructive v2 preparations,
-records both proof hashes in the identity-free expired-proof ledger before
-removing each row, and returns `recovery_preparations_pruned`. Pruning locks
-an outer set of at most the requested number of candidate Auth users in
-deterministic UUID order before their preparation rows and skips accounts whose
-Auth row is already locked, so concurrent deletion intake wins without making a
-small cleanup batch wait or introducing inverse lock order.
-Committed recovery proofs are permanent
+database-calculated backoff make crashes and lost responses resumable. It also
+prunes a bounded number of expired, non-destructive v2 preparations, records
+both proof hashes in the identity-free expired-proof ledger before removing each
+row, and returns `recovery_preparations_pruned`. Pruning locks an outer set of
+at most the requested number of candidate Auth users in deterministic UUID order
+before their preparation rows and skips accounts whose Auth row is already
+locked, so concurrent deletion intake wins without making a small cleanup batch
+wait or introducing inverse lock order. Committed recovery proofs are permanent
 bounded idempotency receipts and the reaper does not delete them. Provider
-failures are reported in the
-existing deferred aggregate and remain inside the `auth_pending` account phase;
-no provider credential enters this response.
+failures are reported in the existing deferred aggregate and remain inside the
+`auth_pending` account phase; no provider credential enters this response.
 
 An authenticated request whose body is exactly `{ "dry_run": true }` returns
 only `{ "success": true, "dry_run": true }` with `private, no-store`. Any false,
@@ -7516,12 +7627,11 @@ health rows. Its CLI defaults to `required`, where absence, malformed shape, or
 dependency failure is fail-closed. During the documented additive pre-deploy
 window only, `--recovery-health-mode expand-compatible` accepts an exact
 `PGRST202` naming either zero-argument recovery-health RPC. The summary exposes
-`recovery_health_availability` and
-`recovery_preparation_health_availability` as `not_deployed` with the
-corresponding health payload set to `null`; it never substitutes zero counts.
-Authorization, timeout, malformed response, and unrelated catalog errors remain
-fatal. After both hosted RPC smokes pass, the production schedule must use
-`required`.
+`recovery_health_availability` and `recovery_preparation_health_availability` as
+`not_deployed` with the corresponding health payload set to `null`; it never
+substitutes zero counts. Authorization, timeout, malformed response, and
+unrelated catalog errors remain fatal. After both hosted RPC smokes pass, the
+production schedule must use `required`.
 
 ---
 
@@ -9191,3 +9301,20 @@ aggregate row. During the documented pre-deploy expand window only, an exact
 `purchase_principal_health: null`; it never substitutes zero counts. The monitor
 CLI defaults to `required`, and authorization, transport, response-shape, and
 all unrelated missing-RPC failures remain fatal.
+
+Protocol 3 adds `get_purchase_principal_signout_rotation_health()` under the
+same service-only monitor boundary. Its one aggregate row contains
+`generated_at`, `prepared_count`, `expired_prepared_count`,
+`oldest_prepared_at`, `oldest_prepared_age_seconds`, `completed_last_24h`, and
+`cancelled_last_24h`; it contains no Auth identity, capability, principal ID, or
+proof. The RPC first atomically terminalizes every preparation whose expiry has
+passed. `expired_prepared_count` is the number newly transitioned by that health
+invocation, not the retained lifetime total, while `prepared_count` contains
+only still-live rows. Any newly expired preparation is at least a warning.
+Oldest prepared age shares the configured 30/60-minute warning/critical
+thresholds; prepared volume warns at 100 and becomes critical at 500 by default.
+In `expand-compatible` mode only, an exact `PGRST202` naming this zero-argument
+RPC yields
+`purchase_principal_signout_rotation_health_availability: not_deployed` and a
+null payload. Required mode treats absence, malformed shape, authorization, and
+transport failures as fatal.

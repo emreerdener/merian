@@ -149,6 +149,29 @@ stops new adoption but deliberately keeps every active capability on its exact
 stable provider ID. Old clients and the unchanged `/transfer-signout-purchases`
 contract remain supported through the reviewed rollback window.
 
+Migration `20260816033107_add_stable_purchase_principal_signout_rotations.sql`
+replaces the stable lane's client-only sign-out marker with a private protocol-3
+reservation. The exact linked permanent source prepares a one-use proof hash and
+binding generation before local sign-out; only a different anonymous Auth
+identity created after preparation may claim the binding. A prepared rotation
+blocks generic resolution and every other binding writer. It also snapshots the
+latest two-phase resolver intent, so a completion begun before preparation stays
+stale after claim, cancellation, or expiry and cannot overwrite the terminal
+binding. Exact claim replay is limited to its recorded destination, and the
+restored source alone may cancel. The authorization lasts 30 days. Terminal rows
+remain private, retain principal/proof-hash replay evidence, and scrub deleted
+Auth references. The migration refuses an already-stable rollout below protocol
+3, and its rollout trigger plus owner tool prevent later stable activation
+below 3. Land it while `principal_mode = legacy`, deploy protocol-3 Edge/iOS
+support, and activate only through the separately authorized exact-plan
+workflow. The service-only rotation-health aggregate atomically terminalizes
+expired preparations, reports the newly expired count for that health pass, and
+returns the remaining prepared count, oldest prepared age, and terminal
+throughput. The scheduled RevenueCat/purchase-principal monitor requires that
+RPC after deployment, applies the same warning/critical age thresholds as the
+other identity backlogs, and warns at 100 prepared rotations or becomes critical
+at 500 by default.
+
 Migration `20260813040000_add_purchase_identity_rollout_control.sql` adds the
 private `purchase_identity_rollout_operations` exact-SHA ledger and the
 database-owner-only `apply_purchase_identity_rollout_operation(...)` routine.
@@ -164,6 +187,12 @@ attestations. Stable principal and account-grant authority are separate
 operations; rollbacks point to the one unused enabling operation they reverse.
 Candidate and deploy workflows validate this control but never invoke its
 mutation path.
+
+The evidence JSON is exact schema version 2. Rotation-specific database
+concurrency, device recovery, unrelated-session rejection, entitlement-gate
+retention, live-rotation rollback support, required rotation health, and
+expiry/count-threshold statuses are mandatory; a generic green database, iOS, or
+monitor field does not replace them. Version-1 evidence is rejected.
 
 Stable StoreKit state also persists a signed-event-controlled detached-pass
 policy. First adoption requires an exact locked projection match, and a refund
@@ -207,20 +236,20 @@ RevenueCat approval, while beta access is an explicit finite promotional `pro`
 grant. Once authoritative state is projected to Supabase, it includes Field Chat
 for the active period.
 
-Explicit linked-account sign-out uses the separate `transfer-signout-purchases`
-protocol. The authenticated source prepares a server-issued hashed capability
-before local sign-out; one fresh anonymous destination binds it, iOS
-synchronizes the App Store receipt under RevenueCat's **Transfer to new App User
-ID** behavior, and the server verifies and projects the prepared StoreKit
-horizon before the device removes its proof. If a finite horizon expires while
-synchronization is pending, the server rechecks the source and safely completes
-with the destination's current StoreKit state only after ruling out a missing
-renewal. Store purchases follow the signed-out identity. Promotional/beta access
-stays on the linked source, and the protocol never moves profile data or deletes
-that source. Deploy migration `20260812011914_add_signout_purchase_handoffs.sql`
-and the Edge Function before releasing a client that invokes it. Repository
-preparation does not authorize either deployment or a RevenueCat project
-mutation.
+Legacy-mode explicit linked-account sign-out uses the separate
+`transfer-signout-purchases` protocol. The authenticated source prepares a
+server-issued hashed capability before local sign-out; one fresh anonymous
+destination binds it, iOS synchronizes the App Store receipt under RevenueCat's
+**Transfer to new App User ID** behavior, and the server verifies and projects
+the prepared StoreKit horizon before the device removes its proof. If a finite
+horizon expires while synchronization is pending, the server rechecks the source
+and safely completes with the destination's current StoreKit state only after
+ruling out a missing renewal. Store purchases follow the signed-out identity.
+Promotional/beta access stays on the linked source, and the protocol never moves
+profile data or deletes that source. Deploy migration
+`20260812011914_add_signout_purchase_handoffs.sql` and the Edge Function before
+releasing a client that invokes it. Repository preparation does not authorize
+either deployment or a RevenueCat project mutation.
 
 Use the export-only comparison first:
 
@@ -491,14 +520,15 @@ Supporting clients generate and verify device-only recovery capability material
 before `/safe-delete`; protocol v2 uses independent 256-bit recovery and
 acknowledgement proofs plus a non-destructive server preparation. If Auth
 disappears before the receipt arrives, `/recover-account-deletion` derives state
-from a proof alone and returns no identity. iOS signs out and purges locally only
-after a positive receipt or a positive match to an actual committed capability
-whose 180-day window elapsed, acknowledges after cleanup, then read-after-delete
-verifies proof retirement before clearing its durable marker. Legacy unknown
-proofs and ambiguous transport failures remain fenced. A v2 `not_committed` or
-genuinely unknown proof retires only the unused intent, then re-adopts the exact
-cached unexpired session before reopening account work. The raw proofs are never
-stored server-side, logged, or reused as authentication or purchase identity.
+from a proof alone and returns no identity. iOS signs out and purges locally
+only after a positive receipt or a positive match to an actual committed
+capability whose 180-day window elapsed, acknowledges after cleanup, then
+read-after-delete verifies proof retirement before clearing its durable marker.
+Legacy unknown proofs and ambiguous transport failures remain fenced. A v2
+`not_committed` or genuinely unknown proof retires only the unused intent, then
+re-adopts the exact cached unexpired session before reopening account work. The
+raw proofs are never stored server-side, logged, or reused as authentication or
+purchase identity.
 
 `reconcile-account-deletions` is a scheduled service-role worker that resumes
 due account and R2 work. It performs one bounded account pass, bounded storage
@@ -521,9 +551,9 @@ different device's deletion commit returns the distinct non-authorizing
 
 Production deployment validates the reaper with one authenticated exact
 `{"dry_run":true}` request. It returns before creating a client, claiming work,
-touching R2, or pruning preparations. The probe proves the handler and server-key
-transport only; the scheduled aggregate health monitor remains authoritative for
-cron and backlog health.
+touching R2, or pruning preparations. The probe proves the handler and
+server-key transport only; the scheduled aggregate health monitor remains
+authoritative for cron and backlog health.
 
 Migration `20260727001630_monitor_account_deletion_health.sql` adds partial
 indexes for active age, retry errors, and expired storage leases plus the
@@ -550,10 +580,10 @@ falling through.
 `.github/workflows/account-deletion-health-monitor.yml` queries that RPC every
 five minutes together with `get_account_deletion_recovery_health()` and
 `get_account_deletion_recovery_preparation_health()`, offset from the database
-reaper. It resolves a server API key through the existing Supabase
-Management API token, so a missing Vault configuration cannot also disable the
-alert. Default warning/critical thresholds are 10/30 minutes for claimable work,
-27/36 hours end to end, and 25/100 active jobs. Missing reaper configuration, a
+reaper. It resolves a server API key through the existing Supabase Management
+API token, so a missing Vault configuration cannot also disable the alert.
+Default warning/critical thresholds are 10/30 minutes for claimable work, 27/36
+hours end to end, and 25/100 active jobs. Missing reaper configuration, a
 disabled cron, orphaned storage work, or a critical age/backlog breach is
 critical; retry errors or expired leases are warnings. Any expired
 unacknowledged proof, any expired non-destructive preparation, or more than
@@ -1773,15 +1803,15 @@ each returns fail-closed `401` with the fixed handler marker:
 `get-explore-composer-media`, `get-explore-media-incidents`, `insight-chat`,
 `explore-post-chat`, `request-community-identification`,
 `transfer-signout-purchases`, `resolve-purchase-principal`, and `delete-scan`. A
-platform `404` therefore
-cannot be mistaken for an application-level missing scan or a successful
-rollout. The RevenueCat reconciliation-health monitor uses that resolver and
-transport too. Do not replace the resolver with the CLI API-key listing: its
-hidden secret-key representation cannot pass the exact request boundary.
-Migration `20260726212549_harden_service_role_request_authentication.sql`
-separately revokes all `taxonomy_import_runs` table access from `PUBLIC`,
-`anon`, and `authenticated`, then grants `service_role` only `SELECT`, `INSERT`,
-and `UPDATE`.
+platform `404` therefore cannot be mistaken for an application-level missing
+scan or a successful rollout. The RevenueCat reconciliation-health monitor uses
+that resolver and transport too. Do not replace the resolver with the CLI
+API-key listing: its hidden secret-key representation cannot pass the exact
+request boundary. Migration
+`20260726212549_harden_service_role_request_authentication.sql` separately
+revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
+`authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
+`UPDATE`.
 
 No custom server credential header is supported. Diagnostics never expose a key
 prefix, suffix, length, partial fingerprint, accepted candidate, or failed
@@ -2379,8 +2409,15 @@ exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile`,
 no-write validation boundaries for `issue_signout_purchase_handoff`,
 `complete_signout_purchase_handoff`, and
 `claim_revenuecat_reconciliation_for_user`, validates the aggregate-only
-`get_revenuecat_reconciliation_health` response, and proves every real
-anon/publishable project credential remains denied from all eleven routines.
+`get_revenuecat_reconciliation_health` response, then reaches the exact
+`begin_purchase_principal_resolution`, `complete_purchase_principal_resolution`,
+`prepare_purchase_principal_signout_rotation`,
+`claim_purchase_principal_signout_rotation`, and
+`cancel_purchase_principal_signout_rotation` validation boundaries and validates
+both `get_purchase_principal_health` and
+`get_purchase_principal_signout_rotation_health`. It proves every real
+anon/publishable project credential remains denied from all eighteen documented
+boundaries.
 
 This verifies PostgREST schema-cache readiness and production grants without
 creating a fixture or logging a response body. Database migrations still run

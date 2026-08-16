@@ -221,7 +221,7 @@ Deno.test("purchase identity rollout DB - simultaneous exact operations serializ
     assertEquals(finalState.rows[0], {
       principal_mode: "stable",
       account_grant_mode: "dual_read",
-      minimum_client_protocol: 2,
+      minimum_client_protocol: 3,
       operation_count: 1,
     });
   } finally {
@@ -275,7 +275,7 @@ function rolloutOperationSQL(): string {
       'legacy',
       'dual_read',
       1,
-      2,
+      3,
       NULL
     ) AS receipt
   `;

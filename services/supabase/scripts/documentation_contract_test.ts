@@ -3513,6 +3513,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`explore-post-chat`",
       "`request-community-identification`",
       "`transfer-signout-purchases`",
+      "`resolve-purchase-principal`",
       "`delete-scan`",
     ]
   ) {
@@ -3532,6 +3533,13 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`complete_signout_purchase_handoff`",
       "`claim_revenuecat_reconciliation_for_user`",
       "`get_revenuecat_reconciliation_health`",
+      "`begin_purchase_principal_resolution`",
+      "`complete_purchase_principal_resolution`",
+      "`prepare_purchase_principal_signout_rotation`",
+      "`claim_purchase_principal_signout_rotation`",
+      "`cancel_purchase_principal_signout_rotation`",
+      "`get_purchase_principal_health`",
+      "`get_purchase_principal_signout_rotation_health`",
     ]
   ) {
     assertStringIncludes(runbook, routineName);
@@ -3543,7 +3551,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     backend,
-    "proves every real anon/publishable project credential remains denied from all eleven routines.",
+    "proves every real anon/publishable project credential remains denied from all eighteen documented boundaries.",
   );
   assertStringIncludes(
     runbook,
@@ -4225,6 +4233,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/reconcile-dwca-archive-cleanup/README.md",
     "services/supabase/functions/reconcile-revenuecat-subscribers/README.md",
     "services/supabase/functions/reconcile-scan-media-assets/README.md",
+    "services/supabase/functions/resolve-purchase-principal/README.md",
     "services/supabase/functions/replay-scan-ingestion/README.md",
     "services/supabase/functions/repair-scan-image/README.md",
     "services/supabase/functions/request-community-identification/README.md",
@@ -4525,17 +4534,41 @@ Deno.test("Sign in with Apple deletion documentation preserves the provider fenc
 });
 
 Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, and separately authorized", async () => {
-  const [rfc, runbook, backend, schema, api, testing, logging, template] =
-    await Promise.all([
-      read("docs/rfcs/purchase-principal-auth-separation.md"),
-      read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
-      read("services/supabase/README.md"),
-      read("docs/backend-and-data/04-database-schema.md"),
-      read("docs/backend-and-data/05-api-contracts.md"),
-      read("docs/development-guides/08-testing-strategy.md"),
-      read("docs/development-guides/04-logging-and-debugging.md"),
-      read("docs/release-evidence/purchase-identity-rollout-template.json"),
-    ]).then((sources) => sources.map(compact));
+  const [
+    rfc,
+    runbook,
+    backend,
+    schema,
+    api,
+    testing,
+    logging,
+    keychain,
+    coreManagers,
+    architecture,
+    codebaseMap,
+    edgeReadme,
+    iosNetworkReadme,
+    iosSecurityReadme,
+    template,
+  ] = await Promise.all([
+    read("docs/rfcs/purchase-principal-auth-separation.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/development-guides/08-testing-strategy.md"),
+    read("docs/development-guides/04-logging-and-debugging.md"),
+    read("docs/development-guides/05-keychain-and-secrets.md"),
+    read("docs/development-guides/09-core-managers.md"),
+    read("docs/system-architecture/system-overview.md"),
+    read("docs/codebase-map.md"),
+    read(
+      "services/supabase/functions/resolve-purchase-principal/README.md",
+    ),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Core/Security/README.md"),
+    read("docs/release-evidence/purchase-identity-rollout-template.json"),
+  ]).then((sources) => sources.map(compact));
 
   for (const source of [rfc, runbook, backend]) {
     assertStringIncludes(source, "control_purchase_identity_rollout.ts");
@@ -4546,14 +4579,95 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
     assertStringIncludes(source, "purchase_identity_rollout_operations");
     assertStringIncludes(source, "apply_purchase_identity_rollout_operation");
   }
-  assertStringIncludes(testing, "purchase identity rollout");
+  for (const source of [schema, api, runbook, backend]) {
+    assertStringIncludes(
+      source,
+      "get_purchase_principal_signout_rotation_health",
+    );
+  }
+  for (
+    const field of [
+      "expired_prepared_count",
+      "oldest_prepared_age_seconds",
+      "completed_last_24h",
+      "cancelled_last_24h",
+    ]
+  ) {
+    assertStringIncludes(api, field);
+  }
+  assertStringIncludes(
+    api,
+    "number newly transitioned by that health invocation",
+  );
+  assertStringIncludes(runbook, "100 concurrent prepared rows");
+  assertStringIncludes(runbook, "critical volume of 500 concurrent rows");
+  for (
+    const source of [
+      rfc,
+      api,
+      keychain,
+      coreManagers,
+      edgeReadme,
+      iosNetworkReadme,
+    ]
+  ) {
+    assertStringIncludes(source, "prepare_signout_rotation");
+    assertStringIncludes(source, "claim_signout_rotation");
+    assertStringIncludes(source, "cancel_signout_rotation");
+  }
+  assertStringIncludes(schema, "binding_intent_generation_fence");
+  assertStringIncludes(testing, "binding_intent_generation_fence");
+  for (const source of [api, rfc]) {
+    assertStringIncludes(source, "completion begun before");
+  }
+  assertStringIncludes(runbook, "delayed completion must remain stale");
+  assertStringIncludes(
+    keychain,
+    "requires `EntitlementManager.beginSession(...)` to return `true`",
+  );
+  assertStringIncludes(coreManagers, "removes the journal last");
+  assertStringIncludes(
+    iosSecurityReadme,
+    "Provider or entitlement failure keeps both pending",
+  );
+  assertStringIncludes(
+    testing,
+    "number newly terminalized by that invocation",
+  );
+  assertStringIncludes(testing, "warns at 100");
+  assertStringIncludes(testing, "critical at 500");
+  assertStringIncludes(
+    testing,
+    "purchasePrincipalSignoutRotationConcurrencyDb.test.ts",
+  );
   assertStringIncludes(
     logging,
     "account, Auth, RevenueCat customer, purchase principal",
   );
+  assertStringIncludes(logging, "rotation secret or hash");
+  assertStringIncludes(logging, "persisted rotation-journal field");
+  assertStringIncludes(
+    architecture,
+    "Protocol-3 stable sign-out persists and verifies",
+  );
+  assertStringIncludes(codebaseMap, "resolve-purchase-principal");
+  assertStringIncludes(template, '"schema_version": 2');
   assertStringIncludes(template, "physical_device_matrix_url");
   assertStringIncludes(template, "mixed_storekit_promotion");
   assertStringIncludes(template, "anonymous_app_user_id_count");
+  for (
+    const field of [
+      "signout_rotation_concurrency",
+      "signout_rotation_recovery",
+      "signout_rotation_unrelated_session_rejection",
+      "signout_rotation_entitlement_gate",
+      "live_rotation_rollback_support",
+      "required_signout_rotation_health",
+      "signout_rotation_expiry_and_thresholds",
+    ]
+  ) {
+    assertStringIncludes(template, field);
+  }
 });
 
 Deno.test("account-grant issuance documentation retires RevenueCat mutation and binds an immutable plan", async () => {

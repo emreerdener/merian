@@ -14,6 +14,7 @@ type Settled =
 interface RolloutConfig {
   principal_mode: string;
   account_grant_mode: string;
+  minimum_client_protocol: number;
 }
 
 function settle(promise: Promise<unknown>): Promise<Settled> {
@@ -207,7 +208,7 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
       "target fixture did not establish the ordinary pre-binding legacy queue",
     );
     const rolloutResult = await observer.queryObject<RolloutConfig>(`
-      SELECT principal_mode, account_grant_mode
+      SELECT principal_mode, account_grant_mode, minimum_client_protocol
       FROM internal.purchase_identity_rollout_config
       WHERE config_key = 'current'
     `);
@@ -216,6 +217,7 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
       UPDATE internal.purchase_identity_rollout_config
       SET principal_mode = 'stable',
           account_grant_mode = 'dual_read',
+          minimum_client_protocol = 3,
           updated_at = pg_catalog.CLOCK_TIMESTAMP()
       WHERE config_key = 'current'
     `);
@@ -229,7 +231,7 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
         FROM public.begin_purchase_principal_resolution(
           $1::UUID,
           $2,
-          1,
+          3,
           1
         ) AS result
       `,
@@ -269,7 +271,7 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
         FROM public.begin_purchase_principal_resolution(
           $1::UUID,
           $2,
-          1,
+          3,
           2
         ) AS result
       `,
@@ -457,7 +459,7 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
         FROM public.begin_purchase_principal_resolution(
           $1::UUID,
           $2,
-          1,
+          3,
           3
         ) AS result
       `,
@@ -635,10 +637,15 @@ Deno.test("purchase-principal compatibility DB - rebind wins before legacy mutat
             UPDATE internal.purchase_identity_rollout_config
             SET principal_mode = $1,
                 account_grant_mode = $2,
+                minimum_client_protocol = $3,
                 updated_at = pg_catalog.CLOCK_TIMESTAMP()
             WHERE config_key = 'current'
           `,
-          [rolloutConfig.principal_mode, rolloutConfig.account_grant_mode],
+          [
+            rolloutConfig.principal_mode,
+            rolloutConfig.account_grant_mode,
+            rolloutConfig.minimum_client_protocol,
+          ],
         );
       }
       if (purchasePrincipalId != null) {

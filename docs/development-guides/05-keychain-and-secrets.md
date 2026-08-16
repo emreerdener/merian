@@ -8,48 +8,48 @@ Merian.
 
 ## Storage Decision Matrix
 
-| Data type                                          | Storage                                                                       | Reason                                                                                                             |
-| -------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Supabase JWT (access token)                        | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
-| Supabase anonymous session                         | Supabase GoTrue SDK (internal Keychain)                                       | Managed automatically by the SDK                                                                                   |
-| Extension cache                                    | App Group `group.app.merian.shared`                                           | Non-secret coordination data shared by the app, Messages extension, and Explore widget                             |
-| RevenueCat customer ID                             | RevenueCat SDK (internal)                                                     | Stable mode uses the server-issued purchase-principal ID; legacy mode uses the uppercase Supabase Auth UUID. Neither is persisted by the app as authority |
-| `SUPABASE_ANON_KEY`                                | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
-| `REVENUECAT_API_KEY`                               | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift`       | Read-only build config, not secret; production export should use an iOS `appl_` key                                |
-| `POSTHOG_API_KEY`                                  | `Config.xcconfig` → `MerianEnvironment.swift`                                 | Read-only build config, not secret                                                                                 |
-| `GEMINI_PAID_API_KEY`                              | Supabase Edge secret; must be rotated from the owner-confirmed billing-enabled Google Cloud project | Never in iOS bundle; current billing/DPA evidence is unverified                                                     |
-| `AI_QUOTA_IP_HASH_SECRET`                          | Optional GitHub Production override synchronized to Supabase Edge             | Dedicated HMAC key for rotating network quota buckets; never in clients or logs                                    |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1`                       | GitHub `Production` secret synchronized to Supabase Edge                      | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms                                      |
-| `REVENUECAT_WEBHOOK_SECRET`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Random webhook Authorization credential; never use the public iOS key                                              |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET`                | GitHub `Production` secret synchronized to Supabase Edge                      | RevenueCat raw-body HMAC key; never log, commit, or expose to clients                                              |
-| `REVENUECAT_SECRET_API_KEY`                        | GitHub `Production` secret synchronized to Supabase Edge                      | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY`               |
-| `R2_READ_ACCESS_KEY_ID`                            | GitHub `Production` secret synchronized to Supabase Edge                      | Dedicated bucket-scoped read-only credential for direct-origin media verification                                  |
-| `R2_READ_SECRET_ACCESS_KEY`                        | GitHub `Production` secret synchronized to Supabase Edge                      | Secret half of the dedicated verifier credential; never reuse upload/delete authority                              |
-| `R2_EVENT_WEBHOOK_SECRET`                          | GitHub `Production` secret synchronized to Supabase Edge                      | High-entropy shared secret for optional Cloudflare R2 event hints                                                  |
-| `SUPABASE_SERVER_API_KEY` / `SUPABASE_SECRET_KEYS` | Supabase Edge or server-side web env only                                      | Explicit or hosted JSON-dictionary current privileged key sources; never in iOS or browser-exposed config          |
-| `MERIAN_SUPABASE_SERVER_API_KEY`                   | Production-deploy-synchronized Supabase Edge secret                            | Non-reserved copy of the exact revealed active server key; same standard transport, never a custom request header  |
-| `SUPABASE_SECRET_KEY`                              | Local/manual Deno server env only                                              | Singular current-key fallback; not supported by public web and not a replacement for the hosted plural dictionary |
-| `SUPABASE_PUBLISHABLE_KEYS`                        | Supabase Edge server env                                                       | Hosted JSON dictionary for user-scoped project clients; its keys are public but its shape is server runtime config |
-| `SUPABASE_SERVICE_ROLE_KEY`                        | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                       |
-| `Merian_HasAuthenticatedOAuth`                     | `KeychainManager` (`kSecClassGenericPassword`)                                | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                            |
-| `Merian_GhostModeUserID_v1`                        | `KeychainManager` (`kSecClassGenericPassword`)                                | Retired presentation-only logout marker; upgraded clients delete it during startup and never use it to shape account UI     |
-| `Merian_PendingGhostProfileMerge`                  | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity |
-| `Merian_PendingSignOutPurchaseHandoff_v1`          | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes |
-| `Merian_PurchasePrincipalInstallationCapability_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                            | Random 256-bit device capability for resolving the same server-owned stable purchase principal across local Auth rotation; Postgres stores only SHA-256 |
-| `Merian_PurchasePrincipalBindingIntentGeneration_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                         | Positive monotonic resolver intent; advanced/read-verified before network I/O so an older Auth request cannot overwrite a newer server binding |
-| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                       | Monotonic lowercase SHA-256 fingerprint of the local capability after first stable activation; prevents later legacy or missing-route identity fallback |
-| `Merian_PendingPurchasePrincipalAuthRotation_v1`   | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Write-ahead marker proving a stable-principal Auth rotation has not yet been rebound; paid mutations fail closed until verified removal |
-| `Merian_AccountDeletionRecoveryCapability_v1`      | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                              | Random 256-bit one-deletion recovery authority; server stores only SHA-256 and iOS verifies creation/removal around its identity-free durable phase marker |
-| `Merian_AnalyticsRevocationIntent_v1`              | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                          | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified |
-| Consent ledger                                     | File-protected Application Support JSON                                       | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy |
-| Device IDFV (`Merian_Device_IDFV`)                 | `DeviceIdentityManager` (`kSecClassGenericPassword`)                          | Persisted across reinstalls within the same vendor group                                                           |
-| `hasCompletedOnboarding`                           | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
-| `isAchievementNotificationsEnabled`                | `UserDefaults`                                                                | Non-sensitive preference                                                                                           |
-| `Merian_UnlockedSpeciesCount`                      | `UserDefaults`                                                                | Non-sensitive gamification counter                                                                                 |
-| `Merian_UnlockedAchievements`                      | `UserDefaults`                                                                | Non-sensitive gamification set                                                                                     |
-| `firstFieldTripAchievementProgress.v1.{accountId}` | `UserDefaults`                                                                | Non-sensitive account-scoped completion date and typed Field trip destination cache                                |
-| User geoprivacy preference                         | Supabase `users` table                                                        | Server-authoritative preference                                                                                    |
-| Local free-scan meter                              | `UserDefaults`                                                                | Advisory UX only; authoritative entitlement/quota is in Supabase                                                   |
+| Data type                                                | Storage                                                                                             | Reason                                                                                                                                                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase JWT (access token)                              | Supabase GoTrue SDK (internal Keychain)                                                             | Managed automatically by the SDK                                                                                                                                                         |
+| Supabase anonymous session                               | Supabase GoTrue SDK (internal Keychain)                                                             | Managed automatically by the SDK                                                                                                                                                         |
+| Extension cache                                          | App Group `group.app.merian.shared`                                                                 | Non-secret coordination data shared by the app, Messages extension, and Explore widget                                                                                                   |
+| RevenueCat customer ID                                   | RevenueCat SDK (internal)                                                                           | Stable mode uses the server-issued purchase-principal ID; legacy mode uses the uppercase Supabase Auth UUID. Neither is persisted by the app as authority                                |
+| `SUPABASE_ANON_KEY`                                      | `Config.xcconfig` → `MerianEnvironment.swift`                                                       | Read-only build config, not secret                                                                                                                                                       |
+| `REVENUECAT_API_KEY`                                     | `Config.xcconfig` / `Config.local.xcconfig` → `MerianEnvironment.swift`                             | Read-only build config, not secret; production export should use an iOS `appl_` key                                                                                                      |
+| `POSTHOG_API_KEY`                                        | `Config.xcconfig` → `MerianEnvironment.swift`                                                       | Read-only build config, not secret                                                                                                                                                       |
+| `GEMINI_PAID_API_KEY`                                    | Supabase Edge secret; must be rotated from the owner-confirmed billing-enabled Google Cloud project | Never in iOS bundle; current billing/DPA evidence is unverified                                                                                                                          |
+| `AI_QUOTA_IP_HASH_SECRET`                                | Optional GitHub Production override synchronized to Supabase Edge                                   | Dedicated HMAC key for rotating network quota buckets; never in clients or logs                                                                                                          |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`                             | GitHub `Production` secret synchronized to Supabase Edge                                            | Base64 32-byte-or-longer HMAC key for versioned global-export user pseudonyms                                                                                                            |
+| `REVENUECAT_WEBHOOK_SECRET`                              | GitHub `Production` secret synchronized to Supabase Edge                                            | Random webhook Authorization credential; never use the public iOS key                                                                                                                    |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET`                      | GitHub `Production` secret synchronized to Supabase Edge                                            | RevenueCat raw-body HMAC key; never log, commit, or expose to clients                                                                                                                    |
+| `REVENUECAT_SECRET_API_KEY`                              | GitHub `Production` secret synchronized to Supabase Edge                                            | `sk_` server API credential for authoritative CustomerInfo reads; distinct from `REVENUECAT_API_KEY`                                                                                     |
+| `R2_READ_ACCESS_KEY_ID`                                  | GitHub `Production` secret synchronized to Supabase Edge                                            | Dedicated bucket-scoped read-only credential for direct-origin media verification                                                                                                        |
+| `R2_READ_SECRET_ACCESS_KEY`                              | GitHub `Production` secret synchronized to Supabase Edge                                            | Secret half of the dedicated verifier credential; never reuse upload/delete authority                                                                                                    |
+| `R2_EVENT_WEBHOOK_SECRET`                                | GitHub `Production` secret synchronized to Supabase Edge                                            | High-entropy shared secret for optional Cloudflare R2 event hints                                                                                                                        |
+| `SUPABASE_SERVER_API_KEY` / `SUPABASE_SECRET_KEYS`       | Supabase Edge or server-side web env only                                                           | Explicit or hosted JSON-dictionary current privileged key sources; never in iOS or browser-exposed config                                                                                |
+| `MERIAN_SUPABASE_SERVER_API_KEY`                         | Production-deploy-synchronized Supabase Edge secret                                                 | Non-reserved copy of the exact revealed active server key; same standard transport, never a custom request header                                                                        |
+| `SUPABASE_SECRET_KEY`                                    | Local/manual Deno server env only                                                                   | Singular current-key fallback; not supported by public web and not a replacement for the hosted plural dictionary                                                                        |
+| `SUPABASE_PUBLISHABLE_KEYS`                              | Supabase Edge server env                                                                            | Hosted JSON dictionary for user-scoped project clients; its keys are public but its shape is server runtime config                                                                       |
+| `SUPABASE_SERVICE_ROLE_KEY`                              | Supabase Edge secret, reviewed Vault reaper copy, or server-side web env only                       | Legacy service-role JWT migration fallback; never in iOS bundle or browser-exposed web config                                                                                            |
+| `Merian_HasAuthenticatedOAuth`                           | `KeychainManager` (`kSecClassGenericPassword`)                                                      | Security-sensitive auth flag, migrated from `UserDefaults` on first run                                                                                                                  |
+| `Merian_GhostModeUserID_v1`                              | `KeychainManager` (`kSecClassGenericPassword`)                                                      | Retired presentation-only logout marker; upgraded clients delete it during startup and never use it to shape account UI                                                                  |
+| `Merian_PendingGhostProfileMerge`                        | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Versioned queue of provider-bound account-upgrade proofs; removed only after success or terminal expiry/invalidity                                                                       |
+| `Merian_PendingSignOutPurchaseHandoff_v1`                | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | One-use sign-out purchase proof; written and read back before local sign-out, then retained until destination receipt/server verification completes                                      |
+| `Merian_PurchasePrincipalInstallationCapability_v1`      | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Random 256-bit device capability for resolving the same server-owned stable purchase principal across local Auth rotation; Postgres stores only SHA-256                                  |
+| `Merian_PurchasePrincipalBindingIntentGeneration_v1`     | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Positive monotonic ordinary-resolver intent; advanced/read-verified before network I/O so an older Auth request cannot overwrite a newer server binding                                  |
+| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Monotonic lowercase SHA-256 fingerprint of the local capability after first stable activation; prevents later legacy or missing-route identity fallback                                  |
+| `Merian_PendingPurchasePrincipalAuthRotation_v1`         | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Protocol-3 write-ahead journal containing a raw one-use rotation secret and exact continuity metadata; paid mutations fail closed until verified claim or source cancellation removes it |
+| `Merian_AccountDeletionRecoveryCapability_v1`            | `KeychainManager` (`WhenUnlockedThisDeviceOnly`)                                                    | Random 256-bit one-deletion recovery authority; server stores only SHA-256 and iOS verifies creation/removal around its identity-free durable phase marker                               |
+| `Merian_AnalyticsRevocationIntent_v1`                    | `KeychainManager` (`AfterFirstUnlockThisDeviceOnly`)                                                | Versioned write-ahead journal of exact analytics revocation events; keeps capture off until the atomic ledger write is verified                                                          |
+| Consent ledger                                           | File-protected Application Support JSON                                                             | Atomically replaced and byte-verified append-only adult/Terms/Gemini/PostHog evidence; migrates the legacy `UserDefaults` copy                                                           |
+| Device IDFV (`Merian_Device_IDFV`)                       | `DeviceIdentityManager` (`kSecClassGenericPassword`)                                                | Persisted across reinstalls within the same vendor group                                                                                                                                 |
+| `hasCompletedOnboarding`                                 | `UserDefaults`                                                                                      | Non-sensitive preference                                                                                                                                                                 |
+| `isAchievementNotificationsEnabled`                      | `UserDefaults`                                                                                      | Non-sensitive preference                                                                                                                                                                 |
+| `Merian_UnlockedSpeciesCount`                            | `UserDefaults`                                                                                      | Non-sensitive gamification counter                                                                                                                                                       |
+| `Merian_UnlockedAchievements`                            | `UserDefaults`                                                                                      | Non-sensitive gamification set                                                                                                                                                           |
+| `firstFieldTripAchievementProgress.v1.{accountId}`       | `UserDefaults`                                                                                      | Non-sensitive account-scoped completion date and typed Field trip destination cache                                                                                                      |
+| User geoprivacy preference                               | Supabase `users` table                                                                              | Server-authoritative preference                                                                                                                                                          |
+| Local free-scan meter                                    | `UserDefaults`                                                                                      | Advisory UX only; authoritative entitlement/quota is in Supabase                                                                                                                         |
 
 ---
 
@@ -83,9 +83,9 @@ The public `apps/web` Vercel project has its own allowlist in
 public-web project receives a current opaque key as the sensitive, server-side
 `SUPABASE_SERVER_API_KEY` for its reviewed server routes. A legacy
 `SUPABASE_SERVICE_ROLE_KEY` is supported only during migration. Neither may
-appear in a `NEXT_PUBLIC_` variable or in the separately deployed admin
-project. The web resolver rejects publishable keys, anon/user JWTs, malformed
-JWTs, and malformed platform dictionaries before constructing a client.
+appear in a `NEXT_PUBLIC_` variable or in the separately deployed admin project.
+The web resolver rejects publishable keys, anon/user JWTs, malformed JWTs, and
+malformed platform dictionaries before constructing a client.
 
 The `apps/admin` Vercel project receives only `NEXT_PUBLIC_SUPABASE_URL`,
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_ADMIN_ORIGIN`. It must not
@@ -119,17 +119,17 @@ environment variable.**
 
 - `GEMINI_PAID_API_KEY` — must come from the approved billing-enabled Google
   Cloud project and live exclusively in Supabase Edge secrets. The variable name
-  is not evidence: billing and DPA status remain unverified until the Cloud owner
-  archives confirmation, rotates the key, synchronizes it, smoke-tests it, and
-  revokes the prior key. The iOS binary
-  has no knowledge of this key. All Gemini calls go through Supabase Edge
-  inference endpoints, primarily `/identify-multimodal`; legacy `/identify`,
-  `/identify-describe`, and `/audio-spec` remain server-side compatibility
-  routes only. The same key powers `/share-scan-to-explore`'s dedicated
-  `gemini-2.5-flash` public-audio classifier; transcripts and non-speech
-  descriptions are never stored or logged. A matching service-only moderation
-  attestation can approve unchanged bytes without calling Gemini; a cache miss
-  still fails closed when this key is unavailable.
+  is not evidence: billing and DPA status remain unverified until the Cloud
+  owner archives confirmation, rotates the key, synchronizes it, smoke-tests it,
+  and revokes the prior key. The iOS binary has no knowledge of this key. All
+  Gemini calls go through Supabase Edge inference endpoints, primarily
+  `/identify-multimodal`; legacy `/identify`, `/identify-describe`, and
+  `/audio-spec` remain server-side compatibility routes only. The same key
+  powers `/share-scan-to-explore`'s dedicated `gemini-2.5-flash` public-audio
+  classifier; transcripts and non-speech descriptions are never stored or
+  logged. A matching service-only moderation attestation can approve unchanged
+  bytes without calling Gemini; a cache miss still fails closed when this key is
+  unavailable.
 - `AI_QUOTA_IP_HASH_SECRET` — optional dedicated override of at least 32
   high-entropy characters. When absent, Edge code uses a built-in server-only
   Supabase secret/service-role key. In both cases it HMACs the proxy-observed
@@ -178,12 +178,11 @@ environment variable.**
   variable.
 
   Hosted `SUPABASE_SECRET_KEYS` and `SUPABASE_PUBLISHABLE_KEYS` values are JSON
-  objects such as `{"default":"<complete key>"}`. A raw key, JSON string,
-  array, empty/truncated entry, mixed key class, or manually duplicated
-  platform value is malformed. Do not infer an alternate format from a
-  credential's observed length. The singular `SUPABASE_SECRET_KEY` is a
-  separate local/manual source, not a permissible encoding for the plural
-  variable.
+  objects such as `{"default":"<complete key>"}`. A raw key, JSON string, array,
+  empty/truncated entry, mixed key class, or manually duplicated platform value
+  is malformed. Do not infer an alternate format from a credential's observed
+  length. The singular `SUPABASE_SECRET_KEY` is a separate local/manual source,
+  not a permissible encoding for the plural variable.
 
   The production deploy retrieves the selected active key through the
   reveal-explicit Management API request, masks it, and refreshes
@@ -191,21 +190,20 @@ environment variable.**
   controlled workaround for runtime provisioning lag; it does not authorize a
   custom header and must not be manually renamed to a reserved `SUPABASE_*`
   secret. The workflow verifies the stored secret's SHA-256 digest against the
-  exact selected key before Function rollout without printing the key or
-  digest. Complete a deploy during key overlap before revoking the old key.
+  exact selected key before Function rollout without printing the key or digest.
+  Complete a deploy during key overlap before revoking the old key.
 
   Current explicit keys must be platform-shaped: `sb_secret_`, followed by a
-  URL-safe opaque suffix of at least 20 characters. A legacy fallback must be
-  an HS256 JWT whose role is exactly `service_role` and whose base64url
-  signature is complete. Placing a publishable, anon, user, truncated
-  placeholder, or malformed value in an individual explicit, synchronized,
-  singular, or legacy source never makes that value a candidate. Inbound
-  sources are classified independently: a malformed source cannot veto an exact
-  key from another valid source, while an unmatched request still fails as
-  invalid configuration. Outbound priority remains strict, so a malformed
-  configured scalar encountered at its priority point fails instead of silently
-  falling through.
-  Internal cron/webhook workers such as `refresh-species-content`,
+  URL-safe opaque suffix of at least 20 characters. A legacy fallback must be an
+  HS256 JWT whose role is exactly `service_role` and whose base64url signature
+  is complete. Placing a publishable, anon, user, truncated placeholder, or
+  malformed value in an individual explicit, synchronized, singular, or legacy
+  source never makes that value a candidate. Inbound sources are classified
+  independently: a malformed source cannot veto an exact key from another valid
+  source, while an unmatched request still fails as invalid configuration.
+  Outbound priority remains strict, so a malformed configured scalar encountered
+  at its priority point fails instead of silently falling through. Internal
+  cron/webhook workers such as `refresh-species-content`,
   `refresh-species-model-content`, `refresh-merian-reference-images`, and
   `auto-purge-nonbio` may receive one only through the shared key-format-aware
   `pg_net`/Vault header policy. An opaque key uses the standard `apikey` header
@@ -330,17 +328,17 @@ This migration is one-shot.
 
 Currently stored keys:
 
-| Key                               | Type        | Accessibility                    | Purpose                                                                                                                                                             |
-| --------------------------------- | ----------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Merian_HasAuthenticatedOAuth`    | `Bool`      | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; only a stable missing/invalid-session response plus failed refresh may use it when deciding whether authoritative Ghost regeneration is allowed |
-| `Merian_PendingGhostProfileMerge` | JSON `Data` | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades          |
-| `Merian_PendingSignOutPurchaseHandoff_v1` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Legacy-mode one-use proof that fences receipt transfer from a linked UUID customer to the exact fresh anonymous UUID customer until server verification completes |
-| `Merian_PurchasePrincipalInstallationCapability_v1` | 32-byte `Data` | `WhenUnlockedThisDeviceOnly` | Stable-mode possession capability. The app verifies each write, sends its base64url form only to the authenticated resolver, and never persists the returned provider ID as authority |
-| `Merian_PurchasePrincipalBindingIntentGeneration_v1` | canonical positive decimal `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic Auth-binding intent paired with the capability. It is advanced/read-verified before each resolver request and must already exist after stable activation; missing or malformed state fails closed |
-| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | lowercase SHA-256 `Data` | `WhenUnlockedThisDeviceOnly` | Monotonic evidence that the exact local capability has activated stable mode; it is not a provider-ID cache and is never sent as identity authority |
-| `Merian_PendingPurchasePrincipalAuthRotation_v1` | JSON `Data` | `WhenUnlockedThisDeviceOnly` | Stable-mode write-ahead marker containing the source Auth UUID, expected principal/provider IDs, and a non-secret local capability fingerprint needed to finish or safely retry one local Auth rotation |
-| `Merian_AccountDeletionRecoveryCapability_v1` | 32-byte `Data` | `WhenUnlockedThisDeviceOnly` | One deletion-only recovery authority generated and read-after-write verified before authenticated intake. Edge stores only its SHA-256 hash; the device retires it only after accepted local cleanup and recovery acknowledgement, including the acknowledgement permitted after a matched-expired receipt |
-| `Merian_AnalyticsRevocationIntent_v1` | JSON `Data` | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                               |
+| Key                                                      | Type                              | Accessibility                    | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------- | --------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Merian_HasAuthenticatedOAuth`                           | `Bool`                            | `AfterFirstUnlockThisDeviceOnly` | Distinguishes OAuth-authenticated users from anonymous Ghost sessions; only a stable missing/invalid-session response plus failed refresh may use it when deciding whether authoritative Ghost regeneration is allowed                                                                                                                                                                                                         |
+| `Merian_PendingGhostProfileMerge`                        | JSON `Data`                       | `WhenUnlockedThisDeviceOnly`     | Versioned queue containing source UUID, provider/subject, handoff UUID, 256-bit bearer secret, and server expiry for interrupted existing-account upgrades                                                                                                                                                                                                                                                                     |
+| `Merian_PendingSignOutPurchaseHandoff_v1`                | JSON `Data`                       | `WhenUnlockedThisDeviceOnly`     | Legacy-mode one-use proof that fences receipt transfer from a linked UUID customer to the exact fresh anonymous UUID customer until server verification completes                                                                                                                                                                                                                                                              |
+| `Merian_PurchasePrincipalInstallationCapability_v1`      | 32-byte `Data`                    | `WhenUnlockedThisDeviceOnly`     | Stable-mode possession capability. The app verifies each write, sends its base64url form only to the authenticated resolver, and never persists the returned provider ID as authority                                                                                                                                                                                                                                          |
+| `Merian_PurchasePrincipalBindingIntentGeneration_v1`     | canonical positive decimal `Data` | `WhenUnlockedThisDeviceOnly`     | Monotonic Auth-binding intent paired with the capability. It is advanced/read-verified before each ordinary resolver request and must already exist after stable activation; missing or malformed state fails closed                                                                                                                                                                                                           |
+| `Merian_PurchasePrincipalStableActivationFingerprint_v1` | lowercase SHA-256 `Data`          | `WhenUnlockedThisDeviceOnly`     | Monotonic evidence that the exact local capability has activated stable mode; it is not a provider-ID cache and is never sent as identity authority                                                                                                                                                                                                                                                                            |
+| `Merian_PendingPurchasePrincipalAuthRotation_v1`         | JSON `Data`                       | `WhenUnlockedThisDeviceOnly`     | Protocol-3 stable-mode journal containing `preparing`/`prepared` state, rotation UUID, raw 256-bit rotation secret, source Auth UUID, expected principal/provider IDs, binding generation, capability fingerprint, local start time, and the server expiry once prepared. The draft is written/read-verified before the source-authenticated prepare call; the prepared receipt is written/read-verified before local sign-out |
+| `Merian_AccountDeletionRecoveryCapability_v1`            | 32-byte `Data`                    | `WhenUnlockedThisDeviceOnly`     | One deletion-only recovery authority generated and read-after-write verified before authenticated intake. Edge stores only its SHA-256 hash; the device retires it only after accepted local cleanup and recovery acknowledgement, including the acknowledgement permitted after a matched-expired receipt                                                                                                                     |
+| `Merian_AnalyticsRevocationIntent_v1`                    | JSON `Data`                       | `AfterFirstUnlockThisDeviceOnly` | Versioned journal containing exact immutable PostHog revocation events that have not yet crossed the verified primary-ledger boundary                                                                                                                                                                                                                                                                                          |
 
 The merge queue is persisted and read back successfully before the app switches
 away from the anonymous session. A newer handoff replaces only another handoff
@@ -407,28 +405,55 @@ ordinary local Auth rotation. The app sends no account email, username, display
 name, avatar, or Auth UUID attribute to that shared provider customer. PostHog
 continues to follow its own analytics identity and consent contract.
 
-Older builds could store the linked Supabase UUID in
-`Merian_GhostModeUserID_v1` to mask an authenticated session as anonymous in the
-UI. That presentation-only flow is retired. Supporting builds delete the marker
-during `SupabaseManager` startup and never consult it for account presentation.
-In stable mode, user-facing **Sign out** first writes and verifies
-`Merian_PendingPurchasePrincipalAuthRotation_v1`, rotates the local Supabase
-session, resolves the existing capability under the replacement session, links
-the returned unchanged purchase principal, refreshes entitlement, verifies the
-same Auth generation, and removes the marker last. It does not call RevenueCat
-receipt sync or customer transfer. A temporarily unreadable Keychain is
-fail-closed: the app must not create another capability, switch provider
-identity, or admit purchase mutations until the item is readable again.
-While this marker exists, the resolver requires its exact lowercase SHA-256
-fingerprint of the local 32-byte capability and disables capability creation.
-An absent or replaced capability is rejected before any server binding or
-RevenueCat identity call, so partial secure-storage loss cannot strand access on
-a newly created principal.
-The first successful stable response also writes and verifies the monotonic
-activation fingerprint. Once present, neither an endpoint `404` nor a later
-`mode: legacy` response is accepted for that capability. The marker is retained
-through sign-out, account deletion, and rollback because it prevents provider
-identity downgrade; it does not select or cache a RevenueCat App User ID.
+Older builds could store the linked Supabase UUID in `Merian_GhostModeUserID_v1`
+to mask an authenticated session as anonymous in the UI. That presentation-only
+flow is retired. Supporting builds delete the marker during `SupabaseManager`
+startup and never consult it for account presentation. In stable mode,
+user-facing **Sign out** uses `Merian_PendingPurchasePrincipalAuthRotation_v1`
+as a two-write journal around a server reservation:
+
+1. While the exact linked source session is still live, iOS generates a rotation
+   UUID and 256-bit secret, persists and read-verifies a `preparing` journal,
+   and sends `prepare_signout_rotation`. Postgres receives only the secret and
+   installation-capability hashes.
+2. iOS validates the returned principal, provider ID, binding generation, and
+   expiry against the journal, persists and read-verifies the `prepared` form,
+   and only then closes the source session.
+3. One newly created anonymous session submits the same rotation ID and secret
+   to `claim_signout_rotation`. This claim, not ordinary purchase-principal
+   resolution, authorizes the destination binding.
+4. iOS validates the atomic claim receipt, serially links the unchanged
+   RevenueCat customer, requires `EntitlementManager.beginSession(...)` to
+   return `true`, revalidates the same anonymous Auth generation, and verifies
+   journal removal last. No stable sign-out step calls RevenueCat receipt sync
+   or a provider customer-transfer API.
+
+If local sign-out fails or the exact source is restored first, that source sends
+`cancel_signout_rotation` with the same journal proof and clears the journal
+only after the server confirms `cancelled` or `expired`. Cancellation may create
+a tombstone when the `preparing` request reached neither the server nor the
+device response boundary. A different permanent session, an old anonymous
+session, an expired claim, a malformed journal, or a temporarily unreadable
+Keychain keeps purchase, restore, redeem, provider linking, and ordinary
+principal resolution closed. A readable pre-protocol-3 client-only value at the
+same key can be retired only by its exact restored source and can never
+authorize a destination.
+
+The journal is bearer-sensitive because it contains the raw rotation secret.
+Never copy it or any field from it into `UserDefaults`, logs, analytics, crash
+metadata, an App Group, iCloud Keychain, or a request URL. While it exists, the
+resolver requires the exact lowercase SHA-256 fingerprint of the local 32-byte
+installation capability and disables capability creation. An absent or replaced
+capability is rejected before any server binding or RevenueCat identity call, so
+partial secure-storage loss cannot strand access on a newly created principal.
+
+The first successful stable response separately writes and verifies
+`Merian_PurchasePrincipalStableActivationFingerprint_v1`. That activation
+fingerprint—not the pending rotation journal—is retained across later sign-out,
+account deletion, and rollout rollback. Once present, neither an endpoint `404`
+nor a later `mode: legacy` response is accepted for that capability. The journal
+does persist the expected provider ID as a response-continuity assertion, but it
+never selects that ID or makes it local identity authority.
 
 Account deletion uses a separate atomic protocol-v2 envelope at the
 compatibility-named `Merian_AccountDeletionRecoveryCapability_v1` key. iOS
@@ -442,35 +467,33 @@ recovery value is sent only in authenticated commit or public recovery; the
 acknowledgement value is sent only after verified local cleanup. Neither is
 interchangeable: Edge applies distinct protocol-v2 recovery and acknowledgement
 hash domains, also separating both from the legacy v1 hash namespace. Neither is
-placed in
-`UserDefaults`, URLs, logs, analytics, crash metadata, App Groups, backups, or
-server plaintext storage. Once the server receipt is known, the local state
-advances through cleanup and capability-retirement phases. Keychain deletion is
-read-after-delete verified before the durable marker is removed. For legacy v1,
-unknown proofs and ambiguous transport outcomes remain fail-closed; a
+placed in `UserDefaults`, URLs, logs, analytics, crash metadata, App Groups,
+backups, or server plaintext storage. Once the server receipt is known, the
+local state advances through cleanup and capability-retirement phases. Keychain
+deletion is read-after-delete verified before the durable marker is removed. For
+legacy v1, unknown proofs and ambiguous transport outcomes remain fail-closed; a
 matched-expired proof is the only non-receipt result that authorizes
 conservative local erasure. For v2, `not_committed` or an unknown proof
 authorizes proof-only retirement because destructive commit cannot run without
-the server preparation. If another device committed first, the database
-converts every preparation into a receipt and recovery returns
-pending/completed instead. The device acknowledges with the distinct second
-proof before retiring the envelope; expiry blocks inspection, not post-cleanup
-acknowledgement.
-When authenticated intake is definitively rejected with
+the server preparation. If another device committed first, the database converts
+every preparation into a receipt and recovery returns pending/completed instead.
+The device acknowledges with the distinct second proof before retiring the
+envelope; expiry blocks inspection, not post-cleanup acknowledgement. When
+authenticated intake is definitively rejected with
 `409 purchase_continuity_pending`, iOS first persists
 `capability_rejection_retirement_pending`, then read-after-delete verifies the
 unused proof is gone, and removes the marker last. Recovery from that phase is
-non-destructive: it cannot sign out or purge local data.
-This capability cannot select, restore, or authenticate an account and is never
-reused for sign-in or purchase identity.
+non-destructive: it cannot sign out or purge local data. This capability cannot
+select, restore, or authenticate an account and is never reused for sign-in or
+purchase identity.
 
 In legacy mode, the same UX uses the one-use proof in
 `Merian_PendingSignOutPurchaseHandoff_v1`. The server stores only its SHA-256
-secret hash; the raw verifier remains on the device and in authenticated
-handoff requests. The client removes the proof only after the fresh anonymous
-Supabase UUID is the exact linked RevenueCat custom ID, StoreKit receipt sync,
-server destination verification/projection, and a current entitlement read.
-A restored source may cancel only an unbound proof.
+secret hash; the raw verifier remains on the device and in authenticated handoff
+requests. The client removes the proof only after the fresh anonymous Supabase
+UUID is the exact linked RevenueCat custom ID, StoreKit receipt sync, server
+destination verification/projection, and a current entitlement read. A restored
+source may cancel only an unbound proof.
 
 The installation capability is `ThisDeviceOnly`: restoring a backup, moving to
 another device, or a true Keychain loss must not let sign-in claim the previous

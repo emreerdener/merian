@@ -33,11 +33,11 @@ as their permanent engineering identity.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
   execute the complete unit-test target and deterministic live-to-queue plus
-  queued-completion UI smokes, then independently inspect an unsigned Release archive from the
-  exact workflow SHA. The main app's source and archived bundle must also carry
-  the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence records
-  `privacy_manifest_valid: true`. The final main-app plist must retain ATS
-  defaults and credential-free HTTPS origins; archive evidence records
+  queued-completion UI smokes, then independently inspect an unsigned Release
+  archive from the exact workflow SHA. The main app's source and archived bundle
+  must also carry the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence
+  records `privacy_manifest_valid: true`. The final main-app plist must retain
+  ATS defaults and credential-free HTTPS origins; archive evidence records
   `transport_security: "ats-default"`. Repository rules must require the stable
   `iOS Build and Test / Production readiness` result; the focused Startup Safety
   lane is supplementary. See the
@@ -46,31 +46,31 @@ as their permanent engineering identity.
   [`iOS transport security contract`](./development-guides/17-ios-transport-security.md),
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#routine-testflight-upload).
-- **Typed iOS event and presentation routing (2026-08-08)**: Cross-module
-  reload hints now use a DI-owned, main-actor `AppEventPublisher`; root
-  navigation uses a bounded `AppRouteCoordinator` with stable identity,
-  priority/FIFO order, expiry, account/session fences, and exact outcomes.
-  Capture serializes all routed destinations through one item-based sheet host
-  and defers behind feature-local covers until their real dismissal callback.
-  Apple framework notifications remain in seven exact allowlisted files, and
-  AVPlayer observer ownership is generation-fenced. Ordinary feedback now uses
-  typed `ToastPayload` values; the DI-owned milestone queue is bounded,
+- **Typed iOS event and presentation routing (2026-08-08)**: Cross-module reload
+  hints now use a DI-owned, main-actor `AppEventPublisher`; root navigation uses
+  a bounded `AppRouteCoordinator` with stable identity, priority/FIFO order,
+  expiry, account/session fences, and exact outcomes. Capture serializes all
+  routed destinations through one item-based sheet host and defers behind
+  feature-local covers until their real dismissal callback. Apple framework
+  notifications remain in seven exact allowlisted files, and AVPlayer observer
+  ownership is generation-fenced. Ordinary feedback now uses typed
+  `ToastPayload` values; the DI-owned milestone queue is bounded,
   payload-deduplicated, host-serialized, clock-injected, and account/session
   fenced. Candidate, Confidence, Insight Chat, Explore activity,
   Insight-to-Community, and patch-gallery handoffs resume from exact `onDismiss`
   callbacks rather than delay guesses. Explore sheets hold video-overlay tokens
-  through presented-content disappearance, not merely binding changes. CI rejects
-  the deprecated application-defined NotificationCenter and bus-singleton
-  patterns. See the
+  through presented-content disappearance, not merely binding changes. CI
+  rejects the deprecated application-defined NotificationCenter and
+  bus-singleton patterns. See the
   [canonical event and presentation contract](./system-architecture/10-event-and-presentation-routing.md).
-- **Supabase candidate assurance**: Relevant pull requests, manual candidate
-  refs, and the production deployment workflow use **Supabase Candidate
-  Validation** to verify the exact clean SHA with pinned Deno/Supabase tooling,
-  migration replay, every pgTAP catalog, the complete Edge/database-concurrency
-  suite, lint, and advisors against a disposable database. It has no Production
+- **Supabase candidate assurance**: **Supabase Candidate Validation** verifies
+  the exact clean SHA for relevant pull requests, manual candidate refs, and the
+  production deployment workflow with pinned Deno/Supabase tooling, migration
+  replay, every pgTAP catalog, the complete Edge/database-concurrency suite,
+  lint, and advisors against a disposable database. It has no Production
   environment or secrets and performs no production mutation. The separate
-  production job requires this reusable gate before receiving deployment
-  access. See the
+  production job requires this reusable gate before receiving deployment access.
+  See the
   [`testing strategy`](./development-guides/08-testing-strategy.md#supabase-functions-and-tooling)
   and
   [`deployment runbook`](./backend-and-data/06-supabase-deployment-runbook.md).
@@ -87,18 +87,17 @@ as their permanent engineering identity.
   delivery cannot directly rewrite access. The scheduled repair worker drains
   small leased waves against a runtime cutoff, with indexed lease recovery and
   an independent oldest-due-age alert. The production deploy workflow validates
-  and synchronizes all three backend credentials before function deployment.
-  The case-sensitive App User ID is the uppercase Supabase UUID; provider
-  customer totals are not expected to equal Supabase profile totals. Store
-  trials activate through
-  receipts without manual RevenueCat approval, while beta Pro is an explicit
-  finite promotional grant and includes Field Chat after Supabase projection.
-  The grant client now accepts get-or-create `201`, membership comes from an
-  explicit Ghost-or-linked cohort rather than current tier, and durable Ghost
-  merge completion preserves provider access before retiring source Auth.
+  and synchronizes all three backend credentials before function deployment. The
+  case-sensitive App User ID is the uppercase Supabase UUID; provider customer
+  totals are not expected to equal Supabase profile totals. Store trials
+  activate through receipts without manual RevenueCat approval, while beta Pro
+  is an explicit finite promotional grant and includes Field Chat after Supabase
+  projection. The grant client now accepts get-or-create `201`, membership comes
+  from an explicit Ghost-or-linked cohort rather than current tier, and durable
+  Ghost merge completion preserves provider access before retiring source Auth.
   Prelaunch cleanup can delete only exact inactive provider shells proven empty
-  by reviewed offline evidence plus live revalidation; it never deletes
-  Supabase users or app data. See the
+  by reviewed offline evidence plus live revalidation; it never deletes Supabase
+  users or app data. See the
   [RevenueCat customer identity incident](./incidents/2026-08-revenuecat-customer-identity-drift.md).
 - **Server credential and database safety**: Current opaque project keys use
   only Supabase's standard `apikey` header; only user JWTs and the temporary
@@ -114,8 +113,8 @@ as their permanent engineering identity.
   origins, and taxonomy imports checkpoint every successfully fetched raw page.
   Production promotion remains an ordered, evidence-backed operation. See the
   [`joined remediation record`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md).
-- **Consent production readiness (2026-08-03)**: The final adult, Terms,
-  Google Gemini, and optional PostHog consent design is present. All tracked
+- **Consent production readiness (2026-08-03)**: The final adult, Terms, Google
+  Gemini, and optional PostHog consent design is present. All tracked
   implementation findings are closed in source, including synchronization,
   analytics withdrawal, target-account restoration, the final account/session
   merge fence, Realtime repair, OAuth account replacement, and server-serialized
@@ -127,15 +126,13 @@ as their permanent engineering identity.
   seeing approval controls during restoration. An expired cached Supabase
   session remains a known, in-progress account restoration until Auth emits
   `tokenRefreshed` or `signedOut`; expiry alone is not a no-session result.
-  Synchronization failures retain
-  that root with bounded automatic and explicit retry. Once an authenticated
-  account enters missing-local-evidence restoration, only a durable,
-  identity-fenced authoritative merge may select the scanner or Ready consent
-  screen.
-  Internal test builds may continue; public production remains blocked until
-  **iOS Build and Test** and **Supabase Candidate Validation** pass the same
-  candidate SHA, plus App Store 18+, paid Gemini billing/DPA, and counsel
-  evidence. See the
+  Synchronization failures retain that root with bounded automatic and explicit
+  retry. Once an authenticated account enters missing-local-evidence
+  restoration, only a durable, identity-fenced authoritative merge may select
+  the scanner or Ready consent screen. Internal test builds may continue; public
+  production remains blocked until **iOS Build and Test** and **Supabase
+  Candidate Validation** pass the same candidate SHA, plus App Store 18+, paid
+  Gemini billing/DPA, and counsel evidence. See the
   [`canonical consent readiness record`](./legal/production-consent-readiness-2026-08-03.md).
 - **iOS privacy manifest (2026-08-05)**: The missing main-application manifest
   finding is closed in source. The app declares no tracking, conservatively
@@ -285,8 +282,8 @@ as their permanent engineering identity.
   incomplete. See the
   [incident report](./incidents/2026-07-account-scoped-r2-image-loss.md).
 - **Mandatory scientific-observation retention**: Every submitted scan
-  contributes Scientific Data. Account deletion removes authentication,
-  profile, attribution, community content, media, free-form private notes,
+  contributes Scientific Data. Account deletion removes authentication, profile,
+  attribution, community content, media, free-form private notes,
   semantic/public location labels, device context, and custom tags. The scan
   remains as an ownerless tombstone with exact coordinates/elevation, time,
   taxonomy, identification, environmental, quality, and provenance facts
@@ -301,13 +298,13 @@ as their permanent engineering identity.
 - **Sign in with Apple deletion revocation**: Supporting iOS builds capture
   Apple's authorization code at sign-in, while an authenticated Edge route
   verifies the Apple subject and stores the refresh token in Vault. Durable
-  deletion revokes and destroys that token after storage verification and
-  before Auth. Pre-rollout Apple accounts receive a persistent manual-removal
-  notice. Apple credential-revocation notifications are revalidated against the
-  same active provider subject before local session teardown. Production
-  remains gated on secrets, exact-SHA database evidence, real Apple smokes, and
-  either an enforceable minimum-supported-build gate or an independent
-  server-delivered fallback for older iOS binaries. See the
+  deletion revokes and destroys that token after storage verification and before
+  Auth. Pre-rollout Apple accounts receive a persistent manual-removal notice.
+  Apple credential-revocation notifications are revalidated against the same
+  active provider subject before local session teardown. Production remains
+  gated on secrets, exact-SHA database evidence, real Apple smokes, and either
+  an enforceable minimum-supported-build gate or an independent server-delivered
+  fallback for older iOS binaries. See the
   [canonical contract](./backend-and-data/20-sign-in-with-apple-account-deletion.md).
 - **Explore media-loss contract**: An unavailable object never auto-deletes or
   auto-unpublishes a post. Two spaced direct R2-origin `404` checks confirm
@@ -426,8 +423,8 @@ as their permanent engineering identity.
 - **[`/legal/production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md)**
   — Canonical release hold, source status, same-SHA hosted evidence table,
   rollout order, and external App Store/Gemini/counsel exit evidence.
-- **[`/legal/terms-counsel-review.md`](./legal/terms-counsel-review.md)**
-  — Internal legal working memo covering public Terms alignment, unresolved
+- **[`/legal/terms-counsel-review.md`](./legal/terms-counsel-review.md)** —
+  Internal legal working memo covering public Terms alignment, unresolved
   operator facts, provider contracts, and counsel evidence requirements.
 
 ### System Architecture
@@ -490,12 +487,11 @@ as their permanent engineering identity.
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
   `/field-trips` starter enrollment, preferred progress, and scan contributions,
   `/update-public-avatar`, Community Identification request/detail and grouped
-  Activity endpoints,
-  `/species-dictionary`, `/species-observation-stats`, `/report-user`, the
-  internal admin RPC surface, Explore detail similar species, and internal cron
-  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
-  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
-  inspection and recovery contract.
+  Activity endpoints, `/species-dictionary`, `/species-observation-stats`,
+  `/report-user`, the internal admin RPC surface, Explore detail similar
+  species, and internal cron workers such as Merian reference-image refresh,
+  diagnostic `Server-Timing`, and `/update-scan-context`, plus the
+  owner-authenticated `/repair-scan-image` inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — Validation-only Supabase candidate gate, separately authorized production
   deployment path, required GitHub secrets, local emergency fallback, frozen
@@ -545,10 +541,10 @@ as their permanent engineering identity.
   clearing boundary, durable sequence, authorization, visibility, race fencing,
   change procedure, and verification gates.
 - **[`/backend-and-data/18-complimentary-pro-scans.md`](./backend-and-data/18-complimentary-pro-scans.md)**
-  — Normative contract for the staged replacement of the introductory trial
-  with three lifetime complimentary Pro scans, including the private ledger,
-  derived balances, user-first reservation and settlement, separate Flash and
-  provider quotas, protocol 3, iOS reservation safety, Ghost merge, admin telemetry,
+  — Normative contract for the staged replacement of the introductory trial with
+  three lifetime complimentary Pro scans, including the private ledger, derived
+  balances, user-first reservation and settlement, separate Flash and provider
+  quotas, protocol 3, iOS reservation safety, Ghost merge, admin telemetry,
   security, rollout, and executable verification map.
 - **[`/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md`](./backend-and-data/19-security-and-reliability-remediation-2026-08-03.md)**
   — Joined implementation and release record for collection ownership,
@@ -566,8 +562,9 @@ as their permanent engineering identity.
   boundaries, and ViewfinderIntelligence constraints.
 - **[`/features-and-hardware/02-revenue-and-identity.md`](./features-and-hardware/02-revenue-and-identity.md)**
   — RevenueCat products/offerings, Test Store/StoreKit/TestFlight purchase
-  matrix, durable webhook access, paid and complimentary Pro entitlements, and
-  Ghost Session identity.
+  matrix, stable purchase principals, protocol-3 server-authorized sign-out
+  rotation, durable webhook access, paid and complimentary Pro entitlements, and
+  signed-out session identity.
 - **[`/features-and-hardware/03-gamification-and-telemetry.md`](./features-and-hardware/03-gamification-and-telemetry.md)**
   — Achievement system, scan telemetry capture, and PostHog analytics.
 - **[`/features-and-hardware/04-onboarding.md`](./features-and-hardware/04-onboarding.md)**
@@ -650,9 +647,8 @@ as their permanent engineering identity.
   catalog ownership, and deferred Tree/galaxy scope.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Public Field trips, Outings, and Events, automatic Backyard Safari Level 1
-  enrollment, guided outing
-  detail, progress matching, the account-cached active target indicator on
-  visual Scan, focused Tips/Goals routing, active-level
+  enrollment, guided outing detail, progress matching, the account-cached active
+  target indicator on visual Scan, focused Tips/Goals routing, active-level
   progress ring, private completed-scan thumbnails and embedded Insight
   navigation, persistent scan contribution cards, one credit per experience with
   multi-experience eligibility, tier-specific Possible-match evidence gating,
@@ -666,8 +662,8 @@ as their permanent engineering identity.
 - **[`/features-and-hardware/27-camera-roll-media-export.md`](./features-and-hardware/27-camera-roll-media-export.md)**
   — Automatic and explicit photo/video writes to iOS Photos, including
   default-off preference semantics, add-only permission, original-recording
-  lifetime, file-backed cloud downloads, approved-host policy, cleanup,
-  feedback counts, and physical-device QA.
+  lifetime, file-backed cloud downloads, approved-host policy, cleanup, feedback
+  counts, and physical-device QA.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.
@@ -683,6 +679,11 @@ as their permanent engineering identity.
   refresh, caching, licensing, and analytics.
 - **[`/rfcs/geological-expansions.md`](./rfcs/geological-expansions.md)** —
   Roadmap for extending inference to rocks, minerals, and fossils.
+- **[`/rfcs/purchase-principal-auth-separation.md`](./rfcs/purchase-principal-auth-separation.md)**
+  — Accepted separation of Supabase authentication, stable StoreKit purchase
+  principals, and account-owned grants, including protocol-3 sign-out
+  reservations, compatibility/rollback, monitoring, and production release
+  gates.
 
 ### Development Guides
 

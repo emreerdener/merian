@@ -3,9 +3,9 @@
 The `Security` directory owns client-side identity boundaries that are shared
 across features: stable device identity, Keychain-backed flags, paid RevenueCat
 state, server-verified complimentary entitlement, versioned adult/Terms/AI
-consent, account-wide optional analytics permission, and
-trust-and-safety guards. Supabase Auth session creation and OAuth orchestration
-live in `Core/Network/SupabaseManager`; this directory provides the secure local
+consent, account-wide optional analytics permission, and trust-and-safety
+guards. Supabase Auth session creation and OAuth orchestration live in
+`Core/Network/SupabaseManager`; this directory provides the secure local
 primitives and external identity bindings used by that manager.
 
 The consent model below is the required production contract, not a release
@@ -32,18 +32,18 @@ remote URLs before network/media frameworks see them. See the
   offerings, and purchase/restore entry points. Its `isSubscribed` value—not
   functional complimentary access—drives public Pro badges.
 - `EntitlementManager` owns the authenticated, current-launch server proof for
-  complimentary and other functional entitlement. It exposes the total
-  remaining grant, unheld capacity available to start, in-flight holds, and the
-  monotonic entitlement version. It also serializes stable scan/account funding
+  complimentary and other functional entitlement. It exposes the total remaining
+  grant, unheld capacity available to start, in-flight holds, and the monotonic
+  entitlement version. It also serializes stable scan/account funding
   reservations on `@MainActor`; the exposed booleans are UI hints, not an
   admission transaction.
-- `ScanAdmissionManager` reads the authenticated account's prospective scan
-  plan and UTC-day allowance immediately before Capture starts hardware or
-  submission work. Preview responses are never cached, because even a short
-  cache could outlive a concurrent scan's final daily allowance. Its isolated
-  ephemeral request waits at most two seconds, never waits for connectivity,
-  never retries, and returns a typed distinction between a valid preview,
-  classified transport unavailability, and every other failure. Only the
+- `ScanAdmissionManager` reads the authenticated account's prospective scan plan
+  and UTC-day allowance immediately before Capture starts hardware or submission
+  work. Preview responses are never cached, because even a short cache could
+  outlive a concurrent scan's final daily allowance. Its isolated ephemeral
+  request waits at most two seconds, never waits for connectivity, never
+  retries, and returns a typed distinction between a valid preview, classified
+  transport unavailability, and every other failure. Only the
   transport-unavailable result may use current local eligibility to select a
   queue-only Capture route; cancellation, malformed data, authentication/TLS,
   and server failures remain fail-closed. `ScanConnectivityFailurePolicy`
@@ -51,9 +51,9 @@ remote URLs before network/media frameworks see them. See the
   wrappers, gives certificate/authentication/ATS policy codes veto precedence
   over broader outer transport errors, and separately defines the broader
   post-durability recovery set so the two ownership boundaries cannot drift. The
-  manager never reserves quota;
-  the provider-side `reserve_ai_quota(...)` transaction remains the
-  authorization boundary and can still reject a concurrent race.
+  manager never reserves quota; the provider-side `reserve_ai_quota(...)`
+  transaction remains the authorization boundary and can still reject a
+  concurrent race.
 - `ConsentManager` owns the append-only local ledger for adult confirmation,
   Terms acceptance, every Google Gemini grant/revocation, and optional PostHog
   grant/revocation. `ConsentLedgerStore` persists that ledger as an atomically
@@ -61,49 +61,47 @@ remote URLs before network/media frameworks see them. See the
   migrates the former `UserDefaults` copy before removing it. Analytics
   withdrawal first records the exact immutable revocation event in an
   independently verified Keychain journal; a failed ledger write therefore
-  remains fail-closed across restart and can be replayed without changing its
-  ID or timestamp. The journal retains multiple account-owned withdrawals
-  rather than overwriting one during account switching. `ConsentManager` binds
-  offline records to the first anonymous account,
-  synchronizes immutable account-owned rows, hydrates cross-device state, and
-  requires cloud-ready adult/Terms/Gemini evidence before iOS constructs an
-  inference request. After a confirmed provider-bound ghost handoff, it
-  generation-cancels stale sync work, atomically rebinds all four local ledgers,
-  pushes target-owned pending actions, and refetches before the durable handoff
-  can be removed. Normal account restoration also activates and flushes the
-  target account before remote refetch while analytics remains fail-closed.
-  Synchronization preserves the order target activation → all target-owned
-  pending pushes → authoritative fetch → merge. AI and analytics pending events
-  name their observed provider-stream head. Their authenticated RPC serializes
-  the account against ghost merge and then the provider stream, assigns a
-  server-only `consentRevision`, rejects a delayed grant whose parent is stale,
-  and rebases a revocation to the locked current head. Rejected grants remain
-  locally marked as superseded and cannot authorize either provider; accepted
-  events retain the parent returned by the server. Fetch-after-error recovery
-  also compares every immutable payload field before accepting an existing ID,
-  while allowing the server-rebased parent of a revocation. The authoritative
-  fetch includes the all-version stream head so subsequent local actions attach
-  to the actual head. Local Gemini and PostHog permissions also start from that
-  same head: a revocation under any disclosure version closes the gate, and only
-  an exact current-version head grant may authorize the current app. The merge
-  itself performs a
-  final synchronous fence over task cancellation, the observed account, the
-  Supabase SDK's current session, and the synchronization generation before it
-  can mutate or persist the ledger or apply analytics.
+  remains fail-closed across restart and can be replayed without changing its ID
+  or timestamp. The journal retains multiple account-owned withdrawals rather
+  than overwriting one during account switching. `ConsentManager` binds offline
+  records to the first anonymous account, synchronizes immutable account-owned
+  rows, hydrates cross-device state, and requires cloud-ready adult/Terms/Gemini
+  evidence before iOS constructs an inference request. After a confirmed
+  provider-bound ghost handoff, it generation-cancels stale sync work,
+  atomically rebinds all four local ledgers, pushes target-owned pending
+  actions, and refetches before the durable handoff can be removed. Normal
+  account restoration also activates and flushes the target account before
+  remote refetch while analytics remains fail-closed. Synchronization preserves
+  the order target activation → all target-owned pending pushes → authoritative
+  fetch → merge. AI and analytics pending events name their observed
+  provider-stream head. Their authenticated RPC serializes the account against
+  ghost merge and then the provider stream, assigns a server-only
+  `consentRevision`, rejects a delayed grant whose parent is stale, and rebases
+  a revocation to the locked current head. Rejected grants remain locally marked
+  as superseded and cannot authorize either provider; accepted events retain the
+  parent returned by the server. Fetch-after-error recovery also compares every
+  immutable payload field before accepting an existing ID, while allowing the
+  server-rebased parent of a revocation. The authoritative fetch includes the
+  all-version stream head so subsequent local actions attach to the actual head.
+  Local Gemini and PostHog permissions also start from that same head: a
+  revocation under any disclosure version closes the gate, and only an exact
+  current-version head grant may authorize the current app. The merge itself
+  performs a final synchronous fence over task cancellation, the observed
+  account, the Supabase SDK's current session, and the synchronization
+  generation before it can mutate or persist the ledger or apply analytics.
   Analytics-consent Realtime owns its subscribed account independently,
-  generation-fences stale channels, and retries failures with foreground
-  repair. OAuth account replacement closes analytics before session
-  installation and reconciles the SDK's actual session before a
-  current-disclosure grant at the all-version head may reopen capture. The
-  database quota boundary remains the authoritative provider-dispatch gate.
-  When that boundary returns exact `403 ai_consent_required`, the manager
-  immediately closes its process-local cloud-ready gate and durably fences only
-  the active account. A completed user routes through authoritative restoration
-  to Ready across relaunch. Reapproval writes new adult, Terms, and Gemini
-  evidence; the Gemini action extends the provider head fetched after rejection,
-  and another authoritative merge is required before inference. A legacy ledger
-  without the fence decodes as unfenced, and account switching cannot inherit
-  another user's marker.
+  generation-fences stale channels, and retries failures with foreground repair.
+  OAuth account replacement closes analytics before session installation and
+  reconciles the SDK's actual session before a current-disclosure grant at the
+  all-version head may reopen capture. The database quota boundary remains the
+  authoritative provider-dispatch gate. When that boundary returns exact
+  `403 ai_consent_required`, the manager immediately closes its process-local
+  cloud-ready gate and durably fences only the active account. A completed user
+  routes through authoritative restoration to Ready across relaunch. Reapproval
+  writes new adult, Terms, and Gemini evidence; the Gemini action extends the
+  provider head fetched after rejection, and another authoritative merge is
+  required before inference. A legacy ledger without the fence decodes as
+  unfenced, and account switching cannot inherit another user's marker.
 - `SocialGuardManager` centralizes block-state checks used by social surfaces.
 - `CircuitBreakerManager` stops repeated failing requests from turning poor
   connectivity into continuous foreground retries.
@@ -115,13 +113,13 @@ remote URLs before network/media frameworks see them. See the
 that the user must approve again because an authenticated account may restore
 the current adult, Terms, and Gemini records moments later.
 
-| State | Meaning |
-|---|---|
-| `.awaitingInitialSession` | No initial auth result has been observed yet. |
-| `.reconciling(userId:)` | A known account, including an expired cached session awaiting refresh, lacks current local evidence and its pending rows plus authoritative remote state are being reconciled. |
-| `.waitingToRetry(userId:attempt:)` | Reconciliation failed without establishing absence; an account- and generation-fenced automatic retry is pending. |
-| `.retryRequired(userId:)` | Three automatic retries were exhausted; the neutral surface offers an explicit retry. |
-| `.resolved` | The initial session is unauthenticated, current local required evidence already bypasses restoration, or an identity-fenced authoritative merge has durably established a previously unknown account state. |
+| State                              | Meaning                                                                                                                                                                                                     |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.awaitingInitialSession`          | No initial auth result has been observed yet.                                                                                                                                                               |
+| `.reconciling(userId:)`            | A known account, including an expired cached session awaiting refresh, lacks current local evidence and its pending rows plus authoritative remote state are being reconciled.                              |
+| `.waitingToRetry(userId:attempt:)` | Reconciliation failed without establishing absence; an account- and generation-fenced automatic retry is pending.                                                                                           |
+| `.retryRequired(userId:)`          | Three automatic retries were exhausted; the neutral surface offers an explicit retry.                                                                                                                       |
+| `.resolved`                        | The initial session is unauthenticated, current local required evidence already bypasses restoration, or an identity-fenced authoritative merge has durably established a previously unknown account state. |
 
 `isRestoringRequiredConsent` is true only while required consent is missing and
 the enum has not resolved. Current required evidence always wins and makes the
@@ -170,16 +168,27 @@ Merian never configures without a custom ID and never calls
 `Purchases.logOut()`, both of which would generate a `$RCAnonymousID` customer.
 Sign-out clears paid readiness and Auth-session fences but does not discard an
 active stable purchase principal. Legacy mode retains the durable sign-out
-handoff and exact UUID linkage until the cutover/rollback window closes.
-Any Auth user, binding generation, account kind, or provider App User ID change
-also closes subscription state and account-grant eligibility before the
-asynchronous rebind begins. Reusing the same stable provider ID therefore cannot
-carry the previous account's promotion through a transient resolver failure.
-Offering reads, purchase, restore, redemption, and subscription management
-require the exact resolved identity, current Auth session, binding generation,
-and recognized `account_kind`. Missing, unknown, stale, or asynchronously
-mismatched state fails closed. A generic Edge `401` never rotates purchase
-identity.
+handoff and exact UUID linkage until the cutover/rollback window closes. Any
+Auth user, binding generation, account kind, or provider App User ID change also
+closes subscription state and account-grant eligibility before the asynchronous
+rebind begins. Reusing the same stable provider ID therefore cannot carry the
+previous account's promotion through a transient resolver failure. Protocol-3
+stable sign-out is not an ordinary resolver rebind. The exact linked source
+first persists a rotation UUID/raw secret journal and prepares a server
+reservation. Only a different anonymous Auth identity created no earlier than
+preparation may claim it; unrelated permanent sessions remain blocked from
+generic resolution and RevenueCat linking. After the atomic claim,
+`RevenueCatManager` must establish readiness for the unchanged server App User
+ID, new Auth UUID, and advanced binding generation. The client then requires a
+successful `EntitlementManager.beginSession(...)` for that same session before
+it may clear the journal or paid-operation fence. Provider or entitlement
+failure keeps both pending for exact same-destination retry. The restored source
+may cancel; no stable sign-out path calls `syncPurchases()`,
+`Purchases.logOut()`, or a customer-transfer API. Offering reads, purchase,
+restore, redemption, and subscription management require the exact resolved
+identity, current Auth session, binding generation, and recognized
+`account_kind`. Missing, unknown, stale, or asynchronously mismatched state
+fails closed. A generic Edge `401` never rotates purchase identity.
 `RevenueCatOfferingPolicy` requires these App Store product identifiers:
 
 - `pro_week`
@@ -197,25 +206,26 @@ Connect or RevenueCat dashboard state. During prelaunch testing:
   open Settings → Plan directly instead of depending on a quota-triggered
   paywall.
 
-RevenueCat login and offering availability are independent. `RevenueCat login
-succeeded` confirms identity linking only. A complete purchase smoke test must
-also load both packages, complete/restore the transaction, and verify the
-server-side webhook result where applicable.
+RevenueCat login and offering availability are independent.
+`RevenueCat login
+succeeded` confirms identity linking only. A complete purchase
+smoke test must also load both packages, complete/restore the transaction, and
+verify the server-side webhook result where applicable.
 
 Client `CustomerInfo` controls local presentation and purchase UX only. It
 cannot write durable backend access, and local paid access opens only when
-RevenueCat reports `verified` or `verifiedOnDevice` entitlement verification.
-An unverified snapshot immediately closes local paid state. Store provenance is
+RevenueCat reports `verified` or `verifiedOnDevice` entitlement verification. An
+unverified snapshot immediately closes local paid state. Store provenance is
 also part of that local decision: `pro_annual`, entitlement rows, and the
-detached seven-day pass must resolve to a store allowed by the active binding.
-A stable purchase principal accepts only exact Apple App Store provenance in
+detached seven-day pass must resolve to a store allowed by the active binding. A
+stable purchase principal accepts only exact Apple App Store provenance in
 Release builds. Promotional provenance is admitted only by the approved
 legacy/account-grant compatibility lane; Test Store is an explicit Debug-only
 test path. Mac App Store, Play Store, Stripe, RevenueCat Billing, External,
 Paddle, Amazon, Galaxy, and missing/unknown provenance fail closed even when
-RevenueCat lists `pro_annual` as active.
-RevenueCat SDK log bodies are discarded; fixed severity-only messages prevent
-provider responses or identifiers from entering unified logs. The Supabase webhook independently
+RevenueCat lists `pro_annual` as active. RevenueCat SDK log bodies are
+discarded; fixed severity-only messages prevent provider responses or
+identifiers from entering unified logs. The Supabase webhook independently
 verifies RevenueCat's configured bearer credential and raw-body HMAC, fetches
 authoritative server-side CustomerInfo, and applies each unique event through a
 per-user monotonic database transaction. Duplicate or delayed deliveries and a
@@ -250,12 +260,13 @@ The client distinguishes three questions:
   not reusable capacity. This value is advisory until `claimFunding` reserves a
   class for the stable scan ID.
 
-Every capture path calls `EntitlementManager.claimFunding(scanId:flashFallbackEligible:)`
-synchronously before writing files or starting foreground inference. The claim
-is idempotent for one active account and scan and records paid Pro, locally
-reserved complimentary Pro, immediate Flash, or deferred Flash with earlier
-blocker scan IDs. Locally available complimentary capacity is the verified
-server availability minus every unresolved local complimentary reservation and
+Every capture path calls
+`EntitlementManager.claimFunding(scanId:flashFallbackEligible:)` synchronously
+before writing files or starting foreground inference. The claim is idempotent
+for one active account and scan and records paid Pro, locally reserved
+complimentary Pro, immediate Flash, or deferred Flash with earlier blocker scan
+IDs. Locally available complimentary capacity is the verified server
+availability minus every unresolved local complimentary reservation and
 conservative pre-protocol-3 blocker. This is the concurrency boundary that
 prevents one stale remaining credit from admitting multiple offline Pro scans.
 
@@ -267,22 +278,22 @@ authoritative entitlement after released/absent terminal state and terminal
 consumption, and persists any paid, complimentary, or immediate-Flash
 reclassification before dispatch.
 
-Funding lives in `OfflineJobRecord.metadataJSON` beside
-`inference_generation`. A proven pre-dispatch failure is released only after a
-durable `funding_reservation_released` marker is saved; ambiguous network
-outcomes remain reserved. Relaunch restores nonterminal claims, while that
-marker prevents an intentionally released legacy job from being restored as a
-blocker. Manual retry of released work makes a fresh synchronous claim. A 402
-invalidates complimentary proof until an authoritative refresh. Completion uses
-both `plan_used` and `credit_consumed`; `pro_complimentary` with
+Funding lives in `OfflineJobRecord.metadataJSON` beside `inference_generation`.
+A proven pre-dispatch failure is released only after a durable
+`funding_reservation_released` marker is saved; ambiguous network outcomes
+remain reserved. Relaunch restores nonterminal claims, while that marker
+prevents an intentionally released legacy job from being restored as a blocker.
+Manual retry of released work makes a fresh synchronous claim. A 402 invalidates
+complimentary proof until an authoritative refresh. Completion uses both
+`plan_used` and `credit_consumed`; `pro_complimentary` with
 `credit_consumed = false` releases the local assumption.
 
 Scan response metadata cannot establish a launch baseline. If a stored or live
-response arrives first, the manager buffers only the newest valid snapshot,
-then reconciles it after `get_my_entitlement()`. Once verified, snapshots apply
-only when `entitlementVersion` is at least the installed version, so an
-out-of-order replay cannot restore a stale balance. Session changes and sign-out
-clear the proof and buffer.
+response arrives first, the manager buffers only the newest valid snapshot, then
+reconciles it after `get_my_entitlement()`. Once verified, snapshots apply only
+when `entitlementVersion` is at least the installed version, so an out-of-order
+replay cannot restore a stale balance. Session changes and sign-out clear the
+proof and buffer.
 
 The accepted product, API, offline, and rollout rules are canonical in
 [Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
@@ -300,12 +311,13 @@ the strict server cutover or a production submission.
   recognized account kind.
 - Local paid access requires verified RevenueCat CustomerInfo. Unverified,
   failed, or stale-session results fail closed.
-- An unclassified `401` preserves the active Supabase identity. Ghost replacement
-  requires an explicit missing/invalid-session response and a failed SDK refresh.
+- An unclassified `401` preserves the active Supabase identity. Ghost
+  replacement requires an explicit missing/invalid-session response and a failed
+  SDK refresh.
 - Normal sign-out is device-local, clears RevenueCat's local linked-state fence
   and PostHog identity, and never asks RevenueCat to generate an anonymous App
-  User ID. It does not change the durable account-wide analytics choice on
-  other devices.
+  User ID. It does not change the durable account-wide analytics choice on other
+  devices.
 - Client SDK keys are extractable app configuration, never service-role or
   provider secrets.
 - The iOS target must never contain `REVENUECAT_WEBHOOK_SECRET`,
@@ -313,8 +325,8 @@ the strict server cutover or a production submission.
   synchronized only to Supabase Edge.
 - RevenueCat-derived plan data is read durably by the backend; entitlement
   lookup failures fail closed before AI provider dispatch.
-- Complimentary entitlement is current-session server state, never a Keychain
-  or `UserDefaults` authorization flag.
+- Complimentary entitlement is current-session server state, never a Keychain or
+  `UserDefaults` authorization flag.
 - Local consent state closes the app gate immediately, but it cannot authorize
   Gemini by itself. Current versioned adult confirmation, Terms, and Gemini
   evidence must also exist at the service-only quota boundary before provider
@@ -337,11 +349,11 @@ the strict server cutover or a production submission.
   it in memory only after the throwing storage boundary verifies the complete
   atomic write. Onboarding cannot set its completion flag after a failed write.
   The three Ready-step switch labels omit terminal periods, and new adult,
-  Terms, Gemini, and analytics evidence persists that exact displayed copy;
-  this punctuation-only revision does not change the policy versions.
-  Analytics withdrawal closes capture before storage, writes its Keychain
-  journal before the primary ledger, and remains off while either recovery or
-  journal cleanup is pending.
+  Terms, Gemini, and analytics evidence persists that exact displayed copy; this
+  punctuation-only revision does not change the policy versions. Analytics
+  withdrawal closes capture before storage, writes its Keychain journal before
+  the primary ledger, and remains off while either recovery or journal cleanup
+  is pending.
 - Realtime account-wide analytics changes must start reliably after session
   establishment and recover after channel failure; foreground reconciliation is
   a second safety net, not the only synchronization mechanism.
@@ -351,8 +363,9 @@ the strict server cutover or a production submission.
   wrong-account, stale-generation, and non-single-row results before applying
   any functional access.
 - Authentication and purchase logs contain no account, Auth, RevenueCat
-  customer, purchase-principal, capability, provider-body, URL, or raw-error
-  values; fixed operation/error kinds are the only diagnostic payload.
+  customer, purchase-principal, installation capability/fingerprint, stable
+  sign-out rotation UUID/secret/hash/journal field, provider body, URL, or raw
+  error values; fixed operation/error kinds are the only diagnostic payload.
 
 See
 [`02-revenue-and-identity.md`](../../../../../docs/features-and-hardware/02-revenue-and-identity.md),
