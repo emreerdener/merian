@@ -43,7 +43,8 @@ struct InsightContentRouterView: View {
                         NonBiologicalView(
                             viewModel: viewModel,
                             species: speciesData,
-                            commonName: speciesData.commonName,
+                            isAudioOnlyObservation: viewModel.hasStandaloneAudio &&
+                                !viewModel.activeMedia.hasUserImage,
                             timestamp: viewModel.activeRecordTimestamp
                         )
                         .transition(.opacity)

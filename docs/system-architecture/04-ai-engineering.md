@@ -62,23 +62,21 @@ The AI inference layer is split across three files under
   tasks** (`executeTrackedBackgroundTask`): Best-effort Wikipedia, GBIF, and
   enrichment DB writes that are not tied to an identification review action are
   dispatched via `executeTrackedBackgroundTask { }`. This method assigns each
-  task a `UUID` key in
-  `backgroundWriteTasks: [UUID: Task<Void, Never>]` and removes it on completion
-  via `defer { removeValue(forKey: id) }`. Review-bound metadata plus confirm,
-  override, flag, unflag, and reset persistence instead use the serial
-  `identificationReviewWriteTail`, preserving newest-action final-writer order.
-  A
-  `backgroundWriteTaskCap = 8` and `pendingBackgroundWriteTaskCap = 8` guards
-  prevent unbounded accumulation. If all active slots are occupied, at most
-  eight best-effort metadata writes wait in `pendingBackgroundTasks`; further
-  submissions are dropped until capacity returns. When any tracked task
-  completes, `drainPendingBackgroundTasks()` (called on `@MainActor`) dequeues
-  and starts the next pending write. This bounds retained closures as well as
-  live `BackgroundDatabaseActor` / `ModelContext` instances. The entire
-  dictionary and pending FIFO are cancelled and cleared in
-  both `cancelActiveRequest()` and `prepareForNewScan()`, ensuring that a write
-  task from a previous scan's review action cannot commit stale data after the
-  next scan has started.
+  task a `UUID` key in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and
+  removes it on completion via `defer { removeValue(forKey: id) }`. Review-bound
+  metadata plus confirm, override, flag, unflag, and reset persistence instead
+  use the serial `identificationReviewWriteTail`, preserving newest-action
+  final-writer order. A `backgroundWriteTaskCap = 8` and
+  `pendingBackgroundWriteTaskCap = 8` guards prevent unbounded accumulation. If
+  all active slots are occupied, at most eight best-effort metadata writes wait
+  in `pendingBackgroundTasks`; further submissions are dropped until capacity
+  returns. When any tracked task completes, `drainPendingBackgroundTasks()`
+  (called on `@MainActor`) dequeues and starts the next pending write. This
+  bounds retained closures as well as live `BackgroundDatabaseActor` /
+  `ModelContext` instances. The entire dictionary and pending FIFO are cancelled
+  and cleared in both `cancelActiveRequest()` and `prepareForNewScan()`,
+  ensuring that a write task from a previous scan's review action cannot commit
+  stale data after the next scan has started.
 - **`CaptureTelemetry` abstraction (`Analysis.swift`)**: Telemetry context
   creation is strictly abstracted away from UI controllers. Instead of
   view-layers writing inline logic trees to calculate and map GPS/Weather
@@ -126,7 +124,16 @@ schema, thresholds, DB helpers, media validation, and moderation logic:
   tooling.
 - **`_shared/identify/schema.ts`**: The vision `systemInstruction` and cached
   provider schema generated from the executable contract. The Describe route
-  generates its text-only zero-image-quality variant from the same contract.
+  generates its text-only zero-image-quality variant, and both audio-only routes
+  generate their private-discriminator variant from the shared audio contract.
+- **`_shared/identify/audioSubjectPolicy.ts`**: The single audio-only prompt and
+  structural normalization policy shared by active audio-only
+  `/identify-multimodal` and compatibility `/audio-spec`. Its private provider
+  discriminator orders resolved non-human, unresolved non-human, Human-only, and
+  no-confident-biological-source results. It is consumed before public response
+  assembly, so the existing Identify fields and generated Swift DTOs remain
+  unchanged. Blended requests reuse only its non-human-over-Human acoustic
+  tie-break and keep the existing cross-modal arbitration.
 - **`_shared/identify/types.ts`**: Request/database contracts and the
   `MerianIdentification` / `ClientPayload` aliases inferred from `contract.ts`.
 
@@ -137,7 +144,9 @@ fields, before persistence or client delivery. This final gate rejects
 requiredness, nullability, nested type, enum, cardinality, string, safe-integer,
 and numeric-bound drift with stable public code `identify_response_invalid`. The
 generated Swift boundary is checked exactly across the full iOS source graph by
-`make validate-edge-dto-contract`.
+`make validate-edge-dto-contract`. Audio-only normalization reads only the
+private discriminator and structured identity fields, never `ai_reasoning`, and
+provider response text is excluded from parse-failure logs.
 
 - **`_shared/identify/clientPayload.ts`**: Shared payload hydration for
   cache-hit species responses. Ensures `/identify` and `/identify-multimodal`
@@ -656,11 +665,10 @@ provider dispatch:
   backward-compatible `tier` plus explicit `effective_tier`, `plan`,
   `subscription_tier`, `trial_active`, and `llm_model` fields so
   `gemini-2.5-pro` spend can be split between paid Pro, complimentary Pro, and
-  historical trial Pro. The
-  `/identify` `ScanCompleted` event also includes `llm_cached_tokens` (from
-  `usageMetadata.cachedContentTokenCount`) to track implicit cache hit volume —
-  a non-zero value means Google served those prefix tokens from cache at the 75%
-  discount rate.
+  historical trial Pro. The `/identify` `ScanCompleted` event also includes
+  `llm_cached_tokens` (from `usageMetadata.cachedContentTokenCount`) to track
+  implicit cache hit volume — a non-zero value means Google served those prefix
+  tokens from cache at the 75% discount rate.
 - **Field Chat (`insight-chat` + `explore-post-chat`)**: Pro follow-up chat uses
   `gemini-2.5-flash` from authenticated Edge Functions and appears as an Insight
   or private per-viewer Explore conversation surface. Insight context is
@@ -691,25 +699,25 @@ provider dispatch:
   copied message identity. Conversation-optional feature feedback has its own
   exact scan-owner binding; impossible historical cross-bound private rows are
   removed before those constraints validate
-  (`20260730180000_bind_field_chat_rows_to_subjects.sql`).
-  Deterministic assistant UUIDv8 rows and read-after-write reconciliation make
-  answer persistence idempotent, including concurrent local refusals. In-flight
-  replay polling is bounded, failed provider or persistence attempts resume
-  under the same UUID, and iOS requires the exact pair, bounded message text,
-  and a 1 MiB decode ceiling before clearing a pending send. Manual retry
-  preserves the UUID rather than creating another question. Prompt suggestions
-  are non-persisted, at most three strings of 120 characters, use allowlisted
-  telemetry categories, and do not consume the send limit. Action-intent
-  filtering blocks ingestion, treatment, dangerous handling, exact-location, and
-  human-identification requests without rejecting harmless species names or
-  educational ecology language. Insight note summaries scrub canonical UUIDs
-  including UUIDv7 and fall back to bounded non-sensitive text if scrubbing
-  empties the draft. An exact-row-bound service routine may reopen a committed
-  request only after a ten-minute crash-safety window and proof that its
-  assistant is absent; the retry is newly metered. Apply the atomic reservation
-  migration before both functions, then smoke same-UUID replay, different-key
-  concurrency, both limits, stale recovery, and empty/action subject echoes
-  before shipping the fail-closed iOS validator.
+  (`20260730180000_bind_field_chat_rows_to_subjects.sql`). Deterministic
+  assistant UUIDv8 rows and read-after-write reconciliation make answer
+  persistence idempotent, including concurrent local refusals. In-flight replay
+  polling is bounded, failed provider or persistence attempts resume under the
+  same UUID, and iOS requires the exact pair, bounded message text, and a 1 MiB
+  decode ceiling before clearing a pending send. Manual retry preserves the UUID
+  rather than creating another question. Prompt suggestions are non-persisted,
+  at most three strings of 120 characters, use allowlisted telemetry categories,
+  and do not consume the send limit. Action-intent filtering blocks ingestion,
+  treatment, dangerous handling, exact-location, and human-identification
+  requests without rejecting harmless species names or educational ecology
+  language. Insight note summaries scrub canonical UUIDs including UUIDv7 and
+  fall back to bounded non-sensitive text if scrubbing empties the draft. An
+  exact-row-bound service routine may reopen a committed request only after a
+  ten-minute crash-safety window and proof that its assistant is absent; the
+  retry is newly metered. Apply the atomic reservation migration before both
+  functions, then smoke same-UUID replay, different-key concurrency, both
+  limits, stale recovery, and empty/action subject echoes before shipping the
+  fail-closed iOS validator.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:
@@ -718,20 +726,19 @@ provider dispatch:
   `FLASH_DIAGNOSTIC_TRIGGER = 0.99`, `PRO_STRONG = 0.85`, `PRO_POSSIBLE = 0.65`,
   `PRO_DIAGNOSTIC_TRIGGER = 0.99`, and `diagnosticTriggerForTier(tier)`. The iOS
   client mirrors the strong/possible thresholds in
-  `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The
-  Possible thresholds are also the automatic evidence boundary for Field trip
-  progress. An unreviewed score below the applicable boundary must not receive
-  standard outing or Event credit; explicit confirmation or a confirmed
+  `MerianConfig.flashConfidence` and `MerianConfig.proConfidence`. The Possible
+  thresholds are also the automatic evidence boundary for Field trip progress.
+  An unreviewed score below the applicable boundary must not receive standard
+  outing or Event credit; explicit confirmation or a confirmed
   correction/community resolution can qualify it later. Any threshold change
   must update the database evidence helper, migration contract, Field trip
   behavior tests, and
   [canonical progress policy](../features-and-hardware/25-field-trips.md#identification-evidence-policy)
-  together. The
-  diagnostic trigger (0.99 for both tiers) is intentionally above the `strong`
-  threshold — candidates are stripped only when the model is effectively
-  certain, so Possible, Weak, and Strong scans below `0.99` can still persist
-  candidate alternatives as an escape hatch. Client display remains gated by
-  `CandidateReviewVisibilityPolicy`.
+  together. The diagnostic trigger (0.99 for both tiers) is intentionally above
+  the `strong` threshold — candidates are stripped only when the model is
+  effectively certain, so Possible, Weak, and Strong scans below `0.99` can
+  still persist candidate alternatives as an escape hatch. Client display
+  remains gated by `CandidateReviewVisibilityPolicy`.
   - **Similar species**: The enrichment path fetches or generates
     `similar_species` when validated lookalikes are not already cached in the
     database. The Swift client renders those entries with the stable "Similar
@@ -1017,8 +1024,8 @@ users do not memorise the sequence, and subject-specific phrases take over only
 when Vision produced a confident category. Phrases advance every 2.3 seconds
 through `MerianConfig.scanningPhaseRotationIntervalNs`.
 
-`InferenceEngine.genericScanningPhasePhrases` exposes the same generic deck as
-a read-only `nonisolated` value for queued Insights. `QueuedContentView` reuses
+`InferenceEngine.genericScanningPhasePhrases` exposes the same generic deck as a
+read-only `nonisolated` value for queued Insights. `QueuedContentView` reuses
 that vocabulary while the server is actively processing, while preserving
 queue-specific phrases for upload, retry, finalization, offline, and
 needs-attention states. Both paths render through `ScanningExperienceView`, so
@@ -1067,20 +1074,19 @@ insight sheet display.
   or relaunch keeps recovery durable without creating uplink contention. All
   other online queue-backed live paths may stage recovery media immediately, but
   their exact foreground inference generation prevents replay from starting a
-  competing identification. A final online check after the bounded context
-  grace catches path changes before dispatch. After dispatch, the required
-  customer contract retires the live provider generation and binds that same
-  sheet to the durable queued scan on the first transport failure, where
-  **Queued for later** replaces a synthetic network error while background
-  recovery continues. The durable-queue-owned foreground request is capped at
-  15 seconds, more than twice the documented six-second cache-hit p95 target;
-  direct queue-less requests retain the 90-second provider window. Source now
-  enforces that post-dispatch contract by using exact local presentation
-  identity for the queued acknowledgement after connectivity retirement;
-  provider/result commits still require durable ownership. A gated URLSession
-  regression protects both path-retirement ordering and a path-satisfied
-  timeout with the owner still active. Hosted exact-SHA and physical-device
-  acceptance remain open; see the
+  competing identification. A final online check after the bounded context grace
+  catches path changes before dispatch. After dispatch, the required customer
+  contract retires the live provider generation and binds that same sheet to the
+  durable queued scan on the first transport failure, where **Queued for later**
+  replaces a synthetic network error while background recovery continues. The
+  durable-queue-owned foreground request is capped at 15 seconds, more than
+  twice the documented six-second cache-hit p95 target; direct queue-less
+  requests retain the 90-second provider window. Source now enforces that
+  post-dispatch contract by using exact local presentation identity for the
+  queued acknowledgement after connectivity retirement; provider/result commits
+  still require durable ownership. A gated URLSession regression protects both
+  path-retirement ordering and a path-satisfied timeout with the owner still
+  active. Hosted exact-SHA and physical-device acceptance remain open; see the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - **First-result commit before secondary work** (`InferenceEngine.swift`): after
   response parsing and local persistence, saved media and `speciesData` are
@@ -1155,15 +1161,15 @@ insight sheet display.
   optional `EdgeRuntime.waitUntil` work.
 - **Atomic critical-path consent and entitlement reservation**: Before iOS
   constructs a provider request, it pushes pending account consent and requires
-  a fresh adult/Terms/all-version-Gemini-head proof. The service-role RPC repeats
-  that consent decision before creating any reservation. Only then does it lock
-  the user before quota or ledger rows, resolve `pro_paid`,
+  a fresh adult/Terms/all-version-Gemini-head proof. The service-role RPC
+  repeats that consent decision before creating any reservation. Only then does
+  it lock the user before quota or ledger rows, resolve `pro_paid`,
   `pro_complimentary`, or `free`, acquire an idempotent hold keyed by
   `(user_id, client_scan_id)`, select the operation's allowlisted model, and
   conditionally consume UTC-day/user/IP provider counters. Retries, internal
   replay, enrichment, chat, and subcalls retain the original analysis linkage
-  without acquiring another credit. Each provider attempt has a ten-minute
-  lease and UUID fencing token. Active timed passes are paid Pro; stale expired
+  without acquiring another credit. Each provider attempt has a ten-minute lease
+  and UUID fencing token. Active timed passes are paid Pro; stale expired
   profiles resolve free. Missing/malformed user rows and database errors fail
   closed. `403 ai_consent_required` therefore consumes no entitlement or
   provider quota and is routed to durable disclosure recovery, while `402` and
@@ -1179,11 +1185,11 @@ insight sheet display.
   is `reserved` and are preserved after an attempted call. Complimentary holds
   settle independently: durable scan plus required media completion consumes a
   hold (including valid non-biological results), proven terminal failures
-  release it, and retryable or ambiguous outcomes remain held for recovery.
-  The service-only completion orchestrator locks the user before established
-  scan/job locks and stores the enriched entitlement envelope atomically.
-  The complete state machine, derived balances, client protocol, and rollout
-  rules are normative in
+  release it, and retryable or ambiguous outcomes remain held for recovery. The
+  service-only completion orchestrator locks the user before established
+  scan/job locks and stores the enriched entitlement envelope atomically. The
+  complete state machine, derived balances, client protocol, and rollout rules
+  are normative in
   [`18-complimentary-pro-scans.md`](../backend-and-data/18-complimentary-pro-scans.md).
 - **No hidden enrichment dispatch**: Overview, lookalike, and group-tag cache
   misses each reserve their explicit operation and pass the database-selected

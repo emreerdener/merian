@@ -778,6 +778,44 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.canReanalyze == true)
     }
 
+    @Test func testUnresolvedAudioKeepsReanalysisWithoutSpeciesActions() {
+        let scanId = "unresolved_audio_reanalysis"
+        let viewModel = InsightSheetViewModel()
+        let engine = InferenceEngine()
+        engine.activeMedia = ActiveScanMedia(items: [.audio("unresolved.wav")])
+        engine.speciesData = SpeciesData(
+            scanId: scanId,
+            commonName: "Unidentified Wildlife",
+            scientificName: "Taxonomy Unavailable",
+            insightData: InsightData(
+                aiReasoning: "A non-human sound is present but unresolved.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.98,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "unknown"
+        )
+        viewModel.inferenceEngine = engine
+
+        let record = LocalScanRecord(
+            id: scanId,
+            speciesId: "unresolved_audio_subject",
+            scientificName: "Taxonomy Unavailable",
+            commonName: "Unidentified Wildlife"
+        )
+        viewModel.activeLocalRecord = record
+        viewModel.activeLocalRecordId = record.id
+        viewModel.toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
+
+        #expect(viewModel.hasStandaloneAudio)
+        #expect(viewModel.canReanalyze)
+        #expect(!viewModel.canConfirm)
+        #expect(!viewModel.canReviewAlternatives)
+        #expect(!viewModel.canShareToExplore)
+    }
+
     @Test func testIdentificationConcernCandidatesUseStoredAlternativesWithoutChangingToolbarPolicy() {
         let viewModel = InsightSheetViewModel()
         let engine = InferenceEngine()
@@ -1606,6 +1644,71 @@ struct InsightSheetViewModelTests {
         #expect(
             viewModel.state.fieldNotesPresentationGeneration ==
                 viewModel.scanBoundActionGeneration
+        )
+    }
+
+    @Test func testQueuedMediaCachePreservesFocusRegionsAcrossLifecycleHandoffs() throws {
+        let focusRegion = NormalizedImageFocusRegion(
+            x: 0.12,
+            y: 0.18,
+            width: 0.42,
+            height: 0.51
+        )
+        let descriptorData = try JSONEncoder().encode([
+            IdentifyVisualMediaItem.image(
+                sourceIndex: 0,
+                focusRegion: focusRegion
+            )
+        ])
+        let visualMediaItemsJSON = try #require(
+            String(data: descriptorData, encoding: .utf8)
+        )
+
+        func queuedContext(
+            id: String,
+            imagePath: String,
+            queueState: ScanQueueState
+        ) -> QueuedScanContext {
+            QueuedScanContext(
+                id: id,
+                capturedMediaItems: [.image(.documents(imagePath))],
+                queueState: queueState,
+                timestamp: Date(timeIntervalSince1970: 1),
+                visualMediaItemsJSON: visualMediaItemsJSON
+            )
+        }
+
+        let initialContext = queuedContext(
+            id: "queued_focus_1",
+            imagePath: "initial.webp",
+            queueState: .pending
+        )
+        let viewModel = InsightSheetViewModel(queuedContext: initialContext)
+
+        #expect(viewModel.cachedActiveMedia?.focusRegionsBySourceIndex[0] == focusRegion)
+
+        let refreshedContext = queuedContext(
+            id: initialContext.id,
+            imagePath: "refreshed.webp",
+            queueState: .inferencing
+        )
+        #expect(viewModel.refreshQueuedContextIfCurrent(
+            refreshedContext,
+            expectedScanId: initialContext.id
+        ))
+        #expect(viewModel.cachedActiveMedia?.focusRegionsBySourceIndex[0] == focusRegion)
+
+        let replacementContext = queuedContext(
+            id: "queued_focus_2",
+            imagePath: "replacement.webp",
+            queueState: .inferencing
+        )
+        viewModel.bindQueuedPresentation(replacementContext)
+
+        #expect(viewModel.cachedActiveMedia?.focusRegionsBySourceIndex[0] == focusRegion)
+        #expect(
+            viewModel.resolvedMedia(for: replacementContext)
+                .focusRegionsBySourceIndex[0] == focusRegion
         )
     }
 

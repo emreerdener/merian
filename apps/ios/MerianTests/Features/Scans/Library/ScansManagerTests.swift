@@ -230,6 +230,25 @@ final class ScansManagerTests: XCTestCase {
             commonName: "Monarch Butterfly",
             isBiological: false
         )
+        let human = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Homo sapiens",
+            commonName: "Human",
+            isBiological: true
+        )
+        let malformedHistoricalHuman = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Homo sapien",
+            commonName: "Unknown Subject",
+            isBiological: true
+        )
+        let humanOverride = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Turdus migratorius",
+            commonName: "American Robin",
+            isBiological: true,
+            userIdentificationOverride: "Human"
+        )
         let userCorrected = LocalScanRecord(
             speciesId: UUID().uuidString,
             scientificName: LocalScanRecord.unresolvedBiologicalScientificName,
@@ -243,6 +262,9 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertFalse(taxonomyUnavailable.isExploreShareEligible)
         XCTAssertFalse(unknownCommonName.isExploreShareEligible)
         XCTAssertFalse(nonBiological.isExploreShareEligible)
+        XCTAssertFalse(human.isExploreShareEligible)
+        XCTAssertFalse(malformedHistoricalHuman.isExploreShareEligible)
+        XCTAssertFalse(humanOverride.isExploreShareEligible)
         XCTAssertTrue(userCorrected.isExploreShareEligible)
     }
 

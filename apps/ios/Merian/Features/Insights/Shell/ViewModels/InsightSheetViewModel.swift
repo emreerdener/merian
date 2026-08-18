@@ -42,7 +42,7 @@ final class InsightSheetViewModel {
         self.fieldTripContributionLoader = fieldTripContributionLoader
         self.fieldTripAuthenticationResolver = fieldTripAuthenticationResolver
         self.fieldTripAvailabilityResolver = fieldTripAvailabilityResolver
-        self.cachedActiveMedia = queuedContext?.capturedMediaSnapshot.activeScanMedia
+        self.cachedActiveMedia = queuedContext?.activeScanMedia
     }
 
     var toastAction: (() -> Void)?

@@ -358,6 +358,16 @@ identical:
   endpoints.
 - **`context.ts`**: Telemetry context normalization, month/time handling, and
   ecological field clamping.
+- **`audioSubjectPolicy.ts`**: Shared audio-only subject precedence, prompt
+  fragments, private-provider discriminator normalization, and public-field
+  canonicalization for `identify-multimodal` and `audio-spec`. Non-human animals
+  outrank Human; Human canonicalizes to `Human` / `Homo sapiens`; confidently
+  present but unresolved wildlife stays biological; and recordings without a
+  confident biological source normalize to `No Wildlife Detected`. The helper
+  consumes and removes `audio_subject_type` and never classifies from model
+  reasoning. A resolved non-human taxon keeps its normal candidates; if its
+  common name is missing, unresolved, or incorrectly Human, the scientific name
+  becomes the safe display fallback without changing the non-human decision.
 - **`db.ts`**: Scan insert/update helpers, species cache writes, and shared
   database boundaries. Duplicate-safe scan creation is followed by owner-scoped
   read-back so a no-op or cross-owner collision cannot resolve as success.
@@ -390,8 +400,9 @@ identical:
 - **`googleSchema.ts`**: Typed adapter from the provider-neutral projection into
   the pinned `@google/genai` `Schema`; SDK field-shape changes fail compilation
   without loading SDK runtime code into contract tooling.
-- **`schema.ts`**: Vision prompt plus the cached Gemini schema generated from
-  `contract.ts` through `googleSchema.ts`.
+- **`schema.ts`**: Vision prompt plus cached Gemini schemas generated from
+  `contract.ts` through `googleSchema.ts`, including the shared provider-private
+  audio variant used by both audio-only routes.
 - **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by
   `MerianConfig`.
 - **`types.ts`**: Shared request/database types plus model and client payload

@@ -445,23 +445,61 @@ struct InferenceEngineTests {
     }
 
     @Test func testLoadFromLocalScanRecordWithNilConfidenceDoesNotDefaultToPerfectMatch() async throws {
+        let staleCandidates = try JSONEncoder().encode([
+            IdentificationCandidate(
+                scientificName: "Turdus migratorius",
+                confidenceScore: 0.75
+            )
+        ])
         let record = LocalScanRecord(
             speciesId: "species_unresolved",
             scientificName: LocalScanRecord.unresolvedBiologicalScientificName,
             commonName: LocalScanRecord.unresolvedBiologicalCommonName,
             isBiological: true,
             confidenceScore: nil,
+            candidatesData: staleCandidates,
             gbifTaxonKey: 12345
         )
         let engine = InferenceEngine()
 
         engine.load(from: record)
-        try await Task.sleep(nanoseconds: 50_000_000)
+        await engine.historicHydrationTask?.value
 
         let resultingData = try #require(engine.speciesData, "SpeciesData should not be nil after loading")
         #expect(resultingData.confidenceScore == 0.0)
         #expect(resultingData.confidenceScore != 1.0, "Missing local confidence must not render as 100% confident")
+        #expect(resultingData.candidates == nil, "Unresolved compatibility records must not restore stale candidates")
+        #expect(resultingData.gbifTaxonKey == nil, "Unresolved compatibility records must not restore stale taxon metadata")
         #expect(engine.activeMedia.referenceState == .empty, "Unresolved placeholder records must not show a phantom reference-loading page")
+    }
+
+    @Test func testLoadFromMalformedHistoricalHumanSuppressesSpeciesHydration() async throws {
+        let staleCandidates = try JSONEncoder().encode([
+            IdentificationCandidate(
+                scientificName: "Turdus migratorius",
+                confidenceScore: 0.75
+            )
+        ])
+        let record = LocalScanRecord(
+            speciesId: "legacy-human",
+            scientificName: "Homo sapien",
+            commonName: "Unknown Subject",
+            isBiological: true,
+            wikipediaOverview: "Stale overview",
+            referenceImageUrl: "https://example.com/stale-human-reference.jpg",
+            candidatesData: staleCandidates,
+            gbifTaxonKey: 2436436
+        )
+        let engine = InferenceEngine()
+
+        engine.load(from: record)
+        await engine.historicHydrationTask?.value
+
+        let resultingData = try #require(engine.speciesData)
+        #expect(resultingData.isHumanSubject)
+        #expect(resultingData.candidates == nil)
+        #expect(resultingData.gbifTaxonKey == nil)
+        #expect(engine.activeMedia.referenceState == .empty)
     }
 
     @Test func testLoadFromLocalScanRecordSnapshotsReferenceImageBeforeAsyncHydration() async throws {
@@ -954,7 +992,7 @@ struct InferenceEngineTests {
             speciesId: "species_procyon",
             scientificName: "Procyon lotor",
             commonName: "Raccoon",
-            isBiological: false,
+            isBiological: true,
             similarSpecies: ["Procyon cancrivorus", "Bassariscus astutus"]
         )
         let engine = InferenceEngine()

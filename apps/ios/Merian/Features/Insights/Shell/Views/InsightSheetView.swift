@@ -412,6 +412,12 @@ struct InsightSheetView: View {
                     speciesData: speciesData,
                     displayName: viewModel.resolvedHeaderTitle,
                     timestamp: viewModel.activeRecordTimestamp,
+                    prepareForInitialLoad: {
+                        await prepareInsightChatForInitialLoad(
+                            expectedScanId: scanId,
+                            expectedGeneration: chatGeneration
+                        )
+                    },
                     onToast: { message in
                         guard viewModel.isPresentingLocalRecord(
                             scanId: scanId,

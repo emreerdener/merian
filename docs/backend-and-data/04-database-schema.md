@@ -3189,8 +3189,11 @@ coordinates to the client contract.
   scan; validates bounded media, contiguous order, hashtags, and source-array
   membership; resolves an omitted location choice from the locked scan; then
   replaces post metadata, media, hashtags, and resolved-community publication
-  state in one statement transaction. `PUBLIC`, `anon`, and `authenticated`
-  cannot execute it. Any error rolls the prior complete post snapshot back.
+  state in one statement transaction. The calling Edge boundary separately
+  requires resolved non-Human taxonomy and rejects Human/unresolved overrides
+  before invoking this relational transaction. `PUBLIC`, `anon`, and
+  `authenticated` cannot execute it. Any error rolls the prior complete post
+  snapshot back.
 - `public.request_community_identification_atomically(p_scan_id UUID, p_user_id UUID, p_note TEXT, p_location_sharing TEXT, p_species_common_name TEXT, p_media_rows JSONB, p_initial_taxon_node_id UUID, p_taxonomy_version_id UUID)`:
   Service-role-only `SECURITY INVOKER` Ask the Community boundary. It preserves
   request-before-scan lock order, verifies the initial taxon belongs to the
@@ -4912,18 +4915,21 @@ user cycles through overrides.
 (`apps/ios/Merian/Core/Data/Database/ScanRepository.swift`):
 `HistoricalScanResponse` (the cloud sync DTO) includes
 `candidates: [CloudIdentificationCandidate]?`,
-`pet_identification: PetIdentification?`,
+`pet_identification: PetIdentification?`, `is_biological_subject: Bool?`,
 `user_identification_override: String?`, `user_confirmed_identification: Bool?`,
 and `image_quality_score: Int?` fields. `CloudIdentificationCandidate` is a
 plain `Codable` struct (`scientific_name: String`, `confidence_score: Double`)
 that maps the JSONB array from `public.scans`. `ingestScans` re-encodes
-candidates to `[IdentificationCandidate]`, writes
-`user_identification_override`, writes `user_confirmed_identification`
+candidates to `[IdentificationCandidate]`, writes `is_biological_subject` when
+present (retaining the historical `true` default only for older null rows),
+writes `user_identification_override`, writes `user_confirmed_identification`
 (defaulting to `false`), and writes `image_quality_score`. `updateExistingScans`
-only writes `candidatesData` if `existing.candidatesData == nil`; only writes
+reconciles `isBiological` only from a non-null cloud value, only writes
+`candidatesData` if `existing.candidatesData == nil`, only writes
 `userConfirmedIdentification` in the `true` direction (cloud=true, local=false)
-to avoid overwriting an unsynced local state; backfills `imageQualityScore` when
-the local value is `nil` and the cloud has a value.
+to avoid overwriting an unsynced local state, and backfills `imageQualityScore`
+when the local value is `nil` and the cloud has a value. This reuses the
+existing local field and requires no SwiftData schema migration.
 
 ### `OfflineQueuedScan`
 

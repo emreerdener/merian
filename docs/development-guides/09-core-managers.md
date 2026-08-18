@@ -771,9 +771,13 @@ triggering excessive SwiftUI view rebuilds.
   `MerianConfig.collectionsSyncPageSize`), then delegates all reconciliation to
   a single
   `HistoricalDatabaseActor.reconcileAllHistoricalData(responses:collections:)`
-  call. **Never reorder the push and pull** — reversing them causes unsynced
-  local collections to be treated as obsolete and deleted on the next app
-  launch.
+  call. The scan projection includes the existing nullable
+  `is_biological_subject` field: inserts use the cloud value when present and
+  retain the legacy `true` default only for older null rows, while updates apply
+  only a non-null remote value. Classification is never inferred from stored
+  reasoning. **Never reorder the push and pull** — reversing them causes
+  unsynced local collections to be treated as obsolete and deleted on the next
+  app launch.
 - **`eradicateScan`**: Commits database changes (delete record, insert cloud
   deletion task) before touching disk. File deletion via
   `FileIOActor.shared.deleteImages(at:)` runs only after a successful

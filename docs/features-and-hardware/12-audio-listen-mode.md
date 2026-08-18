@@ -61,8 +61,8 @@ social metadata reuse that image instead of running FFT work in every browser.
 Wrapped in `autoreleasepool` to prevent Obj-C `AVAudioPCMBuffer` objects from
 accumulating across repeated tap callbacks. Emits one spectrogram column per
 2048-frame FFT window, so the live 4096-frame tap buffer contributes two visual
-columns instead of dropping half of the buffer. The returned
-`SpectrogramColumn` values carry:
+columns instead of dropping half of the buffer. The returned `SpectrogramColumn`
+values carry:
 
 - `magnitudes: [Float]` — 128 mel-scaled bins, 0.0–1.0 normalized
 - `rms: Float` — pre-window RMS (used for SNR estimation)
@@ -254,12 +254,12 @@ When recording begins, `CaptureWorkspaceView` calls
 `prepareNonVisualCaptureContext()`. This starts the same pinned environment
 lookup used by camera captures while the user is still recording, hiding the
 reverse-geocoding and WeatherKit latency behind the recording/review flow. Each
-new recording replaces an abandoned lookup. Submission consumes that task; if
-no prefetch exists (for example, a programmatic or legacy entry path), it
-resolves `lastKnownLocation` before constructing queue telemetry. This prevents
-audio scans with valid GPS from losing `locationName`, which would otherwise
-leave an Explore post unable to display a location label after switching the
-post to Open.
+new recording replaces an abandoned lookup. Submission consumes that task; if no
+prefetch exists (for example, a programmatic or legacy entry path), it resolves
+`lastKnownLocation` before constructing queue telemetry. This prevents audio
+scans with valid GPS from losing `locationName`, which would otherwise leave an
+Explore post unable to display a location label after switching the post to
+Open.
 
 ### File Format
 
@@ -455,10 +455,10 @@ instead of a grid of large rectangles. Frequency still increases bottom-to-top
 
 **Display layouts**:
 
-| Layout | Use | Behavior |
-| ------ | --- | -------- |
-| `.liveHorizon(capacity:)` | Active recording | Renders against the full 360-column live horizon so early audio does not stretch into oversized blocks |
-| `.fitToData` | Review, Insight playback, scan thumbnails | Fits the captured columns edge-to-edge for static playback and saved previews |
+| Layout                    | Use                                       | Behavior                                                                                               |
+| ------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `.liveHorizon(capacity:)` | Active recording                          | Renders against the full 360-column live horizon so early audio does not stretch into oversized blocks |
+| `.fitToData`              | Review, Insight playback, scan thumbnails | Fits the captured columns edge-to-edge for static playback and saved previews                          |
 
 **Colormap**: A smoothed perceptual palette maps near-black background values
 through deep blue, cyan, green, warm yellow, and pale highlights. The same
@@ -475,11 +475,11 @@ label when audio hints are enabled. The stored prompt task is cancelled on
 unmount, the surface disables hit testing, and no delayed dispatch chain or
 keyframe shake survives view teardown.
 
-| `SNRLevel`  | Color       | Label           |
-| ----------- | ----------- | --------------- |
-| `.clear`    | Green       | "Clear"         |
-| `.caution`  | Yellow      | "Some noise"    |
-| `.warning`  | Orange      | "Shield mic"    |
+| `SNRLevel`  | Color            | Label           |
+| ----------- | ---------------- | --------------- |
+| `.clear`    | Green            | "Clear"         |
+| `.caution`  | Yellow           | "Some noise"    |
+| `.warning`  | Orange           | "Shield mic"    |
 | `.clipping` | Material capsule | "Move mic away" |
 
 ---
@@ -558,7 +558,7 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 | Trigger                                                 | Action                                                                                                                      |
 | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms         |
+| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms        |
 | User leaves `.audio` while recording startup is pending | Cancel the owned startup task; do not activate audio and do not show a cancellation toast                                   |
 | Swipe from `.audio` to another mode                     | `cancelRecording()` if active or paused — clears engine, file, and review state                                             |
 | App backgrounds while `.audio` active                   | Same: `cancelRecording()` if recording or paused                                                                            |
@@ -579,11 +579,11 @@ change still requests an eager stop, and the Record path independently awaits
 
 ## 10. AVAudioSession Lifecycle
 
-| Event                                      | Action                                                                                |
-| ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session |
-| `startRecording` called                    | `.setCategory(.record, mode: .measurement)` + `.setActive(true)` — in `Task.detached` |
-| `cancelRecording()` or `finishRecording()` | `.setActive(false, options: .notifyOthersOnDeactivation)` — in `Task.detached`        |
+| Event                                      | Action                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session    |
+| `startRecording` called                    | `.setCategory(.record, mode: .measurement)` + `.setActive(true)` — in `Task.detached`    |
+| `cancelRecording()` or `finishRecording()` | `.setActive(false, options: .notifyOthersOnDeactivation)` — in `Task.detached`           |
 | Task cancelled mid-setup                   | Startup cleanup stops the engine, removes the tap/file, and schedules lease deactivation |
 
 `notifyOthersOnDeactivation` signals the OS to restore ducked audio and ensures
@@ -621,6 +621,55 @@ success. The multimodal handler:
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives
    as the image pipeline.
 
+Both the primary route and compatibility `/audio-spec` route import one shared
+audio subject policy and private provider contract. The provider returns a
+required internal `audio_subject_type` discriminator, which is validated and
+removed before the server assembles the result. The public result still reuses
+`is_biological_subject`, `common_name`, and `scientific_name`; there is no
+audio-specific response field or client DTO. Audio-only subject precedence is:
+
+1. Any confidently detected non-human animal sound, including a pet or livestock
+   sound, outranks Human.
+2. Confident non-human presence with unresolved taxonomy remains biological and
+   displays as **Unidentified Wildlife** without candidates or species
+   enrichment.
+3. Human-only breathing, speech, coughing, snoring, or another unmistakable
+   biological human sound returns **Human** / _Homo sapiens_. Handling noise by
+   itself is not Human evidence.
+4. Silence, weather, mechanical sound, handling noise, and indeterminate audio
+   are non-biological and display as **No wildlife detected**.
+
+The server normalizes the private structured discriminator and identity fields
+after parsing and before dictionary or candidate work; it never infers the state
+from free-form model reasoning. This makes a no-taxon Human breathing response
+distinguishable from confidently unresolved wildlife. Mixed visual/audio scans
+use the same non-human-over-Human acoustic tie-break without changing the
+existing visual-versus-audio arbitration. Resolved non-human animals keep their
+normal acoustic candidates. If a resolved non-human result has a blank,
+placeholder, or incorrectly Human common name, the scientific name is used as a
+safe display fallback without changing the selected taxon.
+
+Human remains a durable biological result, but the existing Human presentation
+policy suppresses candidate review, external reference imagery, Explore and
+Community sharing, and Field Chat. An audio-only biological result without a
+resolved taxon suppresses species-match confidence and sharing. Historical
+`Unknown Subject` / `Taxonomy Unavailable` audio is displayed safely and may be
+reanalyzed when its source recording is available; the client does not rewrite
+the stored result or infer Human from old reasoning.
+
+Owner-history sync selects and maps the existing `is_biological_subject` value
+instead of defaulting imported audio records to biological. Explore eligibility
+rejects non-biological, unresolved, and Human subjects in the shared local
+predicate. The share endpoint independently rejects those states, missing
+selected taxonomy, Human aliases/overrides, and unresolved sentinels; Ask the
+Community reuses that validator. The `/insight-chat` endpoint also rejects
+unresolved and Human taxonomy even when called directly, independently of the
+iOS toolbar guard.
+
+Malformed provider output remains retryable and is not persisted as a result.
+Audio identification diagnostics may record bounded length, finish-reason, and
+error classification, but never the raw provider response or a response preview.
+
 For audio-only scans, `insertScan` persists `image_storage_urls: []`, durable
 `audio_storage_urls`, and an audio item in the canonical `captured_media`
 timeline. Standalone audio is promoted into durable scan storage and normalized
@@ -643,13 +692,13 @@ or restore on another device. Intentional nonvisual results never display the
 photo-specific `Original photo unavailable` carousel state. Legacy compatibility
 columns do not store cross-modal positions, so missing audio is appended in
 stored-array order and the stored description follows it. The compatibility
-array is supplemental rather than
-deletion authority. History reconciliation replaces a local standalone clip
-only on an exact path match or a unique `sourceIndex` match. Legacy and restore
-references without that identity are merged conservatively instead of consuming
-a local clip by ordinal guess, so an ambiguous partial two-clip projection can
-duplicate an alias but cannot discard the other recording. Unmatched local
-descriptions are retained because the scan row stores only one context.
+array is supplemental rather than deletion authority. History reconciliation
+replaces a local standalone clip only on an exact path match or a unique
+`sourceIndex` match. Legacy and restore references without that identity are
+merged conservatively instead of consuming a local clip by ordinal guess, so an
+ambiguous partial two-clip projection can duplicate an alias but cannot discard
+the other recording. Unmatched local descriptions are retained because the scan
+row stores only one context.
 
 ## 13. Explore Audio Publication
 
@@ -662,26 +711,26 @@ separate from biological identification:
    checks for an attestation with the same checksum, model, and derived policy
    contract. The share's UUID `Idempotency-Key` and checksum/policy version
    produce one deterministic, opaque quota reservation ID per audible item.
-3. On a cache miss, the database atomically applies durable entitlement,
-   daily quota, and per-user/IP rate limits, selects the moderation model
-   (currently `gemini-2.5-flash`), and only then sends the clip inline to the
-   structured classifier. Cache hits refund their provisional reservation.
-4. An approved result allows the normal atomic post/media share write to run.
-   A flagged result or provider/configuration failure returns an error and
-   leaves the prior Explore state unchanged; failures never publish a post.
+3. On a cache miss, the database atomically applies durable entitlement, daily
+   quota, and per-user/IP rate limits, selects the moderation model (currently
+   `gemini-2.5-flash`), and only then sends the clip inline to the structured
+   classifier. Cache hits refund their provisional reservation.
+4. An approved result allows the normal atomic post/media share write to run. A
+   flagged result or provider/configuration failure returns an error and leaves
+   the prior Explore state unchanged; failures never publish a post.
 5. For standalone WAV media, the approved share/edit path generates or reuses a
    deterministic PNG spectrogram and snapshots its URL into both post-owned and
    normalized scan media. Thumbnail failure is non-blocking and retains the
    speaker fallback.
 6. The Edge deployment reuses `GEMINI_PAID_API_KEY`. Transcripts and non-speech
-   descriptions remain in function memory and are not written to Postgres,
-   logs, or client payloads.
+   descriptions remain in function memory and are not written to Postgres, logs,
+   or client payloads.
 
-The classifier covers both speech and meaningful non-speech sounds, but no
-model can guarantee complete detection; user reporting remains the
-post-publication safety layer. The attestation row stores only checksum,
-decision, policy/model identity, MIME type, byte size, and timestamp. It stores
-no audio, transcript, URL, filename, or user identity.
+The classifier covers both speech and meaningful non-speech sounds, but no model
+can guarantee complete detection; user reporting remains the post-publication
+safety layer. The attestation row stores only checksum, decision, policy/model
+identity, MIME type, byte size, and timestamp. It stores no audio, transcript,
+URL, filename, or user identity.
 
 Approved audio is available in the iOS Explore feed and public Next.js share
 pages. Web playback uses native browser controls, requires user interaction, and
@@ -709,19 +758,19 @@ recording cannot be reconstructed or shared as audio.
 The iOS feed-card and post-detail ellipsis menus offer **Boost audio** when the
 post's primary media item is standalone audio. Both surfaces share the same
 device-local per-post preference and synchronize changes in process. This is a
-listening aid, not a media transform:
-the canonical R2 object, scan media record, public URL, checksum, and moderation
-attestation remain unchanged. Audio playback remains user-initiated on both
-surfaces even when a saved boost preference is restored.
+listening aid, not a media transform: the canonical R2 object, scan media
+record, public URL, checksum, and moderation attestation remain unchanged. Audio
+playback remains user-initiated on both surfaces even when a saved boost
+preference is restored.
 
-Boost is opt-in and remembered independently for each immutable Explore
-`postId` in device-local `UserDefaults`. New posts default to original audio.
-Entries are touched when read, expire after 180 days, and are capped at the 500
-most recently accessed posts. The preference is not account-synced, sent to
-Supabase, or restored after app deletion.
+Boost is opt-in and remembered independently for each immutable Explore `postId`
+in device-local `UserDefaults`. New posts default to original audio. Entries are
+touched when read, expire after 180 days, and are capped at the 500 most
+recently accessed posts. The preference is not account-synced, sent to Supabase,
+or restored after app deletion.
 
-The shared `AudioBoostProcessor` performs a size-bounded download, analyzes RMS and
-peak levels, and creates a temporary enhanced WAV. It targets quiet material
+The shared `AudioBoostProcessor` performs a size-bounded download, analyzes RMS
+and peak levels, and creates a temporary enhanced WAV. It targets quiet material
 conservatively, caps gain at 18 dB, applies a gentle 35 Hz high-pass filter for
 rumble, and clamps peaks near -1 dBFS. It deliberately avoids denoising because
 broadband biological sounds must not be mistaken for noise. Enhanced files are
@@ -731,12 +780,11 @@ Changing mode preserves the current timestamp and whether playback was playing
 or paused. After the user explicitly enables boost, the media surface shows
 **Boosting audio…** while preparing. Saved-setting restoration and
 notification-driven synchronization prepare silently. If user-initiated
-download, decoding, or enhancement fails, the player continues with the
-original recording and presents a concise fallback message; restoration failure
-falls back without transient UI. Spectrogram,
-playhead, elapsed/total timestamp, audio-session handling, interruption
-recovery, and one-active-player coordination remain shared with original
-playback.
+download, decoding, or enhancement fails, the player continues with the original
+recording and presents a concise fallback message; restoration failure falls
+back without transient UI. Spectrogram, playhead, elapsed/total timestamp,
+audio-session handling, interruption recovery, and one-active-player
+coordination remain shared with original playback.
 
 ### Published and Insight Spectrogram Seeking
 
@@ -763,9 +811,9 @@ the thin playhead overlay.
 Public web Explore playback is thumbnail-first. The home grid and post page use
 the persisted audio media `thumbnail_url` when available, while the native audio
 element remains the playback source. Blank or unsupported legacy formats keep a
-speaker fallback. The service-role-only
-`backfill-explore-audio-spectrograms` worker can repair historical WAV posts
-without changing the original recording or moderation decision.
+speaker fallback. The service-role-only `backfill-explore-audio-spectrograms`
+worker can repair historical WAV posts without changing the original recording
+or moderation decision.
 
 Audio playback feedback is action-bound rather than state-bound. Play uses a
 medium pulse; pause and mode-off actions use a light impact; discrete seek taps
@@ -774,22 +822,22 @@ Automatic playback, playback progress, completion, saved boost restoration, and
 remote preference synchronization remain silent. All events route through
 `HapticManager`, so the user's haptics and expedition-mode settings are honored.
 
-The user-facing terminology is deliberately specific: the action remains
-**Boost audio**, preparation reads **Boosting audio…**, and successful playback
-shows **Boosted audio**. Merian does not call this “enhancement” because the
-local DSP does not perform denoising or AI restoration.
+The user-facing terminology is deliberately specific: the action remains **Boost
+audio**, preparation reads **Boosting audio…**, and successful playback shows
+**Boosted audio**. Merian does not call this “enhancement” because the local DSP
+does not perform denoising or AI restoration.
 
 ### Scan-Library Insight Audio Boost
 
-Completed persisted Insights containing standalone audio expose the same
-**Boost audio** action in the top ellipsis menu and as a direct bottom-left
-spectrogram control. A bottom-right badge shows elapsed and total playback time;
-both badges reuse the image-attribution inset and material treatment so the
-overlapping result card does not cover them. Insight preferences use a
-separate device-local namespace keyed by immutable `scanId`; they do not change
-the setting of an Explore post created from that scan. Entries retain the same
-180-day and 500-scan bounds. One scan setting applies to every standalone audio
-page in a mixed-media carousel.
+Completed persisted Insights containing standalone audio expose the same **Boost
+audio** action in the top ellipsis menu and as a direct bottom-left spectrogram
+control. A bottom-right badge shows elapsed and total playback time; both badges
+reuse the image-attribution inset and material treatment so the overlapping
+result card does not cover them. Insight preferences use a separate device-local
+namespace keyed by immutable `scanId`; they do not change the setting of an
+Explore post created from that scan. Entries retain the same 180-day and
+500-scan bounds. One scan setting applies to every standalone audio page in a
+mixed-media carousel.
 
 `AudioBoostProcessor` lives under `Core/Media` and accepts bounded local paths,
 `file://` URLs, or HTTPS media. Explore and Insight reuse its RMS/peak analysis,
@@ -801,12 +849,13 @@ re-moderated.
 
 Saved settings restore silently. Explicit toolbar or spectrogram activation
 shows **Boosting audio…**; successful preparation transitions the direct control
-to **Boosted audio**, which can be tapped again to restore original playback. A user-initiated failure reports that original
-audio is playing, while restoration failure falls back silently. Insight
-telemetry uses `InsightAudioBoostChanged` with action, `surface = insight`, and
-an optional coarse gain band only—never scan IDs, paths, URLs, or audio content.
-The direct control uses **Boosting…** and **Reverting…** disabled transition
-states while the enhanced or original player source is being prepared.
+to **Boosted audio**, which can be tapped again to restore original playback. A
+user-initiated failure reports that original audio is playing, while restoration
+failure falls back silently. Insight telemetry uses `InsightAudioBoostChanged`
+with action, `surface = insight`, and an optional coarse gain band only—never
+scan IDs, paths, URLs, or audio content. The direct control uses **Boosting…**
+and **Reverting…** disabled transition states while the enhanced or original
+player source is being prepared.
 
 PostHog records `ExploreAudioBoostChanged` for enabled, disabled, restored,
 preparation-failed, and boosted-playback-started transitions. Properties are

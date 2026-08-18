@@ -829,6 +829,32 @@ struct InsightChatTests {
         #expect(!viewModel.isCheckingAvailability)
     }
 
+    @Test func testPresentationPreparationPublishesLoadingStateBeforeNetworkCompletes() async {
+        let viewModel = InsightChatViewModel()
+        let (preparationGate, gateContinuation) = AsyncStream<Void>.makeStream()
+        var preparationStarted = false
+
+        let request = Task { @MainActor in
+            await viewModel.prepareForPresentation(scanId: "scan_1") {
+                preparationStarted = true
+                for await _ in preparationGate {
+                    break
+                }
+                return true
+            }
+        }
+        while !preparationStarted {
+            await Task.yield()
+        }
+
+        #expect(viewModel.isCheckingAvailability)
+
+        gateContinuation.yield()
+        gateContinuation.finish()
+        #expect(await request.value)
+        #expect(!viewModel.isCheckingAvailability)
+    }
+
     @Test func testFieldChatRejectsStaleSubjectCompletion() {
         let viewModel = InsightChatViewModel()
         let firstScanId = "019fb00a-fb11-7765-93c8-35429f3750a1"

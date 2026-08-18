@@ -26,9 +26,14 @@ back to local deterministic chips if this action fails.
 ## Durable Scan Prerequisite
 
 Every action reloads the scan by both `scan_id` and authenticated owner. The row
-must be a completed supported biological observation; a local iOS record, an
-ingestion job without its scan, another owner's UUID, or a media-only staging
-generation is not chat context.
+must be a completed, resolved, non-Human biological observation; a local iOS
+record, an ingestion job without its scan, another owner's UUID, or a media-only
+staging generation is not chat context. The server checks the confirmed species
+relation before the original relation, rejects `is_biological_subject=false`,
+Human aliases in either selected taxonomy or the user override, and unresolved
+placeholders such as “Unknown Subject,” “Taxonomy Unavailable,” “Unidentified
+Wildlife,” and “No Wildlife Detected.” It never infers eligibility from
+`ai_reasoning` or trusts the client toolbar state.
 
 Current scan-producer `200` guarantees this row already exists. Before opening
 an older local Insight, iOS preflights `/check-scan-status`. Eligible historical
@@ -41,7 +46,10 @@ A handler-owned missing/not-ready scan returns `404 scan_not_ready`. The client
 shows a retryable still-syncing message and keeps the Field Chat affordance
 available. A Supabase platform `404 NOT_FOUND` without `X-Merian-Handler: 1`
 means this route did not execute and must remain a temporary
-service-availability failure; it is not evidence that the scan is missing.
+service-availability failure; it is not evidence that the scan is missing. An
+owned but unsupported Human, unresolved, or non-biological row returns
+`400 unsupported_scan`; reloading or direct endpoint access cannot bypass that
+classification guard.
 
 ## Privacy
 
@@ -165,6 +173,7 @@ scan—or an incomplete replay—from becoming a false local success.
 deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
+  services/supabase/functions/insight-chat/eligibility_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
   services/supabase/functions/insight-chat/promptSuggestions_test.ts

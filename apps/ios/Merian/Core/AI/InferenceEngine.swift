@@ -723,6 +723,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     private func applyReferenceStateIfAvailable(from mappedData: SpeciesData) {
+        guard !mappedData.shouldSuppressReferenceImages else {
+            activeMedia.referenceState = .empty
+            return
+        }
         let refs = Self.normalizedReferenceURLs(from: mappedData.referenceImageUrl)
         if !refs.isEmpty {
             activeMedia.referenceState = .loaded(refs)
@@ -1025,7 +1029,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         modelContext: ModelContext?,
         referencePolicy: LiveReferenceHydrationPolicy
     ) {
-        guard mappedData.isBiological,
+        guard mappedData.hasResolvedBiologicalIdentification,
+              !mappedData.isHumanSubject,
               let capturedScanId = mappedData.scanId else {
             return
         }
@@ -3664,8 +3669,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.activeMedia = ActiveScanMedia()
         self.activeMedia = record.capturedMediaSnapshot.activeScanMedia
 
-        let candidatesRawData: Data? = record.candidatesData
-        let petIdentification = record.petIdentification
+        let recordHasResolvedBiologicalIdentification = record.hasResolvedBiologicalIdentification
+        let recordAllowsSpeciesHydration = recordHasResolvedBiologicalIdentification && !record.isHumanSubject
+        let recordAllowsReferenceImages = recordAllowsSpeciesHydration && !record.shouldSuppressReferenceImages
+        let candidatesRawData: Data? = recordAllowsSpeciesHydration ? record.candidatesData : nil
+        let petIdentification = recordAllowsSpeciesHydration ? record.petIdentification : nil
         let overrideName: String? = record.userIdentificationOverride
         // When a manual override is active, display the override scientific name as the title.
         // record.scientificName is preserved as the original-AI identifier and reused below
@@ -3675,28 +3683,35 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         // Suppress AI reasoning when an override is active — it was written for the originally
         // predicted species and is misleading when displayed under the override species name.
         let displayAiReasoning: String = overrideName == nil ? (record.aiReasoning ?? "") : ""
-        let recordIsBiological = record.isBiological
-        let recordHasResolvedBiologicalIdentification = record.hasResolvedBiologicalIdentification
         let recordScientificName = record.scientificName
         let recordId = record.id
         let safeContext = record.modelContext
-        let shouldResetLocalLookalikes = recordHasResolvedBiologicalIdentification && shouldResetLocalLookalikesCache()
+        let shouldResetLocalLookalikes = recordAllowsSpeciesHydration && shouldResetLocalLookalikesCache()
         if shouldResetLocalLookalikes {
             scheduleLocalLookalikesCacheResetIfNeeded(modelContext: safeContext)
         }
-        let lookalikesJsonData: Data? = shouldResetLocalLookalikes ? nil : record.lookalikesData
-        let lookalikesLegacyArray: [String]? = shouldResetLocalLookalikes ? nil : record.similarSpecies
+        let lookalikesJsonData: Data? = recordAllowsSpeciesHydration && !shouldResetLocalLookalikes
+            ? record.lookalikesData
+            : nil
+        let lookalikesLegacyArray: [String]? = recordAllowsSpeciesHydration && !shouldResetLocalLookalikes
+            ? record.similarSpecies
+            : nil
         let gbifKey = record.gbifTaxonKey
-        let needsWiki = recordHasResolvedBiologicalIdentification &&
-            (record.wikipediaOverview == nil || record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty)
-        let recordTaxonomy = TaxonomyData(
-            kingdom: record.taxonomyKingdom,
-            phylum: record.taxonomyPhylum,
-            className: record.taxonomyClass,
-            order: record.taxonomyOrder,
-            family: record.taxonomyFamily,
-            genus: record.taxonomyGenus
+        let needsWiki = recordAllowsSpeciesHydration && (
+            record.wikipediaOverview == nil ||
+                (recordAllowsReferenceImages &&
+                    (record.referenceImageUrl == nil || record.referenceImageUrl!.isEmpty))
         )
+        let recordTaxonomy = recordAllowsSpeciesHydration
+            ? TaxonomyData(
+                kingdom: record.taxonomyKingdom,
+                phylum: record.taxonomyPhylum,
+                className: record.taxonomyClass,
+                order: record.taxonomyOrder,
+                family: record.taxonomyFamily,
+                genus: record.taxonomyGenus
+            )
+            : nil
         // Decode lookalikesData once here on @MainActor — the blob is small (3 entries × 4 fields).
         // The result is reused for both the needsEnrichment gate check and the UI decode step
         // inside historicHydrationTask, avoiding a second JSONDecoder allocation on the same data.
@@ -3711,12 +3726,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             !$0.entries.isEmpty && $0.entries.allSatisfy { $0.commonName == nil }
         } ?? false
         // Split enrichment needs by scope so each concurrent call is fired only when required.
-        let needsMetadata = recordHasResolvedBiologicalIdentification &&
+        let needsMetadata = recordAllowsSpeciesHydration &&
             (record.habitatDescription == nil || record.gbifTaxonKey == nil || !hasUsableLookalikeTaxonomy(recordTaxonomy))
-        let needsLookalikes = recordHasResolvedBiologicalIdentification &&
+        let needsLookalikes = recordAllowsSpeciesHydration &&
             (shouldResetLocalLookalikes || record.lookalikesData == nil || lookalikesHaveNoCommonNames)
         let needsEnrichment = needsMetadata || needsLookalikes
-        let recordReferenceImageUrl = record.referenceImageUrl
+        let recordReferenceImageUrl = recordAllowsReferenceImages ? record.referenceImageUrl : nil
 
         // Set speciesData immediately with nil for blob-decoded fields.
         // similarSpecies and candidates are populated by the task below to avoid
@@ -3760,9 +3775,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             ecologicalInteractions: record.ecologicalInteractions,
             aiReasoning: record.aiReasoning,
             habitatDescription: record.habitatDescription,
-            gbifTaxonKey: record.gbifTaxonKey,
+            gbifTaxonKey: recordAllowsSpeciesHydration ? record.gbifTaxonKey : nil,
             inferenceTier: record.inferenceTier,
-            alternativeCommonNames: record.alternativeCommonNames,
+            alternativeCommonNames: recordAllowsSpeciesHydration ? record.alternativeCommonNames : nil,
             petIdentification: petIdentification,
             candidates: nil,
             imageQualityScore: record.imageQualityScore,
@@ -3782,7 +3797,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             // Step 1: Determine initial reference image loading state.
             guard !Task.isCancelled else { return }
             let refUrls = Self.normalizedReferenceURLs(from: recordReferenceImageUrl)
-            let shouldLoadImages = recordHasResolvedBiologicalIdentification && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
+            let shouldLoadImages = recordAllowsReferenceImages && refUrls.isEmpty && (gbifKey != nil || needsEnrichment)
             self.activeMedia.referenceState = shouldLoadImages ? .loading : (refUrls.isEmpty ? .empty : .loaded(refUrls))
 
             // Step 2: Resolve similar species and decode candidates off @MainActor (CPU-bound).
@@ -3810,7 +3825,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             }
 
             // Step 3: If an identification override is active, patch in the override species data.
-            if let override = overrideName {
+            if let override = overrideName, recordAllowsSpeciesHydration {
                 guard !Task.isCancelled else { return }
                 await self.fetchAndPatchOverrideData(
                     scientificName: override,
@@ -3871,7 +3886,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                         taxonKeyToUse = self.speciesData?.gbifTaxonKey ?? taxonKeyToUse
                     }
 
-                    if let key = taxonKeyToUse, recordIsBiological {
+                    if let key = taxonKeyToUse, recordAllowsReferenceImages {
                         guard !Task.isCancelled else { return }
                         guard let currentScientificName = self.speciesData?.scientificName,
                               self.speciesData?.scanId?.caseInsensitiveCompare(recordId) == .orderedSame else {

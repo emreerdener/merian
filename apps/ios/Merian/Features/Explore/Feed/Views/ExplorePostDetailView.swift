@@ -548,6 +548,7 @@ struct ExplorePostDetailView: View {
                         publicScientificName: post.speciesScientificName,
                         publicAlternativeNames: detail?.similarSpecies?.map(\.scientificName) ?? [],
                         allowsOwnerActions: false,
+                        prepareForInitialLoad: nil,
                         onToast: { message in
                             viewModel.toastMessage = message
                         },

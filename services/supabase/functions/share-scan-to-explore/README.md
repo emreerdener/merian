@@ -44,6 +44,20 @@ Verify that the compatibility migration is applied and that `service_role`—not
 `authenticated`—has the reviewed RPC grant. Do not add a service key to the
 client or grant the maintenance RPC to users.
 
+## Subject Eligibility
+
+The endpoint independently enforces a resolved, non-Human biological subject;
+client visibility is not authorization. Its final owner-row read rejects
+`is_biological_subject=false`, a missing selected species relation, unresolved
+scientific-name placeholders (`Unknown Subject`, `Taxonomy Unavailable`,
+`Unidentified Wildlife`, `No Wildlife Detected`, and equivalent sentinel
+values), Human taxonomy aliases including malformed `Homo sapien`, and a Human
+user-identification override. Confirmed taxonomy takes precedence over the
+original species relation. The same exported owner-row validator is reused by
+`request-community-identification`, so direct Explore and Ask the Community
+requests cannot publish Human, unresolved, or non-biological scans. No decision
+is derived from `ai_reasoning`.
+
 ## Request
 
 ```json
@@ -300,8 +314,8 @@ to historical blank WAV snapshots in bounded service-role-only batches.
 - An absent owner row may be reconstructed only through the validated
   `recovery_scan` contract above. The endpoint never accepts caller-selected
   ownership, direct media URLs, or a client-side database upsert as repair.
-- Tombstoned scans, media-less scans, and scans without a resolved species are
-  not share-eligible.
+- Tombstoned scans, media-less scans, scans without a resolved species, Human
+  scans, and scans with unresolved placeholder taxonomy are not share-eligible.
 - Sharing snapshots public image/video/audio URLs into `explore_post_media` for
   the post. Video posts require a public thumbnail image; otherwise the endpoint
   returns `Video thumbnail unavailable.`

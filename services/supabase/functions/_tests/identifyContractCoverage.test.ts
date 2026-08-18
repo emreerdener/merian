@@ -16,6 +16,11 @@ const routes = [
     providerParser: "parseDescribeIdentification",
     finalizationBoundary: "await compatibilityLedger.mark(",
   },
+  {
+    path: "../audio-spec/index.ts",
+    providerParser: "parseMerianAudioIdentification",
+    finalizationBoundary: "await compatibilityLedger.mark(",
+  },
 ] as const;
 
 const scanProducerRoutes = [

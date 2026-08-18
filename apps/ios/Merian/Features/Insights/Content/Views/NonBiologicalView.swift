@@ -3,7 +3,7 @@ import SwiftUI
 struct NonBiologicalView: View {
     @Bindable var viewModel: InsightSheetViewModel
     let species: SpeciesData
-    let commonName: String
+    let isAudioOnlyObservation: Bool
     var timestamp: Date?
 
     var body: some View {
@@ -41,9 +41,15 @@ struct NonBiologicalView: View {
     }
 
     private var displayTitle: String {
-        let trimmed = commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = species.subjectDisplayName(
+            isAudioOnlyObservation: isAudioOnlyObservation
+        )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if species.isInferenceErrorPlaceholder {
             return trimmed.isEmpty ? "Analysis unavailable" : trimmed
+        }
+        if trimmed.caseInsensitiveCompare("No wildlife detected") == .orderedSame {
+            return "No wildlife detected"
         }
         return trimmed.capitalized
     }

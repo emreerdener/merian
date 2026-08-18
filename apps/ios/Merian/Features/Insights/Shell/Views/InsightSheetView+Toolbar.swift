@@ -224,78 +224,16 @@ extension InsightSheetView {
                     return
                 }
                 if RevenueCatManager.shared.isProActive {
-                    Task { @MainActor in
-                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
-                              fieldChatScanId?
-                                .caseInsensitiveCompare(scanId) == .orderedSame else {
-                            return
-                        }
-                        if let record = viewModel.activeLocalRecord {
-                            guard record.id.caseInsensitiveCompare(scanId) == .orderedSame else {
-                                presentFieldChatUnavailableToast(
-                                    InsightChatViewModel.stillSyncingMessage,
-                                    expectedScanId: scanId,
-                                    expectedGeneration: toolbarGeneration
-                                )
-                                return
-                            }
-                            do {
-                                let isAvailable = try await MerianNetworkClient.shared
-                                    .ensureCloudScanAvailableForFieldChat(
-                                        scan: record,
-                                        expectedScanId: scanId
-                                )
-                                guard toolbarGeneration == viewModel.scanBoundActionGeneration else {
-                                    return
-                                }
-                                guard isAvailable else {
-                                    presentFieldChatUnavailableToast(
-                                        InsightChatViewModel.stillSyncingMessage,
-                                        expectedScanId: scanId,
-                                        expectedGeneration: toolbarGeneration
-                                    )
-                                    return
-                                }
-                                chatViewModel.markAvailable(scanId: scanId)
-                            } catch {
-                                guard toolbarGeneration == viewModel.scanBoundActionGeneration,
-                                      fieldChatScanId?
-                                        .caseInsensitiveCompare(scanId) == .orderedSame else {
-                                    return
-                                }
-                                presentFieldChatUnavailableToast(
-                                    "Field chat is temporarily unavailable. Please try again.",
-                                    expectedScanId: scanId,
-                                    expectedGeneration: toolbarGeneration
-                                )
-                                return
-                            }
-                        }
-                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
-                              fieldChatScanId?
-                                .caseInsensitiveCompare(scanId) == .orderedSame else {
-                            return
-                        }
-                        let canPresent = await chatViewModel.prepareForPresentation(scanId: scanId)
-                        guard toolbarGeneration == viewModel.scanBoundActionGeneration,
-                              fieldChatScanId?
-                                .caseInsensitiveCompare(scanId) == .orderedSame else {
-                            return
-                        }
-                        if canPresent {
-                            selectedInsightChatScanId = scanId
-                            selectedInsightChatGeneration = toolbarGeneration
-                            HapticManager.shared.triggerSheetSpring()
-                            viewModel.state.isInsightChatSheetPresented = true
-                        } else {
-                            presentFieldChatUnavailableToast(
-                                chatViewModel.errorMessage
-                                    ?? "Field chat isn't available for this scan.",
-                                expectedScanId: scanId,
-                                expectedGeneration: toolbarGeneration
-                            )
-                        }
-                    }
+                    // Present the interaction shell synchronously. The sheet owns
+                    // readiness and transcript loading so network retry backoff never
+                    // makes a successful tap appear unresponsive. Bind the subject
+                    // first so a different scan's in-memory transcript cannot flash
+                    // while the loading shell animates in.
+                    _ = chatViewModel.activateSubject(scanId: scanId)
+                    selectedInsightChatScanId = scanId
+                    selectedInsightChatGeneration = toolbarGeneration
+                    HapticManager.shared.triggerSheetSpring()
+                    viewModel.state.isInsightChatSheetPresented = true
                 } else {
                     HapticManager.shared.triggerSelectionPulse()
                     viewModel.state.showPaywall = true
@@ -413,6 +351,7 @@ extension InsightSheetView {
               let scanId = viewModel.presentedSpeciesScanId,
               let speciesData = inferenceEngine.speciesData,
               speciesData.isBiological,
+              speciesData.hasResolvedBiologicalIdentification,
               !speciesData.isHumanSubject,
               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
               presentedScanId == nil ||
@@ -421,6 +360,83 @@ extension InsightSheetView {
         }
 
         return scanId
+    }
+
+    private func isPresentingFieldChatScan(
+        scanId: String,
+        generation: UInt64
+    ) -> Bool {
+        generation == viewModel.scanBoundActionGeneration &&
+            fieldChatScanId?.caseInsensitiveCompare(scanId) == .orderedSame
+    }
+
+    @MainActor
+    func prepareInsightChatForInitialLoad(
+        expectedScanId: String,
+        expectedGeneration: UInt64
+    ) async -> Bool {
+        guard isPresentingFieldChatScan(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        ) else {
+            return false
+        }
+
+        let canLoad: Bool
+        if let record = viewModel.activeLocalRecord {
+            guard record.id.caseInsensitiveCompare(expectedScanId) == .orderedSame else {
+                return false
+            }
+            canLoad = await chatViewModel.prepareForPresentation(
+                scanId: expectedScanId
+            ) { @MainActor in
+                guard isPresentingFieldChatScan(
+                    scanId: expectedScanId,
+                    generation: expectedGeneration
+                ) else {
+                    return false
+                }
+
+                do {
+                    let isAvailable = try await MerianNetworkClient.shared
+                        .ensureCloudScanAvailableForFieldChat(
+                            scan: record,
+                            expectedScanId: expectedScanId
+                        )
+                    guard isPresentingFieldChatScan(
+                        scanId: expectedScanId,
+                        generation: expectedGeneration
+                    ) else {
+                        return false
+                    }
+                    guard isAvailable else {
+                        chatViewModel.errorMessage = InsightChatViewModel.stillSyncingMessage
+                        return false
+                    }
+                    chatViewModel.markAvailable(scanId: expectedScanId)
+                    return true
+                } catch is CancellationError {
+                    return false
+                } catch {
+                    guard isPresentingFieldChatScan(
+                        scanId: expectedScanId,
+                        generation: expectedGeneration
+                    ) else {
+                        return false
+                    }
+                    chatViewModel.errorMessage =
+                        "Field chat is temporarily unavailable. Please try again."
+                    return false
+                }
+            }
+        } else {
+            canLoad = await chatViewModel.prepareForPresentation(scanId: expectedScanId)
+        }
+
+        return canLoad && isPresentingFieldChatScan(
+            scanId: expectedScanId,
+            generation: expectedGeneration
+        )
     }
 
     private func deleteConfirmationRequestBinding(

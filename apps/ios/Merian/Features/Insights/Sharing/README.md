@@ -22,6 +22,15 @@ scan-bound post, Community, notes, media, and action state from the previous
 record; a transient lookup miss for the same scan preserves its snapshot while
 SwiftData contexts propagate.
 
+Both direct Explore and Ask the Community additionally require a resolved,
+non-Human biological subject in the live `SpeciesData` and persisted-record
+snapshot. The shared identity policy recognizes Human common names, canonical
+`Homo sapiens`, malformed `Homo sapien`, and Human user overrides; unresolved
+sentinels such as “Unknown Subject,” “Taxonomy Unavailable,” and “Unidentified
+Wildlife” also fail eligibility. The authenticated Edge routes repeat the same
+decision from the owner row, so a stale client or direct request cannot publish
+Human, unresolved, or non-biological data.
+
 Each persisted-record presentation also has a monotonic action generation.
 Changing records invalidates the prior generation, dismisses scan-bound editors
 and confirmations, and clears their busy flags. Explore publication, post
@@ -51,12 +60,12 @@ model's exact scan ID and presentation generation. This closes both ordinary A �
 B switches and A → B → A callbacks where the UUID happens to match again but the
 original presentation no longer owns the UI.
 
-The delayed onboarding prompt is one explicitly retained main-actor task, not
-an unstructured fire-and-forget timer. Repeated completion evaluation for the
-same scan/generation leaves the original deadline intact. Reset, scan-bound
-state invalidation, or an ineligible result cancels and releases it; the wake
-path revalidates identity, current share recommendation, and the persisted
-one-time flag before changing presentation state.
+The delayed onboarding prompt is one explicitly retained main-actor task, not an
+unstructured fire-and-forget timer. Repeated completion evaluation for the same
+scan/generation leaves the original deadline intact. Reset, scan-bound state
+invalidation, or an ineligible result cancels and releases it; the wake path
+revalidates identity, current share recommendation, and the persisted one-time
+flag before changing presentation state.
 
 When an Insight-hosted Explore sheet opens the current user's published post,
 the post detail reports only the scan ID. The Explore shell owns its dismissal,
@@ -126,7 +135,7 @@ public-media builder, and fail-closed audio moderation path as explicit Explore
 publication. If compatibility recovery is required, iOS stages every surviving
 eligible local media kind and sends images, playback video, and standalone audio
 in their separate restored-key arrays. It does not require a recovered image
-when a biological scan has only video or audio.
+when an eligible resolved non-Human biological scan has only video or audio.
 
 The action is complete only when the response reports true success, echoes the
 exact scan UUID, contains valid request, post, requester, taxon, and taxonomy

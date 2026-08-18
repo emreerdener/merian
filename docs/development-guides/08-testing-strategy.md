@@ -1800,7 +1800,9 @@ that previously passed in isolation:
 - `share-scan-to-explore/restoredMediaValidation_test.ts` and `db_test.ts` cover
   traversal/cross-owner refusal, exact durable filename matching,
   reread-confirmed commit, definite rejection, ambiguous update preservation,
-  and rollback refusal without positive absence evidence.
+  rollback refusal without positive absence evidence, and rejection of
+  non-biological, unresolved-placeholder, Human-taxonomy, and Human-override
+  owner rows. The Community route imports that same subject validator.
 - `repair-scan-image/db_test.ts` and `worker_test.ts` prove a replacement is
   deleted only after exact definite rejection and is preserved for lost,
   unreadable, concurrent, or contradictory persistence outcomes.
@@ -1813,6 +1815,15 @@ that previously passed in isolation:
   finalization is still retryable, without provider redispatch. Compatibility
   tests permit their narrow immediate fallback only after exact-owner insertion
   while retaining a retryable ledger.
+- `_shared/identify/audioSubjectPolicy_test.ts`, the shared contract tests, and
+  both route suites lock the four provider states, non-human-over-Human
+  precedence, unresolved-wildlife degradation, malformed Human alias
+  canonicalization, non-human common-name fallback, candidate clearing, and
+  removal of the private discriminator from public payloads. Fixtures use
+  synthetic structured values rather than personal recordings or transcripts.
+- `insight-chat/eligibility_test.ts` proves direct Field Chat rejects explicit
+  non-biological state, unresolved taxonomy, Human selected taxonomy, and Human
+  overrides while accepting a resolved non-Human relation.
 - `_tests/inlineScanManifestRecoveryMigrationContract.test.ts`,
   `_tests/stagedScanRegistrationMigrationContract.test.ts`,
   `_tests/scanUserProfileMigrationContract.test.ts`, and
@@ -1849,6 +1860,11 @@ iOS regression coverage is intentionally joined as well:
   late optional context merge. Its staging-transition cases assert committed,
   already-advanced, retry-required, and discarded outcomes so an HTTP callback
   cannot treat a rolled-back local write as inference readiness.
+- `SpeciesDataTests`, `InferenceEngineTests`, `InsightSheetViewModelTests`,
+  `InsightChatTests`, and `ScanRepositoryTests` cover Human canonical
+  presentation/safeguards, unresolved-audio confidence and reference
+  suppression, historical placeholder reanalysis, direct-chat gating, and
+  preservation of cloud `is_biological_subject` during historical sync.
 
 Do not replace the executable SQL fixtures with source inspection. Static
 migration contracts are useful when Docker is unavailable, but only a disposable

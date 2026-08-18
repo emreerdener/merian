@@ -3,12 +3,16 @@
 The `Media` directory manages the rich visual assets associated with a scan.
 
 ## Purpose
-This area drives the interactive image carousel at the top of an Insight sheet. It is responsible for seamlessly combining the user's live capture images, any additional staged media, and reference imagery (like GBIF or Wikipedia photos) into a unified viewing experience.
+
+This area drives the interactive image carousel at the top of an Insight sheet.
+It is responsible for seamlessly combining the user's live capture images, any
+additional staged media, and reference imagery (like GBIF or Wikipedia photos)
+into a unified viewing experience.
 
 External reference URLs are normalized through
 `ExternalReferenceImagePolicy.allowedURLStrings(from:)` before carousel pages
-are built. The current policy silently removes iNaturalist media `605615444`
-and preserves the order of all remaining URLs. Captured/staged user media is not
+are built. The current policy silently removes iNaturalist media `605615444` and
+preserves the order of all remaining URLs. Captured/staged user media is not
 subject to this exact third-party denylist. If no permitted reference image
 remains, the carousel keeps its existing non-reference media or empty-state
 behavior; it never creates a censored placeholder page for the blocked URL.
@@ -18,23 +22,41 @@ Reference images also pass through the shared
 `InsightSheetViewModel.displayMedia(_:)` excludes every visual identifier owned
 by the current scan: image and video paths in `ActiveScanMedia`, persisted or
 queued thumbnail paths, and the toolbar cover path. Naturebook URL variants for
-the same storage object match even when their scheme, query, or fragment differs;
-external URLs retain strict full-URL identity.
+the same storage object match even when their scheme, query, or fragment
+differs; external URLs retain strict full-URL identity.
 
 Filtering happens before `refUrls`, `totalImages`, inline carousel pages, and
-fullscreen gallery items are derived. Consequently, inline and fullscreen
-views share the same order and count, and an all-duplicate loaded reference set
+fullscreen gallery items are derived. Consequently, inline and fullscreen views
+share the same order and count, and an all-duplicate loaded reference set
 becomes `.empty` instead of leaving an empty reference page or page indicator.
 The rule is scoped to the exact scan, not the author: Naturebook imagery from
 another scan remains eligible, as do unrelated Wikipedia and GBIF images.
 
+Subject eligibility is applied before reference pages or hydration work.
+`SpeciesData.shouldSuppressReferenceImages` and the matching persisted-record
+policy remove reference imagery for Human aliases and unresolved biological
+subjects while retaining the user's captured audio/video/image media.
+`InferenceEngine` does not schedule live or historical Wikipedia/GBIF hydration
+for either state and clears stale reference/candidate enrichment while loading a
+guarded historical record. Canonical `Homo sapiens`, malformed `Homo sapien`,
+and Human common-name aliases receive the same protection.
+
 Image-load availability is tracked per scan and distinguishes captured user
 photos from reference imagery. Failed visual pages are excluded once no usable
-user image or video remains, and the existing `Original photo unavailable`
-state is appended after every audio, description, reference, and loading page.
-This terminal page never enters the fullscreen gallery. When other usable user
+user image or video remains, and the existing `Original photo unavailable` state
+is appended after every audio, description, reference, and loading page. This
+terminal page never enters the fullscreen gallery. When other usable user
 visuals remain, the established availability ordering still moves failed images
 behind usable visual pages and removes them after a reference renders.
+
+While a still image is inferencing, queued presentation caches must use
+`QueuedScanContext.activeScanMedia`, not the raw captured-media snapshot, so the
+focus-region map survives foreground-to-queue and queue-refresh handoffs. The
+carousel keys focus interaction by scan ID plus the still image's canonical
+source index rather than its content-derived page ID. Consequently, replacing an
+in-memory live image with its persisted path does not replace the focus overlay
+or discard a user-adjusted rectangle. The interaction cache is cleared only when
+another scan or analysis session begins.
 
 Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded

@@ -29,14 +29,13 @@ struct DangerZone: View {
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
-                .foregroundColor(.red)
                 .disabled(supabase.isAuthTransitionInProgress)
                 .confirmationDialog(
                     "Are you sure you want to sign out?",
                     isPresented: $showSignOutConfirmation,
                     titleVisibility: .visible
                 ) {
-                    Button("Sign out", role: .destructive) {
+                    Button("Sign out") {
                         Task { await performSignOut() }
                     }
                     Button("Cancel", role: .cancel) { }

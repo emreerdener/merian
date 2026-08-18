@@ -435,7 +435,7 @@ missing, malformed, foreign, or negative-attempt rows become
 `Dictionary(uniqueKeysWithValues:)`, whose duplicate-key precondition would
 otherwise let a contradictory server response terminate the app.
 
-Before Field Chat presentation,
+Before the first Field Chat request,
 `ensureCloudScanAvailableForFieldChat(scan:expectedScanId:)` first requires the
 local record to match the engine result that will be presented, then polls the
 exact owner status and uses bounded non-media recovery only for eligible

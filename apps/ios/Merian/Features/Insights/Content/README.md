@@ -10,6 +10,25 @@ the primary ecological description, toxicity warnings, conservation statuses
 (IUCN Red List), and the diagnostic visual comparison against confusing
 lookalike species.
 
+## Audio Subject Routing
+
+Audio results use the existing `SpeciesData` and content router. Human-only
+sound remains biological, routes through `BiologicalView`, and presents the
+canonical `Human` / `Homo sapiens` identity. Confident non-human presence
+without a resolved taxon also stays in `BiologicalView`, but displays
+`Unidentified Wildlife`, omits species-match confidence and candidates, and
+keeps reanalysis available when the source recording survives. A true
+non-biological audio result routes through `NonBiologicalView` and displays the
+sentence-cased `No wildlife detected` label with the normal non-biological
+retention treatment.
+
+Historical `Unknown Subject` / `Taxonomy Unavailable` audio is presentation-only
+compatibility data: a stored biological row receives the safe unresolved label,
+while a stored non-biological row displays `No wildlife detected`. Neither path
+mutates the record or derives Human from `aiReasoning`. Human aliases, including
+legacy `Homo sapien`, are recognized from structured identity fields and always
+present the canonical taxonomy.
+
 `BiologicalView` also owns the persistent `FieldTripProgressCard`. It appears
 after toxicity and identification-review content and before Field notes and
 educational cards when the view model has server-backed contribution rows. The
@@ -47,11 +66,11 @@ replace it in place.
 
 This behavior remains release-gated, but the source boundary is remediated. The
 catch path now retains exact local presentation authority after durable
-ownership retirement solely to publish queue takeover, and queue-backed
-Identify does not enter the generic inline transport replay. A protected gated
-URLSession regression proves the exact queued view binds after that ordering.
-**Analysis delayed** remains an inference error placeholder, so a saved service
-failure cannot receive non-biological success treatment. See the
+ownership retirement solely to publish queue takeover, and queue-backed Identify
+does not enter the generic inline transport replay. A protected gated URLSession
+regression proves the exact queued view binds after that ordering. **Analysis
+delayed** remains an inference error placeholder, so a saved service failure
+cannot receive non-biological success treatment. See the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for remaining exact-SHA and device closure evidence.
 
@@ -73,11 +92,11 @@ does not depend on a cross-context merge. The coordinator is enabled only for
 the exact Debug UI-test seed; normal app sessions and Release builds retain
 ordinary badge behavior.
 
-The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight
-in analyzing mode with its exact queue row already committed. UI automation
-must observe that live state before tapping the shared badge. The Debug-only
-action then calls the production `transitionToQueuedPresentation` boundary;
-the sheet's exact-ID task must bind the row, expose only the invisible
+The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight in
+analyzing mode with its exact queue row already committed. UI automation must
+observe that live state before tapping the shared badge. The Debug-only action
+then calls the production `transitionToQueuedPresentation` boundary; the sheet's
+exact-ID task must bind the row, expose only the invisible
 `QueuedPresentation_<scan-id>` marker under that UI-test seed, keep the visible
 pill on normal AI-analysis copy, omit the saved/continuing explanation, avoid
 **Network timeout**, and leave the same tile present in Scans after dismissal.

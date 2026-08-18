@@ -280,16 +280,19 @@ extension LocalScanRecord {
     }
 
     var isExploreShareEligible: Bool {
-        hasResolvedBiologicalIdentification
+        hasResolvedBiologicalIdentification && !isHumanSubject
     }
 
     var isHumanSubject: Bool {
-        commonName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "human"
-            || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
+        HumanSubjectIdentityPolicy.matches(
+            commonName: commonName,
+            scientificNames: [scientificName, userIdentificationOverride]
+        )
     }
 
     var shouldSuppressReferenceImages: Bool {
-        ReferenceImageVisibilityPolicy.shouldSuppress(
+        if !hasResolvedBiologicalIdentification { return true }
+        return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName
         )
@@ -300,7 +303,11 @@ extension LocalScanRecord {
         guard !normalized.isEmpty else { return false }
         return normalized != unresolvedBiologicalScientificName.lowercased()
             && normalized != unresolvedBiologicalCommonName.lowercased()
+            && normalized != "unknown"
+            && normalized != "unidentified wildlife"
+            && normalized != "no wildlife detected"
             && normalized != "not applicable"
+            && normalized != "n/a"
             && normalized != "inanimate object"
     }
 }

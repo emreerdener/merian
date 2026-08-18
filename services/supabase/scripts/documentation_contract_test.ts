@@ -3086,7 +3086,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
   );
   assertStringIncludes(
     compact(communityRequestSource),
-    "A video-only or audio-only biological scan is valid recovery input",
+    "A video-only or audio-only resolved non-Human biological scan is valid recovery input",
   );
   assertStringIncludes(
     compact(communityRequestSource),

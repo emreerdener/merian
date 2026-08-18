@@ -1,3 +1,5 @@
+import type { MerianAudioIdentification } from "../_shared/identify/contract.ts";
+
 // MARK: - Request
 
 /** Payload sent by the iOS client for bioacoustic identification. */
@@ -33,28 +35,7 @@ export interface AudioClientRequest {
 // MARK: - Gemini bioacoustic response
 
 /** Structured JSON returned by Gemini for an audio recording. */
-export interface AudioIdentification {
-  is_biological_subject: boolean;
-  scientific_name?: string;
-  common_name?: string;
-  confidence_score: number;
-  ai_reasoning: string;
-  ecology_type?: "wild" | "urban" | "domesticated" | "unknown";
-  is_invasive?: boolean;
-  invasive_status_region?: string | null;
-  invasive_rationale?: string | null;
-  invasive_confidence?: number | null;
-  sex?:
-    | "female"
-    | "male"
-    | "hermaphrodite"
-    | "mixed"
-    | "cannot_determine"
-    | "not_applicable";
-  sex_confidence?: number;
-  sex_evidence?: string;
-  candidates?: AudioCandidate[] | null;
-}
+export type AudioIdentification = MerianAudioIdentification;
 
 export interface AudioCandidate {
   scientific_name: string;

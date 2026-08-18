@@ -126,6 +126,38 @@ temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
 Latency optimization must happen around this call, not by changing its economics
 or identification semantics.
 
+## Audio Subject Selection
+
+Audio-only inference and the compatibility `audio-spec` route import one policy
+from `_shared/identify/audioSubjectPolicy.ts` and one executable private
+provider contract. The provider-only contract requires `audio_subject_type`; the
+server validates, consumes, and removes that field before public payload
+assembly. It does not add a request field, response field, DTO, or database
+column. The ordered result states are:
+
+1. A confidently detected non-human animal, including wildlife, pets, or
+   livestock, is primary even when Human is also audible.
+2. Confident non-human animal presence without a resolved taxon returns
+   `is_biological_subject=true`, `common_name="Unidentified Wildlife"`, no
+   `scientific_name`, and no candidates.
+3. Human-only biological sound returns `is_biological_subject=true`,
+   `common_name="Human"`, and `scientific_name="Homo sapiens"`, with no
+   candidates or inferred human sex/gender.
+4. Silence, handling noise, weather, mechanical sound, and indeterminate audio
+   return `is_biological_subject=false`, `common_name="No Wildlife Detected"`,
+   no taxonomy, and no biology-only metadata.
+
+The post-parser guard reads only the private structured discriminator and
+identity fields. It canonicalizes exact Human aliases such as malformed
+`Homo sapien`; it never keyword-matches `ai_reasoning`. Mixed visual/audio
+inference imports the same non-human-over-Human acoustic tie-break while
+preserving the existing cross-modal arbitration. Normalization runs before
+dictionary hydration, candidate enrichment, or `isIdentifiedBio`, so unresolved
+and non-biological audio cannot create species state. A resolved non-human
+result retains acoustically plausible candidates; if its common name is blank,
+unresolved, or incorrectly Human, the resolved scientific name is used as its
+display fallback.
+
 ## Response Contract
 
 `_shared/identify/contract.ts` is the executable boundary for both Gemini model
@@ -147,7 +179,8 @@ Provider failure semantics stay aligned with every scan producer. A Gemini
 user-first entitlement boundary. Malformed or structurally invalid provider
 output returns HTTP `503`, records `failed_retryable` with a bounded
 `retry_after`, retains the linked hold, and remains eligible for same-UUID
-retry.
+retry. Provider response text and previews are never written to logs; malformed
+output diagnostics are limited to bounded structural/error metadata.
 
 Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
 intentional response changes. The root Swift fields are generated as optional
@@ -432,7 +465,7 @@ a normalized biological subject.
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts services/supabase/functions/update-scan-context/index.ts services/supabase/functions/_shared/identify/latencyDb.ts
-deno test --config services/supabase/functions/deno.json --allow-env --allow-net --allow-read services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_tests/auth.test.ts services/supabase/functions/_shared/identify/latencyDb_test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts services/supabase/functions/_tests/migrationMediaContract.test.ts
+deno test --config services/supabase/functions/deno.json --allow-env --allow-net --allow-read services/supabase/functions/identify-multimodal/index.test.ts services/supabase/functions/_shared/identify/audioSubjectPolicy_test.ts services/supabase/functions/_shared/identify/contract_test.ts services/supabase/functions/_tests/identifyContractCoverage.test.ts services/supabase/functions/_tests/auth.test.ts services/supabase/functions/_shared/identify/latencyDb_test.ts services/supabase/functions/_shared/scanIngestionIntents_test.ts services/supabase/functions/_shared/scanIngestionJobs_test.ts services/supabase/functions/_tests/migrationMediaContract.test.ts
 ```
 
 Database integration tests require a running local Supabase Postgres instance.

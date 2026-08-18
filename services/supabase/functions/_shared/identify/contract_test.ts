@@ -1,14 +1,19 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   ContractValueError,
+  merianAudioModelContract,
   merianDescribeModelContract,
   merianModelContract,
   parseDescribeIdentification,
   parseIdentifySuccessEnvelope,
+  parseMerianAudioIdentification,
   parseMerianIdentification,
   providerSchemaFromContract,
 } from "./contract.ts";
-import { getMerianResponseSchema } from "./schema.ts";
+import {
+  getMerianAudioResponseSchema,
+  getMerianResponseSchema,
+} from "./schema.ts";
 import { getDescribeResponseSchema } from "../../identify-describe/schema.ts";
 
 function validModelResponse(): Record<string, unknown> {
@@ -68,6 +73,13 @@ function validEnvelope(): Record<string, unknown> {
   };
 }
 
+function validAudioModelResponse(): Record<string, unknown> {
+  return {
+    ...validModelResponse(),
+    audio_subject_type: "identified_non_human",
+  };
+}
+
 Deno.test("provider schema is generated from the executable model contract", () => {
   const schema = providerSchemaFromContract(merianModelContract);
 
@@ -103,6 +115,40 @@ Deno.test("Identify exports the generated provider schema and caches by trigger"
 
   assertEquals(first as unknown, expected);
   assert(first === second);
+});
+
+Deno.test("audio-only provider schema adds a private required discriminator", () => {
+  const expected = providerSchemaFromContract(merianAudioModelContract);
+  const first = getMerianAudioResponseSchema();
+  const second = getMerianAudioResponseSchema();
+
+  assertEquals(first as unknown, expected);
+  assert(first === second);
+  assert(expected.required?.includes("audio_subject_type"));
+  assertEquals(expected.properties?.audio_subject_type?.enum, [
+    "identified_non_human",
+    "unidentified_non_human",
+    "human_only",
+    "no_confident_biological_source",
+  ]);
+  assertEquals(
+    providerSchemaFromContract(merianModelContract).properties
+      ?.audio_subject_type,
+    undefined,
+  );
+});
+
+Deno.test("audio model parsing requires and retains the private discriminator until normalization", () => {
+  const parsed = parseMerianAudioIdentification(validAudioModelResponse());
+  assertEquals(parsed.audio_subject_type, "identified_non_human");
+
+  const missing = validAudioModelResponse();
+  delete missing.audio_subject_type;
+  assertThrows(
+    () => parseMerianAudioIdentification(missing),
+    ContractValueError,
+    "audio_model_response.audio_subject_type",
+  );
 });
 
 Deno.test("Describe exports and enforces its zero-quality contract", () => {

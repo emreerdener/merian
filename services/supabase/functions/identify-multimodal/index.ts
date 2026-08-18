@@ -45,6 +45,7 @@ import {
 import {
   type IdentifySuccessEnvelope,
   parseIdentifySuccessEnvelope,
+  parseMerianAudioIdentification,
   parseMerianIdentification,
 } from "../_shared/identify/contract.ts";
 import {
@@ -67,6 +68,13 @@ import {
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
+import {
+  AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION,
+  type AudioSubjectKind,
+  BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION,
+  canonicalizeStructuredHumanSubject,
+  normalizeAudioOnlySubject,
+} from "../_shared/identify/audioSubjectPolicy.ts";
 import { processWAV } from "./audio.ts";
 import {
   audioDescriptorsForDurableIntent,
@@ -117,6 +125,7 @@ import {
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
+  getMerianAudioResponseSchema,
   getMerianResponseSchema,
   getSystemInstruction as getVisionSystemInstruction,
 } from "../_shared/identify/schema.ts";
@@ -136,9 +145,10 @@ You are a world-class bioacoustic field biologist with expertise in identifying 
 # Task
 Listen to the provided audio recording and identify the primary biological sound source, if any.
 
-# Response Rules
-- is_biological_subject: true only when a genuine biological vocalization is detected. false for wind, rain, mechanical noise, silence, or human speech without wildlife.
-- scientific_name: formal binomial nomenclature (Genus species) for the primary identified species. Omit entirely if is_biological_subject is false.
+${AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION}
+
+# Response Detail Rules
+- scientific_name: formal binomial nomenclature (Genus species) for an identified non-human animal or the canonical Homo sapiens value required above. Omit when wildlife is unresolved or the result is non-biological.
 - confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
@@ -168,6 +178,7 @@ You are an expert encyclopedic field-guide biologist and taxonomist with special
 - **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
 - **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
 - **Video Language:** When the scan includes video, refer to the evidence as video, a video scan, or sampled frames/audio from the video. Do not describe video scans as images, photos, or a set of provided images in user-facing reasoning.
+${BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION}
 - **Processed Materials Are Not Biological Subjects:** Manufactured or processed objects are \`is_biological_subject=false\` even when made from biological material. This includes wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions. Do NOT classify a rug as sheep, leather as cattle, wood furniture as a tree, paper as a plant, or a species drawing/toy as the depicted organism; do not include a source-organism scientific_name for these results.
 - **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
@@ -887,6 +898,8 @@ export async function handleIdentifyMultimodalRequest(
   const inferenceTier = userTier === "pro" ? "pro" : "flash";
   const targetModel = quotaLease.reservation.model;
   const diagnosticTrigger = diagnosticTriggerForTier(inferenceTier);
+  const usesAudioOnlyProviderContract = resolvedImageBase64s.length === 0 &&
+    processedAudios.length > 0;
 
   let instructionToUse = "";
   if (resolvedImageBase64s.length > 0 && processedAudios.length > 0) {
@@ -1098,7 +1111,9 @@ export async function handleIdentifyMultimodalRequest(
           ? { thinkingBudget: 5000 }
           : undefined,
         responseMimeType: "application/json",
-        responseSchema: getMerianResponseSchema(diagnosticTrigger),
+        responseSchema: usesAudioOnlyProviderContract
+          ? getMerianAudioResponseSchema()
+          : getMerianResponseSchema(diagnosticTrigger),
       },
     });
     geminiLatencyMs = Date.now() - geminiStart;
@@ -1177,9 +1192,15 @@ export async function handleIdentifyMultimodalRequest(
 
   let parsedData;
   try {
-    parsedData = parseMerianIdentification(
-      extractJson<unknown>(responseText),
-    );
+    if (usesAudioOnlyProviderContract) {
+      parsedData = parseMerianAudioIdentification(
+        extractJson<unknown>(responseText),
+      );
+    } else {
+      parsedData = parseMerianIdentification(
+        extractJson<unknown>(responseText),
+      );
+    }
   } catch {
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
@@ -1303,6 +1324,14 @@ export async function handleIdentifyMultimodalRequest(
         processedMaterialNormalization.previousScientificName ?? null,
     });
   }
+  let audioSubjectKind: AudioSubjectKind | null = null;
+  if (processedAudios.length > 0) {
+    if (resolvedImageBase64s.length === 0) {
+      audioSubjectKind = normalizeAudioOnlySubject(parsedData);
+    } else if (canonicalizeStructuredHumanSubject(parsedData)) {
+      audioSubjectKind = "human";
+    }
+  }
   if (!parsedData.is_biological_subject) {
     parsedData.is_invasive = undefined;
     parsedData.invasive_status_region = undefined;
@@ -1323,7 +1352,12 @@ export async function handleIdentifyMultimodalRequest(
     (safeGpsLat != null && safeGpsLon != null) ||
     (typeof semanticLocation === "string" &&
       semanticLocation.trim().length > 0);
-  if (parsedData.is_biological_subject && !hasInvasiveLocationContext) {
+  if (
+    parsedData.is_biological_subject &&
+    audioSubjectKind !== "human" &&
+    audioSubjectKind !== "unidentified_wildlife" &&
+    !hasInvasiveLocationContext
+  ) {
     parsedData.is_invasive = false;
     parsedData.invasive_status_region ??= "Unavailable";
     parsedData.invasive_rationale ??=
@@ -1362,7 +1396,11 @@ export async function handleIdentifyMultimodalRequest(
     invasive_status_region: parsedData.invasive_status_region,
     invasive_rationale: parsedData.invasive_rationale,
     invasive_confidence: parsedData.invasive_confidence,
-    life_stage: parsedData.life_stage ?? "unknown",
+    life_stage: parsedData.is_biological_subject &&
+        audioSubjectKind !== "human" &&
+        audioSubjectKind !== "unidentified_wildlife"
+      ? parsedData.life_stage ?? "unknown"
+      : undefined,
     reproductive_condition: parsedData.reproductive_condition,
     sex: parsedData.sex,
     sex_confidence: parsedData.sex_confidence,
@@ -1821,9 +1859,14 @@ export async function handleIdentifyMultimodalRequest(
           video_storage_urls: videoStorageUrls,
           audio_storage_urls: audioStorageUrls,
           captured_media: capturedMedia,
-          life_stage: parsedData.life_stage ?? "unknown",
-          reproductive_condition: parsedData.reproductive_condition ??
-            "not_applicable",
+          life_stage: audioSubjectKind != null &&
+              audioSubjectKind !== "identified_non_human"
+            ? null
+            : parsedData.life_stage ?? "unknown",
+          reproductive_condition: audioSubjectKind != null &&
+              audioSubjectKind !== "identified_non_human"
+            ? null
+            : parsedData.reproductive_condition ?? "not_applicable",
           sex: parsedData.sex ?? null,
           sex_confidence: parsedData.sex_confidence ?? null,
           sex_evidence: parsedData.sex_evidence ?? null,

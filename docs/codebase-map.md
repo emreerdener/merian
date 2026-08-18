@@ -327,12 +327,16 @@ own cross-route contracts for the executable model/final wire descriptor,
 generated provider schema, thresholds, cache hydration, database writes, media
 resolution, moderation, latency-oriented database RPCs, and subject
 classification. `_shared/identify/contract.ts` generates the Vision/Describe
-Gemini schemas, runtime-validates provider and complete server-enriched
-responses, and infers their TypeScript types. `_shared/identify/googleSchema.ts`
-is the typed seam from that dependency-free projection into the pinned Google
-SDK schema. `services/supabase/scripts/validate_edge_dtos.ts` imports that same
-executable descriptor and deterministically generates the marked Identify DTO
-block in iOS `InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
+schemas plus the provider-private audio variant, runtime-validates provider and
+complete server-enriched responses, and infers their TypeScript types.
+`_shared/identify/googleSchema.ts` is the typed seam from that dependency-free
+projection into the pinned Google SDK schema.
+`_shared/identify/audioSubjectPolicy.ts` owns the shared audio-only
+non-human-over-Human precedence and consumes its provider-private discriminator
+before either audio route assembles the unchanged public Identify payload.
+`services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
+descriptor and deterministically generates the marked Identify DTO block in iOS
+`InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
 representations, coding keys, and explicit decoders. The gate compares the
 checked-in block exactly and checks exclusive generated DTO ownership across the
 complete `apps/ios` source graph. Its focused tests, third-party-free Deno

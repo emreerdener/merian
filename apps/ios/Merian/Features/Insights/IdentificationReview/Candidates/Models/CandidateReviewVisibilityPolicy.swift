@@ -47,7 +47,7 @@ enum CandidateReviewVisibilityPolicy {
             inferenceTier: speciesData.inferenceTier,
             candidates: speciesData.candidates ?? [],
             isBiological: speciesData.isBiological,
-            isUnknownSubject: speciesData.scientificName == "Taxonomy Unavailable",
+            isUnknownSubject: !speciesData.hasResolvedBiologicalIdentification,
             isHumanSubject: speciesData.isHumanSubject,
             userIdentificationOverride: speciesData.userIdentificationOverride,
             userConfirmedIdentification: speciesData.userConfirmedIdentification,

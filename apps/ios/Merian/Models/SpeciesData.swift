@@ -254,7 +254,51 @@ enum ReferenceImageVisibilityPolicy {
     }
 }
 
+enum HumanSubjectIdentityPolicy {
+    private static let aliases: Set<String> = [
+        "human",
+        "humans",
+        "human being",
+        "person",
+        "human breathing",
+        "human speech",
+        "human vocalisation",
+        "human vocalization",
+        "homo sapiens",
+        "homo sapien"
+    ]
+
+    static func matches(
+        commonName: String?,
+        scientificNames: [String?]
+    ) -> Bool {
+        let normalizedCommonName = normalize(commonName)
+        if aliases.contains(normalizedCommonName) { return true }
+        return scientificNames.contains {
+            aliases.contains(normalize($0))
+        }
+    }
+
+    private static func normalize(_ value: String?) -> String {
+        value?
+            .split { $0.isWhitespace }
+            .joined(separator: " ")
+            .lowercased() ?? ""
+    }
+}
+
 extension SpeciesData {
+    private static let unresolvedBiologicalScientificNames: Set<String> = [
+        "taxonomy unavailable",
+        "unknown",
+        "unknown subject",
+        "unidentified wildlife",
+        "no wildlife detected",
+        "inanimate object",
+        "not applicable",
+        "n/a"
+    ]
+
     /// True for transient inference failures such as network timeouts and
     /// provider-admission decisions. These values use `isBiological == false`
     /// only to avoid biological result UI; they are not model classifications.
@@ -267,22 +311,62 @@ extension SpeciesData {
         !isBiological && !isInferenceErrorPlaceholder
     }
 
+    var hasResolvedBiologicalIdentification: Bool {
+        guard isBiological else { return false }
+        let effectiveScientificName = userIdentificationOverride ?? scientificName
+        guard Self.isResolvedBiologicalName(effectiveScientificName) else { return false }
+        if userIdentificationOverride != nil { return true }
+        return Self.isResolvedBiologicalName(commonName)
+    }
+
+    var isUnresolvedBiologicalSubject: Bool {
+        isBiological && !hasResolvedBiologicalIdentification
+    }
+
+    /// Species-match confidence is meaningful only when a taxon was resolved.
+    /// Confirmed/override state is passed separately to the badge.
+    var presentationConfidenceScore: Double? {
+        hasResolvedBiologicalIdentification ? confidenceScore : nil
+    }
+
+    /// Audio-only compatibility records may still contain legacy placeholder
+    /// names. Presentation derives safe copy without rewriting durable data.
+    func subjectDisplayName(isAudioOnlyObservation: Bool) -> String {
+        guard isAudioOnlyObservation else { return commonName }
+        if isHumanSubject { return "Human" }
+        if isUnresolvedBiologicalSubject { return "Unidentified Wildlife" }
+        if isClassifiedNonBiological { return "No wildlife detected" }
+        return commonName
+    }
+
     /// True when the AI identified the subject as a human.
     /// Used to suppress candidates and third-party reference images (Wikipedia/GBIF)
     /// which are inappropriate to surface for human subjects.
     /// Checks both common and scientific name so either field alone is sufficient.
     var isHumanSubject: Bool {
-        commonName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "human"
-            || scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "homo sapiens"
+        HumanSubjectIdentityPolicy.matches(
+            commonName: commonName,
+            scientificNames: [scientificName, userIdentificationOverride]
+        )
+    }
+
+    var presentationScientificName: String {
+        isHumanSubject ? "Homo sapiens" : scientificName
     }
 
     /// Third-party reference photos are not shown for people, domestic cats, or
     /// domestic dogs. Wild felids and canids retain their reference galleries.
     var shouldSuppressReferenceImages: Bool {
-        ReferenceImageVisibilityPolicy.shouldSuppress(
+        if !hasResolvedBiologicalIdentification { return true }
+        return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName
         )
+    }
+
+    private static func isResolvedBiologicalName(_ value: String) -> Bool {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !normalized.isEmpty && !unresolvedBiologicalScientificNames.contains(normalized)
     }
 }
 
@@ -334,13 +418,23 @@ extension SpeciesData {
 
         self.scanId = edgeRes.scan_id
         self.presentationRole = .inferenceResult
-        
+
         let primaryRawNames = edgeRes.common_name?.components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-            
-        self.commonName = primaryRawNames?.first ?? "Unknown Subject"
-        self.scientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
+        let mappedCommonName = primaryRawNames?.first ?? "Unknown Subject"
+        let mappedScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
+        let mappedIsBiological = edgeRes.is_biological_subject ?? true
+        let mappedIsHuman = HumanSubjectIdentityPolicy.matches(
+            commonName: mappedCommonName,
+            scientificNames: [mappedScientificName]
+        )
+        let mappedHasResolvedTaxon = mappedIsBiological &&
+            SpeciesData.isResolvedBiologicalName(mappedScientificName) &&
+            SpeciesData.isResolvedBiologicalName(mappedCommonName)
+
+        self.commonName = mappedCommonName
+        self.scientificName = mappedScientificName
         self.insightData = insight
         self.confidenceScore = edgeRes.confidence_score ?? 0.0
         self.blurScore = edgeRes.blur_score
@@ -350,7 +444,7 @@ extension SpeciesData {
         self.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
             edgeRes.reference_image_url
         )
-        self.isBiological = edgeRes.is_biological_subject ?? true
+        self.isBiological = mappedIsBiological
         self.isLiveCapture = edgeRes.is_live_capture ?? true
         self.isInvasive = edgeRes.is_invasive ?? false
         self.invasiveStatusRegion = edgeRes.invasive_status_region
@@ -358,7 +452,9 @@ extension SpeciesData {
         self.invasiveConfidence = edgeRes.invasive_confidence
         self.ecologyType = edgeRes.ecology_type ?? "unknown"
         self.taxonomy = taxonomyData
-        self.isNewToMerianDictionary = isBiological ? (edgeRes.is_new_to_merian_dictionary ?? false) : false
+        self.isNewToMerianDictionary = mappedHasResolvedTaxon
+            ? (edgeRes.is_new_to_merian_dictionary ?? false)
+            : false
         self.locationName = locationName
         self.weatherCondition = weatherCondition
         self.weatherTemperatureF = weatherTemperatureF
@@ -382,7 +478,7 @@ extension SpeciesData {
         self.gbifTaxonKey = edgeRes.gbif_taxon_key
         self.inferenceTier = edgeRes.inference_tier
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(edgeRes.alternative_common_names)
-        if let petDTO = edgeRes.pet_identification {
+        if mappedHasResolvedTaxon, !mappedIsHuman, let petDTO = edgeRes.pet_identification {
             let petIdentification = PetIdentification(
                 speciesGroup: petDTO.speciesGroup,
                 label: petDTO.label,
@@ -394,14 +490,14 @@ extension SpeciesData {
         } else {
             self.petIdentification = nil
         }
-        self.candidates = isBiological ? edgeRes.candidates.map { entries in
+        self.candidates = mappedHasResolvedTaxon && !mappedIsHuman ? edgeRes.candidates.map { entries in
             entries.map { 
                 let splitCandidateCommon = $0.common_name?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespacesAndNewlines)
                 return IdentificationCandidate(scientificName: $0.scientific_name, commonName: splitCandidateCommon, confidenceScore: $0.confidence_score, distinguishingFeature: $0.distinguishing_feature) 
             }
         } : nil
         self.imageQualityScore = edgeRes.image_quality?.overall_score
-        self.aiScientificName = edgeRes.scientific_name ?? "Taxonomy Unavailable"
+        self.aiScientificName = mappedScientificName
         self.userIdentificationOverride = nil
         self.userConfirmedIdentification = false
         self.isFlagged = false

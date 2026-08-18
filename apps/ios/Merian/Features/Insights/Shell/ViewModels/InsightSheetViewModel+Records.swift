@@ -235,13 +235,13 @@ extension InsightSheetViewModel {
     func bindQueuedPresentation(_ context: QueuedScanContext) {
         if queuedContext?.id.caseInsensitiveCompare(context.id) == .orderedSame {
             queuedContext = context
-            cachedActiveMedia = context.capturedMediaSnapshot.activeScanMedia
+            cachedActiveMedia = context.activeScanMedia
             return
         }
 
         invalidateScanBoundPresentationState()
         queuedContext = context
-        cachedActiveMedia = context.capturedMediaSnapshot.activeScanMedia
+        cachedActiveMedia = context.activeScanMedia
     }
 
     /// Resolves the durable queue row for a live sheet that relinquished its

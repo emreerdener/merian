@@ -111,7 +111,7 @@ struct ProfileView: View {
             }
 
             if !viewModel.isGuestUser {
-                Button(role: .destructive) {
+                Button {
                     Task {
                         if !(await viewModel.signOut()) {
                             signOutErrorMessage = SignOutPresentationPolicy

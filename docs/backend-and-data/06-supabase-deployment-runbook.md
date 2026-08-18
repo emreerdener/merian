@@ -7044,8 +7044,10 @@ After deployment:
   and fetches the following page, and that an all-empty run does not refresh
   coverage.
 - Smoke-test `/insight-chat` with `action: "load"` and
-  `action:
-  "suggest_prompts"` against an owned completed biological scan.
+  `action: "suggest_prompts"` against an owned completed, resolved non-Human
+  biological scan. In staging, also prove a direct Human alias, unresolved
+  placeholder, and explicit non-biological row return `400 unsupported_scan`
+  without provider dispatch.
 - For a Field Chat admission release, first prove
   `20260729163616_reserve_field_chat_sends_atomically.sql` and
   `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. In staging,

@@ -344,8 +344,53 @@ struct ImageFocusRegionDetectorTests {
         #expect(pages.count == 4)
         #expect(pages[0].focusRegion == nil)
         #expect(pages[1].focusRegion == firstRegion)
+        #expect(pages[1].stillImageSourceIndex == 0)
         #expect(pages[2].focusRegion == nil)
         #expect(pages[3].focusRegion == secondRegion)
+        #expect(pages[3].stillImageSourceIndex == 1)
+    }
+
+    @Test @MainActor func keepsFocusInteractionIdentityAcrossImagePersistence() throws {
+        let region = NormalizedImageFocusRegion(
+            x: 0.2,
+            y: 0.25,
+            width: 0.4,
+            height: 0.5
+        )
+        let livePage = try #require(CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(
+                items: [.liveImage(Data([0x01]))],
+                focusRegionsBySourceIndex: [0: region]
+            ),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        ).first)
+        let persistedPage = try #require(CarouselPageBuilder.buildPages(
+            for: ActiveScanMedia(
+                items: [.image("persisted.webp")],
+                focusRegionsBySourceIndex: [0: region]
+            ),
+            referenceWikipediaUrl: nil,
+            onImageFailure: { _ in },
+            onDescriptionTap: nil
+        ).first)
+
+        let liveIdentity = FocusInteractionIdentity(
+            scanID: "scan-1",
+            stillImageSourceIndex: livePage.stillImageSourceIndex
+        )
+        let persistedIdentity = FocusInteractionIdentity(
+            scanID: "scan-1",
+            stillImageSourceIndex: persistedPage.stillImageSourceIndex
+        )
+
+        #expect(livePage.id != persistedPage.id)
+        #expect(liveIdentity == persistedIdentity)
+        #expect(liveIdentity != FocusInteractionIdentity(
+            scanID: "scan-1",
+            stillImageSourceIndex: 1
+        ))
     }
 
     @Test func stillImageAnalyzingModesAreMutuallyExclusive() {

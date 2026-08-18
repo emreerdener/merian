@@ -1,5 +1,5 @@
 import type { Schema } from "@google/genai";
-import { merianModelContract } from "./contract.ts";
+import { merianAudioModelContract, merianModelContract } from "./contract.ts";
 import { googleSchemaFromContract } from "./googleSchema.ts";
 
 export const getSystemInstruction = (_diagnosticTrigger: number) =>
@@ -102,6 +102,7 @@ Output fields must align semantically with the Darwin Core data standard:
 type ResponseSchema = Schema;
 
 const schemaCache = new Map<number, ResponseSchema>();
+let audioSchema: ResponseSchema | undefined;
 
 /**
  * The provider schema is a projection of the executable model contract.
@@ -116,4 +117,11 @@ export const getMerianResponseSchema = (
   const schema = googleSchemaFromContract(merianModelContract);
   schemaCache.set(diagnosticTrigger, schema);
   return schema;
+};
+
+/** Provider-only schema for audio-only inference. Its discriminator is removed
+ * before the unchanged public Identify response is assembled. */
+export const getMerianAudioResponseSchema = (): ResponseSchema => {
+  audioSchema ??= googleSchemaFromContract(merianAudioModelContract);
+  return audioSchema;
 };

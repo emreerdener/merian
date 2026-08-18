@@ -15,6 +15,7 @@ struct InsightChatSheet: View {
     var publicScientificName: String? = nil
     var publicAlternativeNames: [String] = []
     var allowsOwnerActions = true
+    let prepareForInitialLoad: (@MainActor () async -> Bool)?
     let onToast: (ToastPayload) -> Void
     let onAppendToFieldNotes: (String, InsightChatFieldNotesAppendKind) -> Void
     let onReviewAlternatives: (() -> Void)?
@@ -25,6 +26,8 @@ struct InsightChatSheet: View {
     @State private var pendingFeedbackMessage: InsightChatMessage?
     @State private var isFeatureFeedbackSheetPresented = false
     @State private var isDeleteConversationConfirmationPresented = false
+    @State private var isStartingInitialLoad = true
+    @State private var didFailInitialPreparation = false
 
     private var chips: [String] {
         if let speciesData {
@@ -42,7 +45,13 @@ struct InsightChatSheet: View {
     }
 
     private var showsEmptyAccentGradient: Bool {
-        !hasVisibleMessages && !viewModel.isLoading && !showsBlockingError
+        !hasVisibleMessages && !showsInitialLoadingState && !showsBlockingError
+    }
+
+    private var showsInitialLoadingState: Bool {
+        (prepareForInitialLoad != nil && isStartingInitialLoad) ||
+            viewModel.isCheckingAvailability ||
+            (viewModel.isLoading && !hasVisibleMessages)
     }
 
     private var isSendButtonActive: Bool {
@@ -51,7 +60,7 @@ struct InsightChatSheet: View {
 
     private var showsPromptChips: Bool {
         guard hasVisibleMessages || !viewModel.isOffline,
-              !viewModel.isLoading,
+              !showsInitialLoadingState,
               !viewModel.isSending,
               viewModel.pendingUserMessage == nil,
               viewModel.draftText.isEmpty,
@@ -63,7 +72,9 @@ struct InsightChatSheet: View {
     }
 
     private var showsBlockingError: Bool {
-        viewModel.errorMessage != nil && !hasVisibleMessages && !viewModel.isLoading
+        (didFailInitialPreparation ||
+            (viewModel.errorMessage != nil && !hasVisibleMessages)) &&
+            !showsInitialLoadingState
     }
 
     private var scientificNames: [String] {
@@ -100,11 +111,12 @@ struct InsightChatSheet: View {
                 // Keep this outermost inset pinned to the keyboard. Prompt updates then
                 // consume space above it without changing the composer's placement.
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if !showsBlockingError {
+                    if !showsBlockingError && !showsInitialLoadingState {
                         persistentComposer
                     }
                 }
         }
+        .accessibilityIdentifier("InsightChatSheet")
         .presentationBackground(Color(uiColor: .systemBackground))
         .confirmationDialog(
             "What seems wrong?",
@@ -158,7 +170,7 @@ struct InsightChatSheet: View {
             )
         }
         .task(id: scanId) {
-            await viewModel.loadIfNeeded(scanId: scanId, isProActive: true)
+            await prepareAndLoad()
         }
     }
 
@@ -240,8 +252,10 @@ struct InsightChatSheet: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     Group {
-                        if viewModel.isLoading && !hasVisibleMessages {
+                        if showsInitialLoadingState {
                             ProgressView()
+                                .accessibilityLabel("Loading Field chat")
+                                .accessibilityIdentifier("InsightChatLoadingIndicator")
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                         } else if showsBlockingError {
                             unavailableState
@@ -357,10 +371,26 @@ struct InsightChatSheet: View {
         } actions: {
             Button("Retry") {
                 HapticManager.shared.triggerSelectionPulse()
-                Task { await viewModel.load(scanId: scanId) }
+                Task { await prepareAndLoad() }
             }
             .buttonStyle(.borderedProminent)
         }
+    }
+
+    @MainActor
+    private func prepareAndLoad() async {
+        isStartingInitialLoad = true
+        didFailInitialPreparation = false
+        defer { isStartingInitialLoad = false }
+
+        if let prepareForInitialLoad {
+            guard await prepareForInitialLoad() else {
+                didFailInitialPreparation = true
+                return
+            }
+        }
+        guard !Task.isCancelled else { return }
+        await viewModel.loadIfNeeded(scanId: scanId, isProActive: true)
     }
 
     private var persistentComposer: some View {

@@ -36,6 +36,7 @@ struct InsightBottomToolbar: ToolbarContent {
            recordSnapshot == nil ||
              recordSnapshot?.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
            speciesData.isBiological &&
+             speciesData.hasResolvedBiologicalIdentification &&
              speciesData.commonName.lowercased() != "not applicable" {
             ToolbarItemGroup(placement: .bottomBar) {
                 let publicLocationLabel = visiblePublicLocationLabel(from: speciesData.locationName)

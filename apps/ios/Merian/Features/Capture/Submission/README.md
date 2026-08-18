@@ -31,12 +31,12 @@ later finishes it updates both the local queue and `/update-scan-context`; it
 never resubmits images or triggers another Gemini call.
 
 The online check is repeated after that 150 ms grace because the path monitor's
-earlier value is advisory and connectivity may change while context resolves.
-An unavailable exact foreground generation is retired as well, so its durable
-owner cannot suppress queue recovery after no live request starts. Known
-offline state before the Insight opens stays in Capture with a queued toast. If
-connectivity or ownership changes during the grace, Capture changes the open
-sheet to **Queued for later**.
+earlier value is advisory and connectivity may change while context resolves. An
+unavailable exact foreground generation is retired as well, so its durable owner
+cannot suppress queue recovery after no live request starts. Known offline state
+before the Insight opens stays in Capture with a queued toast. If connectivity
+or ownership changes during the grace, Capture changes the open sheet to
+**Queued for later**.
 
 The same customer contract applies after provider dispatch: the first
 queue-backed transport failure must relinquish live ownership and change the
@@ -71,13 +71,13 @@ Pro-only entry points open the soft paywall when unavailable.
 
 Before a camera shutter, audio recorder, or staged submission can begin work,
 online Capture calls the authenticated, caller-scoped
-`get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access
-denial opens the existing root paywall immediately and leaves staged input
-untouched; Capture does not start hardware, create a queue row, open Insight,
-or invoke inference. Flash eligibility is true only for one ordinary image,
-standalone audio clip, or description; video, mixed/multiple evidence, and
-refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
-preview, not a reservation.
+`get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access denial
+opens the existing root paywall immediately and leaves staged input untouched;
+Capture does not start hardware, create a queue row, open Insight, or invoke
+inference. Flash eligibility is true only for one ordinary image, standalone
+audio clip, or description; video, mixed/multiple evidence, and refinement
+preflight as Pro-only. The RPC is a short-lived, read-only UX preview, not a
+reservation.
 
 The preview uses a dedicated ephemeral transport with an exact two-second
 request/resource bound, no connectivity wait, no cache, and no inline retry. If
@@ -90,12 +90,12 @@ local-meter route without calling the RPC. This prevents captive, black-holed,
 or stale-path Wi-Fi from turning an otherwise saveable observation into a
 pre-queue network-timeout failure.
 
-The fallback is intentionally narrow. Cancellation, a missing or malformed
-row, authentication/TLS failure, and server failure preserve staged input and
-show retry feedback; they cannot masquerade as offline admission. A valid
-quota/plan denial still opens the paywall. The later `reserve_ai_quota(...)`
-transaction remains authoritative, so an exact `429` from a cross-device race
-still replaces Insight with the paywall as a recovery fallback.
+The fallback is intentionally narrow. Cancellation, a missing or malformed row,
+authentication/TLS failure, and server failure preserve staged input and show
+retry feedback; they cannot masquerade as offline admission. A valid quota/plan
+denial still opens the paywall. The later `reserve_ai_quota(...)` transaction
+remains authoritative, so an exact `429` from a cross-device race still replaces
+Insight with the paywall as a recovery fallback.
 
 Actual admission is a synchronous `@MainActor` funding claim keyed by the stable
 scan ID and active account before any source file is written or foreground
@@ -120,8 +120,8 @@ Complimentary-only modes stay locked until online entitlement verification
 succeeds on every launch. RevenueCat paid-offline behavior remains available,
 and ordinary offline Flash work continues to queue durably. A queued retry keeps
 the same `scan_id`, so server replay and recovery reuse the original hold rather
-than spending another complimentary scan. Proven local pre-dispatch failures
-are durably released; ambiguous delivery stays reserved, and manual retry of
+than spending another complimentary scan. Proven local pre-dispatch failures are
+durably released; ambiguous delivery stays reserved, and manual retry of
 released work must make a fresh funding claim. See
 [Three Complimentary Pro Scans](../../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 
@@ -211,14 +211,17 @@ outside the first-result latency boundary.
 
 Still images use the accepted `NormalizedImageFocusRegion` to render four
 detached white corner brackets and a dimmed exterior in the Insight carousel.
-The brackets fade and resolve once, then remain static while a soft low-opacity
-illumination band sweeps only inside the accepted region. The treatment remains
-noninteractive and replaces the old full-image laser. Reduce Motion disables the
-interior sweep. Images without a clear isolated subject use the uniform
-analyzing tint, status phrase, and original full-image scan sweep—there is no
-centered or full-image focus box. The full-image sweep is omitted whenever an
-accepted focus region exists, so it never competes with the isolated-region
-animation. All sweep positions are derived from the active animation timeline
-rather than a retained one-shot animation transaction, so carousel updates and
-foreground re-entry cannot strand a band at its last rendered position. Video,
-audio, and description animations retain their existing behavior.
+The brackets fade and resolve once while a soft low-opacity illumination band
+sweeps only inside the accepted region. Users may move the frame or resize it
+from any corner; those presentation-only edits do not change the queued region
+or the already-dispatched AI request. Focus metadata and interaction state stay
+attached to the same scan and still-image source across queue refreshes and the
+live-image-to-persisted-path handoff. Reduce Motion disables the interior sweep.
+Images without a clear isolated subject use the uniform analyzing tint, status
+phrase, and original full-image scan sweep—there is no centered or full-image
+focus box. The full-image sweep is omitted whenever an accepted focus region
+exists, so it never competes with the isolated-region animation. All sweep
+positions are derived from the active animation timeline rather than a retained
+one-shot animation transaction, so carousel updates and foreground re-entry
+cannot strand a band at its last rendered position. Video, audio, and
+description animations retain their existing behavior.

@@ -1108,7 +1108,9 @@ Deno.test("latency work preserves the scoped Gemini model and generation configu
       "maxOutputTokens: 8192",
       "? { thinkingBudget: 5000 }\n          : undefined",
       'responseMimeType: "application/json"',
-      "responseSchema: getMerianResponseSchema(diagnosticTrigger)",
+      "responseSchema: usesAudioOnlyProviderContract",
+      "? getMerianAudioResponseSchema()",
+      ": getMerianResponseSchema(diagnosticTrigger)",
     ]
   ) {
     assert(source.includes(fragment), `missing Gemini invariant: ${fragment}`);

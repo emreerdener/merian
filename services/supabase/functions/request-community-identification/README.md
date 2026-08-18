@@ -1,8 +1,9 @@
 # request-community-identification
 
 Creates or reopens an authenticated user's Explore post as an Ask the Community
-identification request. The scan must be owned, biological, non-tombstoned, and
-have publishable media plus a resolvable taxon in the active taxonomy version.
+identification request. The scan must be owned, resolved, non-Human biological,
+non-tombstoned, and have publishable media plus a resolvable taxon in the active
+taxonomy version.
 
 ## AI Cost and Publication Boundary
 
@@ -10,6 +11,12 @@ Community requests share the same fail-closed audio publication path as
 `share-scan-to-explore`. Both newly created and existing Explore posts run every
 selected audio clip or audio-bearing video through the content-addressed
 attestation/live moderation gate before replacing public media.
+
+They also share the exact server-side subject validator. It rejects an explicit
+non-biological flag, missing or unresolved selected taxonomy, canonical and
+legacy Human aliases, and a Human user override before taxonomy resolution or
+publication. A hidden iOS action is not the security boundary, and stored model
+reasoning is never used to infer subject eligibility.
 
 Clients attach one UUID `Idempotency-Key` and preserve it across transport,
 authentication, and local-media restoration retries. For each audible item, the
@@ -82,10 +89,10 @@ ingestion, blocks known moderation/provider-policy rejection, and
 duplicate-safely reloads the authenticated owner row. Only after that succeeds
 does iOS stage the surviving local image, playback-video, and standalone-audio
 media and retry this endpoint with the corresponding restored-key arrays. A
-video-only or audio-only biological scan is valid recovery input; repair does
-not require an image key. Normal current `/identify-multimodal` success already
-guarantees the owner row, so this sequence is a compatibility repair rather than
-the expected scan path.
+video-only or audio-only resolved non-Human biological scan is valid recovery
+input; repair does not require an image key. Normal current
+`/identify-multimodal` success already guarantees the owner row, so this
+sequence is a compatibility repair rather than the expected scan path.
 
 ## Response
 

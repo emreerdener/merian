@@ -39,10 +39,10 @@ deduplication prevents a live/background race from presenting the batch twice.
 The server receipt is also the evidence authority: a weak unconfirmed
 identification returns no Field trip credit, and evidence-downgrade
 reconciliation returns no new milestone. The coordinator must not infer credit
-from the local confidence badge or fabricate a toast for either case.
-Primary cache-miss Wikipedia/GBIF resolution may occur before the server
-response as part of durable success; follow-up reference hydration remains
-outside response-to-first-render.
+from the local confidence badge or fabricate a toast for either case. Primary
+cache-miss Wikipedia/GBIF resolution may occur before the server response as
+part of durable success; follow-up reference hydration remains outside
+response-to-first-render.
 
 Every external reference URL applied by `InferenceEngine` is normalized through
 `ExternalReferenceImagePolicy` before it reaches `SpeciesData` or persisted scan
@@ -71,10 +71,10 @@ floor rather than silently changing these economics or behavior.
 An explicit capture timeline is also a request invariant. `InferenceEngine`
 projects the ordered image, standalone-audio, video, and description items once,
 then uses that same projection for audio file order, `audioMediaItems`,
-observation contexts, video paths, and `ownerMediaTimeline`. Both live visual and
-live nonvisual paths must send the projection. Do not independently aggregate
-audio paths or descriptors: their raw input positions are the durable identity
-used by Edge validation and promotion.
+observation contexts, video paths, and `ownerMediaTimeline`. Both live visual
+and live nonvisual paths must send the projection. Do not independently
+aggregate audio paths or descriptors: their raw input positions are the durable
+identity used by Edge validation and promotion.
 
 External-reference suppressions are also an invariant: they target an immutable
 media identity, never a species name, result index, or provider host. A denied
@@ -104,15 +104,27 @@ generated DTOs. Root response fields remain optional to decode older cached
 payloads and support staggered rollout; the Edge runtime validates the full
 final response strictly before sending it.
 
+Audio subject presentation continues to use those existing fields. `Human` /
+`Homo sapiens` is a resolved biological result and keeps the established Human
+candidate, reference, sharing, and Field Chat suppressions. A biological result
+without resolved taxonomy exposes no species-match confidence or candidates.
+When the active evidence is audio-only, new and historical unresolved records
+display as **Unidentified Wildlife**, while a non-biological result displays as
+**No wildlife detected**. These labels are presentation-only compatibility
+guards; they do not mutate stored scans or derive identity from model reasoning.
+Historical hydration recognizes canonical and malformed Human taxonomy aliases
+and does not restore stale candidates, lookalikes, GBIF keys, or external
+reference imagery for Human or unresolved subjects.
+
 ## Entitlement response state
 
 `EdgeResponseWrapper.entitlement` is optional so historical stored envelopes
 remain decodable. A usable current response may carry the server's `plan_used`,
-whether a complimentary credit was consumed, and the complete
-entitlement-after snapshot. `InferenceProcessingActor` forwards that metadata
-to `EntitlementManager` and reconciles the advisory daily meter from the
-server's actual funding plan; it does not derive a trial or decrement a
-complimentary counter locally.
+whether a complimentary credit was consumed, and the complete entitlement-after
+snapshot. `InferenceProcessingActor` forwards that metadata to
+`EntitlementManager` and reconciles the advisory daily meter from the server's
+actual funding plan; it does not derive a trial or decrement a complimentary
+counter locally.
 
 A scan response is already behind the server's scan-and-required-media
 durability fence. Local record persistence can still fail and enter exact-ID
@@ -167,8 +179,8 @@ overwriting the replacement attempt.
 ### Queue-backed connectivity contract
 
 Connectivity failure must be a queue handoff for an exact queue-backed
-foreground generation, not a terminal Insight error. The required path
-publishes the matching `queuedPresentationScanId`, stops live analyzing without
+foreground generation, not a terminal Insight error. The required path publishes
+the matching `queuedPresentationScanId`, stops live analyzing without
 synthesizing `SpeciesData` or firing an error haptic, and lets the open Insight
 bind a value snapshot of that durable row. Direct requests without a queue owner
 may still show **Network timeout**. Exhausted server and unclassified failures
@@ -197,29 +209,27 @@ delivers `.timedOut` while the exact durable owner and path-satisfied state
 remain active. The shared scan connectivity policy recursively recognizes
 wrapped URL failures while keeping certificate, authentication, and ATS policy
 errors out of both decisions even when a broader outer error would otherwise be
-eligible. It proves exact queued routing, one request,
-bounded handoff, eventual durable retirement, and row survival. A companion
-case proves a successful transport response that loses durable ownership before
-the post-request check also hands the exact local presentation to the queue; a
-transport-owned cancellation does the same. **Analysis delayed** remains an
-error placeholder through the explicit `.inferenceError` presentation role;
-customer-facing title changes cannot alter that routing.
-Do not describe this as shipped until the remaining exact-SHA and
-physical-device closure gates in the
+eligible. It proves exact queued routing, one request, bounded handoff, eventual
+durable retirement, and row survival. A companion case proves a successful
+transport response that loses durable ownership before the post-request check
+also hands the exact local presentation to the queue; a transport-owned
+cancellation does the same. **Analysis delayed** remains an error placeholder
+through the explicit `.inferenceError` presentation role; customer-facing title
+changes cannot alter that routing. Do not describe this as shipped until the
+remaining exact-SHA and physical-device closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 pass.
 
-Required-consent failure is handled before the generic transport branch in
-both visual and nonvisual live inference. It publishes the temporary
-**Approval needed / Scan saved** recovery state while the root returns the
-account to Ready, and it never records a `CircuitBreakerManager` failure.
-Repeated policy rejections therefore cannot impose the 15-minute network
-cooldown after the user completes fresh approval. The durable queue remains the
-owner of the original scan and media throughout this transition. After explicit
-approval opens the lifecycle gate, it resumes at most the newest consent-blocked
-row whose unreleased, dispatchable funding reservation proves the current
-account and exact scan ID. Rows without that ownership proof remain paused in
-Scans.
+Required-consent failure is handled before the generic transport branch in both
+visual and nonvisual live inference. It publishes the temporary **Approval
+needed / Scan saved** recovery state while the root returns the account to
+Ready, and it never records a `CircuitBreakerManager` failure. Repeated policy
+rejections therefore cannot impose the 15-minute network cooldown after the user
+completes fresh approval. The durable queue remains the owner of the original
+scan and media throughout this transition. After explicit approval opens the
+lifecycle gate, it resumes at most the newest consent-blocked row whose
+unreleased, dispatchable funding reservation proves the current account and
+exact scan ID. Rows without that ownership proof remain paused in Scans.
 
 Provider admission is also separated from transport health for both live
 pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
@@ -227,17 +237,17 @@ pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
 synthetic Insight result; and stable user/IP rate limits present **Retrying
 shortly / Scan saved**. These handler-owned decisions do not advance the device
 network circuit. The durable queue retains the observation behind the paywall
-and continues to honor the server retry schedule; entitlement exhaustion
-becomes explicit attention after the server proof refresh, while temporary rate
-limits use the server's bounded retry delay.
+and continues to honor the server retry schedule; entitlement exhaustion becomes
+explicit attention after the server proof refresh, while temporary rate limits
+use the server's bounded retry delay.
 
 Exact `400 observation_rejected` is terminal policy feedback, not a transport
 failure. Both live pipelines present **Try another capture / Scan not
 processed**, keep the state out of the device network circuit, and immediately
 mirror the background queue's non-actionable failed disposition when durable
 state is available. A failed durable transition leaves the normal background
-owner eligible to apply the same terminal response safely; the rejected media
-is never automatically redispatched as though connectivity had failed.
+owner eligible to apply the same terminal response safely; the rejected media is
+never automatically redispatched as though connectivity had failed.
 
 Live persistence and background retry/finalization share
 `ScanInferencePersistenceCoordinator`. The live save validates both the
@@ -288,10 +298,10 @@ request-upload handoff coverage lives under `MerianTests/Core/Network/`; the
 full server generation invariants are enforced by the Deno tests beside
 `identify-multimodal`.
 
-A queue-handoff regression is not valid when it throws from consent preflight
-or another pre-request seam. It must dispatch through mocked URLSession
-transport, retire the exact durable foreground generation before releasing the
-transport error, and prove the same-ID sheet becomes `.queued` without a second
-request, placeholder, haptic, circuit failure, or manual test cleanup of queue
-ownership. The full matrix and release evidence requirements live in the
+A queue-handoff regression is not valid when it throws from consent preflight or
+another pre-request seam. It must dispatch through mocked URLSession transport,
+retire the exact durable foreground generation before releasing the transport
+error, and prove the same-ID sheet becomes `.queued` without a second request,
+placeholder, haptic, circuit failure, or manual test cleanup of queue ownership.
+The full matrix and release evidence requirements live in the
 [incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).

@@ -1675,11 +1675,14 @@ the `explore_observation_projection` public feed boundary.
 ### `/request-community-identification`
 
 Creates or reopens an Explore post as a `needs_id` community request. The
-request is gated to the authenticated user's biological scan with shareable
-media. It accepts `scan_id`, optional `note`, optional `location_sharing`
-(`open`, `obscured`, `private`), optional `species_common_name`, and optional
-`restored_object_keys`, `restored_video_object_keys`, and
-`restored_audio_object_keys` for bounded media repair.
+request is gated to the authenticated user's resolved, non-Human biological scan
+with shareable media. The owner-row validator rejects explicit non-biological
+state, missing/unresolved selected taxonomy, Human aliases/overrides, and never
+uses stored reasoning. It accepts `scan_id`, optional `note`, optional
+`location_sharing` (`open`, `obscured`, `private`), optional
+`species_common_name`, and optional `restored_object_keys`,
+`restored_video_object_keys`, and `restored_audio_object_keys` for bounded media
+repair.
 
 Clients attach one UUID `Idempotency-Key` and preserve it across transport,
 authentication, and media-restoration retries. Newly created and existing
@@ -2361,6 +2364,54 @@ novelty from missing enrichment fields such as `alternative_common_names`; cache
 gaps, GBIF gaps, and partial rows are not milestone signals. Existing dictionary
 rows with incomplete taxonomy/enrichment are still treated as not new to the
 Naturebook dictionary.
+
+**Audio subject semantics**: Audio-only `/identify-multimodal` requests and the
+compatibility `/audio-spec` route share one subject-selection instruction,
+private provider contract, and structural normalizer. The provider contract
+requires an internal `audio_subject_type` discriminator so Human breathing can
+be distinguished from unresolved non-human wildlife without reading model
+reasoning. The discriminator is validated, consumed, and removed before payload
+assembly. The wire shape is unchanged; no audio-only response field, DTO,
+database column, or schema version is introduced, and the image/Describe model
+contract remains generic.
+
+| Primary audio evidence                                            | `is_biological_subject` | `common_name`           | `scientific_name` |
+| ----------------------------------------------------------------- | ----------------------- | ----------------------- | ----------------- |
+| Resolved non-human animal, including wildlife, pets, or livestock | `true`                  | Resolved common name    | Resolved taxon    |
+| Confident non-human animal presence with unresolved species       | `true`                  | `Unidentified Wildlife` | Omitted / `null`  |
+| Human-only biological sound                                       | `true`                  | `Human`                 | `Homo sapiens`    |
+| No confident biological source                                    | `false`                 | `No Wildlife Detected`  | Omitted / `null`  |
+
+A confidently detected non-human animal always outranks Human in the same
+recording. Human-only speech, breathing, coughing, snoring, or another
+unmistakable biological human sound is a resolved Human result; handling noise
+alone is not. Unresolved wildlife, Human, and non-biological audio return no
+candidates. Unresolved wildlife does not enter dictionary enrichment because it
+has no scientific name. The post-parser guard combines the private structured
+discriminator with exact identity fields, canonicalizes Human aliases such as
+malformed `Homo sapien`, and never classifies from `ai_reasoning`. Mixed
+visual/audio inference applies the same acoustic non-human-over-Human tie-break
+while retaining the existing cross-modal arbitration. A resolved non-human
+animal retains its normal candidates. When that result has a blank, unresolved,
+or incorrectly Human common name, the server uses the resolved scientific name
+as the display fallback rather than changing the non-human classification.
+
+iOS treats Human as biological but suppresses candidate review, external
+reference imagery, Explore/Community sharing, and Field Chat. Audio-only
+unresolved biological records suppress species-match confidence and sharing.
+Historical `Unknown Subject` / `Taxonomy Unavailable` audio remains immutable
+compatibility data: the client presents safe unresolved copy and offers
+reanalysis when source media is available rather than inferring Human from old
+reasoning or migrating stored rows.
+
+Historical owner sync preserves the stored `is_biological_subject` value. Both
+the shared iOS Explore-eligibility predicate and `/share-scan-to-explore`
+independently reject explicit non-biological state, missing/unresolved selected
+taxonomy, Human taxonomy (including legacy malformed `Homo sapien`), and a Human
+user override. Ask the Community reuses that server validator. `/insight-chat`
+independently requires a resolved, non-Human selected taxonomy rather than
+relying on toolbar visibility. Neither endpoint derives eligibility from stored
+reasoning.
 
 **Processed-material guardrail**: The identify routes demote manufactured or
 processed objects to `is_biological_subject=false` before cache lookup,
@@ -4290,12 +4341,13 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   verify the service-only ACL. Never recover by granting the maintenance RPC to
   the user role or putting a service key in the app.
 - `share-scan-to-explore` creates or reactivates a manual-share Explore post for
-  an eligible biological scan with shareable public media. If a scan's public
-  media URLs expired but the client can provide owner-scoped
-  `restored_object_keys`, the function promotes safe image media back into
-  `image_storage_urls` before sharing. If the local scan still has the original
-  playback `.mp4` and the cloud row is missing durable video media, clients may
-  provide `restored_video_object_keys`; the function promotes those videos into
+  an eligible resolved, non-Human biological scan with shareable public media.
+  Ask the Community reuses this subject validator. If a scan's public media URLs
+  expired but the client can provide owner-scoped `restored_object_keys`, the
+  function promotes safe image media back into `image_storage_urls` before
+  sharing. If the local scan still has the original playback `.mp4` and the
+  cloud row is missing durable video media, clients may provide
+  `restored_video_object_keys`; the function promotes those videos into
   `video_storage_urls`, rebuilds `captured_media`, makes a best-effort
   `scan_media_assets` refresh for ready playback rows, and then writes the
   public Explore snapshot.
@@ -5889,11 +5941,15 @@ pre-provider cache/no-op path may refund.
 
 ## Deno `/insight-chat` Edge Node
 
-Private Pro follow-up chat for completed biological Insight sheets. The endpoint
-uses the authenticated Supabase user from `withEdgeHandler`, verifies ownership
-of `scan_id`, and reads durable effective tier through `_shared/entitlement.ts`.
-Each provider action then reserves its operation in the database, which repeats
-entitlement verification atomically with quota and model selection.
+Private Pro follow-up chat for completed, resolved non-Human biological Insight
+sheets. The endpoint uses the authenticated Supabase user from
+`withEdgeHandler`, verifies ownership of `scan_id`, and rejects explicit
+non-biological state, unresolved selected taxonomy, Human taxonomy aliases, and
+a Human user override before reading durable effective tier through
+`_shared/entitlement.ts`. The selected relation is confirmed taxonomy first,
+then the original species. This guard never reads `ai_reasoning`. Each provider
+action then reserves its operation in the database, which repeats entitlement
+verification atomically with quota and model selection.
 
 ### Request Payload
 
@@ -6198,20 +6254,20 @@ edible/foraging certainty, medical/veterinary treatment, dangerous handling,
 illegal collection, pesticide/poison instructions, and human-subject
 identification requests.
 
-| Status | Body                                             | Meaning                                            |
-| ------ | ------------------------------------------------ | -------------------------------------------------- |
-| `400`  | `{ "code": "unsupported_scan", ... }`            | Scan is non-biological or request shape is invalid |
-| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not functional Pro               |
-| `404`  | `{ "code": "scan_not_ready", ... }`              | No owned completed scan row exists yet             |
-| `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text     |
-| `429`  | `{ "code": "daily_limit_reached", ... }`         | Daily send cap reached                             |
-| `429`  | `{ "code": "ai_quota_daily_exceeded", ... }`     | Database AI safety ceiling reached                 |
-| `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                 |
-| `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached              |
-| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Same or different in-flight send has no answer yet |
-| `503`  | `{ "code": "field_chat_admission_unavailable" }` | Atomic admission could not be verified             |
-| `503`  | `{ "code": "field_chat_recovery_unavailable" }`  | Stale-request recovery could not be verified       |
-| `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed             |
+| Status | Body                                             | Meaning                                                                |
+| ------ | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| `400`  | `{ "code": "unsupported_scan", ... }`            | Scan is non-biological, unresolved, Human, or request shape is invalid |
+| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not functional Pro                                   |
+| `404`  | `{ "code": "scan_not_ready", ... }`              | No owned completed scan row exists yet                                 |
+| `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text                         |
+| `429`  | `{ "code": "daily_limit_reached", ... }`         | Daily send cap reached                                                 |
+| `429`  | `{ "code": "ai_quota_daily_exceeded", ... }`     | Database AI safety ceiling reached                                     |
+| `429`  | `{ "code": "ai_user_rate_limit_exceeded", ... }` | Shared user minute ceiling reached                                     |
+| `429`  | `{ "code": "ai_ip_rate_limit_exceeded", ... }`   | Shared network minute ceiling reached                                  |
+| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Same or different in-flight send has no answer yet                     |
+| `503`  | `{ "code": "field_chat_admission_unavailable" }` | Atomic admission could not be verified                                 |
+| `503`  | `{ "code": "field_chat_recovery_unavailable" }`  | Stale-request recovery could not be verified                           |
+| `503`  | `{ "code": "ai_entitlement_unavailable", ... }`  | Entitlement/quota lookup failed closed                                 |
 
 The iOS client treats `404 scan_not_ready`, action-level `message_not_found` /
 `conversation_not_found`, and a preflight status `not_found` as retryable state.

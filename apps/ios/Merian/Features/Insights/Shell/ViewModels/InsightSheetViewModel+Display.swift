@@ -81,8 +81,7 @@ extension InsightSheetViewModel {
         }
         if refreshedContext != queuedContext {
             queuedContext = refreshedContext
-            cachedActiveMedia =
-                refreshedContext.capturedMediaSnapshot.activeScanMedia
+            cachedActiveMedia = refreshedContext.activeScanMedia
         }
         return true
     }
@@ -416,7 +415,7 @@ extension InsightSheetViewModel {
         guard queuedContext == nil,
               let speciesData = inferenceEngine?.speciesData,
               speciesData.isBiological,
-              speciesData.scientificName != "Taxonomy Unavailable",
+              speciesData.hasResolvedBiologicalIdentification,
               !speciesData.isHumanSubject,
               speciesData.userIdentificationOverride == nil,
               !speciesData.userConfirmedIdentification else {
@@ -446,6 +445,7 @@ extension InsightSheetViewModel {
               let speciesData = inferenceEngine?.speciesData,
               presentedLocalRecordScanId != nil,
               let snapshot = toolbarRecordSnapshot,
+              speciesData.hasResolvedBiologicalIdentification,
               !speciesData.isHumanSubject,
               !snapshot.isHumanSubject else {
             return false
@@ -502,7 +502,11 @@ extension InsightSheetViewModel {
     }
 
     private var hasStrongAIIdentification: Bool {
-        guard let speciesData = inferenceEngine?.speciesData else { return false }
+        guard let speciesData = inferenceEngine?.speciesData,
+              speciesData.hasResolvedBiologicalIdentification,
+              !speciesData.isHumanSubject else {
+            return false
+        }
         let bands = MerianConfig.confidenceBands(forInferenceTier: speciesData.inferenceTier)
         return speciesData.confidenceScore >= bands.strong
     }
@@ -541,7 +545,9 @@ extension InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else {
             return "Scanning subject..."
         }
-        let common = species.commonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let common = species.subjectDisplayName(
+            isAudioOnlyObservation: hasStandaloneAudio && !activeMedia.hasUserImage
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
         if species.isInferenceErrorPlaceholder {
             return common.isEmpty ? "Analysis unavailable" : common
         }
@@ -590,7 +596,7 @@ extension InsightSheetViewModel {
         guard let species = inferenceEngine?.speciesData else {
             return "Awaiting taxonomy"
         }
-        return species.scientificName
+        return species.presentationScientificName
     }
 
     var hazardType: String {

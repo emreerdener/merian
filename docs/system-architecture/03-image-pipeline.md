@@ -109,14 +109,18 @@ begins with a selection tick, corner resizing begins with a firmer light impact,
 and a selection tick marks an edge or minimum-size constraint. The dimming
 cutout and illumination band follow every interaction, and the band continues
 sweeping during and after the gesture. Translation and resizing are transient
-presentation state only: they do not rewrite
-`NormalizedImageFocusRegion`, queued metadata, or the already-dispatched AI
-request, whose original Vision coordinates remain the model hint. Reduce Motion
-holds the illumination band at the region's midpoint. If no region exists, the
-still image has no focus geometry and falls back to the original full-image scan
-animation. The full-image and isolated-region sweeps are mutually exclusive.
-Video keeps its existing laser animation, while audio and description keep their
-existing sweeps.
+presentation state only: they do not rewrite `NormalizedImageFocusRegion`,
+queued metadata, or the already-dispatched AI request, whose original Vision
+coordinates remain the model hint. Reduce Motion holds the illumination band at
+the region's midpoint. Queued Insight caches use the focus-aware
+`QueuedScanContext.activeScanMedia`, and interaction state is keyed by scan ID
+plus the canonical still-image source index. It therefore survives queue
+refreshes and the in-memory-image-to-persisted-path handoff while remaining
+isolated from another scan or still image. If no region exists, the still image
+has no focus geometry and falls back to the original full-image scan animation.
+The full-image and isolated-region sweeps are mutually exclusive. Video keeps
+its existing laser animation, while audio and description keep their existing
+sweeps.
 
 The camera shutter path explicitly separates orchestration from ImageIO work.
 `executeCapture()` snapshots location, composing-zone center, and Pro tier on
@@ -141,11 +145,11 @@ analysis submission can start. Because SwiftUI mounts the full-screen cover
 after observing that state, `shouldSuppressCaptureChromeForCrop` hides both
 bottom capture-chrome layers from the required-ID commit through crop dismissal.
 The bottom layers are hidden without adding a workspace-level transition canvas;
-`CropSheetModifier`'s `fullScreenCover` is the sole full-screen owner. This keeps
-the staged **Identify** tray out of the handoff without leaving an input-blocking
-overlay behind after a background/foreground transition.
-This preserves Swift 6 isolation rules while removing repeated `MainActor.run`
-hops during gallery imports.
+`CropSheetModifier`'s `fullScreenCover` is the sole full-screen owner. This
+keeps the staged **Identify** tray out of the handoff without leaving an
+input-blocking overlay behind after a background/foreground transition. This
+preserves Swift 6 isolation rules while removing repeated `MainActor.run` hops
+during gallery imports.
 
 Photos share-sheet files join the same preparation seam through a separate
 durability boundary. `MerianApp.onOpenURL` validates that the incoming file's
@@ -183,12 +187,12 @@ Refinement staging must never retain the original full-size file bytes in
 Image-import admission happens before this preparation pipeline starts.
 `PhotoLibraryButton` and the staged toolbar's add-photo action await
 `requestImageImportEntryAdmission` before presenting the native picker, while
-the durable external-import path awaits it before metadata extraction or
-ImageIO decoding. The prospective count plus existing staging/refinement state
-determine the RPC's Flash-eligibility boolean. A known
-denial opens the paywall without allocating image buffers, staging media, or
-presenting crop; external receipts remain durable. Submission intentionally
-rechecks because this entry preview is advisory and non-reserving.
+the durable external-import path awaits it before metadata extraction or ImageIO
+decoding. The prospective count plus existing staging/refinement state determine
+the RPC's Flash-eligibility boolean. A known denial opens the paywall without
+allocating image buffers, staging media, or presenting crop; external receipts
+remain durable. Submission intentionally rechecks because this entry preview is
+advisory and non-reserving.
 
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so
 `commitPreparedStagedImages` can build the toolbar thumbnail from an
@@ -201,8 +205,8 @@ WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The
 `onChange(of: viewModel.stagedCapture.images.count)` observer in
 `CaptureWorkspaceView` watches to auto-trigger staged submission. The camera,
 video, and crop-confirmed commit paths first call
-`beginAutomaticStagedSubmissionIfEligible()` in the same MainActor mutation
-that adds or finalizes the media. That helper preserves the confirmation,
+`beginAutomaticStagedSubmissionIfEligible()` in the same MainActor mutation that
+adds or finalizes the media. That helper preserves the confirmation,
 multi-capture, refinement, audio, describe, and pending-gallery-crop guards and
 sets `isAutomaticStagedSubmissionPending` only for the eligible single-capture
 path. The observer consumes that explicit ownership instead of inferring intent
@@ -561,6 +565,13 @@ the legacy cache. On Cache Hits, stored URLs are returned immediately. Group
 tags and candidate-species enrichment remain optional background work and are
 not part of the owner-row durability guarantee.
 
+Insight hydration applies subject eligibility before any of those reference
+paths. Live and historical Human aliases—including malformed `Homo sapien`—and
+biological rows without resolved taxonomy skip enrichment/reference hydration;
+stale candidates, lookalikes, GBIF keys, and reference URLs are not restored to
+their active presentation. User-captured media remains available, and no
+decision is inferred from model reasoning.
+
 **Non-visual scan thumbnail repair** Audio-only, describe-only, and other
 non-image biological scans now use a dedicated thumbnail policy instead of
 falling straight into `ArchivedVisualsView`.
@@ -642,8 +653,8 @@ the internal `Reference pending` state.
 Image/video carousel state remains owned by the mounted media surface. Inline
 and fullscreen video retain one `MediaPlaybackObservation`, which removes KVO,
 AVPlayerItem notification, and periodic-time tokens from the exact old player
-before a replacement is observed. Its callbacks retain neither SwiftUI views
-nor image payloads and must pass a player/item generation check before changing
+before a replacement is observed. Its callbacks retain neither SwiftUI views nor
+image payloads and must pass a player/item generation check before changing
 lightweight playback state. A late callback therefore cannot remount or redraw
 the new page with state from its predecessor.
 
@@ -780,9 +791,9 @@ unpublish and moderation. The post, likes, comments, reports, and health
 evidence remain. Reference artwork is never substituted for missing observation
 evidence.
 
-The Scan Library owner banner consumes `/get-explore-media-incidents`.
-The canonical response is `{"data":[...]}`; corrected clients also accept only
-the exact legacy direct array during deployment convergence. Rapid queue-event
+The Scan Library owner banner consumes `/get-explore-media-incidents`. The
+canonical response is `{"data":[...]}`; corrected clients also accept only the
+exact legacy direct array during deployment convergence. Rapid queue-event
 refreshes are coalesced within five seconds with one trailing refresh for a
 trigger received in flight. The expected authenticated owner is revalidated
 before projection, malformed successes fail closed, and refresh failure
@@ -863,7 +874,7 @@ destination is retained as a user-attention failure rather than submitted.
 | `MediaPreparationActor`     | `Core/Data/Images/`                       | File-backed still-image preparation; owns inference/display encoding and budget metrics                                                                                   |
 | `FileIOActor`               | `Core/Data/Database/`                     | Disk reads/writes; isolated from Main and SwiftData actors                                                                                                                |
 | `LocalImageLoader`          | `Core/Data/Images/`                       | Load orchestration; exact external-reference URL policy; scan-media recovery registry/rescue/timestamp matching; RAM cache hits; request coalescing; local/remote routing |
-| `MediaPlaybackObservation`  | `Core/Media/`                              | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                                                         |
+| `MediaPlaybackObservation`  | `Core/Media/`                             | Exact AVPlayer KVO/notification/time-token ownership and generation-fenced replacement callbacks                                                                          |
 | `CloudScanImageRepairActor` | `Core/Data/Images/LocalImageLoader.swift` | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images                                             |
 | `ImageCache`                | `Core/Data/Images/`                       | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                                                                |
 | `ArchiveManager`            | `Core/Data/Images/`                       | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                                                      |

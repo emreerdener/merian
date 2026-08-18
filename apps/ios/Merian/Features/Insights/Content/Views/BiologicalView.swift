@@ -66,7 +66,7 @@ struct BiologicalView: View {
                 subtitle: viewModel.headerSubtitle,
                 hazardType: viewModel.hazardType,
                 paragraphs: viewModel.headerParagraphs,
-                confidenceScore: inferenceEngine.speciesData?.confidenceScore,
+                confidenceScore: inferenceEngine.speciesData?.presentationConfidenceScore,
                 inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                 userIdentificationOverride: inferenceEngine.speciesData?.userIdentificationOverride,
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,

@@ -6,6 +6,30 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
+## Subject Selection Compatibility
+
+This route imports the same `_shared/identify/audioSubjectPolicy.ts`
+instruction, `merianAudioModelContract`, provider schema, parser, and structural
+normalizer as the active multimodal audio-only path. The private model contract
+requires `audio_subject_type`; the normalizer consumes and removes it before the
+response or scan row is assembled. No separate public audio contract is
+maintained. Existing response fields represent four states:
+
+- resolved non-human animal: biological with the resolved taxonomy;
+- unresolved but confidently present non-human animal: biological,
+  `Unidentified Wildlife`, and no taxonomy or candidates;
+- Human-only sound: biological `Human` / `Homo sapiens`, with no candidates or
+  human sex/gender inference; and
+- no confident biological source: non-biological `No Wildlife Detected`, with
+  taxonomy and biology-only fields cleared.
+
+Any confidently detected non-human animal—including pets and livestock—takes
+precedence over Human. Normalization uses only the private structured
+discriminator and identity fields, never `ai_reasoning`, and runs before cache
+lookup, dictionary writes, or enrichment. A resolved non-human result preserves
+its normal candidates; if its common name is blank, unresolved, or incorrectly
+Human, the scientific name becomes the safe display fallback.
+
 The route checks for a stored completion or exact reconstructible owner row
 before R2 audio resolution and quota reservation. It replays that stored or
 reconstructed success as marked `200` and coalesces concurrent same-UUID
@@ -48,7 +72,9 @@ Provider failure semantics stay aligned with every scan producer. A Gemini
 user-first entitlement boundary. Malformed or structurally invalid provider
 output returns HTTP `503`, records `failed_retryable` with a bounded
 `retry_after`, retains the linked hold, and remains eligible for same-UUID
-retry.
+retry. Parse-failure logging records bounded length, finish-reason, and
+structural error metadata only; it never records the provider response or a
+response preview.
 
 ## Durability
 
@@ -95,7 +121,7 @@ but it cannot rename an existing species row.
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
-deno test --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/db_test.ts
+deno test --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.test.ts services/supabase/functions/_shared/identify/audioSubjectPolicy_test.ts services/supabase/functions/_shared/identify/contract_test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/db_test.ts
 ```
 
 The normative joined success, replay, recovery, and rollout contract is

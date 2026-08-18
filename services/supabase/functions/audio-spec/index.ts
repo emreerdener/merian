@@ -1,4 +1,3 @@
-import { Schema, Type } from "@google/genai";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 
 import {
@@ -49,7 +48,13 @@ import {
 import {
   type IdentifySuccessEnvelope,
   parseIdentifySuccessEnvelope,
+  parseMerianAudioIdentification,
 } from "../_shared/identify/contract.ts";
+import { getMerianAudioResponseSchema } from "../_shared/identify/schema.ts";
+import {
+  AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION,
+  normalizeAudioOnlySubject,
+} from "../_shared/identify/audioSubjectPolicy.ts";
 import {
   MEDIA_BUDGETS,
   readRequestJsonWithinBudget,
@@ -81,9 +86,10 @@ You are a world-class bioacoustic field biologist with expertise in identifying 
 # Task
 Listen to the provided audio recording and identify the primary biological sound source, if any.
 
-# Response Rules
-- is_biological_subject: true only when a genuine biological vocalization is detected. false for wind, rain, mechanical noise, silence, or human speech without wildlife.
-- scientific_name: formal binomial nomenclature (Genus species) for the primary identified species. Omit entirely if is_biological_subject is false.
+${AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION}
+
+# Response Detail Rules
+- scientific_name: formal binomial nomenclature (Genus species) for an identified non-human animal or the canonical Homo sapiens value required above. Omit when wildlife is unresolved or the result is non-biological.
 - confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
@@ -94,55 +100,6 @@ Listen to the provided audio recording and identify the primary biological sound
 - candidates: up to 3 alternative species when confidence is below ${DIAGNOSTIC_TRIGGER}. Only species with genuinely similar acoustic signatures.
 - Use authoritative nomenclature (Clements Checklist v2024 for birds, GBIF Backbone Taxonomy for all other taxa).
 - Never fabricate scientific names.`;
-
-const audioSchema: Record<string, unknown> = {
-  type: Type.OBJECT,
-  properties: {
-    is_biological_subject: { type: Type.BOOLEAN },
-    scientific_name: { type: Type.STRING },
-    common_name: { type: Type.STRING },
-    confidence_score: { type: Type.NUMBER },
-    ai_reasoning: { type: Type.STRING },
-    ecology_type: {
-      type: Type.STRING,
-      enum: ["wild", "urban", "domesticated", "unknown"],
-    },
-    is_invasive: { type: Type.BOOLEAN },
-    invasive_status_region: { type: Type.STRING },
-    invasive_rationale: { type: Type.STRING },
-    invasive_confidence: { type: Type.NUMBER },
-    sex: {
-      type: Type.STRING,
-      enum: [
-        "female",
-        "male",
-        "hermaphrodite",
-        "mixed",
-        "cannot_determine",
-        "not_applicable",
-      ],
-    },
-    sex_confidence: { type: Type.NUMBER },
-    sex_evidence: { type: Type.STRING },
-    candidates: {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          scientific_name: { type: Type.STRING },
-          confidence_score: { type: Type.NUMBER },
-          distinguishing_feature: { type: Type.STRING },
-        },
-        required: [
-          "scientific_name",
-          "confidence_score",
-          "distinguishing_feature",
-        ],
-      },
-    },
-  },
-  required: ["is_biological_subject", "confidence_score", "ai_reasoning"],
-};
 
 Deno.serve((req: Request) =>
   withEdgeHandler(req, async (user, supabaseAdmin) => {
@@ -462,7 +419,7 @@ Deno.serve((req: Request) =>
           maxOutputTokens: 2048,
           thinkingConfig: { thinkingBudget: 2048 },
           responseMimeType: "application/json",
-          responseSchema: audioSchema as unknown as Schema,
+          responseSchema: getMerianAudioResponseSchema(),
         },
       });
 
@@ -557,7 +514,9 @@ Deno.serve((req: Request) =>
     // 6. Parse Gemini response
     let parsedData: AudioIdentification;
     try {
-      parsedData = extractJson<AudioIdentification>(responseText);
+      parsedData = parseMerianAudioIdentification(
+        extractJson<unknown>(responseText),
+      );
     } catch (parseErr) {
       await quotaLease.fail();
       await compatibilityLedger.markRetryableFailure(
@@ -568,7 +527,6 @@ Deno.serve((req: Request) =>
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
         response_length: responseText.length,
-        response_preview: responseText.slice(0, 500),
         error: parseErr instanceof Error ? parseErr.message : String(parseErr),
       });
       return jsonResponse(
@@ -577,7 +535,7 @@ Deno.serve((req: Request) =>
       );
     }
 
-    // Cap candidates list (schema enforces this but extractJson is an unvalidated cast)
+    // Cap candidates defensively after validated provider parsing.
     if (Array.isArray(parsedData.candidates)) {
       parsedData.candidates = parsedData.candidates.slice(0, 5);
     }
@@ -600,6 +558,7 @@ Deno.serve((req: Request) =>
     parsedData.invasive_confidence = sanitizeObservationConfidence(
       parsedData.invasive_confidence,
     );
+    const audioSubjectKind = normalizeAudioOnlySubject(parsedData);
     if (!parsedData.is_biological_subject) {
       parsedData.is_invasive = undefined;
       parsedData.invasive_status_region = undefined;
@@ -620,7 +579,12 @@ Deno.serve((req: Request) =>
       (safeGpsLat != null && safeGpsLon != null) ||
       (typeof semantic_location === "string" &&
         semantic_location.trim().length > 0);
-    if (parsedData.is_biological_subject && !hasInvasiveLocationContext) {
+    if (
+      parsedData.is_biological_subject &&
+      audioSubjectKind !== "human" &&
+      audioSubjectKind !== "unidentified_wildlife" &&
+      !hasInvasiveLocationContext
+    ) {
       parsedData.is_invasive = false;
       parsedData.invasive_status_region ??= "Unavailable";
       parsedData.invasive_rationale ??=
@@ -643,25 +607,28 @@ Deno.serve((req: Request) =>
       : null;
 
     // Strip candidates when confidence meets the diagnostic trigger threshold
-    const forwardCandidates =
-      (parsedData.confidence_score ?? 0) < DIAGNOSTIC_TRIGGER
-        ? parsedData.candidates ?? null
-        : null;
+    const forwardCandidates = Array.isArray(parsedData.candidates) &&
+        parsedData.candidates.length > 0 &&
+        (parsedData.confidence_score ?? 0) < DIAGNOSTIC_TRIGGER
+      ? parsedData.candidates
+      : null;
 
     // 7. Build initial payload (enriched further in the background task on cache hit)
     let payloadReadyForClient: AudioClientPayload = {
       scan_id: generatedScanId,
       is_biological_subject: parsedData.is_biological_subject,
-      is_live_capture: true,
-      scientific_name: parsedData.scientific_name,
-      common_name: parsedData.common_name,
+      is_live_capture: audioSubjectKind !== "non_biological",
+      scientific_name: parsedData.scientific_name ?? undefined,
+      common_name: parsedData.common_name ?? undefined,
       confidence_score: parsedData.confidence_score,
-      ecology_type: parsedData.ecology_type,
-      is_invasive: parsedData.is_invasive,
+      ecology_type: parsedData.ecology_type ?? undefined,
+      is_invasive: parsedData.is_invasive ?? undefined,
       invasive_status_region: parsedData.invasive_status_region,
       invasive_rationale: parsedData.invasive_rationale,
       invasive_confidence: parsedData.invasive_confidence,
-      life_stage: "unknown",
+      life_stage: audioSubjectKind === "identified_non_human"
+        ? "unknown"
+        : undefined,
       sex: parsedData.sex,
       sex_confidence: parsedData.sex_confidence,
       sex_evidence: parsedData.sex_evidence,
@@ -879,8 +846,8 @@ Deno.serve((req: Request) =>
             ai_confidence_score: parsedData.confidence_score,
             is_biological_subject: parsedData.is_biological_subject,
             blur_score: null,
-            ecology_type: parsedData.ecology_type,
-            is_invasive: parsedData.is_invasive,
+            ecology_type: parsedData.ecology_type ?? undefined,
+            is_invasive: parsedData.is_invasive ?? undefined,
             invasive_status_region: parsedData.invasive_status_region ?? null,
             invasive_rationale: parsedData.invasive_rationale ?? null,
             invasive_confidence: parsedData.invasive_confidence ?? null,
@@ -904,8 +871,12 @@ Deno.serve((req: Request) =>
             llm_usage_metadata: llmUsageMetadata,
             image_storage_urls: [],
             audio_storage_urls: audioStorageUrls,
-            life_stage: "unknown",
-            reproductive_condition: "not_applicable",
+            life_stage: audioSubjectKind === "identified_non_human"
+              ? "unknown"
+              : null,
+            reproductive_condition: audioSubjectKind === "identified_non_human"
+              ? "not_applicable"
+              : null,
             sex: parsedData.sex ?? null,
             sex_confidence: parsedData.sex_confidence ?? null,
             sex_evidence: parsedData.sex_evidence ?? null,
@@ -915,7 +886,7 @@ Deno.serve((req: Request) =>
             inference_tier: userTier === "pro" ? "pro" : "flash",
             candidates: forwardCandidates as AudioCandidate[] | null,
             image_quality_score: null,
-            is_live_capture: true,
+            is_live_capture: audioSubjectKind !== "non_biological",
           },
           supabaseAdmin,
         );

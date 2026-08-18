@@ -298,8 +298,8 @@ export interface ScanInsertRow {
   video_storage_urls?: string[];
   audio_storage_urls?: string[];
   captured_media?: unknown[] | null;
-  life_stage?: string;
-  reproductive_condition?: string;
+  life_stage?: string | null;
+  reproductive_condition?: string | null;
   sex?: string | null;
   sex_confidence?: number | null;
   sex_evidence?: string | null;

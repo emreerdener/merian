@@ -47,8 +47,14 @@ export interface ShareEligibleScanRow {
   audio_storage_urls?: string[];
   captured_media?: unknown[] | null;
   is_tombstoned: boolean;
+  is_biological_subject?: boolean | null;
+  user_identification_override?: string | null;
   species_id: string | null;
   confirmed_species_id: string | null;
+  species_dictionary?: { scientific_name?: string | null } | null;
+  confirmed_species_dictionary?: {
+    scientific_name?: string | null;
+  } | null;
 }
 
 export type RestoredMediaUrlField =
@@ -360,7 +366,62 @@ const COMMUNITY_IDENTIFICATION_PENDING_MESSAGE =
   "Wait for the community to identify this request before sharing it to Explore.";
 
 const SHARE_ELIGIBLE_SCAN_SELECT =
-  "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,species_id,confirmed_species_id";
+  "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,is_biological_subject,user_identification_override,species_id,confirmed_species_id,species_dictionary!scans_species_id_fkey(scientific_name),confirmed_species_dictionary:species_dictionary!scans_confirmed_species_id_fkey(scientific_name)";
+
+const UNSHAREABLE_SCIENTIFIC_NAMES = new Set([
+  "",
+  "unknown",
+  "unknown subject",
+  "taxonomy unavailable",
+  "unidentified wildlife",
+  "no wildlife detected",
+  "not applicable",
+  "n/a",
+  "inanimate object",
+]);
+
+const HUMAN_IDENTITIES = new Set([
+  "human",
+  "humans",
+  "human being",
+  "person",
+  "homo sapiens",
+  "homo sapien",
+]);
+
+function normalizedIdentity(value: unknown): string {
+  return typeof value === "string"
+    ? value.toLowerCase().replace(/\s+/g, " ").trim()
+    : "";
+}
+
+function assertShareableBiologicalSubject(row: ShareEligibleScanRow): void {
+  if (
+    row.is_biological_subject === false ||
+    (row.confirmed_species_id == null && row.species_id == null)
+  ) {
+    throw makeHttpError(409, "Only biological scans can be shared to Explore.");
+  }
+
+  if (
+    HUMAN_IDENTITIES.has(normalizedIdentity(
+      row.user_identification_override,
+    ))
+  ) {
+    throw makeHttpError(409, "Human scans cannot be shared to Explore.");
+  }
+
+  const resolvedSpecies = row.confirmed_species_id != null
+    ? row.confirmed_species_dictionary
+    : row.species_dictionary;
+  const scientificName = normalizedIdentity(resolvedSpecies?.scientific_name);
+  if (UNSHAREABLE_SCIENTIFIC_NAMES.has(scientificName)) {
+    throw makeHttpError(409, "Only biological scans can be shared to Explore.");
+  }
+  if (HUMAN_IDENTITIES.has(scientificName)) {
+    throw makeHttpError(409, "Human scans cannot be shared to Explore.");
+  }
+}
 
 async function loadShareEligibleScan(
   scanId: string,
@@ -600,6 +661,7 @@ export async function fetchShareEligibleScan(
   if (row.is_tombstoned) {
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
+  assertShareableBiologicalSubject(row);
 
   if (!restoredMediaBindingVerified) {
     await requireRestoredMediaLedgerBinding(
@@ -790,9 +852,7 @@ export async function fetchShareEligibleScan(
     throw makeHttpError(409, "Tombstoned scans cannot be shared to Explore.");
   }
 
-  if (row.confirmed_species_id == null && row.species_id == null) {
-    throw makeHttpError(409, "Only biological scans can be shared to Explore.");
-  }
+  assertShareableBiologicalSubject(row);
 
   return row;
 }

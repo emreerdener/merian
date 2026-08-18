@@ -25,7 +25,8 @@ struct CarouselPageBuilder {
         for item in activeMedia.items {
             switch item {
             case .liveImage(let data):
-                let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
+                let sourceIndex = stillImageSourceIndex
+                let focusRegion = activeMedia.focusRegionsBySourceIndex[sourceIndex]
                 stillImageSourceIndex += 1
                 let pageID = "liveImage-\(data.hashValue)"
                 pages.append(CarouselPageItem(
@@ -38,10 +39,12 @@ struct CarouselPageBuilder {
                         source: .liveImage(data),
                         referenceAttributionLabel: nil
                     ),
+                    stillImageSourceIndex: sourceIndex,
                     focusRegion: focusRegion
                 ))
             case .image(let path):
-                let focusRegion = activeMedia.focusRegionsBySourceIndex[stillImageSourceIndex]
+                let sourceIndex = stillImageSourceIndex
+                let focusRegion = activeMedia.focusRegionsBySourceIndex[sourceIndex]
                 stillImageSourceIndex += 1
                 let pageID = "image-\(path)"
                 pages.append(CarouselPageItem(id: pageID, mediaKind: .visual, view: AnyView(
@@ -56,7 +59,7 @@ struct CarouselPageBuilder {
                     id: pageID,
                     source: .imagePath(path),
                     referenceAttributionLabel: nil
-                ), focusRegion: focusRegion))
+                ), stillImageSourceIndex: sourceIndex, focusRegion: focusRegion))
             case .description(let context):
                 pages.append(CarouselPageItem(
                     id: "description-\(context.serialized())",
@@ -760,6 +763,7 @@ struct CarouselPageItem: Identifiable, Equatable {
     let galleryItem: InsightImageGalleryItem?
     let videoFallback: CarouselVideoFallback?
     let isUserMediaZeroState: Bool
+    let stillImageSourceIndex: Int?
     let focusRegion: NormalizedImageFocusRegion?
 
     init(
@@ -772,6 +776,7 @@ struct CarouselPageItem: Identifiable, Equatable {
         galleryItem: InsightImageGalleryItem? = nil,
         videoFallback: CarouselVideoFallback? = nil,
         isUserMediaZeroState: Bool = false,
+        stillImageSourceIndex: Int? = nil,
         focusRegion: NormalizedImageFocusRegion? = nil
     ) {
         self.id = id
@@ -783,12 +788,14 @@ struct CarouselPageItem: Identifiable, Equatable {
         self.galleryItem = galleryItem
         self.videoFallback = videoFallback
         self.isUserMediaZeroState = isUserMediaZeroState
+        self.stillImageSourceIndex = stillImageSourceIndex
         self.focusRegion = focusRegion
     }
 
     static func == (lhs: CarouselPageItem, rhs: CarouselPageItem) -> Bool {
         lhs.id == rhs.id
             && lhs.imageOrigin == rhs.imageOrigin
+            && lhs.stillImageSourceIndex == rhs.stillImageSourceIndex
             && lhs.focusRegion == rhs.focusRegion
     }
 }
@@ -1000,6 +1007,7 @@ struct ImagesCarousel: View {
     @State private var unavailableImageIdentifiers: Set<String> = []
     @State private var loadedReferenceImageIdentifiers: Set<String> = []
     @State private var unavailableVideoPageIDs: Set<String> = []
+    @State private var committedFocusRectsByIdentity: [FocusInteractionIdentity: CGRect] = [:]
 
     // MARK: - Body
     var body: some View {
@@ -1029,13 +1037,13 @@ struct ImagesCarousel: View {
                         }
                         .overlay {
                             if isProcessing {
+                                let focusInteractionIdentity = selectedFocusInteractionIdentity
                                 AnalyzingMediaOverlay(
                                     kind: selectedMediaKind,
                                     focusRegion: selectedFocusRegion,
-                                    focusInteractionIdentity: FocusInteractionIdentity(
-                                        scanID: scanId,
-                                        pageID: carouselPages[safe: selectedIndex]?.id,
-                                        region: selectedFocusRegion
+                                    focusInteractionIdentity: focusInteractionIdentity,
+                                    committedFocusRect: committedFocusRectBinding(
+                                        for: focusInteractionIdentity
                                     )
                                 )
                                     .transition(.opacity)
@@ -1065,6 +1073,12 @@ struct ImagesCarousel: View {
             unavailableImageIdentifiers.removeAll()
             loadedReferenceImageIdentifiers.removeAll()
             unavailableVideoPageIDs.removeAll()
+            committedFocusRectsByIdentity.removeAll()
+        }
+        .onChange(of: isProcessing) { wasProcessing, isNowProcessing in
+            if !wasProcessing, isNowProcessing {
+                committedFocusRectsByIdentity.removeAll()
+            }
         }
     }
 
@@ -1106,6 +1120,29 @@ struct ImagesCarousel: View {
 
     private var selectedFocusRegion: NormalizedImageFocusRegion? {
         carouselPages[safe: selectedIndex]?.focusRegion
+    }
+
+    private var selectedFocusInteractionIdentity: FocusInteractionIdentity {
+        let selectedPage = carouselPages[safe: selectedIndex]
+        return FocusInteractionIdentity(
+            scanID: scanId,
+            stillImageSourceIndex: selectedPage?.stillImageSourceIndex
+        )
+    }
+
+    private func committedFocusRectBinding(
+        for identity: FocusInteractionIdentity
+    ) -> Binding<CGRect?> {
+        Binding(
+            get: { committedFocusRectsByIdentity[identity] },
+            set: { committedRect in
+                if let committedRect {
+                    committedFocusRectsByIdentity[identity] = committedRect
+                } else {
+                    committedFocusRectsByIdentity.removeValue(forKey: identity)
+                }
+            }
+        )
     }
 
     private var isSelectedVideoUnavailable: Bool {
@@ -1242,10 +1279,9 @@ enum StillImageAnalyzingMode: Equatable {
     }
 }
 
-private struct FocusInteractionIdentity: Hashable {
+struct FocusInteractionIdentity: Hashable {
     let scanID: String?
-    let pageID: String?
-    let region: NormalizedImageFocusRegion?
+    let stillImageSourceIndex: Int?
 }
 
 /// Derives motion from time so a retained overlay can recover after its render
@@ -1274,6 +1310,7 @@ private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
     let focusRegion: NormalizedImageFocusRegion?
     let focusInteractionIdentity: FocusInteractionIdentity
+    @Binding var committedFocusRect: CGRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -1311,7 +1348,8 @@ private struct AnalyzingMediaOverlay: View {
                         case .isolatedFocus(let focusRegion):
                             LensFocusOverlay(
                                 region: focusRegion,
-                                scanProgress: sweepProgress
+                                scanProgress: sweepProgress,
+                                committedFocusRect: $committedFocusRect
                             )
                             .id(focusInteractionIdentity)
                         case .fullImageScan:
@@ -1827,10 +1865,10 @@ private struct ImageFocusOverlayResizeInteraction: Equatable {
 private struct LensFocusOverlay: View {
     let region: NormalizedImageFocusRegion
     let scanProgress: CGFloat
+    @Binding var committedFocusRect: CGRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
-    @State private var committedFocusRect: CGRect?
     @State private var isMoveHapticActive = false
     @State private var hapticResizeCorner: ImageFocusOverlayCorner?
     @State private var hapticResizeConstraints: Set<ImageFocusOverlayResizeConstraint> = []

@@ -39,8 +39,11 @@ function restorationScan(
     audio_storage_urls: [],
     captured_media: null,
     is_tombstoned: false,
+    is_biological_subject: true,
+    user_identification_override: null,
     species_id: "00000000-0000-0000-0000-000000000003",
     confirmed_species_id: null,
+    species_dictionary: { scientific_name: "Turdus migratorius" },
     ...overrides,
   };
 }
@@ -95,6 +98,87 @@ Deno.test("scanContainsDurableMediaUrls requires every exact restored URL", () =
     ]),
     false,
   );
+});
+
+Deno.test("fetchShareEligibleScan rejects Human before media restoration", async () => {
+  for (const scientificName of ["Homo sapiens", "Homo sapien"]) {
+    const row = restorationScan({
+      image_storage_urls: ["https://media.merian.app/human.webp"],
+      species_dictionary: { scientific_name: scientificName },
+    });
+
+    await assertRejects(
+      () =>
+        fetchShareEligibleScan(
+          scanId,
+          userId,
+          [],
+          [],
+          [],
+          restorationReadClient({ data: row, error: null }),
+        ),
+      PublicHttpError,
+      "Human scans cannot be shared to Explore.",
+    );
+  }
+});
+
+Deno.test("fetchShareEligibleScan rejects unresolved taxonomy before media restoration", async () => {
+  for (
+    const scientificName of [
+      null,
+      "Unknown Subject",
+      "Taxonomy Unavailable",
+      "Unidentified Wildlife",
+    ]
+  ) {
+    const row = restorationScan({
+      image_storage_urls: ["https://media.merian.app/unresolved.webp"],
+      species_dictionary: scientificName == null
+        ? null
+        : { scientific_name: scientificName },
+    });
+
+    await assertRejects(
+      () =>
+        fetchShareEligibleScan(
+          scanId,
+          userId,
+          [],
+          [],
+          [],
+          restorationReadClient({ data: row, error: null }),
+        ),
+      PublicHttpError,
+      "Only biological scans can be shared to Explore.",
+    );
+  }
+});
+
+Deno.test("fetchShareEligibleScan rejects non-biological and Human override records", async () => {
+  for (
+    const overrides of [
+      { is_biological_subject: false },
+      { user_identification_override: "Human" },
+      { user_identification_override: "Homo sapien" },
+    ]
+  ) {
+    await assertRejects(
+      () =>
+        fetchShareEligibleScan(
+          scanId,
+          userId,
+          [],
+          [],
+          [],
+          restorationReadClient({
+            data: restorationScan(overrides),
+            error: null,
+          }),
+        ),
+      PublicHttpError,
+    );
+  }
 });
 
 Deno.test("Explore publication sends one complete transactional RPC", async () => {
@@ -1092,6 +1176,7 @@ Deno.test("fetchShareEligibleScan recreates a missing owner scan before sharing"
     is_tombstoned: false,
     species_id: "00000000-0000-0000-0000-000000000003",
     confirmed_species_id: null,
+    species_dictionary: { scientific_name: "Turdus migratorius" },
   };
   const reads = [
     { data: null, error: null },

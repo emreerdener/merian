@@ -43,6 +43,7 @@ import {
   normalizeUserMessage,
   refusalAnswer,
 } from "./guards.ts";
+import { isFieldChatEligibleScan } from "./eligibility.ts";
 import {
   buildPromptSuggestionsPrompt,
   buildSystemInstruction,
@@ -256,10 +257,11 @@ Deno.serve((req: Request) =>
       }, 404);
     }
 
-    if (scan.is_biological_subject === false) {
+    if (!isFieldChatEligibleScan(scan)) {
       return jsonResponse({
         code: "unsupported_scan",
-        error: "Insight chat is available for biological scans.",
+        error:
+          "Insight chat is available for resolved non-Human biological scans.",
       }, 400);
     }
 

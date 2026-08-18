@@ -175,6 +175,190 @@ struct SpeciesDataTests {
         #expect(species.isNewToMerianDictionary == false)
     }
 
+    @Test func humanAudioMapsAsResolvedBiologicalSubjectWithoutCandidates() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "human_audio",
+            "is_biological_subject": true,
+            "is_live_capture": true,
+            "scientific_name": "Homo sapiens",
+            "common_name": "Human",
+            "confidence_score": 0.99,
+            "candidates": [
+              {
+                "scientific_name": "Turdus migratorius",
+                "confidence_score": 0.72
+              }
+            ],
+            "insight_data": {
+              "ai_reasoning": "The recording contains human breathing.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        var species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+        species.audioFilePaths = ["human.wav"]
+
+        #expect(species.isBiological)
+        #expect(species.isHumanSubject)
+        #expect(species.hasResolvedBiologicalIdentification)
+        #expect(species.commonName == "Human")
+        #expect(species.scientificName == "Homo sapiens")
+        #expect(species.presentationConfidenceScore == 0.99)
+        #expect(species.candidates == nil)
+        #expect(species.shouldSuppressReferenceImages)
+    }
+
+    @Test func malformedHistoricalHumanAliasKeepsHumanSafeguards() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "legacy_human_audio",
+            "is_biological_subject": true,
+            "is_live_capture": true,
+            "scientific_name": "Homo sapien",
+            "common_name": "Unknown Subject",
+            "confidence_score": 0.99,
+            "candidates": [
+              {
+                "scientific_name": "Turdus migratorius",
+                "confidence_score": 0.72
+              }
+            ],
+            "insight_data": {
+              "ai_reasoning": "Legacy structured output.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        let species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+
+        #expect(species.isHumanSubject)
+        #expect(species.subjectDisplayName(isAudioOnlyObservation: true) == "Human")
+        #expect(species.presentationScientificName == "Homo sapiens")
+        #expect(species.candidates == nil)
+        #expect(species.shouldSuppressReferenceImages)
+    }
+
+    @Test func humanOverrideKeepsHumanSafeguards() {
+        for override in ["Homo sapien", "Human"] {
+            let species = SpeciesData(
+                commonName: "American Robin",
+                scientificName: "Turdus migratorius",
+                insightData: InsightData(aiReasoning: "A bird.", hazardType: "none"),
+                confidenceScore: 0.9,
+                userIdentificationOverride: override
+            )
+
+            #expect(species.isHumanSubject)
+            #expect(species.presentationScientificName == "Homo sapiens")
+            #expect(species.shouldSuppressReferenceImages)
+        }
+
+        let historicalCommonName = SpeciesData(
+            commonName: "Homo sapiens",
+            scientificName: "Taxonomy Unavailable",
+            insightData: InsightData(aiReasoning: "Legacy Human result.", hazardType: "none"),
+            confidenceScore: 0.9
+        )
+        #expect(historicalCommonName.isHumanSubject)
+        #expect(historicalCommonName.shouldSuppressReferenceImages)
+    }
+
+    @Test func unresolvedAudioUsesWildlifePresentationAndSuppressesMatchConfidence() throws {
+        let json = Data("""
+        {
+          "success": true,
+          "data": {
+            "scan_id": "unresolved_audio",
+            "is_biological_subject": true,
+            "is_live_capture": true,
+            "common_name": "Unidentified Wildlife",
+            "confidence_score": 0.98,
+            "candidates": [
+              {
+                "scientific_name": "Hyla cinerea",
+                "confidence_score": 0.64
+              }
+            ],
+            "insight_data": {
+              "ai_reasoning": "A non-human animal call is present but unresolved.",
+              "hazard_type": "none"
+            }
+          }
+        }
+        """.utf8)
+
+        let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: json)
+        var species = SpeciesData(
+            fromEdgeResponse: wrapper.data,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil
+        )
+        species.audioFilePaths = ["wildlife.wav"]
+
+        #expect(species.isUnresolvedBiologicalSubject)
+        #expect(!species.hasResolvedBiologicalIdentification)
+        #expect(species.subjectDisplayName(isAudioOnlyObservation: true) == "Unidentified Wildlife")
+        #expect(species.presentationConfidenceScore == nil)
+        #expect(species.candidates == nil)
+        #expect(!species.isNewToMerianDictionary)
+        #expect(species.shouldSuppressReferenceImages)
+    }
+
+    @Test func historicalAudioPlaceholdersUseSafePresentationWithoutRewritingData() {
+        let species = SpeciesData(
+            commonName: "Unknown Subject",
+            scientificName: "Taxonomy Unavailable",
+            insightData: InsightData(
+                aiReasoning: "Legacy audio result.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.99,
+            isBiological: true,
+            audioFilePaths: ["legacy.wav"]
+        )
+
+        #expect(species.commonName == "Unknown Subject")
+        #expect(species.scientificName == "Taxonomy Unavailable")
+        #expect(species.subjectDisplayName(isAudioOnlyObservation: true) == "Unidentified Wildlife")
+        #expect(species.presentationConfidenceScore == nil)
+
+        let nonBiological = SpeciesData(
+            commonName: "Unknown Subject",
+            scientificName: "Taxonomy Unavailable",
+            insightData: InsightData(
+                aiReasoning: "Legacy non-biological audio result.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.99,
+            isBiological: false,
+            audioFilePaths: ["legacy.wav"]
+        )
+        #expect(nonBiological.subjectDisplayName(isAudioOnlyObservation: true) == "No wildlife detected")
+        #expect(nonBiological.subjectDisplayName(isAudioOnlyObservation: false) == "Unknown Subject")
+    }
+
     // MARK: - Premium Insights: default nil state
 
     @Test func testPremiumFieldsDefaultToNilWhenOmitted() {

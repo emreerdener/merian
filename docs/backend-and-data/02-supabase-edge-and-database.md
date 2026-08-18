@@ -1,8 +1,8 @@
 # Supabase Edge and PostgreSQL Engine
 
 Naturebook uses Supabase as its backend platform. The Supabase URL and
-publishable client key are build configuration and are necessarily compiled
-into the app; RLS and explicit object grants—not key secrecy—protect direct
+publishable client key are build configuration and are necessarily compiled into
+the app; RLS and explicit object grants—not key secrecy—protect direct
 owner-scoped Data API access. Service-role credentials, provider keys, webhook
 secrets, and other privileged secrets remain server-only in Supabase Edge.
 Gemini provider calls and privileged database admission execute server-side in
@@ -52,8 +52,8 @@ are identified by a persistent Keychain-backed
   self-attestation, including exact displayed text, method, device action time,
   platform, app version/build, and authoritative server time. No birth date or
   exact age is collected.
-- **`user_analytics_consent_events`**: Immutable account-wide PostHog grants
-  and revocations under the same causal revision protocol. Absence of a current
+- **`user_analytics_consent_events`**: Immutable account-wide PostHog grants and
+  revocations under the same causal revision protocol. Absence of a current
   grant means analytics is off; owner-only Realtime INSERT events and foreground
   reconciliation propagate accepted changes. A delayed stale grant is rejected
   without insertion; a delayed revocation is rebased and accepted so withdrawal
@@ -62,9 +62,10 @@ are identified by a persistent Keychain-backed
 
 The additive schema and static migration contracts establish the intended
 database boundary, but do not prove the iOS local-ledger, SDK-shutdown,
-account-transition, or synchronization lifecycle. Those client findings keep
-the candidate blocked in the
+account-transition, or synchronization lifecycle. Those client findings keep the
+candidate blocked in the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
+
 - **`internal.user_species_scan_counts`
   (`20260724222838_optimize_species_count_trigger.sql`)**: A private
   `(user_id, species_id)` ledger with the number of matching scans. Four
@@ -151,30 +152,29 @@ Several utilities are shared across all Edge Functions via
   behavioral analytics (conversion funnel, scan frequency, species discovery
   rate). Before any PostHog request, it checks the latest current account-wide
   consent event and fails closed on absence, revocation, or lookup failure. It
-  sends only the pseudonymous account UUID, never auth email or name. Capture
-  is best-effort behind a 2.5-second hard deadline so telemetry
-  cannot consume an unbounded share of Edge wall-clock time. PostHog receives
-  token counters for funnel/debug slicing, including video-attributed counters
-  on video-backed multimodal scans, but authoritative LLM token cost analytics
-  are owned by Supabase SQL queries in `services/supabase/analytics/` (see
-  below). Scan inference cost queries read `scans`; Insight chat cost queries
-  read assistant rows in `insight_chat_messages`.
+  sends only the pseudonymous account UUID, never auth email or name. Capture is
+  best-effort behind a 2.5-second hard deadline so telemetry cannot consume an
+  unbounded share of Edge wall-clock time. PostHog receives token counters for
+  funnel/debug slicing, including video-attributed counters on video-backed
+  multimodal scans, but authoritative LLM token cost analytics are owned by
+  Supabase SQL queries in `services/supabase/analytics/` (see below). Scan
+  inference cost queries read `scans`; Insight chat cost queries read assistant
+  rows in `insight_chat_messages`.
 - **`aiQuota.ts`**: The paid-provider boundary. It validates UUID idempotency
   keys, derives a daily-rotating HMAC of the proxy-observed address, and calls
   the service-only `reserve_ai_quota` RPC. The RPC first requires current adult,
   Terms, and all-version Gemini-head consent for the active account. Only then
   does its atomic transaction resolve the durable plan, select the allowlisted
   model, and consume daily/user/IP counters before Edge provider dispatch. A
-  provider attempt is committed;
-  provider failure remains charged but becomes retryable, abandoned pre-provider
-  leases expire, and only a verified pre-provider no-op is refunded.
-  `_shared/groupTagQuota.ts` applies this boundary to optional group-tag
-  generation.
+  provider attempt is committed; provider failure remains charged but becomes
+  retryable, abandoned pre-provider leases expire, and only a verified
+  pre-provider no-op is refunded. `_shared/groupTagQuota.ts` applies this
+  boundary to optional group-tag generation.
 - **`entitlement.ts`**: Non-provider feature and telemetry tier resolver. It
-  calls service-only `get_user_entitlement_service(...)` on every resolution
-  and validates paid, complimentary, or free plan, balances, in-flight holds,
-  and monotonic version from the private database state. It also reads the
-  rollout fence for public protocol enforcement. Query errors, missing rows, or
+  calls service-only `get_user_entitlement_service(...)` on every resolution and
+  validates paid, complimentary, or free plan, balances, in-flight holds, and
+  monotonic version from the private database state. It also reads the rollout
+  fence for public protocol enforcement. Query errors, missing rows, or
   malformed durable values return `503 ai_entitlement_unavailable`; there is no
   isolate-local authorization cache or webhook cache invalidation.
 - **`aws.ts`**: Exports native `S3/R2` Cloudflare mappings utilizing
@@ -241,16 +241,16 @@ to adult policy `2026-08-03` and Terms `2026-08-03`; forward migration
 `20260804215234_bump_consent_disclosure_versions.sql` advances Gemini to
 `2026-08-04.1`. Additive TestFlight mode accepts only the complete newest or an
 explicitly allowlisted complete prior beta bundle until owner-only strict
-cutover. After old
-builds are expired, `services/supabase/scripts/cutover_strict_ai_consent.sql`
-makes current evidence mandatory. Missing, partial, stale, or revoked evidence
-raises `ai_consent_required`; `_shared/aiQuota.ts` maps it to a caller-safe HTTP
-403. That code is a disclosure-policy transition, not quota exhaustion: it is
-raised before entitlement selection, creates no provider reservation or
-included-Pro hold, and consumes no daily Flash allowance. A first-time client's
-local onboarding flag or persisted sync marker is never server authorization;
-the same account rows must be uploaded and fetched authoritatively before its
-first provider request. See the
+cutover. After old builds are expired,
+`services/supabase/scripts/cutover_strict_ai_consent.sql` makes current evidence
+mandatory. Missing, partial, stale, or revoked evidence raises
+`ai_consent_required`; `_shared/aiQuota.ts` maps it to a caller-safe HTTP 403.
+That code is a disclosure-policy transition, not quota exhaustion: it is raised
+before entitlement selection, creates no provider reservation or included-Pro
+hold, and consumes no daily Flash allowance. A first-time client's local
+onboarding flag or persisted sync marker is never server authorization; the same
+account rows must be uploaded and fetched authoritatively before its first
+provider request. See the
 [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 In one transaction the reservation then:
 
@@ -291,14 +291,13 @@ overview/lookalike/group-tag enrichment attempts, 3/25/100 Explore/Community
 audio moderation attempts, and denied/60/120 model-chat attempts. Historical
 `pro_trial` policy and reservation rows remain readable. All allowed plans also
 share per-minute user and IP ceilings. These are database-owned cost/abuse
-controls; iOS
-`UsageManager` is only an advisory capture meter.
+controls; iOS `UsageManager` is only an advisory capture meter.
 
-Provider quota and complimentary settlement are independent. Attempted
-provider calls retain their cost/rate counters even when a proven terminal
-failure releases the user's held credit. Retryable or ambiguous outcomes keep
-the hold until recovery proves a durable result or terminal failure. The
-normative lifecycle and user-first lock order are in
+Provider quota and complimentary settlement are independent. Attempted provider
+calls retain their cost/rate counters even when a proven terminal failure
+releases the user's held credit. Retryable or ambiguous outcomes keep the hold
+until recovery proves a durable result or terminal failure. The normative
+lifecycle and user-first lock order are in
 [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
 
 Database entitlement lookup fails closed. A query error, missing user row,
@@ -341,8 +340,7 @@ file, avatar, repair, restore, foreground, and background PUT applies that
 response map. File-backed work re-stats immediately before task creation and
 re-signs when its size changed. Deployed verification HEADs the exact uploaded
 object and checks its stored length; declaration alone is not evidence. The
-limit and signing
-contract is pinned in
+limit and signing contract is pinned in
 `docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
 Deno tests. Registration is idempotent per owner/client-scan/object key, but
 signing calls for one scan may be composable subsets (for example live video and
@@ -652,16 +650,16 @@ The `/identify` Edge Function acts as the inference proxy:
    matching composite dead-letter/quota/media-lifecycle proof. Current/later
    policy, unproven-abandonment, and arbitrary terminal state remains closed. A
    bounded service-only proof RPC gives signing the same database decision;
-   proof and recovery signatures are registered in the privileged-routine
-   ledger and reached by exact production no-write readiness probes. Server
-   replay and media reconciliation use the same finalization RPC instead of
-   directly writing `complete`; compatibility
-   identify/audio/describe routes have no direct complete path either. A catalog
-   trigger independently rejects completion unless that transaction publishes
-   the exact owner-and-scan finalization fence. Completed status and scan
-   identity are immutable. The atomic ghost-profile merge remains compatible
-   through its pre-existing exact source/target/enabled transaction-local
-   markers; no generic service-key owner update is accepted.
+   proof and recovery signatures are registered in the privileged-routine ledger
+   and reached by exact production no-write readiness probes. Server replay and
+   media reconciliation use the same finalization RPC instead of directly
+   writing `complete`; compatibility identify/audio/describe routes have no
+   direct complete path either. A catalog trigger independently rejects
+   completion unless that transaction publishes the exact owner-and-scan
+   finalization fence. Completed status and scan identity are immutable. The
+   atomic ghost-profile merge remains compatible through its pre-existing exact
+   source/target/enabled transaction-local markers; no generic service-key owner
+   update is accepted.
 6. **Moderation Pipeline (`_shared/identify/moderation.ts`)**: Evaluates Gemini
    Safety Ratings before scan-media publication and final scan insertion. Unsafe
    media increments abuse strikes, sets `is_shadowbanned` when the new total
@@ -743,12 +741,12 @@ The `/identify` Edge Function acts as the inference proxy:
     protocol, and server-derived Flash-fallback eligibility. The transaction
     locks the user first, resolves paid Pro → complimentary Pro → free, and
     atomically acquires a hold from the private three-scan lifetime ledger.
-    Provider daily/per-minute counters remain separate and are retained after
-    an attempted provider call even if a terminal failure releases the user's
-    hold. Paid passes with stale expiry resolve free even before the expiry
-    worker repairs the row. A missing `public.users` row is an identity-system
-    fault and fails closed. Successful Auth signup is responsible for creating
-    that row before inference. Optional group-tag generation uses
+    Provider daily/per-minute counters remain separate and are retained after an
+    attempted provider call even if a terminal failure releases the user's hold.
+    Paid passes with stale expiry resolve free even before the expiry worker
+    repairs the row. A missing `public.users` row is an identity-system fault
+    and fails closed. Successful Auth signup is responsible for creating that
+    row before inference. Optional group-tag generation uses
     `_shared/groupTagQuota.ts`, the separate `scan_group_tag_enrichment` policy,
     and its database-selected model; public routes cannot dispatch the
     biological helper directly.
@@ -1170,8 +1168,7 @@ the identify pipeline. The current shipped surface includes:
 - hashtag reads: `get-explore-hashtag-posts`
 - map reads: `get-explore-map-points`
 - community identification reads: `get-community-identification-feed`,
-  `get-community-identification-activity`,
-  `get-community-identification-detail`
+  `get-community-identification-activity`, `get-community-identification-detail`
 - mutations: `share-scan-to-explore`, `unshare-explore-post`,
   `update-explore-field-notes`, `set-explore-post-like`, `set-user-follow`,
   `create-explore-comment`, `delete-explore-comment`,
@@ -1225,8 +1222,8 @@ Identify Activity is deliberately separate from these bell tables. Migration
 identification inserts and consensus events into service-only suggestion bursts,
 standalone consensus changes, and immutable resolution milestones. Adjacent
 suggestions on one request generation chain across an inclusive 60-minute
-boundary. Submission-caused consensus updates enrich the burst; every
-resolution remains separate.
+boundary. Submission-caused consensus updates enrich the burst; every resolution
+remains separate.
 
 `get-community-identification-activity` verifies the caller through
 `withEdgeHandler`, derives the viewer ID from that JWT, and calls the
@@ -1334,36 +1331,35 @@ is maintained in the
 
 `20260730023042_gate_field_trip_progress_by_confidence.sql` adds the evidence
 policy ahead of both standard and Event matching. Unreviewed AI identification
-must meet the exact inference tier's Possible-match boundary
-(`Flash >= 0.75`, `Pro >= 0.65`); explicit confirmation or a confirmed
-correction/community resolution can qualify below it. Confidence,
-inference-tier, and confirmation fields participate in receipt revisions, and
-the correction trigger re-enters the atomic boundary when those fields change.
-The migration also removes prior weak-unreviewed credit and repairs derived
-completion artifacts while retaining the selected Capture-goal preference as a
-pending hint. The same reconciliation applies to future evidence downgrades,
-including scans credited before an experience completed: it removes standard
-and Event credit, reopens progress, clears derived Event badges, and
-soft-deletes invalid completion publications or entries without announcing a
-new completion.
+must meet the exact inference tier's Possible-match boundary (`Flash >= 0.75`,
+`Pro >= 0.65`); explicit confirmation or a confirmed correction/community
+resolution can qualify below it. Confidence, inference-tier, and confirmation
+fields participate in receipt revisions, and the correction trigger re-enters
+the atomic boundary when those fields change. The migration also removes prior
+weak-unreviewed credit and repairs derived completion artifacts while retaining
+the selected Capture-goal preference as a pending hint. The same reconciliation
+applies to future evidence downgrades, including scans credited before an
+experience completed: it removes standard and Event credit, reopens progress,
+clears derived Event badges, and soft-deletes invalid completion publications or
+entries without announcing a new completion.
 
 `20260802053044_simplify_backyard_and_pollinator_levels.sql` moves the existing
 starter checklist identities into 2/4/4 progressions and reconciles the now
-exact domestic-dog goal. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
-then enrolls every account without prior Backyard Safari state into Level 1 and
-opens an activity period at enrollment time. A deny-by-default internal trigger
-does the same when future signed-in or ghost profiles are inserted. The
-insert-only conflict policy preserves completed, stopped, and reset state, and
-the activity-window timestamp prevents retroactive credit for older scans. The
-created row retains the existing profile-visible Field trip status, but no scan
-evidence, media, notes, or location is exposed by enrollment.
+exact domestic-dog goal.
+`20260803015025_auto_enroll_backyard_safari_level_one.sql` then enrolls every
+account without prior Backyard Safari state into Level 1 and opens an activity
+period at enrollment time. A deny-by-default internal trigger does the same when
+future signed-in or ghost profiles are inserted. The insert-only conflict policy
+preserves completed, stopped, and reset state, and the activity-window timestamp
+prevents retroactive credit for older scans. The created row retains the
+existing profile-visible Field trip status, but no scan evidence, media, notes,
+or location is exposed by enrollment.
 
 These Seasonal Challenge contracts are deployed and Events are public in iOS.
 The client requests and renders challenge catalogs, details, badges, entries,
-routes, progress, Insight contributions, and hashtag suggestions for every
-user. This client release did not change database authorization, schema, or
-Function contracts; the verified Edge and database boundaries remain
-authoritative.
+routes, progress, Insight contributions, and hashtag suggestions for every user.
+This client release did not change database authorization, schema, or Function
+contracts; the verified Edge and database boundaries remain authoritative.
 
 `get-explore-post` is an important routing helper for the iOS client: it returns
 a single privacy-safe feed-card projection so notification taps and deep links
@@ -1428,13 +1424,17 @@ sheet.
 Initial publication additionally uses
 `public.publish_scan_to_explore_atomically(...)` after restoration, thumbnail
 generation, and moderation complete. The invoker-rights, service-role-only RPC
-locks and revalidates the exact owned biological scan, accepts only bounded
-media URLs from that scan, and performs the post upsert, media replacement,
-hashtag replacement, and resolved-community publication in one transaction. When
-backward-compatible clients omit `location_sharing`, the RPC resolves geoprivacy
-from that locked scan. An insert, constraint, or late community-publication
-failure therefore restores the entire previous snapshot; it cannot leave a newly
-visible partial post or erase healthy media while returning failure.
+locks and revalidates the exact owned, resolved non-Human biological scan,
+accepts only bounded media URLs from that scan, and performs the post upsert,
+media replacement, hashtag replacement, and resolved-community publication in
+one transaction. Before invoking it, the shared Edge owner-row validator rejects
+explicit non-biological state, missing/unresolved selected taxonomy, Human
+aliases, and a Human user override; Ask the Community reuses that validator.
+When backward-compatible clients omit `location_sharing`, the RPC resolves
+geoprivacy from that locked scan. An insert, constraint, or late
+community-publication failure therefore restores the entire previous snapshot;
+it cannot leave a newly visible partial post or erase healthy media while
+returning failure.
 
 Ask the Community uses the companion
 `public.request_community_identification_atomically(...)` boundary after
@@ -1608,8 +1608,8 @@ map to multiple live users fail closed without a tier write.
 `public.apply_revenuecat_identity_state(...)` then performs the event insert,
 principal/user locks, ordering comparison, separated StoreKit/account-grant
 projection, and durable watermark update in one transaction. `TRANSFER` events
-use `transferred_from` and `transferred_to` instead of `app_user_id`; the handler
-fetches both customers before calling the RPC, and the RPC locks stable
+use `transferred_from` and `transferred_to` instead of `app_user_id`; the
+handler fetches both customers before calling the RPC, and the RPC locks stable
 principals before affected UUIDs in sorted order. During the expand/migrate
 window, the previous bundle's exact
 `public.apply_revenuecat_customer_state(...)` and
@@ -1618,16 +1618,15 @@ compatibility adapters. They delegate legacy UUID subjects into the identity
 ledger and scheduler. The adapters and stable completion first take one shared
 cutover advisory lock, then lock related principals before users and recheck
 under lock, so even a previously unrelated rebind destination cannot race a
-legacy write.
-`internal.revenuecat_webhook_events.event_id` is the unique idempotency key,
-while the legacy and principal subject ledgers record zero to two results.
-Authoritative CustomerInfo snapshot time orders state first; webhook event time
-and event ID break only exact snapshot ties. Duplicate or older deliveries
-remain auditable but cannot overwrite newer access, and a transfer cannot
-partially commit. The internal tables have RLS enabled and no direct grants;
-the `SECURITY DEFINER SET search_path = ''` mutation, adapter, resolver, and
-duplicate-lookup RPCs call `internal.require_service_role()` and are allowlisted
-only to `service_role`.
+legacy write. `internal.revenuecat_webhook_events.event_id` is the unique
+idempotency key, while the legacy and principal subject ledgers record zero to
+two results. Authoritative CustomerInfo snapshot time orders state first;
+webhook event time and event ID break only exact snapshot ties. Duplicate or
+older deliveries remain auditable but cannot overwrite newer access, and a
+transfer cannot partially commit. The internal tables have RLS enabled and no
+direct grants; the `SECURITY DEFINER SET search_path = ''` mutation, adapter,
+resolver, and duplicate-lookup RPCs call `internal.require_service_role()` and
+are allowlisted only to `service_role`.
 
 Migration `20260725052338_reconcile_revenuecat_subscribers.sql` adds a durable
 authoritative repair queue. Migration
@@ -1658,10 +1657,10 @@ RevenueCat customer identity is linked by the iOS client before purchase
 evaluation: `SupabaseManager.linkExternalTelemetry(user:)` configures the SDK
 directly with the uppercase Supabase Auth UUID on first use and switches known
 accounts with `logIn`, without an anonymous configuration or SDK logout. It sets
-subscriber attributes such as
-`supabase_user_id`, `auth_email`, `public_username`, `public_author_name`,
-`public_identity_source`, and `account_kind`. Manual RevenueCat Test Store
-support work should search by the Supabase UUID first, then by those attributes.
+subscriber attributes such as `supabase_user_id`, `auth_email`,
+`public_username`, `public_author_name`, `public_identity_source`, and
+`account_kind`. Manual RevenueCat Test Store support work should search by the
+Supabase UUID first, then by those attributes.
 
 Before saving `image_storage_urls` to PostgreSQL, the function strips AWS
 signature query string parameters from the URL to prevent Cloudflare R2
@@ -1868,10 +1867,10 @@ that operate on anonymous IDFV boundaries:
 
 ## Security & Environment Validation
 
-- The `GEMINI_PAID_API_KEY` is absent from the iOS client bundle (`Info.plist` and
-  `.xcconfig`). All LLM calls go through Supabase Edge Functions (`identify`,
-  `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.), which hold the
-  key server-side.
+- The `GEMINI_PAID_API_KEY` is absent from the iOS client bundle (`Info.plist`
+  and `.xcconfig`). All LLM calls go through Supabase Edge Functions
+  (`identify`, `identify-multimodal`, `enrich-scan`, `insight-chat`, etc.),
+  which hold the key server-side.
 - Every Edge Function declares `verify_jwt` explicitly in `config.toml`.
   Anonymous Supabase sessions carry user JWTs, and the gateway supports both
   legacy HS256 and asymmetric signing-key JWTs. User-JWT-only routes should
@@ -2185,11 +2184,10 @@ ownerless (`user_id = NULL`) and sets `is_tombstoned = true`. Migration
 `20260731154139_retain_scientific_coordinates_after_account_deletion.sql`
 installs the current mandatory retention boundary: it clears media, private
 free-form notes, custom tags, semantic/public location labels, and device
-context, while leaving exact coordinates, elevation, observation time,
-taxonomy, identification, environmental, quality, and provenance facts
-unchanged. A validated check constraint permits an ownerless scan only when it
-is tombstoned, and the anonymous table-read policy explicitly excludes
-tombstones.
+context, while leaving exact coordinates, elevation, observation time, taxonomy,
+identification, environmental, quality, and provenance facts unchanged. A
+validated check constraint permits an ownerless scan only when it is tombstoned,
+and the anonymous table-read policy explicitly excludes tombstones.
 
 The normative retained-versus-cleared field boundary and its change procedure
 are defined in the
@@ -2218,11 +2216,11 @@ adds durable deletion intake, and migration
 mandatory authority for every R2 claim. Migration
 `20260806203700_durable_apple_provider_revocation.sql` adds a provider substage
 inside `auth_pending`; a stored Apple refresh token must be revoked and removed
-from Vault before Auth deletion. `/safe-delete` first persists an
-idempotent `pending` receipt, then claims it with a five-minute UUID lease. The
-claim writes the storage job, invokes `apply_user_tombstone`, verifies that no
-public profile or scan still references the user, and commits `storage_pending`
-in one database transaction. The Auth Admin API remains forbidden until storage
+from Vault before Auth deletion. `/safe-delete` first persists an idempotent
+`pending` receipt, then claims it with a five-minute UUID lease. The claim
+writes the storage job, invokes `apply_user_tombstone`, verifies that no public
+profile or scan still references the user, and commits `storage_pending` in one
+database transaction. The Auth Admin API remains forbidden until storage
 verification advances the account job to `auth_pending`. This ordering
 guarantees that any relational, R2, or provider failure leaves the login
 identity available for retry instead of stranding personal data behind an
@@ -2244,18 +2242,18 @@ workflow; queue status, age, due time, or a reset marker alone can never
 authorize an account-prefix sweep.
 
 Relational cleanup also clears every compatibility media URL, captured-media
-reference, semantic/public-location value, device
-locale/time-zone context, free-form note, and custom tag retained on ownerless
-scientific tombstones while retaining exact coordinate/elevation and every
-other scientific fact. Every claimed retry repeats cleanup and verification
-before progressing. After storage verification, the worker calls Apple's
-idempotent `/auth/revoke` under the active database claim and destroys the Vault
-secret transactionally before Auth becomes reachable. Legacy Apple identities
-without captured credentials carry an explicit manual-fallback disposition in
-the deletion response. A private deletion-state trigger rejects attempts to
-recreate `public.users` while a job is active, including Auth metadata-triggered
-upserts. The upload signer checks the same durable state and rejects new
-staging/public uploads while deletion is active.
+reference, semantic/public-location value, device locale/time-zone context,
+free-form note, and custom tag retained on ownerless scientific tombstones while
+retaining exact coordinate/elevation and every other scientific fact. Every
+claimed retry repeats cleanup and verification before progressing. After storage
+verification, the worker calls Apple's idempotent `/auth/revoke` under the
+active database claim and destroys the Vault secret transactionally before Auth
+becomes reachable. Legacy Apple identities without captured credentials carry an
+explicit manual-fallback disposition in the deletion response. A private
+deletion-state trigger rejects attempts to recreate `public.users` while a job
+is active, including Auth metadata-triggered upserts. The upload signer checks
+the same durable state and rejects new staging/public uploads while deletion is
+active.
 
 The handler passes only the user ID returned by its verified session. The
 database routines are granted only to `service_role`, call
@@ -2264,11 +2262,11 @@ direct job-table privileges to API roles.
 
 **Retry and crash handling**: The request tries its own job immediately and
 normally returns `202` while durable R2 work remains. Both success responses
-include `manual_provider_revocation_required`. A `200` means relational
-cleanup, delayed storage verification, provider disposition, and Auth removal
-are all complete. An older binary that does not decode this required field
-cannot deliver the manual fallback; publishing the supporting build is not
-proof that installed clients adopted it. Production remains blocked until a
+include `manual_provider_revocation_required`. A `200` means relational cleanup,
+delayed storage verification, provider disposition, and Auth removal are all
+complete. An older binary that does not decode this required field cannot
+deliver the manual fallback; publishing the supporting build is not proof that
+installed clients adopted it. Production remains blocked until a
 minimum-supported-build control or independent server-delivered fallback covers
 those clients. The scheduled `reconcile-account-deletions` route leases due
 account jobs and storage jobs every five minutes. Each storage claim processes
@@ -2283,14 +2281,13 @@ account pass may then revoke Apple and remove Auth in the same invocation.
 Cleanup, storage, or provider failure never reaches Auth deletion; Auth failure
 leaves the fully-erased job at `auth_pending` with bounded backoff. HTTP `404`
 and Auth code `user_not_found` are idempotent success, so a lost completion
-response is recoverable. Expired
-claim tokens cannot clear or finish a newer attempt.
+response is recoverable. Expired claim tokens cannot clear or finish a newer
+attempt.
 
 The terminal transition re-verifies cleanup, storage, provider resolution, and
 credential absence; records Auth deletion; clears the claim; and sets the
-private job's `user_id` to `NULL`. The
-completed storage receipt remains available for the terminal gate and operations
-audit.
+private job's `user_id` to `NULL`. The completed storage receipt remains
+available for the terminal gate and operations audit.
 
 **`logStructuredError` alerting requirement**:
 `logStructuredError(event, details)` from `_shared/edgeHandler.ts` emits
@@ -2475,12 +2472,12 @@ and applies a diff-based delta against the server. Key bounds and IDOR guards:
 - **`collection_scans` membership delta**: Only the diff (rows to add minus rows
   to remove) is written — the function does not delete and re-insert all
   memberships on each sync. This prevents unnecessary DB churn on large
-  collections. Additions use
-  `insert_owned_collection_scans(p_user_id, p_rows)`, which joins both parent
-  records to the owner. Missing or foreign scans are skipped for eventual
-  offline ordering. Membership reads, inserts, and deletes throw on database
-  error rather than swallowing it via `console.error`; the controller propagates
-  a `500` so iOS retries rather than confirming a partial result.
+  collections. Additions use `insert_owned_collection_scans(p_user_id, p_rows)`,
+  which joins both parent records to the owner. Missing or foreign scans are
+  skipped for eventual offline ordering. Membership reads, inserts, and deletes
+  throw on database error rather than swallowing it via `console.error`; the
+  controller propagates a `500` so iOS retries rather than confirming a partial
+  result.
 - **`collection_scans` membership hydration**: Existing memberships for all
   owned incoming collections are fetched through one keyset-paginated
   `.in("collection_id", ownedIds)` query ordered by `(collection_id, scan_id)`.
@@ -2645,10 +2642,10 @@ After provider sign-in, the permanent destination calls `operation = complete`.
 The private `internal.ghost_profile_merge_reference_policies` manifest separates
 referential integrity from merge semantics. Catalog inspection verifies complete
 coverage and resolves only reviewed relations; it no longer treats every newly
-discovered foreign key as transferable ownership. Audit, administrator,
-session, and moderator attribution is preserved rather than rewritten. Explicit
-handlers coalesce Community Identify activity actors and normalize RevenueCat
-state before conflict-prone references move. Any migration that changes eligible
+discovered foreign key as transferable ownership. Audit, administrator, session,
+and moderator attribution is preserved rather than rewritten. Explicit handlers
+coalesce Community Identify activity actors and normalize RevenueCat state
+before conflict-prone references move. Any migration that changes eligible
 user-FK topology must update the manifest in the same forward change.
 
 ### Release-blocking concurrency and repair invariants
@@ -2667,22 +2664,22 @@ these invariants:
 - Completion unconditionally inserts or updates the destination's
   `internal.revenuecat_reconciliation_queue` row, sets
   `lookup_app_user_id =
-  internal.canonical_revenuecat_app_user_id(target_user_id)`, makes it due
-  immediately, and
-  clears attempt, claim, and error state. This repair cannot depend on a source
-  queue row: anonymous sources may have none, and the queue is the durable
-  recovery path for a completely missed provider webhook.
-- The Community activity handler coalesces only groups that already contain
-  both a source and destination actor. It updates the destination collision and
+  internal.canonical_revenuecat_app_user_id(target_user_id)`,
+  makes it due immediately, and clears attempt, claim, and error state. This
+  repair cannot depend on a source queue row: anonymous sources may have none,
+  and the queue is the durable recovery path for a completely missed provider
+  webhook.
+- The Community activity handler coalesces only groups that already contain both
+  a source and destination actor. It updates the destination collision and
   deletes the redundant source collision; non-colliding source rows remain for
   the reviewed generic reparent pass. It must not insert destination actor rows
   while holding actor locks, because normal activity writers lock the activity
   group before its actor and the inverse order can deadlock.
 - Both `ghost_merge_species_ledger_mismatch` and
   `user_species_scan_count_underflow` map to HTTP 503
-  `merge_temporarily_unavailable` with the signed-out-profile-data-unchanged message. The
-  transaction has already rolled back in either case; exposing an unexpected
-  500 would give the client the wrong operational classification.
+  `merge_temporarily_unavailable` with the signed-out-profile-data-unchanged
+  message. The transaction has already rolled back in either case; exposing an
+  unexpected 500 would give the client the wrong operational classification.
 
 The exact proof required to clear this hold is in the
 [Ghost Account Merge Security Rollout](./06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).

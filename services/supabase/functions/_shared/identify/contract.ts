@@ -473,6 +473,129 @@ export const merianModelContract = deepFreezeJson(object(
   { unknownKeys: "strip" },
 ));
 
+export const audioSubjectTypes = [
+  "identified_non_human",
+  "unidentified_non_human",
+  "human_only",
+  "no_confident_biological_source",
+] as const;
+export type AudioProviderSubjectType = (typeof audioSubjectTypes)[number];
+
+const audioCandidateContract = object(
+  {
+    ...modelCandidateContract.fields,
+    distinguishing_feature: field(
+      text({
+        minLength: 1,
+        maxLength: 500,
+        description:
+          "The single most important audible difference between this candidate and the primary identification, such as note shape, frequency range, rhythm, repetition, or harmonic structure. One concise clause.",
+      }),
+      true,
+    ),
+  },
+  { unknownKeys: "strip" },
+);
+
+const audioImageQualityContract = object(
+  imageQualityContract.fields,
+  {
+    unknownKeys: "strip",
+    description:
+      "Audio-only compatibility values. Return sharpness=10, framing=10, diagnostic_utility=10, and overall_score=100; these values do not describe a photograph.",
+  },
+);
+
+/**
+ * Private structured-output contract for audio-only provider calls. The
+ * audio_subject_type discriminator is consumed and removed before the public
+ * Identify response is assembled; it is not an API, DTO, or persistence field.
+ */
+export const merianAudioModelContract = deepFreezeJson(object(
+  {
+    ...merianModelContract.fields,
+    extracted_visual_traits: field(
+      list(text({ minLength: 1, maxLength: 500 }), {
+        minItems: 1,
+        maxItems: 10,
+        description:
+          "Despite the legacy field name, return exactly 3 distinct acoustic traits heard in the recording, such as frequency range, rhythm, repetition, note duration, or harmonic structure.",
+      }),
+      true,
+    ),
+    ai_reasoning: field(
+      text({
+        minLength: 1,
+        maxLength: 2_000,
+        description:
+          "A 1-3 sentence acoustic diagnosis citing only audible evidence from the recording.",
+      }),
+      true,
+    ),
+    audio_subject_type: field(
+      text({
+        enum: audioSubjectTypes,
+        maxLength: 31,
+        description:
+          "Classify acoustic sources before deriving the public identity fields. Use identified_non_human when a confident non-human animal is present and its taxon is resolved; unidentified_non_human when a confident non-human animal is present but its taxon is unresolved; human_only only when unmistakable human biological sound is present and no non-human animal is confidently present; and no_confident_biological_source for silence, handling, weather, mechanical, or indeterminate audio. Non-human animals always take precedence over Human.",
+      }),
+      true,
+      false,
+    ),
+    is_biological_subject: field(
+      truth({
+        description:
+          "Derive from audio_subject_type: true for either non-human state and human_only; false only for no_confident_biological_source.",
+      }),
+      true,
+    ),
+    is_live_capture: field(
+      truth({
+        description:
+          "True for either non-human state and human_only; false for no_confident_biological_source.",
+      }),
+      true,
+    ),
+    confidence_score: field(
+      decimal(0, 1, {
+        description:
+          "Confidence in the selected audio subject classification. Species uncertainty may lower taxonomic confidence but must not erase confident non-human animal presence.",
+      }),
+      true,
+    ),
+    candidates: field(
+      list(audioCandidateContract, {
+        minItems: 0,
+        maxItems: 5,
+        description:
+          "Alternative acoustically plausible species only for identified_non_human. Return an empty array for unidentified_non_human, human_only, and no_confident_biological_source.",
+      }),
+      true,
+    ),
+    image_quality: field(audioImageQualityContract, true),
+    pet_identification: field(petIdentificationContract),
+    scientific_name: field(
+      text({
+        nullable: true,
+        minLength: 1,
+        maxLength: 255,
+        description:
+          "Resolved non-human taxon for identified_non_human; canonical Homo sapiens for human_only; null for unidentified_non_human and no_confident_biological_source.",
+      }),
+    ),
+    common_name: field(
+      text({
+        nullable: true,
+        minLength: 1,
+        maxLength: 255,
+        description:
+          "Resolved animal common name, Unidentified Wildlife, Human, or No Wildlife Detected, consistent with audio_subject_type.",
+      }),
+    ),
+  },
+  { unknownKeys: "strip" },
+));
+
 const describeImageQualityContract = object(
   {
     sharpness: field(integer(0, 0), true),
@@ -944,10 +1067,17 @@ export type InferContract<N extends ContractNode> = WithContractNullability<
 type RawMerianIdentification = InferContract<
   typeof merianModelContract
 >;
+type RawMerianAudioIdentification = InferContract<
+  typeof merianAudioModelContract
+>;
 type RawDescribeIdentification = InferContract<
   typeof merianDescribeModelContract
 >;
 export type MerianIdentification = RawMerianIdentification & {
+  /** Deterministically derived after provider validation. */
+  blur_score?: number;
+};
+export type MerianAudioIdentification = RawMerianAudioIdentification & {
   /** Deterministically derived after provider validation. */
   blur_score?: number;
 };
@@ -1239,6 +1369,16 @@ export function parseMerianIdentification(
     value,
     "model_response",
   ) as MerianIdentification;
+}
+
+export function parseMerianAudioIdentification(
+  value: unknown,
+): MerianAudioIdentification {
+  return parseContract(
+    merianAudioModelContract,
+    value,
+    "audio_model_response",
+  ) as MerianAudioIdentification;
 }
 
 export function parseDescribeIdentification(

@@ -32,9 +32,17 @@ additional empty-state disclaimers.
 ## Owned Insight Readiness
 
 Insight Field Chat depends on the exact authenticated-owner `public.scans` row;
-a locally completed `LocalScanRecord` alone is not sufficient. The toolbar calls
-`ensureCloudScanAvailableForFieldChat(scan:expectedScanId:)` before it presents
-`/insight-chat`.
+a locally completed `LocalScanRecord` alone is not sufficient. A valid toolbar
+tap presents the Field Chat shell immediately, where a loading state calls
+`ensureCloudScanAvailableForFieldChat(scan:expectedScanId:)` before the first
+`/insight-chat` request. A successful readiness result flows directly into chat
+loading instead of paying for a redundant second status request.
+
+Both client presentation and the `/insight-chat` server boundary require a
+resolved, non-Human biological taxonomy. The endpoint checks the confirmed
+species relation first, rejects unresolved placeholders and `Homo sapiens`
+(including legacy `Homo sapien`), and does not rely on a hidden toolbar action
+as authorization.
 
 The completed engine result is the presentation authority. Any cached local
 record model, record ID, and toolbar snapshot must match that exact scan ID
@@ -42,7 +50,7 @@ before the action is enabled. The preflight independently rejects a mismatched
 record, captures the selected chat scan ID, and revalidates it before and after
 every asynchronous readiness step. The sheet uses that captured ID instead of
 rereading a mutable engine ID; an engine scan change dismisses the sheet. A
-delayed preflight therefore cannot recover one observation and open another
+delayed preflight therefore cannot recover one observation and populate another
 observation's private thread.
 
 Queued and completed presentations intentionally reuse one scan UUID. Promotion
@@ -52,12 +60,14 @@ Chat is revealed for the completed record even when queued-state invalidation
 canceled the prior toolbar task, while still rejecting every callback captured
 by the queued presentation.
 
-`InsightChatViewModel` provides a second subject boundary after presentation.
-Opening a different scan/post advances a subject generation, invalidates the
-prior load and prompt tokens, and clears the prior private transcript, pending
-message, draft, feedback, and note-summary state before the new request starts.
-Load, send, delete, feedback, feature-feedback, summary, and prompt completions
-must still own that exact subject generation before changing visible state.
+`InsightChatViewModel` provides a second subject boundary at presentation. The
+toolbar activates the captured subject before making the shell visible, so a
+different scan's in-memory transcript cannot flash during readiness. Opening a
+different scan/post advances a subject generation, invalidates the prior load
+and prompt tokens, and clears the prior private transcript, pending message,
+draft, feedback, and note-summary state before the new request starts. Load,
+send, delete, feedback, feature-feedback, summary, and prompt completions must
+still own that exact subject generation before changing visible state.
 Cross-subject availability preparation cancels and replaces the older request
 instead of making the new chat fail merely because an obsolete preflight is
 still running; same-subject requests remain single-flight. Even a
