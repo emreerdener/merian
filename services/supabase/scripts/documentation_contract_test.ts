@@ -1929,7 +1929,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(displayImplementationSource),
-    "cachedActiveMedia = refreshedContext.capturedMediaSnapshot.activeScanMedia",
+    "cachedActiveMedia = refreshedContext.activeScanMedia",
   );
   assertStringIncludes(
     compact(displayImplementationSource),
