@@ -47,6 +47,19 @@ extension InsightSheetViewModel {
         return inferenceEngine?.isProcessing ?? false
     }
 
+    /// Keeps the carousel analysis treatment continuous while the same scan
+    /// transfers between queued and foreground presentation owners. During the
+    /// brief owner gap, `contentMode` remains `.analyzing` even if the engine's
+    /// processing flag has not propagated yet.
+    func isCarouselAnalysisActive(
+        for explicitQueuedContext: QueuedScanContext?
+    ) -> Bool {
+        if let explicitQueuedContext {
+            return explicitQueuedContext.queueState == .inferencing
+        }
+        return contentMode == .analyzing
+    }
+
     /// Restarts the delayed result-toolbar reveal when a completed scan record
     /// becomes available after the analysis UI has already been presented.
     /// The generation keeps same-ID queued-to-result handoffs identity-safe.

@@ -381,7 +381,7 @@ struct ImageFocusRegionDetectorTests {
             stillImageSourceIndex: livePage.stillImageSourceIndex
         )
         let persistedIdentity = FocusInteractionIdentity(
-            scanID: "scan-1",
+            scanID: " SCAN-1 ",
             stillImageSourceIndex: persistedPage.stillImageSourceIndex
         )
 
@@ -391,6 +391,53 @@ struct ImageFocusRegionDetectorTests {
             scanID: "scan-1",
             stillImageSourceIndex: 1
         ))
+    }
+
+    @Test func preservesCustomizedFocusGeometryAcrossOverlayRemountSizes() throws {
+        let initialSize = CGSize(width: 390, height: 440)
+        let customizedRect = CGRect(x: 212, y: 74, width: 104, height: 286)
+        let normalizedRect = try #require(NormalizedFocusOverlayRect(
+            rect: customizedRect,
+            in: initialSize
+        ))
+
+        let restoredRect = normalizedRect.rect(in: initialSize)
+        #expect(abs(restoredRect.minX - customizedRect.minX) < 0.0001)
+        #expect(abs(restoredRect.minY - customizedRect.minY) < 0.0001)
+        #expect(abs(restoredRect.width - customizedRect.width) < 0.0001)
+        #expect(abs(restoredRect.height - customizedRect.height) < 0.0001)
+
+        let remountedSize = CGSize(width: 780, height: 880)
+        let remountedRect = normalizedRect.rect(in: remountedSize)
+        #expect(abs(remountedRect.minX - 424) < 0.0001)
+        #expect(abs(remountedRect.minY - 148) < 0.0001)
+        #expect(abs(remountedRect.width - 208) < 0.0001)
+        #expect(abs(remountedRect.height - 572) < 0.0001)
+    }
+
+    @Test func isolatesCustomizedFocusGeometryByCanonicalScanIdentity() throws {
+        let rect = try #require(NormalizedFocusOverlayRect(
+            rect: CGRect(x: 40, y: 60, width: 120, height: 180),
+            in: CGSize(width: 390, height: 440)
+        ))
+        let firstIdentity = FocusInteractionIdentity(
+            scanID: "scan-1",
+            stillImageSourceIndex: 0
+        )
+        var state = FocusOverlayInteractionState()
+        state[firstIdentity] = rect
+
+        #expect(state.activeScanID == "scan-1")
+        #expect(state.resolvedScanID(for: nil) == "scan-1")
+        state.retainValues(forScanID: " SCAN-1 ")
+        #expect(state[FocusInteractionIdentity(
+            scanID: "SCAN-1",
+            stillImageSourceIndex: 0
+        )] == rect)
+
+        state.retainValues(forScanID: "scan-2")
+        #expect(state.activeScanID == "scan-2")
+        #expect(state[firstIdentity] == nil)
     }
 
     @Test func stillImageAnalyzingModesAreMutuallyExclusive() {

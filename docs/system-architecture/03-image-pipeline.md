@@ -114,13 +114,18 @@ queued metadata, or the already-dispatched AI request, whose original Vision
 coordinates remain the model hint. Reduce Motion holds the illumination band at
 the region's midpoint. Queued Insight caches use the focus-aware
 `QueuedScanContext.activeScanMedia`, and interaction state is keyed by scan ID
-plus the canonical still-image source index. It therefore survives queue
-refreshes and the in-memory-image-to-persisted-path handoff while remaining
-isolated from another scan or still image. If no region exists, the still image
-has no focus geometry and falls back to the original full-image scan animation.
-The full-image and isolated-region sweeps are mutually exclusive. Video keeps
-its existing laser animation, while audio and description keep their existing
-sweeps.
+plus the canonical still-image source index. User-adjusted geometry is stored in
+normalized carousel coordinates by the stable Insight view model rather than a
+mounted overlay. It therefore survives queue refreshes, overlay remounts, and
+the queued-to-foreground or in-memory-image-to-persisted-path handoffs while
+remaining isolated from another scan or still image. The carousel follows the
+analyzing content mode across a same-scan owner handoff, preventing a transient
+engine flag from hiding the focus treatment. Its last confirmed canonical scan
+ID also bridges the brief nil-owner window before the next owner publishes that
+same ID. If no region exists, the still image has no focus geometry and falls
+back to the original full-image scan animation. The full-image and
+isolated-region sweeps are mutually exclusive. Video keeps its existing laser
+animation, while audio and description keep their existing sweeps.
 
 The camera shutter path explicitly separates orchestration from ImageIO work.
 `executeCapture()` snapshots location, composing-zone center, and Pro tier on

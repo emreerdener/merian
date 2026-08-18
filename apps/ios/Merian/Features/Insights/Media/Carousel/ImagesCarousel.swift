@@ -995,6 +995,7 @@ struct ImagesCarousel: View {
     /// Triggers when the currently selected carousel page can be represented in
     /// the full-screen visual gallery.
     let onVisualImageTap: ((InsightImageGalleryPresentation) -> Void)?
+    @Binding var focusOverlayInteractionState: FocusOverlayInteractionState
     @Binding var isAudioBoostEnabled: Bool
     let audioBoostActionToken: UUID?
     let onAudioBoostActionFinished: ((UUID) -> Void)?
@@ -1007,7 +1008,6 @@ struct ImagesCarousel: View {
     @State private var unavailableImageIdentifiers: Set<String> = []
     @State private var loadedReferenceImageIdentifiers: Set<String> = []
     @State private var unavailableVideoPageIDs: Set<String> = []
-    @State private var committedFocusRectsByIdentity: [FocusInteractionIdentity: CGRect] = [:]
 
     // MARK: - Body
     var body: some View {
@@ -1015,9 +1015,9 @@ struct ImagesCarousel: View {
             if !carouselPages.isEmpty {
                 GeometryReader { geometry in
                     NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
-                        // scanId only — page identities change async as media and references resolve.
-                        // Keying on scanId prevents a full rebuild (and snap-back to page 0) on those updates.
-                        .id(scanId ?? "null")
+                        // Scan identity only — page identities change async as media and references resolve.
+                        // Canonicalizing it prevents owner handoffs from rebuilding the page for casing changes.
+                        .id(carouselScanIdentity ?? "null")
                         .ignoresSafeArea(.all, edges: .top)
                         .overlay(alignment: .bottom) {
                             MediaCarouselPaginationDots(
@@ -1064,7 +1064,7 @@ struct ImagesCarousel: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: isProcessing)
-        .onChange(of: scanId) { _, _ in
+        .onChange(of: carouselScanIdentity, initial: true) { _, newScanID in
             // Carousel interaction and availability belong to one observation.
             // A failed URL may legitimately be reused by a later scan, and a
             // newly selected video must not inherit an unmuted predecessor.
@@ -1073,11 +1073,10 @@ struct ImagesCarousel: View {
             unavailableImageIdentifiers.removeAll()
             loadedReferenceImageIdentifiers.removeAll()
             unavailableVideoPageIDs.removeAll()
-            committedFocusRectsByIdentity.removeAll()
-        }
-        .onChange(of: isProcessing) { wasProcessing, isNowProcessing in
-            if !wasProcessing, isNowProcessing {
-                committedFocusRectsByIdentity.removeAll()
+            if let newScanID {
+                var updatedState = focusOverlayInteractionState
+                updatedState.retainValues(forScanID: newScanID)
+                focusOverlayInteractionState = updatedState
             }
         }
     }
@@ -1125,22 +1124,24 @@ struct ImagesCarousel: View {
     private var selectedFocusInteractionIdentity: FocusInteractionIdentity {
         let selectedPage = carouselPages[safe: selectedIndex]
         return FocusInteractionIdentity(
-            scanID: scanId,
+            scanID: carouselScanIdentity,
             stillImageSourceIndex: selectedPage?.stillImageSourceIndex
         )
     }
 
+    private var carouselScanIdentity: String? {
+        focusOverlayInteractionState.resolvedScanID(for: scanId)
+    }
+
     private func committedFocusRectBinding(
         for identity: FocusInteractionIdentity
-    ) -> Binding<CGRect?> {
+    ) -> Binding<NormalizedFocusOverlayRect?> {
         Binding(
-            get: { committedFocusRectsByIdentity[identity] },
+            get: { focusOverlayInteractionState[identity] },
             set: { committedRect in
-                if let committedRect {
-                    committedFocusRectsByIdentity[identity] = committedRect
-                } else {
-                    committedFocusRectsByIdentity.removeValue(forKey: identity)
-                }
+                var updatedState = focusOverlayInteractionState
+                updatedState[identity] = committedRect
+                focusOverlayInteractionState = updatedState
             }
         )
     }
@@ -1279,11 +1280,6 @@ enum StillImageAnalyzingMode: Equatable {
     }
 }
 
-struct FocusInteractionIdentity: Hashable {
-    let scanID: String?
-    let stillImageSourceIndex: Int?
-}
-
 /// Derives motion from time so a retained overlay can recover after its render
 /// transaction is interrupted by carousel updates or scene transitions.
 enum AnalyzingMediaAnimationClock {
@@ -1310,7 +1306,7 @@ private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
     let focusRegion: NormalizedImageFocusRegion?
     let focusInteractionIdentity: FocusInteractionIdentity
-    @Binding var committedFocusRect: CGRect?
+    @Binding var committedFocusRect: NormalizedFocusOverlayRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
@@ -1865,7 +1861,7 @@ private struct ImageFocusOverlayResizeInteraction: Equatable {
 private struct LensFocusOverlay: View {
     let region: NormalizedImageFocusRegion
     let scanProgress: CGFloat
-    @Binding var committedFocusRect: CGRect?
+    @Binding var committedFocusRect: NormalizedFocusOverlayRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isResolved = false
@@ -1888,7 +1884,7 @@ private struct LensFocusOverlay: View {
                 minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension
             )
             let settledFocusRect = ImageFocusOverlayLayout.interactiveRect(
-                from: committedFocusRect ?? initialFocusRect,
+                from: committedFocusRect?.rect(in: geometry.size) ?? initialFocusRect,
                 in: geometry.size,
                 minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension
             )
@@ -2012,10 +2008,14 @@ private struct LensFocusOverlay: View {
                 handleMoveHapticIfNeeded()
             }
             .onEnded { value in
-                committedFocusRect = ImageFocusOverlayLayout.draggedRect(
+                let committedRect = ImageFocusOverlayLayout.draggedRect(
                     from: baseFocusRect,
                     committedOffset: .zero,
                     activeTranslation: value.translation,
+                    in: containerSize
+                )
+                committedFocusRect = NormalizedFocusOverlayRect(
+                    rect: committedRect,
                     in: containerSize
                 )
                 isMoveHapticActive = false
@@ -2051,11 +2051,15 @@ private struct LensFocusOverlay: View {
                 )
             }
             .onEnded { value in
-                committedFocusRect = ImageFocusOverlayLayout.resizedRect(
+                let committedRect = ImageFocusOverlayLayout.resizedRect(
                     from: baseFocusRect,
                     corner: corner,
                     translation: value.translation,
                     minimumDimension: ImageFocusOverlayLayout.minimumInteractiveDimension,
+                    in: containerSize
+                )
+                committedFocusRect = NormalizedFocusOverlayRect(
+                    rect: committedRect,
                     in: containerSize
                 )
                 hapticResizeCorner = nil

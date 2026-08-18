@@ -62,6 +62,7 @@ final class InsightSheetViewModel {
         toolbarRecordSnapshot = nil
         queuedContext = nil
         cachedActiveMedia = nil
+        focusOverlayInteractionState = FocusOverlayInteractionState()
         fieldTripScanContributions = []
         isLoadingFieldTripScanContributions = false
     }
@@ -71,6 +72,10 @@ final class InsightSheetViewModel {
     /// Safely decoded exactly once within lifecycle mappings (`init` and `fetchLocalRecord`) to prevent
     /// main-thread thrashing on layout changes where the framework routinely interrogates boundary sizes.
     var cachedActiveMedia: ActiveScanMedia?
+    /// Presentation-only user adjustments keyed by stable scan and still-image
+    /// identity. This deliberately survives same-scan queue/live/result routing
+    /// generations and is cleared when the sheet view model resets.
+    var focusOverlayInteractionState = FocusOverlayInteractionState()
     @ObservationIgnored var scanBoundActionGeneration: UInt64 = 0
     @ObservationIgnored var sharedExploreStateRevision: UInt64 = 0
     @ObservationIgnored var sharedExploreStateRequestToken: UInt64 = 0

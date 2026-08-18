@@ -55,8 +55,14 @@ focus-region map survives foreground-to-queue and queue-refresh handoffs. The
 carousel keys focus interaction by scan ID plus the still image's canonical
 source index rather than its content-derived page ID. Consequently, replacing an
 in-memory live image with its persisted path does not replace the focus overlay
-or discard a user-adjusted rectangle. The interaction cache is cleared only when
-another scan or analysis session begins.
+or discard a user-adjusted rectangle. User-adjusted geometry is normalized to
+the visible carousel and owned by `InsightSheetViewModel`, so it also survives a
+carousel remount and the queued-to-foreground analysis-owner handoff. The
+carousel analysis treatment follows the stable analyzing content mode across
+that handoff instead of a momentary engine processing flag. The interaction
+state retains the last confirmed canonical scan ID through a transient nil-owner
+window and treats casing-only ID changes as equivalent, while a genuinely
+different scan prunes the prior state.
 
 Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded

@@ -180,6 +180,7 @@
 		51A6F2ECD9F207F3AF5C7A15 /* KeychainManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E57C004A23B5ABD60BC63E /* KeychainManagerTests.swift */; };
 		520B71F901F193926702F944 /* SpectrogramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53276FFFE77033A84C87203D /* SpectrogramView.swift */; };
 		520DB5F551614B9A33D2658E /* ExplorePostFieldChatPresentationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88B096D214FCD7C5F63E01C2 /* ExplorePostFieldChatPresentationPolicyTests.swift */; };
+		5304B6E00D6BBB5F3E366197 /* FocusOverlayInteractionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA902E31AC9309E9F836098F /* FocusOverlayInteractionState.swift */; };
 		532BE3ECB15476B54D8C3ADA /* ExplorePostFieldChatPresentationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD7A80B17BB52EFDC5DC50B /* ExplorePostFieldChatPresentationPolicy.swift */; };
 		539BE1FF68A777B7B1FE22D7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D1C90FF9874D3503D88C713F /* Assets.xcassets */; };
 		53AF87B80383A4A5A6D50DB5 /* SchemaV20.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8AF1488B7F41F255090109 /* SchemaV20.swift */; };
@@ -1063,6 +1064,7 @@
 		D8636514A79BD05A19D4A92B /* AppRouteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouteCoordinator.swift; sourceTree = "<group>"; };
 		D94DED3A2D3ED661E6172CD4 /* InsightChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightChatTests.swift; sourceTree = "<group>"; };
 		D9741C90901A3F830B6B1869 /* merianTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = merianTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA902E31AC9309E9F836098F /* FocusOverlayInteractionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusOverlayInteractionState.swift; sourceTree = "<group>"; };
 		DC435DD629FF43539F7B60D6 /* EnvironmentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentContext.swift; sourceTree = "<group>"; };
 		DC4BA5174670296C98053C13 /* DateUtilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateUtilities.swift; sourceTree = "<group>"; };
 		DC58CEF7F51233B127F8FDA9 /* ExploreAPIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreAPIModels.swift; sourceTree = "<group>"; };
@@ -2295,6 +2297,7 @@
 		64E682AE4F3896EACADF984D /* Carousel */ = {
 			isa = PBXGroup;
 			children = (
+				DA902E31AC9309E9F836098F /* FocusOverlayInteractionState.swift */,
 				2342617B9724807515D7C897 /* ImagesCarousel.swift */,
 				3B58AC4ADF0850D999C71A53 /* InsightFullscreenImageCarousel.swift */,
 				2A95EE1FF7045668B1F1EA0C /* MediaCarouselPaginationDots.swift */,
@@ -4307,6 +4310,7 @@
 				0C91F3CADEA0D7E51D1267F3 /* FloatingNavigationMenu.swift in Sources */,
 				5EDAC0ABC27EE9C88BA2C721 /* FlowLayout.swift in Sources */,
 				7D096226660F6EABAF2F73C8 /* FocusIndicator.swift in Sources */,
+				5304B6E00D6BBB5F3E366197 /* FocusOverlayInteractionState.swift in Sources */,
 				C12039148CED448A65C19879 /* FocusTapGestureModifier.swift in Sources */,
 				CC316E2C64E15558C59CB884 /* GBIFHeatmapCardChrome.swift in Sources */,
 				E5BC15CCD7FEBEF03E821027 /* GBIFHeatmapMapView.swift in Sources */,

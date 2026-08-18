@@ -51,8 +51,9 @@ struct InsightContentView: View {
                     let carouselScanId =
                         activeQueuedContext?.id ?? viewModel.persistentScanId
                     let carouselGeneration = viewModel.scanBoundActionGeneration
-                    let activeIsProcessing = activeQueuedContext?.queueState == .inferencing
-                        || (activeQueuedContext == nil && viewModel.isProcessing)
+                    let activeIsProcessing = viewModel.isCarouselAnalysisActive(
+                        for: activeQueuedContext
+                    )
 
                     let activeMedia = viewModel.resolvedMedia(for: activeQueuedContext)
 
@@ -85,6 +86,7 @@ struct InsightContentView: View {
                             fullscreenGalleryPresentationGeneration = carouselGeneration
                             fullscreenGalleryPresentation = presentation
                         },
+                        focusOverlayInteractionState: $viewModel.focusOverlayInteractionState,
                         isAudioBoostEnabled: carouselAudioBoostBinding(
                             scanId: carouselScanId,
                             generation: carouselGeneration

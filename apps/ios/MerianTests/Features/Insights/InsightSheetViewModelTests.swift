@@ -1712,6 +1712,45 @@ struct InsightSheetViewModelTests {
         )
     }
 
+    @Test func testFocusCustomizationAndOverlaySurviveQueuedOwnerHandoff() throws {
+        let queuedContext = QueuedScanContext(
+            id: "queued_focus_handoff",
+            capturedMediaItems: [.image(.documents("focus.webp"))],
+            queueState: .inferencing,
+            timestamp: Date(timeIntervalSince1970: 1)
+        )
+        let viewModel = InsightSheetViewModel(queuedContext: queuedContext)
+        let identity = FocusInteractionIdentity(
+            scanID: queuedContext.id,
+            stillImageSourceIndex: 0
+        )
+        let customizedRect = try #require(NormalizedFocusOverlayRect(
+            rect: CGRect(x: 210, y: 70, width: 105, height: 285),
+            in: CGSize(width: 390, height: 440)
+        ))
+        viewModel.focusOverlayInteractionState[identity] = customizedRect
+
+        #expect(viewModel.isCarouselAnalysisActive(for: queuedContext))
+
+        viewModel.releaseQueuedPresentation(expectedScanId: queuedContext.id)
+
+        #expect(viewModel.queuedContext == nil)
+        #expect(viewModel.isCarouselAnalysisActive(for: nil))
+        #expect(
+            viewModel.focusOverlayInteractionState.resolvedScanID(for: nil) ==
+                queuedContext.id
+        )
+        #expect(viewModel.focusOverlayInteractionState[
+            FocusInteractionIdentity(
+                scanID: viewModel.focusOverlayInteractionState.resolvedScanID(for: nil),
+                stillImageSourceIndex: 0
+            )
+        ] == customizedRect)
+
+        viewModel.reset()
+        #expect(viewModel.focusOverlayInteractionState[identity] == nil)
+    }
+
     @Test func testQueuedRefreshRejectsChangedPresentationIdentity() {
         let first = QueuedScanContext(
             id: "queued_scan_1",
