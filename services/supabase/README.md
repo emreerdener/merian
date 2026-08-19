@@ -2436,9 +2436,14 @@ no-write validation boundaries for `issue_signout_purchase_handoff`,
 `claim_purchase_principal_signout_rotation`, and
 `cancel_purchase_principal_signout_rotation` validation boundaries and validates
 both `get_purchase_principal_health` and
-`get_purchase_principal_signout_rotation_health`. It proves every real
-anon/publishable project credential remains denied from all eighteen documented
-boundaries.
+`get_purchase_principal_signout_rotation_health`. The workflow-owned
+`critical_service_rpc_names` array is the authoritative complete inventory; the
+documentation contract requires every entry to retain both a server-authorized
+non-mutating probe and its public-credential denial. The
+`revoke_account_access_grant` probe uses a null grant ID and requires the
+literal `false`, so it proves reachability without changing a real grant. The
+workflow proves every real anon/publishable project credential remains denied
+from every routine in the workflow-owned `critical_service_rpc_names` inventory.
 
 This verifies PostgREST schema-cache readiness and production grants without
 creating a fixture or logging a response body. Database migrations still run

@@ -65,7 +65,7 @@ Deno.test("canonical media catalog fixture covers description gaps", async () =>
   );
   assertStringIncludes(
     fixture,
-    "ARRAY['staged:3', 'failed:4']::TEXT[]",
+    "ARRAY['staged:5', 'failed:6']::TEXT[]",
   );
 });
 

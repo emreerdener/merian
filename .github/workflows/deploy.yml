@@ -1235,6 +1235,16 @@ jobs:
             "record_account_access_grant" \
             '{"p_account_user_id":null,"p_grant_kind":null,"p_expires_at":null,"p_source_reference_hash":null}' \
             "account_access_grant_invalid"
+          account_access_grant_revoke_response="$(
+            post_server_json \
+              "/rest/v1/rpc/revoke_account_access_grant" \
+              '{"p_grant_id":null}'
+          )"
+          if ! jq -e '. == false' \
+            <<< "$account_access_grant_revoke_response" > /dev/null; then
+            echo "The account access grant revocation RPC did not reach its non-mutating missing-grant boundary." >&2
+            exit 1
+          fi
           probe_server_rpc_validation_boundary \
             "resolve_revenuecat_identity_subjects" \
             '{"p_subjects":null}' \

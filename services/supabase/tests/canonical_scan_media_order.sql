@@ -234,7 +234,7 @@ SELECT extensions.is(
           AND asset.source = 'scan_refresh'
           AND asset.role = 'display'
     ),
-    ARRAY['staged:3', 'failed:4']::TEXT[],
+    ARRAY['staged:5', 'failed:6']::TEXT[],
     'non-ready generated lifecycle rows remain ordered after ready media'
 );
 

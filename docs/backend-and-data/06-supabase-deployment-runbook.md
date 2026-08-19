@@ -6152,35 +6152,59 @@ and current service-key transport without processing a real deletion. It does
 not replace the independent aggregate deletion-health monitor or prove R2,
 Apple, Auth Admin, or cron execution.
 
-The workflow next proves eighteen critical database boundaries are present in
-the production PostgREST schema cache and executable only with server authority.
-It calls `ensure_scan_user_profile` with the zero UUID,
-`publish_scan_to_explore_atomically` with an empty media array,
-`request_community_identification_atomically` with null required identifiers,
-`recover_missing_owned_scan` with a null recovery tuple,
-`get_media_abandoned_scan_recovery_proofs` with a null proof tuple,
-`reserve_field_chat_send` with a null admission tuple, and
-`recover_stale_field_chat_quota` with a null recovery tuple. All inputs are
-syntactically valid JSON but raise their exact SQLSTATE `22023` message before
-any advisory lock, row lock, or write. It exercises the same exact no-write
-boundary for `issue_signout_purchase_handoff`,
-`complete_signout_purchase_handoff`, and
-`claim_revenuecat_reconciliation_for_user`, then reads and validates the
-aggregate-only `get_revenuecat_reconciliation_health` shape. The stable resolver
-family separately reaches the no-write validation boundaries for
-`begin_purchase_principal_resolution`, `complete_purchase_principal_resolution`,
-`prepare_purchase_principal_signout_rotation`,
-`claim_purchase_principal_signout_rotation`, and
-`cancel_purchase_principal_signout_rotation`, then validates the aggregate-only
-`get_purchase_principal_health` and
-`get_purchase_principal_signout_rotation_health` shapes. A successful readiness
-probe therefore requires HTTP `400`, code `22023`, and the pinned message; an
-arbitrary `400` does not pass. Missing-schema and transient statuses receive the
-same bounded propagation treatment as route probes. Every retrieved
-anon/publishable credential must separately receive `401`, `403`, or
-hidden-routine `404` from all eighteen RPCs. HTTP `400` or `200` on that public
-path means the role reached a service-only routine body and fails the deployment
-security gate. Probe response bodies and request identifiers are never printed.
+The workflow next proves every critical database boundary in its workflow-owned
+`critical_service_rpc_names` inventory is present in the production PostgREST
+schema cache and executable only with server authority. The workflow array is
+authoritative: it is positionally paired with `critical_service_rpc_payloads`,
+and the documentation contract rejects duplicate names, mismatched payload
+coverage, a missing server-authorized probe, or a routine that is absent from
+this canonical inventory.
+
+The current inventory is grouped as follows:
+
+- Scan, Explore, and Field Chat: `ensure_scan_user_profile`,
+  `publish_scan_to_explore_atomically`,
+  `request_community_identification_atomically`, `recover_missing_owned_scan`,
+  `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
+  `recover_stale_field_chat_quota`.
+- Legacy purchase handoff and RevenueCat reconciliation:
+  `issue_signout_purchase_handoff`, `complete_signout_purchase_handoff`,
+  `claim_revenuecat_reconciliation_for_user`, and
+  `get_revenuecat_reconciliation_health`.
+- Stable purchase identity, account grants, and reconciliation:
+  `begin_purchase_principal_resolution`,
+  `complete_purchase_principal_resolution`,
+  `prepare_purchase_principal_signout_rotation`,
+  `claim_purchase_principal_signout_rotation`,
+  `cancel_purchase_principal_signout_rotation`, `record_account_access_grant`,
+  `revoke_account_access_grant`, `resolve_revenuecat_identity_subjects`,
+  `apply_revenuecat_identity_state`,
+  `schedule_revenuecat_identity_reconciliation`,
+  `claim_purchase_principal_reconciliations`,
+  `apply_purchase_principal_reconciliation`,
+  `fail_purchase_principal_reconciliation`, `get_purchase_principal_health`, and
+  `get_purchase_principal_signout_rotation_health`.
+- Account deletion and recovery: `request_account_deletion_with_recovery`,
+  `recover_account_deletion`, `get_account_deletion_recovery_health`,
+  `prepare_account_deletion_recovery_v2`,
+  `request_account_deletion_with_recovery_v2`, `recover_account_deletion_v2`,
+  `acknowledge_account_deletion_recovery_v2`,
+  `prune_account_deletion_recovery_preparations`, and
+  `get_account_deletion_recovery_preparation_health`.
+
+Every mutation validation probe uses syntactically valid JSON that raises its
+exact SQLSTATE `22023` message before any advisory lock, row lock, or write.
+`revoke_account_access_grant` instead receives a null grant ID and must return
+the literal `false`, proving the routine is reachable without identifying or
+changing a real grant. Aggregate-only health routines must return their exact
+bounded shapes. A successful no-write validation probe therefore requires HTTP
+`400`, code `22023`, and the pinned message; an arbitrary `400` does not pass.
+Missing-schema and transient statuses receive the same bounded propagation
+treatment as route probes. Every retrieved anon/publishable credential must
+separately receive `401`, `403`, or hidden-routine `404` from every RPC in the
+workflow-owned inventory. HTTP `400` or `200` on that public path means the role
+reached a service-only routine body and fails the deployment security gate.
+Probe response bodies and request identifiers are never printed.
 
 After migration `20260726212549_harden_service_role_request_authentication.sql`,
 verify effective production table privileges through the reviewed read-only
@@ -6986,17 +7010,12 @@ After deployment:
   anon/publishable project key received `401` from `community-taxonomy-status`.
   A `200` with an empty data set is an authorization failure, not a harmless RLS
   result.
-- Confirm the exact no-write SQLSTATE `22023` probes reached
-  `ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
-  `request_community_identification_atomically`, `recover_missing_owned_scan`,
-  `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
-  `recover_stale_field_chat_quota` with server authority. Also confirm the three
-  legacy sign-out/reconciliation probes, five stable resolver/rotation probes,
-  and all three aggregate identity health reads succeeded. Confirm every
-  retrieved anon/publishable credential instead received `401`, `403`, or
-  hidden-routine `404` from all eighteen documented boundaries. Never accept a
-  generic `400` or `200`, log a response body, or replace these checks with a
-  production fixture write.
+- Confirm every server-authorized no-write validation, null-grant revocation,
+  and aggregate health probe for the workflow-owned `critical_service_rpc_names`
+  inventory succeeded. Confirm every retrieved anon/publishable credential
+  instead received `401`, `403`, or hidden-routine `404` from every routine in
+  that same inventory. Never accept a generic `400` or `200`, log a response
+  body, or replace these checks with a production fixture write.
 - Confirm the deploy's hash-only gate matched the stored SHA-256 digest for
   `MERIAN_SUPABASE_SERVER_API_KEY` to the exact selected production key before
   Function rollout. Never print the key or either digest. A final positive `401`

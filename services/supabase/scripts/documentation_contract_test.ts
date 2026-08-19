@@ -17,6 +17,49 @@ function compact(value: string): string {
     .trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function singleLineShellArrayEntries(
+  source: string,
+  variableName: string,
+): string[] {
+  const match = source.match(
+    new RegExp(
+      `^\\s*${escapeRegExp(variableName)}=\\(\\s*$([\\s\\S]*?)^\\s*\\)\\s*$`,
+      "m",
+    ),
+  );
+  assert(match, `Missing single-line shell array ${variableName}.`);
+
+  const entries = match[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+  assert(entries.length > 0, `Shell array ${variableName} must not be empty.`);
+  return entries;
+}
+
+function executableShellLines(source: string): string {
+  return source
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .join("\n");
+}
+
+function executableServerRpcProbeNames(source: string): string[] {
+  const patterns = [
+    /^[ \t]*probe_server_rpc_validation_boundary[ \t]+\\[ \t]*\r?\n[ \t]+"([a-z0-9_]+)"[ \t]+\\/gm,
+    /^[ \t]*post_server_json[ \t]+\\[ \t]*\r?\n[ \t]+"\/rest\/v1\/rpc\/([a-z0-9_]+)"[ \t]+\\/gm,
+  ];
+
+  return patterns.flatMap((pattern) =>
+    [...source.matchAll(pattern)].map((match) => match[1])
+  );
+}
+
 async function unresolvedLocalMarkdownLinks(
   relativePath: string,
 ): Promise<string[]> {
@@ -3473,6 +3516,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     backendSource,
     documentationIndexSource,
     incidentSource,
+    deployWorkflowSource,
   ] = await Promise
     .all([
       read("apps/ios/Merian/Core/Network/README.md"),
@@ -3481,6 +3525,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       read("services/supabase/README.md"),
       read("docs/README.md"),
       read("docs/incidents/2026-07-supabase-edge-route-not-found.md"),
+      read(".github/workflows/deploy.yml"),
     ]);
   const network = compact(networkSource);
   const errors = compact(errorSource);
@@ -3488,6 +3533,81 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   const backend = compact(backendSource);
   const documentationIndex = compact(documentationIndexSource);
   const incident = compact(incidentSource);
+  const criticalServiceRpcNames = singleLineShellArrayEntries(
+    deployWorkflowSource,
+    "critical_service_rpc_names",
+  );
+  const criticalServiceRpcPayloads = singleLineShellArrayEntries(
+    deployWorkflowSource,
+    "critical_service_rpc_payloads",
+  );
+
+  assertEquals(
+    new Set(criticalServiceRpcNames).size,
+    criticalServiceRpcNames.length,
+    "Critical service RPC names must be unique.",
+  );
+  assertEquals(
+    criticalServiceRpcPayloads.length,
+    criticalServiceRpcNames.length,
+    "Critical service RPC names and payloads must remain positionally aligned.",
+  );
+  const criticalServiceRpcNameSet = new Set(criticalServiceRpcNames);
+  const serverAuthorizedRpcProbeCounts = new Map<string, number>();
+  for (
+    const routineName of executableServerRpcProbeNames(deployWorkflowSource)
+  ) {
+    if (!criticalServiceRpcNameSet.has(routineName)) continue;
+    serverAuthorizedRpcProbeCounts.set(
+      routineName,
+      (serverAuthorizedRpcProbeCounts.get(routineName) ?? 0) + 1,
+    );
+  }
+  assertEquals(
+    criticalServiceRpcNames.filter((routineName) =>
+      serverAuthorizedRpcProbeCounts.get(routineName) !== 1
+    ),
+    [],
+    "Every critical service RPC must have exactly one executable server-authorized non-mutating production probe.",
+  );
+
+  const publicDenialLoopMatch = deployWorkflowSource.match(
+    /^[ \t]*for \(\(rpc_index = 0; rpc_index < \$\{#critical_service_rpc_names\[@\]\}; rpc_index\+\+\)\); do[ \t]*\r?\n([\s\S]*?)^[ \t]*done[ \t]*$/m,
+  );
+  assert(
+    publicDenialLoopMatch,
+    "Missing critical service RPC public-denial loop.",
+  );
+  const publicDenialLoop = executableShellLines(publicDenialLoopMatch[0]);
+  for (
+    const fragment of [
+      'critical_rpc_name="${critical_service_rpc_names[$rpc_index]}"',
+      '"${supabase_url}/rest/v1/rpc/${critical_rpc_name}"',
+      '--data "${critical_service_rpc_payloads[$rpc_index]}"',
+      'case "$critical_rpc_denied_status" in',
+      "401 | 403 | 404)",
+      "exit 1",
+    ]
+  ) {
+    assertStringIncludes(publicDenialLoop, fragment);
+  }
+
+  const revokeProbeMatch = deployWorkflowSource.match(
+    /^[ \t]*account_access_grant_revoke_response="\$\([ \t]*\r?\n([\s\S]*?)^[ \t]*fi[ \t]*$/m,
+  );
+  assert(revokeProbeMatch, "Missing account access grant revocation probe.");
+  const revokeProbe = executableShellLines(revokeProbeMatch[0]);
+  for (
+    const fragment of [
+      "post_server_json \\",
+      '"/rest/v1/rpc/revoke_account_access_grant" \\',
+      "'{\"p_grant_id\":null}'",
+      "if ! jq -e '. == false' \\",
+      '<<< "$account_access_grant_revoke_response" > /dev/null; then',
+    ]
+  ) {
+    assertStringIncludes(revokeProbe, fragment);
+  }
 
   assertStringIncludes(
     network,
@@ -3533,39 +3653,37 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     assertStringIncludes(runbook, functionName);
     assertStringIncludes(backend, functionName);
   }
-  for (
-    const routineName of [
-      "`ensure_scan_user_profile`",
-      "`publish_scan_to_explore_atomically`",
-      "`request_community_identification_atomically`",
-      "`recover_missing_owned_scan`",
-      "`get_media_abandoned_scan_recovery_proofs`",
-      "`reserve_field_chat_send`",
-      "`recover_stale_field_chat_quota`",
-      "`issue_signout_purchase_handoff`",
-      "`complete_signout_purchase_handoff`",
-      "`claim_revenuecat_reconciliation_for_user`",
-      "`get_revenuecat_reconciliation_health`",
-      "`begin_purchase_principal_resolution`",
-      "`complete_purchase_principal_resolution`",
-      "`prepare_purchase_principal_signout_rotation`",
-      "`claim_purchase_principal_signout_rotation`",
-      "`cancel_purchase_principal_signout_rotation`",
-      "`get_purchase_principal_health`",
-      "`get_purchase_principal_signout_rotation_health`",
-    ]
-  ) {
-    assertStringIncludes(runbook, routineName);
-    assertStringIncludes(backend, routineName);
+  for (const routineName of criticalServiceRpcNames) {
+    assert(
+      /^[a-z0-9_]+$/.test(routineName),
+      `Critical service RPC name has an unsupported shell shape: ${routineName}`,
+    );
+    assertStringIncludes(runbook, `\`${routineName}\``);
   }
   assertStringIncludes(
     runbook,
-    "All inputs are syntactically valid JSON but raise their exact SQLSTATE `22023` message before any advisory lock, row lock, or write.",
+    "Every mutation validation probe uses syntactically valid JSON that raises its exact SQLSTATE `22023` message before any advisory lock, row lock, or write.",
   );
   assertStringIncludes(
     backend,
-    "proves every real anon/publishable project credential remains denied from all eighteen documented boundaries.",
+    "proves every real anon/publishable project credential remains denied from every routine in the workflow-owned `critical_service_rpc_names` inventory.",
   );
+  assertStringIncludes(
+    runbook,
+    "The workflow array is authoritative",
+  );
+  for (
+    const obsoleteClaim of [
+      "eighteen critical database boundaries",
+      "all eighteen RPCs",
+      "all eighteen documented boundaries",
+    ]
+  ) {
+    assert(
+      !runbook.includes(obsoleteClaim) && !backend.includes(obsoleteClaim),
+      `Stale fixed-count service RPC guidance returned: ${obsoleteClaim}`,
+    );
+  }
   assertStringIncludes(
     runbook,
     "Each critical route must return `401` with the marker",
