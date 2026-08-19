@@ -4240,6 +4240,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         scanningPhraseCoordinator.acceptedFoundationPhrases.count
     }
 
+    func debugWaitForFoundationVisualCueStream() async {
+        await foundationVisualCueTask?.value
+    }
+
     var debugLocalVisionCategory: LocalSubjectCategory? {
         localVisionClassification?.category
     }

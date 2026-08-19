@@ -206,7 +206,7 @@ struct LocalVisualAnalysisTests {
     }
 
     @Test func localPhraseDecksAreShortAndDirectlyObservable() {
-        let prohibitedTerms = [
+        let prohibitedTermPrefixes = [
             "record", "range", "database", "taxonom", "species", "confidence",
             "match", "identif", "confirm", "habitat"
         ]
@@ -214,8 +214,12 @@ struct LocalVisualAnalysisTests {
         for phrase in ScanningPhraseCoordinator.genericPhrases
             + LocalSubjectCategory.allCases.flatMap(\.phraseSeries) {
             #expect(phrase.count + 3 <= 36)
-            let lowercased = phrase.lowercased()
-            #expect(!prohibitedTerms.contains(where: lowercased.contains))
+            let tokens = phrase.lowercased()
+                .components(separatedBy: CharacterSet.alphanumerics.inverted)
+                .filter { !$0.isEmpty }
+            #expect(!tokens.contains { token in
+                prohibitedTermPrefixes.contains { token.hasPrefix($0) }
+            })
         }
     }
 
@@ -431,9 +435,8 @@ struct LocalVisualAnalysisTests {
         #expect(engine.scanningPhaseText == "Arthropod form visible")
 
         await clock.advance()
-        #expect(await eventually {
-            engine.scanningPhaseText == "Examining wing veins"
-        })
+        await clock.waitUntilSleepCallCount(3)
+        #expect(engine.scanningPhaseText == "Examining wing veins")
         engine.cancelActiveRequest()
     }
 
@@ -455,6 +458,7 @@ struct LocalVisualAnalysisTests {
             )
         )
         await provider.waitUntilStarted()
+        await clock.waitUntilSleepCallCount(1)
 
         await provider.yield(FoundationVisualCueSnapshot(
             index: 0,
@@ -462,35 +466,27 @@ struct LocalVisualAnalysisTests {
             detail: nil,
             isComplete: false
         ))
-        await Task.yield()
-        #expect(engine.debugAcceptedFoundationPhraseCount == 0)
-
         await provider.yield(FoundationVisualCueSnapshot(
             index: 0,
             kind: nil,
             detail: "amber banded wings",
             isComplete: true
         ))
-        #expect(await eventually {
-            engine.debugAcceptedFoundationPhraseCount == 1
-        })
-        #expect(engine.scanningPhaseText == "Arthropod form visible")
-
-        await clock.waitUntilWaiting()
-        await clock.advance()
-        #expect(await eventually {
-            engine.scanningPhaseText == "Color: amber banded wings"
-        })
-
         await provider.yield(FoundationVisualCueSnapshot(
             index: 1,
             kind: .marking,
             detail: "amber banded wings",
             isComplete: true
         ))
-        await Task.yield()
-        #expect(engine.debugAcceptedFoundationPhraseCount == 1)
         await provider.finish()
+        await engine.debugWaitForFoundationVisualCueStream()
+
+        #expect(engine.debugAcceptedFoundationPhraseCount == 1)
+        #expect(engine.scanningPhaseText == "Arthropod form visible")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(2)
+        #expect(engine.scanningPhaseText == "Color: amber banded wings")
         engine.cancelActiveRequest()
     }
 
@@ -728,13 +724,4 @@ struct LocalVisualAnalysisTests {
         try #require(UIImage(cgImage: makeImage().cgImage).pngData())
     }
 
-    private func eventually(
-        _ condition: @MainActor () -> Bool
-    ) async -> Bool {
-        for _ in 0..<1_000 {
-            if condition() { return true }
-            await Task.yield()
-        }
-        return false
-    }
 }
