@@ -253,13 +253,22 @@ Therefore:
 - schema-qualified `SUBSTRING` calls use ordinary comma-separated function
   arguments, such as `pg_catalog.SUBSTRING(value, pattern)`. PostgreSQL's
   keyword-separated `SUBSTRING(value FROM pattern)`,
-  `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)`
-  forms are unqualified SQL expressions and cannot follow `pg_catalog.`;
+  `SUBSTRING(value FOR count)`, and `SUBSTRING(value SIMILAR pattern ...)` forms
+  are unqualified SQL expressions and cannot follow `pg_catalog.`;
 - `EXTRACT(field FROM source)` remains unqualified because it is SQL expression
   syntax rather than a schema-qualifiable catalog function;
 - migration filenames and applied historical contents are immutable; and
 - historical migrations that contain explicit transaction controls remain
   compatibility artifacts, not examples for future work.
+
+When a reviewed routine correction follows a timestamped migration that may
+already be recorded, install the complete final definition in a new forward
+migration. Canonical scan-media repair
+`20260819194047_repair_canonical_scan_media_order_alignment.sql` and stable
+sign-out repair
+`20260819194315_repair_stable_signout_rotation_routine_definitions.sql` are the
+current examples: fresh replay and persistent catalogs converge without a
+migration-history repair or an assumption about which earlier file contents ran.
 
 The repository guard masks comments, quoted strings, identifiers, and routine
 bodies before checking transaction aliases and timeout settings. It separately
@@ -268,8 +277,8 @@ schema-qualified `SUBSTRING` keyword syntax and schema-qualified `EXTRACT`
 expressions. Detector fixtures cover `FROM`, `FOR`, `SIMILAR`, nested
 expressions, comments, strings, valid comma invocation, and unqualified
 `EXTRACT`. The deploy workflow discovers every `*Migration*.test.ts` and
-`migration*.test.ts` source contract before starting the disposable database,
-so a new contract cannot be omitted from a curated list.
+`migration*.test.ts` source contract before starting the disposable database, so
+a new contract cannot be omitted from a curated list.
 
 Database fixtures must preserve production trigger and constraint behavior.
 Inserting `auth.users` fires `on_auth_user_created` and can synchronously create
@@ -281,8 +290,8 @@ the current 3–24-character policy and all other immediate constraints. Fixture
 UUIDs and usernames remain deterministic, catalog-wide unique, and
 transactional.
 
-Changing an `IMMUTABLE` helper referenced by an already validated CHECK does
-not make PostgreSQL rescan existing rows. Migration
+Changing an `IMMUTABLE` helper referenced by an already validated CHECK does not
+make PostgreSQL rescan existing rows. Migration
 `20260808144244_expand_reserved_public_username_policy.sql` is the reviewed
 username-policy example: it repairs affected profiles in stable user-ID lock
 order, adds and validates a replacement policy-aware profile CHECK, then swaps
@@ -341,11 +350,11 @@ Before an apply-capable promotional grant:
 
 The former RevenueCat beta-grant tool is now permanently dry-run-only and its
 Make target receives no provider credential or network permission. New
-beta/promotion/support access uses the private Supabase account-grant ledger,
-an exact approved dry-run plan, and an immutable identity-free operation
-receipt. Restoring any provider-promotion writer would be a new external-
-mutation design requiring all safeguards above, a reviewed source change, and
-separate provider/production authorization; it is not a rollback shortcut.
+beta/promotion/support access uses the private Supabase account-grant ledger, an
+exact approved dry-run plan, and an immutable identity-free operation receipt.
+Restoring any provider-promotion writer would be a new external-mutation design
+requiring all safeguards above, a reviewed source change, and separate
+provider/production authorization; it is not a rollback shortcut.
 
 RevenueCat customer deletion is permanent erasure, not deduplication. A later
 SDK or subscriber GET can recreate an empty shell, but that lookup does not
@@ -358,10 +367,11 @@ Deletion is limited to an exact verified test identity, the separate privacy
 erasure workflow, or the prelaunch empty-shell cleanup authorized in the
 RevenueCat identity incident. That cleanup requires four fresh artifacts, an
 identity-bearing review, exact candidate SHA-256/count confirmation, and live
-project/customer, inactivity, entitlement, attribute, alias, and purchase-history
-revalidation before each v2 delete. It protects current canonical Supabase users
-and all active Auth identities by default and never mutates Supabase. Dashboard
-count, UUID case, inactivity, or missing profile evidence alone is insufficient.
+project/customer, inactivity, entitlement, attribute, alias, and
+purchase-history revalidation before each v2 delete. It protects current
+canonical Supabase users and all active Auth identities by default and never
+mutates Supabase. Dashboard count, UUID case, inactivity, or missing profile
+evidence alone is insufficient.
 
 Merian's Ghost and permanent Supabase UUIDs are both custom RevenueCat IDs.
 RevenueCat custom-to-custom login does not transfer provider state. Merian
@@ -369,11 +379,11 @@ intentionally permits purchase, restore, and offer-code redemption on either
 exact stable identity. Ordinary OAuth linking preserves a Ghost UUID. Generic
 `401` responses also preserve it; only authoritative missing-session evidence
 plus a failed SDK refresh may rotate the account. The existing-account conflict
-  path mirrors/verifies the source's active finite or lifetime Pro horizon on
-  the destination before source Auth deletion, then the proof-bearing iOS client
-  calls `syncPurchases()` under the project-configured **Transfer to new App User
-  ID** behavior. Beta promotion therefore accepts reviewed active Ghost and
-  linked cohorts; a nonexistent Auth identity still fails closed.
+path mirrors/verifies the source's active finite or lifetime Pro horizon on the
+destination before source Auth deletion, then the proof-bearing iOS client calls
+`syncPurchases()` under the project-configured **Transfer to new App User ID**
+behavior. Beta promotion therefore accepts reviewed active Ghost and linked
+cohorts; a nonexistent Auth identity still fails closed.
 
 ## Destructive Queue and Orphan Triage
 
@@ -401,10 +411,10 @@ ad-hoc repair SQL merely to turn a monitor green.
 
 - Third-party actions are pinned to reviewed 40-character SHAs. Dependabot
   checks action references in workflow files weekly; updates still require
-  review. The repository contract separately scans the nested Deno installer
-  pin in `.github/actions/setup-deno/action.yml`, which must be advanced through
-  the same upstream review because GitHub documents the automated scan for
-  workflow files.
+  review. The repository contract separately scans the nested Deno installer pin
+  in `.github/actions/setup-deno/action.yml`, which must be advanced through the
+  same upstream review because GitHub documents the automated scan for workflow
+  files.
 - Workflow permissions default to `contents: read`. The only reviewed write
   grant is the taxonomy checklist's isolated five-minute writer job. The
   taxonomy import itself cannot read a checkout credential and passes only a
@@ -449,9 +459,9 @@ this correction released:
    RevenueCat monitors. Investigate any orphan alert before changing state.
 10. For a RevenueCat identity/beta release, require the explicit cohort,
     successful GET `200|201` coverage, guest-provider continuity control,
-    supervised reconciliation pause/restoration evidence, zero unexplained
-    grant failures, and one entitled Field Chat smoke before declaring the
-    customer path verified.
+    supervised reconciliation pause/restoration evidence, zero unexplained grant
+    failures, and one entitled Field Chat smoke before declaring the customer
+    path verified.
 
 Record the commit SHA, workflow run and attempt, migration versions, catalog
 results, deployment IDs, and monitor links. “Repository corrected” and

@@ -57,14 +57,21 @@ struct AnalyzingContentView: View {
             fallbackElevation: inferenceEngine.activeElevation,
             fallbackLatitude: inferenceEngine.activeLatitude,
             fallbackLongitude: inferenceEngine.activeLongitude,
-            onAnalyzingBadgeTap: liveQueueHandoffTestAction
+            onAnalyzingBadgeTap: analyzingBadgeTestAction
         ) {
             EmptyView()
         }
     }
 
-    private var liveQueueHandoffTestAction: (() -> Void)? {
+    private var analyzingBadgeTestAction: (() -> Void)? {
         #if DEBUG
+        if UITestSeedCoordinator.isProgressiveAnalyzingTriggerEnabled {
+            return {
+                UITestSeedCoordinator.advanceProgressiveAnalyzingIfNeeded(
+                    inferenceEngine: inferenceEngine
+                )
+            }
+        }
         guard UITestSeedCoordinator.isLiveQueueHandoffTriggerEnabled else {
             return nil
         }

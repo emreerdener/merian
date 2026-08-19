@@ -921,22 +921,21 @@ triggering excessive SwiftUI view rebuilds.
   (`HistoricalDatabaseActor`), `CaptureWorkspaceViewModel`, and
   `InferenceEngine`.
 
-| Constant                              | Value  | Consumer                                                                         |
-| ------------------------------------- | ------ | -------------------------------------------------------------------------------- |
-| `uploadBatchSize`                     | 5      | `OfflineQueueManager+Sync`                                                       |
-| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+Sync`                                                       |
-| `mediaStagingMaxFilesPerRequest`      | 6      | `MediaStagingContract`                                                           |
-| `mediaStagingMaxImageFilesPerRequest` | 5      | `MediaStagingContract`                                                           |
-| `stagedImagePayloadMaxBytes`          | 5 MB   | `MediaStagingContract`, Edge image fetch contract                                |
-| `audioPayloadMaxBytes`                | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`                                    |
-| `historicalSyncPageSize`              | 200    | `ScanRepository`                                                                 |
-| `collectionsSyncPageSize`             | 100    | `ScanRepository`                                                                 |
-| `ingestCheckpointInterval`            | 50     | `HistoricalDatabaseActor`                                                        |
-| `imageCompressionQuality`             | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                                           |
-| `visionConfidenceThreshold`           | 0.65   | `InferenceEngine` (Vision pre-classifier)                                        |
-| `visionConfidenceMargin`              | 0.15   | `InferenceEngine` (margin guard vs. second-best)                                 |
-| `scanningPhaseSubjectDelayNs`         | 1.5 s  | `InferenceEngine` (delay before subject-specific phrases replace generic series) |
-| `scanningPhaseRotationIntervalNs`     | 2.3 s  | `InferenceEngine` (between phase phrases)                                        |
+| Constant                              | Value  | Consumer                                               |
+| ------------------------------------- | ------ | ------------------------------------------------------ |
+| `uploadBatchSize`                     | 5      | `OfflineQueueManager+Sync`                             |
+| `pendingScanFetchLimit`               | 50     | `OfflineQueueManager+Sync`                             |
+| `mediaStagingMaxFilesPerRequest`      | 6      | `MediaStagingContract`                                 |
+| `mediaStagingMaxImageFilesPerRequest` | 5      | `MediaStagingContract`                                 |
+| `stagedImagePayloadMaxBytes`          | 5 MB   | `MediaStagingContract`, Edge image fetch contract      |
+| `audioPayloadMaxBytes`                | 2.7 MB | `MediaStagingContract`, `MerianNetworkClient`          |
+| `historicalSyncPageSize`              | 200    | `ScanRepository`                                       |
+| `collectionsSyncPageSize`             | 100    | `ScanRepository`                                       |
+| `ingestCheckpointInterval`            | 50     | `HistoricalDatabaseActor`                              |
+| `imageCompressionQuality`             | 0.85   | `Capture`, `CaptureWorkspaceViewModel`                 |
+| `visionConfidenceThreshold`           | 0.65   | `VisionSubjectClassificationResolver`                  |
+| `visionMarginThreshold`               | 0.15   | `VisionSubjectClassificationResolver`                  |
+| `scanningPhaseRotationIntervalNs`     | 2.3 s  | `ContinuousScanningPhraseSleeper`, `QueuedContentView` |
 
 ### `UserDefaultsKeys`
 

@@ -976,74 +976,145 @@ provider dispatch:
 
 ## On-Device Pre-Classification & Scanning Phase UX
 
-While the Edge inference round-trip runs, `InferenceEngine` runs a lightweight
-on-device Vision pre-classification pass to drive `scanningPhaseText` in
-`AnalyzingContentView`.
+While the Edge inference round-trip runs, `InferenceEngine` drives progressive
+local context through its existing SwiftUI-facing `scanningPhaseText`. Gemini
+remains the only authority for species identity and completed Insight content.
 
 ### Current Pipeline
 
-`classifySubjectLocally(from:)` is owned by a tracked `localClassificationTask`
-tied to the current `activeScanId`:
+`AppDIContainer` owns injected `VisionSubjectClassifying` and
+`FoundationVisualCueProviding` implementations. `InferenceEngine` builds one
+bounded image from the primary visual item, applying its accepted, already-
+padded `NormalizedImageFocusRegion` when present and otherwise using the full
+square inference image. The local derivative is bounded to 512 px and reused;
+additional captures are not analyzed locally, and Gemini's request payload is
+not changed.
 
-1. Start a generic fallback phrase rotation immediately so the badge is never
-   empty.
-2. Fire a light-impact haptic when local classification begins.
-3. Run a detached `VNClassifyImageRequest` against a 512 px downsampled
-   `CGImage`.
-4. If the top observation clears both the confidence and margin thresholds, swap
-   the badge to a subject-specific phrase series for the same scan.
-5. If the scan changed or was cancelled before Vision completed, discard the
-   result instead of mutating the next scan’s UI.
+The tracked `localClassificationTask` starts generic copy and a light-impact
+haptic immediately, then calls `AppleVisionSubjectClassifier` off the main
+actor. A qualifying broad category is published as soon as Vision returns. A
+single `ScanningPhraseCoordinator` owns source priority, so a later generic tick
+cannot replace Vision or Foundation context. The injected phrase sleeper keeps
+automatic transitions at the 2.3-second cadence without exposing partial tokens.
 
-### Subject-Specific Series Qualification
+### Broad-Category Qualification
 
-A specific phrase series is only activated if all three conditions are met:
+A broad-category phrase series is only activated if all four conditions are met:
 
 1. **Confidence threshold** — the top `VNClassificationObservation` must score ≥
    0.65 (`MerianConfig.visionConfidenceThreshold`)
 2. **Margin guard** — the top observation must lead the second-best by ≥ 0.15
    (`MerianConfig.visionMarginThreshold`); split/ambiguous results stay on the
    generic series
-3. **Identity guard** — `activeScanId` must still match the scan that launched
-   the Vision task when the result returns
+3. **Category map** — the top observation's tokenized identifier must map to one
+   of the supported broad categories below; substring-only collisions do not
+   qualify
+4. **Ownership guard** — scan ID, presentation-attempt UUID, and durable
+   foreground generation must all match the task that launched Vision
 
 ### Phrase Format
 
-All phrases use a verb-prefix format to describe active analysis: openers
-("Arthropod detected") and closers ("Confirming species...") are kept as-is; all
-middle phrases use "Analyzing …" for morphological examination (e.g. "Analyzing
-wing venation", "Analyzing skin texture") and "Checking …" for record/database
-lookups (e.g. "Checking eBird records", "Checking herpetology records").
-`ConfidenceBadge` auto-appends `...` to any phrase not already ending with one.
+Generic and category decks describe only directly visible morphology: form,
+color, texture, structure, arrangement, proportions, and markings. Local copy
+must not imply species identity, confidence, a candidate match, a database or
+record lookup, geographic range, or Gemini completion. `ConfidenceBadge`
+auto-appends `...` to any phrase not already ending with one.
 
 ### Phrase Cycling & Freshness
 
-`startPhaseRotation` owns a cancellable `phaseRotationTask`. Generic phrases are
-shuffled on each scan (with "Scanning subject..." anchored first) so frequent
-users do not memorise the sequence, and subject-specific phrases take over only
-when Vision produced a confident category. Phrases advance every 2.3 seconds
-through `MerianConfig.scanningPhaseRotationIntervalNs`.
+`startPhaseRotation` owns one cancellable `phaseRotationTask`. The generic
+phrase is visible immediately; a qualifying Vision category hands off
+immediately and restarts the interval so another label cannot follow less than
+2.3 seconds later. Later phrases advance through
+`MerianConfig.scanningPhaseRotationIntervalNs`. Foundation cues, when available,
+enter at the next clock tick and permanently raise source priority.
 
-`InferenceEngine.genericScanningPhasePhrases` exposes the same generic deck as a
-read-only `nonisolated` value for queued Insights. `QueuedContentView` reuses
-that vocabulary while the server is actively processing, while preserving
-queue-specific phrases for upload, retry, finalization, offline, and
-needs-attention states. Both paths render through `ScanningExperienceView`, so
-phrase-source differences do not create a second scanning layout.
+`InferenceEngine.genericScanningPhasePhrases` preserves the established
+cloud-analysis deck for queued Insights, including audio-only and Describe
+scans. `QueuedContentView` reuses that vocabulary while the server is actively
+processing, while preserving queue-specific phrases for upload, retry,
+finalization, offline, and needs-attention states. Both paths render through
+`ScanningExperienceView`, so phrase-source differences do not create a second
+scanning layout.
 
 ### Haptics & Debug Simulation
 
 - Local classification start fires `triggerLightImpact(intensity: 0.3)`.
-- Phrase rotation remains cancellable with scan lifecycle changes.
-- `simulateAnalyzing()` now seeds only the phrase rotation, not a separate
-  Vision analysis paragraph.
+- Result arrival, dismissal, replacement, queue handoff, Auth transition,
+  inference failure, and app deactivation cancel Vision, phrase rotation, and
+  Foundation work while leaving Gemini networking and durable queue ownership
+  intact.
+- `simulateProgressiveAnalyzing()` supplies the deterministic generic → category
+  → visible-trait seed used by UI automation.
 
 ### Supported Categories
 
-Subject-specific series exist for: birds, insects/arthropods, arachnids,
+Broad-category series exist for: birds, insects/arthropods, arachnids,
 fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general
-plants, reptiles, amphibians, fish, and mammals. Each series is 8 phrases long.
-Unrecognised or low-confidence subjects fall through to the generic series.
+plants, reptiles, amphibians, fish, and mammals. Unrecognised, low-confidence,
+or ambiguous subjects remain on the generic visible-trait series.
+
+### Stable Xcode 27 Foundation Models Milestone
+
+The release toolchain remains Xcode 26.6 with an iOS 17.2 deployment target.
+`UnavailableFoundationVisualCueProvider` is therefore the current injected
+implementation; no beta Foundation Models API ships. After stable Xcode 27 is
+available locally and in hosted CI, the provider can be implemented behind iOS
+27 availability without changing the deployment target.
+
+The provider contract is deliberately stricter than its UI consumer:
+
+1. Start only after `onRequestBodySent` and local Vision completion, so model
+   loading cannot delay Gemini and candidate labels can seed the identity
+   denylist.
+2. Use only `SystemLanguageModel.default`; unavailable or not-ready Apple
+   Intelligence returns no stream and never falls back to Private Cloud Compute.
+3. Request at most three broad-to-specific indexed cues, each with a constrained
+   trait kind and a generated 2–5-word visible detail.
+4. Buffer cumulative snapshots until each indexed cue object is complete.
+5. Accept only unique rendered phrases of at most 36 characters, rejecting
+   certainty, match, taxonomy, identity/candidate, `-like`, or unsupported text.
+6. Skip or stop the stage when the app is inactive, Low Power Mode is enabled,
+   or thermal state is serious/critical.
+
+Vision classifications and cue text are ephemeral. They are never persisted,
+sent to Gemini, attached to analytics, or logged. Foundation work is an
+asynchronous, best-effort UI enhancement and is never awaited by networking,
+persistence, or result publication; even a permanently hung stream is fenced and
+cancelled at terminal ownership boundaries.
+
+This milestone changes no backend route, wire DTO, SwiftData schema, consent
+surface, analytics event, or privacy-manifest declaration. Reassess those
+contracts before any future provider changes the on-device-only boundary.
+
+#### Stable-toolchain activation checklist
+
+Do not activate the production provider until stable Xcode 27 is installed both
+locally and on every hosted macOS lane. The migration is one reviewed toolchain
+change, not an isolated source edit:
+
+1. Change the exact Xcode generation pin in `project.yml`, keep the iOS 17.2
+   deployment target, run `make xcodegen`, and review the generated project
+   rather than editing it manually.
+2. Update the `DEVELOPER_DIR` checks, asserted version strings, and Xcode-scoped
+   Swift package cache keys in `.github/workflows/ios-build-and-test.yml` and
+   `.github/workflows/ios-startup-safety.yml`.
+3. Update the matching project guard in `scripts/check-ios-project-resources.sh`
+   and workflow-contract expectations in
+   `scripts/test-ios-build-and-test-workflow.sh`.
+4. Update the supported-toolchain statements in `docs/CONTRIBUTING.md`,
+   `docs/README.md`, the testing strategy, and the codebase map in the same
+   change.
+5. Add an iOS 27 availability-gated provider using only
+   `SystemLanguageModel.default`. Preserve the request-body-sent start gate,
+   readiness and runtime checks, structured buffering, cue validation,
+   cancellation fences, and no-Private-Cloud-Compute rule above.
+6. Format every changed Markdown file with `deno fmt`, then run `make xcodegen`,
+   `make validate-ios-project`, the focused AI and Insight suites, the complete
+   iOS unit and critical UI suites, and `make test-ios-ci-tooling`. Build the
+   iOS 17.2 fallback and iOS 27 path, then verify enabled, disabled,
+   model-not-ready, Low Power Mode, and serious/critical thermal states on a
+   physical Apple Intelligence-capable device before release acceptance.
 
 ---
 

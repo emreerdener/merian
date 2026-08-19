@@ -160,10 +160,6 @@ enum MerianConfig {
 
     // MARK: - Scanning Phase UX Timing
 
-    /// How long to display the generic scan phrases before switching to subject-specific ones.
-    /// Ensures the generic series always plays through the opening of a scan and reduces the
-    /// chance of an incorrect category label being visible if Vision misclassifies early frames.
-    static let scanningPhaseSubjectDelayNs: UInt64 = 1_500_000_000   // 1.5 s (was 3.0 s)
     /// Pause between consecutive subject-specific phase phrases during an active scan.
     static let scanningPhaseRotationIntervalNs: UInt64 = 2_300_000_000 // 2.3 s
 }

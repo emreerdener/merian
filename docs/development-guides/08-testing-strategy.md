@@ -252,7 +252,7 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and both macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, both critical scan UI smokes, and
+replace the complete unit target, all three critical scan UI smokes, and
 Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
@@ -509,14 +509,15 @@ HTTP request is dispatched. See the
    hosted job summary.
 
    After the complete unit target passes, the same checkout, simulator
-   destination, locked packages, and `build-for-testing` output execute two
+   destination, locked packages, and `build-for-testing` output execute three
    deterministic runtime UI smokes:
-   `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and
+   `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
+   `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and
    `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
    `merianUITests/merianUITests`. This is deliberately narrower than the
    complete UI suite, whose camera/Photos/hardware cases remain separate. The
-   focused result must report exactly those two passed cases and zero failed or
-   skipped cases. Its structured tree must contain that exact named set under
+   focused result must report exactly those three passed cases and zero failed
+   or skipped cases. Its structured tree must contain that exact named set under
    `merianUITests`; missing, wrong, duplicated, malformed, empty, or
    contradictory evidence fails the job.
    `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
@@ -548,9 +549,11 @@ HTTP request is dispatched. See the
    compilation condition. Release retains only signature-compatible no-ops with
    `UITestSeedCoordinator.isEnabled == false`; it does not compile fixture
    arguments, deterministic media, or local data-replacement logic. The portable
-   workflow contract pins both branches. The current-SHA Release archive then
-   extracts the main binary's strings and fails if any achievement/queued-audio
-   seed argument or queued-audio fixture filename is present.
+   workflow contract pins both branches and extracts every `-seed…` argument and
+   deterministic `ui_test_…` identifier from the Debug coordinator. That exact
+   source set must match the archive denylist. The current-SHA Release archive
+   then extracts the main binary's strings and fails if any of those Debug-only
+   seed arguments or deterministic fixture identifiers is present.
 
 2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
@@ -676,7 +679,7 @@ failure:
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact two protected cases.                 |
+| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact three protected cases.               |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
@@ -2784,6 +2787,21 @@ pre-import boundary cases are in the exact protected inventory; the workflow
 source contract also requires their integration declarations to remain present.
 
 The compiled hosted UI gate adds
+`testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`. Its Debug-only
+fixture opens the normal analyzing Insight with generic copy and advances to a
+Vision category and a validated visible-trait cue only after explicit badge
+taps. The smoke requires the exact three labels in order and rechecks that the
+native badge accessibility frame stays inside the app window after each
+opacity-only label transition. `LocalVisualAnalysisTests` separately lock Vision
+threshold and margin qualification, every broad-category mapping, directly
+observable phrase decks, the injected clock and monotonic source handoff,
+focus-region crop math, partial snapshot buffering, duplicate and unsafe cue
+rejection, runtime power/thermal/lifecycle eligibility, provider errors,
+replacement fences, app-deactivation cancellation for delayed Vision, phrase
+rotation, and Foundation streams, and cancellation of a permanently hung stream
+at simulated Gemini response arrival.
+
+The compiled hosted UI gate also includes
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only
 fixture commits an exact description-backed queue row, opens the standard live
 Insight in analyzing mode, and waits for an explicit `ScanningStatusBadge` tap
@@ -3014,25 +3032,26 @@ frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
 but proved that synthetic recomposition also prevents the caller's
 `ScanningStatusBadge` identifier from being found as a Button. The portable
 contract therefore rejects both animation patterns and that accessibility
-modifier. Both critical scan smokes share one `scanningStatusBadgeElement(in:)`
-helper containing the repository's single `app.buttons["ScanningStatusBadge"]`
-query, so neither test can retain dead native-query text while silently falling
-back to weaker element-class semantics. The queued-completion smoke requires the
-native Button's accessibility frame to be fully contained by the application
-frame before tapping and prints both rectangles on failure. This prevents XCTest
-from silently substituting an edge-of-window activation point for an invalid
-off-window rectangle and reporting the resulting no-op as a promotion failure.
-The completed state must also expose the identifier-scoped Field Chat and Share
-toolbar buttons. Their delayed reveal and Field Notes synchronization are keyed
-to the monotonic presentation generation, not the unchanged scan ID, ensuring
-both tasks restart after promotion. Keep all navigation, shared-scanning,
-playable-media, downstream-toolbar, and handoff assertions when extending this
-regression. The exact-SHA hosted `Full iOS unit tests` job executes this case
-after the complete unit target; compilation alone is not acceptance evidence.
-The native-control correction is committed at
-`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; a local exact-SHA generic-Simulator
-`build-for-testing` compiled and linked the app, unit bundle, and UI bundle for
-arm64 and x86_64, but a hosted XCUI result is still required.
+modifier. All three critical scan smokes share one
+`scanningStatusBadgeElement(in:)` helper containing the repository's single
+`app.buttons["ScanningStatusBadge"]` query, so neither test can retain dead
+native-query text while silently falling back to weaker element-class semantics.
+The queued-completion smoke requires the native Button's accessibility frame to
+be fully contained by the application frame before tapping and prints both
+rectangles on failure. This prevents XCTest from silently substituting an
+edge-of-window activation point for an invalid off-window rectangle and
+reporting the resulting no-op as a promotion failure. The completed state must
+also expose the identifier-scoped Field Chat and Share toolbar buttons. Their
+delayed reveal and Field Notes synchronization are keyed to the monotonic
+presentation generation, not the unchanged scan ID, ensuring both tasks restart
+after promotion. Keep all navigation, shared-scanning, playable-media,
+downstream-toolbar, and handoff assertions when extending this regression. The
+exact-SHA hosted `Full iOS unit tests` job executes this case after the complete
+unit target; compilation alone is not acceptance evidence. The native-control
+correction is committed at `c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; a local
+exact-SHA generic-Simulator `build-for-testing` compiled and linked the app,
+unit bundle, and UI bundle for arm64 and x86_64, but a hosted XCUI result is
+still required.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

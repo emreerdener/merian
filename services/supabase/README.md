@@ -179,6 +179,16 @@ pass, switch the rotation flag to `required`. Rotation health applies the same
 warning/critical age thresholds as the other identity backlogs and warns at 100
 prepared rotations or becomes critical at 500 by default.
 
+Forward migration
+`20260819194315_repair_stable_signout_rotation_routine_definitions.sql`
+reinstalls the reviewed final prepare, claim, and cancel bodies for both fresh
+replay and persistent catalogs. It preserves the exact service-only ACLs,
+removes the original preparation timestamp ambiguity, and keeps claim/cancel
+expiry receipts proof-bound when the aggregate health pass terminalized the row
+first. Do not repair an already-recorded catalog by editing or repairing
+migration history; deploy the forward migration through the exact-SHA candidate
+path.
+
 Migration `20260813040000_add_purchase_identity_rollout_control.sql` adds the
 private `purchase_identity_rollout_operations` exact-SHA ledger and the
 database-owner-only `apply_purchase_identity_rollout_operation(...)` routine.
@@ -2070,7 +2080,11 @@ Media durability migrations have an additional static contract test that runs
 without a local Postgres instance. It checks the normalized scan-media lifecycle
 schema, the scan-ingestion job ledger, the drift-repair SQL that must run before
 media reconciliation indexes are created, and the source-aware uniqueness repair
-for generated versus promoted capture-upload rows.
+for generated versus promoted capture-upload rows. The canonical-order repair
+contract additionally requires temporary allocation across every generated
+lifecycle state, deterministic non-ready compaction after ready media, and a
+pgTAP fixture where non-ready rows occupy both the canonical destination and the
+former temporary destination.
 
 The same migration contract suite covers the identification-latency migration:
 service-role-only RPC grants, the atomic ingestion setup function, combined

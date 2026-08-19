@@ -5,7 +5,6 @@ import ImageIO
 import os
 import SwiftData
 import SwiftUI
-import Vision
 
 // MARK: - Private Response Types
 
@@ -165,6 +164,20 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
     @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
+    @ObservationIgnored private var foundationVisualCueTask: Task<Void, Never>?
+    @ObservationIgnored private let visionSubjectClassifier: any VisionSubjectClassifying
+    @ObservationIgnored private let foundationVisualCueProvider: any FoundationVisualCueProviding
+    @ObservationIgnored private let foundationVisualCueEligibilityChecker:
+        any FoundationVisualCueEligibilityChecking
+    @ObservationIgnored private let scanningPhraseSleeper: any ScanningPhraseSleeping
+    @ObservationIgnored private var localVisualAnalysisImage: ImageDownsampler.SendableImage?
+    @ObservationIgnored private var localVisionClassification: VisionSubjectClassification?
+    @ObservationIgnored private var didFinishLocalVisionClassification = false
+    @ObservationIgnored private var didSendInferenceRequestBody = false
+    @ObservationIgnored private var scanningPhraseCoordinator = ScanningPhraseCoordinator()
+    #if DEBUG
+    @ObservationIgnored private var debugProgressiveAnalyzingStep = 0
+    #endif
     @ObservationIgnored private var backgroundWriteTasks = [UUID: Task<Void, Never>]()
     /// Hard caps on active and pending best-effort metadata writes. Together they prevent OOM
     /// during rapid offline-queue replay where wiki/GBIF/enrichment writes can arrive faster
@@ -196,6 +209,18 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         let operation: @Sendable () async -> Void
     }
     @ObservationIgnored private var pendingBackgroundTasks: [PendingBackgroundWrite] = []
+
+    init(
+        visionSubjectClassifier: any VisionSubjectClassifying = AppleVisionSubjectClassifier(),
+        foundationVisualCueProvider: any FoundationVisualCueProviding = UnavailableFoundationVisualCueProvider(),
+        foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking = SystemFoundationCueEligibility(),
+        scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper()
+    ) {
+        self.visionSubjectClassifier = visionSubjectClassifier
+        self.foundationVisualCueProvider = foundationVisualCueProvider
+        self.foundationVisualCueEligibilityChecker = foundationVisualCueEligibilityChecker
+        self.scanningPhraseSleeper = scanningPhraseSleeper
+    }
 
     private enum LiveReferenceHydrationPolicy: Sendable, Equatable {
         case none
@@ -414,8 +439,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     /// Synchronously closes new presentation writes at Auth-transition
-    /// admission and cancels every existing producer. The async drain is the
-    /// terminal proof that non-cooperative tasks have stopped.
+    /// admission and cancels every existing producer. Ephemeral local visual
+    /// work is fenced and released here; only durable write owners participate
+    /// in the async quiescence drain.
     func beginAuthTransitionWriteFence() {
         guard !authTransitionWriteFenceActive else { return }
         authTransitionWriteFenceActive = true
@@ -424,8 +450,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         historicHydrationTask?.cancel()
         gbifHydrationTask?.cancel()
         enrichmentWriteTask?.cancel()
-        localClassificationTask?.cancel()
-        phaseRotationTask?.cancel()
+        cancelLocalVisualAnalysis()
         identificationReviewWriteTail?.cancel()
         resetTrackedBackgroundWrites()
     }
@@ -438,8 +463,6 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         _ = await historicHydrationTask?.result
         _ = await gbifHydrationTask?.result
         _ = await enrichmentWriteTask?.result
-        _ = await localClassificationTask?.result
-        _ = await phaseRotationTask?.result
         _ = await identificationReviewWriteTail?.result
 
         while !backgroundWriteTasks.isEmpty {
@@ -456,7 +479,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         gbifHydrationTask = nil
         enrichmentWriteTask = nil
         localClassificationTask = nil
+        foundationVisualCueTask = nil
         phaseRotationTask = nil
+        localVisualAnalysisImage = nil
+        localVisionClassification = nil
+        didFinishLocalVisionClassification = false
+        didSendInferenceRequestBody = false
+        _ = scanningPhraseCoordinator.reset()
         identificationReviewWriteTail = nil
     }
 
@@ -546,8 +575,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
-        self.localClassificationTask?.cancel()
-        self.phaseRotationTask?.cancel()
+        self.cancelLocalVisualAnalysis()
         self.resetTrackedBackgroundWrites()
 
         // Reset scan identity and processing flags.
@@ -796,7 +824,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         activeScanId = nil
         activeLiveInferenceAttemptGeneration = nil
         activeForegroundInferenceGeneration = nil
-        phaseRotationTask?.cancel()
+        cancelLocalVisualAnalysis()
         publishSuccessfulResult(speciesData)
         return true
     }
@@ -821,7 +849,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         activeLiveInferenceAttemptGeneration = nil
         activeForegroundInferenceGeneration = nil
         recoverablePresentationScanId = nil
-        phaseRotationTask?.cancel()
+        cancelLocalVisualAnalysis()
         publishSuccessfulResult(speciesData)
         return true
     }
@@ -1232,8 +1260,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.historicHydrationTask = nil
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
-        self.localClassificationTask?.cancel()
-        self.phaseRotationTask?.cancel()
+        self.cancelLocalVisualAnalysis()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
         self.resetTrackedBackgroundWrites()
@@ -1284,7 +1311,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         let capturedDisplayDatas = displayDatas
 
         if let firstData = imageDatas.first {
-            classifySubjectLocally(from: firstData)
+            classifySubjectLocally(
+                from: firstData,
+                focusRegion: visualMediaItems?.first?.focusRegion
+            )
         }
 
         // Capture before the Task so the defer can compare against the ID this Task owns.
@@ -1317,7 +1347,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     self.activeScanId = nil
                     self.activeLiveInferenceAttemptGeneration = nil
                     self.activeForegroundInferenceGeneration = nil
-                    self.phaseRotationTask?.cancel()
+                    self.cancelLocalVisualAnalysis()
                 }
             }
 
@@ -1440,13 +1470,21 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     // retain the reviewed long request window and inline replay.
                     durableQueueOwnsRecovery:
                         ownedForegroundInferenceGeneration != nil,
-                    onRequestBodySent: {
+                    onRequestBodySent: { [weak self] in
                         Task { @MainActor in
                             OfflineQueueManager.shared.releaseDeferredLiveUpload(
                                 scanId: resolvedClientScanId,
                                 foregroundInferenceGeneration:
                                     ownedForegroundInferenceGeneration,
                                 reason: "inline_request_body_sent"
+                            )
+                            self?.markInferenceRequestBodySent(
+                                ownership: LocalAnalysisOwnership(
+                                    scanId: ownedScanId,
+                                    attemptGeneration: attemptGeneration,
+                                    foregroundGeneration:
+                                        ownedForegroundInferenceGeneration
+                                )
                             )
                         }
                     }
@@ -1459,6 +1497,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 )
                 let responseReceivedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
+                self.cancelLocalVisualAnalysis()
 
                 // --- Step 3: Response Parsing & Local Persistence ---
                 
@@ -1852,8 +1891,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.historicHydrationTask = nil
         self.gbifHydrationTask?.cancel()
         self.enrichmentWriteTask?.cancel()
-        self.localClassificationTask?.cancel()
-        self.phaseRotationTask?.cancel()
+        self.cancelLocalVisualAnalysis()
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
 
@@ -1902,7 +1940,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     self.activeScanId = nil
                     self.activeLiveInferenceAttemptGeneration = nil
                     self.activeForegroundInferenceGeneration = nil
-                    self.phaseRotationTask?.cancel()
+                    self.cancelLocalVisualAnalysis()
                 }
             }
 
@@ -2243,7 +2281,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         recoverablePresentationScanId = normalizedScanId
         queuedPresentationScanId = normalizedScanId
         pendingFirstRenderMetric = nil
-        phaseRotationTask?.cancel()
+        cancelLocalVisualAnalysis()
         scanningPhaseText = "Queued for later"
         speciesData = nil
         isProcessing = false
@@ -3566,8 +3604,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.inferenceTask?.cancel()
         self.liveHydrationTask?.cancel()
         self.historicHydrationTask?.cancel()
-        self.localClassificationTask?.cancel()
-        self.phaseRotationTask?.cancel()
+        self.cancelLocalVisualAnalysis()
         self.resetTrackedBackgroundWrites()
         // Cancel GBIF hydration so stale image URLs cannot be written to a record
         // that is no longer active after the user fires a new scan or navigates away.
@@ -3660,8 +3697,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         gbifHydrationTask?.cancel()
         enrichmentWriteTask?.cancel()
         enrichmentWriteTask = nil
-        localClassificationTask?.cancel()
-        phaseRotationTask?.cancel()
+        cancelLocalVisualAnalysis()
         resetTrackedBackgroundWrites()
         pendingFirstRenderMetric = nil
 
@@ -3908,178 +3944,326 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     // MARK: - On-Device Subject Study
 
-    /// Sequential multi-pass Vision pipeline — each request runs off the main actor and
-    /// streams its observation to the UI the moment that model completes.
-    /// Phase rotation is updated independently in parallel via a fire-and-forget Task.
-    private func classifySubjectLocally(from data: Data) {
-        var shuffled = Self.genericFallbackPhrases
-        let anchor = shuffled.removeFirst()
-        shuffled.shuffle()
-        shuffled.insert(anchor, at: 0)
-        startPhaseRotation(phrases: shuffled)
+    private struct LocalAnalysisOwnership {
+        let scanId: String?
+        let attemptGeneration: UUID
+        let foregroundGeneration: UUID?
+    }
 
+    /// Builds one bounded image from the primary visual item, then reuses it for
+    /// Vision and the future Foundation Models provider. This work never joins
+    /// the network task and cannot delay request dispatch or result publication.
+    private func classifySubjectLocally(
+        from data: Data,
+        focusRegion: NormalizedImageFocusRegion?
+    ) {
+        scanningPhaseText = scanningPhraseCoordinator.reset()
+        startPhaseRotation()
         HapticManager.shared.triggerLightImpact(intensity: 0.3)
 
-        let ownedScanId = activeScanId
-        guard let ownedAttemptGeneration =
-            activeLiveInferenceAttemptGeneration else {
+        guard let attemptGeneration = activeLiveInferenceAttemptGeneration else {
             return
         }
-        let ownedForegroundInferenceGeneration =
-            activeForegroundInferenceGeneration
-        let ownership = (
-            scanId: ownedScanId,
-            attemptGeneration: ownedAttemptGeneration,
-            foregroundGeneration: ownedForegroundInferenceGeneration
+        let ownership = LocalAnalysisOwnership(
+            scanId: activeScanId,
+            attemptGeneration: attemptGeneration,
+            foregroundGeneration: activeForegroundInferenceGeneration
         )
+        let classifier = visionSubjectClassifier
+
         localClassificationTask?.cancel()
-        localClassificationTask = Task(
-            priority: .userInitiated
-        ) { [weak self, ownership] in
-            guard let self else { return }
-
-            let specificPhrases = await Task.detached(priority: .userInitiated) {
-                guard let cgImage = ImageDownsampler.downsample(data: data, maxSize: 512) else {
-                    return Self.genericFallbackPhrases
-                }
-                let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-                let classifyReq = VNClassifyImageRequest()
-                autoreleasepool { try? handler.perform([classifyReq]) }
-                let observations = classifyReq.results ?? []
-                return Self.specificPhraseSeries(for: observations) ?? Self.genericFallbackPhrases
-            }.value
-
-            guard !Task.isCancelled else { return }
-            guard self.isLiveInferenceAttemptCurrent(
-                scanId: ownership.scanId,
-                attemptGeneration: ownership.attemptGeneration,
-                foregroundInferenceGeneration:
-                    ownership.foregroundGeneration
-            ) else {
+        localClassificationTask = Task(priority: .userInitiated) { [weak self] in
+            guard let self,
+                  let image = await LocalVisualAnalysisImageBuilder.makeImage(
+                      data: data,
+                      focusRegion: focusRegion
+                  ),
+                  !Task.isCancelled,
+                  self.isLocalAnalysisCurrent(ownership) else {
                 return
             }
 
-            self.startPhaseRotation(phrases: specificPhrases, startIndex: 0)
+            self.localVisualAnalysisImage = image
+            let classification: VisionSubjectClassification
+            do {
+                classification = try await classifier.classify(image: image)
+            } catch {
+                guard !Task.isCancelled else { return }
+                classification = VisionSubjectClassification(
+                    category: nil,
+                    candidates: []
+                )
+            }
+
+            guard !Task.isCancelled, self.isLocalAnalysisCurrent(ownership) else {
+                return
+            }
+            self.localVisionClassification = classification
+            self.didFinishLocalVisionClassification = true
+
+            if let category = classification.category {
+                self.scanningPhaseText = self.scanningPhraseCoordinator.promote(
+                    to: category
+                )
+                self.startPhaseRotation()
+            }
+            self.startFoundationVisualCuesIfReady(ownership: ownership)
         }
     }
 
-    private func startPhaseRotation(phrases: [String], startIndex: Int = 0) {
-        phaseRotationTask?.cancel()
-        let ownedScanId = activeScanId
-        let ownedAttemptGeneration =
-            activeLiveInferenceAttemptGeneration
-        let ownedForegroundInferenceGeneration =
-            activeForegroundInferenceGeneration
-        let ownership = (
-            scanId: ownedScanId,
-            attemptGeneration: ownedAttemptGeneration,
-            foregroundGeneration: ownedForegroundInferenceGeneration
+    private func markInferenceRequestBodySent(
+        ownership: LocalAnalysisOwnership
+    ) {
+        guard isLocalAnalysisCurrent(ownership) else { return }
+        didSendInferenceRequestBody = true
+        startFoundationVisualCuesIfReady(ownership: ownership)
+    }
+
+    private func startFoundationVisualCuesIfReady(
+        ownership: LocalAnalysisOwnership
+    ) {
+        guard foundationVisualCueTask == nil,
+              didSendInferenceRequestBody,
+              didFinishLocalVisionClassification,
+              foundationVisualCueEligibilityChecker.isEligibleForVisualCues(),
+              let image = localVisualAnalysisImage else {
+            return
+        }
+
+        let classification = localVisionClassification
+            ?? VisionSubjectClassification(category: nil, candidates: [])
+        let request = FoundationVisualCueRequest(
+            image: image,
+            broadCategory: classification.category,
+            forbiddenIdentityTerms: FoundationVisualCueValidator.identityTerms(
+                from: classification.candidates
+            )
         )
-        phaseRotationTask = Task { @MainActor [weak self, ownership] in
-            guard !phrases.isEmpty else { return }
-            var index = startIndex % phrases.count
-            
-            // If passing off sequentially, we don't delay to hit the next phrase immediately
-            guard !Task.isCancelled else { return }
-            
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: MerianConfig.scanningPhaseRotationIntervalNs)
-                guard !Task.isCancelled else { break }
-                guard let self else { return }
-                if let ownedAttemptGeneration =
-                    ownership.attemptGeneration,
-                   !self.isLiveInferenceAttemptCurrent(
-                       scanId: ownership.scanId,
-                       attemptGeneration: ownedAttemptGeneration,
-                       foregroundInferenceGeneration:
-                           ownership.foregroundGeneration
-                   ) {
-                    break
+        let provider = foundationVisualCueProvider
+
+        foundationVisualCueTask = Task(priority: .utility) { [weak self] in
+            guard let self else { return }
+            do {
+                guard let snapshots = try await provider.cueSnapshots(for: request) else {
+                    return
                 }
-                self.scanningPhaseText = phrases[index]
-                index = (index + 1) % phrases.count
+                var buffer = FoundationVisualCueBuffer()
+                var acceptedCount = 0
+
+                for try await snapshot in snapshots {
+                    guard !Task.isCancelled,
+                          self.isLocalAnalysisCurrent(ownership),
+                          self.foundationVisualCueEligibilityChecker
+                              .isEligibleForVisualCues() else {
+                        return
+                    }
+                    guard let bufferedCue = buffer.consume(snapshot),
+                          let cue = FoundationVisualCueValidator.validatedCue(
+                              bufferedCue,
+                              forbiddenIdentityTerms: request.forbiddenIdentityTerms,
+                              existingPhrases: self.scanningPhraseCoordinator
+                                  .acceptedFoundationPhrases
+                          ),
+                          self.scanningPhraseCoordinator.acceptFoundationCue(cue) else {
+                        continue
+                    }
+                    acceptedCount += 1
+                    if acceptedCount == FoundationVisualCueRequest.maximumCueCount {
+                        return
+                    }
+                }
+            } catch {
+                // Local cues are best-effort and intentionally have no user-visible error.
             }
         }
     }
 
+    private func startPhaseRotation() {
+        phaseRotationTask?.cancel()
+        let ownedScanId = activeScanId
+        let ownedAttemptGeneration = activeLiveInferenceAttemptGeneration
+        let ownedForegroundInferenceGeneration = activeForegroundInferenceGeneration
+        let sleeper = scanningPhraseSleeper
+        phaseRotationTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await sleeper.sleepUntilNextPhrase()
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled, let self else { return }
+                if let ownedAttemptGeneration,
+                   !self.isLiveInferenceAttemptCurrent(
+                       scanId: ownedScanId,
+                       attemptGeneration: ownedAttemptGeneration,
+                       foregroundInferenceGeneration:
+                           ownedForegroundInferenceGeneration
+                   ) {
+                    return
+                }
+                if let nextPhrase = self.scanningPhraseCoordinator.nextPhrase() {
+                    self.scanningPhaseText = nextPhrase
+                }
+            }
+        }
+    }
+
+    private func isLocalAnalysisCurrent(
+        _ ownership: LocalAnalysisOwnership
+    ) -> Bool {
+        isLiveInferenceAttemptCurrent(
+            scanId: ownership.scanId,
+            attemptGeneration: ownership.attemptGeneration,
+            foregroundInferenceGeneration: ownership.foregroundGeneration
+        )
+    }
+
+    private func cancelLocalVisualAnalysis() {
+        localClassificationTask?.cancel()
+        foundationVisualCueTask?.cancel()
+        phaseRotationTask?.cancel()
+        localClassificationTask = nil
+        foundationVisualCueTask = nil
+        phaseRotationTask = nil
+        localVisualAnalysisImage = nil
+        localVisionClassification = nil
+        didFinishLocalVisionClassification = false
+        didSendInferenceRequestBody = false
+        _ = scanningPhraseCoordinator.reset()
+    }
+
+    func handleApplicationActiveStateChange(isActive: Bool) {
+        guard !isActive else { return }
+        cancelLocalVisualAnalysis()
+    }
+
     #if DEBUG
-    /// Simulates a live analyzing state for UI development — starts phase rotation
-    /// so the badge cycles visibly without requiring a real scan submission.
-    func simulateAnalyzing() {
+    /// Deterministic generic → category → trait progression for UI development
+    /// and the analyzing-pill UI contract test.
+    func simulateProgressiveAnalyzing(automaticallyAdvances: Bool = true) {
+        cancelLocalVisualAnalysis()
         isProcessing = true
-        startPhaseRotation(phrases: [
-            "Arthropod detected",
-            "Analyzing wing venation",
-            "Analyzing body segmentation",
-            "Analyzing field markers",
-            "Checking taxonomic indicators",
-            "Checking entomology records",
-            "Checking regional distribution",
-            "Confirming species..."
-        ])
+        scanningPhaseText = scanningPhraseCoordinator.reset()
+        debugProgressiveAnalyzingStep = 0
+        guard automaticallyAdvances else { return }
+        let sleeper = scanningPhraseSleeper
+        phaseRotationTask = Task { @MainActor [weak self] in
+            do {
+                try await sleeper.sleepUntilNextPhrase()
+                guard !Task.isCancelled, let self else { return }
+                self.debugAdvanceProgressiveAnalyzing()
+
+                try await sleeper.sleepUntilNextPhrase()
+                guard !Task.isCancelled else { return }
+                self.debugAdvanceProgressiveAnalyzing()
+            } catch {
+                return
+            }
+        }
+    }
+
+    func debugAdvanceProgressiveAnalyzing() {
+        switch debugProgressiveAnalyzingStep {
+        case 0:
+            scanningPhaseText = scanningPhraseCoordinator.promote(to: .arthropod)
+            debugProgressiveAnalyzingStep = 1
+        case 1:
+            let cue = FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "amber banded wings"
+            )
+            guard scanningPhraseCoordinator.acceptFoundationCue(cue),
+                  let phrase = scanningPhraseCoordinator.nextPhrase() else {
+                return
+            }
+            scanningPhaseText = phrase
+            debugProgressiveAnalyzingStep = 2
+        default:
+            break
+        }
+    }
+
+    func simulateAnalyzing() {
+        simulateProgressiveAnalyzing()
+    }
+
+    func debugStartFoundationCueStream(
+        image: ImageDownsampler.SendableImage,
+        classification: VisionSubjectClassification,
+        scanId: String = "debug-local-analysis",
+        attemptGeneration: UUID = UUID()
+    ) {
+        cancelLocalVisualAnalysis()
+        activeScanId = scanId
+        activeLiveInferenceAttemptGeneration = attemptGeneration
+        activeForegroundInferenceGeneration = nil
+        isProcessing = true
+        scanningPhaseText = scanningPhraseCoordinator.reset()
+        if let category = classification.category {
+            scanningPhaseText = scanningPhraseCoordinator.promote(to: category)
+        }
+        localVisualAnalysisImage = image
+        localVisionClassification = classification
+        didFinishLocalVisionClassification = true
+        didSendInferenceRequestBody = true
+        startPhaseRotation()
+        startFoundationVisualCuesIfReady(
+            ownership: LocalAnalysisOwnership(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                foregroundGeneration: nil
+            )
+        )
+    }
+
+    @discardableResult
+    func debugStartLocalClassification(
+        imageData: Data,
+        focusRegion: NormalizedImageFocusRegion? = nil,
+        scanId: String = "debug-local-classification",
+        attemptGeneration: UUID = UUID()
+    ) -> Task<Void, Never>? {
+        cancelLocalVisualAnalysis()
+        activeScanId = scanId
+        activeLiveInferenceAttemptGeneration = attemptGeneration
+        activeForegroundInferenceGeneration = nil
+        isProcessing = true
+        classifySubjectLocally(from: imageData, focusRegion: focusRegion)
+        return localClassificationTask
+    }
+
+    func debugSimulateGeminiResponseArrival() {
+        cancelLocalVisualAnalysis()
+    }
+
+    var debugAcceptedFoundationPhraseCount: Int {
+        scanningPhraseCoordinator.acceptedFoundationPhrases.count
+    }
+
+    var debugLocalVisionCategory: LocalSubjectCategory? {
+        localVisionClassification?.category
+    }
+
+    var debugLocalVisualAnalysisIsRunning: Bool {
+        localClassificationTask != nil || foundationVisualCueTask != nil
+            || phaseRotationTask != nil
     }
     #endif
 
-    private nonisolated static let genericFallbackPhrases: [String] = [
-        "Scanning subject...",
-        "Analyzing subject morphology",
-        "Analyzing biological traits",
-        "Analyzing structural patterns",
-        "Checking taxonomic data",
-        "Checking species records",
-        "Checking habitat context",
-        "Identifying species..."
-    ]
-
-    /// Generic scanning phases shared with queued scans when local classification
-    /// context is unavailable.
+    /// Existing cloud-analysis phrases retained by queued, audio-only, and
+    /// Describe flows. Foreground visual local analysis uses the morphology-only
+    /// deck owned by `ScanningPhraseCoordinator`.
     nonisolated static var genericScanningPhasePhrases: [String] {
-        genericFallbackPhrases
-    }
-
-    private nonisolated static func specificPhraseSeries(for observations: [VNClassificationObservation]) -> [String]? {
-        guard let top = observations.first, top.confidence >= MerianConfig.visionConfidenceThreshold else { return nil }
-        if observations.count >= 2 { guard top.confidence - observations[1].confidence >= MerianConfig.visionMarginThreshold else { return nil } }
-
-        let id = top.identifier.lowercased()
-
-        if id.contains("bird") || id.contains("avian") || id.contains("raptor") || id.contains("songbird") || id.contains("waterfowl") || id.contains("owl") {
-            return ["Avian detected", "Analyzing plumage", "Analyzing bill morphology", "Checking seasonal variation", "Checking eBird records", "Checking geographic range", "Checking subspecies", "Confirming species..."]
-        }
-        if id.contains("insect") || id.contains("arthropod") || id.contains("butterfly") || id.contains("moth") || id.contains("bee") || id.contains("beetle") || id.contains("fly") || id.contains("ant") || id.contains("wasp") || id.contains("dragonfly") || id.contains("cricket") || id.contains("grasshopper") {
-            return ["Arthropod detected", "Analyzing wing venation", "Analyzing body segmentation", "Analyzing field markers", "Checking taxonomic indicators", "Checking entomology records", "Checking regional distribution", "Confirming species..."]
-        }
-        if id.contains("spider") || id.contains("arachnid") || id.contains("scorpion") || id.contains("tick") || id.contains("mite") {
-            return ["Arachnid detected", "Analyzing body segmentation", "Analyzing appendage morphology", "Analyzing leg spinnerets", "Checking taxonomic data", "Checking arachnology records", "Checking occurrence records", "Confirming species..."]
-        }
-        if id.contains("mushroom") || id.contains("fungi") || id.contains("fungus") || id.contains("lichen") {
-            return ["Fungal specimen", "Analyzing cap morphology", "Analyzing gill structure", "Analyzing surface coloration", "Checking substrate context", "Checking mycology records", "Checking fruiting patterns", "Confirming species..."]
-        }
-        if id.contains("flower") || id.contains("blossom") || id.contains("bloom") {
-            return ["Flowering plant", "Analyzing petal arrangement", "Analyzing reproductive structures", "Analyzing inflorescence pattern", "Checking pollinator associations", "Checking botanical records", "Checking flora records", "Confirming species..."]
-        }
-        if id.contains("tree") || id.contains("conifer") || id.contains("palm") {
-            return ["Arboreal detected", "Analyzing bark texture", "Analyzing leaf form", "Analyzing growth habit", "Checking fruit characteristics", "Checking botanical records", "Checking elevation range", "Confirming species..."]
-        }
-        if id.contains("cactus") || id.contains("cactaceae") || id.contains("succulent") {
-            return ["Succulent detected", "Analyzing spine patterns", "Analyzing stem morphology", "Analyzing growth form", "Analyzing surface texture", "Checking flora records", "Checking native range", "Confirming species..."]
-        }
-        if id.contains("plant") || id.contains("leaf") || id.contains("vegetation") || id.contains("shrub") || id.contains("grass") || id.contains("fern") || id.contains("moss") || id.contains("algae") || id.contains("vine") {
-            return ["Botanical detected", "Analyzing leaf morphology", "Analyzing structural patterns", "Analyzing growth habit", "Checking field markers", "Checking flora records", "Checking native range", "Confirming species..."]
-        }
-        if id.contains("reptile") || id.contains("snake") || id.contains("lizard") || id.contains("turtle") || id.contains("crocodile") || id.contains("gecko") {
-            return ["Reptilian detected", "Analyzing scale patterns", "Analyzing body plan", "Analyzing dorsal pattern", "Checking taxonomic data", "Checking herpetology records", "Checking population data", "Confirming species..."]
-        }
-        if id.contains("amphibian") || id.contains("frog") || id.contains("toad") || id.contains("salamander") || id.contains("newt") || id.contains("caecilian") {
-            return ["Amphibian detected", "Analyzing skin texture", "Analyzing body form", "Checking taxonomic indicators", "Analyzing call signatures", "Checking herpetology records", "Checking wetland habitat", "Confirming species..."]
-        }
-        if id.contains("fish") || id.contains("shark") || id.contains("ray") || id.contains("eel") || id.contains("salmon") || id.contains("trout") {
-            return ["Aquatic vertebrate", "Analyzing fin morphology", "Analyzing lateral line", "Analyzing lateral coloration", "Analyzing body shape", "Checking ichthyology records", "Checking watershed data", "Confirming species..."]
-        }
-        if id.contains("mammal") || id.contains("dog") || id.contains("cat") || id.contains("deer") || id.contains("fox") || id.contains("bear") || id.contains("rabbit") || id.contains("squirrel") || id.contains("raccoon") || id.contains("rodent") || id.contains("primate") {
-            return ["Mammalian detected", "Analyzing body proportions", "Analyzing pelage detail", "Checking behavioural markers", "Checking geographic range", "Checking habitat indicators", "Checking population range", "Confirming species..."]
-        }
-        return nil
+        [
+            "Scanning subject...",
+            "Analyzing subject morphology",
+            "Analyzing biological traits",
+            "Analyzing structural patterns",
+            "Checking taxonomic data",
+            "Checking species records",
+            "Checking habitat context",
+            "Identifying species..."
+        ]
     }
 
     func markAlternativesExhausted(expectedScanId: String? = nil) {

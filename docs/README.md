@@ -32,12 +32,13 @@ as their permanent engineering identity.
   changes.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
-  execute the complete unit-test target and deterministic live-to-queue plus
-  queued-completion UI smokes, then independently inspect an unsigned Release
-  archive from the exact workflow SHA. The main app's source and archived bundle
-  must also carry the exact reviewed `PrivacyInfo.xcprivacy`; archive evidence
-  records `privacy_manifest_valid: true`. The final main-app plist must retain
-  ATS defaults and credential-free HTTPS origins; archive evidence records
+  execute the complete unit-test target and three deterministic UI smokes for
+  progressive analysis, live-to-queue, and queued completion, then independently
+  inspect an unsigned Release archive from the exact workflow SHA. The main
+  app's source and archived bundle must also carry the exact reviewed
+  `PrivacyInfo.xcprivacy`; archive evidence records
+  `privacy_manifest_valid: true`. The final main-app plist must retain ATS
+  defaults and credential-free HTTPS origins; archive evidence records
   `transport_security: "ats-default"`. Repository rules must require the stable
   `iOS Build and Test / Production readiness` result; the focused Startup Safety
   lane is supplementary. See the
@@ -238,6 +239,21 @@ as their permanent engineering identity.
   protected inventory. The behavior is not yet release-accepted because
   exact-SHA hosted execution and physical transition QA remain open in the
   [live scan connectivity handoff incident](./incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+- **Progressive on-device analyzing context (2026-08-19)**: Foreground visual
+  scans now reuse one primary-image derivative bounded to 512 px for injected
+  Apple Vision classification, applying the accepted padded focus region when
+  available. The pill moves from morphology-only generic copy to an immediate
+  qualifying broad category, then advances no more often than every 2.3 seconds
+  without returning to generic text. Gemini remains the only identification
+  authority; local image, category, and cue text are ephemeral and absent from
+  payloads, persistence, analytics, and logs. Xcode 26.6 ships the improved
+  Vision path and a no-op Foundation visual-cue provider. The multimodal
+  `SystemLanguageModel.default` implementation remains gated on stable Xcode 27
+  locally and in hosted CI, iOS 27 availability, on-device readiness, power,
+  thermal, and active-app checks, and the request-body-sent boundary. See the
+  [AI engineering contract](./system-architecture/04-ai-engineering.md#on-device-pre-classification--scanning-phase-ux)
+  and
+  [Insight UX contract](./features-and-hardware/05-insight-sheet.md#progressive-analyzing-pill).
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
   `ExternalImageImportStore` copies the file into a durable Application Support
@@ -441,7 +457,9 @@ as their permanent engineering identity.
   — Capture → disk → cache → display image flow.
 - **[`/system-architecture/04-ai-engineering.md`](./system-architecture/04-ai-engineering.md)**
   — LLMOps edge deployment constraints, inference invariants, full-pipeline
-  latency instrumentation, `maxOutputTokens` limits, and API throttling.
+  latency instrumentation, progressive on-device analyzing context, stable
+  Foundation Models activation controls, `maxOutputTokens` limits, and API
+  throttling.
 - **[`/system-architecture/06-edge-modularization.md`](./system-architecture/06-edge-modularization.md)**
   — Domain-driven modular architecture for Supabase Edge Functions: `index.ts` /
   `db.ts` / `types.ts` separation rules and shared utility conventions.
@@ -573,8 +591,8 @@ as their permanent engineering identity.
   workspace gate.
 - **[`/features-and-hardware/05-insight-sheet.md`](./features-and-hardware/05-insight-sheet.md)**
   — InsightSheet view architecture, mixed-media carousel handoff, species data
-  rendering, persistent Field trip progress, typed routing, Field chat, and
-  graceful degradation states.
+  rendering, progressive analyzing-pill UX, persistent Field trip progress,
+  typed routing, Field chat, and graceful degradation states.
 - **[`/features-and-hardware/06-profile-and-gamification.md`](./features-and-hardware/06-profile-and-gamification.md)**
   — Profile public avatars, heatmap, collections, and gamification award
   calculations.

@@ -308,10 +308,10 @@ envelope is rejected before eviction, and a live resumed envelope can displace
 only eligible equal-or-lower-priority work. This keeps the hard 16-envelope
 bound intact even when producers refill the queue while a sheet is occupied.
 
-Reference-type Combine consumers store their cancellables and capture
-themselves weakly; SwiftUI `.onReceive` remains view-lifecycle-owned. Framework
-publishers cross through `sinkOnMainActor`; the app bus is already main-actor
-isolated and remains synchronous. Full contracts and matrices live in
+Reference-type Combine consumers store their cancellables and capture themselves
+weakly; SwiftUI `.onReceive` remains view-lifecycle-owned. Framework publishers
+cross through `sinkOnMainActor`; the app bus is already main-actor isolated and
+remains synchronous. Full contracts and matrices live in
 [Event and Presentation Routing](10-event-and-presentation-routing.md).
 
 Transient UI feedback follows the same typed boundary. Feature state stores a
@@ -321,18 +321,18 @@ parsed to recover severity or behavior. `MerianSystemFeedbackModifier` owns one
 identity-keyed structured dismissal task. Passive banners disable hit testing,
 omit interactive controls, and action banners occupy only their intrinsic card
 bounds. Toast and milestone animation transactions are scoped inside their
-overlay builders rather than around the feature root; neither path introduces
-a full-screen invalidation, animation transaction, or gesture layer. Producers
+overlay builders rather than around the feature root; neither path introduces a
+full-screen invalidation, animation transaction, or gesture layer. Producers
 assign the payload and view-owned action without `withAnimation`; the modifier
 alone owns insertion and removal animation. Ordinary toast animation identity
-also includes milestone suppression, allowing the same payload to transition
-out and back in during serialized feedback ownership.
-The DI-owned milestone presenter holds at most 32 lightweight items and its host
-registry at most eight UUIDs. `ScanMilestoneCoordinator` holds at most 16
-sleeping automatic-retry tasks across all scans (in addition to the three-attempt
-per-scan budget); oldest overflow is cancelled and its process-local captures
-are released because the SwiftData goal hint remains the durable recovery outbox.
-Account/session transitions cancel every retained retry task and clear its
+also includes milestone suppression, allowing the same payload to transition out
+and back in during serialized feedback ownership. The DI-owned milestone
+presenter holds at most 32 lightweight items and its host registry at most eight
+UUIDs. `ScanMilestoneCoordinator` holds at most 16 sleeping automatic-retry
+tasks across all scans (in addition to the three-attempt per-scan budget);
+oldest overflow is cancelled and its process-local captures are released because
+the SwiftData goal hint remains the durable recovery outbox. Account/session
+transitions cancel every retained retry task and clear its
 preferred-goal/model-container captures.
 
 ### SwiftUI 17 Environment Macros (`HapticManager`)
@@ -349,9 +349,9 @@ view bindings, satisfying the `AppDIContainer` expansion boundaries.
 ### SwiftUI Presentation Collisions (`CaptureWorkspaceView`)
 
 Concurrent root `.sheet` modifiers can collide when background, push, and user
-actions arrive together. Merian maps root navigation to one `PresentedRoute`
-and one `.sheet(item:)` in `CameraSheetRouter`. `AppRouteCoordinator` permits
-only one in-flight presentation request; an occupied host records a deferral,
+actions arrive together. Merian maps root navigation to one `PresentedRoute` and
+one `.sheet(item:)` in `CameraSheetRouter`. `AppRouteCoordinator` permits only
+one in-flight presentation request; an occupied host records a deferral,
 dismisses, and resumes from the real `onDismiss` callback. Achievement detail
 and the notification prompt use that same host. There is no sleep-based sheet
 handoff and no second root presentation anchor. Capture's feature-local crop,
@@ -363,10 +363,10 @@ than a guessed 1.2-second teardown delay.
 Feature-local nested sheets use the same lifecycle rule. Candidate review,
 confidence review, Insight Chat follow-ups, and Explore activity navigation
 store typed pending actions with scan/presentation identity where applicable,
-dismiss their current owner, and resume only from that owner's `onDismiss`.
-They never mutate the backing identification or mount a sibling destination
-while UIKit is tearing the source sheet down. This removes short-lived duplicate
-view graphs and prevents a delayed callback from targeting a replacement scan.
+dismiss their current owner, and resume only from that owner's `onDismiss`. They
+never mutate the backing identification or mount a sibling destination while
+UIKit is tearing the source sheet down. This removes short-lived duplicate view
+graphs and prevents a delayed callback from targeting a replacement scan.
 Explore notification navigation stores only a post ID across dismissal and
 re-resolves the bounded feed-store value afterward; a latest-wins token rejects
 late async preparation after a newer tap or manual dismissal. For an owned post
@@ -374,12 +374,12 @@ inside Insight-hosted Explore, the leaf reports a scan ID, the Explore shell
 owns its dismissal, and Insight applies the staged scan only from the shell's
 real `onDismiss`.
 
-Transient visual delays are lifecycle-owned as well. Zoom labels, viewfinder
-and SNR prompts, focus indicators, back-swipe rearming, Field Chat preparation,
-and delayed Explore onboarding use structured or explicitly stored cancellable
-tasks with identity checks. Unmount/reset cancels retained tasks, and passive
-surfaces disable hit testing so neither timers nor invisible layout layers keep
-obsolete UI graphs alive or block interaction.
+Transient visual delays are lifecycle-owned as well. Zoom labels, viewfinder and
+SNR prompts, focus indicators, back-swipe rearming, Field Chat preparation, and
+delayed Explore onboarding use structured or explicitly stored cancellable tasks
+with identity checks. Unmount/reset cancels retained tasks, and passive surfaces
+disable hit testing so neither timers nor invisible layout layers keep obsolete
+UI graphs alive or block interaction.
 
 ### Capture Startup AttributeGraph Isolation
 
@@ -442,14 +442,15 @@ On a fresh cold-boot, SwiftUI evaluates the global `WindowGroup` environment and
 transitions `Environment(\.scenePhase)` from `.inactive` to `.active`.
 `MerianApp` observes this trigger and executes wake-up logic through
 `AppLifecycleManager`. Camera session startup remains owned by the Capture
-workspace rather than the lifecycle manager. Because this phase hook fires milliseconds before the
-first `OnboardingView` renders, it previously bypassed Onboarding gating,
-forcing camera initialization and OS permission alerts onto the first Onboarding
-screen. To enforce bounded onboarding states, lifecycle code evaluates the
-injected `AppSettings.hasCompletedOnboarding` value before active hardware or
-queue work. After onboarding, it always allows consent reconciliation while the
-required gate is closed, but it aborts hardware, notification, usage, and queued
-provider work until current adult, Terms, and Gemini evidence also passes.
+workspace rather than the lifecycle manager. Because this phase hook fires
+milliseconds before the first `OnboardingView` renders, it previously bypassed
+Onboarding gating, forcing camera initialization and OS permission alerts onto
+the first Onboarding screen. To enforce bounded onboarding states, lifecycle
+code evaluates the injected `AppSettings.hasCompletedOnboarding` value before
+active hardware or queue work. After onboarding, it always allows consent
+reconciliation while the required gate is closed, but it aborts hardware,
+notification, usage, and queued provider work until current adult, Terms, and
+Gemini evidence also passes.
 
 ### SwiftUI Render Loop CPU Thrashing (`ScansThumbnailView`)
 
@@ -736,9 +737,13 @@ only when a live inference path is confirmed online and immediately before
 setting `activeSheet = .insight`. Offline queued-only submissions must not call
 it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 
-- Cancels all in-flight tasks: `inferenceTask`, `liveHydrationTask`,
-  `historicHydrationTask`, `gbifHydrationTask`, `enrichmentWriteTask`,
-  `phaseRotationTask`.
+- Cancels durable/result tasks: `inferenceTask`, `liveHydrationTask`,
+  `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
+- Calls `cancelLocalVisualAnalysis()` to cancel `localClassificationTask`,
+  `foundationVisualCueTask`, and `phaseRotationTask`, then releases the bounded
+  local derivative, Vision candidates, request-dispatch flag, and phrase
+  coordinator state. None of this ephemeral work joins the Auth-transition
+  quiescence drain or delays the next scan.
 - Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and
   `enrichmentWriteTask`.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and
@@ -1257,14 +1262,13 @@ view contexts, creating subtle ordering hazards:
 
 **Rule:** Avoid adding `DispatchQueue.main.async` for actor hopping or
 `DispatchQueue.main.asyncAfter` for lifecycle/presentation coordination. Use
-`Task { @MainActor in }` for one-shot hops from nonisolated
-callbacks, and `.task` modifiers or `await MainActor.run { }` for structured
-async contexts. `sinkOnMainActor` deliberately retains
-`receive(on: DispatchQueue.main)` at unknown-executor framework boundaries;
-view-owned `NotificationCenter` publishers apply the same explicit main-queue
-delivery before SwiftUI `.onReceive`. Small UIKit/animation compatibility shims
-elsewhere are not evidence that the app event bus should become asynchronously
-scheduled.
+`Task { @MainActor in }` for one-shot hops from nonisolated callbacks, and
+`.task` modifiers or `await MainActor.run { }` for structured async contexts.
+`sinkOnMainActor` deliberately retains `receive(on: DispatchQueue.main)` at
+unknown-executor framework boundaries; view-owned `NotificationCenter`
+publishers apply the same explicit main-queue delivery before SwiftUI
+`.onReceive`. Small UIKit/animation compatibility shims elsewhere are not
+evidence that the app event bus should become asynchronously scheduled.
 
 Where lifecycle work has a structured-concurrency owner, keep the hop inside
 that task tree so cancellation, ordering, and priority inheritance remain
@@ -1292,8 +1296,8 @@ media, Insight video pages, and fullscreen playback use
 `MediaPlaybackObservation`, an `@MainActor @Observable` lifetime owner. It
 stores every KVO cancellable, notification token, and periodic-time token;
 replacing or detaching a player removes tokens from the exact old player/item.
-Callbacks capture owners weakly and verify a generation fence before mutating
-UI state. This bounds observer memory and prevents stale end/interruption events
+Callbacks capture owners weakly and verify a generation fence before mutating UI
+state. This bounds observer memory and prevents stale end/interruption events
 from redrawing a newly mounted page.
 
 System and milestone feedback overlays keep their layout footprint to the
@@ -1308,10 +1312,10 @@ card transitions. A nested feedback host becomes the sole renderer while
 mounted; removing it restores the previous host without restarting the active
 lifetime or repeating haptic/VoiceOver effects. Account or foreground-timeout
 generation changes clear the queue and reject stale async callbacks. The Scans
-export state uses a compact pass-through progress capsule
-instead of a dim full-screen overlay, while conflicting mutation controls
-remain disabled. These boundaries avoid retaining or invalidating a full heavy
-view tree for ephemeral feedback.
+export state uses a compact pass-through progress capsule instead of a dim
+full-screen overlay, while conflicting mutation controls remain disabled. These
+boundaries avoid retaining or invalidating a full heavy view tree for ephemeral
+feedback.
 
 ### Incomplete Gamification UI Animation Thrashing (`AwardCard`)
 

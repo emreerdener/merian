@@ -11,8 +11,14 @@ remote identification pipeline. Capture-specific composition remains under
   handoff, offline-queue adoption, enrichment, awards, and Field trips.
 - `InferenceProcessingActor` performs CPU/file/database work away from the main
   actor, including image encoding, response parsing, and scan persistence.
+- `LocalVisualAnalysis` owns the injected Vision classifier, bounded-image
+  builder, phrase coordinator, Foundation visual-cue seam, validation, and
+  runtime eligibility policy. `AppDIContainer` owns the live providers and
+  injects them into `InferenceEngine`.
 - On-device Vision classification runs concurrently with the network request to
-  provide scanning phrases. It does not replace or add a Gemini call.
+  provide scanning phrases. It does not replace or add a Gemini call, and the
+  local image and phrase text never enter the request, persistence, analytics,
+  or logs.
 - The marked Identify wire block in `InferenceEdgeDTOs.swift` is generated from
   the server's executable contract. It owns explicit `CodingKeys` and
   `init(from:)` implementations; do not hand-edit or extend those DTOs.
@@ -55,6 +61,61 @@ must use this same boundary; do not write a provider URL straight into
 draw probe after the first result frame participates in a display pass. Do not
 replace that boundary with only a SwiftUI state assignment or `onAppear`; those
 measure scheduling, not pixels presented.
+
+## Progressive analyzing copy
+
+Visual scans start with generic, directly observable copy. The engine builds one
+image bounded to 512 px from the primary inference image and reuses it for all
+local analysis. When the primary visual item has an accepted
+`NormalizedImageFocusRegion`, that already-padded top-left region is cropped
+from the local image; otherwise the full square inference image is used. Other
+captures and Gemini's payload are unchanged.
+
+`AppleVisionSubjectClassifier` runs `VNClassifyImageRequest`. A top result must
+meet the 0.65 confidence threshold, lead the runner-up by at least 0.15, and map
+to a supported broad category. A qualifying category replaces the generic pill
+immediately. The single injected phrase clock then advances no more often than
+every 2.3 seconds. Once a more-specific source is active, generic phrases can no
+longer overwrite it. Phrase decks describe only visible form, color, texture,
+arrangement, markings, and proportions; they do not imply an identity,
+confidence, record lookup, geographic range, or Gemini completion.
+
+Every local mutation is fenced by the current scan ID, presentation-attempt
+UUID, and durable foreground generation. Result arrival, dismissal, scan
+replacement, queue handoff, Auth transition, and failure cancel local work. App
+deactivation cancels every local visual-analysis task and clears its ephemeral
+image and classification state. Gemini networking, response parsing, durable
+queue work, persistence, and result publication continue independently and never
+await Vision or a visual-cue stream.
+
+Queued, audio-only, and Describe flows retain their existing cloud-analysis
+phrase decks. The morphology-only generic deck belongs only to foreground visual
+local analysis.
+
+### Foundation Models milestone
+
+The current Xcode 26.6 release toolchain injects
+`UnavailableFoundationVisualCueProvider`; there is no beta API or cloud
+fallback. `FoundationVisualCueProviding` is the stable integration seam for the
+multimodal API after stable Xcode 27 is installed locally and in hosted CI. That
+provider must use only `SystemLanguageModel.default`, start only after both the
+Identify request body's completion callback and local Vision completion, and
+return at most three indexed structured snapshots with a constrained trait kind
+and 2–5-word visible detail.
+
+The engine buffers partial snapshots until the indexed object is complete. It
+silently rejects duplicates, identity/candidate language, certainty or match
+claims, taxonomy terms, `-like` wording, unsupported characters, and rendered
+pill labels over 36 characters. The richer stage does not start while Apple
+Intelligence is unavailable or not ready, Low Power Mode is on, thermal state is
+serious/critical, or the app is inactive. A future stable provider must report
+unavailable rather than use Private Cloud Compute.
+
+Follow the canonical
+[stable-toolchain activation checklist](../../../../../docs/system-architecture/04-ai-engineering.md#stable-toolchain-activation-checklist)
+when Xcode 27 becomes eligible; the provider, toolchain pins, generated project,
+CI cache keys and assertions, documentation, fallback build, and physical-device
+evidence must move together.
 
 ## Inference Invariants
 

@@ -14,7 +14,13 @@ import SwiftUI
     var pushNotificationManager = PushNotificationManager.shared
 
     // MARK: - Dependencies (AI & Intelligence)
-    var inferenceEngine = InferenceEngine()
+    @ObservationIgnored
+    let visionSubjectClassifier: any VisionSubjectClassifying
+    @ObservationIgnored
+    let foundationVisualCueProvider: any FoundationVisualCueProviding
+    @ObservationIgnored
+    let foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking
+    var inferenceEngine: InferenceEngine
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     var speechManager = SpeechManager()
     var audioCaptureManager = AudioCaptureManager()
@@ -57,8 +63,22 @@ import SwiftUI
 
     // MARK: - Initialization Engine
     private init(bindGlobalManagers: Bool) {
+        let visionSubjectClassifier = AppleVisionSubjectClassifier()
+        let foundationVisualCueProvider = UnavailableFoundationVisualCueProvider()
+        let foundationVisualCueEligibilityChecker =
+            SystemFoundationCueEligibility()
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
+        self.visionSubjectClassifier = visionSubjectClassifier
+        self.foundationVisualCueProvider = foundationVisualCueProvider
+        self.foundationVisualCueEligibilityChecker =
+            foundationVisualCueEligibilityChecker
+        self.inferenceEngine = InferenceEngine(
+            visionSubjectClassifier: visionSubjectClassifier,
+            foundationVisualCueProvider: foundationVisualCueProvider,
+            foundationVisualCueEligibilityChecker:
+                foundationVisualCueEligibilityChecker
+        )
         self.milestoneToastClock = milestoneToastClock
         self.milestoneToastPresenter = milestoneToastPresenter
         self.milestoneToastHostRegistry = MilestoneToastHostRegistry()

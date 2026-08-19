@@ -3188,11 +3188,13 @@ its provider cutover has independent migration and release gates.
 
 ### Stable purchase-principal staged rollout
 
-Migrations `20260812144948_introduce_stable_purchase_principals.sql` and
-`20260816033107_add_stable_purchase_principal_signout_rotations.sql`, the
+Migrations `20260812144948_introduce_stable_purchase_principals.sql`,
+`20260816033107_add_stable_purchase_principal_signout_rotations.sql`, and the
+forward routine repair
+`20260819194315_repair_stable_signout_rotation_routine_definitions.sql`, the
 additive `/resolve-purchase-principal` route, stable webhook resolution, the two
 reconciliation queues, and the iOS stable branch are prepared in source. The
-migration intentionally inserts `principal_mode = legacy` and
+principal migration intentionally inserts `principal_mode = legacy` and
 `account_grant_mode = dual_read`; landing it does not activate stable identity.
 No source change, green CI run, or database deployment implicitly authorizes a
 mode flip or a RevenueCat mutation.
@@ -5188,12 +5190,13 @@ The iOS workflow intentionally skips expensive macOS work for an ordinary
 backend-only push. If the final scan remediation SHA has no iOS build input,
 manually dispatch `iOS Build and Test` against that exact revision after the
 backend gate is green. Verify the scope reason identifies manual dispatch, the
-full unit-test target passes, the exact live-Insight-to-queue and queued-scan
-completion UI smokes report two passed and zero skipped cases, and the
-validation-only Release archive succeeds from the same SHA with
-`privacy_manifest_valid: true` and `transport_security: "ats-default"`. A green
-scope job with skipped macOS jobs proves only that changed-file classification
-worked; it does not satisfy the release gate.
+full unit-test target passes, the exact progressive-analyzing,
+live-Insight-to-queue, and queued-scan-completion UI smokes report three passed
+and zero skipped cases, and the validation-only Release archive succeeds from
+the same SHA with `privacy_manifest_valid: true` and
+`transport_security: "ats-default"`. A green scope job with skipped macOS jobs
+proves only that changed-file classification worked; it does not satisfy the
+release gate.
 
 ### Rollback and exit criteria
 

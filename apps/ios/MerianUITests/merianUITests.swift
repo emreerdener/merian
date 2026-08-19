@@ -371,6 +371,66 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedProgressiveAnalyzingFlow"]
+        )
+        let insightSheet = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(
+            insightSheet.waitForExistence(timeout: 8.0),
+            "Seeded progressive analyzing Insight failed to open"
+        )
+
+        let badge = scanningStatusBadgeElement(in: app)
+        XCTAssertTrue(badge.waitForExistence(timeout: 8.0))
+        XCTAssertEqual(badge.label, "Analyzing subject...")
+        assertFrameIsInsideApplication(badge.frame, applicationFrame: app.frame)
+
+        badge.tap()
+        waitForLabel("Arthropod form visible...", on: badge)
+        assertFrameIsInsideApplication(badge.frame, applicationFrame: app.frame)
+
+        badge.tap()
+        waitForLabel("Color: amber banded wings...", on: badge)
+        assertFrameIsInsideApplication(badge.frame, applicationFrame: app.frame)
+    }
+
+    @MainActor
+    private func waitForLabel(
+        _ label: String,
+        on element: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let predicate = NSPredicate(format: "label == %@", label)
+        let expectation = XCTNSPredicateExpectation(
+            predicate: predicate,
+            object: element
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation], timeout: 4.0),
+            .completed,
+            "Expected analyzing label \(label)",
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertFrameIsInsideApplication(
+        _ frame: CGRect,
+        applicationFrame: CGRect,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            applicationFrame.insetBy(dx: -1, dy: -1).contains(frame),
+            "Analyzing badge accessibility frame escaped the app window: \(frame)",
+            file: file,
+            line: line
+        )
+    }
+
+    @MainActor
     func testLiveInsightConnectivityFailureTransitionsToDurableQueue() throws {
         let scanId = "ui_test_live_queue_handoff"
         let app = UITestAppLauncher.launchConfiguredApp(

@@ -1,4 +1,4 @@
-import { assert, assertStringIncludes } from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 
 const migrationUrl = new URL(
   "../../migrations/20260812144948_introduce_stable_purchase_principals.sql",
@@ -14,6 +14,10 @@ const stablePrincipalLintRepairMigrationUrl = new URL(
 );
 const signoutRotationMigrationUrl = new URL(
   "../../migrations/20260816033107_add_stable_purchase_principal_signout_rotations.sql",
+  import.meta.url,
+);
+const signoutRotationRepairMigrationUrl = new URL(
+  "../../migrations/20260819194315_repair_stable_signout_rotation_routine_definitions.sql",
   import.meta.url,
 );
 const resolverHandlerUrl = new URL(
@@ -61,6 +65,20 @@ function serviceRoleBlocks(sql: string): string[] {
 
 function compact(value: string): string {
   return value.replaceAll(/\s+/g, " ").trim();
+}
+
+function compactFunctionDefinition(
+  source: string,
+  functionName: string,
+): string {
+  const start = source.indexOf(
+    `CREATE OR REPLACE FUNCTION public.${functionName}(`,
+  );
+  assert(start >= 0, `missing ${functionName} definition`);
+  const terminator = "$function$;";
+  const end = source.indexOf(terminator, start);
+  assert(end >= 0, `missing ${functionName} terminator`);
+  return compact(source.slice(start, end + terminator.length));
 }
 
 Deno.test("purchase principals are private, capability-bound, and disabled by default", async () => {
@@ -340,6 +358,51 @@ Deno.test("stable sign-out rotations are private, one-use, and resolver-exclusiv
   assert(
     (sql.match(/IF rotation\.status = 'expired' THEN/g) ?? []).length === 2,
     "claim and cancellation must replay health-terminalized expiry receipts",
+  );
+});
+
+Deno.test("stable sign-out forward repair installs the reviewed final routine definitions", async () => {
+  const original = await Deno.readTextFile(signoutRotationMigrationUrl);
+  const repair = await Deno.readTextFile(signoutRotationRepairMigrationUrl);
+  const repairSql = compact(repair);
+
+  for (
+    const functionName of [
+      "prepare_purchase_principal_signout_rotation",
+      "claim_purchase_principal_signout_rotation",
+      "cancel_purchase_principal_signout_rotation",
+    ]
+  ) {
+    assertEquals(
+      compactFunctionDefinition(repair, functionName),
+      compactFunctionDefinition(original, functionName),
+      `${functionName} forward repair drifted from the reviewed definition`,
+    );
+  }
+
+  for (
+    const fragment of [
+      "rotation_prepared_at TIMESTAMPTZ := pg_catalog.CLOCK_TIMESTAMP()",
+      "preparation.expires_at > rotation_prepared_at",
+      "REVOKE ALL ON FUNCTION public.prepare_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, BIGINT, INTEGER ), public.claim_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ), public.cancel_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ) FROM PUBLIC, anon, authenticated, service_role",
+      "GRANT EXECUTE ON FUNCTION public.prepare_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, BIGINT, INTEGER ) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.claim_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.cancel_purchase_principal_signout_rotation( UUID, TEXT, UUID, TEXT, INTEGER ) TO service_role",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) {
+    assertStringIncludes(repairSql, fragment);
+  }
+
+  assert(
+    !repairSql.includes("preparation.expires_at > prepared_at"),
+    "forward repair must not restore the ambiguous preparation timestamp",
+  );
+  assert(
+    (repairSql.match(/IF rotation\.status = 'expired' THEN/g) ?? []).length ===
+      2,
+    "forward repair must preserve both health-terminalized expiry receipts",
   );
 });
 

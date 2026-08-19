@@ -46,23 +46,22 @@ background recovery as the sole retry owner.
 
 The regression now runs at the URLSession boundary for visual and nonvisual
 submissions. It deliberately retires durable ownership while requests are
-pending before releasing `.networkConnectionLost` and
-`.notConnectedToInternet`. Its `.timedOut` branch instead keeps the exact durable
-owner active and the path online, modeling black-holed Wi-Fi reaching the
-foreground deadline without an `NWPathMonitor` callback. Both branches prove
-exact-ID queued routing, one request, bounded handoff timing, eventual durable
-retirement, row survival, and circuit isolation. The matrix also covers a
-transport-owned cancellation, the reviewed cannot-load-from-network and
-background-session-disconnect variants, and a successful response that becomes
-ownership-cancelled after the queue has already taken over. Admission and
-post-durable recovery share one bounded recursive URL-error classifier while
-TLS/authentication remain excluded from queue-only admission. Specific
-certificate, authentication, and ATS policy codes veto both decisions at every
-inspected wrapper depth, so a broad outer transport error cannot hide them; a
-chain exceeding the reviewed bound also fails closed. Separate
-protected controls retain the reviewed queue-less 90-second window, retry, and
-**Network timeout** presentation and keep provider `5xx` failures in **Analysis
-delayed / Scan saved**.
+pending before releasing `.networkConnectionLost` and `.notConnectedToInternet`.
+Its `.timedOut` branch instead keeps the exact durable owner active and the path
+online, modeling black-holed Wi-Fi reaching the foreground deadline without an
+`NWPathMonitor` callback. Both branches prove exact-ID queued routing, one
+request, bounded handoff timing, eventual durable retirement, row survival, and
+circuit isolation. The matrix also covers a transport-owned cancellation, the
+reviewed cannot-load-from-network and background-session-disconnect variants,
+and a successful response that becomes ownership-cancelled after the queue has
+already taken over. Admission and post-durable recovery share one bounded
+recursive URL-error classifier while TLS/authentication remain excluded from
+queue-only admission. Specific certificate, authentication, and ATS policy codes
+veto both decisions at every inspected wrapper depth, so a broad outer transport
+error cannot hide them; a chain exceeding the reviewed bound also fails closed.
+Separate protected controls retain the reviewed queue-less 90-second window,
+retry, and **Network timeout** presentation and keep provider `5xx` failures in
+**Analysis delayed / Scan saved**.
 
 This is source-remediation evidence, not a production-release claim. Closure
 still requires one exact workflow SHA and the physical connectivity matrix
@@ -70,19 +69,19 @@ below.
 
 ## Required Customer Contract
 
-| Condition                                             | Presentation                                                                                 | Retry owner                               |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| Known offline before admission                        | If local eligibility permits, Capture proceeds queue-only and does not call the preview RPC   | Durable queue                             |
-| Path appears online but admission transport fails     | If local eligibility permits, save queue-only with no analyzing Insight or foreground owner   | Durable queue                             |
-| Admission returns a valid plan/quota denial           | Preserve staged input and open the paywall                                                    | User after entitlement change             |
-| Admission is cancelled, malformed, unauthorized, or fails at TLS/server policy | Preserve staged input and show retry feedback; do not infer offline admission | User                                      |
-| Offline before live dispatch                          | Capture queues the scan and does not start provider transport                                | Durable queue                             |
-| Connectivity changes during the 150 ms context grace  | Offline Insight shows queued/waiting; an online durable handoff keeps ordinary analysis copy | Durable queue                             |
-| First queue-backed transport failure after dispatch   | Same-ID Insight keeps normal analysis copy online, or queued/waiting offline, without an error haptic or synthetic result | Durable queue; no inline transport replay |
-| Path stays satisfied but transport silently stalls    | Same-ID Insight keeps ordinary analysis copy after the 15-second durable handoff              | Durable queue; exact-ID status/replay      |
-| Queue-less direct request loses transport             | **Network timeout / Please try again** may be shown                                          | Caller                                    |
-| Handler/provider returns an exhausted service failure | **Analysis delayed / Scan saved** as an error placeholder, never a biological classification | Durable queue                             |
-| Background or status recovery completes the same UUID | Completed result replaces queued content in place                                            | Completed owner row                       |
+| Condition                                                                      | Presentation                                                                                                              | Retry owner                               |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Known offline before admission                                                 | If local eligibility permits, Capture proceeds queue-only and does not call the preview RPC                               | Durable queue                             |
+| Path appears online but admission transport fails                              | If local eligibility permits, save queue-only with no analyzing Insight or foreground owner                               | Durable queue                             |
+| Admission returns a valid plan/quota denial                                    | Preserve staged input and open the paywall                                                                                | User after entitlement change             |
+| Admission is cancelled, malformed, unauthorized, or fails at TLS/server policy | Preserve staged input and show retry feedback; do not infer offline admission                                             | User                                      |
+| Offline before live dispatch                                                   | Capture queues the scan and does not start provider transport                                                             | Durable queue                             |
+| Connectivity changes during the 150 ms context grace                           | Offline Insight shows queued/waiting; an online durable handoff keeps ordinary analysis copy                              | Durable queue                             |
+| First queue-backed transport failure after dispatch                            | Same-ID Insight keeps normal analysis copy online, or queued/waiting offline, without an error haptic or synthetic result | Durable queue; no inline transport replay |
+| Path stays satisfied but transport silently stalls                             | Same-ID Insight keeps ordinary analysis copy after the 15-second durable handoff                                          | Durable queue; exact-ID status/replay     |
+| Queue-less direct request loses transport                                      | **Network timeout / Please try again** may be shown                                                                       | Caller                                    |
+| Handler/provider returns an exhausted service failure                          | **Analysis delayed / Scan saved** as an error placeholder, never a biological classification                              | Durable queue                             |
+| Background or status recovery completes the same UUID                          | Completed result replaces queued content in place                                                                         | Completed owner row                       |
 
 The transport signal and the path monitor are advisory inputs, not competing
 sources of customer truth. The stable queue row is the recovery authority. A
@@ -103,14 +102,14 @@ one unavailable result. Because this happened before `OfflineQueuedScan`
 creation, a timeout could show **Unable to check scan availability** while no
 durable retry owner existed.
 
-`ScanAdmissionManager` now returns typed `available`,
-`connectivityUnavailable`, or `unavailable` results from an isolated ephemeral
-session. Its request and resource deadlines are exactly two seconds,
-`waitsForConnectivity` is false, URL caching is absent, the explicit request
-timeout is set, and PostgREST retry is disabled. Only a reviewed set of URL
-transport errors—including timeout, no internet, connection loss, DNS/host, and
-data-path failures—maps to `connectivityUnavailable`. Cancellation, TLS,
-authentication, server, and response-shape failures remain `unavailable`.
+`ScanAdmissionManager` now returns typed `available`, `connectivityUnavailable`,
+or `unavailable` results from an isolated ephemeral session. Its request and
+resource deadlines are exactly two seconds, `waitsForConnectivity` is false, URL
+caching is absent, the explicit request timeout is set, and PostgREST retry is
+disabled. Only a reviewed set of URL transport errors—including timeout, no
+internet, connection loss, DNS/host, and data-path failures—maps to
+`connectivityUnavailable`. Cancellation, TLS, authentication, server, and
+response-shape failures remain `unavailable`.
 
 The Capture policy combines that typed result with current local eligibility.
 Connectivity unavailability may proceed only as queue-only; it cannot create a
@@ -161,9 +160,9 @@ Identify sets `durableQueueOwnsRecovery`, receives one 15-second request window,
 and returns its first transport failure to the engine. Fifteen seconds is more
 than twice the documented p95 target, while a slow valid completion remains
 recoverable under the same stable scan ID and idempotency key. Queue-less
-callers retain the reviewed 90-second window and inline retry;
-authentication refresh, route-propagation recovery, and handler `5xx` behavior
-remain independently scoped.
+callers retain the reviewed 90-second window and inline retry; authentication
+refresh, route-propagation recovery, and handler `5xx` behavior remain
+independently scoped.
 
 ### Error presentation no longer depends on display copy
 
@@ -210,9 +209,8 @@ following:
    connectivity wait, no cache, and no PostgREST retry. A path-satisfied
    `.timedOut` preview plus local eligibility persists visual and nonvisual
    queue rows with no foreground generation, analyzing Insight, or live engine
-   processing;
-   malformed/non-connectivity failure stays blocked and local ineligibility
-   still paywalls.
+   processing; malformed/non-connectivity failure stays blocked and local
+   ineligibility still paywalls.
 2. Visual and nonvisual queue-backed tests dispatch a real mocked request. The
    path-loss cases release the body-upload hold, trigger connectivity
    retirement, and only then deliver `.networkConnectionLost` or
@@ -244,14 +242,16 @@ following:
    the current `InsightSheetView`; a global `Close` label query is ambiguous
    when an underlying presentation remains in the accessibility tree.
 10. Physical-device QA covers airplane mode, Wi-Fi with no upstream internet,
-   captive portal, Wi-Fi-to-cellular handoff, app backgrounding during upload,
-   and reconnect. The saved scan must remain visible and complete exactly once.
+    captive portal, Wi-Fi-to-cellular handoff, app backgrounding during upload,
+    and reconnect. The saved scan must remain visible and complete exactly once.
 
-The current working tree addresses gates 1–8 in source and exact protected test
-declarations. Its hosted workflow now requires both the open-live-sheet queue
-transition and the queued-completion UI smokes as one exact two-case result set.
-The incident remains open because gate 9 has not run from a clean commit
-containing these changes and gate 10 requires physical-device evidence.
+The reviewed remediation addressed gates 1–8 in source and exact protected test
+declarations. At that review point, the hosted workflow required the
+open-live-sheet queue transition and queued-completion smokes as one exact
+two-case result set. The current workflow retains both incident cases inside its
+later three-case set, alongside the progressive-analyzing smoke. The incident
+remains open because gate 9 has not run from a clean commit containing the
+remediation and gate 10 requires physical-device evidence.
 
 ## Validation Status at Review
 
@@ -259,28 +259,28 @@ The current local review checkout is based on published HEAD
 `1dc9c587a32bdcccf6ef6c6a40e19caf17df6fb8`. That commit contains the bounded
 admission route, queue-backed transport handoff, stable Insight close selector,
 and 92-case protected inventory. Hosted iOS Build and Test Run 226 ran on the
-earlier ancestor `fc2a55594339827ad2d2402d86da80dfccd67575`: it passed all
-1,465 unit tests and the queued-completion UI smoke, and its validation-only
-Release archive passed the privacy-manifest, ATS-default, dSYM, and Debug-marker
-checks. The live-to-queue smoke reached the exact queued presentation and every
+earlier ancestor `fc2a55594339827ad2d2402d86da80dfccd67575`: it passed all 1,465
+unit tests and the queued-completion UI smoke, and its validation-only Release
+archive passed the privacy-manifest, ATS-default, dSYM, and Debug-marker checks.
+The live-to-queue smoke reached the exact queued presentation and every
 pre-dismissal assertion, then failed because the old global
 `app.buttons["Close"]` query matched both the active Insight close control and
 an underlying close control.
 
 Published HEAD assigns `InsightSheetCloseButton` directly to the native toolbar
-button and requires that identifier in the smoke and portable workflow
-contract. Run 226 validates the queue handoff before dismissal but cannot
-validate that later selector correction or the later pre-queue admission
-boundary. A separate 22-file local delta replaces title-derived inference-error
-routing with explicit `SpeciesData.presentationRole` and centralizes wrapped
-URL-failure classification across pre-queue admission and post-durable recovery;
-this environment exposes `.git` read-only, so that final hardening does not yet
-have a commit SHA.
+button and requires that identifier in the smoke and portable workflow contract.
+Run 226 validates the queue handoff before dismissal but cannot validate that
+later selector correction or the later pre-queue admission boundary. A separate
+22-file local delta replaces title-derived inference-error routing with explicit
+`SpeciesData.presentationRole` and centralizes wrapped URL-failure
+classification across pre-queue admission and post-durable recovery; this
+environment exposes `.git` read-only, so that final hardening does not yet have
+a commit SHA.
 
 Local construction evidence is deliberately split by source state:
 
-- published HEAD's complete 418-file production module, 89-file unit target,
-  and two-file UI target type-checked against the cached iOS Simulator SDK and
+- published HEAD's complete 418-file production module, 89-file unit target, and
+  two-file UI target type-checked against the cached iOS Simulator SDK and
   locked package modules before the current delta;
 - all seven Swift files changed by the current delta parse;
 - the exact current `SpeciesData` and Identify DTO sources type-check together
@@ -298,8 +298,9 @@ Local construction evidence is deliberately split by source state:
   build/workflow contract pass, with all 95 protected unit declarations,
   including exact durable scan-ID/generation pairing for both engine pipelines,
   automatic single-capture suppression of the manual **Identify** toolbar,
-  pre-import paywall admission before picker/crop work,
-  and the exact two-case UI result requirement retained; and
+  pre-import paywall admission before picker/crop work, and the exact two-case
+  UI result requirement retained at that review point; the current three-case
+  set still contains both incident regressions; and
 - `git diff --check` passes.
 
 The full current app module cannot be reconstructed again inside this sandbox:
@@ -324,14 +325,13 @@ the visual/nonvisual durable scan-ID/generation ownership fence. The staged-
 toolbar presentation follow-up extends it to 94 by protecting automatic
 single-capture suppression and failure recovery. The pre-import admission
 follow-up extends it to 95 by protecting paywall denial before picker/crop work.
-The complete
-local candidate/tooling gate now
-passes: 186 standard TypeScript tooling tests, 16 isolated DTO tests, executable
-Identify contract tests, every shell/tooling check, and all 18 documentation
-contracts. All 262 migration source assertions pass across 39 discovered test
-files, including the caller-scoped read-only scan-admission RPC. These source
-results repair the reported contract failure but do not substitute for the
-workflow's fresh disposable-database replay on one committed exact SHA.
+The complete local candidate/tooling gate now passes: 186 standard TypeScript
+tooling tests, 16 isolated DTO tests, executable Identify contract tests, every
+shell/tooling check, and all 18 documentation contracts. All 262 migration
+source assertions pass across 39 discovered test files, including the
+caller-scoped read-only scan-admission RPC. These source results repair the
+reported contract failure but do not substitute for the workflow's fresh
+disposable-database replay on one committed exact SHA.
 
 The sandbox cannot reliably connect to CoreSimulatorService or apply SwiftPM's
 nested build sandbox, so it cannot run the Xcode test bundle locally. Direct
@@ -341,8 +341,8 @@ run and Release archive plus physical-device QA remain acceptance gates 9 and
 
 The supplied `supabase_logs (1).csv` contains 76 auth/RPC rows, no Identify or
 inference transport row, and no non-zero latency value. It cannot establish a
-production latency distribution. The checked-in rollout contract does provide
-a cache-hit end-to-end p95 target of six seconds, so the current source uses a
+production latency distribution. The checked-in rollout contract does provide a
+cache-hit end-to-end p95 target of six seconds, so the current source uses a
 conservative 15-second queue-owned foreground bound while retaining the
 90-second direct-caller window. The no-upstream Wi-Fi and captive-portal device
 cases must still measure actual tap-to-queue timing and verify that legitimate

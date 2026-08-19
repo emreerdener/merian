@@ -2222,11 +2222,17 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "execute two deterministic runtime UI smokes: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
+    "execute three deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "exactly those two passed cases and zero failed or skipped cases",
+    "exactly those three passed cases and zero failed or skipped cases",
+  );
+  assert(
+    !compact(testingStrategySource).includes(
+      "execute two deterministic runtime UI smokes",
+    ),
+    "The testing strategy must not retain the former two-smoke release contract.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2238,7 +2244,13 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current-SHA Release archive then extracts the main binary's strings and fails if any achievement/queued-audio seed argument or queued-audio fixture filename is present",
+    "The current-SHA Release archive then extracts the main binary's strings and fails if any of those Debug-only seed arguments or deterministic fixture identifiers is present",
+  );
+  assert(
+    !compact(testingStrategySource).includes(
+      "fails if any achievement/queued-audio seed argument or queued-audio fixture filename is present",
+    ),
+    "The testing strategy must describe the complete Debug seed denylist.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2731,12 +2743,13 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "manually dispatch `iOS Build and Test` on that final SHA",
       "a scope-only success is not release evidence",
       "neither is UI-bundle compilation without execution",
-      "the deterministic live-Insight-to-queue and queued-scan completion UI smokes",
+      "the deterministic progressive-analyzing, live-Insight-to-queue, and queued-scan-completion UI smokes",
+      "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
       "workflow harness requires all 95 protected declarations to resolve uniquely",
       "including the pre-queue admission connectivity handoff, pre-import paywall admission, automatic single-capture toolbar suppression, and exact durable scan-ID/generation pairing",
-      "exact two-case set: `testLiveInsightConnectivityFailureTransitionsToDurableQueue` and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
+      "exact three-case set: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",
       "must additionally expose identifier-scoped Field Chat and Share toolbar controls",
@@ -2751,8 +2764,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "reject manual retry of a legacy non-runnable import",
       "rejects failed-suite/passed-child contradictions, duplicate matching suites, and duplicate protected cases",
       "Release compiles only a false-returning no-op coordinator",
-      "The archive gate scans the main binary and rejects any retained achievement/queued-audio seed argument or queued-audio fixture filename",
-      "duplicate-suite, duplicate-case, contradictory-suite, missing-member, and duplicate-request evidence for the exact two-case set",
+      "The archive gate scans the main binary and rejects every Debug-only seed argument and deterministic `ui_test_…` identifier extracted by the portable source contract",
+      "duplicate-suite, duplicate-case, contradictory-suite, missing-member, and duplicate-request evidence for the exact three-case set",
       "Merely transitioning `isSharingToExplore` back to `false` is not publication evidence.",
       "authoritative known location-sharing value",
       "At the retained parser evidence review, `HEAD` and `origin/main` both resolved to `bdf84b52`",
@@ -2887,7 +2900,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Rebinding an already-presented exact completion is an idempotent no-op",
       "`scanBoundActionGeneration`",
       "Two new exact protected unit regressions cover completed-record precedence",
-      "the exact two-case live-to-queued/completion UI smoke set",
+      "the exact three-case progressive-analyzing, live-to-queued, and completion UI smoke set",
       "Run 105 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `6ed0f557b3`",
       "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 verification rerun against runtime baseline `c7eac9c8f3124437712ee72eeff49d09e6ea55b1` passed the complete Supabase tooling gate",

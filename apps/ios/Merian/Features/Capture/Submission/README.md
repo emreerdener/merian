@@ -11,6 +11,13 @@ the scanning overlay, animates status phrases driven by the concurrent on-device
 before network work begins, and orchestrates the presentation of the final
 Insight sheet or durable queued state.
 
+For visual scans, submission passes only the first visual item's existing focus
+region to local analysis. `InferenceEngine` derives one 512 px local image from
+the primary inference image, uses the accepted padded focus region when one is
+present, and otherwise uses the full square. It never analyzes the second
+capture locally or changes the ordered images sent to Gemini. Audio-only and
+Describe submissions retain their established analyzing copy.
+
 ## Analysis Submission Contract
 
 `Analysis.submitActiveScan()` starts the user-perceived clock when Analyze is
@@ -191,6 +198,13 @@ the queue from dispatching a second identification call. Failure, cancellation,
 or backgrounding releases that claim and replays any staged row. Staged replay
 checks the server ingestion ledger first and polls an already-processing
 foreground job instead of issuing a duplicate model call.
+
+That same request-body completion callback is the earliest point at which the
+injected Foundation visual-cue provider may start. The callback only marks the
+current scan/generation as eligible; it never waits for model loading or a
+stream. Vision may run before dispatch, but richer on-device work therefore
+cannot delay Gemini upload. Result arrival and every ownership handoff cancel
+local work without awaiting it.
 
 ## Latency Boundaries
 

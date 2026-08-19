@@ -2604,6 +2604,19 @@ alignment helper is `SECURITY INVOKER` with no API-role execute grant; the
 public wrapper remains service-role-only and enforces
 `internal.require_service_role()`.
 
+Forward migration
+`20260819194047_repair_canonical_scan_media_order_alignment.sql` makes that
+alignment collision-safe for every lifecycle state covered by the generated
+partial unique index. It first moves all `scan_refresh`/`backfill` rows—not only
+`ready` rows—into temporary space above both the current generated maximum and
+the complete final allocation. It then restores matched and unmatched ready
+media to the canonical timeline and compacts staged, processing, failed, and
+deleted lifecycle evidence after the ready rows in each source/role partition.
+This prevents either a temporary-key collision or a non-ready row occupying a
+ready row's final canonical position. The repair replaces only the private
+helper, preserves its invoker/search-path/ACL boundary, and is authoritative for
+both fresh replay and catalogs that recorded the earlier definition.
+
 `/generate-upload-urls` creates `capture_upload` rows with `status = 'staged'`
 when structured scan uploads include `clientScanId` and `mediaRole`.
 Capture-upload rows must keep a client scan id and storage key; promoted
@@ -4163,6 +4176,15 @@ Only `prepare_purchase_principal_signout_rotation(...)`,
 `cancel_purchase_principal_signout_rotation(...)`, and the identity-free
 aggregate health RPC are executable by `service_role`. Stable rollout is
 database-rejected below minimum client protocol 3.
+
+Forward migration
+`20260819194315_repair_stable_signout_rotation_routine_definitions.sql`
+reinstalls the final prepare, claim, and cancel definitions without changing
+their signatures or caller grants. It carries the unambiguous
+`rotation_prepared_at` preparation timestamp and proof-bound replay of
+health-terminalized expiry receipts into any persistent catalog that recorded
+the first sign-out migration definition. Fresh replay applies the same repair,
+so release evidence never depends on an in-place historical-file correction.
 
 An active account-deletion job rejects both resolver phases before a binding can
 move. `complete_account_deletion_cleanup` first locks related principals in the

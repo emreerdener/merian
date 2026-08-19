@@ -96,6 +96,22 @@ request use the same rectangle. Gemini still receives the entire post-crop
 image, so focus metadata adds context without another crop, image part, storage
 object, or image-token charge.
 
+### Foreground local-analysis derivative
+
+For a foreground visual scan, `InferenceEngine` passes only the first inference
+image and the first visual item's accepted focus region to
+`LocalVisualAnalysisImageBuilder`. The builder downsamples that square image to
+at most 512 px, then crops the derivative to the already-padded top-left focus
+rectangle when one exists. An absent or invalid region keeps the full bounded
+square. Vision and the future on-device Foundation Models provider reuse this
+single derivative; no additional capture is decoded for local copy.
+
+This derivative is ephemeral and independent of the remote image pipeline. It
+does not replace, crop, reorder, or add a part to the images sent to Gemini, and
+it is released on result arrival, dismissal, scan replacement, queue handoff,
+Auth transition, failure, or application deactivation. It is never written to
+disk, analytics, or logs.
+
 During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
 image bounds through the carousel's aspect-fill transform, dims only the
 exterior by 22%, and draws four detached white corner brackets. The brackets

@@ -92,6 +92,7 @@ enum UITestSeedCoordinator {
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
     private static let liveQueueHandoffArgument = "-seedLiveQueueHandoffFlow"
+    private static let progressiveAnalyzingArgument = "-seedProgressiveAnalyzingFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
@@ -162,6 +163,7 @@ enum UITestSeedCoordinator {
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
                 arguments.contains(liveQueueHandoffArgument) ||
+                arguments.contains(progressiveAnalyzingArgument) ||
                 arguments.contains(missingVideoFallbackArgument) else { return }
 
         let context = container.mainContext
@@ -194,6 +196,8 @@ enum UITestSeedCoordinator {
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredLiveQueueHandoffs.removeAll(keepingCapacity: false)
                 MerianLog.general.debug("UITestSeedCoordinator seeded live queue handoff flow.")
+            } else if arguments.contains(progressiveAnalyzingArgument) {
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
             } else if arguments.contains(missingVideoFallbackArgument) {
                 try prepareMissingVideoFallbackImage()
                 context.insert(missingVideoFallbackRecord())
@@ -205,8 +209,12 @@ enum UITestSeedCoordinator {
 
             AppSettings.shared.hasUnseenScan = false
 
-            if arguments.contains(liveQueueHandoffArgument) {
-                AppDIContainer.shared.inferenceEngine.simulateAnalyzing()
+            if arguments.contains(liveQueueHandoffArgument) ||
+                arguments.contains(progressiveAnalyzingArgument) {
+                AppDIContainer.shared.inferenceEngine.simulateProgressiveAnalyzing(
+                    automaticallyAdvances:
+                        !arguments.contains(progressiveAnalyzingArgument)
+                )
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .debugPreviewAnalyzing,
                     source: .debug
@@ -263,6 +271,20 @@ enum UITestSeedCoordinator {
         isEnabled && ProcessInfo.processInfo.arguments.contains(
             liveQueueHandoffArgument
         )
+    }
+
+    static var isProgressiveAnalyzingTriggerEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains(
+            progressiveAnalyzingArgument
+        )
+    }
+
+    @MainActor
+    static func advanceProgressiveAnalyzingIfNeeded(
+        inferenceEngine: InferenceEngine
+    ) {
+        guard isProgressiveAnalyzingTriggerEnabled else { return }
+        inferenceEngine.debugAdvanceProgressiveAnalyzing()
     }
 
     /// Deterministically exercises the production live-sheet queue binding only
@@ -1611,6 +1633,9 @@ struct MerianApp: App {
         }
         // MARK: - Scene Phases
         .onChange(of: scenePhase) { oldPhase, newPhase in
+            diContainer.inferenceEngine.handleApplicationActiveStateChange(
+                isActive: newPhase == .active
+            )
             guard !TestExecutionCoordinator.isRunningTests else { return }
 
             switch newPhase {

@@ -1,20 +1,20 @@
 # Startup Store Recovery
 
-Naturebook must never turn a damaged local SwiftData store into account loss. This
-document defines the startup recovery contract for `ModelContainer` failures,
-quarantined local store files, legacy-store rescue archives, telemetry, and
-verification.
+Naturebook must never turn a damaged local SwiftData store into account loss.
+This document defines the startup recovery contract for `ModelContainer`
+failures, quarantined local store files, legacy-store rescue archives,
+telemetry, and verification.
 
 ## Ownership
 
-| Area                         | File                                                                                                                        | Responsibility                                                                                                                                                                             |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                       | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                   |
-| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                           | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                       |
-| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                               | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests. |
-| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift` | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers. |
-| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                    |
-| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh` | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs deterministic live-to-queue and queued-completion UI smokes, and independently verifies an exact-SHA unsigned Release archive and dSYM. |
+| Area                         | File                                                                                                                                           | Responsibility                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App bootstrap                | `apps/ios/Merian/App/MerianApp.swift`                                                                                                          | Orchestrates startup, builds the model container, shows safe-mode/recovery notices, and emits recovery telemetry after analytics starts.                                                                                                                                               |
+| Objective-C exception bridge | `apps/ios/Merian/App/MerianObjCExceptionBridge.*`                                                                                              | Converts Objective-C `NSException`s raised by SwiftData/Core Data into Swift errors.                                                                                                                                                                                                   |
+| Store recovery policy        | `apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`                                                                  | Reads store metadata for migration strategy selection, detects corruption signatures, archives unrecoverable legacy stores, quarantines corrupt local store artifacts, and writes support manifests.                                                                                   |
+| Tests                        | `apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift`, `apps/ios/MerianTests/Models/MigrationPlanTests.swift`                    | Verifies store-aware migration hints, duplicate-checksum detection, corruption gating, legacy rescue, manifest writing, recent source-isolated migration plans, and isolation from auth/session managers.                                                                              |
+| Startup CI guardrails        | `.github/workflows/ios-project-guardrails.yml`, `.github/workflows/ios-startup-safety.yml`, `scripts/check-ios-migration-source-guardrails.sh` | Runs fast source/project/release-tooling checks on Ubuntu, then focused startup store-recovery and migration tests on macOS when startup inputs change.                                                                                                                                |
+| Broad compiled CI            | `.github/workflows/ios-build-and-test.yml`, `scripts/check-ios-project-source-membership.sh`, `scripts/validate-ios-critical-test-results.sh`  | Compiles both shared test bundles, executes the complete unit-test target including the startup suites, runs all three deterministic progressive-analyzing, live-to-queue, and queued-completion UI smokes, and independently verifies an exact-SHA unsigned Release archive and dSYM. |
 
 Startup Safety is a focused drift and migration-diagnostic lane, not the only
 compile gate. Every build-relevant startup or schema change must also pass
@@ -26,22 +26,22 @@ compile gate. Every build-relevant startup or schema change must also pass
    `ModelContainer`.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
-   - known recent source store (V42, V43, V44, V45, V46, V47, or V48) → open with the matching
-     source-isolated recent migration plan
+   - known recent source store (V42, V43, V44, V45, V46, V47, or V48) → open
+     with the matching source-isolated recent migration plan
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
    source-isolated ladder: current-store open, then V48, V47, V46, V45, V44,
-   V43, and V42.
-   The V45/V46 retry plans keep those source representatives isolated from each
-   other and use direct V49 targets because V46 was a shipped no-op schema; V47
-   uses its own source-isolated V47→V49 plan with self-contained V47 model
-   classes and scalar queued-scan snapshots. V48 has two isolated V48→V49 lanes:
-   the known-good V48 source and the accidental optional-queue V48 TestFlight
-   source. V42 and V43 use short direct V49 plans to avoid validating older
-   full-historical custom stages; V42 deliberately skips the older V42→V43
-   bridge because real TestFlight V42 stores still fell back to safe mode there.
-   Every selected repair lane then applies the shared lightweight V49→V50 stage;
-   stores already stamped V50 open as current stores without a plan.
+   V43, and V42. The V45/V46 retry plans keep those source representatives
+   isolated from each other and use direct V49 targets because V46 was a shipped
+   no-op schema; V47 uses its own source-isolated V47→V49 plan with
+   self-contained V47 model classes and scalar queued-scan snapshots. V48 has
+   two isolated V48→V49 lanes: the known-good V48 source and the accidental
+   optional-queue V48 TestFlight source. V42 and V43 use short direct V49 plans
+   to avoid validating older full-historical custom stages; V42 deliberately
+   skips the older V42→V43 bridge because real TestFlight V42 stores still fell
+   back to safe mode there. Every selected repair lane then applies the shared
+   lightweight V49→V50 stage; stores already stamped V50 open as current stores
+   without a plan.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -51,8 +51,8 @@ compile gate. Every build-relevant startup or schema change must also pass
    - `default.store-shm`
    - `default.store-wal`
 7. Retry the persistent `ModelContainer` exactly once after quarantine.
-8. If the error is not corruption but the selected startup strategy was a
-   legacy migration path (`recent-source-v42`...`recent-source-v48` or
+8. If the error is not corruption but the selected startup strategy was a legacy
+   migration path (`recent-source-v42`...`recent-source-v48` or
    `full-historical`), archive the same store artifacts under `store-rescue/`
    and open a fresh persistent current-schema store. This breaks repeated
    SwiftData migration failures out of the safe-mode loop while preserving the
@@ -80,9 +80,9 @@ corrupt, the expected diagnostic shape is:
 
 If the final outcome is still `safe_mode` after a legacy source migration
 failure, treat that as a release-blocking regression unless the diagnostic shows
-`persistent_store_rescue_failed`. Current-schema stores are different: a
-generic current-store open failure should still keep the files in place and use
-safe mode rather than archive user data.
+`persistent_store_rescue_failed`. Current-schema stores are different: a generic
+current-store open failure should still keep the files in place and use safe
+mode rather than archive user data.
 
 ## Archive Manifest
 
@@ -127,8 +127,7 @@ attached to the cloud user even when local SwiftData needs repair.
 - set every scan's `isLocallyArchived` flag;
 - delete a Supabase scan or Explore post;
 - call Cloudflare R2; or
-- remove an object under `public_uploads/free/` or
-  `public_uploads/pro/`.
+- remove an object under `public_uploads/free/` or `public_uploads/pro/`.
 
 Likewise, a Scan Library “Visuals archived” placeholder describes the local
 record/presentation state; it is not evidence that cloud bytes were moved into
@@ -153,20 +152,20 @@ and the
 `MerianApp` emits `StartupStoreRecovery` after `AppTelemetry.initialize()` with
 only redacted string properties:
 
-| Property                    | Examples                                                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`                   | `recovered`, `safe_mode`, `blocked`                                                                                                      |
-| `reason`                    | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
-| `selected_strategy`         | `current-store`, `recent-source-v48`, `full-historical`                                                                                  |
-| `current_schema_major`      | `49`                                                                                                                                     |
-| `stored_schema_major`       | `48`, `none`                                                                                                                             |
-| `attempts`                  | `recent-v48-known-good:failure,recent-v48-optional-queue:success`                                                                        |
-| `metadata_fingerprints`     | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                    |
-| `first_error`               | error domain, code, and fingerprints of description/failure/debug text                                                                   |
-| `quarantine_attempted`      | `true`, `false`                                                                                                                          |
-| `quarantine_performed`      | `true`, `false`                                                                                                                          |
-| `rescue_attempted`          | `true`, `false`                                                                                                                          |
-| `rescue_performed`          | `true`, `false`                                                                                                                          |
+| Property                | Examples                                                                                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outcome`               | `recovered`, `safe_mode`, `blocked`                                                                                                                           |
+| `reason`                | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
+| `selected_strategy`     | `current-store`, `recent-source-v48`, `full-historical`                                                                                                       |
+| `current_schema_major`  | `49`                                                                                                                                                          |
+| `stored_schema_major`   | `48`, `none`                                                                                                                                                  |
+| `attempts`              | `recent-v48-known-good:failure,recent-v48-optional-queue:success`                                                                                             |
+| `metadata_fingerprints` | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                                         |
+| `first_error`           | error domain, code, and fingerprints of description/failure/debug text                                                                                        |
+| `quarantine_attempted`  | `true`, `false`                                                                                                                                               |
+| `quarantine_performed`  | `true`, `false`                                                                                                                                               |
+| `rescue_attempted`      | `true`, `false`                                                                                                                                               |
+| `rescue_performed`      | `true`, `false`                                                                                                                                               |
 
 The latest startup diagnostic is also persisted locally and shown as a
 TestFlight/debug share action on the safe-mode/recovery card. Do not attach raw
@@ -190,9 +189,9 @@ source-isolated plans target V49 directly, verifies the known-good and
 optional-queue V48 recovery plan source, guards the legacy migration-rescue
 escape hatch, and guards the disk-backed migration tests from unlinking SQLite
 files during the test process while also requiring the shared V49→V50 stage.
-Runtime tests separately assert that V48
-required-value validation failures are rescue-eligible because current SwiftData
-may reject malformed historical V48 rows before a repair migration can run.
+Runtime tests separately assert that V48 required-value validation failures are
+rescue-eligible because current SwiftData may reject malformed historical V48
+rows before a repair migration can run.
 
 Run both after XcodeGen changes.
 

@@ -119,6 +119,68 @@ assert_file_before() {
     || fail "$checked_file must place '$first' before '$second'."
 }
 
+assert_release_seed_denylist_matches_debug_source() {
+  local debug_seed_literals
+  local workflow_seed_literals
+  local unique_workflow_seed_literals
+
+  debug_seed_literals="$(
+    awk -F '"' '
+      /^#if DEBUG$/ { pending_debug_block = 1; next }
+      pending_debug_block && /^enum UITestSeedCoordinator/ {
+        in_debug_seed_coordinator = 1
+        pending_debug_block = 0
+        next
+      }
+      pending_debug_block { pending_debug_block = 0 }
+      in_debug_seed_coordinator && /^#else$/ { exit }
+      in_debug_seed_coordinator {
+        for (field = 2; field <= NF; field += 2) {
+          if ($field ~ /^-seed[A-Za-z0-9]+$/ \
+              || $field ~ /^ui_test_[A-Za-z0-9_.-]+$/) {
+            print $field
+          }
+        }
+      }
+    ' "$ui_seed_source" | LC_ALL=C sort -u
+  )"
+  workflow_seed_literals="$(
+    awk -F '"' '
+      /for forbidden_ui_seed_marker in/ {
+        in_release_seed_denylist = 1
+        next
+      }
+      in_release_seed_denylist {
+        for (field = 2; field <= NF; field += 2) {
+          if ($field ~ /^-seed[A-Za-z0-9]+$/ \
+              || $field ~ /^ui_test_[A-Za-z0-9_.-]+$/) {
+            print $field
+          }
+        }
+        if ($0 ~ /; do$/) {
+          exit
+        }
+      }
+    ' "$workflow" | LC_ALL=C sort
+  )"
+  unique_workflow_seed_literals="$(
+    printf '%s\n' "$workflow_seed_literals" | LC_ALL=C sort -u
+  )"
+
+  [[ -n "$debug_seed_literals" ]] \
+    || fail "The Debug UI-test seed coordinator exposes no auditable literals."
+  [[ -n "$workflow_seed_literals" ]] \
+    || fail "The Release binary audit exposes no UI-test seed denylist."
+  [[ "$workflow_seed_literals" == "$unique_workflow_seed_literals" ]] \
+    || fail "The Release binary seed denylist must not contain duplicate entries."
+  if [[ "$debug_seed_literals" != "$unique_workflow_seed_literals" ]]; then
+    diff -u \
+      <(printf '%s\n' "$debug_seed_literals") \
+      <(printf '%s\n' "$unique_workflow_seed_literals") >&2 || true
+    fail "The Release binary seed denylist must exactly match every Debug seed argument and deterministic ui_test_ identifier."
+  fi
+}
+
 assert_action_release() {
   local action_path="$1"
   local expected_count="$2"
@@ -325,7 +387,8 @@ assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
 assert_contains 'Critical scan-flow regressions: \`passed\`'
-assert_contains 'Exact live-to-queue and completion UX regressions: \`passed\`'
+assert_contains 'Exact analyzing, live-to-queue, and completion UX regressions: \`passed\`'
+assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
 assert_contains "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
 assert_contains 'echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"'
@@ -340,17 +403,13 @@ assert_contains 'bash scripts/validate-ios-privacy-manifest.sh "$privacy_manifes
 assert_contains "privacy_manifest_valid: true"
 assert_contains "Privacy manifest: bundled and validated"
 assert_contains 'LC_ALL=C /usr/bin/strings -a "$main_binary"'
-assert_contains '"-seedCurrentRequiredConsent"'
-assert_contains '"-seedAchievementDetailFlow"'
-assert_contains '"-seedAchievementDeletionRefreshFlow"'
-assert_contains '"-seedQueuedAudioHandoffFlow"'
-assert_contains '"ui_test_queued_audio_handoff.wav"'
-assert_contains '"-seedLiveQueueHandoffFlow"'
-assert_contains '"-seedMissingVideoFallbackFlow"'
-assert_contains '"ui_test_video_fallback.png"'
+assert_count 1 "for forbidden_ui_seed_marker in"
+assert_release_seed_denylist_matches_debug_source
 assert_count 1 "ios-release-main-binary-strings.txt"
 assert_contains "ui_test_seed_markers_absent: true"
 assert_contains "Debug-only UI-test seed markers: absent"
+assert_contains "deterministic analyzing, live-to-queue, and queued-completion UI smokes"
+assert_count 2 "all three critical scan UI smokes"
 assert_contains "production-readiness:"
 assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
@@ -372,10 +431,10 @@ fi
 # Building and running the whole unit-test target is deliberate. A selector
 # below the target level can silently remove Camera, inference, or offline-sync
 # coverage while leaving xcodebuild green. The UI bundle is compiled in full,
-# then exactly two deterministic critical-path regressions are executed.
+# then exactly three deterministic critical-path regressions are executed.
 assert_count 2 "-only-testing:merianTests"
-assert_count 3 "-only-testing:merianUITests"
-assert_count 2 "-only-testing:merianUITests/"
+assert_count 4 "-only-testing:merianUITests"
+assert_count 3 "-only-testing:merianUITests/"
 if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
   fail "The production gate must not narrow merianTests to selected suites."
 fi
@@ -489,6 +548,9 @@ assert_file_contains \
   "$ui_test_source" \
   "insightSheetCloseButtonElement(in: app)"
 assert_file_count "$ui_test_source" 0 'app.buttons["Close"]'
+assert_file_contains \
+  "$ui_test_source" \
+  "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow()"
 assert_file_contains \
   "$ui_test_source" \
   "testLiveInsightConnectivityFailureTransitionsToDurableQueue()"

@@ -2,7 +2,7 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(5);
+SELECT extensions.plan(7);
 
 SELECT extensions.ok(
     NOT pg_catalog.HAS_FUNCTION_PRIVILEGE(
@@ -147,6 +147,95 @@ SELECT extensions.is(
     ),
     3,
     'canonical alignment neither drops nor duplicates owner media'
+);
+
+-- Reproduce both collision classes that the original helper missed. The ready
+-- display row is moved away from its canonical position, while legal non-ready
+-- rows occupy the canonical destination and the old temporary destination.
+UPDATE public.scan_media_assets AS asset
+SET order_index = 0
+WHERE asset.scan_id = '00000000-0000-4000-8000-00000000c111'
+  AND asset.status = 'ready'
+  AND asset.source = 'scan_refresh'
+  AND asset.role = 'display';
+
+INSERT INTO public.scan_media_assets (
+    id,
+    scan_id,
+    client_scan_id,
+    user_id,
+    kind,
+    role,
+    status,
+    source,
+    url,
+    storage_key,
+    order_index,
+    failure_reason
+)
+VALUES
+    (
+        '00000000-0000-4000-8000-00000000c121',
+        '00000000-0000-4000-8000-00000000c111',
+        '00000000-0000-4000-8000-00000000c111',
+        '00000000-0000-4000-8000-00000000c101',
+        'image',
+        'display',
+        'staged',
+        'scan_refresh',
+        NULL,
+        'scan-media/canonical-staged.webp',
+        2,
+        NULL
+    ),
+    (
+        '00000000-0000-4000-8000-00000000c122',
+        '00000000-0000-4000-8000-00000000c111',
+        '00000000-0000-4000-8000-00000000c111',
+        '00000000-0000-4000-8000-00000000c101',
+        'image',
+        'display',
+        'failed',
+        'scan_refresh',
+        NULL,
+        'scan-media/canonical-failed.webp',
+        7,
+        'fixture_failure'
+    );
+
+SELECT internal.align_scan_media_asset_order(
+    '00000000-0000-4000-8000-00000000c111'
+);
+
+SELECT extensions.is(
+    (
+        SELECT pg_catalog.ARRAY_AGG(
+            asset.kind::TEXT || ':' || asset.order_index::TEXT
+            ORDER BY asset.order_index
+        )
+        FROM public.scan_media_assets AS asset
+        WHERE asset.scan_id = '00000000-0000-4000-8000-00000000c111'
+          AND asset.status = 'ready'
+          AND asset.source = 'scan_refresh'
+    ),
+    ARRAY['audio:1', 'image:2', 'video:4']::TEXT[],
+    'ready media realigns when non-ready rows occupy canonical and temporary positions'
+);
+
+SELECT extensions.is(
+    (
+        SELECT pg_catalog.ARRAY_AGG(
+            asset.status::TEXT || ':' || asset.order_index::TEXT
+            ORDER BY asset.order_index
+        )
+        FROM public.scan_media_assets AS asset
+        WHERE asset.scan_id = '00000000-0000-4000-8000-00000000c111'
+          AND asset.status <> 'ready'
+          AND asset.source = 'scan_refresh'
+          AND asset.role = 'display'
+    ),
+    ARRAY['staged:3', 'failed:4']::TEXT[],
+    'non-ready generated lifecycle rows remain ordered after ready media'
 );
 
 INSERT INTO public.scans (

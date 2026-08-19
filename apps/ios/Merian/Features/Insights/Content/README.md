@@ -54,6 +54,22 @@ present. Foreground analysis supplies `InferenceEngine.scanningPhaseText`.
 Queued scans rotate phrases from their exact queue/server state and reuse
 generic engine phrases during active inference.
 
+Foreground visual analysis begins with morphology-only generic copy. A
+qualifying Apple Vision category replaces it immediately; validated local
+visible-trait cues, when supported, are published only on the shared 2.3-second
+phrase clock. Source priority is monotonic, so generic text cannot return after
+more-specific context arrives, and partial streamed cue objects never reach the
+view. The pill never claims a species, confidence, candidate match, records or
+range lookup, or completed Gemini result. Audio-only, Describe, and queued
+processing keep their existing cloud-analysis phrase decks.
+
+`ConfidenceBadge` retains its opacity-only label transition and intrinsic native
+Button bounds as text widths change. The Debug-only
+`-seedProgressiveAnalyzingFlow` fixture advances generic → Vision category →
+visible trait on explicit badge taps and verifies the accessibility frame after
+each transition. Release builds contain neither the seed argument nor its
+fixture behavior.
+
 When a live request loses connectivity after this sheet opens, the required
 contract is for the engine to publish the exact durable scan ID and for the
 sheet to snapshot that queued row. Existing queued content then replaces

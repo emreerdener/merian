@@ -1,6 +1,9 @@
 # Merian iOS Structure
 
-The iOS workspace is organized around product ownership first, then implementation type. A developer should be able to find a user-facing area by the name a user would use in the app before seeing folders such as `Views`, `Models`, or `Components`.
+The iOS workspace is organized around product ownership first, then
+implementation type. A developer should be able to find a user-facing area by
+the name a user would use in the app before seeing folders such as `Views`,
+`Models`, or `Components`.
 
 ## Top-Level Areas
 
@@ -29,7 +32,9 @@ Merian/
 
 ## Feature Folders
 
-Feature folders are product-area-first. If a feature contains multiple user-facing areas, those areas get their own folders before implementation buckets appear.
+Feature folders are product-area-first. If a feature contains multiple
+user-facing areas, those areas get their own folders before implementation
+buckets appear.
 
 ```text
 Features/<FeatureName>/
@@ -38,7 +43,8 @@ Features/<FeatureName>/
   Shared/         Helpers shared only inside this feature
 ```
 
-Inside a product area, use focused implementation folders only when they are needed:
+Inside a product area, use focused implementation folders only when they are
+needed:
 
 ```text
 <ProductArea>/
@@ -50,21 +56,47 @@ Inside a product area, use focused implementation folders only when they are nee
   Utilities/
 ```
 
-Avoid parallel concepts such as `Screens/` and `Views/`. In SwiftUI, sheets, detail routes, and full-screen pages are all views; folder nesting should explain ownership.
+Avoid parallel concepts such as `Screens/` and `Views/`. In SwiftUI, sheets,
+detail routes, and full-screen pages are all views; folder nesting should
+explain ownership.
 
 ## Core Versus Shared
 
 Use the narrowest owner that fits:
 
-- Put code in `<Feature>/Shared` when it is reused by multiple product areas inside one feature.
-- Promote code to `Core` only when it is reused across features or represents app infrastructure.
-- Keep feature-specific business rules out of `Core` even if the code feels reusable.
+- Put code in `<Feature>/Shared` when it is reused by multiple product areas
+  inside one feature.
+- Promote code to `Core` only when it is reused across features or represents
+  app infrastructure.
+- Keep feature-specific business rules out of `Core` even if the code feels
+  reusable.
 
 Examples:
 
-- `Features/Scans/Shared` can own scan-only thumbnails, grids, and deletion dialogs.
-- `Core/UI` can own generic controls or modifiers reused by Explore, Scans, Profile, and Capture.
-- `Core/Data/OfflineSync` owns sync infrastructure rather than a feature-specific scan screen.
+- `Features/Scans/Shared` can own scan-only thumbnails, grids, and deletion
+  dialogs.
+- `Core/UI` can own generic controls or modifiers reused by Explore, Scans,
+  Profile, and Capture.
+- `Core/Data/OfflineSync` owns sync infrastructure rather than a
+  feature-specific scan screen.
+
+## AI And Foreground Analysis
+
+`Merian/Core/AI/` owns remote inference orchestration and the ephemeral local
+analysis that improves foreground scanning copy. `InferenceEngine` remains the
+single state owner exposed to SwiftUI through `scanningPhaseText`.
+`LocalVisualAnalysis.swift` supplies the injected Vision classifier, one bounded
+primary-image derivative, phrase coordination, future Foundation visual-cue
+seam, validation, and runtime eligibility policy; `AppDIContainer` owns the live
+implementations.
+
+Gemini remains the sole authority for identification and completed Insight
+content. Local classifications and cue text are never persisted, logged,
+analyzed as product telemetry, or added to Gemini's payload. See the
+[Core AI README](Merian/Core/AI/README.md),
+[Capture submission README](Merian/Features/Capture/Submission/README.md), and
+[Insight content README](Merian/Features/Insights/Content/README.md) for the
+ownership, dispatch, and presentation contracts.
 
 ## Tests
 
@@ -76,7 +108,10 @@ MerianTests/
   Features/<Feature>/<ProductArea>/
 ```
 
-If a test primarily exercises a Core manager, place it under `MerianTests/Core`, even if the behavior appears in a feature screen. If it exercises a product area's view model, policy, or local helper, place it under that feature product area.
+If a test primarily exercises a Core manager, place it under `MerianTests/Core`,
+even if the behavior appears in a feature screen. If it exercises a product
+area's view model, policy, or local helper, place it under that feature product
+area.
 
 ## Assets
 
@@ -90,7 +125,9 @@ Assets.xcassets/
   Personas/
 ```
 
-Avoid prefixes such as `pw_`, `desc_`, or `dictionary-` when artwork is reusable. Prefer stable descriptive names such as `bird-cardinal`, `camera-lens`, or `persona-naturalist`.
+Avoid prefixes such as `pw_`, `desc_`, or `dictionary-` when artwork is
+reusable. Prefer stable descriptive names such as `bird-cardinal`,
+`camera-lens`, or `persona-naturalist`.
 
 ## Privacy Manifest
 
@@ -113,10 +150,10 @@ make test-ios-ci-tooling
 ## Transport Security
 
 The main application uses App Transport Security defaults and has no broad or
-domain-scoped exception. `SecureTransportPolicy` accepts backend-provided
-remote URLs only when they are credential-free HTTPS; app-owned file URLs and
-local paths remain available for captured media. The Supabase origin is
-validated under the same rule before client construction.
+domain-scoped exception. `SecureTransportPolicy` accepts backend-provided remote
+URLs only when they are credential-free HTTPS; app-owned file URLs and local
+paths remain available for captured media. The Supabase origin is validated
+under the same rule before client construction.
 
 Run `make validate-ios-transport-security` for the tracked plist and
 `make test-ios-transport-security` for adversarial fixtures. Archive and IPA
