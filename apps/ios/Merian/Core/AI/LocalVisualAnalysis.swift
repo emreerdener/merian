@@ -509,7 +509,7 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
         let delta = maximum - minimum
         let saturation = maximum == 0 ? 0 : delta / maximum
 
-        if maximum < 0.18 || pixel.luminance < 0.12 { return .dark }
+        if maximum < 0.18 { return .dark }
         if saturation < 0.16 {
             if pixel.luminance > 0.78 { return .light }
             return .gray
