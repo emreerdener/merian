@@ -4423,7 +4423,8 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             }
             return
         }
-        let shouldResume = isProcessing
+        let shouldResume = phaseRotationTask != nil
+            && isProcessing
             && activePresentationOwner?.modality == .visual
             && activePresentationOwner?.attemptGeneration
                 == activeLiveInferenceAttemptGeneration

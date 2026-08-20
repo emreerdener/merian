@@ -908,6 +908,19 @@ struct LocalVisualAnalysisTests {
         engine.cancelActiveRequest()
     }
 
+    @Test func applicationReactivationResumesOnlyAnActiveCadence() {
+        let engine = InferenceEngine()
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+        let initialPhrase = engine.scanningPhaseText
+
+        engine.handleApplicationActiveStateChange(isActive: false)
+        engine.handleApplicationActiveStateChange(isActive: true)
+
+        #expect(engine.scanningPhaseText == initialPhrase)
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        engine.cancelActiveRequest()
+    }
+
     @Test func dismissalFencesLateLocalCueWithoutCancellingNetwork() async throws {
         let classifier = ControlledVisionSubjectClassifier(
             result: VisionSubjectClassification(
