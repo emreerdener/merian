@@ -11,7 +11,8 @@ only a camera/performance setting.
   have no independent client feature flag, account allowlist, or simulator
   bypass. The backend remains authoritative for authentication, challenge
   access, participation, and mutations.
-- Field trips live under Explore in `apps/ios/Merian/Features/Explore/FieldTrips/`.
+- Field trips live under Explore in
+  `apps/ios/Merian/Features/Explore/FieldTrips/`.
 - The Field trips surface opens directly to `Outings` for standard outings. The
   page header always includes an `Outings`/`Events` segmented picker, and Events
   lists live and upcoming curated challenges.
@@ -36,10 +37,10 @@ only a camera/performance setting.
 - Checklist items can include curated item-level tips. V4 does not generate
   pre-trip guidance with AI.
 - While the idle visual Scan page is visible, a compact active-target indicator
-  can surface unfinished goals from every active standard outing.
-  Seasonal Challenge labels and challenge-specific progress are intentionally
-  excluded from this first capture integration. Joining a challenge does not
-  hide the linked standard outing or its normal progress.
+  can surface unfinished goals from every active standard outing. Seasonal
+  Challenge labels and challenge-specific progress are intentionally excluded
+  from this first capture integration. Joining a challenge does not hide the
+  linked standard outing or its normal progress.
 - Every existing and future account is automatically enrolled into Backyard
   Safari Level 1 with a new activity period. A reset can still return it to the
   validated, unstarted two-goal introduction state. Enrollment keeps the
@@ -63,18 +64,17 @@ only a camera/performance setting.
   completing scan's device-local photo or video-poster thumbnail in both the
   catalog card and outing detail. They keep the standard neutral tile border;
   blue/accent borders are reserved for an incomplete focused goal.
-- The standard outing detail places a square, edge-to-edge featured
-  media carousel above its status and title whenever at least one curated goal
+- The standard outing detail places a square, edge-to-edge featured media
+  carousel above its status and title whenever at least one curated goal
   reference or completed user visual is loadable. Only the current active level
-  contributes pages, in checklist order, capped at six. Each slot begins with one
-  illustrative species image, trying Naturebook, Wikipedia, then GBIF; the
+  contributes pages, in checklist order, capped at six. Each slot begins with
+  one illustrative species image, trying Naturebook, Wikipedia, then GBIF; the
   exact goal's device-local photo or video poster replaces that reference after
-  completion. Tapping opens the shared full-screen zoomable
-  photo/playable-video viewer. Events and public publication pages do not show
-  this carousel.
+  completion. Tapping opens the shared full-screen zoomable photo/playable-video
+  viewer. Events and public publication pages do not show this carousel.
 - The active level header uses the shared circular `GoalProgressRing` at its
-  trailing edge, showing completed/total outing progress consistently with
-  the Scan target capsule.
+  trailing edge, showing completed/total outing progress consistently with the
+  Scan target capsule.
 - Backyard Safari and Park Pollinators level headers place the level's bundled
   collectible patch to the left of one centered, stacked title-and-description
   column. The enlarged patch and trailing progress/status accessory have the
@@ -85,16 +85,17 @@ only a camera/performance setting.
   patches beneath the stats and a divider. Tapping any patch opens the same
   zoomable full-screen viewer at that selection; when more patches are earned,
   the viewer supports horizontal paging and shows page dots.
-- The authenticated user's active Field trip Profile card shows the current-level
-  patch, Field trip name and level, and a trailing `GoalProgressRing` above the
-  existing device-local goal thumbnail strip. It does not use the former
-  horizontal progress bar or change the public Explore author-profile row.
+- The authenticated user's active Field trip Profile card shows the
+  current-level patch, Field trip name and level, and a trailing
+  `GoalProgressRing` above the existing device-local goal thumbnail strip. It
+  does not use the former horizontal progress bar or change the public Explore
+  author-profile row.
 - A saved scan that completes at least one current-level goal queues one
   progress toast for every credited standard outing and joined live Seasonal
   Challenge. Each toast shows **Field trip progress**, contextual species/trip
   copy, and the credited level's progress ring. Standard outings are queued
-  before Seasonal Challenges, then achievement unlocks, then
-  **New to Naturebook** for that scan.
+  before Seasonal Challenges, then achievement unlocks, then **New to
+  Naturebook** for that scan.
 - Tapping a completed goal with locally available evidence opens that scan's
   Insight view in the existing Explore navigation stack. Back returns to the
   outing without presenting another sheet.
@@ -102,12 +103,11 @@ only a camera/performance setting.
   persistent **Field trips** card after toxicity and identification review
   content. Each undivided row uses an uppercase **GOAL COMPLETE** eyebrow,
   headline-sized goal name, enlarged objective art/check badge, an
-  experience-only subtitle, and prominent credited-level ring. Its heading
-  uses the same icon and headline sizing as other Insight cards. The card keeps
-  every credited outing/Event row visible and routes the full row to the
-  experience's detail overview without a redundant chevron. It intentionally
-  drops the credited checklist focus so a completed row never auto-expands an
-  inline tip;
+  experience-only subtitle, and prominent credited-level ring. Its heading uses
+  the same icon and headline sizing as other Insight cards. The card keeps every
+  credited outing/Event row visible and routes the full row to the experience's
+  detail overview without a redundant chevron. It intentionally drops the
+  credited checklist focus so a completed row never auto-expands an inline tip;
   native Back returns to the originating Insight.
 - Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
@@ -130,15 +130,15 @@ only a camera/performance setting.
   `Outings`/`Events` picker, accepts typed Event routes, includes challenge
   badges and progress, loads Event Insight contributions, and requests eligible
   hashtag suggestions.
-- This client release did not change the API shape or backend authorization.
-  The deployed Edge Function and database continue to enforce verified viewer,
+- This client release did not change the API shape or backend authorization. The
+  deployed Edge Function and database continue to enforce verified viewer,
   entitlement, Join, ownership, timing, and publication rules.
 
 Before distributing an Events-capable iOS candidate, exercise catalog, detail,
 Join, progress, badge, entry publication, comments/likes, optional Explore
 hashtag suggestions, and typed navigation on physical signed-in and ghost
-accounts. A rollback requires a reviewed replacement client build; do not
-weaken or redeploy the backend solely to hide the Events UI.
+accounts. A rollback requires a reviewed replacement client build; do not weaken
+or redeploy the backend solely to hide the Events UI.
 
 ## Product Terminology
 
@@ -153,9 +153,9 @@ migration filenames may still use `objective` or `challenge`:
   **Objectives**.
 - **Tips** labels the expandable curated guidance inside the current incomplete
   level card; it is not a page-navigation control.
-- Standard-outing actions are **Start outing**, **Start scanning**,
-  **Resume outing**, and **Publish outing**. Never use **Start challenge** or
-  **Publish challenge** for a standard outing.
+- Standard-outing actions are **Start outing**, **Start scanning**, **Resume
+  outing**, and **Publish outing**. Never use **Start challenge** or **Publish
+  challenge** for a standard outing.
 - The active Scan capsule uses **Goal: {target}**. The post-Reset empty
   introduction uses **Start an outing** with **Backyard Safari · 2 goals**.
 - Standard catalog cards show an accent progress ring beside the title and a
@@ -163,8 +163,8 @@ migration filenames may still use `objective` or `challenge`:
   your own backyard.** The thumbnail strip remains horizontally scrollable and
   is followed by the lifecycle status (**Not started**, **Active**, **Stopped**,
   or **Completed**), public/private publication status when progress exists, Pro
-  access when locked, difficulty, current level, and an optional privacy-filtered
-  city/state tag.
+  access when locked, difficulty, current level, and an optional
+  privacy-filtered city/state tag.
 
 ## Difficulty
 
@@ -174,7 +174,8 @@ from duration, checklist size, completion data, user behavior, or access tier:
 - `Starter`: onboarding-oriented with familiar, commonly available targets.
 - `Easy`: a focused trip reasonably completed in one ordinary field trip.
 - `Moderate`: requires a specific habitat, longer effort, or subtler targets.
-- `Hard`: specialized, time-dependent, or likely to require multiple field trips.
+- `Hard`: specialized, time-dependent, or likely to require multiple field
+  trips.
 
 The standard Field trips catalog shows single-select `All`, `Starter`, `Easy`,
 `Moderate`, and `Hard` pills after a leading `Filters` pill. The filter sheet
@@ -196,8 +197,8 @@ difficulty.
    templates, their levels, checklist items, and any existing progress.
 3. Opening a catalog card loads `action: "template_detail"` and shows one
    continuous detail page: overview, levels, expandable curated tips inside the
-   current incomplete level, the current start/continue/publish state,
-   Community content, and **About this outing** at the bottom.
+   current incomplete level, the current start/continue/publish state, Community
+   content, and **About this outing** at the bottom.
 4. Backyard Safari Level 1 is already active from account enrollment. For other
    unstarted outings, tapping **Start outing** calls `action: "start"`. Matching
    scans never auto-start an outing. Standard outings never use Start/Publish
@@ -208,16 +209,16 @@ difficulty.
    period. Destructive Reset clears only unfinished standard outing progress and
    returns the detail to its initial state.
 5. The idle visual Scan page loads `action: "capture_context"` without blocking
-   the camera. A new account receives Backyard Safari's unfinished Level 1 goals;
-   when unfinished standard goals exist, a `Goal: {target}` label is shown beneath
-   the capture-mode picker with its outing title and aggregate level progress.
-   When the context is successfully empty, iOS loads `template_detail` by the
-   `backyard_safari` slug and offers an introduction only when that template is
-   accessible and unstarted, such as after Reset.
+   the camera. A new account receives Backyard Safari's unfinished Level 1
+   goals; when unfinished standard goals exist, a `Goal: {target}` label is
+   shown beneath the capture-mode picker with its outing title and aggregate
+   level progress. When the context is successfully empty, iOS loads
+   `template_detail` by the `backyard_safari` slug and offers an introduction
+   only when that template is accessible and unstarted, such as after Reset.
 6. Swiping an active indicator cycles through all unfinished targets in server
    order; tapping it opens the owning outing and focuses that goal's inline tip.
-   The introduction has no swipe behavior and opens Backyard Safari detail without
-   starting it.
+   The introduction has no swipe behavior and opens Backyard Safari detail
+   without starting it.
 7. An eligible live Capture includes the visibly selected standard goal as an
    optional `preferred_goal` in the scan-ingestion request. The ingestion intent
    stores the validated pair before model work begins. A database trigger then
@@ -232,13 +233,13 @@ difficulty.
    families, evaluates the first-outing achievement, and saves an idempotency
    receipt. A failure rolls back the whole mutation. A later retry for the same
    scan revision returns the receipt, including the original unlock metadata.
-9. The shared `ScanMilestoneCoordinator` waits for that progress attempt,
-   sends typed, ID-bounded `AppEvent` invalidations, evaluates newly unlocked achievements without
-   presenting them early, and batches the scan's notifications in strict order:
-   standard outings in server order, Seasonal Challenges in server order,
-   achievements in their existing order, then **New to Naturebook**. A progress
-   failure or no-match response still releases later milestones after the
-   attempt finishes.
+9. The shared `ScanMilestoneCoordinator` waits for that progress attempt, sends
+   typed, ID-bounded `AppEvent` invalidations, evaluates newly unlocked
+   achievements without presenting them early, and batches the scan's
+   notifications in strict order: standard outings in server order, Seasonal
+   Challenges in server order, achievements in their existing order, then **New
+   to Naturebook**. A progress failure or no-match response still releases later
+   milestones after the attempt finishes.
 10. iOS shows each qualifying progress toast for 3.5 seconds with the credited
     level's ring. Tapping a standard toast opens its outing focused on the first
     credited goal; tapping a challenge toast opens that challenge detail. The
@@ -258,24 +259,24 @@ difficulty.
     Wikipedia, then GBIF; a goal with no remaining source is removed and a
     same-level reserve goal refills it.
 12. Tapping a completed goal whose scan still exists on the device pushes the
-   existing Insight view inside Explore. The back arrow and swipe-back gesture
-   return to the same outing sheet.
-13. Reopening a saved biological Insight loads `action: "scan_contributions"`.
-   A nonempty result renders the persistent progress card; failures and empty
-   results stay silent.
-14. Once all levels are complete, **Publish outing** creates a Field trip snapshot
-   with an editable title and optional description or AI summary.
+    existing Insight view inside Explore. The back arrow and swipe-back gesture
+    return to the same outing sheet.
+13. Reopening a saved biological Insight loads `action: "scan_contributions"`. A
+    nonempty result renders the persistent progress card; failures and empty
+    results stay silent.
+14. Once all levels are complete, **Publish outing** creates a Field trip
+    snapshot with an editable title and optional description or AI summary.
 15. After the detail refreshes, its title badge changes from **Private** to
-   **Published**. Deleting the publication returns it to **Private**.
+    **Published**. Deleting the publication returns it to **Private**.
 16. Published Field trips appear on public profiles and template Community
-   previews. They open `FieldTripPublicationDetailView` with item cards,
-   likes, comments, and author identity. Author taps open the existing Explore
-   author-profile route.
+    previews. They open `FieldTripPublicationDetailView` with item cards, likes,
+    comments, and author identity. Author taps open the existing Explore
+    author-profile route.
 
 ## Active Target on Scan
 
-The capture indicator is orientation and motivation, not a scan requirement.
-It never changes which experiences are eligible. For an eligible live visual
+The capture indicator is orientation and motivation, not a scan requirement. It
+never changes which experiences are eligible. For an eligible live visual
 Capture, however, its selected standard goal wins ties inside that outing; all
 other experiences still use deterministic specificity and checklist ranking.
 
@@ -293,26 +294,26 @@ always reads the private server projection.
 Presentation contract:
 
 - Show only when Field trips are enabled, Scan/visual mode is selected, a real
-  target or validated introduction exists, the local `showsCaptureGoalProgress` preference is enabled, the
-  staged-capture tray is empty, refinement is inactive, and video is not
-  recording.
+  target or validated introduction exists, the local `showsCaptureGoalProgress`
+  preference is enabled, the staged-capture tray is empty, refinement is
+  inactive, and video is not recording.
 - Show no loading placeholder when there is no complete cached context. Camera
   startup and capture remain independent from both requests. A template-detail
-  failure preserves the last complete snapshot and never fabricates an introduction.
+  failure preserves the last complete snapshot and never fabricates an
+  introduction.
 - Render beneath `MediaModeToggle` at the same visual width, with a minimum
-  56-point height and 36-point bundled goal artwork. On iOS 26 and later
-  the untinted capsule uses interactive native Liquid Glass; earlier supported
-  versions use a neutral material fallback. Foreground styles remain semantic
-  so system contrast adapts to the camera scene and accessibility settings.
-  Unknown goals use a neutral binoculars symbol; they must not borrow
-  semantically incorrect art.
-- Center the `Goal: {target}` prompt and outing title between
-  equal 40-point edge slots. Preserve the curated target text exactly; the
-  colon avoids article and plurality errors for composite or mass-noun prompts.
-  The leading slot contains the artwork; the trailing slot contains a circular
-  `completed/target` progress ring. This keeps the text optically centered while
-  making progress changes understandable when the selection crosses outing
-  boundaries.
+  56-point height and 36-point bundled goal artwork. On iOS 26 and later the
+  untinted capsule uses interactive native Liquid Glass; earlier supported
+  versions use a neutral material fallback. Foreground styles remain semantic so
+  system contrast adapts to the camera scene and accessibility settings. Unknown
+  goals use a neutral binoculars symbol; they must not borrow semantically
+  incorrect art.
+- Center the `Goal: {target}` prompt and outing title between equal 40-point
+  edge slots. Preserve the curated target text exactly; the colon avoids article
+  and plurality errors for composite or mass-noun prompts. The leading slot
+  contains the artwork; the trailing slot contains a circular `completed/target`
+  progress ring. This keeps the text optically centered while making progress
+  changes understandable when the selection crosses outing boundaries.
 - Swipe left for the next unfinished target and right for the previous target.
   Selection wraps across every active standard outing. The gesture commits only
   after 36 points of translation and only when horizontal movement is at least
@@ -323,15 +324,15 @@ Presentation contract:
   `Outing target. Look for {target}.`, the outing title and progress, plus
   adjustable previous/next actions.
 - Settings > Workspace exposes an on-by-default **Field trip goals** toggle with
-  the `binoculars.fill` symbol. Turning
-  it off removes the entire target capsule from Scan without changing outing
-  progress, cached goal context, or server state.
+  the `binoculars.fill` symbol. Turning it off removes the entire target capsule
+  from Scan without changing outing progress, cached goal context, or server
+  state.
 - For the validated unstarted Backyard Safari zero state after Reset, show
   **Start an outing** over **Backyard Safari · 2 goals**, rotate the Bird and
-  Dog artwork by cross-fade
-  every three seconds, and show `0/2` in the shared progress ring. Reduce Motion
-  keeps the first artwork static. VoiceOver announces “Start an outing. Backyard
-  Safari, 2 goals.”, “0 of 2 goals complete.”, and “Opens outing details.”
+  Dog artwork by cross-fade every three seconds, and show `0/2` in the shared
+  progress ring. Reduce Motion keeps the first artwork static. VoiceOver
+  announces “Start an outing. Backyard Safari, 2 goals.”, “0 of 2 goals
+  complete.”, and “Opens outing details.”
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing
@@ -358,8 +359,8 @@ Refresh behavior:
 
 - refresh through the five-minute freshness gate when Capture first appears or
   the Supabase account is restored/changed;
-- refresh after five stale minutes when the app returns to the foreground or
-  the user returns to visual Scan;
+- refresh after five stale minutes when the app returns to the foreground or the
+  user returns to visual Scan;
 - force refresh after outing start/join, standard progress events, and explicit
   scanner-routing events;
 - share one provider fetch when appearance, account restoration, and scene
@@ -371,12 +372,12 @@ Tapping the indicator passes its typed `CaptureGoalDestination` into Explore.
 Explore presents the Field trips tab, opens the owning standard outing, expands
 the matching tip inside the current level card, scrolls it into view, and
 briefly highlights it. A future goal without guide content falls back to its
-highlighted goal tile. The destination is converted at the Explore
-boundary into `FieldTripTemplateRoute`, whose focused checklist-item identifier
-remains optional for ordinary outing navigation.
-Guide, objective, and Event highlight timers are stored per detail view,
-cancelled when replaced, and released on disappearance. Their delayed fade
-cannot retain a dismissed scroll proxy or clear a newer highlight.
+highlighted goal tile. The destination is converted at the Explore boundary into
+`FieldTripTemplateRoute`, whose focused checklist-item identifier remains
+optional for ordinary outing navigation. Guide, objective, and Event highlight
+timers are stored per detail view, cancelled when replaced, and released on
+disappearance. Their delayed fade cannot retain a dismissed scroll proxy or
+clear a newer highlight.
 
 ## Challenge Flow
 
@@ -407,8 +408,8 @@ cannot retain a dismissed scroll proxy or clear a newer highlight.
 - Backyard Safari's first eligible activity window begins at account enrollment
   (or migration-time enrollment for an existing account), so earlier scans are
   never credited retroactively.
-- A standard scan counts only when its capture timestamp falls within one of
-  the outing's `user_field_trip_active_periods`. Pre-stop scans can receive late
+- A standard scan counts only when its capture timestamp falls within one of the
+  outing's `user_field_trip_active_periods`. Pre-stop scans can receive late
   approval; scans captured during stopped gaps stay excluded after Resume.
 - A delayed first upload uses that scan timestamp even if the activity period
   has since closed. Existing credit in an unfinished outing remains
@@ -422,12 +423,12 @@ cannot retain a dismissed scroll proxy or clear a newer highlight.
   biological identification. An unreviewed AI identification must be at least a
   `Possible match` for the exact inference tier (`Flash >= 0.75`,
   `Pro >= 0.65`). A weaker identification remains uncredited until the user
-  confirms it or a correction/community resolution supplies a confirmed
-  species. A qualifying photo or video can count; the camera-only active-target
-  capsule does not restrict progress eligibility.
+  confirms it or a correction/community resolution supplies a confirmed species.
+  A qualifying photo or video can count; the camera-only active-target capsule
+  does not restrict progress eligibility.
 - One scan is evaluated against every eligible active standard outing, but it
-  receives at most one checklist credit per outing. It may still advance
-  several eligible active outings and a joined live Event.
+  receives at most one checklist credit per outing. It may still advance several
+  eligible active outings and a joined live Event.
 - Within an experience the selected live-Capture goal wins when valid. Fallback
   order is exact species, scientific name, taxonomy from genus through kingdom,
   taxonomy with an excluded family, conjunctive taxonomy-plus-signal, semantic
@@ -436,9 +437,9 @@ cannot retain a dismissed scroll proxy or clear a newer highlight.
 - A level unlocks only when all items in the current level are complete.
 - A trip completes when all levels and checklist items are complete.
 - Progress responses retain the existing current-level fields and add optional
-  `credited_*` fields for the level changed by the scan. When completion advances
-  to another level, the credited counts describe the just-completed level so
-  scan feedback shows a full ring rather than the next level's `0/N`.
+  `credited_*` fields for the level changed by the scan. When completion
+  advances to another level, the credited counts describe the just-completed
+  level so scan feedback shows a full ring rather than the next level's `0/N`.
 - A progress toast requires a nonempty `newly_completed_items` array. The first
   item in curated checklist order supplies its common name, with the checklist
   prompt as the empty/missing-name fallback and as the focused standard route.
@@ -460,17 +461,17 @@ The database applies this policy before standard-outing or Event goal matching.
 The boundaries are inclusive and mirror the tier-specific **Possible match**
 presentation thresholds:
 
-| Inference tier | Automatic-credit minimum | Below the boundary |
-| --- | ---: | --- |
-| Flash | `0.75` (75%) | Pending review; no automatic credit |
-| Pro | `0.65` (65%) | Pending review; no automatic credit |
-| Missing or unknown | `0.75` (75%) | Fail closed to the stricter Flash rule |
+| Inference tier     | Automatic-credit minimum | Below the boundary                     |
+| ------------------ | -----------------------: | -------------------------------------- |
+| Flash              |             `0.75` (75%) | Pending review; no automatic credit    |
+| Pro                |             `0.65` (65%) | Pending review; no automatic credit    |
+| Missing or unknown |             `0.75` (75%) | Fail closed to the stricter Flash rule |
 
 A null or out-of-range model score never auto-qualifies. The score is bypassed
-only when `user_confirmed_identification` is true or
-`confirmed_species_id` is populated by a correction or community resolution.
-The scan must still be caller-owned, saved, biological, not tombstoned, and
-match all timing, current-level, and checklist criteria.
+only when `user_confirmed_identification` is true or `confirmed_species_id` is
+populated by a correction or community resolution. The scan must still be
+caller-owned, saved, biological, not tombstoned, and match all timing,
+current-level, and checklist criteria.
 
 `preferred_goal` is only a ranking hint. For a weak unreviewed scan, the atomic
 receipt retains the complete hint but returns empty standard/Event updates. A
@@ -493,28 +494,28 @@ exact, case-insensitive constraint. `taxonomy_and_signal` requires at least one
 taxonomy constraint, at least one signal constraint, and every populated
 constraint to match; missing required evidence fails closed.
 
-| Outing | Level | Goal | Server-required match |
-| --- | ---: | --- | --- |
-| Backyard Safari | 1 | Bird | Class `Aves` |
-| Backyard Safari | 1 | Dog | Exact scientific name `Canis lupus familiaris` |
-| Backyard Safari | 2 | Butterfly | Class `Insecta` + order `Lepidoptera` + semantic category `butterfly` |
-| Backyard Safari | 2 | Cat | Exact scientific name `Felis catus` |
-| Backyard Safari | 2 | Spider | Class `Arachnida` + order `Araneae` |
-| Backyard Safari | 2 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
-| Backyard Safari | 3 | Fungus | Kingdom `Fungi` |
-| Backyard Safari | 3 | Insect | Class `Insecta` |
-| Backyard Safari | 3 | Urban wild animal | Kingdom `Animalia` + scan ecology `urban` |
-| Backyard Safari | 3 | Moss or lichen | Semantic category `moss` only; there is no broad taxonomy fallback |
-| Park Pollinators | 1 | Flowering plant | Kingdom `Plantae` + semantic category `flower` |
-| Park Pollinators | 1 | Butterfly or moth | Class `Insecta` + order `Lepidoptera` |
-| Park Pollinators | 2 | Bee or wasp | Class `Insecta` + order `Hymenoptera` + either semantic category `bee` or `wasp` |
-| Park Pollinators | 2 | Fly | Class `Insecta` + order `Diptera` |
-| Park Pollinators | 2 | Beetle | Class `Insecta` + order `Coleoptera` |
-| Park Pollinators | 2 | Spider | Class `Arachnida` + order `Araneae` |
-| Park Pollinators | 3 | Seed or fruiting plant | Kingdom `Plantae` + semantic category `fruit` |
-| Park Pollinators | 3 | Bird | Class `Aves` |
-| Park Pollinators | 3 | Wild plant | Kingdom `Plantae` + scan ecology `wild` |
-| Park Pollinators | 3 | Meadow plant | Kingdom `Plantae` + habitat token/category `meadow` |
+| Outing           | Level | Goal                   | Server-required match                                                            |
+| ---------------- | ----: | ---------------------- | -------------------------------------------------------------------------------- |
+| Backyard Safari  |     1 | Bird                   | Class `Aves`                                                                     |
+| Backyard Safari  |     1 | Dog                    | Exact scientific name `Canis lupus familiaris`                                   |
+| Backyard Safari  |     2 | Butterfly              | Class `Insecta` + order `Lepidoptera` + semantic category `butterfly`            |
+| Backyard Safari  |     2 | Cat                    | Exact scientific name `Felis catus`                                              |
+| Backyard Safari  |     2 | Spider                 | Class `Arachnida` + order `Araneae`                                              |
+| Backyard Safari  |     2 | Flowering plant        | Kingdom `Plantae` + semantic category `flower`                                   |
+| Backyard Safari  |     3 | Fungus                 | Kingdom `Fungi`                                                                  |
+| Backyard Safari  |     3 | Insect                 | Class `Insecta`                                                                  |
+| Backyard Safari  |     3 | Urban wild animal      | Kingdom `Animalia` + scan ecology `urban`                                        |
+| Backyard Safari  |     3 | Moss or lichen         | Semantic category `moss` only; there is no broad taxonomy fallback               |
+| Park Pollinators |     1 | Flowering plant        | Kingdom `Plantae` + semantic category `flower`                                   |
+| Park Pollinators |     1 | Butterfly or moth      | Class `Insecta` + order `Lepidoptera`                                            |
+| Park Pollinators |     2 | Bee or wasp            | Class `Insecta` + order `Hymenoptera` + either semantic category `bee` or `wasp` |
+| Park Pollinators |     2 | Fly                    | Class `Insecta` + order `Diptera`                                                |
+| Park Pollinators |     2 | Beetle                 | Class `Insecta` + order `Coleoptera`                                             |
+| Park Pollinators |     2 | Spider                 | Class `Arachnida` + order `Araneae`                                              |
+| Park Pollinators |     3 | Seed or fruiting plant | Kingdom `Plantae` + semantic category `fruit`                                    |
+| Park Pollinators |     3 | Bird                   | Class `Aves`                                                                     |
+| Park Pollinators |     3 | Wild plant             | Kingdom `Plantae` + scan ecology `wild`                                          |
+| Park Pollinators |     3 | Meadow plant           | Kingdom `Plantae` + habitat token/category `meadow`                              |
 
 Semantic categories come from the resolved species' enriched `group_tags`, with
 the existing exact scientific/common-name fallback. Compound semantic criteria
@@ -533,32 +534,32 @@ an explicit reviewed alternative and positive/negative database cases.
 
 ### Featured Reference Species Catalog
 
-These species are visual examples only. They never narrow or otherwise alter
-the matching criteria above. `field-trips/referenceMedia.ts` is the executable
+These species are visual examples only. They never narrow or otherwise alter the
+matching criteria above. `field-trips/referenceMedia.ts` is the executable
 source of truth and must change with this table.
 
-| Outing | Goal | Illustrative species |
-| --- | --- | --- |
-| Backyard Safari | Bird | House Sparrow (`Passer domesticus`) |
-| Backyard Safari | Dog | Domestic Dog (`Canis lupus familiaris`) |
-| Backyard Safari | Butterfly | Monarch (`Danaus plexippus`) |
-| Backyard Safari | Cat | Domestic Cat (`Felis catus`) |
-| Backyard Safari | Spider | Cross Orbweaver (`Araneus diadematus`) |
-| Backyard Safari | Flowering plant | Common Daisy (`Bellis perennis`) |
-| Backyard Safari | Fungus | Turkey Tail (`Trametes versicolor`) |
-| Backyard Safari | Insect | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
-| Backyard Safari | Urban wild animal | Eastern Gray Squirrel (`Sciurus carolinensis`) |
-| Backyard Safari | Moss or lichen | Silvergreen Bryum Moss (`Bryum argenteum`) |
-| Park Pollinators | Flowering plant | Common Dandelion (`Taraxacum officinale`) |
-| Park Pollinators | Butterfly or moth | Monarch (`Danaus plexippus`) |
-| Park Pollinators | Bee or wasp | Western Honey Bee (`Apis mellifera`) |
-| Park Pollinators | Fly | Common Drone Fly (`Eristalis tenax`) |
-| Park Pollinators | Beetle | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
-| Park Pollinators | Spider | Cross Orbweaver (`Araneus diadematus`) |
-| Park Pollinators | Seed or fruiting plant | Wild Strawberry (`Fragaria vesca`) |
-| Park Pollinators | Bird | House Sparrow (`Passer domesticus`) |
-| Park Pollinators | Wild plant | Common Yarrow (`Achillea millefolium`) |
-| Park Pollinators | Meadow plant | Red Clover (`Trifolium pratense`) |
+| Outing           | Goal                   | Illustrative species                                    |
+| ---------------- | ---------------------- | ------------------------------------------------------- |
+| Backyard Safari  | Bird                   | House Sparrow (`Passer domesticus`)                     |
+| Backyard Safari  | Dog                    | Domestic Dog (`Canis lupus familiaris`)                 |
+| Backyard Safari  | Butterfly              | Monarch (`Danaus plexippus`)                            |
+| Backyard Safari  | Cat                    | Domestic Cat (`Felis catus`)                            |
+| Backyard Safari  | Spider                 | Cross Orbweaver (`Araneus diadematus`)                  |
+| Backyard Safari  | Flowering plant        | Common Daisy (`Bellis perennis`)                        |
+| Backyard Safari  | Fungus                 | Turkey Tail (`Trametes versicolor`)                     |
+| Backyard Safari  | Insect                 | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
+| Backyard Safari  | Urban wild animal      | Eastern Gray Squirrel (`Sciurus carolinensis`)          |
+| Backyard Safari  | Moss or lichen         | Silvergreen Bryum Moss (`Bryum argenteum`)              |
+| Park Pollinators | Flowering plant        | Common Dandelion (`Taraxacum officinale`)               |
+| Park Pollinators | Butterfly or moth      | Monarch (`Danaus plexippus`)                            |
+| Park Pollinators | Bee or wasp            | Western Honey Bee (`Apis mellifera`)                    |
+| Park Pollinators | Fly                    | Common Drone Fly (`Eristalis tenax`)                    |
+| Park Pollinators | Beetle                 | Seven-spotted Lady Beetle (`Coccinella septempunctata`) |
+| Park Pollinators | Spider                 | Cross Orbweaver (`Araneus diadematus`)                  |
+| Park Pollinators | Seed or fruiting plant | Wild Strawberry (`Fragaria vesca`)                      |
+| Park Pollinators | Bird                   | House Sparrow (`Passer domesticus`)                     |
+| Park Pollinators | Wild plant             | Common Yarrow (`Achillea millefolium`)                  |
+| Park Pollinators | Meadow plant           | Red Clover (`Trifolium pratense`)                       |
 
 Template detail batches these scientific names through the normalized public
 species layer and returns at most one image for each provider in Naturebook,
@@ -567,8 +568,8 @@ the current level, the Field trips data layer calls the shared bounded external
 enrichment helper and adds its public Wikipedia/GBIF candidates. Runtime
 fallback is capped at the six carousel-eligible active goals and three
 concurrent provider lookups; a provider outage never fails the otherwise valid
-detail response. Release content QA should still keep normalized candidates
-warm so the fallback remains exceptional rather than adding routine latency.
+detail response. Release content QA should still keep normalized candidates warm
+so the fallback remains exceptional rather than adding routine latency.
 
 ## Challenge Progress Rules
 
@@ -604,11 +605,10 @@ status-only:
 - completed count
 - target count
 
-Automatic Backyard Safari enrollment creates this profile-visible active
-status immediately, including at `0/N` progress. A known account ID therefore
-normally satisfies the author-profile visibility gate until the unfinished
-starter is stopped or reset; the profile endpoint does not enumerate account
-IDs.
+Automatic Backyard Safari enrollment creates this profile-visible active status
+immediately, including at `0/N` progress. A known account ID therefore normally
+satisfies the author-profile visibility gate until the unfinished starter is
+stopped or reset; the profile endpoint does not enumerate account IDs.
 
 Active profile summaries must not expose scan IDs, media URLs, field notes,
 exact coordinates, public location labels, or private evidence details.
@@ -617,12 +617,12 @@ The authenticated `catalog` and `template_detail` responses are a separate,
 private viewer-specific read model. A completed standard checklist item may
 include `completed_scan_id`, but it never includes a media URL. iOS uses the ID
 only to find the caller's device-local `LocalScanRecord` and render the same
-`ScanThumbnail` used elsewhere. If that record is unavailable on the device,
-the curated artwork remains and the app must not construct a remote or public
+`ScanThumbnail` used elsewhere. If that record is unavailable on the device, the
+curated artwork remains and the app must not construct a remote or public
 evidence URL. `completed_scan_id` must not appear in public profile summaries,
 publication snapshots, challenge badges or entries, Explore feed/map payloads,
-or the capture-context response. The private outing-detail carousel uses this same
-local-record boundary for user evidence, but it may also render the goal's
+or the capture-context response. The private outing-detail carousel uses this
+same local-record boundary for user evidence, but it may also render the goal's
 reusable public species-reference projection. Reference rows contain only an
 illustrative scientific/common name, sanitized URL, source, rights metadata,
 optional public attribution, and image dimensions. They never contain the
@@ -632,38 +632,37 @@ reference; the app never constructs a remote evidence URL.
 
 The detail-only publication status is also private viewer metadata.
 `active_progress.publication_id` and `published_at` identify the owner's active,
-non-deleted public snapshot; missing values mean the detail badge is **Private**.
-The badge describes publication state, not whether the status-only active
-progress summary is allowed on a public profile. It never makes completion
-evidence public.
+non-deleted public snapshot; missing values mean the detail badge is
+**Private**. The badge describes publication state, not whether the status-only
+active progress summary is allowed on a public profile. It never makes
+completion evidence public.
 
-The Scan capture-context payload is even narrower: it contains only field trip and
-template identifiers, title/slug, current-level metadata, aggregate counts, and
-unfinished item identifiers/prompts/order/guide availability. It must never
+The Scan capture-context payload is even narrower: it contains only field trip
+and template identifiers, title/slug, current-level metadata, aggregate counts,
+and unfinished item identifiers/prompts/order/guide availability. It must never
 return scan IDs, media, coordinates, location labels, field notes, completed
 species names, or completion evidence. Seasonal Challenge-specific progress is
 excluded; the shared underlying standard field trip remains eligible.
 
-Published Field trip pages are explicit snapshots stored separately from
-Explore posts. Publication items may include species names, taxonomy, reference
-images, and selected scan media snapshots, but publishing a Field trip does not
-create Explore feed posts, Explore map points, normal Explore post
-notifications, APNs, widgets, or public web pages. Field trip-only in-app
-activity rows for comments, replies, and followed-author publications may
-appear in Explore activity and increment the bell, but they never fan out to
-push delivery.
+Published Field trip pages are explicit snapshots stored separately from Explore
+posts. Publication items may include species names, taxonomy, reference images,
+and selected scan media snapshots, but publishing a Field trip does not create
+Explore feed posts, Explore map points, normal Explore post notifications, APNs,
+widgets, or public web pages. Field trip-only in-app activity rows for comments,
+replies, and followed-author publications may appear in Explore activity and
+increment the bell, but they never fan out to push delivery.
 
 Public author profiles can be discoverable through either visible Explore posts
 or visible Field trip surfaces. Field trip discoverability still respects
 shadowbans and mutual blocks. Because the starter enrollment is profile-visible,
 most known accounts have a visible Field trip surface by default.
 
-Challenge participation exposes only aggregate counts unless the user
-explicitly publishes a challenge entry or displays a completion badge. Badges do
-not expose scan IDs, media URLs, exact locations, field notes, or private
-evidence. Challenge entries are public snapshots scoped to Field trips; they do
-not create Explore posts, Explore map rows, APNs, widgets, public web pages, or
-automatic Explore hashtags.
+Challenge participation exposes only aggregate counts unless the user explicitly
+publishes a challenge entry or displays a completion badge. Badges do not expose
+scan IDs, media URLs, exact locations, field notes, or private evidence.
+Challenge entries are public snapshots scoped to Field trips; they do not create
+Explore posts, Explore map rows, APNs, widgets, public web pages, or automatic
+Explore hashtags.
 
 ## Backend
 
@@ -685,8 +684,8 @@ The Forest Edges placeholder is retired without deleting historical data by
 Private catalog/detail completion evidence links are added by
 `services/supabase/migrations/20260718043218_expose_field_trip_completion_scan_ids.sql`.
 That migration also restricts both RPCs to `service_role`; authenticated iOS
-clients continue to access them only through `/field-trips`.
-Private detail publication status is added by
+clients continue to access them only through `/field-trips`. Private detail
+publication status is added by
 `services/supabase/migrations/20260718051748_expose_field_trip_publication_status.sql`.
 Credited-level scan progress for standard outings and Seasonal Challenges is
 added by
@@ -722,10 +721,10 @@ credit that no longer matches.
 `services/supabase/migrations/20260730023042_gate_field_trip_progress_by_confidence.sql`
 adds the tier-specific Possible-match evidence policy to standard outings and
 Events, includes confidence/confirmation fields in scan receipt revisions,
-re-evaluates confirmation-only updates, removes credit previously issued to
-weak unreviewed identifications, and reconciles future confidence downgrades
-even after completion. Selected Capture-goal preferences remain pending so
-later confirmation can still honor the user's intent.
+re-evaluates confirmation-only updates, removes credit previously issued to weak
+unreviewed identifications, and reconciles future confidence downgrades even
+after completion. Selected Capture-goal preferences remain pending so later
+confirmation can still honor the user's intent.
 
 Core tables:
 
@@ -797,11 +796,11 @@ fields.
 Actions:
 
 - `capture_context`: returns the caller's incomplete, non-hidden, accessible
-  standard field trips and unfinished current-level targets. Field trips order by most
-  recent start or item completion; targets retain curated checklist order. The
-  RPC is revoked from `PUBLIC`, `anon`, and `authenticated`, and granted only to
-  `service_role`; the authenticated Edge Function supplies the verified user
-  ID.
+  standard field trips and unfinished current-level targets. Field trips order
+  by most recent start or item completion; targets retain curated checklist
+  order. The RPC is revoked from `PUBLIC`, `anon`, and `authenticated`, and
+  granted only to `service_role`; the authenticated Edge Function supplies the
+  verified user ID.
 - `catalog`: returns active templates, gated access state, levels, checklist
   items, and the viewer's progress. Completed standard items may include the
   private `completed_scan_id` needed for device-local evidence thumbnails.
@@ -810,27 +809,27 @@ Actions:
   scan ID. Its `active_progress` also includes the owner's optional active
   `publication_id` and `published_at` for the title badge.
 - `start`: starts another accessible outing, or unhides/resumes an existing
-  stopped or reset progress row. New accounts already have Backyard Safari
-  Level 1 active.
+  stopped or reset progress row. New accounts already have Backyard Safari Level
+  1 active.
 - `stop`: closes an unfinished outing's open period and returns its saved
   stopped detail.
-- `reset`: clears unfinished, unpublished standard progress without deleting
-  the shared outing row or Seasonal Challenge data.
+- `reset`: clears unfinished, unpublished standard progress without deleting the
+  shared outing row or Seasonal Challenge data.
 - `community_publications`: returns visible published completed Field trips for
   `smart`, `following`, or `recent` mode with optional template filtering and
   stable `(rank_bucket, published_at, publication_id)` pagination.
 - `recent_publications`: compatibility alias for `community_publications` with
   `mode: "recent"`.
-- `apply_scan_progress`: applies progress for one saved scan owned by the
-  caller through one transactional database RPC. V4 keeps the existing `data`
-  payload for normal Field trip progress and adds optional `challenge_updates`
-  for joined live challenges. Both update
-  arrays may include optional `credited_level_number`, `credited_level_title`,
-  `credited_completed_count`, `credited_target_count`, and `removed_item_ids`.
-  The request may include an optional validated `preferred_goal` with
-  `user_field_trip_id` and `item_id`. New scan ingestion may already have
-  applied the mutation; in that case this action returns the scan-revision
-  receipt rather than re-announcing or partially reapplying it.
+- `apply_scan_progress`: applies progress for one saved scan owned by the caller
+  through one transactional database RPC. V4 keeps the existing `data` payload
+  for normal Field trip progress and adds optional `challenge_updates` for
+  joined live challenges. Both update arrays may include optional
+  `credited_level_number`, `credited_level_title`, `credited_completed_count`,
+  `credited_target_count`, and `removed_item_ids`. The request may include an
+  optional validated `preferred_goal` with `user_field_trip_id` and `item_id`.
+  New scan ingestion may already have applied the mutation; in that case this
+  action returns the scan-revision receipt rather than re-announcing or
+  partially reapplying it.
 - `scan_contributions`: returns one private, evidence-minimal row for every
   standard outing or Event credit owned by the supplied saved biological scan.
 - `challenges_catalog`: returns curated seasonal challenges with viewer
@@ -842,8 +841,8 @@ Actions:
   starts/continues the linked Field trip.
 - `challenge_publications`: paginates visible published challenge entries by
   `(published_at DESC, entry_id DESC)`.
-- `scan_challenge_hashtags`: returns normalized suggested challenge hashtags
-  for a scan that completed joined live challenge items.
+- `scan_challenge_hashtags`: returns normalized suggested challenge hashtags for
+  a scan that completed joined live challenge items.
 - `publish_challenge_entry`: snapshots a completed challenge participation into
   challenge entry tables.
 - `challenge_entry_detail`: returns a visible challenge entry detail page.
@@ -873,8 +872,8 @@ publication, or completion evidence.
 
 ## Access
 
-Free users see starter and rotating-free trips. Functional Pro users—paid Pro
-or an online-verified complimentary account with at least one credit or active
+Free users see starter and rotating-free trips. Functional Pro users—paid Pro or
+an online-verified complimentary account with at least one credit or active
 hold—can access the full active catalog. Locked Pro trips may still appear in
 the catalog so the UI can show the available upgrade path without starting
 progress. Exhausted complimentary access falls back to the free catalog; public
@@ -997,18 +996,18 @@ survives reference-to-user replacement. The preferred source is one canonical
 photo, video poster, or legacy captured cover from the exact completed scan; a
 missing, archived, nonvisual, posterless, unloadable, duplicated, or
 reference-only local record falls through to the goal's ordered reference
-candidates. `FieldTripFeaturedMediaSelection` keeps only candidates belonging
-to the current active level, sorts them by checklist order and stable ID, then
+candidates. `FieldTripFeaturedMediaSelection` keeps only candidates belonging to
+the current active level, sorts them by checklist order and stable ID, then
 takes up to six. Completed earlier levels and locked later levels never enter
 the carousel. Failed source identifiers advance within the same goal before a
 source-exhausted goal is removed and a same-level reserve candidate refills the
-selection; reconnecting clears transient failures. Rendering reuses Insight's `NativePageCarousel`,
-`CarouselPageItem`, `ZoomPageViewController`, and shared pagination treatment,
-and the hero takes the full scroll-container width without horizontal content
-insets. It also extends to the sheet's top edge beneath transparent
-navigation chrome; the toolbar floats over the image just as it does in
-Insight. No-media states retain the normal navigation-bar inset and background.
-All selected posters begin resolving immediately, horizontal paging
+selection; reconnecting clears transient failures. Rendering reuses Insight's
+`NativePageCarousel`, `CarouselPageItem`, `ZoomPageViewController`, and shared
+pagination treatment, and the hero takes the full scroll-container width without
+horizontal content insets. It also extends to the sheet's top edge beneath
+transparent navigation chrome; the toolbar floats over the image just as it does
+in Insight. No-media states retain the normal navigation-bar inset and
+background. All selected posters begin resolving immediately, horizontal paging
 cooperates with sheet dismissal, controller identity survives progress-driven
 updates, and photo pages inherit the same pinch-and-snap-back behavior. The
 inline carousel remains poster-only for video; tapping any page opens a
@@ -1018,8 +1017,8 @@ display their provider badge against the visible bottom edge, and retain
 license/attribution text in the full-screen viewer. Every source badge uses the
 bottom-trailing corner. A Naturebook reference with a public author username
 also displays `@username` in the bottom-leading corner; the Naturebook source
-badge remains bottom-trailing. VoiceOver distinguishes an illustrative
-reference and its provider from the user's own photo or video.
+badge remains bottom-trailing. VoiceOver distinguishes an illustrative reference
+and its provider from the user's own photo or video.
 
 While standard outing detail is loading, its skeleton preserves the same visual
 hierarchy: a square edge-to-edge media placeholder under transparent toolbar
@@ -1035,59 +1034,55 @@ detail levels do not display the ring. Ephemeral milestone banners use compact
 objective artwork instead of another progress ring.
 
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
-for both `InferenceEngine` foreground completion and
-`OfflineQueueManager` background completion. It is main-actor isolated and
-derives a trimmed, lowercase key from the final saved scan ID, then keys
-in-flight/recently resolved work by that value while preserving the trimmed
-caller ID for network and durable-store calls. Live and background races
-cannot enqueue the same batch twice even if a framework or server bridge changes
-UUID casing. Capture queues generate lowercase UUIDs while preserving an
-explicit caller-supplied stable ID.
-Progress resolution has
-three explicit outcomes: success, retryable failure, and terminal ingestion
-failure. Only success or a terminal failure finalizes Field trip processing and
-discards the preferred Capture goal. A retryable persistence timeout, network
-failure, or cancellation preserves that goal, remains eligible for a later
-foreground/background callback, and schedules bounded automatic retries after
-2, 5, and 15 seconds. At most 16 retry sleepers exist across scans; oldest
-overflow is cancelled because the SwiftData hint remains the durable progress outbox:
-queue finalization preserves it, startup/network recovery replays orphaned
-hints whose scan queue row is already gone, and only server acknowledgement or
-a terminal outcome deletes it. Ordinary achievement and dictionary milestones have a
-separate per-scan delivery guard, so they can appear during an outage without
-being duplicated when Field trip progress later succeeds. The coordinator
-waits through the existing remote-persistence polling window on every attempt,
-then collects achievement unlock payloads with
-the domain-only `GamificationManager` return value, evaluates the
-dictionary-contribution flag, and makes one synchronous presenter enqueue
-pass. An unrelated banner already on screen
-is not preempted; strict ordering applies only within milestones from the same
-scan. The container-owned presenter coalesces equivalent queued payloads,
-enforces a 32-item visual bound, and rejects callbacks whose captured
-account/session token is stale. Its foreground-host registry and injected clock
-preserve remaining lifetime and one-time haptic/VoiceOver effects when nested
-Explore, Insight, Scans, or Settings surfaces mount and unmount.
-Authentication and five-minute session transitions also cancel coordinator
-retry tasks and release their captured model container/preferred-goal context
-plus bounded in-flight state. Account changes also clear recent-scan history,
-while a same-account session transition retains completed/released
-deduplication. In-flight ownership includes the
-captured account/session generation, so old deferred cleanup cannot remove or
-block a current session's same-scan work;
-every suspended progress or achievement result is re-fenced before it may
-schedule work or enqueue feedback.
+for both `InferenceEngine` foreground completion and `OfflineQueueManager`
+background completion. It is main-actor isolated and derives a trimmed,
+lowercase key from the final saved scan ID, then keys in-flight/recently
+resolved work by that value while preserving the trimmed caller ID for network
+and durable-store calls. Live and background races cannot enqueue the same batch
+twice even if a framework or server bridge changes UUID casing. Capture queues
+generate lowercase UUIDs while preserving an explicit caller-supplied stable ID.
+Progress resolution has three explicit outcomes: success, retryable failure, and
+terminal ingestion failure. Only success or a terminal failure finalizes Field
+trip processing and discards the preferred Capture goal. A retryable persistence
+timeout, network failure, or cancellation preserves that goal, remains eligible
+for a later foreground/background callback, and schedules bounded automatic
+retries after 2, 5, and 15 seconds. At most 16 retry sleepers exist across
+scans; oldest overflow is cancelled because the SwiftData hint remains the
+durable progress outbox: queue finalization preserves it, startup/network
+recovery replays orphaned hints whose scan queue row is already gone, and only
+server acknowledgement or a terminal outcome deletes it. Ordinary achievement
+and dictionary milestones have a separate per-scan delivery guard, so they can
+appear during an outage without being duplicated when Field trip progress later
+succeeds. The coordinator waits through the existing remote-persistence polling
+window on every attempt, then collects achievement unlock payloads with the
+domain-only `GamificationManager` return value, evaluates the
+dictionary-contribution flag, and makes one synchronous presenter enqueue pass.
+An unrelated banner already on screen is not preempted; strict ordering applies
+only within milestones from the same scan. The container-owned presenter
+coalesces equivalent queued payloads, enforces a 32-item visual bound, and
+rejects callbacks whose captured account/session token is stale. Its
+foreground-host registry and injected clock preserve remaining lifetime and
+one-time haptic/VoiceOver effects when nested Explore, Insight, Scans, or
+Settings surfaces mount and unmount. Authentication and five-minute session
+transitions also cancel coordinator retry tasks and release their captured model
+container/preferred-goal context plus bounded in-flight state. Account changes
+also clear recent-scan history, while a same-account session transition retains
+completed/released deduplication. In-flight ownership includes the captured
+account/session generation, so old deferred cleanup cannot remove or block a
+current session's same-scan work; every suspended progress or achievement result
+is re-fenced before it may schedule work or enqueue feedback.
 
 `FieldTripMilestonePayload` stores the outing title, the first newly completed
-item's label, lightweight objective artwork, and a typed destination. Standard destinations
-use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge destinations
-use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner` renders
-**Field trip progress**, `{goal} goal complete`, and the outing title beside the
-objective artwork. It preserves the shared 3.5-second timeout, haptics,
-horizontal/vertical swipe and close-button dismissal, queue transition, and
-VoiceOver announcement, and requests `AppRoute.captureGoal` when tapped. The
+item's label, lightweight objective artwork, and a typed destination. Standard
+destinations use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge
+destinations use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner`
+renders **Field trip progress**, `{goal} goal complete`, and the outing title
+beside the objective artwork. It preserves the shared 3.5-second timeout,
+haptics, horizontal/vertical swipe and close-button dismissal, queue transition,
+and VoiceOver announcement, and requests `AppRoute.captureGoal` when tapped. The
 root coordinator serializes the sheet handoff, then Explore converts the typed
-destination into the standard focused outing route or Seasonal Challenge
-detail route.
+destination into the standard focused outing route or Seasonal Challenge detail
+route.
 
 Completed goal tiles render the captured scan full-bleed with a bottom metadata
 overlay and the ordinary neutral one-point border. Incomplete focused goals may
@@ -1097,17 +1092,17 @@ renders `InsightSheetView` with
 `InsightPresentationStyle.embeddedInScansLibrary`. The route stays in the
 existing Explore `NavigationStack`, exposing a back arrow and interactive back
 gesture instead of a nested sheet. If the local record is missing, the
-placeholder remains and the shell presents a non-destructive unavailable
-message rather than an empty Insight view.
+placeholder remains and the shell presents a non-destructive unavailable message
+rather than an empty Insight view.
 
 `FieldTripProgress.publicationId` and `publishedAt` are optional for staged
-backend/client rollout. `FieldTripPublicationStatusBadge` derives Published
-only from a non-null publication ID; completion alone and Community results are
-not publication-state signals. The badge uses a green globe for **Published**
-and a neutral lock for **Private**, remains fixed-size in its own left-aligned
-row above the wrapping title, and exposes explicit VoiceOver labels and
-explanations. The active-level progress ring uses a larger 52-point treatment
-in outing detail while the camera component retains its compact size.
+backend/client rollout. `FieldTripPublicationStatusBadge` derives Published only
+from a non-null publication ID; completion alone and Community results are not
+publication-state signals. The badge uses a green globe for **Published** and a
+neutral lock for **Private**, remains fixed-size in its own left-aligned row
+above the wrapping title, and exposes explicit VoiceOver labels and
+explanations. The active-level progress ring uses a larger 52-point treatment in
+outing detail while the camera component retains its compact size.
 
 ## Community Ranking
 
@@ -1170,38 +1165,36 @@ Deploy in this order:
 21. `20260802053044_simplify_backyard_and_pollinator_levels.sql`
 22. `20260803015025_auto_enroll_backyard_safari_level_one.sql`
 23. scan-ingestion Edge Functions (`identify-multimodal`, `identify`,
-   `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
+    `identify-describe`, `audio-spec`, and `replay-scan-ingestion`)
 24. `field-trips` Edge Function
-25. `get-explore-author-profile` so public profiles include Field trip
-   summaries and pins
+25. `get-explore-author-profile` so public profiles include Field trip summaries
+    and pins
 26. `get-explore-notifications`, `get-explore-unread-notification-count`, and
-   `mark-explore-notifications-read` Edge Function updates
+    `mark-explore-notifications-read` Edge Function updates
 27. iOS client update
 
 The Edge Function depends on the migration-created tables and RPCs. The profile
-function update depends on `public.get_field_trip_profile_summaries(...)`.
-The persistent contribution and atomic-hardening migrations plus the ingestion
-and `field-trips` Edge Functions must precede the new iOS client. Older clients
-omit `preferred_goal` and receive deterministic fallback; the new client
-silently hides its Insight card until `scan_contributions` is deployed.
+function update depends on `public.get_field_trip_profile_summaries(...)`. The
+persistent contribution and atomic-hardening migrations plus the ingestion and
+`field-trips` Edge Functions must precede the new iOS client. Older clients omit
+`preferred_goal` and receive deterministic fallback; the new client silently
+hides its Insight card until `scan_contributions` is deployed.
 
 Rollback should revert the iOS thumbnail route before rolling back the evidence
 link migration. Because `completed_scan_id` is optional, older clients tolerate
 either database shape, and rolling back the migration does not delete completion
 rows. Do not restore direct `PUBLIC`, `anon`, or `authenticated` execution of
 the private catalog/detail RPCs. Existing `user_field_trips` and publication
-rows are user data and should not be dropped casually after release.
-Placeholder field trips should be retired through
-`field_trip_templates.is_active`, as Forest Edges is, rather than deleting their
-template graph.
+rows are user data and should not be dropped casually after release. Placeholder
+field trips should be retired through `field_trip_templates.is_active`, as
+Forest Edges is, rather than deleting their template graph.
 
 If automatic Backyard Safari enrollment must be disabled, ship a forward
-migration that drops
-`auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
-drops `internal.auto_enroll_backyard_safari_level_one()`. Preserve all
-backfilled `user_field_trips` rows and activity periods: they are now normal
-user progress, and deleting them would erase credit or reopen historical
-eligibility choices.
+migration that drops `auto_enroll_backyard_safari_level_one_on_user_insert` from
+`public.users`, then drops `internal.auto_enroll_backyard_safari_level_one()`.
+Preserve all backfilled `user_field_trips` rows and activity periods: they are
+now normal user progress, and deleting them would erase credit or reopen
+historical eligibility choices.
 
 Rolling back credited progress is response-compatible: older fields remain the
 source of truth and the iOS fallback continues to render them. Preserve both
@@ -1218,8 +1211,8 @@ changing data when completed trips, publications, Event badges, or entries are
 present; treat that guard as a release blocker requiring product/data review,
 not something to bypass in production.
 
-The confidence-gate migration is forward-only because its repair deletes
-invalid completion rows and Event badges and soft-deletes invalid completion
+The confidence-gate migration is forward-only because its repair deletes invalid
+completion rows and Event badges and soft-deletes invalid completion
 publications or entries. Retain a production backup and record the affected-row
 counts before deployment. During an incident, roll back the client or Edge
 surface, or ship a forward database fix, while leaving the evidence gate and
@@ -1266,20 +1259,20 @@ report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
 database validation. The progress test covers standard and challenge level
 advancement, Backyard enrollment plus explicit eligibility for other outings,
 one credit per experience, multi-experience credit, selected-goal and fallback
-ranking, delayed upload, correction
-move/removal, confidence boundaries, weak-match confirmation, normal correction
-freeze, confidence-downgrade reopening, pending-goal retention, ownership,
-concurrency, and idempotent reapplication.
-The atomic test injects an Event-side exception and proves standard progress,
-preference, achievement/receipt state, and Event progress all roll back. The
-security test enumerates every matching `SECURITY DEFINER` function and requires
-`anon`/`authenticated` execute to be false and `service_role` execute to be
-true. The publication test executes the completed-outing publish path and
-asserts that snapshot items use the created publication ID.
+ranking, delayed upload, correction move/removal, confidence boundaries,
+weak-match confirmation, normal correction freeze, confidence-downgrade
+reopening, pending-goal retention, ownership, concurrency, and idempotent
+reapplication. The atomic test injects an Event-side exception and proves
+standard progress, preference, achievement/receipt state, and Event progress all
+roll back. The security test enumerates every matching `SECURITY DEFINER`
+function and requires `anon`/`authenticated` execute to be false and
+`service_role` execute to be true. The publication test executes the
+completed-outing publish path and asserts that snapshot items use the created
+publication ID.
 
 The capture-context test creates an otherwise empty user and requires the
-database trigger to produce exactly one Backyard Safari Level 1 row and one
-open activity period. The static contract separately locks the active-template
+database trigger to produce exactly one Backyard Safari Level 1 row and one open
+activity period. The static contract separately locks the active-template
 preflight, insert-only backfill, trigger name, empty search path, and denied
 execute privileges for every API role.
 
@@ -1287,16 +1280,16 @@ For progress-toast QA, cover partial progress, level advancement, final
 completion, multiple standard/challenge experiences, re-identification after
 level advancement, the Flash `0.75` and Pro `0.65` inclusive boundaries, a weak
 scan that becomes eligible through confirmation, a confirmed weak scan
-downgraded back to unreviewed evidence, and idempotent reapplication.
-Confirm the response exposes credited counts for the changed level and that
-legacy responses still decode through the current-count fallback. For one scan,
-verify the visible order is standard outings, Seasonal
-Challenges, achievements, then **New to Naturebook**; a failed/no-match progress attempt
-must release the later milestones only after it finishes, and foreground plus
-background completion must enqueue once. Tap a standard toast to open its
-focused first credited goal and a challenge toast to open challenge detail.
-Use DEBUG Settings -> **Preview Field trip progress toast** for compact and
-large-width, long-name, timeout, swipe/close, haptic, and VoiceOver inspection.
+downgraded back to unreviewed evidence, and idempotent reapplication. Confirm
+the response exposes credited counts for the changed level and that legacy
+responses still decode through the current-count fallback. For one scan, verify
+the visible order is standard outings, Seasonal Challenges, achievements, then
+**New to Naturebook**; a failed/no-match progress attempt must release the later
+milestones only after it finishes, and foreground plus background completion
+must enqueue once. Tap a standard toast to open its focused first credited goal
+and a challenge toast to open challenge detail. Use DEBUG Settings -> **Preview
+Field trip progress toast** for compact and large-width, long-name, timeout,
+swipe/close, haptic, and VoiceOver inspection.
 
 For the persistent Insight card, reopen a historical saved biological scan with
 one and then several standard/Event credits. Confirm every row remains visible,
@@ -1305,54 +1298,55 @@ the headline-sized goal name, enlarged objective art/check badge, an
 experience-only subtitle with no level, and a prominent credited-level ring
 without separators or chevrons. Confirm the heading matches other Insight card
 headers and the card reloads after that scan's progress/evidence invalidation.
-Every standard row must open at the top of the outing detail with no focused item; every
-Event row must open challenge overview. Root modal, Scans-embedded,
+Every standard row must open at the top of the outing detail with no focused
+item; every Event row must open challenge overview. Root modal, Scans-embedded,
 Explore-embedded, and modal-from-Explore paths must retain the originating
 Insight beneath the detail so native Back returns to it. Also exercise
 queued/unauthenticated/non-biological gates, no-match and network failure, long
-goal/experience names, compact and large widths, dark
-mode, accessibility Dynamic Type, VoiceOver, and Reduce Motion. The card must
-add no haptic or confetti. Verify V49→V50 migration and
-both foreground/background queue paths preserve the eligible camera-only hint,
-while gallery, mixed camera/gallery, Describe, Record, audio, video, refinement,
-and deletion/orphan cleanup do not leak it.
+goal/experience names, compact and large widths, dark mode, accessibility
+Dynamic Type, VoiceOver, and Reduce Motion. The card must add no haptic or
+confetti. Verify V49→V50 migration and both foreground/background queue paths
+preserve the eligible camera-only hint, while gallery, mixed camera/gallery,
+Describe, Record, audio, video, refinement, and deletion/orphan cleanup do not
+leak it.
 
 For completion-evidence QA, complete a non-leading goal such as Cat and confirm
 that only Cat changes in both the catalog card and detail grid. Test both photo
 and video completions, confirm the captured thumbnail has the standard neutral
 border with no blue completion outline, and tap both surfaces to open the same
 embedded Insight view. Back must return to the current outing. A missing local
-record must leave the placeholder usable and must not show a blank Insight.
-On standard outing detail, confirm an unstarted outing begins with reference pages and one
-loadable goal produces a dot-free square hero. The carousel must include only
-the current active level's goals, with no completed earlier-level or locked
+record must leave the placeholder usable and must not show a blank Insight. On
+standard outing detail, confirm an unstarted outing begins with reference pages
+and one loadable goal produces a dot-free square hero. The carousel must include
+only the current active level's goals, with no completed earlier-level or locked
 later-level pages, and must cap that level at six in checklist order. Advancing
-the outing must replace the carousel contents with the new active level. Verify each reference
-tries Naturebook, Wikipedia, then GBIF; source badges and full-screen rights
-attribution remain legible; completing that exact goal replaces the same stable
-page with the user's visual; video pages show a poster/play badge and open muted
-playable video; and photos open the swipe/zoom viewer. Failed user media must
-fall back to the goal reference, a source-exhausted goal must refill from a
-reserve, and exhausting every user/reference source must collapse the hero
-without affecting the title layout. Confirm there is no segmented detail
-picker, expandable tips appear only inside the current incomplete level card,
-completed and locked cards expose no tips, and **About this outing** follows all
-levels and Community/Event-entry content at the bottom. Exercise compact and
-large iPhones, light/dark appearance, Dynamic Type,
-VoiceOver, Reduce Motion, offline-to-online retry, progress refresh, and
-Reset/removal while preserving a still-valid selected goal page. At the
-database boundary, confirm catalog/detail return the completion row's exact
+the outing must replace the carousel contents with the new active level. Verify
+each reference tries Naturebook, Wikipedia, then GBIF; source badges and
+full-screen rights attribution remain legible; completing that exact goal
+replaces the same stable page with the user's visual; video pages show a
+poster/play badge and open muted playable video; and photos open the swipe/zoom
+viewer. Failed user media must fall back to the goal reference, a
+source-exhausted goal must refill from a reserve, and exhausting every
+user/reference source must collapse the hero without affecting the title layout.
+Confirm there is no segmented detail picker, expandable tips appear only inside
+the current incomplete level card, completed and locked cards expose no tips,
+and **About this outing** follows all levels and Community/Event-entry content
+at the bottom. Exercise compact and large iPhones, light/dark appearance,
+Dynamic Type, VoiceOver, Reduce Motion, offline-to-online retry, progress
+refresh, and Reset/removal while preserving a still-valid selected goal page. At
+the database boundary, confirm catalog/detail return the completion row's exact
 `scan_id`, only `service_role` can execute their RPCs, and no public or
-capture-context payload contains `completed_scan_id`. Confirm `reference_species`
-appears only on authenticated template/lifecycle detail and contains no private
-scan, owner, note, or location provenance.
+capture-context payload contains `completed_scan_id`. Confirm
+`reference_species` appears only on authenticated template/lifecycle detail and
+contains no private scan, owner, note, or location provenance.
 
-For publication-state QA, verify an unstarted, active, completed-but-unpublished,
-and deleted-publication outing all show **Private**. Publishing must change the
-badge to **Published** after refresh and expose a VoiceOver value that says the
-snapshot is public. Confirm template detail returns only the requesting user's
-active non-deleted publication ID and that catalog, capture context, public
-profile summaries, and completion evidence contracts are unchanged.
+For publication-state QA, verify an unstarted, active,
+completed-but-unpublished, and deleted-publication outing all show **Private**.
+Publishing must change the badge to **Published** after refresh and expose a
+VoiceOver value that says the snapshot is public. Confirm template detail
+returns only the requesting user's active non-deleted publication ID and that
+catalog, capture context, public profile summaries, and completion evidence
+contracts are unchanged.
 
 Also verify that publishing a Field trip appears on profiles, Field trip-native
 preview/detail surfaces, and typed Observations Recent/Following cards without
@@ -1366,8 +1360,7 @@ sheet and unread count.
 Published base Field trips are mixed into the Observations feed as typed Field
 Trip cards for `Recent` and `Following`. They keep their Field trip publication
 identity and open `FieldTripPublicationDetailView`, so likes, comments, author
-identity, and deletion semantics are not duplicated into `explore_posts`.
-Field trips are intentionally absent from `Trending` and `Nearby` until those
-ranking and geoprivacy contracts are designed. Seasonal entry aggregation,
-cross-type cursor pagination, widget/APNs, and public-web presentation remain
-future work.
+identity, and deletion semantics are not duplicated into `explore_posts`. Field
+trips are intentionally absent from `Trending` and `Nearby` until those ranking
+and geoprivacy contracts are designed. Seasonal entry aggregation, cross-type
+cursor pagination, widget/APNs, and public-web presentation remain future work.

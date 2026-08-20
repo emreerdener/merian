@@ -98,19 +98,18 @@ client response aliases instead come from the executable descriptor in
   the only layer that calls the Field trip RPCs and publication/comment tables.
   The endpoint is intentionally action-based because the Field trips endpoint
   serves catalog, template detail, starts for other outings and resumes,
-  Community publications,
-  Recent compatibility, profile pins, scan progress, private scan contributions,
-  publication detail, likes, and comments from one Field trips-native surface
-  without extending Explore feed functions. Catalog/detail can project the
-  verified viewer's private `completed_scan_id` through service-role-only RPCs;
-  `db.ts` also batch-hydrates template detail with a bounded, public
-  species-reference projection for the curated Goals hero. That projection
-  selects one normalized Naturebook, Wikipedia, and GBIF candidate per reviewed
-  illustrative species. A cache miss for a current-level goal may use the
-  shared deadline- and response-bounded external enrichment helper for at most
-  six goals and three concurrent lookups; provider failure remains optional.
-  Neither path may copy `completed_scan_id` into capture context, public
-  profile, publication/challenge, or Explore projections.
+  Community publications, Recent compatibility, profile pins, scan progress,
+  private scan contributions, publication detail, likes, and comments from one
+  Field trips-native surface without extending Explore feed functions.
+  Catalog/detail can project the verified viewer's private `completed_scan_id`
+  through service-role-only RPCs; `db.ts` also batch-hydrates template detail
+  with a bounded, public species-reference projection for the curated Goals
+  hero. That projection selects one normalized Naturebook, Wikipedia, and GBIF
+  candidate per reviewed illustrative species. A cache miss for a current-level
+  goal may use the shared deadline- and response-bounded external enrichment
+  helper for at most six goals and three concurrent lookups; provider failure
+  remains optional. Neither path may copy `completed_scan_id` into capture
+  context, public profile, publication/challenge, or Explore projections.
 - The identify and enrich-scan `db.ts` files include `alternative_common_names`
   in their `SPECIES_SELECT`/select strings and upsert/update payloads. Any new
   column added to `species_dictionary` that is served to the client must be

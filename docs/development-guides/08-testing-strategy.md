@@ -2370,8 +2370,13 @@ device-evidence checks:
   `not_deployed`/null evidence, expired-unacknowledged criticals, eight-per-job
   warning, cardinality-invariant failure, and combined summary status. The
   migration contract statically locks the Vault-first, NULL-only selection
-  order. Workflow security checks separately keep its actions immutable,
-  permissions minimal, and secrets step-scoped.
+  order. `resolve_deployed_health_monitor_modes_test.ts` separately proves that
+  both recovery migrations and both hosted smokes are required at one ancestor
+  SHA with a successful `main` production deploy job, malformed API/history
+  evidence fails closed, and the 2026-09-19 UTC deadline selects `required`
+  without retained Actions evidence. Workflow security checks keep actions
+  immutable, permissions minimal, mode resolution ahead of Supabase credential
+  loading, and secrets step-scoped.
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
@@ -3611,15 +3616,19 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   the returned prepared count/oldest age includes only still-live rows, any
   newly expired row warns, and live volume warns at 100 or becomes critical at
   500 by default. The production schedule makes the already-deployed principal
-  aggregate unconditionally required, with no compatibility CLI flag, while the
-  additive rotation aggregate alone uses
-  `--purchase-principal-signout-rotation-health-mode expand-compatible` until
-  its production migration and hosted smoke pass. Unit and workflow coverage
-  prove that only the exact named rotation `PGRST202` becomes
-  `not_deployed`/null, while a missing established principal RPC, malformed
-  response, authorization failure, and every unrelated RPC error fail closed.
-  The same workflow contract must switch the rotation flag to `required` before
-  stable canary activation.
+  aggregate unconditionally required, with no compatibility CLI flag. The
+  additive rotation aggregate's scheduled mode comes from
+  `resolve_deployed_health_monitor_modes.ts`: an ancestor SHA with a successful
+  `main` production `deploy` job, the controlling migration, and the exact
+  hosted smoke selects `required`; absent proof may select `expand-compatible`
+  only before the 2026-09-19 UTC deadline. Resolver tests prove malformed API
+  payloads, pagination drift, Git-history ambiguity, and source-qualified runs
+  without a successful deploy job fail closed, while the hard deadline removes
+  any dependency on retained Actions history. Monitor tests prove that only the
+  exact named rotation `PGRST202` becomes `not_deployed`/null in compatibility
+  mode, while a missing established principal RPC, malformed response,
+  authorization failure, and every unrelated RPC error fail closed. Both
+  aggregates must be required before stable canary activation.
 - **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
   offline exports, conservative customer classification, canonical UUID
   formatting, exact explicit-cohort selection independent of current

@@ -1,0 +1,64 @@
+name: Markdown Quality
+
+on:
+  # Always report the stable format check for pull requests and merge queues.
+  # The job resolves the complete event range instead of using path filters.
+  pull_request:
+  merge_group:
+    types:
+      - checks_requested
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Base commit to compare with the selected workflow revision
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: markdown-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Changed Markdown formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source and comparison history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pinned Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Test diff-aware Markdown tooling
+        run: bash scripts/test-check-changed-markdown-format.sh
+
+      - name: Validate complete event range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || inputs.base_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          base_sha="$EVENT_BASE_SHA"
+          if [ "$EVENT_NAME" = "merge_group" ]; then
+            base_sha="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"
+          fi
+
+          if [ -z "$base_sha" ] || [[ "$base_sha" =~ ^0+$ ]]; then
+            echo "Unable to resolve a non-zero Markdown comparison base for $EVENT_NAME." >&2
+            exit 1
+          fi
+
+          bash scripts/check-changed-markdown-format.sh "$base_sha" "$GITHUB_SHA"

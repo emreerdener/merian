@@ -163,6 +163,14 @@ work.
 
 ## Testing Protocol
 
+- **Markdown**: Format every changed Markdown file before handoff. Run
+  `make validate-markdown-format` to check modified and untracked Markdown in
+  the local worktree. The stable **Markdown Quality / Changed Markdown
+  formatting** check compares the complete pull-request or merge-queue range, so
+  pre-existing unformatted documents outside the change do not block an
+  otherwise scoped contribution. Its diff-aware checker rejects changed Markdown
+  symlinks and ignores deleted files rather than reading outside the checkout or
+  passing removed paths to Deno.
 - **Swift/iOS**: All `@MainActor` lifecycle boundaries must not block the main
   thread. Before opening a pull request, run the source-level CI contracts:
   ```bash

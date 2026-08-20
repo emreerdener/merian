@@ -564,7 +564,7 @@ export function renderRevenueCatMonitorMarkdown(
   const operatorAction = summary.status !== "ok"
     ? "Inspect the reconciliation, stable purchase-principal, server-authorized rotation, and sign-out purchase-handoff Edge logs; inspect queue error codes, entitled unbound principals, expired rotations, and pending ages; repair provider/database configuration and let device-safe retries plus claim-fenced reconciliation complete. Do not edit subscription tiers, move bindings, or discard bound proofs directly."
     : summary.purchase_principal_signout_rotation_health === null
-    ? "No deployed backlog action required. Keep only the unavailable rotation aggregate in expand-compatible mode until its migration and hosted health-RPC smoke pass, then switch that aggregate's scheduled flag to required mode."
+    ? "No deployed backlog action required. The unavailable rotation aggregate remains in the bounded compatibility window; its scheduled resolver selects required mode after qualifying production-deploy evidence or at the hard compatibility deadline."
     : "No action required.";
   return [
     "# RevenueCat Reconciliation Health",

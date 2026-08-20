@@ -765,7 +765,7 @@ export function renderAccountDeletionMarkdown(
       summary.recovery_preparation_health_availability === "available"
       ? "No action required."
       : summary.status === "ok"
-      ? "Baseline deletion health is healthy. Complete the recovery-ledger migration and hosted health-RPC smoke, then switch the scheduled monitor from expand-compatible to required; do not infer zero recovery work from unavailable aggregates."
+      ? "Baseline deletion health is healthy. The unavailable recovery aggregates remain in the bounded compatibility window; the scheduled resolver selects required mode after qualifying production-deploy evidence or at the hard compatibility deadline; do not infer zero recovery work from unavailable aggregates."
       : "Verify the database reaper cron and its Vault/app-settings URL and service credential, then inspect safe-delete, recover-account-deletion, reconcile-account-deletions, and R2 erasure aggregate logs. Repair configuration or dependencies and let claim-fenced retries resume; do not edit private job, capability, lease, or cursor rows.",
     "",
   ].join("\n");

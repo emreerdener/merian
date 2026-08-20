@@ -10,8 +10,8 @@ dependency injection, persistence ownership, or shared iOS/watchOS code.
   generated project diff.
 - Do not edit `Merian.xcodeproj` or `merian.xcodeproj` directly. Do not add an
   independent package or build manifest to work around XcodeGen.
-- Source directories are globbed. Confirm the relevant target already includes
-  a new file, regenerate, then build that target.
+- Source directories are globbed. Confirm the relevant target already includes a
+  new file, regenerate, then build that target.
 - Preserve automatic signing and established bundle identifiers. Signing and
   distribution belong to `$merian-release`, not routine implementation.
 

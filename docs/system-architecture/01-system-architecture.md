@@ -59,36 +59,36 @@ orphaned object does not reconstruct its relational context.
 ### 2. Typed Events, Routes, and Presentation Coordination
 
 - Loss-tolerant reload hints and lifecycle commands use the synchronous,
-  `@MainActor` `AppEventPublisher`. Events carry only IDs and small scalar hints;
-  SwiftData, UserDefaults, Supabase, or the owning service remains authoritative.
-- Delivery-critical navigation uses `AppRouteCoordinator`, a process-local
-  state machine capped at 16 pending requests and 64 recent outcomes. Stable
-  envelopes define source priority, FIFO order, expiry, semantic coalescing,
+  `@MainActor` `AppEventPublisher`. Events carry only IDs and small scalar
+  hints; SwiftData, UserDefaults, Supabase, or the owning service remains
+  authoritative.
+- Delivery-critical navigation uses `AppRouteCoordinator`, a process-local state
+  machine capped at 16 pending requests and 64 recent outcomes. Stable envelopes
+  define source priority, FIFO order, expiry, semantic coalescing,
   account/session generations, explicit deferral, and terminal rejection.
   Durable work such as Photos document import remains in its owning store; the
   route is a bounded wake-up request, not persistence.
-- `CaptureWorkspaceViewModel` is the sole root consumer.
-  `CameraSheetRouter` presents Paywall, Insight, Scans, Profile, Explore,
-  achievement detail, and the notification prompt through one identified
-  `.sheet(item:)`. Capture-local editors and covers advertise the same UIKit
-  presentation slot as occupied. Routes resume only after the exact dismissal
-  callback, never after an assumed animation delay.
+- `CaptureWorkspaceViewModel` is the sole root consumer. `CameraSheetRouter`
+  presents Paywall, Insight, Scans, Profile, Explore, achievement detail, and
+  the notification prompt through one identified `.sheet(item:)`. Capture-local
+  editors and covers advertise the same UIKit presentation slot as occupied.
+  Routes resume only after the exact dismissal callback, never after an assumed
+  animation delay.
 - Framework notifications are allowed only at the seven reviewed Apple boundary
   files. Application-defined notification names and posts are forbidden and
   enforced by the iOS event-routing guard. AVPlayer KVO, notifications, and
   periodic time callbacks are owned by `MediaPlaybackObservation`, which removes
   exact old-player tokens and rejects late callbacks with a generation fence.
-- Ordinary visual feedback is a typed, lightweight `ToastPayload` rendered by
-  an alignment-scoped pass-through modifier. Milestone feedback is a DI-owned,
+- Ordinary visual feedback is a typed, lightweight `ToastPayload` rendered by an
+  alignment-scoped pass-through modifier. Milestone feedback is a DI-owned,
   bounded and deduplicated queue with one foreground host, an injectable clock,
   one-time haptic/accessibility claims, and account/session fences. Nested
   Candidate, Confidence, Insight Chat, and Explore activity transitions stage
   typed actions and resume them from exact `onDismiss` callbacks.
-- See
-  [Event and Presentation Routing](./10-event-and-presentation-routing.md) for
-  the exhaustive event/route matrices, priority and expiry rules, presentation
-  state machine, framework-boundary inventory, visual-feedback contract, tests,
-  and maintenance rules.
+- See [Event and Presentation Routing](./10-event-and-presentation-routing.md)
+  for the exhaustive event/route matrices, priority and expiry rules,
+  presentation state machine, framework-boundary inventory, visual-feedback
+  contract, tests, and maintenance rules.
 
 ### 3. Hardened Hardware Interfacing (`HardwareOrchestrator`, `CameraManager`, `EnvironmentContextManager`)
 
@@ -119,10 +119,10 @@ orphaned object does not reconstruct its relational context.
 - **Photos Document Import (`ExternalImageImportStore`):** The app advertises
   `public.image` as an alternate viewer. `MerianApp.onOpenURL` copies a shared
   Photos file out of its security-scoped or temporary source into an Application
-  Support inbox before requesting `AppRoute.processExternalImageImports`. This is an app-owned
-  document import, not an extension or App Group handoff, and the pending copy
-  survives cold launch and onboarding until Capture stages it or rejects it as
-  terminally unreadable.
+  Support inbox before requesting `AppRoute.processExternalImageImports`. This
+  is an app-owned document import, not an extension or App Group handoff, and
+  the pending copy survives cold launch and onboarding until Capture stages it
+  or rejects it as terminally unreadable.
 - **Pre-warmed Tactile Shutter (`HapticManager`):** The app `.prepare()`s Taptic
   Engine instances (e.g. `UIImpactFeedbackGenerator(style: .medium)`) on app
   boot inside a global `HapticManager`. Centralizing haptics removes the ~20ms
@@ -134,11 +134,10 @@ orphaned object does not reconstruct its relational context.
   `CoreLocation` and `WeatherKit` with coarse, pausable location updates while
   the camera is active, then fires a one-shot high-accuracy `requestLocation()`
   when the shutter is pressed. Heading updates are not started because compass
-  telemetry is not part of the active inference payload. The shutter location
-  is used for the Photos asset location and deferred weather/geocode context,
-  while stale cached coordinates remain a fallback if GPS cannot settle within
-  the timeout.
-  It also backfills historical edge metadata (GPS and past WeatherKit
+  telemetry is not part of the active inference payload. The shutter location is
+  used for the Photos asset location and deferred weather/geocode context, while
+  stale cached coordinates remain a fallback if GPS cannot settle within the
+  timeout. It also backfills historical edge metadata (GPS and past WeatherKit
   conditions) from `PHAsset` context for in-app gallery picks or embedded
   ImageIO metadata for Photos document imports prior to inference. Date-only and
   coordinate-only imports preserve only the fields actually present.
@@ -203,10 +202,9 @@ orphaned object does not reconstruct its relational context.
   permit a narrow immediate post-row fallback. Canonical video proof follows the
   captured-media timeline (or its legacy standalone-image/playback projection);
   compatibility inference frames are not standalone ready images. Analytics,
-  group tags, and
-  candidate enrichment remain optional background tasks. Privacy-safe
-  `Server-Timing` separates auth, request body, database, Gemini, dictionary,
-  and response work; the Gemini timer stops as soon as the single
+  group tags, and candidate enrichment remain optional background tasks.
+  Privacy-safe `Server-Timing` separates auth, request body, database, Gemini,
+  dictionary, and response work; the Gemini timer stops as soon as the single
   `generateContent` call returns.
 - Free remains `gemini-2.5-flash` and Pro remains `gemini-2.5-pro`. Thinking,
   prompt/schema, media resolution, output limits, and one-call semantics are not
@@ -257,8 +255,8 @@ single-responsibility functions under `/services/supabase/functions/`.
     source-issued, provider-bound proof, an atomic Ghost-to-account data merge,
     a verified RevenueCat Pro mirror before source Auth deletion, client receipt
     synchronization, and an idempotent cleanup receipt. The schema-aware
-    expansion adds manifest-reviewed ownership and durable provider repair behind
-    the rollout gate.
+    expansion adds manifest-reviewed ownership and durable provider repair
+    behind the rollout gate.
   - `/reconcile-ghost-profile-merges`: Five-minute service-role worker that
     leases incomplete receipts and deletes obsolete anonymous Auth shells.
 - **Export & Storage Orchestration**
@@ -315,19 +313,19 @@ single-responsibility functions under `/services/supabase/functions/`.
     removing Auth. Legacy Apple accounts carry an explicit manual-fallback
     disposition for supporting clients. Older binaries cannot consume that
     response field, so their minimum-build or independent server-delivery
-    control remains a production gate. The database claim
-    requires the matching cleaned-up `storage_pending` job and rejects live
-    profiles or owned scans; the storage outbox is never sufficient authority.
+    control remains a production gate. The database claim requires the matching
+    cleaned-up `storage_pending` job and rejects live profiles or owned scans;
+    the storage outbox is never sufficient authority.
   - `/reconcile-account-deletions`: Five-minute service-role reaper with
     claim-token fencing, persisted storage cursors, provider-before-Auth
-    ordering, backoff, and idempotent Auth-not-found recovery. An offset GitHub schedule independently reads an
-    aggregate service-only health RPC and alerts on missing cron/credentials,
-    overdue work, retries, expired leases, orphaned storage rows, and SLA
-    age/backlog breaches. Its Management-API-resolved server key is independent
-    of the reaper's Vault credential, so a broken worker configuration cannot
-    also hide the alert. An orphan critical is a provenance incident, not
-    deletion authority or permission to clear metadata; restricted review
-    precedes any durable request or forward repair.
+    ordering, backoff, and idempotent Auth-not-found recovery. An offset GitHub
+    schedule independently reads an aggregate service-only health RPC and alerts
+    on missing cron/credentials, overdue work, retries, expired leases, orphaned
+    storage rows, and SLA age/backlog breaches. Its Management-API-resolved
+    server key is independent of the reaper's Vault credential, so a broken
+    worker configuration cannot also hide the alert. An orphan critical is a
+    provenance incident, not deletion authority or permission to clear metadata;
+    restricted review precedes any durable request or forward repair.
   - `/register-apple-revocation-token`: Authenticated Apple authorization-code
     exchange. It verifies presented and returned Apple identity tokens, binds
     their subject to the active Supabase identity, and atomically stores the
@@ -448,18 +446,18 @@ single-responsibility functions under `/services/supabase/functions/`.
     signed-out identity; beta/promotional grants stay on the linked source.
     **Continue with Apple** or **Continue with Google** links the anonymous UUID
     or enters the existing-account conflict flow, which preserves and verifies
-    provider access before source Auth
-    cleanup. Prelaunch provider cleanup is limited to an exact digest/count batch
-    of live-revalidated empty shells and never deletes Supabase data. Grant and
-    cleanup apply still require the exact provider-operation evidence in the
+    provider access before source Auth cleanup. Prelaunch provider cleanup is
+    limited to an exact digest/count batch of live-revalidated empty shells and
+    never deletes Supabase data. Grant and cleanup apply still require the exact
+    provider-operation evidence in the
     [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 ### 6. Continuous Gamification Ecosystem (`GamificationManager`)
 
 - Tracks device-native state (`UserDefaults`), tying species identifications to
   profile persona progression and achievement milestones.
-- Returns typed presentation-eligible awards to `ScanMilestoneCoordinator`;
-  the domain manager never reaches into the in-app feedback presenter.
+- Returns typed presentation-eligible awards to `ScanMilestoneCoordinator`; the
+  domain manager never reaches into the in-app feedback presenter.
 - Binds global haptics to success triggers and interactions.
 
 ### 7. Private Analytics (`AppTelemetry`, `PostHog`)

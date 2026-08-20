@@ -18,64 +18,62 @@ steps are tracked in the
 
 > **Consent production release hold (2026-08-03):** The final **One last step**
 > Ready consent screen and versioned adult, Terms, Gemini, and optional PostHog
-> evidence are implemented. All tracked consent findings are closed in source, including
-> crash-safe ghost-ledger handoff, withdrawal-time PostHog transport blocking,
-> verified atomic local-ledger persistence, restart-safe multi-account
+> evidence are implemented. All tracked consent findings are closed in source,
+> including crash-safe ghost-ledger handoff, withdrawal-time PostHog transport
+> blocking, verified atomic local-ledger persistence, restart-safe multi-account
 > withdrawal journaling, target-account restoration, final in-merge
 > account/session fencing, Realtime repair, OAuth account replacement, and
 > atomic rejection of delayed offline AI/analytics grants plus deny-wins
 > rebasing of revocations onto the locked server head. Gemini authorization,
 > Edge PostHog delivery, and iOS permission gates now resolve the provider-wide
 > greatest revision across all disclosure versions first: any head revocation
-> denies, and only a head grant may enter disclosure/rollout checks.
-> Completed users also remain on a launch-matched neutral root while required
-> account evidence is unknown, so approval controls are never a transient
-> startup state. An expired cached Supabase session retains its account identity
-> for this gate until refresh succeeds or Auth emits a signed-out result; token
-> expiry alone is never treated as no session. Fetch, decoding, pending-row
-> push, and ledger-write failures
-> keep that root active, expose **Try Again**, and receive bounded 5-, 10-, and
-> 20-second account-fenced retries. Once an authenticated account enters that
-> missing-local-evidence restoration state, only a successfully persisted
-> authoritative merge may select the scanner or Ready consent screen.
-> Internal test builds may continue, but
-> do not nominate the candidate for public production or enable strict server
-> enforcement until **iOS Build and Test** and the validation-only **Supabase
-> Candidate Validation** workflow are green on the same immutable SHA, followed
-> by replacement-build rollout, App Store 18+ configuration, and paid Gemini
-> billing/DPA evidence.
-> See the
+> denies, and only a head grant may enter disclosure/rollout checks. Completed
+> users also remain on a launch-matched neutral root while required account
+> evidence is unknown, so approval controls are never a transient startup state.
+> An expired cached Supabase session retains its account identity for this gate
+> until refresh succeeds or Auth emits a signed-out result; token expiry alone
+> is never treated as no session. Fetch, decoding, pending-row push, and
+> ledger-write failures keep that root active, expose **Try Again**, and receive
+> bounded 5-, 10-, and 20-second account-fenced retries. Once an authenticated
+> account enters that missing-local-evidence restoration state, only a
+> successfully persisted authoritative merge may select the scanner or Ready
+> consent screen. Internal test builds may continue, but do not nominate the
+> candidate for public production or enable strict server enforcement until
+> **iOS Build and Test** and the validation-only **Supabase Candidate
+> Validation** workflow are green on the same immutable SHA, followed by
+> replacement-build rollout, App Store 18+ configuration, and paid Gemini
+> billing/DPA evidence. See the
 > [canonical consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md).
 
 > **iOS privacy manifest status (2026-08-05):** The main app now owns a
 > validated `PrivacyInfo.xcprivacy` declaring no tracking, the reviewed linked
-> data categories, and approved reasons for app-only user defaults, app-container
-> file timestamps, and write-admission disk-space checks. This closes the
-> missing-manifest finding in source, not the production gate. The final
-> exact-SHA archive must report `privacy_manifest_valid: true`, and the signed
-> Organizer archive still needs an aggregate privacy report reconciled with SDK
-> manifests, the public policy, App Store Connect answers, and counsel review.
-> See the
+> data categories, and approved reasons for app-only user defaults,
+> app-container file timestamps, and write-admission disk-space checks. This
+> closes the missing-manifest finding in source, not the production gate. The
+> final exact-SHA archive must report `privacy_manifest_valid: true`, and the
+> signed Organizer archive still needs an aggregate privacy report reconciled
+> with SDK manifests, the public policy, App Store Connect answers, and counsel
+> review. See the
 > [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md).
 
 > **iOS transport security status (2026-08-05):** The main app no longer
 > disables App Transport Security. App-configured origins and backend-supplied
 > remote media are accepted only as credential-free HTTPS, with ATS retained as
-> an independent platform backstop. Source, archive, and exported-IPA
-> validators reject broad or domain-scoped exceptions and insecure Supabase
-> origins. Public promotion still requires exact-SHA archive evidence reporting
+> an independent platform backstop. Source, archive, and exported-IPA validators
+> reject broad or domain-scoped exceptions and insecure Supabase origins. Public
+> promotion still requires exact-SHA archive evidence reporting
 > `transport_security: "ats-default"`. See the
 > [iOS transport security contract](docs/development-guides/17-ios-transport-security.md).
 
 > **Sign in with Apple deletion status (2026-08-06):** Apple authorization-code
 > capture, Vault-backed refresh-token storage, claim-fenced provider revocation,
-> subject-bound credential-state revalidation, and a durable manual fallback
-> for pre-rollout Apple accounts are implemented in source. Supabase Auth
-> deletion is now unreachable while a stored Apple credential remains.
-> Production promotion still requires hosted Apple key
-> provisioning, exact-SHA fresh-catalog replay, a real Apple exchange/revoke
-> smoke, and either an enforceable minimum-supported-build gate or an
-> independent server-delivered manual fallback for older iOS binaries. See the
+> subject-bound credential-state revalidation, and a durable manual fallback for
+> pre-rollout Apple accounts are implemented in source. Supabase Auth deletion
+> is now unreachable while a stored Apple credential remains. Production
+> promotion still requires hosted Apple key provisioning, exact-SHA
+> fresh-catalog replay, a real Apple exchange/revoke smoke, and either an
+> enforceable minimum-supported-build gate or an independent server-delivered
+> manual fallback for older iOS binaries. See the
 > [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 > **Production release evidence gate (2026-07-28):** DwC-A exports are
@@ -196,15 +194,14 @@ steps are tracked in the
 > Cardinal** and retained decoded audio, then proved the bottom toolbar was
 > absent: queued and completed states share one UUID, so a toolbar task keyed to
 > that ID did not restart after promotion advanced the presentation generation.
-> Commit `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` makes a persisted
-> completion authoritative over stale same-ID queued routes and keys
-> result-toolbar plus Field Notes tasks to that generation. Rebinding that stale
-> route after the exact completion is already visible is an idempotent no-op
-> that preserves the result generation and controls. A later verbose exact-case
-> rerun exposed an independent
-> test-interaction defect: the animated scanning badge advertised a 703-point
-> accessibility frame beginning at x=-384.7 in a 402-point window, so XCTest
-> rejected the rectangle and tapped its x=5 fallback sliver. Commit
+> Commit `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` makes a persisted completion
+> authoritative over stale same-ID queued routes and keys result-toolbar plus
+> Field Notes tasks to that generation. Rebinding that stale route after the
+> exact completion is already visible is an idempotent no-op that preserves the
+> result generation and controls. A later verbose exact-case rerun exposed an
+> independent test-interaction defect: the animated scanning badge advertised a
+> 703-point accessibility frame beginning at x=-384.7 in a 402-point window, so
+> XCTest rejected the rectangle and tapped its x=5 fallback sliver. Commit
 > `2ca985f6079c41c45c6a6e78d382c8283eb0db3b` proved that visually clipping those
 > translated descendants was insufficient: Run 104 compiled both test bundles,
 > passed all 1,243 unit tests and the 239,112,192-byte Release archive
@@ -237,18 +234,18 @@ steps are tracked in the
 > **App Store export integrity addendum (2026-07-30):** a clean local archive
 > from exact revision `6ce1a56a47aea1deb05353a7714c3f0518aabfac` correctly
 > carried `1.0.2 (236)` and source fingerprint
-> `5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`.
-> Xcode's distribution pipeline nevertheless emitted an App Store-signed IPA
-> labeled build `272`, matching its cached latest App Store Connect build `271`
-> plus one, while retaining the archive's source provenance. The prior export
-> helper omitted `manageAppVersionAndBuildNumber`, whose Xcode default is
-> enabled, and verified only the archive—not the artifact it called
-> TestFlight-ready. Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)`
-> successfully with no errors or warnings and App Store Connect accepted it for
-> processing, so `272` is definitively consumed. The command-line exporter that
-> created competing archive and upload identities is now retired. Xcode
-> Organizer is the sole distribution path, and its Xcode-managed number as
-> reported by App Store Connect is authoritative. See the
+> `5c02aec4af0b40f131f127d1d55469f23bf503cb236a4029e87dd1b1946c3b76`. Xcode's
+> distribution pipeline nevertheless emitted an App Store-signed IPA labeled
+> build `272`, matching its cached latest App Store Connect build `271` plus
+> one, while retaining the archive's source provenance. The prior export helper
+> omitted `manageAppVersionAndBuildNumber`, whose Xcode default is enabled, and
+> verified only the archive—not the artifact it called TestFlight-ready.
+> Retained Content Delivery logs prove Xcode uploaded `1.0.2 (272)` successfully
+> with no errors or warnings and App Store Connect accepted it for processing,
+> so `272` is definitively consumed. The command-line exporter that created
+> competing archive and upload identities is now retired. Xcode Organizer is the
+> sole distribution path, and its Xcode-managed number as reported by App Store
+> Connect is authoritative. See the
 > [Xcode export renumbering incident](docs/incidents/2026-07-xcode-export-build-number-rewrite.md).
 
 ---
@@ -298,11 +295,10 @@ steps are tracked in the
 
 ### Identification
 
-- Powered by **Google Gemini 2.5 Flash** (ordinary Naturebook tier) and
-  **Gemini 2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase.
-  Production permits only the server-side `GEMINI_PAID_API_KEY`; there is no
-  unpaid-key fallback and private provider secrets never touch the client
-  binary.
+- Powered by **Google Gemini 2.5 Flash** (ordinary Naturebook tier) and **Gemini
+  2.5 Pro** (Pro tier), routed via Deno Edge Functions on Supabase. Production
+  permits only the server-side `GEMINI_PAID_API_KEY`; there is no unpaid-key
+  fallback and private provider secrets never touch the client binary.
 - Every public provider attempt first obtains an idempotent database reservation
   that verifies durable entitlement, selects the allowed model, and applies
   UTC-day plus per-user/IP cost ceilings. Entitlement/database failures fail
@@ -421,9 +417,9 @@ steps are tracked in the
 
 ### Explore
 
-- Explore uses exactly three bottom items: **Observations**, **Field trips**, and
-  **Identify**. Identify owns a **Requests / Index** root picker. Requests is a
-  dashboard with shared All/Yours/organism filters, a 12-card **Identify
+- Explore uses exactly three bottom items: **Observations**, **Field trips**,
+  and **Identify**. Identify owns a **Requests / Index** root picker. Requests
+  is a dashboard with shared All/Yours/organism filters, a 12-card **Identify
   requests** preview, and 10 grouped **Recent activity** rows. **See all
   requests** and **See all activity** push paginated **Identify requests** and
   **Identify activity** pages; Index renders the existing Species Dictionary
@@ -440,37 +436,36 @@ steps are tracked in the
   react to comments, follow authors, and receive Explore notifications.
 - Field trips are released for every user. They add guided regional checklist
   quests beside Explore, with Outings, Goals/Tips detail, automatic Backyard
-  Safari Level 1 enrollment, explicit start for other standard outings,
-  curated tips, profile pins, following-weighted Community discovery, and a
-  compact account-cached visual Scan target that opens the relevant field trip
-  guide. The active level shows a circular progress ring; completed standard
-  goals use the exact device-local scan thumbnail and open that Insight inside
-  the same Explore sheet when the record is available. Saved biological Insights
-  also keep a persistent **Field trips** card listing every outing or visible
-  Event credited by that scan. Its rows show the experience name without a
-  redundant level label and open the owning Goals overview in the current
-  navigation stack, with Back returning to the Insight. Backyard Safari starts
-  at Level 1 for every account, other standard outings require explicit start,
-  and Events require join; a scan may advance several active
-  experiences but credits at most one goal in each. Unreviewed AI evidence must
-  be at least a tier-specific **Possible match** (75% Flash / 65% Pro); a weaker
-  match remains pending until confirmation or correction. Scan ingestion applies
-  standard/Event progress and first-outing achievement state atomically, retains
-  a private idempotency receipt for recovery after termination, and keeps the
-  durable Capture goal hint until acknowledgement. Field trip database entry
-  points are service-role-only behind the authenticated Edge API, while trigger
-  and reconciliation helpers remain database-only; direct client roles cannot
-  call ownership-bearing RPCs. The auto-enrolled starter uses the existing
+  Safari Level 1 enrollment, explicit start for other standard outings, curated
+  tips, profile pins, following-weighted Community discovery, and a compact
+  account-cached visual Scan target that opens the relevant field trip guide.
+  The active level shows a circular progress ring; completed standard goals use
+  the exact device-local scan thumbnail and open that Insight inside the same
+  Explore sheet when the record is available. Saved biological Insights also
+  keep a persistent **Field trips** card listing every outing or visible Event
+  credited by that scan. Its rows show the experience name without a redundant
+  level label and open the owning Goals overview in the current navigation
+  stack, with Back returning to the Insight. Backyard Safari starts at Level 1
+  for every account, other standard outings require explicit start, and Events
+  require join; a scan may advance several active experiences but credits at
+  most one goal in each. Unreviewed AI evidence must be at least a tier-specific
+  **Possible match** (75% Flash / 65% Pro); a weaker match remains pending until
+  confirmation or correction. Scan ingestion applies standard/Event progress and
+  first-outing achievement state atomically, retains a private idempotency
+  receipt for recovery after termination, and keeps the durable Capture goal
+  hint until acknowledgement. Field trip database entry points are
+  service-role-only behind the authenticated Edge API, while trigger and
+  reconciliation helpers remain database-only; direct client roles cannot call
+  ownership-bearing RPCs. The auto-enrolled starter uses the existing
   profile-visible status-only summary, including at `0/N`, without publishing
-  scan evidence. Saved scans still show contextual progress toasts
-  with a credited ring and tap-through navigation before any achievement or New
-  to Naturebook notification from the same scan. Publication storage stays
-  separate from Explore posts; typed Field trip cards can appear in unfiltered
-  Recent and Following, but not in Explore maps or the other post-only surfaces.
-  Events are public for every user and include curated seasonal challenges,
-  completion badges, published entries, and optional challenge hashtag
-  suggestions. Their UI is part of Field trips rather than a separate client
-  release flag.
+  scan evidence. Saved scans still show contextual progress toasts with a
+  credited ring and tap-through navigation before any achievement or New to
+  Naturebook notification from the same scan. Publication storage stays separate
+  from Explore posts; typed Field trip cards can appear in unfiltered Recent and
+  Following, but not in Explore maps or the other post-only surfaces. Events are
+  public for every user and include curated seasonal challenges, completion
+  badges, published entries, and optional challenge hashtag suggestions. Their
+  UI is part of Field trips rather than a separate client release flag.
 - Explore cards and public share text can show confident dog/cat pet labels
   without replacing the stored species common/scientific names used for
   dictionary links and statistics.
@@ -526,10 +521,10 @@ steps are tracked in the
 - Loaded Species Dictionary pages share readable UUID-first links at
   `https://naturebook.earth/species/{speciesId}/{slug}`. The UUID stays
   authoritative, while UUID-only and stale-slug browser links permanently
-  redirect to the current readable canonical URL. Installed apps select
-  Explore Identify/Index before opening species detail; browser recipients get
-  the server-rendered public reference page with attribution-approved imagery
-  and no scan- or user-specific data.
+  redirect to the current readable canonical URL. Installed apps select Explore
+  Identify/Index before opening species detail; browser recipients get the
+  server-rendered public reference page with attribution-approved imagery and no
+  scan- or user-specific data.
 
 ### Native Share Extensions
 
@@ -568,11 +563,11 @@ the initial production launch. **Account** — Continue with Apple or Google,
 local sign-out to an anonymous session, and durable account deletion that
 detaches retained scientific observations from the account, queues media
 cleanup, and removes the backend Auth identity only after database, storage, and
-any stored Apple provider credential are verified complete. Pre-rollout Apple accounts receive
-a durable manual-revocation notice because no server token exists to revoke.
-An independent scheduled
-health check alerts when the reaper is unconfigured, work is overdue, leases
-expire, or the deletion backlog breaches its SLA. See the
+any stored Apple provider credential are verified complete. Pre-rollout Apple
+accounts receive a durable manual-revocation notice because no server token
+exists to revoke. An independent scheduled health check alerts when the reaper
+is unconfigured, work is overdue, leases expire, or the deletion backlog
+breaches its SLA. See the
 [scientific-observation retention contract](docs/backend-and-data/17-scientific-observation-retention.md).
 
 ---
@@ -677,19 +672,19 @@ expire, or the deletion backlog breaches its SLA. See the
   cleanup still require the exact reviewed production-operation evidence in the
   [RevenueCat identity incident](docs/incidents/2026-08-revenuecat-customer-identity-drift.md).
 - Free receives one primary Flash scan per UTC day. The staged introductory
-  offer replaces the calendar trial with three lifetime complimentary Pro
-  scans per account; complimentary holds settle independently from provider
-  quota and do not combine into six credits during Ghost-account merge. Paid
-  Pro removes the ordinary product cap and receives Gemini 2.5 Pro, video
-  scans, AI chat, multi-capture, Apple Watch logging, expedition mode, and
-  offline queue; database fair-use ceilings still bound automated provider
-  traffic. Every public AI route atomically resolves entitlement, selects its
-  model, and reserves per-user/IP quota before provider dispatch. The iOS
-  `UserDefaults` meter is advisory, and its debug-only bypass cannot change
-  server capacity. Protocol-3 iOS admission serializes one stable
-  account/scan funding reservation before local media writes, subtracts
-  unresolved reservations from verified capacity, and defers later
-  Flash-eligible work until earlier server settlement is known.
+  offer replaces the calendar trial with three lifetime complimentary Pro scans
+  per account; complimentary holds settle independently from provider quota and
+  do not combine into six credits during Ghost-account merge. Paid Pro removes
+  the ordinary product cap and receives Gemini 2.5 Pro, video scans, AI chat,
+  multi-capture, Apple Watch logging, expedition mode, and offline queue;
+  database fair-use ceilings still bound automated provider traffic. Every
+  public AI route atomically resolves entitlement, selects its model, and
+  reserves per-user/IP quota before provider dispatch. The iOS `UserDefaults`
+  meter is advisory, and its debug-only bypass cannot change server capacity.
+  Protocol-3 iOS admission serializes one stable account/scan funding
+  reservation before local media writes, subtracts unresolved reservations from
+  verified capacity, and defers later Flash-eligible work until earlier server
+  settlement is known.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5
   Flash against stored scan evidence only; the same function also generates
   short, scan-specific prompt chips from private text context.
@@ -741,15 +736,15 @@ expire, or the deletion backlog breaches its SLA. See the
 - Account deletion preserves login access through relational account detachment
   and cursor-persisted R2 erasure. It waits for a delayed empty verification
   sweep, then revokes any stored Apple refresh token before removing Auth; a
-  scheduled reaper resumes every phase after a crash. The database refuses an
-  R2 storage claim unless the matching private
-  deletion job is `storage_pending` after relational cleanup, and vetoes the
-  claim while a live profile or owned scan remains. An outbox row alone is never
-  deletion authority. Apple-linked legacy accounts without a captured token
-  complete deletion with an explicit manual-revocation disposition that iOS
-  persists across sign-out and relaunch. A separate five-minute monitor reads only aggregate
-  service-only health and detects missing reaper credentials, a disabled cron,
-  retry failures, expired leases, and age/backlog SLA breaches.
+  scheduled reaper resumes every phase after a crash. The database refuses an R2
+  storage claim unless the matching private deletion job is `storage_pending`
+  after relational cleanup, and vetoes the claim while a live profile or owned
+  scan remains. An outbox row alone is never deletion authority. Apple-linked
+  legacy accounts without a captured token complete deletion with an explicit
+  manual-revocation disposition that iOS persists across sign-out and relaunch.
+  A separate five-minute monitor reads only aggregate service-only health and
+  detects missing reaper credentials, a disabled cron, retry failures, expired
+  leases, and age/backlog SLA breaches.
 
 ---
 
@@ -800,11 +795,11 @@ Set `MERIAN_DEVELOPMENT_TEAM` in `Signing.local.xcconfig` to your Apple
 Developer Team ID before opening the project. This file is ignored by git so
 your local signing choice survives `xcodegen generate`.
 
-Keep the shared project on automatic signing and do not set
-`CODE_SIGN_IDENTITY` in `project.yml` or an `.xcconfig`. Xcode chooses Apple
-Development for local Run/Test actions and Apple Distribution for an authorized
-archive; forcing the distribution identity conflicts with automatic signing on
-the widget, Messages extension, and watch app.
+Keep the shared project on automatic signing and do not set `CODE_SIGN_IDENTITY`
+in `project.yml` or an `.xcconfig`. Xcode chooses Apple Development for local
+Run/Test actions and Apple Distribution for an authorized archive; forcing the
+distribution identity conflicts with automatic signing on the widget, Messages
+extension, and watch app.
 
 `Merian.xcodeproj` is committed for convenience, but `project.yml` remains the
 source of truth. Regenerate the project after target, package, build setting,
@@ -827,9 +822,9 @@ local overrides in `Config.local.xcconfig`. Public client values like
 `SUPABASE_URL` and the public key configured through the historical
 `SUPABASE_ANON_KEY` build setting are used by the app at runtime; use a current
 `sb_publishable_...` value rather than a legacy anon JWT. True backend secrets
-like `GEMINI_PAID_API_KEY` must stay server-side only. Unsigned validation archives
-do not ship. Xcode Release archives require the production RevenueCat iOS SDK
-key beginning with `appl_`.
+like `GEMINI_PAID_API_KEY` must stay server-side only. Unsigned validation
+archives do not ship. Xcode Release archives require the production RevenueCat
+iOS SDK key beginning with `appl_`.
 
 ### Common Shortcuts
 
@@ -846,11 +841,11 @@ make functions-deploy
 ```
 
 Normal local builds never increment the app version or build. For routine beta
-testing, wait for exact-SHA **iOS Build and Test**, then use Xcode
-**Product → Archive** and Organizer **Distribute App → TestFlight & App Store →
-Upload**. Keep automatic signing and **Manage version and build number**
-enabled. Xcode and App Store Connect own the uploaded build number; promote the
-same processed build through TestFlight and App Review. See the
+testing, wait for exact-SHA **iOS Build and Test**, then use Xcode **Product →
+Archive** and Organizer **Distribute App → TestFlight & App Store → Upload**.
+Keep automatic signing and **Manage version and build number** enabled. Xcode
+and App Store Connect own the uploaded build number; promote the same processed
+build through TestFlight and App Review. See the
 [iOS publishing runbook](docs/development-guides/14-ios-release-versioning.md)
 for setup, upload, promotion, and incident-safe recovery.
 
@@ -969,24 +964,23 @@ Production deployment runs through the path-filtered GitHub workflow, which
 validates frozen function-local dependency graphs, requires exact name parity
 with `services/supabase/config.toml`, and deploys only transitive runtime
 consumers in bounded batches. The fleet size is derived rather than hard-coded.
-Before reporting success, it derives that same
-canonical inventory and verifies that every production route reaches code with
-`X-Merian-Handler: 1`. The two intentional gateway-verified routes receive only
-a validated legacy anon JWT for this preflight; a publishable key is never sent
-as Bearer, and rollout fails closed if the required execution credential is
-unavailable. It separately verifies that `identify-multimodal`,
-`check-scan-status`, Explore sharing/composer media, and Field Chat fail closed
-without user Authorization, along with Ask the Community creation. Exact
-non-mutating SQLSTATE probes also verify the three required scan/publication
-RPCs are live for server authority and denied to real public project
-credentials; a transient Supabase gateway `404` remains a failed or in-progress
-rollout. Static caller coverage rejects a route literal from any application
-target, workflow, worker, script, or active migration when it has no configured
-entrypoint. Scan-producing routes treat at-least-once delivery as idempotent
-success: the same owner/scan UUID replays its validated response as HTTP `200`
-without a second AI provider call instead of surfacing an internal quota or
-completion `409`. Existing completed rows can be reconstructed through the same
-wire contract. See the
+Before reporting success, it derives that same canonical inventory and verifies
+that every production route reaches code with `X-Merian-Handler: 1`. The two
+intentional gateway-verified routes receive only a validated legacy anon JWT for
+this preflight; a publishable key is never sent as Bearer, and rollout fails
+closed if the required execution credential is unavailable. It separately
+verifies that `identify-multimodal`, `check-scan-status`, Explore
+sharing/composer media, and Field Chat fail closed without user Authorization,
+along with Ask the Community creation. Exact non-mutating SQLSTATE probes also
+verify the three required scan/publication RPCs are live for server authority
+and denied to real public project credentials; a transient Supabase gateway
+`404` remains a failed or in-progress rollout. Static caller coverage rejects a
+route literal from any application target, workflow, worker, script, or active
+migration when it has no configured entrypoint. Scan-producing routes treat
+at-least-once delivery as idempotent success: the same owner/scan UUID replays
+its validated response as HTTP `200` without a second AI provider call instead
+of surfacing an internal quota or completion `409`. Existing completed rows can
+be reconstructed through the same wire contract. See the
 [July 2026 Identify idempotency incident](docs/incidents/2026-07-identify-idempotency-conflict.md).
 Current opaque Supabase server keys use only the standard `apikey` header;
 legacy service-role JWTs temporarily use both `apikey` and Bearer. Credential
@@ -1010,24 +1004,24 @@ the
 
 Extended architecture documentation lives in `docs/`:
 
-| Directory                                                         | Contents                                                                                                        |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `docs/codebase-map.md`                                            | Current target/module/function/schema map generated from this repo state                                        |
-| `docs/system-architecture/`                                       | Data flow, concurrency model, zero-OOM patterns, AI engineering                                                 |
-| `docs/features-and-hardware/`                                     | Camera pipeline, hardware orchestration, feature module breakdowns                                              |
-| `docs/features-and-hardware/17-public-web-share-pages.md`         | Public Explore/species share-page contracts, media/privacy rules, and Universal Links compatibility             |
-| `docs/backend-and-data/`                                          | Edge function contracts, database schema, offline sync, API contracts                                           |
-| `docs/backend-and-data/10-internal-admin.md`                      | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger                       |
-| `docs/backend-and-data/11-internal-admin-operations.md`           | Internal admin setup, deployment, access recovery, pricing, and incident runbook                                |
-| `docs/backend-and-data/12-explore-media-health-and-quarantine.md` | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
-| `docs/backend-and-data/18-complimentary-pro-scans.md`             | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract     |
-| `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record |
-| `docs/legal/production-consent-readiness-2026-08-03.md`         | Canonical adult, Terms, Gemini, analytics, source status, exact-SHA evidence, and release-hold record                 |
-| `docs/development-guides/16-ios-privacy-manifest.md`            | App privacy declarations, required-reason inventory, maintenance rules, and archive/App Store evidence               |
-| `docs/development-guides/`                                        | Core managers reference, app lifecycle, testing strategy                                                        |
-| `docs/incidents/`                                                 | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
-| `docs/rfcs/active-capture-goal-context.md`                        | Long-term source-agnostic Capture goal architecture and extension contract                                      |
-| `docs/rfcs/purchase-principal-auth-separation.md`                 | Long-term separation of authentication, StoreKit purchase, and account-grant identity                           |
+| Directory                                                                     | Contents                                                                                                        |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `docs/codebase-map.md`                                                        | Current target/module/function/schema map generated from this repo state                                        |
+| `docs/system-architecture/`                                                   | Data flow, concurrency model, zero-OOM patterns, AI engineering                                                 |
+| `docs/features-and-hardware/`                                                 | Camera pipeline, hardware orchestration, feature module breakdowns                                              |
+| `docs/features-and-hardware/17-public-web-share-pages.md`                     | Public Explore/species share-page contracts, media/privacy rules, and Universal Links compatibility             |
+| `docs/backend-and-data/`                                                      | Edge function contracts, database schema, offline sync, API contracts                                           |
+| `docs/backend-and-data/10-internal-admin.md`                                  | Internal admin architecture, security boundary, roles, metrics, moderation, and AI ledger                       |
+| `docs/backend-and-data/11-internal-admin-operations.md`                       | Internal admin setup, deployment, access recovery, pricing, and incident runbook                                |
+| `docs/backend-and-data/12-explore-media-health-and-quarantine.md`             | Reversible Explore media-loss policy, origin verification, owner communication, recovery, security, and rollout |
+| `docs/backend-and-data/18-complimentary-pro-scans.md`                         | Normative three-credit ledger, reservation, settlement, protocol, iOS, merge, security, and rollout contract    |
+| `docs/backend-and-data/19-security-and-reliability-remediation-2026-08-03.md` | Joined collection, upload, funding, redirect, taxonomy, rollout, and evidence record                            |
+| `docs/legal/production-consent-readiness-2026-08-03.md`                       | Canonical adult, Terms, Gemini, analytics, source status, exact-SHA evidence, and release-hold record           |
+| `docs/development-guides/16-ios-privacy-manifest.md`                          | App privacy declarations, required-reason inventory, maintenance rules, and archive/App Store evidence          |
+| `docs/development-guides/`                                                    | Core managers reference, app lifecycle, testing strategy                                                        |
+| `docs/incidents/`                                                             | Incident evidence, cause confidence, containment, recovery limits, and production exit criteria                 |
+| `docs/rfcs/active-capture-goal-context.md`                                    | Long-term source-agnostic Capture goal architecture and extension contract                                      |
+| `docs/rfcs/purchase-principal-auth-separation.md`                             | Long-term separation of authentication, StoreKit purchase, and account-grant identity                           |
 
 ---
 
@@ -1040,6 +1034,7 @@ guidelines. Public copy lives in the
 [Privacy Policy](apps/web/app/privacy/page.tsx). Release and counsel review are
 tracked separately in the
 [consent readiness record](docs/legal/production-consent-readiness-2026-08-03.md),
-the [iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md),
-and the [counsel memo](docs/legal/terms-counsel-review.md); none is legal advice or a
-substitute for owner/counsel approval.
+the
+[iOS privacy manifest contract](docs/development-guides/16-ios-privacy-manifest.md),
+and the [counsel memo](docs/legal/terms-counsel-review.md); none is legal advice
+or a substitute for owner/counsel approval.

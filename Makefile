@@ -1,9 +1,11 @@
-.PHONY: help validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro grant-account-access db-push functions-deploy
+.PHONY: help validate-markdown-format test-markdown-format-tooling validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro grant-account-access db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
 help:
 	@printf "Available targets:\n"
+	@printf "  make validate-markdown-format         Check changed and untracked Markdown formatting\n"
+	@printf "  make test-markdown-format-tooling     Test the diff-aware Markdown format checker\n"
 	@printf "  make validate-agent-assets            Validate Codex skills, agents, pointers, and eval infrastructure\n"
 	@printf "  make xcodegen                         Regenerate Merian.xcodeproj from project.yml\n"
 	@printf "  iOS release: Product > Archive, then Organizer > Distribute App\n"
@@ -37,6 +39,12 @@ help:
 	@printf "  make grant-account-access ARGS='...'  Plan or apply account-owned access through the private ledger\n"
 	@printf "  make db-push                          Push Supabase database migrations\n"
 	@printf "  make functions-deploy                 Deploy all Supabase Edge Functions\n"
+
+validate-markdown-format:
+	bash scripts/check-changed-markdown-format.sh
+
+test-markdown-format-tooling:
+	bash scripts/test-check-changed-markdown-format.sh
 
 validate-agent-assets:
 	deno fmt --check \

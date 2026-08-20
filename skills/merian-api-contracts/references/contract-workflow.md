@@ -29,8 +29,8 @@ block remain hand-owned.
   transition, versioned endpoint, or coordinated breaking cutover.
 - Keep arrays, strings, media metadata, and nested graphs bounded before
   allocation. Preserve stable error codes and caller-safe status behavior.
-- Never use `any`, `@ts-ignore`, unchecked casts, or decoder fallbacks to conceal
-  drift.
+- Never use `any`, `@ts-ignore`, unchecked casts, or decoder fallbacks to
+  conceal drift.
 - Preserve authentication and ownership at the server boundary; a client field
   is not authorization evidence.
 
@@ -74,5 +74,5 @@ add a fixture proving the same payload is accepted or rejected consistently.
 - Update `docs/backend-and-data/05-api-contracts.md`, the owning README, and any
   architecture page whose boundary changed.
 
-Report the reviewed generation diff and every consumer checked. Do not deploy
-or publish merely because these checks pass.
+Report the reviewed generation diff and every consumer checked. Do not deploy or
+publish merely because these checks pass.

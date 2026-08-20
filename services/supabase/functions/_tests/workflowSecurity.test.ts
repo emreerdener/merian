@@ -297,6 +297,37 @@ Deno.test("every runner job has an explicit bounded timeout", async () => {
   }
 });
 
+Deno.test("Markdown quality checks the complete immutable change range", async () => {
+  const workflow = await Deno.readTextFile(
+    new URL("markdown-quality.yml", workflowsDirectory),
+  );
+
+  assertStringIncludes(workflow, "  pull_request:");
+  assertStringIncludes(workflow, "  merge_group:");
+  assertStringIncludes(workflow, "      - checks_requested");
+  assertStringIncludes(workflow, "  push:");
+  assertStringIncludes(workflow, "  workflow_dispatch:");
+  assert(
+    !/^\s{4}paths(?:-ignore)?:/m.test(workflow),
+    "Markdown quality must report on every pull request and merge group.",
+  );
+  assertStringIncludes(workflow, "fetch-depth: 0");
+  assertStringIncludes(workflow, "persist-credentials: false");
+  assertStringIncludes(workflow, "deno-version: v2.9.4");
+  assertStringIncludes(
+    workflow,
+    "bash scripts/test-check-changed-markdown-format.sh",
+  );
+  assertStringIncludes(
+    workflow,
+    'base_sha="$(git merge-base HEAD "origin/$DEFAULT_BRANCH")"',
+  );
+  assertStringIncludes(
+    workflow,
+    'bash scripts/check-changed-markdown-format.sh "$base_sha" "$GITHUB_SHA"',
+  );
+});
+
 Deno.test("only the isolated checklist writer requests repository write access", async () => {
   const sources = await workflowSources();
   const writers = sources
@@ -655,15 +686,11 @@ Deno.test("operational Supabase scripts run with least-privilege Deno scopes", a
   assertStringIncludes(importWorkflow, "gh auth setup-git");
 });
 
-Deno.test("production RevenueCat monitoring isolates the additive rotation-health window", async () => {
+Deno.test("production RevenueCat monitoring promotes rotation health from immutable deploy evidence", async () => {
   const monitor = await Deno.readTextFile(
     new URL("revenuecat-reconciliation-health-monitor.yml", workflowsDirectory),
   );
 
-  assertStringIncludes(
-    monitor,
-    "--purchase-principal-signout-rotation-health-mode expand-compatible",
-  );
   assertStringIncludes(monitor, "--warning-prepared-rotations");
   assertStringIncludes(monitor, "--critical-prepared-rotations");
   assertStringIncludes(
@@ -678,30 +705,74 @@ Deno.test("production RevenueCat monitoring isolates the additive rotation-healt
     monitor,
     "The established purchase-principal aggregate remains mandatory",
   );
+  for (
+    const fragment of [
+      "actions: read",
+      "fetch-depth: 0",
+      "persist-credentials: false",
+      "resolve_deployed_health_monitor_modes.ts",
+      "--feature purchase-principal-signout-rotation",
+      "--allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA",
+      "--allow-net=api.github.com",
+      "--allow-run=git",
+      "PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE: ${{ steps.rotation-health-mode.outputs.mode }}",
+      '--purchase-principal-signout-rotation-health-mode "$PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE"',
+    ]
+  ) {
+    assertStringIncludes(monitor, fragment);
+  }
+  const resolverStep = monitor.indexOf(
+    "- name: Resolve deployed rotation health mode",
+  );
+  const secretStep = monitor.indexOf("- name: Validate monitor secrets");
+  assert(
+    resolverStep >= 0 && secretStep > resolverStep,
+    "Rotation strictness must resolve before the workflow loads Supabase credentials.",
+  );
   assert(
     !monitor.includes("--purchase-principal-health-mode"),
     "The established principal-health RPC must not expose a compatibility flag.",
   );
   assert(
     !monitor.includes(
-      "--purchase-principal-signout-rotation-health-mode required",
+      "--purchase-principal-signout-rotation-health-mode expand-compatible",
     ),
-    "The additive rotation-health RPC cannot become required before its hosted smoke passes.",
+    "The scheduled rotation mode must come from immutable deployment evidence.",
   );
 });
 
-Deno.test("account deletion monitor marks the additive recovery pre-deploy window explicitly", async () => {
+Deno.test("account deletion monitor promotes recovery health from immutable deploy evidence", async () => {
   const monitor = await Deno.readTextFile(
     new URL("account-deletion-health-monitor.yml", workflowsDirectory),
   );
 
-  assertStringIncludes(
-    monitor,
-    "--recovery-health-mode expand-compatible",
+  for (
+    const fragment of [
+      "actions: read",
+      "fetch-depth: 0",
+      "persist-credentials: false",
+      "resolve_deployed_health_monitor_modes.ts",
+      "--feature account-deletion-recovery",
+      "--allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA",
+      "--allow-net=api.github.com",
+      "--allow-run=git",
+      "RECOVERY_HEALTH_MODE: ${{ steps.recovery-health-mode.outputs.mode }}",
+      '--recovery-health-mode "$RECOVERY_HEALTH_MODE"',
+    ]
+  ) {
+    assertStringIncludes(monitor, fragment);
+  }
+  const resolverStep = monitor.indexOf(
+    "- name: Resolve deployed recovery health mode",
+  );
+  const secretStep = monitor.indexOf("- name: Validate monitor secrets");
+  assert(
+    resolverStep >= 0 && secretStep > resolverStep,
+    "Recovery strictness must resolve before the workflow loads Supabase credentials.",
   );
   assert(
-    !monitor.includes("--recovery-health-mode required"),
-    "The schedule cannot require recovery health until both additive RPCs pass hosted smoke.",
+    !monitor.includes("--recovery-health-mode expand-compatible"),
+    "The scheduled recovery mode must come from immutable deployment evidence.",
   );
 });
 

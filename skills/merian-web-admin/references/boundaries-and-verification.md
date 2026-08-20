@@ -47,10 +47,10 @@ Read `apps/admin/README.md`, `docs/backend-and-data/10-internal-admin.md`, and
 ## Payload and backend changes
 
 If a page needs new data, do not widen an existing projection casually. Load
-`$merian-api-contracts` and `$merian-supabase`, define the least-privilege server
-contract, add RLS/grant/RPC tests, update typed consumers, and validate all
-callers. Public and admin responses must not share a type if doing so exposes
-fields across their trust boundary.
+`$merian-api-contracts` and `$merian-supabase`, define the least-privilege
+server contract, add RLS/grant/RPC tests, update typed consumers, and validate
+all callers. Public and admin responses must not share a type if doing so
+exposes fields across their trust boundary.
 
 ## Package verification
 

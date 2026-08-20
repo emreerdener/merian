@@ -44,10 +44,10 @@ Load `$merian-supabase` and all references it requires.
 
 - Candidate validation runs the exact candidate against disposable
   infrastructure and has no production authority or production secrets.
-- Production changes flow through the protected GitHub `Production` workflow
-  at the exact SHA. Preserve the pinned CLI, migration history validation,
-  Function fleet plan, secret synchronization, approvals, pre/post checks, and
-  evidence artifacts.
+- Production changes flow through the protected GitHub `Production` workflow at
+  the exact SHA. Preserve the pinned CLI, migration history validation, Function
+  fleet plan, secret synchronization, approvals, pre/post checks, and evidence
+  artifacts.
 - Do not replace the workflow with local `db push`, Function deploy, MCP
   `execute_sql`, dashboard SQL, manual secret mutation, or a mutable branch ref.
 - Database fixes are forward migrations. Do not edit applied history or repair
@@ -66,8 +66,8 @@ Canonical contract: `docs/features-and-hardware/02-revenue-and-identity.md`.
   project.
 - Dashboard changes must be represented in checked-in client policy, webhook
   reconciliation, documentation, and tests when they alter the contract.
-- Cleanup/reset/grant tools run in dry-run mode first where available and require
-  an exact bounded cohort plus explicit apply authorization.
+- Cleanup/reset/grant tools run in dry-run mode first where available and
+  require an exact bounded cohort plus explicit apply authorization.
 - Never expose RevenueCat secret keys, webhook secrets, Apple signing material,
   or App Store Connect credentials to application targets, logs, or artifacts.
 

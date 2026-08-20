@@ -32,15 +32,15 @@ hardware throttling, simulator workflows, previews, or UI tests.
 ## Test selection
 
 - Pure state or mapping change: focused Swift Testing/XCTest target.
-- Camera/hardware change: focused manager/orchestrator tests plus a build for the
-  relevant simulator and, when hardware-only behavior changed, explicitly note
-  the required physical-device verification.
+- Camera/hardware change: focused manager/orchestrator tests plus a build for
+  the relevant simulator and, when hardware-only behavior changed, explicitly
+  note the required physical-device verification.
 - UI flow: focused UI test using a deterministic launch seed, not taps based on
   assumed coordinates.
 - Project/source change: `make xcodegen`, `make validate-ios-project`, and the
   generated-project contract tests.
-- Cross-surface change: also run the queue/repository or DTO gate that proves the
-  handoff boundary.
+- Cross-surface change: also run the queue/repository or DTO gate that proves
+  the handoff boundary.
 
 Document why an unavailable hardware check could not run and what evidence is
 still required before release. A local simulator pass does not prove camera,

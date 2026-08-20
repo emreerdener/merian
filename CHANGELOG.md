@@ -13,9 +13,9 @@ TestFlight, App Store, support, and QA.
   terminology exposed in the UI.
 - Signing out now secures StoreKit purchase continuity before replacing the
   local account, verifies the receipt and server entitlement on the fresh
-  anonymous identity, and keeps retries durable across relaunches. Account-issued
-  beta or promotional access stays with the linked account instead of being
-  duplicated.
+  anonymous identity, and keeps retries durable across relaunches.
+  Account-issued beta or promotional access stays with the linked account
+  instead of being duplicated.
 
 ### More Reliable Links, Notifications, and Sheets
 
@@ -39,11 +39,11 @@ TestFlight, App Store, support, and QA.
 - Instant single captures now move directly into automatic submission without
   briefly flashing the manual **Identify** tray. If admission genuinely fails,
   the retained staged photo still exposes **Identify** as an explicit retry.
-- Photo imports now check scan availability before opening the library picker
-  or preparing a shared image, so a known limit opens the paywall before the
-  user selects and crops a photo. Allowed imports now transition directly into
-  the crop editor without flashing the staged **Identify** tray. Crop no longer
-  adds a separate black handoff layer that can remain after app switching, its
+- Photo imports now check scan availability before opening the library picker or
+  preparing a shared image, so a known limit opens the paywall before the user
+  selects and crops a photo. Allowed imports now transition directly into the
+  crop editor without flashing the staged **Identify** tray. Crop no longer adds
+  a separate black handoff layer that can remain after app switching, its
   controls stay below the status bar and Dynamic Island, and **Confirm crop**
   keeps readable blue-and-white contrast.
 - The **Open collection** action on a non-biological Insight now opens its
@@ -53,11 +53,11 @@ TestFlight, App Store, support, and QA.
 ### Live Scan Queue Handoff — Release-Gated
 
 - Capture's pre-scan availability check now has a two-second fail-fast boundary
-  with no connectivity wait or retry. When Wi-Fi still appears connected but
-  the request reaches a classified transport failure, a locally eligible scan
-  takes a queue-only route: it is saved without starting live analysis and the
-  durable scheduler resumes it later. Malformed, authentication, TLS, server,
-  and authoritative plan/quota failures remain fail-closed.
+  with no connectivity wait or retry. When Wi-Fi still appears connected but the
+  request reaches a classified transport failure, a locally eligible scan takes
+  a queue-only route: it is saved without starting live analysis and the durable
+  scheduler resumes it later. Malformed, authentication, TLS, server, and
+  authoritative plan/quota failures remain fail-closed.
 - The accepted customer behavior is for a saved, queue-backed scan to keep
   normal analysis copy while online, show queued/waiting copy only when truly
   offline, and resume under the same scan ID. A direct request without a durable
@@ -69,8 +69,8 @@ TestFlight, App Store, support, and QA.
   live upload hold, and keeps device connectivity failures out of the provider
   circuit. URLSession-level visual/nonvisual regressions reproduce both
   connectivity retirement before the transport callback and a path-satisfied
-  timeout while the durable owner is still active. Protected controls retain
-  the queue-less 90-second window, retry/timeout behavior, and server-delay
+  timeout while the durable owner is still active. Protected controls retain the
+  queue-less 90-second window, retry/timeout behavior, and server-delay
   placeholder routing. Error-versus-result presentation is now explicit rather
   than inferred from its displayed title, so future copy changes cannot turn a
   saved recovery state into a non-biological success result. Admission and
@@ -82,8 +82,7 @@ TestFlight, App Store, support, and QA.
   accepting an incompletely inspected prefix. The exact protected inventory now
   also requires both visual and nonvisual engine calls to reject a durable scan
   ID without its matching queue-generation token before any request or timeout
-  UI can start.
-  Exact-SHA and device acceptance remain open in the
+  UI can start. Exact-SHA and device acceptance remain open in the
   [live scan connectivity handoff incident](docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - Do not publish this as a completed TestFlight or App Store improvement until
   one exact workflow SHA passes the complete unit target, deterministic
@@ -93,9 +92,9 @@ TestFlight, App Store, support, and QA.
   publishes the exact durable queue ID only after an explicit badge tap,
   verifies a Debug-only exact-ID handoff marker while normal AI analysis copy
   remains visible without **Network timeout** or the removed saved/continuing
-  explanation, dismisses the sheet, and confirms the same row remains visible
-  in Scans. Its focused-result validator now fail-closes over an exact named
-  test set while retaining one-case behavior for existing callers.
+  explanation, dismisses the sheet, and confirms the same row remains visible in
+  Scans. Its focused-result validator now fail-closes over an exact named test
+  set while retaining one-case behavior for existing callers.
 - Hosted Run 226 passed all 1,465 unit tests, the queued-completion smoke, and
   every live-to-queue assertion before dismissal; its Release archive also
   passed. The remaining smoke failure was an ambiguous global **Close** query,
@@ -109,22 +108,22 @@ TestFlight, App Store, support, and QA.
   token. Naturebook exchanges the code server-side, verifies the Apple subject,
   and stores the refresh token encrypted in Supabase Vault for later deletion.
 - Account deletion now has a durable provider-revocation stage after verified
-  media erasure and before Supabase Auth removal. Apple outages or
-  configuration failures retain the login and encrypted credential for a
-  claim-fenced retry instead of silently skipping revocation.
-- Apple-linked accounts created before token capture remain deletable and
-  return an explicit legacy disposition. iOS records that disposition before
-  sign-out and keeps showing Apple's manual removal steps until the user marks
-  them complete.
+  media erasure and before Supabase Auth removal. Apple outages or configuration
+  failures retain the login and encrypted credential for a claim-fenced retry
+  instead of silently skipping revocation.
+- Apple-linked accounts created before token capture remain deletable and return
+  an explicit legacy disposition. iOS records that disposition before sign-out
+  and keeps showing Apple's manual removal steps until the user marks them
+  complete.
 - Apple credential-revocation notifications now trigger a subject-bound
   credential-state check. A still-authorized identity keeps its session;
-  revoked, missing, transferred, unknown, or failed state resolution clears
-  only the matching Apple-linked local session.
+  revoked, missing, transferred, unknown, or failed state resolution clears only
+  the matching Apple-linked local session.
 - Source implementation is complete, but public promotion remains gated on
   production Apple key provisioning, exact-SHA disposable database replay, a
-  real exchange/revoke smoke, and either an enforceable
-  minimum-supported-build gate or an independent server-delivered manual
-  fallback for older iOS binaries. See the
+  real exchange/revoke smoke, and either an enforceable minimum-supported-build
+  gate or an independent server-delivered manual fallback for older iOS
+  binaries. See the
   [canonical Apple deletion contract](docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 ### Consent and Privacy Controls — Release-Gated
@@ -238,13 +237,13 @@ TestFlight, App Store, support, and QA.
 
 ### Non-biological Scan Navigation
 
-- Non-biological scan notices now link directly to their collection in the
-  scans library.
+- Non-biological scan notices now link directly to their collection in the scans
+  library.
 
 ### Field Trip Card Layout
 
-- Field trip catalog cards now place a larger current patch beside the title, show
-  status pills before a compact goal preview strip, and finish with the
+- Field trip catalog cards now place a larger current patch beside the title,
+  show status pills before a compact goal preview strip, and finish with the
   existing state-aware action.
 - Active Field trips on Explore profiles now pair the current-level patch and
   title with trailing circular goal progress, and open the corresponding Field
@@ -252,8 +251,8 @@ TestFlight, App Store, support, and QA.
 
 ### Biological Achievement Eligibility
 
-- Scans identified as non-biological no longer advance, unlock, or appear in
-  the qualifying details for nature and species achievements.
+- Scans identified as non-biological no longer advance, unlock, or appear in the
+  qualifying details for nature and species achievements.
 
 ### Simpler Starter Outings
 
@@ -310,19 +309,19 @@ TestFlight, App Store, support, and QA.
 - Every submitted scan now has an explicit scientific-retention contract.
   Account deletion removes the login, profile, public attribution, community
   content, media, private free-form notes, and device or semantic-location
-  context, but retains the contributed ownerless scientific observation with
-  its exact coordinates, elevation, time, taxonomy, identification,
-  environmental, quality, and provenance facts. Tombstones remain outside
-  personal and anonymous scan access. The deletion confirmation, location
-  permission text, Terms, Privacy Policy, and Privacy Choices page now state the
-  same mandatory, non-optional behavior.
+  context, but retains the contributed ownerless scientific observation with its
+  exact coordinates, elevation, time, taxonomy, identification, environmental,
+  quality, and provenance facts. Tombstones remain outside personal and
+  anonymous scan access. The deletion confirmation, location permission text,
+  Terms, Privacy Policy, and Privacy Choices page now state the same mandatory,
+  non-optional behavior.
 
 ### Release Integrity
 
 - Xcode Organizer is now the sole signed archive, build-number management, and
   App Store Connect upload path. Apple account access and private signing
-  material remain in Xcode and the local Keychain instead of being duplicated
-  as GitHub secrets.
+  material remain in Xcode and the local Keychain instead of being duplicated as
+  GitHub secrets.
 - Routine TestFlight uploads use **Product → Archive** followed by Organizer
   **TestFlight & App Store** with automatic signing and **Manage version and
   build number** enabled. The tracked `CURRENT_PROJECT_VERSION` remains a
@@ -334,8 +333,8 @@ TestFlight, App Store, support, and QA.
   Transporter path.
 - Release archives retain clean source revision/fingerprint provenance. The
   processed App Store Connect build is promoted unchanged through internal and
-  external TestFlight and App Review; changed source or configuration receives
-  a fresh Organizer archive and Xcode-managed build number.
+  external TestFlight and App Review; changed source or configuration receives a
+  fresh Organizer archive and Xcode-managed build number.
 
 ### Critical Scan Reliability
 
@@ -1246,8 +1245,8 @@ TestFlight, App Store, support, and QA.
   empty verification sweep must finish before sign-in access is removed as the
   final step. Interrupted attempts are resumed automatically instead of leaving
   an inaccessible account with personal profile data still present. Retained
-  scientific observations now become ownerless tombstones rather than relying
-  on a synthetic login/profile identity. Free-form notes and account context are
+  scientific observations now become ownerless tombstones rather than relying on
+  a synthetic login/profile identity. Free-form notes and account context are
   removed; exact location and other scientific facts are retained under the
   current mandatory scientific-observation contract. Delayed ingestion replay
   treats those tombstones as terminal and cannot invoke AI for them.
@@ -1320,8 +1319,8 @@ TestFlight, App Store, support, and QA.
 ### Species Dictionary
 
 - Fixed the Index's **Your Region** section so a valid device country no longer
-  disappears. Regional catalogs now use refreshable GBIF occurrence evidence
-  and exact country codes instead of trying to match country names inside broad
+  disappears. Regional catalogs now use refreshable GBIF occurrence evidence and
+  exact country codes instead of trying to match country names inside broad
   free-text ranges. While existing species are being backfilled, the map card
   stays visible with a clear coverage-updating state; new identifications also
   stop overwriting curated legacy range text with `Unknown`.
@@ -1455,8 +1454,8 @@ TestFlight, App Store, support, and QA.
   only after an actual visibility change.
 - Released Field trips, standard Outings, and the Events segment to every user.
   Events include curated seasonal challenges, completion badges, published
-  entries, and optional Explore hashtag suggestions without automatic posting
-  or tagging.
+  entries, and optional Explore hashtag suggestions without automatic posting or
+  tagging.
 - Redesigned Outing catalog cards with a compact progress ring, current-level
   Backyard Safari copy, the existing scrolling goal thumbnails, and pills for
   access, difficulty, level, public/private status, and an available
@@ -1843,10 +1842,10 @@ TestFlight, App Store, support, and QA.
   audio page, preserve playback position while switching, restore quietly, and
   leave the original recording unchanged.
 - Added the original allowlisted Field trips preview to Explore: regional
-  checklist quests could auto-start from new scans, unlock levels sequentially, show active
-  checklist progress on public profiles, and publish Field trip pages with
-  species snapshots, likes, and comments without creating Explore feed posts or
-  map points.
+  checklist quests could auto-start from new scans, unlock levels sequentially,
+  show active checklist progress on public profiles, and publish Field trip
+  pages with species snapshots, likes, and comments without creating Explore
+  feed posts or map points.
 - Expanded Field trips with guided trip detail pages, explicit Start, curated
   item tips, a Field trips-only Community segment with For You, Following, and
   Recent filters, template Community previews, and up to 3 pinned published
@@ -2060,8 +2059,8 @@ TestFlight, App Store, support, and QA.
 - Added an Identify tab to Explore for Ask the Community identification
   requests, with an Insight-sheet CTA, community request queue, taxonomy search,
   disagreement prompts, and backend consensus storage.
-- Consolidated Identify Requests and Activity into one filtered dashboard:
-  12 open request cards under **Identify requests**, followed by 10 grouped
+- Consolidated Identify Requests and Activity into one filtered dashboard: 12
+  open request cards under **Identify requests**, followed by 10 grouped
   **Recent activity** rows. Complete paginated feeds remain reachable through
   **See all requests** and **See all activity**, with stack titles **Identify
   requests** and **Identify activity**.
@@ -2069,8 +2068,8 @@ TestFlight, App Store, support, and QA.
   consensus changes, and immutable resolution milestones. Requests and Activity
   load independently, share All/Yours/organism filters, refresh together, and
   keep request browsing available when only Activity fails.
-- Identify Activity now attributes ID suggestions with each contributor's
-  public username instead of their first and last name.
+- Identify Activity now attributes ID suggestions with each contributor's public
+  username instead of their first and last name.
 - Updated Recent activity outage copy so Activity failures no longer identify
   the unavailable section as Explore.
 - Added owner-only Community request options with an Edit Request sheet for

@@ -31,5 +31,5 @@ regenerate, inspect the diff, and validate every consumer in that order.
    compile/tests, and affected web/admin tests, type checks, and builds.
 6. Update API documentation and examples without copying stale production data.
 
-Never hand-edit the generated Identify block in
-`InferenceEdgeDTOs.swift`. Validation evidence does not authorize deployment.
+Never hand-edit the generated Identify block in `InferenceEdgeDTOs.swift`.
+Validation evidence does not authorize deployment.

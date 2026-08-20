@@ -6,8 +6,8 @@ description: "Prepare, review, or execute Merian release operations for TestFlig
 # Merian release
 
 This skill is an explicit authorization boundary. It never converts a green
-build, implementation request, or request for evidence into permission to
-mutate production or publish externally.
+build, implementation request, or request for evidence into permission to mutate
+production or publish externally.
 
 ## Confirm scope before action
 

@@ -11,7 +11,8 @@ similar frameworks and Supabase libraries.
 ## Start with the owning boundary
 
 1. Read `AGENTS.md`, inspect `git status`, and read the affected package README.
-2. Read [boundaries-and-verification.md](references/boundaries-and-verification.md)
+2. Read
+   [boundaries-and-verification.md](references/boundaries-and-verification.md)
    completely before changing data access, auth, environment variables, routes,
    dependencies, or deployment checks.
 3. Load `$merian-api-contracts` for payload changes and `$merian-supabase` for

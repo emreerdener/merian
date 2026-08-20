@@ -7,8 +7,8 @@ schema can alter historical checksums and crash installed stores at startup.
 
 `MerianMigrationPlan.schemas` computes Core Data models from each
 `VersionedSchema.models` array. A retired schema that still references a global
-active type silently changes whenever that type changes. Historical schemas
-must therefore reference immutable nested snapshots; the current schema must
+active type silently changes whenever that type changes. Historical schemas must
+therefore reference immutable nested snapshots; the current schema must
 reference global active types so application `@Query`, inserts, and fetches use
 the container's current entities.
 
@@ -44,7 +44,8 @@ fully qualify every entry in `models`.
 Unchanged models without relationships to a changed model may alias a prior
 frozen type. Do not alias a relationship-bearing type merely because its stored
 properties look identical. `ScanCollection`, for example, carries an inverse key
-path to `LocalScanRecord`; freeze/redeclare it so both ends use V(N) type identity.
+path to `LocalScanRecord`; freeze/redeclare it so both ends use V(N) type
+identity.
 
 The outgoing array should make missing snapshots a compile error:
 
@@ -139,6 +140,6 @@ At minimum:
 7. Update the current SwiftData schema and migration/recovery explanation in
    `docs/backend-and-data/04-database-schema.md`.
 
-Do not delete or overwrite a failing fixture store as the migration strategy.
-If a supported historical store cannot migrate, fix the forward plan and retain
-the failing fixture as regression coverage.
+Do not delete or overwrite a failing fixture store as the migration strategy. If
+a supported historical store cannot migrate, fix the forward plan and retain the
+failing fixture as regression coverage.

@@ -1,9 +1,9 @@
 # August 2026 Ghost-Merge Species-Ledger Underflow
 
-**Date:** 2026-08-01  
-**Severity:** Release-blocking account-upgrade reliability  
+**Date:** 2026-08-01\
+**Severity:** Release-blocking account-upgrade reliability\
 **Affected flow:** Anonymous Ghost session → existing Apple/Google account
-conflict → `/merge-ghost-profile` completion  
+conflict → `/merge-ghost-profile` completion\
 **Repository status:** Core schema-aware remediation and all four hardening
 requirements are implemented; release-proof gates remain open
 
@@ -22,9 +22,9 @@ triggers were maintaining the private per-user/per-species ledger. PostgreSQL
 rolled the transaction back, so the failure is fail-safe for ownership data, but
 the user could not complete the existing-account upgrade. The incident-baseline
 Edge mapper exposed this exact invariant failure as an unexpected HTTP 500
-instead of the intended retryable 503 signed-out-profile-data-unchanged response. The
-expanded mapper fixes that behavior in the repository; its production status
-is not verified here.
+instead of the intended retryable 503 signed-out-profile-data-unchanged
+response. The expanded mapper fixes that behavior in the repository; its
+production status is not verified here.
 
 Normal provider linking is unaffected. When Apple or Google can attach to the
 anonymous Auth user, `linkIdentityWithIdToken` preserves the Ghost UUID and no
@@ -56,22 +56,22 @@ species IDs, scan IDs, coordinates, request bodies, and raw log payloads.
 ## Root cause
 
 The original merge treated runtime discovery of a single-column foreign key as
-sufficient evidence that the relationship represented transferable ownership.
-It then processed relationships in catalog-dependent order.
+sufficient evidence that the relationship represented transferable ownership. It
+then processed relationships in catalog-dependent order.
 
 `internal.user_species_scan_counts` is not independent ownership. It is derived
-from `public.scans.user_id`, and the scan statement trigger is the sole authority
-for source decrements, destination increments, and distinct-species totals. If
-the derived ledger is moved or coalesced as an ordinary foreign-key relation
-before all source scans move, a later scan decrement can exceed the source
-ledger state and raise `user_species_scan_count_underflow`. Overlapping species
-between source and destination also require additive scan counts but only one
-distinct-species boundary.
+from `public.scans.user_id`, and the scan statement trigger is the sole
+authority for source decrements, destination increments, and distinct-species
+totals. If the derived ledger is moved or coalesced as an ordinary foreign-key
+relation before all source scans move, a later scan decrement can exceed the
+source ledger state and raise `user_species_scan_count_underflow`. Overlapping
+species between source and destination also require additive scan counts but
+only one distinct-species boundary.
 
-The architectural defect was therefore semantic, not a missing cascade:
-catalog discovery can verify coverage, but it cannot decide whether a relation
-is ownership, derived state, immutable attribution, source-profile deletion, or
-a conflict-prone projection.
+The architectural defect was therefore semantic, not a missing cascade: catalog
+discovery can verify coverage, but it cannot decide whether a relation is
+ownership, derived state, immutable attribution, source-profile deletion, or a
+conflict-prone projection.
 
 ## Core repository remediation
 
@@ -109,20 +109,20 @@ until the disposable-CI database and release proof gates pass:
    absent, or a completely missed webhook can remain unrepaired until a later
    scheduled sweep.
 2. **RevenueCat must use one lock order.** Merge holds `public.users` before the
-   reconciliation queue, while the incident-baseline apply callback locked
-   queue before user. The callback must lock user first, then lock and revalidate
-   its claim, so concurrent completion cannot deadlock or apply a displaced
-   provider snapshot.
+   reconciliation queue, while the incident-baseline apply callback locked queue
+   before user. The callback must lock user first, then lock and revalidate its
+   claim, so concurrent completion cannot deadlock or apply a displaced provider
+   snapshot.
 3. **Community actor handling must not invert writer locks.** Normal activity
    append locks the activity group before its actor. The merge handler must
    coalesce only existing source/target collisions with update/delete and leave
    non-colliding rows for policy reparenting; it must not insert/upsert a target
    actor after actor locks.
 4. **Ledger underflow needs the guarded public response.** Both
-   `ghost_merge_species_ledger_mismatch` and
-   `user_species_scan_count_underflow` must map through the real Edge mapper to
-   HTTP 503 `merge_temporarily_unavailable` with the exact statement that guest
-   data is unchanged.
+   `ghost_merge_species_ledger_mismatch` and `user_species_scan_count_underflow`
+   must map through the real Edge mapper to HTTP 503
+   `merge_temporarily_unavailable` with the exact statement that guest data is
+   unchanged.
 
 The authoritative implementation and automated release evidence is the
 [Ghost Account Merge Security Rollout](../backend-and-data/06-supabase-deployment-runbook.md#ghost-account-merge-security-rollout).
@@ -169,8 +169,8 @@ developer's older local CLI does not block deployment.
 
 ## Safety, rollout, and recovery
 
-- Keep the existing-account conflict fallback gated while this incident is
-  open. Direct provider linking can remain enabled.
+- Keep the existing-account conflict fallback gated while this incident is open.
+  Direct provider linking can remain enabled.
 - Deploy the backwards-compatible expanded Edge error mapper before the pending
   database revisions, then apply the schema-aware and corrective forward
   migrations immediately in the same window. The secure baseline can already

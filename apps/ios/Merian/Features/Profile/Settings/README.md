@@ -1,17 +1,24 @@
 # Settings
 
-The `Settings` directory contains the user-facing configuration screens and preference toggles for the app.
+The `Settings` directory contains the user-facing configuration screens and
+preference toggles for the app.
 
 ## Structure
 
-- **Views**: Contains the primary views like `SettingsTabView.swift` and modal flows like `DeleteAccountSheet.swift`.
-- **Changelog**: Components and logic for presenting the bundled feature notes and release history.
-- **Plan**: UI handling the RevenueCat subscription flows (free vs pro tier) and related upsells.
+- **Views**: Contains the primary views like `SettingsTabView.swift` and modal
+  flows like `DeleteAccountSheet.swift`.
+- **Changelog**: Components and logic for presenting the bundled feature notes
+  and release history.
+- **Plan**: UI handling the RevenueCat subscription flows (free vs pro tier) and
+  related upsells.
 - **Feedback**: Forms and routing for user support and feedback submission.
-- **Notifications**: Toggles for managing local and push notification preferences (e.g., species discoveries, achievements).
-- **Components**: Reusable list rows, toggles, and section headers specific to the Settings layout.
+- **Notifications**: Toggles for managing local and push notification
+  preferences (e.g., species discoveries, achievements).
+- **Components**: Reusable list rows, toggles, and section headers specific to
+  the Settings layout.
 
 ## Purpose
+
 This area provides users with control over their app experience. It manages
 general preferences, the Capture workspace, geoprivacy, data export, and account
 lifecycle (signing in/out and deletion). It operates in conjunction with the
@@ -27,14 +34,13 @@ does not permit that processing cannot use the scanner. The consent ledger and
 inference gates still fail closed when required evidence is missing, outdated,
 or revoked by historical or remote account state.
 
-The first row in Settings → Resources is **Analytics & diagnostics**. Its binding
-appends an immutable account-wide PostHog grant or revocation through
-`ConsentManager`.
-Absence of a grant is off. Withdrawal opts out and closes the SDK, synchronizes
-across devices, and never changes core functionality. The displayed and applied
-state comes from the provider-wide greatest accepted revision across all
-disclosure versions. An older-disclosure revocation at that head remains off;
-only a current-disclosure head grant can reopen PostHog.
+The first row in Settings → Resources is **Analytics & diagnostics**. Its
+binding appends an immutable account-wide PostHog grant or revocation through
+`ConsentManager`. Absence of a grant is off. Withdrawal opts out and closes the
+SDK, synchronizes across devices, and never changes core functionality. The
+displayed and applied state comes from the provider-wide greatest accepted
+revision across all disclosure versions. An older-disclosure revocation at that
+head remains off; only a current-disclosure head grant can reopen PostHog.
 
 That paragraph is the required behavior. The withdrawal transport/order and
 offline ghost-account handoff findings are complete in source: reset-time
@@ -60,9 +66,9 @@ must treat every successful `2xx` response as an accepted deletion. A `200`
 means relational cleanup, delayed R2 verification, and Auth removal were already
 fully complete; a new request normally returns `202` because the durable
 server-side reaper must sweep and later verify storage before deleting Auth.
-Both responses are safe points for local sign-out and device-data cleanup.
-While sign-out purchase continuity is pending, the Settings action and
-confirmation button remain disabled. The server independently returns
+Both responses are safe points for local sign-out and device-data cleanup. While
+sign-out purchase continuity is pending, the Settings action and confirmation
+button remain disabled. The server independently returns
 `409 purchase_continuity_pending` so a stale or second client cannot delete the
 source or exact bound anonymous destination; the user must finish sign-out
 first.
@@ -76,20 +82,19 @@ the app recovers through the capability-only public route. The recovery overlay
 remains visible and retries with bounded backoff. A valid receipt advances
 through `capability_cleanup_pending`, local Supabase sign-out, SwiftData purge,
 server acknowledgement, and `capability_retirement_pending`; verified Keychain
-removal precedes marker clearing. A received
-`409 purchase_continuity_pending` proves intake did not win and clears the
-pre-request marker/proof so the sheet can direct the user to finish sign-out. An
-unknown proof or ambiguous error never does. A server-matched expired proof
-permits conservative local erasure, followed by an expiry-tolerant
-acknowledgement and verified proof retirement.
+removal precedes marker clearing. A received `409 purchase_continuity_pending`
+proves intake did not win and clears the pre-request marker/proof so the sheet
+can direct the user to finish sign-out. An unknown proof or ambiguous error
+never does. A server-matched expired proof permits conservative local erasure,
+followed by an expiry-tolerant acknowledgement and verified proof retirement.
 
 Every successful response must also contain
 `manual_provider_revocation_required`. When true, `DeleteAccountSheet` records
-the durable app-level notice before sign-out. The root app then presents
-Apple's Settings/support instructions on launch and foreground until the user
-explicitly confirms removal. New Apple accounts normally use automatic
-server-side revocation; this fallback exists for accounts authorized before a
-refresh token could be captured. The confirmation sheet explains both paths.
+the durable app-level notice before sign-out. The root app then presents Apple's
+Settings/support instructions on launch and foreground until the user explicitly
+confirms removal. New Apple accounts normally use automatic server-side
+revocation; this fallback exists for accounts authorized before a refresh token
+could be captured. The confirmation sheet explains both paths.
 
 Older binaries do not implement the required receipt field or durable notice.
 App Store availability of the supporting build is not proof that those clients
@@ -100,8 +105,8 @@ deletion flow, or an independent server-delivered manual fallback.
 The server owns all ordering and retry semantics. The app must not send a target
 user ID, attempt to delete the Auth identity directly, or retry individual
 cleanup phases. Account detachment and private-content clearing are verified
-before Auth removal, while media deletion continues through the existing
-durable storage-cleanup outbox.
+before Auth removal, while media deletion continues through the existing durable
+storage-cleanup outbox.
 
 Every submitted scan also contributes mandatory Scientific Data. Account
 deletion leaves that observation as an ownerless tombstone with exact
@@ -157,9 +162,9 @@ complimentary functional access. See
 In a Debug simulator build, Settings → Developer → **Preview Pro scans** opens a
 deterministic gallery of the real Settings card and Results badge. Its segmented
 control covers three, two, one, and exhausted states. The gallery uses a local
-presentation override and never mutates the signed-in account, server ledger,
-or RevenueCat purchase state. Visible counters say “3 Pro scans remain” or “1
-Pro scan remains”; internal entitlement code retains its complimentary names.
+presentation override and never mutates the signed-in account, server ledger, or
+RevenueCat purchase state. Visible counters say “3 Pro scans remain” or “1 Pro
+scan remains”; internal entitlement code retains its complimentary names.
 
 ## Preference layout
 
@@ -184,13 +189,13 @@ preferences; the rename does not move those controls or change their behavior.
 `captureModeOrderRaw` stores a comma-separated permutation of `visual`, `audio`,
 and `describe`; the registered default is `visual,audio,describe`.
 `CaptureMode.userOrder(from:)` ignores unsupported values and appends any
-missing supported modes. `CaptureWorkspaceView` writes that healed sequence
-back when necessary. The Settings reorder UI itself always emits one entry per
+missing supported modes. `CaptureWorkspaceView` writes that healed sequence back
+when necessary. The Settings reorder UI itself always emits one entry per
 supported mode.
 
 The workspace samples the first decoded mode in its initializer. Therefore a
-fresh workspace opens directly into the user's first mode, whether that is
-Scan, Record, or Describe. Audio-first does not start the camera, and
+fresh workspace opens directly into the user's first mode, whether that is Scan,
+Record, or Describe. Audio-first does not start the camera, and
 Description-first mounts the text workflow immediately. Reordering while the
 workspace already exists preserves the active mode and reanchors that page in
 the new sequence; the new first mode becomes the default on the next fresh
@@ -200,12 +205,11 @@ workspace launch.
 
 `MerianApp` samples `opensExploreOnLaunch` once when a new process is created.
 It may present the generic Explore feed only after onboarding and current
-required consent are complete.
-Returning from the background never resamples the preference and never reopens
-Explore.
+required consent are complete. Returning from the background never resamples the
+preference and never reopens Explore.
 
-Explicit user intent always outranks the generic launch destination. A Photos
-or Files image handoff dismisses Explore and continues through the normal
+Explicit user intent always outranks the generic launch destination. A Photos or
+Files image handoff dismisses Explore and continues through the normal
 staging/crop workflow. Deep links and tapped notifications replace the generic
 feed with their requested Explore post, community request, scan Insight, or
 Scans library destination. While the initial Explore sheet is visible, Capture
@@ -229,9 +233,9 @@ authorization:
 
 Use the Field trip preview at compact and large widths, with VoiceOver and
 Reduced Motion, to verify wrapping, artwork readability, timeout, manual
-dismissal, haptics, and the tap target. Preview payloads bypass RPCs, progress mutation,
-achievement persistence, dictionary mutation, analytics, and local push
-delivery.
+dismissal, haptics, and the tap target. Preview payloads bypass RPCs, progress
+mutation, achievement persistence, dictionary mutation, analytics, and local
+push delivery.
 
 The presenter is obtained from the `AppDIContainer` environment; Settings does
 not construct or overlay a second milestone singleton. Its ordinary cache and
@@ -239,8 +243,8 @@ preference results are typed `ToastPayload` values rendered by
 `merianSystemFeedback`. While Settings is the foremost mounted feedback host it
 renders the shared milestone stack; dismissing Settings restores the prior host
 without repeating haptics/VoiceOver or restarting the active timeout. Settings
-places ordinary feedback at the bottom and milestone previews at the top, so
-the shared modifier keeps both visible; same-alignment surfaces remain mutually
+places ordinary feedback at the bottom and milestone previews at the top, so the
+shared modifier keeps both visible; same-alignment surfaces remain mutually
 exclusive to prevent Z-plane collisions. Preview taps use the preview
-container's environment-injected route coordinator and cannot enqueue a route
-in the production container.
+container's environment-injected route coordinator and cannot enqueue a route in
+the production container.

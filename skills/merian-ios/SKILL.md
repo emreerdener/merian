@@ -22,10 +22,11 @@ production capture path for simulator convenience.
 
 ## Route detailed guidance
 
-- Read [architecture-and-project.md](references/architecture-and-project.md)
-  for XcodeGen, dependency injection, Swift concurrency, offline ownership, and
+- Read [architecture-and-project.md](references/architecture-and-project.md) for
+  XcodeGen, dependency injection, Swift concurrency, offline ownership, and
   watchOS boundaries.
-- Read [capture-performance-and-fixtures.md](references/capture-performance-and-fixtures.md)
+- Read
+  [capture-performance-and-fixtures.md](references/capture-performance-and-fixtures.md)
   for camera, image/audio/video processing, thermal or memory constraints,
   simulator behavior, previews, Debug seeds, and UI-test fixtures.
 - Read both when a feature connects native capture to UI state or persistence.
@@ -50,5 +51,5 @@ Run focused tests first. Then run the applicable repository gates, including
 `make xcodegen`, `make validate-ios-project`, the relevant focused `xcodebuild`
 tests, and `make test-ios-ci-tooling` when CI or Xcode tooling changes. Verify
 watch targets when shared sources or project settings affect them. Report any
-device, simulator, SDK, signing, or dependency limitation instead of claiming
-an unrun test passed.
+device, simulator, SDK, signing, or dependency limitation instead of claiming an
+unrun test passed.

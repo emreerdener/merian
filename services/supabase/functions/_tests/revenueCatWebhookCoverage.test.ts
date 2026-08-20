@@ -196,9 +196,15 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
       "--critical-after-minutes",
       "--warning-prepared-rotations",
       "--critical-prepared-rotations",
-      "--purchase-principal-signout-rotation-health-mode expand-compatible",
+      "resolve_deployed_health_monitor_modes.ts",
+      "--feature purchase-principal-signout-rotation",
+      "PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE",
+      '--purchase-principal-signout-rotation-health-mode "$PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE"',
       "SUPABASE_SERVER_API_KEY",
       "resolve_project_api_keys.ts",
+      "actions: read",
+      "fetch-depth: 0",
+      "persist-credentials: false",
     ]
   ) {
     assertStringIncludes(workflow, fragment);
@@ -210,6 +216,12 @@ Deno.test("RevenueCat reconciliation backlog has an independent age alert", asyn
   assert(
     !workflow.includes("--purchase-principal-health-mode"),
     "Established principal health must remain unconditionally required.",
+  );
+  assert(
+    !workflow.includes(
+      "--purchase-principal-signout-rotation-health-mode expand-compatible",
+    ),
+    "The scheduled rotation-health mode must be resolved from deploy evidence.",
   );
 });
 

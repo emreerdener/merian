@@ -114,51 +114,49 @@ session solely so that JWT-derived, idempotent commit can be replayed after a
 crash or lost response. Both preparation markers are admitted back into that
 single deletion-owned recovery transition on relaunch; every other SDK Auth
 event, background sync, OAuth callback, and scene-phase operation remains
-closed. A successful or publicly
-recovered receipt advances to `capability_cleanup_pending`, which authorizes
-verified local sign-out and SwiftData purge. Acknowledgement then advances to
+closed. A successful or publicly recovered receipt advances to
+`capability_cleanup_pending`, which authorizes verified local sign-out and
+SwiftData purge. Acknowledgement then advances to
 `capability_retirement_pending`; verified proof removal precedes marker removal.
 Retirement relaunches re-run verified local sign-out and idempotent purge before
-proof removal.
-Launch and foreground show a blocking recovery surface and retry with bounded
-backoff. Only explicit `409 purchase_continuity_pending` may retire an
-unaccepted intent. The app first persists
+proof removal. Launch and foreground show a blocking recovery surface and retry
+with bounded backoff. Only explicit `409 purchase_continuity_pending` may retire
+an unaccepted intent. The app first persists
 `capability_rejection_retirement_pending`, then verifies removal of the unused
 Keychain proof before clearing the barrier. Relaunch in that phase never signs
-out or purges local data. Legacy unknown proofs and all ambiguous failures retain
-both authority and barrier. A v2 `not_committed` or genuinely unknown proof
-definitively retires only the unused intent; before ordinary lifecycle work
-reopens, it verifies proof retirement, adopts the same cached unexpired session
-into the transition coordinator while the barrier is still present, clears the
-barrier, and only then republishes that session. The UUID and anonymous/account
-kind must match exactly. A tombstoned expired preparation
+out or purges local data. Legacy unknown proofs and all ambiguous failures
+retain both authority and barrier. A v2 `not_committed` or genuinely unknown
+proof definitively retires only the unused intent; before ordinary lifecycle
+work reopens, it verifies proof retirement, adopts the same cached unexpired
+session into the transition coordinator while the barrier is still present,
+clears the barrier, and only then republishes that session. The UUID and
+anonymous/account kind must match exactly. A tombstoned expired preparation
 retired during another device's commit is non-authorizing and retains the
-barrier. Only a server-matched expired committed capability permits
-conservative local erasure.
-Legacy `intake_pending` and `cleanup_pending` remain readable. This prevents a
-terminated deletion from restoring the source account or later erasing a newly
-signed-in account's cache.
+barrier. Only a server-matched expired committed capability permits conservative
+local erasure. Legacy `intake_pending` and `cleanup_pending` remain readable.
+This prevents a terminated deletion from restoring the source account or later
+erasing a newly signed-in account's cache.
 
 At runtime, Apple, Google, Sign out, anonymous bootstrap, 401 recovery, and
 deletion share one Auth-transition owner. Ordinary account-bound work acquires
 an exact-session lease before direct Supabase or authenticated HTTP I/O. A
 transition closes new admission, cancels/awaits consent synchronization, drains
 `InferenceEngine` presentation/metadata tasks (including cancellation-ignoring
-tails), collection work, and every lease, then changes the SDK session. Background
-upload and inference tasks are terminal-owned rather than resume-owned: their
-Auth UUID and generation are persisted in both job metadata and versioned task
-descriptions, their leases remain held until terminal callbacks, and the drain
-restages rows/clears source object keys before cancellation. Relaunched or late
-callbacks require the same durable owner and live session; unknown legacy tasks
-fail closed and cannot be adopted by a replacement account. Consent and
-Explore Realtime channels close for the transition and restart only after the
-verified final account is installed. This makes scene activation and background
-completion safe even when they coincide with a provider sheet or sign-out.
-Every terminal delegate callback registers its asynchronous persistence work
-synchronously before hopping actors. `urlSessionDidFinishEvents` waits for that
-tracker to become idle before taking and invoking the system completion handler,
-so iOS cannot suspend the process between network completion and the durable
-queue/result update.
+tails), collection work, and every lease, then changes the SDK session.
+Background upload and inference tasks are terminal-owned rather than
+resume-owned: their Auth UUID and generation are persisted in both job metadata
+and versioned task descriptions, their leases remain held until terminal
+callbacks, and the drain restages rows/clears source object keys before
+cancellation. Relaunched or late callbacks require the same durable owner and
+live session; unknown legacy tasks fail closed and cannot be adopted by a
+replacement account. Consent and Explore Realtime channels close for the
+transition and restart only after the verified final account is installed. This
+makes scene activation and background completion safe even when they coincide
+with a provider sheet or sign-out. Every terminal delegate callback registers
+its asynchronous persistence work synchronously before hopping actors.
+`urlSessionDidFinishEvents` waits for that tracker to become idle before taking
+and invoking the system completion handler, so iOS cannot suspend the process
+between network completion and the durable queue/result update.
 
 The app root separately restores `pendingManualAppleRevocationNotice.v1` on
 appearance and every active transition. That non-sensitive flag is written

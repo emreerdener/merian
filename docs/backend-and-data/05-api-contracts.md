@@ -7680,14 +7680,18 @@ not finish cleanup within the normal 180-day recovery window. Eight active
 proofs on one job is a warning boundary and more than eight is an invariant
 failure. The independent account-deletion monitor fetches and validates both
 health rows. Its CLI defaults to `required`, where absence, malformed shape, or
-dependency failure is fail-closed. During the documented additive pre-deploy
-window only, `--recovery-health-mode expand-compatible` accepts an exact
-`PGRST202` naming either zero-argument recovery-health RPC. The summary exposes
-`recovery_health_availability` and `recovery_preparation_health_availability` as
-`not_deployed` with the corresponding health payload set to `null`; it never
-substitutes zero counts. Authorization, timeout, malformed response, and
-unrelated catalog errors remain fatal. After both hosted RPC smokes pass, the
-production schedule must use `required`.
+dependency failure is fail-closed. The production schedule derives this mode
+with `resolve_deployed_health_monitor_modes.ts`: a successful `main` production
+deploy whose ancestor SHA contains both controlling migrations and both hosted
+RPC smokes selects `required` immediately. Before that proof and only until the
+2026-09-19 UTC deadline, `expand-compatible` accepts an exact `PGRST202` naming
+either zero-argument recovery-health RPC. API or Git-history ambiguity fails the
+workflow, and the deadline selects `required` without historical Actions
+evidence. The summary exposes `recovery_health_availability` and
+`recovery_preparation_health_availability` as `not_deployed` with the
+corresponding health payload set to `null`; it never substitutes zero counts.
+Authorization, timeout, malformed response, and unrelated catalog errors remain
+fatal.
 
 ---
 
@@ -9366,11 +9370,15 @@ invocation, not the retained lifetime total, while `prepared_count` contains
 only still-live rows. Any newly expired preparation is at least a warning.
 Oldest prepared age shares the configured 30/60-minute warning/critical
 thresholds; prepared volume warns at 100 and becomes critical at 500 by default.
-With `--purchase-principal-signout-rotation-health-mode expand-compatible`, an
-exact `PGRST202` naming this zero-argument RPC yields
+The schedule derives the rotation mode with
+`resolve_deployed_health_monitor_modes.ts`. A successful `main` production
+deploy whose ancestor SHA contains the controlling migration and hosted
+rotation-health smoke selects `required` immediately. Before that proof and only
+until the 2026-09-19 UTC deadline, `expand-compatible` allows an exact
+`PGRST202` naming this zero-argument RPC to yield
 `purchase_principal_signout_rotation_health_availability: not_deployed` and a
 null payload. This rotation-only flag is independent from the already-deployed
 principal aggregate, which has no compatibility mode and always remains
 required. Malformed shape, authorization, transport, and every unrelated catalog
-failure remain fatal. After the rotation migration and hosted smoke pass, its
-flag must also change to `required`.
+failure remain fatal. API or Git-history ambiguity fails the workflow, and the
+deadline selects `required` without retained Actions evidence.

@@ -19,10 +19,10 @@ authoritative destination verification and server entitlement refresh. The
 anonymous Profile offers **Continue with Apple** and **Continue with Google**.
 Receipt-backed access follows sign-out; account-issued beta/promotional access
 stays on the linked source and is not cloned. That explicit action is an
-authorized rotation and does not weaken the generic-`401`
-identity-preservation rule. The migration, Edge route, and iOS code are source
-changes only until candidate validation, deployment, Restore-behavior review,
-and live provider smokes are recorded.
+authorized rotation and does not weaken the generic-`401` identity-preservation
+rule. The migration, Edge route, and iOS code are source changes only until
+candidate validation, deployment, Restore-behavior review, and live provider
+smokes are recorded.
 
 ## Summary
 
@@ -115,18 +115,18 @@ Ghost UUID is still a custom RevenueCat ID; it is not a RevenueCat-generated
 anonymous ID.
 
 Login is optional credential linkage. User-facing **Sign out** performs a local
-Supabase sign-out only after its one-use purchase proof is durably prepared.
-One fresh anonymous UUID binds the proof; RevenueCat is linked to that custom
-UUID, `syncPurchases()` reposts the StoreKit receipt, and the server verifies
-the prepared horizon before the client clears the proof. A finite horizon that
+Supabase sign-out only after its one-use purchase proof is durably prepared. One
+fresh anonymous UUID binds the proof; RevenueCat is linked to that custom UUID,
+`syncPurchases()` reposts the StoreKit receipt, and the server verifies the
+prepared horizon before the client clears the proof. A finite horizon that
 expires while pending is revalidated against current source and destination
 StoreKit state, so natural expiry can finish without masking a renewal.
-Temporary failures survive relaunch and disable purchase mutations until completion. The anonymous
-Profile offers **Continue with Apple** and **Continue with Google**. First-time
-linkage retains the active anonymous UUID. When the provider already belongs to
-another account, the provider-bound conflict flow merges the signed-out
-activity into that account and restores its identity. Generic `401` responses
-still cannot rotate identity.
+Temporary failures survive relaunch and disable purchase mutations until
+completion. The anonymous Profile offers **Continue with Apple** and **Continue
+with Google**. First-time linkage retains the active anonymous UUID. When the
+provider already belongs to another account, the provider-bound conflict flow
+merges the signed-out activity into that account and restores its identity.
+Generic `401` responses still cannot rotate identity.
 
 - iOS configures RevenueCat only after a Supabase UUID exists and passes the
   uppercase UUID to `Purchases.configure` or `Purchases.logIn`.
@@ -495,35 +495,35 @@ assertion; this is erasure, not empty-shell deduplication.
 Apply completed at `2026-08-10T20:51:05.083Z`. All 284 exact planned customers
 returned `deleted`; none were queued, already absent, or failed, and the ledger
 contains 284 unique App User IDs with no error code. The result summary has
-SHA-256 `866ebf92e88e119e3e35a5083be9be57a8caf8d28e75bbb9f2fd02f27da5f0f8`;
-the identity-bearing results CSV has SHA-256
-`6abba60bc8bc766e9fd533cff47c89a1a9f77467f2bd9ed1365da103ad6b3494`.
-The terminal summary records `supabase_mutations=false`.
+SHA-256 `866ebf92e88e119e3e35a5083be9be57a8caf8d28e75bbb9f2fd02f27da5f0f8`; the
+identity-bearing results CSV has SHA-256
+`6abba60bc8bc766e9fd533cff47c89a1a9f77467f2bd9ed1365da103ad6b3494`. The terminal
+summary records `supabase_mutations=false`.
 
 The completed reset remains snapshot-bound. It issued no Supabase request and
 could not delete a RevenueCat customer created after the export. SDK
 identification and the deployed reconciler may recreate empty or canonical
 provider customers during or after apply, without restoring erased aliases,
 attributes, promotions, or history. Preserve the separately named apply ledger,
-take a fresh post-reset export, and revoke the temporary reset key. Any remaining
-or newly created customers require a new reviewed snapshot and digest.
+take a fresh post-reset export, and revoke the temporary reset key. Any
+remaining or newly created customers require a new reviewed snapshot and digest.
 
 The immediate follow-up export had SHA-256
-`9c53cf3568380bc2bb00df0d6a53703cc4ab042ec6f2403bfff12c86d7085d0c`
-and temporarily returned eight rows: seven Test Store fixtures and one App Store
-Ghost, with no purchase or entitlement evidence. All eight were exact matches
-to the approved snapshot, including unchanged first/last-seen timestamps, and
-all eight had terminal `deleted` entries in the apply ledger. A subsequent
+`9c53cf3568380bc2bb00df0d6a53703cc4ab042ec6f2403bfff12c86d7085d0c` and
+temporarily returned eight rows: seven Test Store fixtures and one App Store
+Ghost, with no purchase or entitlement evidence. All eight were exact matches to
+the approved snapshot, including unchanged first/last-seen timestamps, and all
+eight had terminal `deleted` entries in the apply ledger. A subsequent
 RevenueCat dashboard refresh settled to zero customers without a second apply,
 confirming provider/export propagation rather than new activity. No pass-two
 deletion was executed.
 
 Deletion remains permanent provider erasure. A later SDK or get-or-create read
 may make a new empty shell with the same ID, but it will not recover deleted
-aliases, attributes, promotions, or history. That is why the apply boundary
-for normal empty-shell cleanup deletes only customers already proven to have
-none of those things. The exceptional full prelaunch reset above instead relied
-on the explicit synthetic-data assertion and exact project-wide snapshot.
+aliases, attributes, promotions, or history. That is why the apply boundary for
+normal empty-shell cleanup deletes only customers already proven to have none of
+those things. The exceptional full prelaunch reset above instead relied on the
+explicit synthetic-data assertion and exact project-wide snapshot.
 
 ## Coordinated empty Ghost cleanup
 

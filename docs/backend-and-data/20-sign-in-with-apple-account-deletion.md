@@ -34,8 +34,8 @@ client deletion receipt.
 
 Deletion acceptance must also survive termination after the server commits but
 before iOS receives the receipt. Supporting builds bind a separate random
-deletion-recovery proof during authenticated intake. That proof carries no
-Apple or account identity and cannot initiate deletion by itself.
+deletion-recovery proof during authenticated intake. That proof carries no Apple
+or account identity and cannot initiate deletion by itself.
 
 ## Authorization capture
 
@@ -122,19 +122,18 @@ the legacy one-proof contract. Migration
 two-stage protocol: iOS atomically persists distinct recovery and
 acknowledgement proofs, authenticated prepare records only their SHA-256 hashes
 without creating a deletion job, and later authenticated commit requires that
-preparation. Recovery and acknowledgement use distinct protocol-v2 hash
-domains, separate from legacy v1. Forward repair
-`20260813162506_reject_expired_account_deletion_preparation_promotion.sql`
-locks and converts only still-live device preparations. Expired proof hashes
-move first to a permanent identity-free ledger and can never be reused or
-promoted into 180-day recovery capabilities. A deletion-job insert records
-expired proofs as committed before retiring them, so a second device cannot
-misclassify its stale proof as unknown after deletion has started.
-Forward migration
+preparation. Recovery and acknowledgement use distinct protocol-v2 hash domains,
+separate from legacy v1. Forward repair
+`20260813162506_reject_expired_account_deletion_preparation_promotion.sql` locks
+and converts only still-live device preparations. Expired proof hashes move
+first to a permanent identity-free ledger and can never be reused or promoted
+into 180-day recovery capabilities. A deletion-job insert records expired proofs
+as committed before retiring them, so a second device cannot misclassify its
+stale proof as unknown after deletion has started. Forward migration
 `20260813190637_serialize_account_deletion_preparation_pruning.sql` gives the
-bounded pruner the same Auth-user-first row-lock order and skips locked accounts,
-closing the reciprocal cleanup-first race without making a batch wait behind
-active deletion or recovery.
+bounded pruner the same Auth-user-first row-lock order and skips locked
+accounts, closing the reciprocal cleanup-first race without making a batch wait
+behind active deletion or recovery.
 
 After Auth is gone, `/recover-account-deletion` uses only the proof to return
 the already-recorded manual Apple disposition and pending/completed state. It
@@ -148,13 +147,13 @@ because commit cannot run without a server preparation. After that definitive
 cancellation, the transition owner retires the unused proof, adopts only the
 same unexpired cached Supabase session while the durable barrier remains, then
 clears the barrier before republishing that exact UUID and anonymous/account
-kind or reopening ordinary account work. An expired preparation retired during a different
-device's commit returns the distinct non-authorizing
+kind or reopening ordinary account work. An expired preparation retired during a
+different device's commit returns the distinct non-authorizing
 `account_deletion_recovery_preparation_expired` response and keeps cleanup
 blocked. Only a retained committed capability matched after its 180-day window
 returns `account_deletion_recovery_expired` and authorizes conservative local
-cleanup while forcing the manual Apple notice. This acknowledgement never
-claims automatic Apple-provider revocation.
+cleanup while forcing the manual Apple notice. This acknowledgement never claims
+automatic Apple-provider revocation.
 
 ## Private data and authorization boundary
 
@@ -170,10 +169,10 @@ claims automatic Apple-provider revocation.
   authorized, empty-search-path routines on the privileged-routine allowlist.
 - The authenticated Edge handler derives the caller from the verified JWT. No
   caller can nominate another user or read a stored token.
-- `internal.account_deletion_recovery_capabilities` stores only a unique
-  SHA-256 proof hash, deletion-job reference, expiry, and recovery/acknowledgement
-  times. Direct access is revoked. Its issue, recover, and health routines
-  are service-only and no public response contains a user or Apple identity.
+- `internal.account_deletion_recovery_capabilities` stores only a unique SHA-256
+  proof hash, deletion-job reference, expiry, and recovery/acknowledgement
+  times. Direct access is revoked. Its issue, recover, and health routines are
+  service-only and no public response contains a user or Apple identity.
 - `internal.account_deletion_expired_preparation_proofs` permanently stores only
   an expired proof hash, its recovery/acknowledgement kind, expiry, record time,
   and whether deletion had committed. Direct access is revoked; it contains no
@@ -236,10 +235,10 @@ the following on one immutable release SHA:
   `manual_provider_revocation_required`, the notice survives sign-out and
   relaunch, and the Apple support/settings path opens;
 - physical-device termination at each recovery boundary: before authenticated
-  intake, after server commit with a dropped response, after local Auth sign-out,
-  after SwiftData purge, after recovery acknowledgement, and after Keychain
-  removal. Each relaunch must converge with the same proof without restoring an
-  account or losing the manual-provider disposition;
+  intake, after server commit with a dropped response, after local Auth
+  sign-out, after SwiftData purge, after recovery acknowledgement, and after
+  Keychain removal. Each relaunch must converge with the same proof without
+  restoring an account or losing the manual-provider disposition;
 - public recovery with no cached Auth session, using publishable `apikey` plus
   the proof only, as well as wrong-proof and matched-expired fixtures that prove
   fail-closed versus conservative-terminal behavior;
@@ -247,15 +246,15 @@ the following on one immutable release SHA:
   queries the active provider-specific Apple subject and clears the matching
   local session when Apple no longer reports `.authorized`, while exact-SHA
   source coverage retains the stale-identity callback fence; and
-- an enforceable minimum-supported-build gate or an independent
-  server-delivered manual-revocation fallback for older iOS binaries. Older
-  installed binaries cannot display a response field or notice they do not
-  implement. Merely publishing or distributing the supporting build therefore
-  does not complete the legacy-account rollout.
+- an enforceable minimum-supported-build gate or an independent server-delivered
+  manual-revocation fallback for older iOS binaries. Older installed binaries
+  cannot display a response field or notice they do not implement. Merely
+  publishing or distributing the supporting build therefore does not complete
+  the legacy-account rollout.
 
-As of 2026-08-06, this repository contains neither an enforced minimum iOS
-build gate nor an independent server-delivered fallback for a deletion started
-by an older binary. Product promotion is blocked until one of those controls is
+As of 2026-08-06, this repository contains neither an enforced minimum iOS build
+gate nor an independent server-delivered fallback for a deletion started by an
+older binary. Product promotion is blocked until one of those controls is
 implemented and verified. A version gate must preserve a clear, usable path to
 in-app account deletion after update; a server fallback must durably deliver
 Apple's manual-removal instructions without depending on a response field that
@@ -282,8 +281,7 @@ provider attempt successful from an Apple error response.
   executable-fixture ordering.
 - `_tests/accountDeletionMigrationContract.test.ts`: Vault schema, Auth and
   terminal fences, recovery hash ledger, ACLs, allowlist, permanent replay,
-  health, and
-  secret destruction before state commit.
+  health, and secret destruction before state commit.
 - `safe-delete/protocol_test.ts`, `safe-delete/db_recovery_test.ts`, and
   `recover-account-deletion/handler_test.ts`: exact proof wire contract,
   server-side hashing, account-free recovery, stable errors, and no-store

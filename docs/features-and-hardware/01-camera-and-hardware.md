@@ -1,6 +1,7 @@
 # Camera and Hardware Orchestration
 
-The optical and physical layer of the Merian application wraps Apple's `AVFoundation` framework behind a thermal-aware orchestrator.
+The optical and physical layer of the Merian application wraps Apple's
+`AVFoundation` framework behind a thermal-aware orchestrator.
 
 ## The Core Pipeline
 
@@ -8,98 +9,446 @@ The optical and physical layer of the Merian application wraps Apple's `AVFounda
 
 The lowest-level integration, interfacing directly with the iPhone optics.
 
-- Instantiates the `AVCaptureSession` via `AVCaptureDevice.DiscoverySession` with the device priority: `.builtInTripleCamera` → `.builtInLiDARDepthCamera` → `.builtInDualCamera` → `.builtInDualWideCamera` → `.builtInWideAngleCamera`. Triple camera is preferred on Pro models because it exposes the full optical zoom range across lenses (0.5×–15×) and still delivers LiDAR depth data via `AVCaptureDepthDataOutput` on LiDAR-equipped devices. `.builtInLiDARDepthCamera` is intentionally kept lower in the priority list — Apple locks its `videoZoomFactor` at 1.0 to prevent RGB/depth misalignment, so selecting it as the primary device would permanently disable zoom even on Pro hardware.
-- Configures parallel buffers routing to `AVCaptureVideoDataOutput`, `AVCaptureDepthDataOutput`, and `AVCapturePhotoOutput`. Sets `videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]` so that `ViewfinderIntelligence` can extract raw Luma brightness bounds from memory plane 0 without expensive CPU color-space conversions.
-- Conditionally attaches the `AVCaptureDepthDataOutput` **only** if the device possesses a LiDAR sensor (detected by querying for `.builtInLiDARDepthCamera` availability). This hardware gate prevents a critical AVFoundation limitation on purely stereo-optic devices (e.g., iPhone 12 mini's dual-wide camera), where requesting live depth data forces both lenses to remain at base calibration, permanently locking the `videoZoomFactor` to 1.0 and breaking the viewfinder zoom UI.
-- Evaluates `photoOutput.isDepthDataDeliverySupported` exclusively alongside `hasLiDAR` during configuration, gating `.isDepthDataDeliveryEnabled` downstream into `AVCapturePhotoSettings`. This strict dual-validation is crucial: enabling stereoscopic photo depth delivery on non-LiDAR dual-camera devices actively locks the entire session's active format `videoMaxZoomFactor` to 1.0, permanently destroying optical and digital zoom capabilities in the UI. Gating by LiDAR ensures only hardware with dedicated infrared depth engines requests depth maps, preserving RGB zoom.
-- Sets `photoOutput.isHighResolutionCaptureEnabled = true`, letting Apple's Image Signal Processor manage dynamic resolution, avoiding 48MP RAW byte crashes.
-- Tracks `@Observable var isFlashEnabled`, driving hardware flash through `device.torchMode` under `.lockForConfiguration()` to handle dark environments. `toggleFlash()` resolves the video `AVCaptureDeviceInput` inside the background camera queue, toggles the torch under the device lock, and only then publishes `isFlashEnabled` back to `@MainActor`. This keeps `AVCaptureSession.inputs` off the UI actor and prevents rapid hardware-locking commands from stalling SwiftUI. `isFlashEnabled` is reset to `false` in both `stopSession()` and the `didEnterBackgroundNotification` sink — AVFoundation kills the torch whenever the session stops, so `isFlashEnabled` must be synchronised at the same time as `isSessionRunning` to prevent the flash button from appearing active after the session restarts.
-- **Hardware Rotation Coordinator**: `CameraManager` natively observes physical device orientation via `AVCaptureDevice.RotationCoordinator` (available in iOS 17+). This abstracts away software orientation locks (e.g., Control Center Portrait Lock) by directly monitoring accelerometer data. **Crucially, for photo captures (`AVCapturePhotoOutput`), this physical horizon angle is manually injected into `AVCaptureConnection.videoRotationAngle` just before shutter release.** By delegating the geometric rotation squarely to the hardware connection buffer prior to capturing rather than relying on standard EXIF logic, the final delivered image is always upright (EXIF Up) and correctly oriented even if the iOS device has a Portrait orientation lock enabled.
-- **Strict Background Concurrency**: `AVCaptureSession.isRunning` is highly synchronous and can cause main-thread deadlocks if queried while the session transitions on a background thread. `startSession()` and `stopSession()` evaluate their guards entirely within `queue.async`. Furthermore, hardware configuration locks (`lockForConfiguration()`) are strictly forbidden during the `UIApplication.didEnterBackgroundNotification` or `.inactive` phase, as requesting a lens or hardware state change while the OS reclaims the camera triggers a permanent queue deadlock that cannot be recovered on app resume.
-- Routes `setupSession()` initialization onto a background `queue.async` inside `init()`. All Image Signal Processor negotiations — `applyTargetFPS(_:)`, `throttleToIdleState()`, and `resetFocusAndExposure()` — wrap `device.lockForConfiguration()` inside this background queue. Dynamic framerate `CMTime` calculations clamping `device.activeFormat.videoSupportedFrameRateRanges` are factored into a shared `applyFrameRate(_:to:)` helper marked `nonisolated` so it can run off the `@MainActor` without concurrency warnings. This isolates `activeVideoMaxFrameDuration` logic in one place, keeps the `@MainActor` free during lens shifting, and publishes results back to SwiftUI safely.
-- Throttles the 60fps LiDAR depth data loop (`depthDataOutput`) to 3fps using an `OSAllocatedUnfairLock` throttler, reducing thermal pressure before any `@MainActor` context switch. In iOS, adding an `AVCaptureDepthDataOutput` under default `.photo` presets naturally streams hardware frames encoded as Parallax Disparity (1/distance) by default, rather than physical Cartesian Depth (meters), even when using precision LiDAR hardware. To extract accurate real-world distances without dropping frames or silently trapping the pipeline on unexpected 16-bit generic structures, Merian actively converts the incoming `AVDepthData` stream directly to `kCVPixelFormatType_DepthFloat32` natively via `.converting(toDepthDataType:)`. This guarantees that `subjectDistanceInMeters` is always mapped linearly and explicitly to floats before telemetry payload packaging, completely decoupling the metric from variable iOS sensor format configurations.
-- **Latest-state FPS observation and debounce**: `trackFPS()` uses one-shot `withObservationTracking` to react to `HardwareOrchestrator.shared.targetFPS`. Its `onChange` path clears the `isFPSTrackingRegistered` guard and immediately re-arms observation before any suspension, so thermal or power changes remain observable throughout the 100 ms debounce window. `CameraTargetFPSDebouncer` cancels and replaces pending work, gives each scheduled application a UUID generation, and checks that generation before applying or clearing state because task cancellation is cooperative. The surviving task reads `targetFPS` only after its sleep rather than retaining the value that originally triggered it. Rapid changes therefore collapse into one camera-queue reconfiguration using the newest target; a transition to 15/30 fps or a recovery to 60 fps cannot be permanently lost while an earlier debounce is sleeping.
-- **`stateLock` / `requestsLock` ordering invariant**: `CameraManager` uses two `OSAllocatedUnfairLock` instances — `stateLock` guards session/rotation/inference-pause state, and `requestsLock` guards in-flight capture continuations (`activeCaptureRequests`). These two locks must **never be nested**: do not acquire `requestsLock` while holding `stateLock`, and do not acquire `stateLock` while holding `requestsLock`. Violation produces a guaranteed deadlock between the camera session queue (which calls photo delegate callbacks while holding ISP state) and the `@MainActor` timeout path (which acquires `requestsLock` to cancel continuations). All call sites in `CameraManager` are verified to hold at most one of these locks at any time.
-- Guards `AVFoundation` shutter callbacks against race conditions using `withCheckedThrowingContinuation`, synchronizing on the `@MainActor` before delegating `capturePhoto` to the background queue. `CaptureWorkspaceViewModel.executeCapture` wraps an `@Published var isCapturing: Bool` lock to prevent rapid double-tap crashes. To prevent `.paywall` overrides from `AVCaptureEventInteraction` false positives during inference, `handleInferenceProcessingChange` defers `.insight` assignment into `DispatchQueue.main.async`, allowing the `UIWindow` to stabilize the hardware shutter button state.
-- Reads the LiDAR depth vector `subjectDistanceInMeters` at the exact moment of shutter capture. Deferring this read to `handleCropCompletion` would return floor data or `nil` after the user pans away, so `capturedDistance` is extracted during shutter engagement. This depth metric is then asynchronously paired with the high-resolution capture inside `SizeEstimator.swift`, which issues a `VNGenerateObjectnessBasedSaliencyImageRequest` via Apple Vision to isolate the primary foreground subject's bounding box. By multiplying the normalized subject bounding box against the physical plane width (derived from the LiDAR distance and the iPhone's 70º lens FOV), Merian calculates a real-world `estimated_size_cm` metric before ever making a cloud request.
+- Instantiates the `AVCaptureSession` via `AVCaptureDevice.DiscoverySession`
+  with the device priority: `.builtInTripleCamera` → `.builtInLiDARDepthCamera`
+  → `.builtInDualCamera` → `.builtInDualWideCamera` → `.builtInWideAngleCamera`.
+  Triple camera is preferred on Pro models because it exposes the full optical
+  zoom range across lenses (0.5×–15×) and still delivers LiDAR depth data via
+  `AVCaptureDepthDataOutput` on LiDAR-equipped devices.
+  `.builtInLiDARDepthCamera` is intentionally kept lower in the priority list —
+  Apple locks its `videoZoomFactor` at 1.0 to prevent RGB/depth misalignment, so
+  selecting it as the primary device would permanently disable zoom even on Pro
+  hardware.
+- Configures parallel buffers routing to `AVCaptureVideoDataOutput`,
+  `AVCaptureDepthDataOutput`, and `AVCapturePhotoOutput`. Sets
+  `videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]`
+  so that `ViewfinderIntelligence` can extract raw Luma brightness bounds from
+  memory plane 0 without expensive CPU color-space conversions.
+- Conditionally attaches the `AVCaptureDepthDataOutput` **only** if the device
+  possesses a LiDAR sensor (detected by querying for `.builtInLiDARDepthCamera`
+  availability). This hardware gate prevents a critical AVFoundation limitation
+  on purely stereo-optic devices (e.g., iPhone 12 mini's dual-wide camera),
+  where requesting live depth data forces both lenses to remain at base
+  calibration, permanently locking the `videoZoomFactor` to 1.0 and breaking the
+  viewfinder zoom UI.
+- Evaluates `photoOutput.isDepthDataDeliverySupported` exclusively alongside
+  `hasLiDAR` during configuration, gating `.isDepthDataDeliveryEnabled`
+  downstream into `AVCapturePhotoSettings`. This strict dual-validation is
+  crucial: enabling stereoscopic photo depth delivery on non-LiDAR dual-camera
+  devices actively locks the entire session's active format `videoMaxZoomFactor`
+  to 1.0, permanently destroying optical and digital zoom capabilities in the
+  UI. Gating by LiDAR ensures only hardware with dedicated infrared depth
+  engines requests depth maps, preserving RGB zoom.
+- Sets `photoOutput.isHighResolutionCaptureEnabled = true`, letting Apple's
+  Image Signal Processor manage dynamic resolution, avoiding 48MP RAW byte
+  crashes.
+- Tracks `@Observable var isFlashEnabled`, driving hardware flash through
+  `device.torchMode` under `.lockForConfiguration()` to handle dark
+  environments. `toggleFlash()` resolves the video `AVCaptureDeviceInput` inside
+  the background camera queue, toggles the torch under the device lock, and only
+  then publishes `isFlashEnabled` back to `@MainActor`. This keeps
+  `AVCaptureSession.inputs` off the UI actor and prevents rapid hardware-locking
+  commands from stalling SwiftUI. `isFlashEnabled` is reset to `false` in both
+  `stopSession()` and the `didEnterBackgroundNotification` sink — AVFoundation
+  kills the torch whenever the session stops, so `isFlashEnabled` must be
+  synchronised at the same time as `isSessionRunning` to prevent the flash
+  button from appearing active after the session restarts.
+- **Hardware Rotation Coordinator**: `CameraManager` natively observes physical
+  device orientation via `AVCaptureDevice.RotationCoordinator` (available in iOS
+  17+). This abstracts away software orientation locks (e.g., Control Center
+  Portrait Lock) by directly monitoring accelerometer data. **Crucially, for
+  photo captures (`AVCapturePhotoOutput`), this physical horizon angle is
+  manually injected into `AVCaptureConnection.videoRotationAngle` just before
+  shutter release.** By delegating the geometric rotation squarely to the
+  hardware connection buffer prior to capturing rather than relying on standard
+  EXIF logic, the final delivered image is always upright (EXIF Up) and
+  correctly oriented even if the iOS device has a Portrait orientation lock
+  enabled.
+- **Strict Background Concurrency**: `AVCaptureSession.isRunning` is highly
+  synchronous and can cause main-thread deadlocks if queried while the session
+  transitions on a background thread. `startSession()` and `stopSession()`
+  evaluate their guards entirely within `queue.async`. Furthermore, hardware
+  configuration locks (`lockForConfiguration()`) are strictly forbidden during
+  the `UIApplication.didEnterBackgroundNotification` or `.inactive` phase, as
+  requesting a lens or hardware state change while the OS reclaims the camera
+  triggers a permanent queue deadlock that cannot be recovered on app resume.
+- Routes `setupSession()` initialization onto a background `queue.async` inside
+  `init()`. All Image Signal Processor negotiations — `applyTargetFPS(_:)`,
+  `throttleToIdleState()`, and `resetFocusAndExposure()` — wrap
+  `device.lockForConfiguration()` inside this background queue. Dynamic
+  framerate `CMTime` calculations clamping
+  `device.activeFormat.videoSupportedFrameRateRanges` are factored into a shared
+  `applyFrameRate(_:to:)` helper marked `nonisolated` so it can run off the
+  `@MainActor` without concurrency warnings. This isolates
+  `activeVideoMaxFrameDuration` logic in one place, keeps the `@MainActor` free
+  during lens shifting, and publishes results back to SwiftUI safely.
+- Throttles the 60fps LiDAR depth data loop (`depthDataOutput`) to 3fps using an
+  `OSAllocatedUnfairLock` throttler, reducing thermal pressure before any
+  `@MainActor` context switch. In iOS, adding an `AVCaptureDepthDataOutput`
+  under default `.photo` presets naturally streams hardware frames encoded as
+  Parallax Disparity (1/distance) by default, rather than physical Cartesian
+  Depth (meters), even when using precision LiDAR hardware. To extract accurate
+  real-world distances without dropping frames or silently trapping the pipeline
+  on unexpected 16-bit generic structures, Merian actively converts the incoming
+  `AVDepthData` stream directly to `kCVPixelFormatType_DepthFloat32` natively
+  via `.converting(toDepthDataType:)`. This guarantees that
+  `subjectDistanceInMeters` is always mapped linearly and explicitly to floats
+  before telemetry payload packaging, completely decoupling the metric from
+  variable iOS sensor format configurations.
+- **Latest-state FPS observation and debounce**: `trackFPS()` uses one-shot
+  `withObservationTracking` to react to `HardwareOrchestrator.shared.targetFPS`.
+  Its `onChange` path clears the `isFPSTrackingRegistered` guard and immediately
+  re-arms observation before any suspension, so thermal or power changes remain
+  observable throughout the 100 ms debounce window. `CameraTargetFPSDebouncer`
+  cancels and replaces pending work, gives each scheduled application a UUID
+  generation, and checks that generation before applying or clearing state
+  because task cancellation is cooperative. The surviving task reads `targetFPS`
+  only after its sleep rather than retaining the value that originally triggered
+  it. Rapid changes therefore collapse into one camera-queue reconfiguration
+  using the newest target; a transition to 15/30 fps or a recovery to 60 fps
+  cannot be permanently lost while an earlier debounce is sleeping.
+- **`stateLock` / `requestsLock` ordering invariant**: `CameraManager` uses two
+  `OSAllocatedUnfairLock` instances — `stateLock` guards
+  session/rotation/inference-pause state, and `requestsLock` guards in-flight
+  capture continuations (`activeCaptureRequests`). These two locks must **never
+  be nested**: do not acquire `requestsLock` while holding `stateLock`, and do
+  not acquire `stateLock` while holding `requestsLock`. Violation produces a
+  guaranteed deadlock between the camera session queue (which calls photo
+  delegate callbacks while holding ISP state) and the `@MainActor` timeout path
+  (which acquires `requestsLock` to cancel continuations). All call sites in
+  `CameraManager` are verified to hold at most one of these locks at any time.
+- Guards `AVFoundation` shutter callbacks against race conditions using
+  `withCheckedThrowingContinuation`, synchronizing on the `@MainActor` before
+  delegating `capturePhoto` to the background queue.
+  `CaptureWorkspaceViewModel.executeCapture` wraps an
+  `@Published var isCapturing: Bool` lock to prevent rapid double-tap crashes.
+  To prevent `.paywall` overrides from `AVCaptureEventInteraction` false
+  positives during inference, `handleInferenceProcessingChange` defers
+  `.insight` assignment into `DispatchQueue.main.async`, allowing the `UIWindow`
+  to stabilize the hardware shutter button state.
+- Reads the LiDAR depth vector `subjectDistanceInMeters` at the exact moment of
+  shutter capture. Deferring this read to `handleCropCompletion` would return
+  floor data or `nil` after the user pans away, so `capturedDistance` is
+  extracted during shutter engagement. This depth metric is then asynchronously
+  paired with the high-resolution capture inside `SizeEstimator.swift`, which
+  issues a `VNGenerateObjectnessBasedSaliencyImageRequest` via Apple Vision to
+  isolate the primary foreground subject's bounding box. By multiplying the
+  normalized subject bounding box against the physical plane width (derived from
+  the LiDAR distance and the iPhone's 70º lens FOV), Merian calculates a
+  real-world `estimated_size_cm` metric before ever making a cloud request.
 - Throttles preview feeds between 15–60 FPS to conserve memory.
-- **Native Hardware Interaction (`AVCaptureEventInteraction`)**: Uses the iOS 17.2 hardware API to intercept native volume buttons, the Action button, and the iPhone 16 Camera Control. Bound on the `.began` event phase for zero-latency capture parity with the system Camera app. Grabs a live `CLLocation` snapshot at capture time. Disables itself when UI sheets or modals are open to prevent volume hijacking.
-- **Tap-to-Focus & Tap-to-Expose**: Uses `.captureDevicePointConverted` in `CameraPreviewView` to translate UI touches into hardware coordinates. Offloads `lockForConfiguration` adjustments to the background queue for `.autoFocus` and `.autoExpose` tracking without deadlocking. Enables `isSubjectAreaChangeMonitoringEnabled` and registers `AVCaptureDevice.subjectAreaDidChangeNotification` to reset focus back to continuous tracking when the device is panned away.
-- **Zoom (`zoomFactor`, `maxZoomFactor`, `opticalZoomStops`, `setZoom(factor:)`)**: `maxAvailableVideoZoomFactor` is read from the active video device inside `startSession()`, immediately after `session.startRunning()` — reading it before the session is live returns 1.0 because the active format is not fully resolved until the session is running. The value is capped at 15× (`min(available, 15.0)`) before being stored; `maxAvailableVideoZoomFactor` can reach 189× on some hardware (pure digital pixel-stretch), and Apple's Camera app applies a similar soft cap. `opticalZoomStops` is derived simultaneously from `virtualDeviceSwitchOverVideoZoomFactors` — the exact zoom factors at which the hardware physically switches lenses — and is used by `ZoomSliderView` to render tappable dots and fire haptic detents at real optical transitions. Both values are shipped to `@MainActor` via `Task { @MainActor in }`. `isZoomSupported` is `true` when `maxZoomFactor >= 2.0`, hiding the slider entirely on single-lens hardware. `setZoom(factor:)` snapshots the requested factor and UI max zoom on `@MainActor`, then `applyZoom` resolves `session.inputs`, clamps against the active device, and applies the zoom on the background queue under `lockForConfiguration` using `device.cancelVideoZoomRamp()` + `device.ramp(toVideoZoomFactor:withRate:300)`. The resulting `zoomFactor` is published back to `@MainActor` after the queued hardware handoff. Using `ramp` instead of direct `videoZoomFactor` assignment lets the capture pipeline prepare for the upcoming physical lens switch (e.g. at 2×), which eliminates the brief preview jump visible when crossing an optical stop. `cancelVideoZoomRamp()` is called first so rapid gesture frames cancel the in-flight ramp and start a fresh one instead of queuing up a backlog. A rate of 300×/s means a 0.2× zoom change completes in under 1 ms — imperceptible as lag but smooth enough for the hardware to handle the lens transition gracefully. **Zoom reset**: `setZoom(factor: 1.0)` is called in two places to prevent zoom state desynchronisation: (1) in the `startSession()` Task block after `maxZoomFactor` is populated — this covers both foreground-from-background restarts and post-analysis session restarts (the `activeSheet` lifecycle stops and restarts the session after every scan); (2) in the `didEnterBackgroundNotification` sink alongside the flash reset — this covers the edge case where the user backgrounds mid-staging in multi-capture mode before a session restart would naturally fire. `session.inputs` persists through `stopSession()` (which only calls `stopRunning()`, never removes inputs), so the background-queue hardware write reaches the device regardless of session state. Device selection diagnostics (device name, `available`, `cap`, `formatMax`, `isVirtual`) are emitted at `debug` level to `MerianLog.hardware` on every session start.
-- **Simulator no-preview camera**: In simulator builds, `CameraManager.startSession()` does not start `AVCaptureSession`. Recent iOS Simulator runtimes can surface `FigCaptureSourceSimulator` / `FormatDescription` failures and leave the preview layer permanently black. Merian instead marks the session as running with `maxZoomFactor = 1.0`, hides the zoom slider through the normal `isZoomSupported` gate, and renders a plain black `SimulatorCameraSurfaceView` with tap/drag affordances but no fake imagery. Hardware shutter capture is unavailable in simulator; use the photo-library picker for simulator scan testing. Physical devices still use the full AVFoundation pipeline.
-- **Thread-Safe Capture Operations**: Resolves data races and array bounds exceptions (`SIGABRT`) from overlapping hardware capture timeouts. Replaces the linear `activeCaptureRequests` array with a thread-safe `Dictionary<Int64, CaptureRequest>` keyed by `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) removals via an `NSLock` that synchronizes `@MainActor` continuation callbacks with the asynchronous hardware delegates.
+- **Native Hardware Interaction (`AVCaptureEventInteraction`)**: Uses the iOS
+  17.2 hardware API to intercept native volume buttons, the Action button, and
+  the iPhone 16 Camera Control. Bound on the `.began` event phase for
+  zero-latency capture parity with the system Camera app. Grabs a live
+  `CLLocation` snapshot at capture time. Disables itself when UI sheets or
+  modals are open to prevent volume hijacking.
+- **Tap-to-Focus & Tap-to-Expose**: Uses `.captureDevicePointConverted` in
+  `CameraPreviewView` to translate UI touches into hardware coordinates.
+  Offloads `lockForConfiguration` adjustments to the background queue for
+  `.autoFocus` and `.autoExpose` tracking without deadlocking. Enables
+  `isSubjectAreaChangeMonitoringEnabled` and registers
+  `AVCaptureDevice.subjectAreaDidChangeNotification` to reset focus back to
+  continuous tracking when the device is panned away.
+- **Zoom (`zoomFactor`, `maxZoomFactor`, `opticalZoomStops`,
+  `setZoom(factor:)`)**: `maxAvailableVideoZoomFactor` is read from the active
+  video device inside `startSession()`, immediately after
+  `session.startRunning()` — reading it before the session is live returns 1.0
+  because the active format is not fully resolved until the session is running.
+  The value is capped at 15× (`min(available, 15.0)`) before being stored;
+  `maxAvailableVideoZoomFactor` can reach 189× on some hardware (pure digital
+  pixel-stretch), and Apple's Camera app applies a similar soft cap.
+  `opticalZoomStops` is derived simultaneously from
+  `virtualDeviceSwitchOverVideoZoomFactors` — the exact zoom factors at which
+  the hardware physically switches lenses — and is used by `ZoomSliderView` to
+  render tappable dots and fire haptic detents at real optical transitions. Both
+  values are shipped to `@MainActor` via `Task { @MainActor in }`.
+  `isZoomSupported` is `true` when `maxZoomFactor >= 2.0`, hiding the slider
+  entirely on single-lens hardware. `setZoom(factor:)` snapshots the requested
+  factor and UI max zoom on `@MainActor`, then `applyZoom` resolves
+  `session.inputs`, clamps against the active device, and applies the zoom on
+  the background queue under `lockForConfiguration` using
+  `device.cancelVideoZoomRamp()` +
+  `device.ramp(toVideoZoomFactor:withRate:300)`. The resulting `zoomFactor` is
+  published back to `@MainActor` after the queued hardware handoff. Using `ramp`
+  instead of direct `videoZoomFactor` assignment lets the capture pipeline
+  prepare for the upcoming physical lens switch (e.g. at 2×), which eliminates
+  the brief preview jump visible when crossing an optical stop.
+  `cancelVideoZoomRamp()` is called first so rapid gesture frames cancel the
+  in-flight ramp and start a fresh one instead of queuing up a backlog. A rate
+  of 300×/s means a 0.2× zoom change completes in under 1 ms — imperceptible as
+  lag but smooth enough for the hardware to handle the lens transition
+  gracefully. **Zoom reset**: `setZoom(factor: 1.0)` is called in two places to
+  prevent zoom state desynchronisation: (1) in the `startSession()` Task block
+  after `maxZoomFactor` is populated — this covers both
+  foreground-from-background restarts and post-analysis session restarts (the
+  `activeSheet` lifecycle stops and restarts the session after every scan); (2)
+  in the `didEnterBackgroundNotification` sink alongside the flash reset — this
+  covers the edge case where the user backgrounds mid-staging in multi-capture
+  mode before a session restart would naturally fire. `session.inputs` persists
+  through `stopSession()` (which only calls `stopRunning()`, never removes
+  inputs), so the background-queue hardware write reaches the device regardless
+  of session state. Device selection diagnostics (device name, `available`,
+  `cap`, `formatMax`, `isVirtual`) are emitted at `debug` level to
+  `MerianLog.hardware` on every session start.
+- **Simulator no-preview camera**: In simulator builds,
+  `CameraManager.startSession()` does not start `AVCaptureSession`. Recent iOS
+  Simulator runtimes can surface `FigCaptureSourceSimulator` /
+  `FormatDescription` failures and leave the preview layer permanently black.
+  Merian instead marks the session as running with `maxZoomFactor = 1.0`, hides
+  the zoom slider through the normal `isZoomSupported` gate, and renders a plain
+  black `SimulatorCameraSurfaceView` with tap/drag affordances but no fake
+  imagery. Hardware shutter capture is unavailable in simulator; use the
+  photo-library picker for simulator scan testing. Physical devices still use
+  the full AVFoundation pipeline.
+- **Thread-Safe Capture Operations**: Resolves data races and array bounds
+  exceptions (`SIGABRT`) from overlapping hardware capture timeouts. Replaces
+  the linear `activeCaptureRequests` array with a thread-safe
+  `Dictionary<Int64, CaptureRequest>` keyed by
+  `AVCapturePhotoSettings.uniqueID`, providing atomic O(1) removals via an
+  `NSLock` that synchronizes `@MainActor` continuation callbacks with the
+  asynchronous hardware delegates.
 
 ### `ZoomSliderView` (`Features/Capture/Scan/Components/ZoomSliderView.swift`)
 
-Vertical zoom meter overlaid on the viewfinder. Supports direct drag interaction as well as reflecting zoom changes from pinch and viewfinder swipe gestures. Reads `CameraManager` from the environment; no parameters are passed from `MainOverlayView`.
+Vertical zoom meter overlaid on the viewfinder. Supports direct drag interaction
+as well as reflecting zoom changes from pinch and viewfinder swipe gestures.
+Reads `CameraManager` from the environment; no parameters are passed from
+`MainOverlayView`.
 
-- Renders only when `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`. `isZoomSupported` is `maxZoomFactor >= 2.0` (false on single-lens hardware). `isSessionRunning` is set to `true` only after the `AVCaptureSession.Running` notification fires — this is the critical gate: `maxZoomFactor` is not reset to `1.0` when the session stops, so without the `isSessionRunning` guard the slider would appear prematurely on session restart (e.g. returning from audio mode) while the camera is still spinning up. The 0.5s `easeIn` fade applies when the combined condition first becomes `true`, after the live viewfinder is already active.
-- Hidden when `activeScanImages.count >= 2` (multi-capture staging mode) via the guard in `MainOverlayView`'s `.overlay`.
-- **Side placement**: Sits flush against the trailing screen edge by default (no horizontal padding). `@AppStorage(UserDefaultsKeys.zoomSideLeft)` flips it to the leading edge; `MainOverlayView` switches the overlay alignment accordingly. The view mirrors horizontally via `.scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)` — no Canvas math changes required.
-- **Drag gesture**: `DragGesture(minimumDistance: 1)` on the slider lets users zoom by dragging directly on the ruler. Uses log-space delta — `newFactor = startFactor × exp((dy / trackHeight) × log(maxZoom))` — so the indicator tracks the finger pixel-perfectly on the logarithmic ruler. `isDragging ? nil : spring` animation gives direct-manipulation feel during drag and a spring on programmatic changes. On drag end, `CameraManager.snapToNearestOpticalStop()` snaps the zoom to the nearest optical stop, mirroring the pinch and viewfinder swipe behaviour. Coexists with pinch and viewfinder swipe, all routing through `CameraManager.setZoom(factor:)`.
-- **Tick-mark ruler**: A `Canvas`-drawn ruler of 32 evenly-spaced ticks across a 220pt track (52pt wide component). All ticks are rendered at the same length (`shortTickWidth = 14pt`, with a 4pt inset from the trailing edge). Optical stop ticks and the max zoom end tick are drawn in `white.opacity(0.8)`; standard ticks in `white.opacity(0.45)`. Each optical stop and the max zoom position carry a 4pt white dot 18pt from the trailing edge. The tick-to-zoom mapping uses **log-space**: `tickLog = (1 − t) × logMax` (default) or `t × logMax` (inverted), so ticks are spaced logarithmically and align exactly with the indicator position and drag gesture.
-- **Logarithmic position mapping**: Both the tick ruler and `fillFraction(for:)` use `log(factor) / log(maxZoomFactor)`. This ensures the indicator and optical-stop dots stay in perfect sync at all zoom levels — optical stops are detected in log-space (`abs(log(stop) − tickLog) < halfTickLog`) to match the ruler geometry. It also prevents the 1×–3× range from being compressed into the bottom few percent of the track on devices with a 15× cap.
-- **Indicator alignment**: `indicatorY = indicatorTickOffset + f × trackHeight`, where `indicatorTickOffset = 5` compensates for the Canvas's 4pt internal y-start and the `rulerView`'s 11pt top padding, minus half the 20pt indicator frame height, ensuring the indicator center lands precisely on each tick line.
-- **Current zoom indicator**: Floats along the ruler as `camera.zoomFactor` changes, animated with `.spring(response: 0.4, dampingFraction: 0.75)`. Two display states driven by `showText = isActivelyZooming || showInitialLabel`:
-  - **Pill** (`showText = true`): Yellow (`rgb(255, 204, 0)`) `Capsule` badge, 10pt SF Rounded Bold black label, with `.contentTransition(.numericText())` for smooth digit morphing. A 1.5pt white hairline connects it to the ruler.
-  - **Dot** (`showText = false`): 5pt yellow circle with a 0.5pt white hairline at 15% opacity.
-  - Pill ↔ dot swap uses `.scale(0.7).combined(with: .opacity)` transition, animated with `.spring(response: 0.25, dampingFraction: 0.8)`.
-- **Initial label**: A lifecycle-owned `.task` starts with `showInitialLabel == true`, showing the "1×" pill immediately so users understand the control on first load. After two seconds it clears the label and collapses the pill to a dot; unmounting cancels the task automatically. Once dismissed it stays a dot until the user zooms.
-- **Active zoom detection**: `isActivelyZooming` is set `true` on every `.onChange(of: camera.zoomFactor)` frame and cleared by a replaceable 1.5-second idle task. The previous task is cancelled on every zoom update and on view disappearance, so it cannot retain or mutate an obsolete slider. This drives `showText` so the label is visible while the user is actively pinching or swiping, then retreats to a dot once zoom settles.
-- **Tick-elongation effect**: `zoomActivityStrength: CGFloat` (`@State`, 0–1) gates a Gaussian falloff applied to each tick's Canvas draw. When zooming starts, `withAnimation(.easeOut(duration: 0.12))` ramps `zoomActivityStrength` to 1.0; when the 1.5s idle timer fires, `withAnimation(.easeOut(duration: 0.5))` collapses it back to 0. Each tick's extra length is `influence × 8 pt`, where `influence = exp(-d²/(2σ²))` with σ = 0.18 (~5–6 ticks either side of the current position). The collapse animation is driven from a synchronous `onChange(of: isActivelyZooming)` — if it were inside the async `Task`, `withAnimation` might not execute within SwiftUI's update cycle.
-- **Visibility toggle**: Gated by `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`. The `zoomSliderVisible` flag (`@AppStorage(UserDefaultsKeys.zoomSliderVisible)`, default `true`) lets users hide the overlay entirely via Camera Settings without affecting the underlying zoom functionality. The `isSessionRunning` gate prevents the slider from appearing during the session startup window when `maxZoomFactor` already holds a non-zero value from the previous session.
-- **Haptics**: Fire on every tick crossing, tracked via `lastHapticTick: Int`. On each `.onChange(of: camera.zoomFactor)`, the current factor is mapped to a tick index via `round(fillFraction × (tickCount − 1))`; if the index changed, a haptic fires. Regular ticks: `.light` at 0.4 intensity. Optical stop ticks: `.heavy` at 1.0 intensity. Optical stops are detected in tick-index space — both the current factor and each stop are mapped to their nearest tick index via `log(stop) / log(maxZoom)` before comparing — ensuring reliable detection on the logarithmic scale regardless of zoom speed.
-- **Orientation-aware rendering**: When `invertZoomDirection` is `true`, the indicator formula, Canvas tick-to-zoom mapping all invert together so the visual ruler direction always matches the swipe direction.
-- **Zoom as inference context**: `submitActiveScan()` snapshots `CameraManager.zoomFactor` before the first `await` and stores it in `CaptureTelemetry.zoomFactor`. A zoom of exactly 1× is stored as `nil` — it carries no identification signal. The value is forwarded to the Edge function as `Zoom:3.0x` in the Gemini telemetry string (positioned adjacent to the `Depth:` cue), and is persisted to `LocalScanRecord.zoomFactor` (`MerianSchemaV13`) and `OfflineQueuedScan.zoomFactor` so it survives offline queuing and is shown in `ScanInformationCard`.
+- Renders only when
+  `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`.
+  `isZoomSupported` is `maxZoomFactor >= 2.0` (false on single-lens hardware).
+  `isSessionRunning` is set to `true` only after the `AVCaptureSession.Running`
+  notification fires — this is the critical gate: `maxZoomFactor` is not reset
+  to `1.0` when the session stops, so without the `isSessionRunning` guard the
+  slider would appear prematurely on session restart (e.g. returning from audio
+  mode) while the camera is still spinning up. The 0.5s `easeIn` fade applies
+  when the combined condition first becomes `true`, after the live viewfinder is
+  already active.
+- Hidden when `activeScanImages.count >= 2` (multi-capture staging mode) via the
+  guard in `MainOverlayView`'s `.overlay`.
+- **Side placement**: Sits flush against the trailing screen edge by default (no
+  horizontal padding). `@AppStorage(UserDefaultsKeys.zoomSideLeft)` flips it to
+  the leading edge; `MainOverlayView` switches the overlay alignment
+  accordingly. The view mirrors horizontally via
+  `.scaleEffect(x: zoomSideLeft ? -1 : 1, y: 1)` — no Canvas math changes
+  required.
+- **Drag gesture**: `DragGesture(minimumDistance: 1)` on the slider lets users
+  zoom by dragging directly on the ruler. Uses log-space delta —
+  `newFactor = startFactor × exp((dy / trackHeight) × log(maxZoom))` — so the
+  indicator tracks the finger pixel-perfectly on the logarithmic ruler.
+  `isDragging ? nil : spring` animation gives direct-manipulation feel during
+  drag and a spring on programmatic changes. On drag end,
+  `CameraManager.snapToNearestOpticalStop()` snaps the zoom to the nearest
+  optical stop, mirroring the pinch and viewfinder swipe behaviour. Coexists
+  with pinch and viewfinder swipe, all routing through
+  `CameraManager.setZoom(factor:)`.
+- **Tick-mark ruler**: A `Canvas`-drawn ruler of 32 evenly-spaced ticks across a
+  220pt track (52pt wide component). All ticks are rendered at the same length
+  (`shortTickWidth = 14pt`, with a 4pt inset from the trailing edge). Optical
+  stop ticks and the max zoom end tick are drawn in `white.opacity(0.8)`;
+  standard ticks in `white.opacity(0.45)`. Each optical stop and the max zoom
+  position carry a 4pt white dot 18pt from the trailing edge. The tick-to-zoom
+  mapping uses **log-space**: `tickLog = (1 − t) × logMax` (default) or
+  `t × logMax` (inverted), so ticks are spaced logarithmically and align exactly
+  with the indicator position and drag gesture.
+- **Logarithmic position mapping**: Both the tick ruler and `fillFraction(for:)`
+  use `log(factor) / log(maxZoomFactor)`. This ensures the indicator and
+  optical-stop dots stay in perfect sync at all zoom levels — optical stops are
+  detected in log-space (`abs(log(stop) − tickLog) < halfTickLog`) to match the
+  ruler geometry. It also prevents the 1×–3× range from being compressed into
+  the bottom few percent of the track on devices with a 15× cap.
+- **Indicator alignment**: `indicatorY = indicatorTickOffset + f × trackHeight`,
+  where `indicatorTickOffset = 5` compensates for the Canvas's 4pt internal
+  y-start and the `rulerView`'s 11pt top padding, minus half the 20pt indicator
+  frame height, ensuring the indicator center lands precisely on each tick line.
+- **Current zoom indicator**: Floats along the ruler as `camera.zoomFactor`
+  changes, animated with `.spring(response: 0.4, dampingFraction: 0.75)`. Two
+  display states driven by `showText = isActivelyZooming || showInitialLabel`:
+  - **Pill** (`showText = true`): Yellow (`rgb(255, 204, 0)`) `Capsule` badge,
+    10pt SF Rounded Bold black label, with `.contentTransition(.numericText())`
+    for smooth digit morphing. A 1.5pt white hairline connects it to the ruler.
+  - **Dot** (`showText = false`): 5pt yellow circle with a 0.5pt white hairline
+    at 15% opacity.
+  - Pill ↔ dot swap uses `.scale(0.7).combined(with: .opacity)` transition,
+    animated with `.spring(response: 0.25, dampingFraction: 0.8)`.
+- **Initial label**: A lifecycle-owned `.task` starts with
+  `showInitialLabel == true`, showing the "1×" pill immediately so users
+  understand the control on first load. After two seconds it clears the label
+  and collapses the pill to a dot; unmounting cancels the task automatically.
+  Once dismissed it stays a dot until the user zooms.
+- **Active zoom detection**: `isActivelyZooming` is set `true` on every
+  `.onChange(of: camera.zoomFactor)` frame and cleared by a replaceable
+  1.5-second idle task. The previous task is cancelled on every zoom update and
+  on view disappearance, so it cannot retain or mutate an obsolete slider. This
+  drives `showText` so the label is visible while the user is actively pinching
+  or swiping, then retreats to a dot once zoom settles.
+- **Tick-elongation effect**: `zoomActivityStrength: CGFloat` (`@State`, 0–1)
+  gates a Gaussian falloff applied to each tick's Canvas draw. When zooming
+  starts, `withAnimation(.easeOut(duration: 0.12))` ramps `zoomActivityStrength`
+  to 1.0; when the 1.5s idle timer fires,
+  `withAnimation(.easeOut(duration: 0.5))` collapses it back to 0. Each tick's
+  extra length is `influence × 8 pt`, where `influence = exp(-d²/(2σ²))` with σ
+  = 0.18 (~5–6 ticks either side of the current position). The collapse
+  animation is driven from a synchronous `onChange(of: isActivelyZooming)` — if
+  it were inside the async `Task`, `withAnimation` might not execute within
+  SwiftUI's update cycle.
+- **Visibility toggle**: Gated by
+  `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`. The
+  `zoomSliderVisible` flag (`@AppStorage(UserDefaultsKeys.zoomSliderVisible)`,
+  default `true`) lets users hide the overlay entirely via Camera Settings
+  without affecting the underlying zoom functionality. The `isSessionRunning`
+  gate prevents the slider from appearing during the session startup window when
+  `maxZoomFactor` already holds a non-zero value from the previous session.
+- **Haptics**: Fire on every tick crossing, tracked via `lastHapticTick: Int`.
+  On each `.onChange(of: camera.zoomFactor)`, the current factor is mapped to a
+  tick index via `round(fillFraction × (tickCount − 1))`; if the index changed,
+  a haptic fires. Regular ticks: `.light` at 0.4 intensity. Optical stop ticks:
+  `.heavy` at 1.0 intensity. Optical stops are detected in tick-index space —
+  both the current factor and each stop are mapped to their nearest tick index
+  via `log(stop) / log(maxZoom)` before comparing — ensuring reliable detection
+  on the logarithmic scale regardless of zoom speed.
+- **Orientation-aware rendering**: When `invertZoomDirection` is `true`, the
+  indicator formula, Canvas tick-to-zoom mapping all invert together so the
+  visual ruler direction always matches the swipe direction.
+- **Zoom as inference context**: `submitActiveScan()` snapshots
+  `CameraManager.zoomFactor` before the first `await` and stores it in
+  `CaptureTelemetry.zoomFactor`. A zoom of exactly 1× is stored as `nil` — it
+  carries no identification signal. The value is forwarded to the Edge function
+  as `Zoom:3.0x` in the Gemini telemetry string (positioned adjacent to the
+  `Depth:` cue), and is persisted to `LocalScanRecord.zoomFactor`
+  (`MerianSchemaV13`) and `OfflineQueuedScan.zoomFactor` so it survives offline
+  queuing and is shown in `ScanInformationCard`.
 
 ### `CameraPreviewView` — Viewfinder Gestures
 
-Three `UIGestureRecognizer` instances are registered on the `AVCaptureVideoPreviewLayer` backing view, all with `cancelsTouchesInView = false` so SwiftUI overlay controls (shutter, flash, etc.) continue to receive touches:
+Three `UIGestureRecognizer` instances are registered on the
+`AVCaptureVideoPreviewLayer` backing view, all with
+`cancelsTouchesInView = false` so SwiftUI overlay controls (shutter, flash,
+etc.) continue to receive touches:
 
-| Gesture | Recognizer | Behaviour |
-|---|---|---|
-| Tap | `UITapGestureRecognizer` | Tap-to-focus & expose at the tapped point |
-| Vertical swipe | `UIPanGestureRecognizer` | Zoom in (up) / zoom out (down); direction inverted when `invertZoomDirection` is on |
-| Pinch | `UIPinchGestureRecognizer` | Zoom in / zoom out |
-| Horizontal swipe | `UIPanGestureRecognizer` (same instance, direction undetermined) | Deferred to the outer paged `ScrollView` for capture-mode switching |
+| Gesture          | Recognizer                                                       | Behaviour                                                                           |
+| ---------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Tap              | `UITapGestureRecognizer`                                         | Tap-to-focus & expose at the tapped point                                           |
+| Vertical swipe   | `UIPanGestureRecognizer`                                         | Zoom in (up) / zoom out (down); direction inverted when `invertZoomDirection` is on |
+| Pinch            | `UIPinchGestureRecognizer`                                       | Zoom in / zoom out                                                                  |
+| Horizontal swipe | `UIPanGestureRecognizer` (same instance, direction undetermined) | Deferred to the outer paged `ScrollView` for capture-mode switching                 |
 
-The `Coordinator` implements `UIGestureRecognizerDelegate.gestureRecognizer(_:shouldRecognizeSimultaneouslyWith:)` returning `true` when the other recognizer is a `UIPanGestureRecognizer`. This lets the camera's pan recognizer fire alongside the outer `UIScrollView` pan, so horizontal swipes on the viewfinder page the capture-mode `ScrollView` to `AudioRecordingView` instead of being swallowed.
+The `Coordinator` implements
+`UIGestureRecognizerDelegate.gestureRecognizer(_:shouldRecognizeSimultaneouslyWith:)`
+returning `true` when the other recognizer is a `UIPanGestureRecognizer`. This
+lets the camera's pan recognizer fire alongside the outer `UIScrollView` pan, so
+horizontal swipes on the viewfinder page the capture-mode `ScrollView` to
+`AudioRecordingView` instead of being swallowed.
 
-Direction is locked on the first `.changed` frame where `abs(velocity.y) > abs(velocity.x)` (vertical) or vice versa, preventing diagonal drift from triggering both actions. When the pan ends with a horizontal direction and `velocity.x < -200 pt/s`, `parent.onSwipeLeft?()` fires — this closure is currently `nil` because page navigation is handled by the `ScrollView`'s native paging behaviour.
+Direction is locked on the first `.changed` frame where
+`abs(velocity.y) > abs(velocity.x)` (vertical) or vice versa, preventing
+diagonal drift from triggering both actions. When the pan ends with a horizontal
+direction and `velocity.x < -200 pt/s`, `parent.onSwipeLeft?()` fires — this
+closure is currently `nil` because page navigation is handled by the
+`ScrollView`'s native paging behaviour.
 
-**Vertical zoom drag lock**: The moment `panDirection` confirms as `.vertical`, `parent.onVerticalDragActiveChanged?(true)` fires. On `.ended` or `.cancelled` (only when direction was vertical), `parent.onVerticalDragActiveChanged?(false)` fires. `CaptureWorkspaceView` holds `@State private var isVerticalZooming: Bool` and passes it to `.scrollDisabled(isVerticalZooming)` on the paging `ScrollView`, preventing the user from accidentally paging to `AudioRecordingView` mid-zoom-drag. The lock is released the instant the finger lifts.
+**Vertical zoom drag lock**: The moment `panDirection` confirms as `.vertical`,
+`parent.onVerticalDragActiveChanged?(true)` fires. On `.ended` or `.cancelled`
+(only when direction was vertical), `parent.onVerticalDragActiveChanged?(false)`
+fires. `CaptureWorkspaceView` holds `@State private var isVerticalZooming: Bool`
+and passes it to `.scrollDisabled(isVerticalZooming)` on the paging
+`ScrollView`, preventing the user from accidentally paging to
+`AudioRecordingView` mid-zoom-drag. The lock is released the instant the finger
+lifts.
 
-The zoom delta is `(sign * translation.y / 600) * range`, where `sign` is read from `UserDefaults.standard.bool(forKey: UserDefaultsKeys.invertZoomDirection)` on each gesture frame. Default (`false`): `sign = -1` so upward swipes (negative Y) zoom in. Inverted (`true`): `sign = +1` so downward swipes zoom in. The 600pt divisor targets ~43pt of swipe travel per 1× increment (e.g. 1× → 2×), giving deliberate control between optical stops. On pan end, `CameraManager.snapToNearestOpticalStop()` snaps the zoom to the nearest optical stop.
+The zoom delta is `(sign * translation.y / 600) * range`, where `sign` is read
+from `UserDefaults.standard.bool(forKey: UserDefaultsKeys.invertZoomDirection)`
+on each gesture frame. Default (`false`): `sign = -1` so upward swipes (negative
+Y) zoom in. Inverted (`true`): `sign = +1` so downward swipes zoom in. The 600pt
+divisor targets ~43pt of swipe travel per 1× increment (e.g. 1× → 2×), giving
+deliberate control between optical stops. On pan end,
+`CameraManager.snapToNearestOpticalStop()` snaps the zoom to the nearest optical
+stop.
 
-Pinch zoom captures `pinchStartZoom` at `.began` and computes `proposed = pinchStartZoom * sender.scale` on each `.changed` frame — `scale` is relative to gesture start, so multiplying by the start factor gives the correct absolute zoom without drift. On pinch end, `snapToNearestOpticalStop()` is called.
+Pinch zoom captures `pinchStartZoom` at `.began` and computes
+`proposed = pinchStartZoom * sender.scale` on each `.changed` frame — `scale` is
+relative to gesture start, so multiplying by the start factor gives the correct
+absolute zoom without drift. On pinch end, `snapToNearestOpticalStop()` is
+called.
 
-**Lens-switch crossfade**: `Coordinator.startObservingZoom(in:)` starts a recursive `withObservationTracking` chain on `CameraManager.zoomFactor`. When `zoomFactor` crosses an optical stop, the coordinator snapshots the current composited preview frame via `snapshotView(afterScreenUpdates: false)`, overlays it on the preview view, holds for 100 ms (enough for the hardware to complete the physical lens switch and stabilise), then fades the snapshot out over 150 ms with `.curveEaseOut`. Any in-flight crossfade is cancelled and replaced if another stop is crossed mid-transition. The chain self-terminates on coordinator deallocation via `[weak self]`. The crossfade fires only when `CameraManager.isSessionRunning` is true, so startup zoom resets do not flash.
+**Lens-switch crossfade**: `Coordinator.startObservingZoom(in:)` starts a
+recursive `withObservationTracking` chain on `CameraManager.zoomFactor`. When
+`zoomFactor` crosses an optical stop, the coordinator snapshots the current
+composited preview frame via `snapshotView(afterScreenUpdates: false)`, overlays
+it on the preview view, holds for 100 ms (enough for the hardware to complete
+the physical lens switch and stabilise), then fades the snapshot out over 150 ms
+with `.curveEaseOut`. Any in-flight crossfade is cancelled and replaced if
+another stop is crossed mid-transition. The chain self-terminates on coordinator
+deallocation via `[weak self]`. The crossfade fires only when
+`CameraManager.isSessionRunning` is true, so startup zoom resets do not flash.
 
 ### `HapticManager`
 
-Centralizes UI vibration feedback, keeping haptic engine initialization off the critical path.
+Centralizes UI vibration feedback, keeping haptic engine initialization off the
+critical path.
 
-- Pre-warms `.heavy`, `.light`, `.rigid`, `.medium` `UIImpactFeedbackGenerator` instances and a `success` `UINotificationFeedbackGenerator` sequentially inside `init()` using `.prepare()`.
-- The shared `AppDIContainer.shared.hapticManager` instance is injected into `CaptureWorkspaceViewModel` shutter callbacks and `ImageCropperView` crop confirmations, eliminating the 15+ ms stutter caused by cold-starting taptic engines at input time.
-- **System Haptics Toggle (`isHapticsEnabled`)**: All motor triggers are guarded by the injected `AppSettings.isHapticsEnabled` boundary. If the user disables haptics in Settings, `HapticManager` skips all `.impactOccurred()` calls. Haptics are also suppressed while expedition mode is active through the injected `HardwareOrchestrator`.
-- **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or `.sensoryFeedback` modifiers directly in views. Always route haptic feedback through `HapticManager.shared` API methods to ensure the user's `isHapticsEnabled` preference is respected globally.
+- Pre-warms `.heavy`, `.light`, `.rigid`, `.medium` `UIImpactFeedbackGenerator`
+  instances and a `success` `UINotificationFeedbackGenerator` sequentially
+  inside `init()` using `.prepare()`.
+- The shared `AppDIContainer.shared.hapticManager` instance is injected into
+  `CaptureWorkspaceViewModel` shutter callbacks and `ImageCropperView` crop
+  confirmations, eliminating the 15+ ms stutter caused by cold-starting taptic
+  engines at input time.
+- **System Haptics Toggle (`isHapticsEnabled`)**: All motor triggers are guarded
+  by the injected `AppSettings.isHapticsEnabled` boundary. If the user disables
+  haptics in Settings, `HapticManager` skips all `.impactOccurred()` calls.
+  Haptics are also suppressed while expedition mode is active through the
+  injected `HardwareOrchestrator`.
+- **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or
+  `.sensoryFeedback` modifiers directly in views. Always route haptic feedback
+  through `HapticManager.shared` API methods to ensure the user's
+  `isHapticsEnabled` preference is respected globally.
 
 ### `ViewfinderHints` (`Features/Capture/Scan/Components/ViewfinderHints.swift`)
 
-Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder. Bridges `ViewfinderIntelligence` output to the user without blocking the shutter path.
+Glassmorphic hint capsule overlaid at the bottom of the camera viewfinder.
+Bridges `ViewfinderIntelligence` output to the user without blocking the shutter
+path.
 
-- Shows "Tap to identify. Hold to record video" on first appear for 3.5 seconds (or "Add another photo" when `isRefining == true`), then fades it out over 0.3 s.
-- **`isRefining` mode**: `MainOverlayView` passes `isRefining: viewModel.baseRefinementRecord != nil`. When this flips to `true`, `onChange(of: isRefining)` cancels any in-flight prompt task and re-shows the refinement-specific prompt ("Add more to improve identification") so the user has clear context that the camera is staged for supplementary capture.
-- **`vuiHintsAllowed` gate**: VUI hints (`vui.currentHint`) are suppressed until 0.35 s after the initial prompt finishes fading, preventing a cross-fade where both texts are simultaneously visible during the dismissal animation. Only after `vuiHintsAllowed = true` is set can a non-optimal hint appear.
-- The prompt task is explicitly cancelled on replacement and disappearance, and the entire hint surface disables hit testing so it never intercepts shutter or viewfinder gestures. Tap-focus indicators follow the same cancellable 1.5-second teardown and pass-through policy.
-- Rendered by `MainOverlayView` only when `activeScanImages.count < 2` (hidden during multi-capture staging). Hidden entirely when `activeScanImages.count >= 2` via `MainOverlayView`'s conditional — the same guard that hides the `ZoomSliderView`.
-- The camera page spans the physical screen while the shutter is positioned relative to the safe area. `MainOverlayView` uses the fixed 250 pt `CaptureControlBarLayout.fullScreenOverlayClearance`, then applies the existing 16 pt visual spacing. This restores the position used before capture-bar measurement was removed. Do not derive the value from the full-bleed pager's `GeometryProxy`; that proxy reports a zero bottom safe-area inset and places the badge over the shutter. `testCameraHintPreservesClearanceAboveShutter` launches the real workspace and asserts at least 8 pt between the rendered accessibility frames.
+- Shows "Tap to identify. Hold to record video" on first appear for 3.5 seconds
+  (or "Add another photo" when `isRefining == true`), then fades it out over 0.3
+  s.
+- **`isRefining` mode**: `MainOverlayView` passes
+  `isRefining: viewModel.baseRefinementRecord != nil`. When this flips to
+  `true`, `onChange(of: isRefining)` cancels any in-flight prompt task and
+  re-shows the refinement-specific prompt ("Add more to improve identification")
+  so the user has clear context that the camera is staged for supplementary
+  capture.
+- **`vuiHintsAllowed` gate**: VUI hints (`vui.currentHint`) are suppressed until
+  0.35 s after the initial prompt finishes fading, preventing a cross-fade where
+  both texts are simultaneously visible during the dismissal animation. Only
+  after `vuiHintsAllowed = true` is set can a non-optimal hint appear.
+- The prompt task is explicitly cancelled on replacement and disappearance, and
+  the entire hint surface disables hit testing so it never intercepts shutter or
+  viewfinder gestures. Tap-focus indicators follow the same cancellable
+  1.5-second teardown and pass-through policy.
+- Rendered by `MainOverlayView` only when `activeScanImages.count < 2` (hidden
+  during multi-capture staging). Hidden entirely when
+  `activeScanImages.count >= 2` via `MainOverlayView`'s conditional — the same
+  guard that hides the `ZoomSliderView`.
+- The camera page spans the physical screen while the shutter is positioned
+  relative to the safe area. `MainOverlayView` uses the fixed 250 pt
+  `CaptureControlBarLayout.fullScreenOverlayClearance`, then applies the
+  existing 16 pt visual spacing. This restores the position used before
+  capture-bar measurement was removed. Do not derive the value from the
+  full-bleed pager's `GeometryProxy`; that proxy reports a zero bottom safe-area
+  inset and places the badge over the shutter.
+  `testCameraHintPreservesClearanceAboveShutter` launches the real workspace and
+  asserts at least 8 pt between the rendered accessibility frames.
 
 ---
 
 ### `CaptureMode` & `MediaModeToggle` (`Core/UI/Components/MediaModeToggle.swift`)
 
-`CaptureMode` is a `String` `CaseIterable` enum defining the three capture pages:
+`CaptureMode` is a `String` `CaseIterable` enum defining the three capture
+pages:
 
 ```swift
 enum CaptureMode: String, CaseIterable {
@@ -109,26 +458,53 @@ enum CaptureMode: String, CaseIterable {
 }
 ```
 
-The page order is user-configurable via `@AppStorage(UserDefaultsKeys.captureModeOrder)` (default `"visual,audio,describe"`). `CaptureWorkspaceView` samples the first decoded mode in its initializer, so the user's first item opens immediately on a fresh launch; the same decoded order drives the pager `ForEach`. Unsupported stored tokens are ignored and missing supported modes are appended; the Settings reorder UI emits each supported mode once.
+The page order is user-configurable via
+`@AppStorage(UserDefaultsKeys.captureModeOrder)` (default
+`"visual,audio,describe"`). `CaptureWorkspaceView` samples the first decoded
+mode in its initializer, so the user's first item opens immediately on a fresh
+launch; the same decoded order drives the pager `ForEach`. Unsupported stored
+tokens are ignored and missing supported modes are appended; the Settings
+reorder UI emits each supported mode once.
 
-`MediaModeToggle` is a glassmorphic capsule segmented control that switches between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top overlay (not inside the paged content area) so it is always visible regardless of which page is active.
-- **Size probe**: A `GeometryReader` in the background measures the actual rendered width into `toggleSize`, making the pill `segmentWidth = toggleSize.width / 2`.
-- **Pill offset (`pillX`)**: Computed from `activeMode` + `dragOffset` so the pill tracks a live drag smoothly before it commits.
-- **Label colour**: Interpolates between `.black` (active) and `.white.opacity(0.85)` (inactive) in real time as `pillX / segmentWidth` crosses 0.5 — no animation delay during drag.
-- **Drag gesture** (`minimumDistance: 5`, `.simultaneousGesture`): Only activates when the drag starts on the currently active segment, preventing inactive-segment taps from dragging. The pill commits to the new mode when the drag offset exceeds `segmentWidth / 2`, then `dragOffset` resets to zero with a `.spring(response: 0.35, dampingFraction: 0.75)` animation.
-- Hidden (via `CaptureWorkspaceView`) when `activeScanImages.count >= 2` (during multi-capture staging).
+`MediaModeToggle` is a glassmorphic capsule segmented control that switches
+between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top
+overlay (not inside the paged content area) so it is always visible regardless
+of which page is active.
+
+- **Size probe**: A `GeometryReader` in the background measures the actual
+  rendered width into `toggleSize`, making the pill
+  `segmentWidth = toggleSize.width / 2`.
+- **Pill offset (`pillX`)**: Computed from `activeMode` + `dragOffset` so the
+  pill tracks a live drag smoothly before it commits.
+- **Label colour**: Interpolates between `.black` (active) and
+  `.white.opacity(0.85)` (inactive) in real time as `pillX / segmentWidth`
+  crosses 0.5 — no animation delay during drag.
+- **Drag gesture** (`minimumDistance: 5`, `.simultaneousGesture`): Only
+  activates when the drag starts on the currently active segment, preventing
+  inactive-segment taps from dragging. The pill commits to the new mode when the
+  drag offset exceeds `segmentWidth / 2`, then `dragOffset` resets to zero with
+  a `.spring(response: 0.35, dampingFraction: 0.75)` animation.
+- Hidden (via `CaptureWorkspaceView`) when `activeScanImages.count >= 2` (during
+  multi-capture staging).
 
 ---
 
 ### `AudioRecordingView` (`Features/Capture/Record/Views/AudioRecordingView.swift`)
 
-Full-screen content view for the audio capture mode. All persistent controls (capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s fixed overlay.
+Full-screen content view for the audio capture mode. All persistent controls
+(capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s
+fixed overlay.
 
 Shows two states based on `AudioCaptureManager.isRecording`:
-- **Idle**: centered `waveform.circle` icon + instructional label.
-- **Recording**: `SNRGaugeView` pill (top) · `SpectrogramView` Canvas (middle, 240 pt) · circular countdown ring + second counter (bottom, above `CaptureControlBar`).
 
-See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActor`, `AudioCaptureManager`, and `OfflineQueueManager+AudioQueue` pipeline documentation.
+- **Idle**: centered `waveform.circle` icon + instructional label.
+- **Recording**: `SNRGaugeView` pill (top) · `SpectrogramView` Canvas (middle,
+  240 pt) · circular countdown ring + second counter (bottom, above
+  `CaptureControlBar`).
+
+See [Audio Listen Mode](./12-audio-listen-mode.md) for the full
+`SpectrogramActor`, `AudioCaptureManager`, and `OfflineQueueManager+AudioQueue`
+pipeline documentation.
 
 ---
 
@@ -137,11 +513,11 @@ See [Audio Listen Mode](./12-audio-listen-mode.md) for the full `SpectrogramActo
 `CaptureWorkspaceView` hosts a horizontal paged `ScrollView` with three
 user-orderable full-screen modes driven by `captureMode: CaptureMode`:
 
-| `CaptureMode` ID | Content |
-|------------------|---------|
-| `.visual` | `CameraPreviewView` on device or `SimulatorCameraSurfaceView` in simulator + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider on zoom-capable device sessions) |
-| `.audio` | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring) |
-| `.describe` | `DescribeInputView` (text + tag strip + voice dictation) |
+| `CaptureMode` ID | Content                                                                                                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.visual`        | `CameraPreviewView` on device or `SimulatorCameraSurfaceView` in simulator + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider on zoom-capable device sessions) |
+| `.audio`         | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring)                                                                                                                                                   |
+| `.describe`      | `DescribeInputView` (text + tag strip + voice dictation)                                                                                                                                                          |
 
 Describe's 350 ms tag-selection auto-advance is keyed to a lightweight request
 identity with SwiftUI `.task(id:)`. A newer tag replaces it and page unmount
@@ -156,26 +532,104 @@ launches free of nested SwiftUI scroll and presentation feedback cycles.
 
 **Pager synchronization**: Optional `scrollPageMode` state backs
 `.scrollPosition(id:)`. A settled swipe updates `captureMode`; a toggle change
-animates `scrollPageMode` to the matching page. `ScrollViewReader` also reanchors
-the selected mode when the user changes the stored page order.
+animates `scrollPageMode` to the matching page. `ScrollViewReader` also
+reanchors the selected mode when the user changes the stored page order.
 
-**Full-bleed layout**: The outer `ZStack` respects safe areas — it only uses `.background(Color.black.ignoresSafeArea())` for its visual full-screen black background, but its own layout frame stays within the safe-area bounds (y=47 to y=898 on a Pro). A `GeometryReader { proxy in }.ignoresSafeArea()` is placed inside the ZStack; the `.ignoresSafeArea()` on the reader extends it beyond the ZStack's safe-area frame to capture the true full-screen dimensions (`proxy.size.height` = physical screen height including Dynamic Island / home indicator area). Each page receives an explicit `.frame(width: proxy.size.width, height: proxy.size.height)` instead of `containerRelativeFrame`, eliminating any ambiguity about whether the reference resolves to safe-area-bounds height or full screen height. `CameraPreviewView` inside the camera page ZStack also carries `.ignoresSafeArea()` as a belt-and-suspenders safeguard. Because the outer ZStack itself respects safe areas, the fixed overlay `VStack`s inside it naturally position within the device safe area without any manual padding — `MediaModeToggle` sits 16 pt below the status bar, and `MainTabBar` sits 8 pt above the home indicator safe area bottom.
+**Full-bleed layout**: The outer `ZStack` respects safe areas — it only uses
+`.background(Color.black.ignoresSafeArea())` for its visual full-screen black
+background, but its own layout frame stays within the safe-area bounds (y=47 to
+y=898 on a Pro). A `GeometryReader { proxy in }.ignoresSafeArea()` is placed
+inside the ZStack; the `.ignoresSafeArea()` on the reader extends it beyond the
+ZStack's safe-area frame to capture the true full-screen dimensions
+(`proxy.size.height` = physical screen height including Dynamic Island / home
+indicator area). Each page receives an explicit
+`.frame(width: proxy.size.width, height: proxy.size.height)` instead of
+`containerRelativeFrame`, eliminating any ambiguity about whether the reference
+resolves to safe-area-bounds height or full screen height. `CameraPreviewView`
+inside the camera page ZStack also carries `.ignoresSafeArea()` as a
+belt-and-suspenders safeguard. Because the outer ZStack itself respects safe
+areas, the fixed overlay `VStack`s inside it naturally position within the
+device safe area without any manual padding — `MediaModeToggle` sits 16 pt below
+the status bar, and `MainTabBar` sits 8 pt above the home indicator safe area
+bottom.
 
-**`ScrollBounceDisabler`**: A `UIViewRepresentable` probe that walks the UIKit hierarchy from inside the `ScrollView`'s content to find the backing `UIScrollView` and sets `bounces = false`. SwiftUI has no native API for disabling pager bounce; neither edge rubber-bands as a result.
+**`ScrollBounceDisabler`**: A `UIViewRepresentable` probe that walks the UIKit
+hierarchy from inside the `ScrollView`'s content to find the backing
+`UIScrollView` and sets `bounces = false`. SwiftUI has no native API for
+disabling pager bounce; neither edge rubber-bands as a result.
 
-**Zoom drag lock**: `.scrollDisabled(isVerticalZooming)` is applied to the `ScrollView`. `isVerticalZooming` is driven by `CameraPreviewView`'s `onVerticalDragActiveChanged` callback — set to `true` the moment the pan recognizer locks onto a vertical direction, cleared to `false` on gesture end. This prevents the pager from advancing to `AudioRecordingView` during a zoom drag.
+**Zoom drag lock**: `.scrollDisabled(isVerticalZooming)` is applied to the
+`ScrollView`. `isVerticalZooming` is driven by `CameraPreviewView`'s
+`onVerticalDragActiveChanged` callback — set to `true` the moment the pan
+recognizer locks onto a vertical direction, cleared to `false` on gesture end.
+This prevents the pager from advancing to `AudioRecordingView` during a zoom
+drag.
 
-**Fixed overlays**: Rendered in a `ZStack` above the `ScrollView` so they are unaffected by page position:
+**Fixed overlays**: Rendered in a `ZStack` above the `ScrollView` so they are
+unaffected by page position:
+
 - **Top** — `MediaModeToggle` (hidden during multi-capture staging).
-- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent `VStack` overlays**, each with its own `Spacer()` and fixed bottom padding. `CaptureControlBarLayout` defines the 80 pt primary control, 124 pt bottom inset, and 204 pt safe-area-relative reservation. The shared `HStack` center-aligns the 80 pt primary control with its 50 pt auxiliary controls in all capture modes. Full-screen Camera and Audio overlays use a separate fixed 250 pt clearance that preserves their pre-regression position without consulting the safe-area-ignoring pager. No child-height preference is written back into the workspace, avoiding a layout feedback loop while keeping the shutter row fixed when the taller `ActiveScanToolbar` slides in.
-- `PhotoLibraryButton` and `FlashButton` fade to opacity 0 when `captureMode == .audio` (camera-only controls), preserving their layout slot so the shutter button stays centred. During active visual video recording, the photo-library slot swaps to `VideoCancelButton`, matching the audio recording cancel affordance and calling `cancelVideoCapture()` so the in-progress clip is discarded without staging or submitting.
-- The capture bar and audio/describe utility buttons share `.circularMaterialControl(...)` from `Core/UI/Modifiers/IconButtonModifiers.swift` for identical 50 pt circular material chrome. The modifier is presentation-only; each button still owns its haptic path, action, icon, color, and accessibility identifier.
+- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and
+  **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent
+  `VStack` overlays**, each with its own `Spacer()` and fixed bottom padding.
+  `CaptureControlBarLayout` defines the 80 pt primary control, 124 pt bottom
+  inset, and 204 pt safe-area-relative reservation. The shared `HStack`
+  center-aligns the 80 pt primary control with its 50 pt auxiliary controls in
+  all capture modes. Full-screen Camera and Audio overlays use a separate fixed
+  250 pt clearance that preserves their pre-regression position without
+  consulting the safe-area-ignoring pager. No child-height preference is written
+  back into the workspace, avoiding a layout feedback loop while keeping the
+  shutter row fixed when the taller `ActiveScanToolbar` slides in.
+- `PhotoLibraryButton` and `FlashButton` fade to opacity 0 when
+  `captureMode == .audio` (camera-only controls), preserving their layout slot
+  so the shutter button stays centred. During active visual video recording, the
+  photo-library slot swaps to `VideoCancelButton`, matching the audio recording
+  cancel affordance and calling `cancelVideoCapture()` so the in-progress clip
+  is discarded without staging or submitting.
+- The capture bar and audio/describe utility buttons share
+  `.circularMaterialControl(...)` from
+  `Core/UI/Modifiers/IconButtonModifiers.swift` for identical 50 pt circular
+  material chrome. The modifier is presentation-only; each button still owns its
+  haptic path, action, icon, color, and accessibility identifier.
 
-**`CaptureButton`**: The shutter button transitions its inner `Circle` fill between `.white` (visual), `.red` (audio), and `.primary` (describe) in place via `.animation(.easeInOut(duration: 0.25))`. In visual mode, a tap remains the photo-first path and still calls `executeCapture()`. Pro users can hold the visual shutter for roughly 180 ms to start a short video recording; a strong haptic fires when recording actually starts and again once recording has finished, the circular progress ring switches into the 5-second video duration, release does not stop the recording, and a follow-up tap stops early before the cap auto-stops it. Non-Pro long-presses do not open the paywall and resolve back to the normal photo capture on release. Taps on `.audio` start recording via `AudioCaptureManager.startRecording()` if idle, or call `cancelRecording()` if already recording. Permission and hardware errors surface via `viewModel.offlineToastMessage`.
+**`CaptureButton`**: The shutter button transitions its inner `Circle` fill
+between `.white` (visual), `.red` (audio), and `.primary` (describe) in place
+via `.animation(.easeInOut(duration: 0.25))`. In visual mode, a tap remains the
+photo-first path and still calls `executeCapture()`. Pro users can hold the
+visual shutter for roughly 180 ms to start a short video recording; a strong
+haptic fires when recording actually starts and again once recording has
+finished, the circular progress ring switches into the 5-second video duration,
+release does not stop the recording, and a follow-up tap stops early before the
+cap auto-stops it. Non-Pro long-presses do not open the paywall and resolve back
+to the normal photo capture on release. Taps on `.audio` start recording via
+`AudioCaptureManager.startRecording()` if idle, or call `cancelRecording()` if
+already recording. Permission and hardware errors surface via
+`viewModel.offlineToastMessage`.
 
-**Active video recording UI**: `ViewfinderHints` receives `isVideoRecording` and `videoRecordingProgress` from `VisualCaptureView` / `MainOverlayView`. While recording is active, it hides the normal VUI hint text and initial prompt, then renders `RecordingCountdownBadge` in the same viewfinder pill position. The shared badge is also used by `AudioRecordingView`, so both audio and video countdowns use monospaced semibold subheadline digits, white text, ultra-thin material, dark color scheme, and capsule chrome. Video uses `CaptureWorkspaceViewModel.videoMaxDuration` to count down from the 5-second cap while the shutter progress ring and stop icon continue to come from `CaptureButton`.
+**Active video recording UI**: `ViewfinderHints` receives `isVideoRecording` and
+`videoRecordingProgress` from `VisualCaptureView` / `MainOverlayView`. While
+recording is active, it hides the normal VUI hint text and initial prompt, then
+renders `RecordingCountdownBadge` in the same viewfinder pill position. The
+shared badge is also used by `AudioRecordingView`, so both audio and video
+countdowns use monospaced semibold subheadline digits, white text, ultra-thin
+material, dark color scheme, and capsule chrome. Video uses
+`CaptureWorkspaceViewModel.videoMaxDuration` to count down from the 5-second cap
+while the shutter progress ring and stop icon continue to come from
+`CaptureButton`.
 
-**Video capture preparation**: `CameraManager.setupSession()` attaches `AVCaptureMovieFileOutput` during normal visual-camera session setup, before the user starts holding the shutter. `CaptureButton` uses a single short hold threshold, then calls `startVideoCapture()` directly; `CameraManager.recordVideo(...)` performs the microphone/audio-input preparation on that start path. This keeps entering the camera from showing an early audio prompt while making the hold-to-record interaction feel nearly immediate. The pre-attached movie output keeps recorded-video stabilization off until a video is actually starting. The start path asks AVFoundation for `.auto` stabilization when the movie connection supports it, logs the requested and active stabilization modes for device QA, and resets the connection to `.off` when recording completes, fails, or is canceled so prepared video support does not reduce still-photo dimensions or add capture latency.
+**Video capture preparation**: `CameraManager.setupSession()` attaches
+`AVCaptureMovieFileOutput` during normal visual-camera session setup, before the
+user starts holding the shutter. `CaptureButton` uses a single short hold
+threshold, then calls `startVideoCapture()` directly;
+`CameraManager.recordVideo(...)` performs the microphone/audio-input preparation
+on that start path. This keeps entering the camera from showing an early audio
+prompt while making the hold-to-record interaction feel nearly immediate. The
+pre-attached movie output keeps recorded-video stabilization off until a video
+is actually starting. The start path asks AVFoundation for `.auto` stabilization
+when the movie connection supports it, logs the requested and active
+stabilization modes for device QA, and resets the connection to `.off` when
+recording completes, fails, or is canceled so prepared video support does not
+reduce still-photo dimensions or add capture latency.
 
 Each recording owns a UUID generation and a UUID-derived temporary URL. The
 continuation and all recording lifecycle data are stored as one lock-protected
@@ -188,86 +642,406 @@ recording A from stopping, failing, or completing recording B. All movie-output
 and connection access stays on the serial camera queue; only generation-checked
 presentation state is published back to `@MainActor`.
 
-**Session lifecycle**: The camera session is tightly coupled to the UI state to conserve thermal budget and prevent hardware deadlocks.
-- `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()` on every mode switch, then stops the camera session when switching to `.audio` and restarts it on return to `.visual` (unless `activeSheet` is present).
-- `stopSession()` remains the fire-and-forget lifecycle API. Audio recording uses
-  `stopSessionAndWait()` as the stronger ownership-transfer API: it completes
-  `AVCaptureSession.stopRunning()` on the camera queue before the microphone
-  engine may activate. The pending audio-start task is canceled if the user
-  reverses the mode switch, preventing the old Audio action from racing a newly
-  restarted visual session.
-- **Sheet Occlusion Guard**: `CaptureWorkspaceView.onChange(of: viewModel.activeSheet)` explicitly stops the `AVCaptureSession` whenever `activeSheet != nil` (e.g., when the Scans Library or Insight sheet is open). When processing completes via `viewModel.handleInferenceProcessingChange()`, the system forces `activeSheet = .insight` *only* for live scans (where `activeSheet` is `nil` or `.paywall`). For historical scans opened from the library, it preserves the existing parent sheet (`.scans` or `.profile`), relying on their local bindings (like `selectedScanForInsight`) to present the Insight view. This strict state retention prevents SwiftUI sheet transition collisions and ensures that the background camera remains cleanly paused while viewing historical data.
+**Session lifecycle**: The camera session is tightly coupled to the UI state to
+conserve thermal budget and prevent hardware deadlocks.
+
+- `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()`
+  on every mode switch, then stops the camera session when switching to `.audio`
+  and restarts it on return to `.visual` (unless `activeSheet` is present).
+- `stopSession()` remains the fire-and-forget lifecycle API. Audio recording
+  uses `stopSessionAndWait()` as the stronger ownership-transfer API: it
+  completes `AVCaptureSession.stopRunning()` on the camera queue before the
+  microphone engine may activate. The pending audio-start task is canceled if
+  the user reverses the mode switch, preventing the old Audio action from racing
+  a newly restarted visual session.
+- **Sheet Occlusion Guard**:
+  `CaptureWorkspaceView.onChange(of: viewModel.activeSheet)` explicitly stops
+  the `AVCaptureSession` whenever `activeSheet != nil` (e.g., when the Scans
+  Library or Insight sheet is open). When processing completes via
+  `viewModel.handleInferenceProcessingChange()`, the system forces
+  `activeSheet = .insight` _only_ for live scans (where `activeSheet` is `nil`
+  or `.paywall`). For historical scans opened from the library, it preserves the
+  existing parent sheet (`.scans` or `.profile`), relying on their local
+  bindings (like `selectedScanForInsight`) to present the Insight view. This
+  strict state retention prevents SwiftUI sheet transition collisions and
+  ensures that the background camera remains cleanly paused while viewing
+  historical data.
 
 ---
 
 ### `MerianAppIntents` (Siri Shortcuts)
 
-Integrates with the iOS App Intents framework to expose voice and springboard shortcuts outside the application.
+Integrates with the iOS App Intents framework to expose voice and springboard
+shortcuts outside the application.
 
-- **Identify Nature (`IdentifyNatureIntent`)**: Exposes "Identify this with Merian" or "Open Merian camera" voice triggers to Siri, bringing the app to the foreground and executing `navigateTo("camera")` with a `HapticManager` focus callback.
-- **Recall Last Find (`RecallLastFindIntent`)**: Handles "What was the last thing I scanned" queries, routing the OS to display the user's most recent `LocalScanRecord` with a sheet spring haptic.
-- Registered via `AppShortcutsProvider`, presenting `.teal` action tiles in the iOS Shortcuts application.
+- **Identify Nature (`IdentifyNatureIntent`)**: Exposes "Identify this with
+  Merian" or "Open Merian camera" voice triggers to Siri, bringing the app to
+  the foreground and executing `navigateTo("camera")` with a `HapticManager`
+  focus callback.
+- **Recall Last Find (`RecallLastFindIntent`)**: Handles "What was the last
+  thing I scanned" queries, routing the OS to display the user's most recent
+  `LocalScanRecord` with a sheet spring haptic.
+- Registered via `AppShortcutsProvider`, presenting `.teal` action tiles in the
+  iOS Shortcuts application.
 
 ### `HardwareOrchestrator`
 
 Battery and thermal protection, monitoring device usage thresholds.
 
 - An `@Observable` class that decouples rendering overhead from device thermals.
-- Bridges `.thermalStateDidChangeNotification`, dropping graphic resolutions and Glassmorphism shaders on `.critical` or `.serious` states.
-- Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive` pipeline on low-battery states.
-- **Expedition Mode Override**: Users can set `AppSettings.isExpeditionModeActive = true` via Settings; `HardwareOrchestrator` reads that injected settings boundary and applies a 24fps framerate cap while dropping iOS glass materials, trading UI fidelity for maximum battery life off-grid. `OfflineQueueManager` reads its injected `hardwareOrchestrator` boundary before dispatching uploads, pausing background cellular uploads without hard-coding the shared singleton in tests.
-- **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes the current UI motion budget to the view layer. Returns `isGlassmorphismEnabled`, which is already `false` under expedition mode and under `.serious`/`.critical` thermal states. `CardEntranceModifier` reads this property to decide whether to run staggered entrance animations or render cards instantly. `accessibilityReduceMotion` is evaluated separately within the modifier to respect the system accessibility setting independently of hardware constraints.
+- Bridges `.thermalStateDidChangeNotification`, dropping graphic resolutions and
+  Glassmorphism shaders on `.critical` or `.serious` states.
+- Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive`
+  pipeline on low-battery states.
+- **Expedition Mode Override**: Users can set
+  `AppSettings.isExpeditionModeActive = true` via Settings;
+  `HardwareOrchestrator` reads that injected settings boundary and applies a
+  24fps framerate cap while dropping iOS glass materials, trading UI fidelity
+  for maximum battery life off-grid. `OfflineQueueManager` reads its injected
+  `hardwareOrchestrator` boundary before dispatching uploads, pausing background
+  cellular uploads without hard-coding the shared singleton in tests.
+- **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes
+  the current UI motion budget to the view layer. Returns
+  `isGlassmorphismEnabled`, which is already `false` under expedition mode and
+  under `.serious`/`.critical` thermal states. `CardEntranceModifier` reads this
+  property to decide whether to run staggered entrance animations or render
+  cards instantly. `accessibilityReduceMotion` is evaluated separately within
+  the modifier to respect the system accessibility setting independently of
+  hardware constraints.
 
 ### `ViewfinderIntelligence` (VUI)
 
 A heuristic layer that prevents wasted network calls on poor-quality frames.
 
-- Rate-limits concurrent inference using an `NSLock` and `CFAbsoluteTimeGetCurrent()` thresholds on the background memory queue, reducing 60fps frame callbacks to 3fps before any `@MainActor` context switch. To avoid GPU thermal pressure, it does not instantiate any `CIContext` or CoreImage pipelines and performs no `CGAffineTransform` work. It locks the base Luma plane address (`CVPixelBufferGetBaseAddressOfPlane`) on the CPU, iterating byte indices over a 10-step subsample to evaluate scene brightness. When publishing analysis states (`currentHint` and `isOptimal`) back to the app, Swift equality checks intercept redundant property updates to avoid continuous 3fps UI thrashing in `CaptureWorkspaceView`.
-- **Synchronous `@MainActor` execution**: `analyze(brightness:distance:lumaStdDev:)` and `updateHint(_:)` are both synchronous methods running directly on `@MainActor`. The previous architecture wrapped these in a `Task.detached(priority: .userInitiated)` + nested `defer { Task { @MainActor in isAnalyzing = false } }` pattern, allocating three Task heap objects per frame at 3 Hz solely for pure float comparisons. Because the caller already dispatches to `@MainActor` before calling `analyze`, no background task is needed. The `isAnalyzing` flag prevents re-entrant calls within a single `@MainActor` drain cycle. Similarly, `pauseAnalysis(for:)` calls `updateHint(.optimal)` directly rather than wrapping it in a `Task { await updateHint }` closure.
-- **Legacy Viewfinder Toggle (`isLiveInferencePaused`)**: Users can disable this engine via the "Legacy Viewfinder" toggle in Settings, cutting off background thread processing and running as a standard camera. This defaults to **ON** for modern iPhones (iPhone 14+) via `UIDevice.current.isModernIPhone` to avoid aggressive ambient mapping under thermal pressure. `throttleToIdleState()` caches the user's preference in a private tracker before locking the module; `restoreFromIdleState()` restores it, preventing system thermal overrides from permanently overwriting the user setting.
-- **Initialization Suppression**: `CameraManager` suspends VUI evaluation (`pauseAnalysis(for: 2.5)`) for the first 2.5 seconds after camera start or restoration from idle, preventing the ISP's low-light boot sequence from triggering false-positive alerts.
-- Triggers `VUIHint` prompts across the viewfinder without any network calls. Evaluates `brightness`, `distance`, and `lumaStdDev` per frame. Hint priority (highest to lowest): **Move closer** (distance > 3.0m) → **Move back** (distance < 0.12m) → **Too dark** (brightness < 0.20) → **Move to shade** (brightness > 0.88) → **Hold still** (lumaStdDev < 20.0 — low luma variance indicating motion blur or featureless framing) → **Optimal**.
-- Blocks inference from querying cloud services unless the internal brightness buffer passes its threshold.
+- Rate-limits concurrent inference using an `NSLock` and
+  `CFAbsoluteTimeGetCurrent()` thresholds on the background memory queue,
+  reducing 60fps frame callbacks to 3fps before any `@MainActor` context switch.
+  To avoid GPU thermal pressure, it does not instantiate any `CIContext` or
+  CoreImage pipelines and performs no `CGAffineTransform` work. It locks the
+  base Luma plane address (`CVPixelBufferGetBaseAddressOfPlane`) on the CPU,
+  iterating byte indices over a 10-step subsample to evaluate scene brightness.
+  When publishing analysis states (`currentHint` and `isOptimal`) back to the
+  app, Swift equality checks intercept redundant property updates to avoid
+  continuous 3fps UI thrashing in `CaptureWorkspaceView`.
+- **Synchronous `@MainActor` execution**:
+  `analyze(brightness:distance:lumaStdDev:)` and `updateHint(_:)` are both
+  synchronous methods running directly on `@MainActor`. The previous
+  architecture wrapped these in a `Task.detached(priority: .userInitiated)` +
+  nested `defer { Task { @MainActor in isAnalyzing = false } }` pattern,
+  allocating three Task heap objects per frame at 3 Hz solely for pure float
+  comparisons. Because the caller already dispatches to `@MainActor` before
+  calling `analyze`, no background task is needed. The `isAnalyzing` flag
+  prevents re-entrant calls within a single `@MainActor` drain cycle. Similarly,
+  `pauseAnalysis(for:)` calls `updateHint(.optimal)` directly rather than
+  wrapping it in a `Task { await updateHint }` closure.
+- **Legacy Viewfinder Toggle (`isLiveInferencePaused`)**: Users can disable this
+  engine via the "Legacy Viewfinder" toggle in Settings, cutting off background
+  thread processing and running as a standard camera. This defaults to **ON**
+  for modern iPhones (iPhone 14+) via `UIDevice.current.isModernIPhone` to avoid
+  aggressive ambient mapping under thermal pressure. `throttleToIdleState()`
+  caches the user's preference in a private tracker before locking the module;
+  `restoreFromIdleState()` restores it, preventing system thermal overrides from
+  permanently overwriting the user setting.
+- **Initialization Suppression**: `CameraManager` suspends VUI evaluation
+  (`pauseAnalysis(for: 2.5)`) for the first 2.5 seconds after camera start or
+  restoration from idle, preventing the ISP's low-light boot sequence from
+  triggering false-positive alerts.
+- Triggers `VUIHint` prompts across the viewfinder without any network calls.
+  Evaluates `brightness`, `distance`, and `lumaStdDev` per frame. Hint priority
+  (highest to lowest): **Move closer** (distance > 3.0m) → **Move back**
+  (distance < 0.12m) → **Too dark** (brightness < 0.20) → **Move to shade**
+  (brightness > 0.88) → **Hold still** (lumaStdDev < 20.0 — low luma variance
+  indicating motion blur or featureless framing) → **Optimal**.
+- Blocks inference from querying cloud services unless the internal brightness
+  buffer passes its threshold.
 
 ### `PhotoLibraryManager`
 
 A dedicated `PHPhotoLibrary` handler.
 
-- Uses `.opportunistic` `PHImageRequestOptions` to fetch the most recently added asset asynchronously for the camera gallery icon. Mutations to `latestThumbnail` are dispatched via `Task { @MainActor in }` to avoid iCloud data-fetch thread panics. Implements `deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }` to prevent dangling observer memory leaks from singleton `PHPhotoLibraryChangeObserver` registrations.
-- **Camera Roll Opt-Out (`saveToCameraRoll`)**: Photo and video captures run through the injected `AppSettings.saveToCameraRoll` boundary. Defaults to `false`; if toggled off, captured media stays inside Naturebook and bypasses Apple's `.performChanges` path.
-- **DRY Authorization State (`executePhotoLibraryWrite`)**: The `PHPhotoLibrary.authorizationStatus` fallback logic and `PHPhotoLibrary.shared().performChanges` transaction blocks are consolidated in one media-aware helper. Every photo/video write passes `.addOnly`; read/write access remains isolated to gallery import and latest-thumbnail behavior.
-- Wraps `PHAssetCreationRequest.forAsset()` on a background task. Photos retain the existing metadata-scrub path, while videos use a file-backed `.video` resource. Automatic video save begins from the original recording and is joined before compression cleanup can delete that source; later manual downloads use the retained playback clip.
+- Uses `.opportunistic` `PHImageRequestOptions` to fetch the most recently added
+  asset asynchronously for the camera gallery icon. Mutations to
+  `latestThumbnail` are dispatched via `Task { @MainActor in }` to avoid iCloud
+  data-fetch thread panics. Implements
+  `deinit { PHPhotoLibrary.shared().unregisterChangeObserver(self) }` to prevent
+  dangling observer memory leaks from singleton `PHPhotoLibraryChangeObserver`
+  registrations.
+- **Camera Roll Opt-Out (`saveToCameraRoll`)**: Photo and video captures run
+  through the injected `AppSettings.saveToCameraRoll` boundary. Defaults to
+  `false`; if toggled off, captured media stays inside Naturebook and bypasses
+  Apple's `.performChanges` path.
+- **DRY Authorization State (`executePhotoLibraryWrite`)**: The
+  `PHPhotoLibrary.authorizationStatus` fallback logic and
+  `PHPhotoLibrary.shared().performChanges` transaction blocks are consolidated
+  in one media-aware helper. Every photo/video write passes `.addOnly`;
+  read/write access remains isolated to gallery import and latest-thumbnail
+  behavior.
+- Wraps `PHAssetCreationRequest.forAsset()` on a background task. Photos retain
+  the existing metadata-scrub path, while videos use a file-backed `.video`
+  resource. Automatic video save begins from the original recording and is
+  joined before compression cleanup can delete that source; later manual
+  downloads use the retained playback clip.
 - The complete setting, permission, source-lifetime, manual-download, cleanup,
   and physical-device contract is documented in
   [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
-- **Historical Data Extraction**: When a user selects a library photo in-app, the manager pulls the underlying `PHAsset` via its local identifier, extracting the original GPS coordinates and creation date to anchor AI context to the photo's actual capture timestamp. A photo shared through the Photos app has no `PhotosPickerItem` identifier, so `ImportedImageMetadataExtractor` reads the durable file's ImageIO EXIF dictionary instead. Even if a historical photo lacks GPS coordinates, the system preserves its creation date exclusively in `captureDate`; a complete GPS-only file likewise preserves coordinates without inventing a date. This allows the Scan Library and Insight UI to reflect the available historical context rather than defaulting missing values to current device sensors, while preserving the baseline `timestamp` for the precise analysis upload moment required by gamification and Heatmap analytics. Before `submitActiveScan()` performs state cleanup, it caches this historical context from `StagedImage.original` so both import sources retain their true available origin metadata.
-- **OOM Prevention & UI Decoupling**: Live 12MP hardware buffers, gallery `PhotosPickerItem` bytes, and files shared from Photos all run through two bounded ImageIO passes — one at `MerianConfig.inferenceImageMaxSize` (1024 px for Pro, 768 px for free/Flash) and one at `MerianConfig.displayImageMaxSize` (2048 px, written to disk for the insight sheet and scan library). For `PhotosPickerItem`, the system uses file-backed transfer to write bytes to a temporary sandboxed URL rather than `loadTransferable(type: Data.self)`, avoiding the uncompressed 48MP HEIC/ProRAW expansion that triggers iOS JetSam OOM crashes. A Photos share-sheet file is copied byte-for-byte into `ExternalImageImportStore` while security-scoped access is active, then the same `MediaPreparationActor` prepares it without constructing a full-resolution `UIImage`. Gallery, external-import, and refinement file URLs share the two `ImageDownsampler` passes, WebP/JPEG encoding, and `MediaPreparationMetrics` budget checks before returning staged media to `CaptureWorkspaceViewModel`. GPS stripping (`stripGPS(from:)`) via ImageIO runs in a `Task.detached` context to protect the 120Hz scroll rate during historical imports. The actual encoding format is auto-detected from the first image's magic bytes (`0xFF 0xD8 0xFF` → JPEG, otherwise WebP) inside `InferenceEngine.analyze`, which forwards the correct MIME type string (`"image/jpeg"` or `"image/webp"`) to the Edge Function so Gemini receives the right label.
-- **Photos Share-Sheet Import**: `Info.plist` registers the app as an alternate `public.image` viewer with in-place editing disabled. `MerianApp.onOpenURL` handles one incoming file after Google/Merian routing and before Supabase auth, then publishes a typed event only after the durable inbox copy succeeds. Capture recovers pending receipts after cold launch or onboarding, preserves embedded date/GPS before preparation, and retains quota- or capacity-blocked files for retry. The implementation is not a Share Extension and requests no new Photo Library permission. See [Photos Share Import](./26-photos-share-import.md).
-- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` & `requiresScanConfirmation`)**: The default experience (`isMultiCaptureEnabled = false`) auto-submits after a single camera capture via an `onChange(of: viewModel.stagedCapture.images.count)` observer in `CaptureWorkspaceView`. Camera, video, and crop-confirmed commits arm `isAutomaticStagedSubmissionPending` in the same MainActor mutation that makes the eligible media visible. `shouldPresentActiveScanToolbar` therefore keeps the ordinary navigation chrome mounted instead of briefly presenting the manual **Identify** tray while the observer starts admission. Successful submission clears staging; failed admission clears only automatic ownership, preserving the photo and intentionally revealing **Identify** as the retry path. Before `PhotoLibraryButton` or the staged toolbar's add-photo action presents the native picker, it awaits `requestImageImportEntryAdmission`; a pending external Photos/Files receipt runs the same prospective-media check before metadata extraction or image preparation. A known quota/entitlement denial therefore opens the paywall before selection or crop and leaves any durable external receipt intact. Because the preview reserves nothing, final submission repeats admission and may still catch a concurrent account/quota change. Allowed photo-library picks and shared Photos documents then pause at the square crop editor before analysis starts: each prepared import commits with `requiresCrop: true`, `CaptureWorkspaceViewModel` records the staged image ID in `requiredGalleryCropImageIds`, and `presentNextRequiredGalleryCrop()` opens `CropSheetModifier` immediately. The required-crop ID and crop presentation jointly suppress both bottom chrome layers during that handoff, so neither the staged thumbnail nor **Identify** appears before the cover. Confirming the required crop clears that image ID and re-evaluates the same automatic-submission policy; only the default single-image path proceeds directly into analysis. Setting "Confirm scan submission" (`requiresScanConfirmation = true`) disables the auto-submit gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing the user to physically tap "Identify". If "Multi-capture mode" (`isMultiCaptureEnabled = true`) is enabled, required gallery crops are reviewed sequentially and the user returns to the toolbar after the final crop. `CaptureWorkspaceView` reads `@AppStorage` toggles inline and dynamically caps the `PhotoLibraryButton`'s `maxSelectionCount` and the toolbar's secondary add button.
-- **Required Gallery Crop Cancellation**: The crop sheet's X button has source-aware behavior. During a required photo-library crop, X calls `cancelRequiredGalleryCrop(for:)`, removes that staged gallery image, clears crop state, and opens the next required gallery crop if one remains. During a normal/manual thumbnail crop, X only dismisses the editor and preserves the staged image. The delete action removes the image in both paths.
-- **Mixed-Media AI Context Appending**: Users can stage up to 2 total user items into the inference pipeline across photos, short Pro video clips, audio clips, and descriptions (for example, a macro leaf shot plus a short text note, a short video, or two photos). `CaptureWorkspaceViewModel` handles `PhotosPickerItem` interactions via `handlePhotoPickerSelection`, constructing a `StagedImage` (compressed inference copy, 2048 px display copy, bounded `UIImage` thumbnail, and crop/metadata bundle) and appending it to `stagedCapture.images`, supporting mixed optical captures and library imports. Video capture records a high-quality temporary `.mp4` with `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB hard upload limit, requests native AVFoundation `.auto` stabilization for the active recording when the connection supports it, samples five ordered inference frames, and exports the accompanying Int16 PCM WAV from that original. The playback `.mp4` staged in `StagedVideo.filePath` is normally a network-optimized 720p export with a roughly 3 MB client target, but compression is best-effort: if export is slow, cancelled, unavailable, larger than the source, or otherwise unusable, the original recording is staged only when it remains under the hard video upload cap. Video preparation logs original bytes, exported bytes, duration, source choice, compression ratio, and whether it fell back to the original so production clips can be tuned without changing the 12 MB hard cap. A submitted video capture requires this durable playback `.mp4`; upload failures throw and fall back to the already-queued retry path rather than silently creating a frame-only video scan. The original recording is deleted only after a separate compressed playback clip is staged. The video-audio export uses `AVAssetReader` plus `AVAssetWriter` with copied sample buffers, avoiding the fragile no-copy `AVAudioFile.write(from:)` path while preserving the WAV format expected by the Edge audio parser. Scan lists, widgets, sharing previews, and Explore compact surfaces use that poster thumbnail; the Insight carousel opens the video item itself. `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem` metadata travel with the sampled frames/audio so `/identify-multimodal` can label still photos, ordered video frames, and accompanying video audio accurately for AI. Offline queue persistence keeps sampled video frames in `inferenceImagePaths` and stores only the playback video item plus thumbnail in the captured-media timeline, so UI/share surfaces never treat inference frames as user-selected photos. `handlePhotoPickerSelection` skips any actor-prepared still image whose encoded payloads fail the byte or dimension budgets, rather than appending empty `Data()`, which would base64-encode to an empty string and cause Gemini to reject the request with an opaque AI processing error. The matching guard in `Capture.swift` (camera shutter and video-frame paths) follows the same pattern. Cancel, remove, replace, and queue-rejection paths call the discard helper so temporary playback `.mp4` files and companion WAV files are deleted through `FileIOActor`; submit paths use reference-only clearing after queue acceptance so durable queue/live persistence keeps ownership. All per-image copies inside each `StagedImage` (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail, and crop/metadata bundle) are released with the same value reset — index mismatches between parallel arrays are impossible because media stays co-located in typed staging models. `submitActiveScan()` extracts `historicalContext` from `stagedCapture.images[0]` (via the `StagedImage.original` bundle) before reference-only staging reset to preserve EXIF location data from library uploads.
-- **Video Upload Signing Shape**: One video scan signs six staged media files: five `image/webp` inference frames plus one `video/mp4` playback clip. The general image cap remains five; the sixth slot exists only so the playback clip can travel with the sampled frames and be promoted after moderation.
-- **Staged Video Review**: `ActiveScanToolbar` renders staged video thumbnails with the same circular media slot as photos plus a small play badge. Tapping a staged video opens `StagedVideoPreviewModal` as a full-screen black preview through `fullScreenCover`, giving `VideoPlayer` the full display area so its native playback controls are not squeezed inside a sheet card. The top overlay toolbar owns dismissal and the destructive "Remove" action; removal calls `removeStagedVideo(at:)`, removes the staged timeline item, and deletes both the playback video and companion WAV file when present.
-- **Staged Audio Review**: The staged waveform button routes its audio-array index into `CaptureWorkspaceView` and opens `StagedAudioPreviewModal` through `fullScreenCover`. The modal reuses the canonical spectrogram playback page, including local-file resolution, play/pause, seeking, and audio-session cleanup. Closing preserves the multi-scan item; **Remove** calls `removeStagedAudio(at:)` and deletes the temporary recording through the staged-media file owner. Audio review participates in the same feature-presentation occupancy fence as video review, crop, and description editing.
-- **Off-Main Camera Image Preparation**: `executeCapture()` snapshots only lightweight state on `@MainActor` (cached location, composing-zone center, tier), then routes the 12MP ImageIO downsample/crop/encode sequence through `DetachedWork.value(category: .imagePreparation)`. The detached worker returns bounded inference/display `Data` and a `SendableCGImage` preview. `CameraManager` also wraps `AVCapturePhoto.fileDataRepresentation()` in an `autoreleasepool` so transient AVFoundation buffers are released promptly.
-- **Analyzing Mode Phase Rotation**: `InferenceEngine.analyze()` fires `classifySubjectLocally(from:)` at the start of the inference pipeline to drive the foreground status pill through `AnalyzingContentView` and shared `ScanningExperienceView`. Phrases advance every 2.3 seconds. Queued server inference reuses the generic phrase deck in the same visible component. See [AI Engineering → On-Device Pre-Classification](../system-architecture/04-ai-engineering.md) for qualification, confidence, margin, identity, and phrase-ownership details.
-- **Reanalysis / Refinement Scan (`startRefinementScan(from:)`)**: Tapping **Reanalyze species** from the toolbar, `CandidatesCard`, or the exhausted `CandidateSwipeModal` requests `AppRoute.refinement(scanId:initialDescription:entryPoint:)`. `CaptureWorkspaceViewModel` fetches the persisted record, closes the active presentation through the route state machine, selects Describe mode, establishes `RefinementScanContext`, and exposes the `.reanalysis(subjectId:)` prompt flow immediately. Historical media staging then selects the first usable item: remote images are downloaded to a temporary file, local images are resolved from their stored reference, and the legacy cover image, audio, or observation description provide ordered fallbacks. Images pass through `MediaPreparationActor` to regenerate tier-correct inference data and a bounded display payload before being committed on the main actor. Multi-image records are supported by staging the first usable image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels pending preparation and clears the refinement context.
-- **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceViewModel.init`)**: A background `Task` refreshes auth and calls `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a shot. The latter sends `OPTIONS` to `/identify-multimodal` through the same certificate-pinned `URLSession` used by inference, warming the relevant DNS/TCP/TLS connection pool instead of assuming the Supabase auth SDK's separate session warms it. The initializer keeps prewarm enabled in production and exposes a test-only off switch so refinement staging tests avoid network side effects.
-- **Accelerate Histogram Memory Isolation (`CameraManager.swift`)**: During 60fps hardware execution, the histogram buffer is now allocated as a local variable (`var histogram = [vImagePixelCount](repeating: 0, count: 256)`) inside the `captureOutput(_:)` scope instead of a single global `nonisolated(unsafe)` instance. This gives each frame isolated memory without thermal cost and satisfies Swift 6 strict concurrency rules.
+- **Historical Data Extraction**: When a user selects a library photo in-app,
+  the manager pulls the underlying `PHAsset` via its local identifier,
+  extracting the original GPS coordinates and creation date to anchor AI context
+  to the photo's actual capture timestamp. A photo shared through the Photos app
+  has no `PhotosPickerItem` identifier, so `ImportedImageMetadataExtractor`
+  reads the durable file's ImageIO EXIF dictionary instead. Even if a historical
+  photo lacks GPS coordinates, the system preserves its creation date
+  exclusively in `captureDate`; a complete GPS-only file likewise preserves
+  coordinates without inventing a date. This allows the Scan Library and Insight
+  UI to reflect the available historical context rather than defaulting missing
+  values to current device sensors, while preserving the baseline `timestamp`
+  for the precise analysis upload moment required by gamification and Heatmap
+  analytics. Before `submitActiveScan()` performs state cleanup, it caches this
+  historical context from `StagedImage.original` so both import sources retain
+  their true available origin metadata.
+- **OOM Prevention & UI Decoupling**: Live 12MP hardware buffers, gallery
+  `PhotosPickerItem` bytes, and files shared from Photos all run through two
+  bounded ImageIO passes — one at `MerianConfig.inferenceImageMaxSize` (1024 px
+  for Pro, 768 px for free/Flash) and one at `MerianConfig.displayImageMaxSize`
+  (2048 px, written to disk for the insight sheet and scan library). For
+  `PhotosPickerItem`, the system uses file-backed transfer to write bytes to a
+  temporary sandboxed URL rather than `loadTransferable(type: Data.self)`,
+  avoiding the uncompressed 48MP HEIC/ProRAW expansion that triggers iOS JetSam
+  OOM crashes. A Photos share-sheet file is copied byte-for-byte into
+  `ExternalImageImportStore` while security-scoped access is active, then the
+  same `MediaPreparationActor` prepares it without constructing a
+  full-resolution `UIImage`. Gallery, external-import, and refinement file URLs
+  share the two `ImageDownsampler` passes, WebP/JPEG encoding, and
+  `MediaPreparationMetrics` budget checks before returning staged media to
+  `CaptureWorkspaceViewModel`. GPS stripping (`stripGPS(from:)`) via ImageIO
+  runs in a `Task.detached` context to protect the 120Hz scroll rate during
+  historical imports. The actual encoding format is auto-detected from the first
+  image's magic bytes (`0xFF 0xD8 0xFF` → JPEG, otherwise WebP) inside
+  `InferenceEngine.analyze`, which forwards the correct MIME type string
+  (`"image/jpeg"` or `"image/webp"`) to the Edge Function so Gemini receives the
+  right label.
+- **Photos Share-Sheet Import**: `Info.plist` registers the app as an alternate
+  `public.image` viewer with in-place editing disabled. `MerianApp.onOpenURL`
+  handles one incoming file after Google/Merian routing and before Supabase
+  auth, then publishes a typed event only after the durable inbox copy succeeds.
+  Capture recovers pending receipts after cold launch or onboarding, preserves
+  embedded date/GPS before preparation, and retains quota- or capacity-blocked
+  files for retry. The implementation is not a Share Extension and requests no
+  new Photo Library permission. See
+  [Photos Share Import](./26-photos-share-import.md).
+- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
+  `requiresScanConfirmation`)**: The default experience
+  (`isMultiCaptureEnabled = false`) auto-submits after a single camera capture
+  via an `onChange(of: viewModel.stagedCapture.images.count)` observer in
+  `CaptureWorkspaceView`. Camera, video, and crop-confirmed commits arm
+  `isAutomaticStagedSubmissionPending` in the same MainActor mutation that makes
+  the eligible media visible. `shouldPresentActiveScanToolbar` therefore keeps
+  the ordinary navigation chrome mounted instead of briefly presenting the
+  manual **Identify** tray while the observer starts admission. Successful
+  submission clears staging; failed admission clears only automatic ownership,
+  preserving the photo and intentionally revealing **Identify** as the retry
+  path. Before `PhotoLibraryButton` or the staged toolbar's add-photo action
+  presents the native picker, it awaits `requestImageImportEntryAdmission`; a
+  pending external Photos/Files receipt runs the same prospective-media check
+  before metadata extraction or image preparation. A known quota/entitlement
+  denial therefore opens the paywall before selection or crop and leaves any
+  durable external receipt intact. Because the preview reserves nothing, final
+  submission repeats admission and may still catch a concurrent account/quota
+  change. Allowed photo-library picks and shared Photos documents then pause at
+  the square crop editor before analysis starts: each prepared import commits
+  with `requiresCrop: true`, `CaptureWorkspaceViewModel` records the staged
+  image ID in `requiredGalleryCropImageIds`, and
+  `presentNextRequiredGalleryCrop()` opens `CropSheetModifier` immediately. The
+  required-crop ID and crop presentation jointly suppress both bottom chrome
+  layers during that handoff, so neither the staged thumbnail nor **Identify**
+  appears before the cover. Confirming the required crop clears that image ID
+  and re-evaluates the same automatic-submission policy; only the default
+  single-image path proceeds directly into analysis. Setting "Confirm scan
+  submission" (`requiresScanConfirmation = true`) disables the auto-submit
+  gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing
+  the user to physically tap "Identify". If "Multi-capture mode"
+  (`isMultiCaptureEnabled = true`) is enabled, required gallery crops are
+  reviewed sequentially and the user returns to the toolbar after the final
+  crop. `CaptureWorkspaceView` reads `@AppStorage` toggles inline and
+  dynamically caps the `PhotoLibraryButton`'s `maxSelectionCount` and the
+  toolbar's secondary add button.
+- **Required Gallery Crop Cancellation**: The crop sheet's X button has
+  source-aware behavior. During a required photo-library crop, X calls
+  `cancelRequiredGalleryCrop(for:)`, removes that staged gallery image, clears
+  crop state, and opens the next required gallery crop if one remains. During a
+  normal/manual thumbnail crop, X only dismisses the editor and preserves the
+  staged image. The delete action removes the image in both paths.
+- **Mixed-Media AI Context Appending**: Users can stage up to 2 total user items
+  into the inference pipeline across photos, short Pro video clips, audio clips,
+  and descriptions (for example, a macro leaf shot plus a short text note, a
+  short video, or two photos). `CaptureWorkspaceViewModel` handles
+  `PhotosPickerItem` interactions via `handlePhotoPickerSelection`, constructing
+  a `StagedImage` (compressed inference copy, 2048 px display copy, bounded
+  `UIImage` thumbnail, and crop/metadata bundle) and appending it to
+  `stagedCapture.images`, supporting mixed optical captures and library imports.
+  Video capture records a high-quality temporary `.mp4` with
+  `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB
+  hard upload limit, requests native AVFoundation `.auto` stabilization for the
+  active recording when the connection supports it, samples five ordered
+  inference frames, and exports the accompanying Int16 PCM WAV from that
+  original. The playback `.mp4` staged in `StagedVideo.filePath` is normally a
+  network-optimized 720p export with a roughly 3 MB client target, but
+  compression is best-effort: if export is slow, cancelled, unavailable, larger
+  than the source, or otherwise unusable, the original recording is staged only
+  when it remains under the hard video upload cap. Video preparation logs
+  original bytes, exported bytes, duration, source choice, compression ratio,
+  and whether it fell back to the original so production clips can be tuned
+  without changing the 12 MB hard cap. A submitted video capture requires this
+  durable playback `.mp4`; upload failures throw and fall back to the
+  already-queued retry path rather than silently creating a frame-only video
+  scan. The original recording is deleted only after a separate compressed
+  playback clip is staged. The video-audio export uses `AVAssetReader` plus
+  `AVAssetWriter` with copied sample buffers, avoiding the fragile no-copy
+  `AVAudioFile.write(from:)` path while preserving the WAV format expected by
+  the Edge audio parser. Scan lists, widgets, sharing previews, and Explore
+  compact surfaces use that poster thumbnail; the Insight carousel opens the
+  video item itself. `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem`
+  metadata travel with the sampled frames/audio so `/identify-multimodal` can
+  label still photos, ordered video frames, and accompanying video audio
+  accurately for AI. Offline queue persistence keeps sampled video frames in
+  `inferenceImagePaths` and stores only the playback video item plus thumbnail
+  in the captured-media timeline, so UI/share surfaces never treat inference
+  frames as user-selected photos. `handlePhotoPickerSelection` skips any
+  actor-prepared still image whose encoded payloads fail the byte or dimension
+  budgets, rather than appending empty `Data()`, which would base64-encode to an
+  empty string and cause Gemini to reject the request with an opaque AI
+  processing error. The matching guard in `Capture.swift` (camera shutter and
+  video-frame paths) follows the same pattern. Cancel, remove, replace, and
+  queue-rejection paths call the discard helper so temporary playback `.mp4`
+  files and companion WAV files are deleted through `FileIOActor`; submit paths
+  use reference-only clearing after queue acceptance so durable queue/live
+  persistence keeps ownership. All per-image copies inside each `StagedImage`
+  (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail,
+  and crop/metadata bundle) are released with the same value reset — index
+  mismatches between parallel arrays are impossible because media stays
+  co-located in typed staging models. `submitActiveScan()` extracts
+  `historicalContext` from `stagedCapture.images[0]` (via the
+  `StagedImage.original` bundle) before reference-only staging reset to preserve
+  EXIF location data from library uploads.
+- **Video Upload Signing Shape**: One video scan signs six staged media files:
+  five `image/webp` inference frames plus one `video/mp4` playback clip. The
+  general image cap remains five; the sixth slot exists only so the playback
+  clip can travel with the sampled frames and be promoted after moderation.
+- **Staged Video Review**: `ActiveScanToolbar` renders staged video thumbnails
+  with the same circular media slot as photos plus a small play badge. Tapping a
+  staged video opens `StagedVideoPreviewModal` as a full-screen black preview
+  through `fullScreenCover`, giving `VideoPlayer` the full display area so its
+  native playback controls are not squeezed inside a sheet card. The top overlay
+  toolbar owns dismissal and the destructive "Remove" action; removal calls
+  `removeStagedVideo(at:)`, removes the staged timeline item, and deletes both
+  the playback video and companion WAV file when present.
+- **Staged Audio Review**: The staged waveform button routes its audio-array
+  index into `CaptureWorkspaceView` and opens `StagedAudioPreviewModal` through
+  `fullScreenCover`. The modal reuses the canonical spectrogram playback page,
+  including local-file resolution, play/pause, seeking, and audio-session
+  cleanup. Closing preserves the multi-scan item; **Remove** calls
+  `removeStagedAudio(at:)` and deletes the temporary recording through the
+  staged-media file owner. Audio review participates in the same
+  feature-presentation occupancy fence as video review, crop, and description
+  editing.
+- **Off-Main Camera Image Preparation**: `executeCapture()` snapshots only
+  lightweight state on `@MainActor` (cached location, composing-zone center,
+  tier), then routes the 12MP ImageIO downsample/crop/encode sequence through
+  `DetachedWork.value(category: .imagePreparation)`. The detached worker returns
+  bounded inference/display `Data` and a `SendableCGImage` preview.
+  `CameraManager` also wraps `AVCapturePhoto.fileDataRepresentation()` in an
+  `autoreleasepool` so transient AVFoundation buffers are released promptly.
+- **Analyzing Mode Phase Rotation**: `InferenceEngine.analyze()` fires
+  `classifySubjectLocally(from:)` at the start of the inference pipeline to
+  drive the foreground status pill through `AnalyzingContentView` and shared
+  `ScanningExperienceView`. Phrases advance every 2.3 seconds. Queued server
+  inference reuses the generic phrase deck in the same visible component. See
+  [AI Engineering → On-Device Pre-Classification](../system-architecture/04-ai-engineering.md)
+  for qualification, confidence, margin, identity, and phrase-ownership details.
+- **Reanalysis / Refinement Scan (`startRefinementScan(from:)`)**: Tapping
+  **Reanalyze species** from the toolbar, `CandidatesCard`, or the exhausted
+  `CandidateSwipeModal` requests
+  `AppRoute.refinement(scanId:initialDescription:entryPoint:)`.
+  `CaptureWorkspaceViewModel` fetches the persisted record, closes the active
+  presentation through the route state machine, selects Describe mode,
+  establishes `RefinementScanContext`, and exposes the `.reanalysis(subjectId:)`
+  prompt flow immediately. Historical media staging then selects the first
+  usable item: remote images are downloaded to a temporary file, local images
+  are resolved from their stored reference, and the legacy cover image, audio,
+  or observation description provide ordered fallbacks. Images pass through
+  `MediaPreparationActor` to regenerate tier-correct inference data and a
+  bounded display payload before being committed on the main actor. Multi-image
+  records are supported by staging the first usable image rather than
+  suppressing reanalysis. `cancelRefinementStaging()` cancels pending
+  preparation and clears the refinement context.
+- **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceViewModel.init`)**: A
+  background `Task` refreshes auth and calls
+  `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a
+  shot. The latter sends `OPTIONS` to `/identify-multimodal` through the same
+  certificate-pinned `URLSession` used by inference, warming the relevant
+  DNS/TCP/TLS connection pool instead of assuming the Supabase auth SDK's
+  separate session warms it. The initializer keeps prewarm enabled in production
+  and exposes a test-only off switch so refinement staging tests avoid network
+  side effects.
+- **Accelerate Histogram Memory Isolation (`CameraManager.swift`)**: During
+  60fps hardware execution, the histogram buffer is now allocated as a local
+  variable (`var histogram = [vImagePixelCount](repeating: 0, count: 256)`)
+  inside the `captureOutput(_:)` scope instead of a single global
+  `nonisolated(unsafe)` instance. This gives each frame isolated memory without
+  thermal cost and satisfies Swift 6 strict concurrency rules.
 
 ### `EnvironmentContext`
 
-A plain data struct extracted from `EnvironmentContextManager`. Lives in `apps/ios/Merian/Core/Hardware/EnvironmentContext.swift`.
+A plain data struct extracted from `EnvironmentContextManager`. Lives in
+`apps/ios/Merian/Core/Hardware/EnvironmentContext.swift`.
 
-Fields: `location: CLLocation?`, `locationName: String?`, `weatherCondition: String?`, `weatherTemperature: Double?`, `captureDate: Date?`.
+Fields: `location: CLLocation?`, `locationName: String?`,
+`weatherCondition: String?`, `weatherTemperature: Double?`,
+`captureDate: Date?`.
 
 ### `EnvironmentContextManager`
 
 Follows a battery-bounded tracking philosophy during the camera lifecycle.
 
-- Starts coarse `locationManager.startUpdatingLocation()` while the camera viewport is visible with `desiredAccuracy = kCLLocationAccuracyHundredMeters`, a 100 m distance filter, and automatic pausing enabled. The manager does not start heading updates; compass telemetry is not consumed by the active capture payload.
-- On shutter press, `CaptureWorkspaceViewModel.executeCapture` starts a one-shot `requestCurrentLocation()` concurrently with `CameraManager.captureImage()`. That request temporarily raises accuracy to `kCLLocationAccuracyBest`, calls `requestLocation()`, then restores the coarse composing profile when pending location continuations resolve. The resolved shutter location is passed into `PhotoLibraryManager` as the Photos asset location and into `fetchDeferredContext`; `lastKnownLocation` remains the fallback if GPS cannot settle before the timeout.
-- Resolves `CLLocation` and passes it to Apple's `WeatherKit` `WeatherService.shared`, capturing `weatherCondition`, `weatherTemperatureF`, and `gpsElevation`. Concurrently runs an `MKReverseGeocodingRequest` to derive `locationName`. During the Crop UI phase, an asynchronous `fetchDeferredContext` mutates `@Published var preFetchedContext`, hiding network latency from the user behind the crop interaction.
-- The environment snapshot feeds Gemini with regional context for identification and invasive species logic, and persists UI metrics in the offline Scans library. (Requires the `com.apple.developer.weatherkit` entitlement set to `true` in `project.yml`; otherwise it silently returns `nil` for all fields.)
-- **Historical Weather & Location Backfilling**: `fetchHistoricalContext` queries WeatherKit using `.hourly(startDate: date, endDate: date.addingTimeInterval(3600))` and runs a historical `MKReverseGeocodingRequest`, allowing in-app gallery and Photos document imports with both GPS and capture date to reconstruct environment conditions without external servers. Date-only or coordinate-only imports bypass weather lookup and preserve only the supplied values. If a scan was captured offline and lacks `weatherCondition`, `OfflineQueueManager` calls `fetchHistoricalContext` retroactively using the stored GPS coordinates and capture timestamp before triggering inference.
-- **GPS Accuracy Filter (<= 30m Horizontal)**: Coordinate fetching waits behind a 2.0-second `Task.sleep` to let the GPS settle. Incoming location updates are filtered to `horizontalAccuracy < 30m`; if that threshold is met, the method exits early with high-fidelity telemetry. If the device cannot achieve that accuracy (indoors or under heavy canopy), the timeout falls back to the strongest `cachedLocation` available. The timeout is managed via a `timeoutTask: Task<Void, Never>?` that is checked with `!Task.isCancelled` and cancelled immediately on a successful `didUpdateLocations` callback, preventing stalled camera pipelines.
+- Starts coarse `locationManager.startUpdatingLocation()` while the camera
+  viewport is visible with `desiredAccuracy = kCLLocationAccuracyHundredMeters`,
+  a 100 m distance filter, and automatic pausing enabled. The manager does not
+  start heading updates; compass telemetry is not consumed by the active capture
+  payload.
+- On shutter press, `CaptureWorkspaceViewModel.executeCapture` starts a one-shot
+  `requestCurrentLocation()` concurrently with `CameraManager.captureImage()`.
+  That request temporarily raises accuracy to `kCLLocationAccuracyBest`, calls
+  `requestLocation()`, then restores the coarse composing profile when pending
+  location continuations resolve. The resolved shutter location is passed into
+  `PhotoLibraryManager` as the Photos asset location and into
+  `fetchDeferredContext`; `lastKnownLocation` remains the fallback if GPS cannot
+  settle before the timeout.
+- Resolves `CLLocation` and passes it to Apple's `WeatherKit`
+  `WeatherService.shared`, capturing `weatherCondition`, `weatherTemperatureF`,
+  and `gpsElevation`. Concurrently runs an `MKReverseGeocodingRequest` to derive
+  `locationName`. During the Crop UI phase, an asynchronous
+  `fetchDeferredContext` mutates `@Published var preFetchedContext`, hiding
+  network latency from the user behind the crop interaction.
+- The environment snapshot feeds Gemini with regional context for identification
+  and invasive species logic, and persists UI metrics in the offline Scans
+  library. (Requires the `com.apple.developer.weatherkit` entitlement set to
+  `true` in `project.yml`; otherwise it silently returns `nil` for all fields.)
+- **Historical Weather & Location Backfilling**: `fetchHistoricalContext`
+  queries WeatherKit using
+  `.hourly(startDate: date, endDate: date.addingTimeInterval(3600))` and runs a
+  historical `MKReverseGeocodingRequest`, allowing in-app gallery and Photos
+  document imports with both GPS and capture date to reconstruct environment
+  conditions without external servers. Date-only or coordinate-only imports
+  bypass weather lookup and preserve only the supplied values. If a scan was
+  captured offline and lacks `weatherCondition`, `OfflineQueueManager` calls
+  `fetchHistoricalContext` retroactively using the stored GPS coordinates and
+  capture timestamp before triggering inference.
+- **GPS Accuracy Filter (<= 30m Horizontal)**: Coordinate fetching waits behind
+  a 2.0-second `Task.sleep` to let the GPS settle. Incoming location updates are
+  filtered to `horizontalAccuracy < 30m`; if that threshold is met, the method
+  exits early with high-fidelity telemetry. If the device cannot achieve that
+  accuracy (indoors or under heavy canopy), the timeout falls back to the
+  strongest `cachedLocation` available. The timeout is managed via a
+  `timeoutTask: Task<Void, Never>?` that is checked with `!Task.isCancelled` and
+  cancelled immediately on a successful `didUpdateLocations` callback,
+  preventing stalled camera pipelines.

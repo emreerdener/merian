@@ -294,15 +294,14 @@ Video is a short observation aid, not a general video publishing tool. Capture
 affordances must show the limit before recording. A completed video observation
 contains one playable clip with its poster; sampled inference frames are not
 separate Insight or Explore media. Backend completion requires the exact owner's
-ready playback representation before Field Chat or Explore can consume the
-scan.
+ready playback representation before Field Chat or Explore can consume the scan.
 
 When **Save to camera roll** is enabled, Naturebook starts a file-backed
 PhotoKit import from the original camera recording while sampled frames, audio,
 and the retained playback representation are prepared. The original cannot be
-deleted until that import finishes. A later explicit Download saves the
-retained playback clip rather than implying that Naturebook permanently stores
-every original recording.
+deleted until that import finishes. A later explicit Download saves the retained
+playback clip rather than implying that Naturebook permanently stores every
+original recording.
 
 ## 4.7 Audio capture - Implemented on iPhone
 
@@ -336,12 +335,12 @@ skips live inference, informs the user that the observation is queued, and
 retries through the background pipeline.
 
 The client meter is evaluated when the observation is accepted into the queue;
-server entitlement and provider quota are evaluated before provider work. In
-the staged complimentary model, provider counters and a user's credit hold
-settle independently. A proven terminal failure releases a hold, an ambiguous
-or retryable attempt keeps it held, and an attempted provider call remains
-metered. A completed non-biological result is still a usable processed result
-and consumes its funding credit.
+server entitlement and provider quota are evaluated before provider work. In the
+staged complimentary model, provider counters and a user's credit hold settle
+independently. A proven terminal failure releases a hold, an ambiguous or
+retryable attempt keeps it held, and an attempted provider call remains metered.
+A completed non-biological result is still a usable processed result and
+consumes its funding credit.
 
 ## 5.2 Primary AI path - Implemented
 
@@ -415,37 +414,36 @@ and when" rather than expose backend taxonomy mechanics.
 
 Insight offers **Download scan**, and Scan Library selection offers batch
 **Download**. These explicit actions can save local or Naturebook-hosted photos
-and retained videos to iOS Photos even when automatic camera-roll saving is
-off. Feedback distinguishes photo and video counts and reports a clear failure
-when no media is saved.
+and retained videos to iOS Photos even when automatic camera-roll saving is off.
+Feedback distinguishes photo and video counts and reports a clear failure when
+no media is saved.
 
 ## 6.2 Field trips - Implemented
 
 Field trips, also described in parts of the codebase as outings, group
 observations into a coherent activity. They are a standard product feature
-rather than a Pro-only expedition. Every account starts in Backyard Safari
-Level 1; other standard outings must be explicitly started. Matching scans do
-not auto-start outings. The capture workspace can show progress
-against an active outing's goal, and a saved biological Insight persistently
-lists every outing or joined Event credited by that scan.
+rather than a Pro-only expedition. Every account starts in Backyard Safari Level
+1; other standard outings must be explicitly started. Matching scans do not
+auto-start outings. The capture workspace can show progress against an active
+outing's goal, and a saved biological Insight persistently lists every outing or
+joined Event credited by that scan.
 
 Automatic enrollment uses the existing profile-visible Field trip status, so
 Backyard Safari can appear on an Explore author profile and satisfy that
 profile's visibility gate. Enrollment never publishes the underlying scans,
 media, notes, or location evidence.
 
-A scan can advance several active experiences, but it receives at
-most one goal credit per standard outing and one per joined Event. A visibly
-selected eligible camera goal wins inside its own outing; deterministic
-specificity and checklist ranking handles all other cases. An unreviewed AI
-identification auto-qualifies only at the tier-specific Possible-match boundary
-(75% Flash / 65% Pro); weaker matches remain pending until confirmation or a
-confirmed correction/community resolution. Normal identification corrections
-may move or remove credit while an experience is unfinished, and otherwise
-leave completed experiences immutable. Evidence-policy invalidation is the
-exception: if a confidence or review revision makes a contributing scan weak
-and unconfirmed, the server removes that contribution and can reopen a completed
-experience.
+A scan can advance several active experiences, but it receives at most one goal
+credit per standard outing and one per joined Event. A visibly selected eligible
+camera goal wins inside its own outing; deterministic specificity and checklist
+ranking handles all other cases. An unreviewed AI identification auto-qualifies
+only at the tier-specific Possible-match boundary (75% Flash / 65% Pro); weaker
+matches remain pending until confirmation or a confirmed correction/community
+resolution. Normal identification corrections may move or remove credit while an
+experience is unfinished, and otherwise leave completed experiences immutable.
+Evidence-policy invalidation is the exception: if a confidence or review
+revision makes a contributing scan weak and unconfirmed, the server removes that
+contribution and can reopen a completed experience.
 
 Seasonal Challenges and Events are separate concepts. Events are generally
 available in the iOS client, while the server remains authoritative for
@@ -552,8 +550,8 @@ nature recording.
 
 The database policy grants one free primary Flash scan per UTC day. It is
 separate from the staged grant of three lifetime complimentary Pro scans, so an
-account can receive three Pro-funded results plus one Flash-funded result on
-day one. Complimentary credits are selected automatically before Flash. After
+account can receive three Pro-funded results plus one Flash-funded result on day
+one. Complimentary credits are selected automatically before Flash. After
 exhaustion, only compatible single-evidence observations fall back to the daily
 Flash policy; video, mixed/multi-item, and Pro-only actions require an upgrade.
 
@@ -568,8 +566,8 @@ server entitlement and quota boundary.
 | `pro_week`   | Non-renewing 7-day pass           | $3.99                 |
 | `pro_annual` | Auto-renewing annual subscription | $24.99                |
 
-RevenueCat's developer-account Pro plan is not a Naturebook customer product
-and grants no user access. If a paid product has an App Store introductory free
+RevenueCat's developer-account Pro plan is not a Naturebook customer product and
+grants no user access. If a paid product has an App Store introductory free
 trial, the store receipt activates the mapped RevenueCat entitlement through the
 normal purchase flow; RevenueCat staff do not approve each trialing user. A beta
 promotion is a separate, explicit, finite grant of the RevenueCat `pro`
@@ -596,23 +594,23 @@ claim and subtracts unresolved local claims from verified server capacity.
 ## 8.3 Pro capability set
 
 Paid Pro removes the ordinary one-scan product cap and includes the Gemini Pro
-path, short video scans, follow-up AI chat, mixed multi-capture, Expedition Mode,
-offline queue benefits, group-event hosting, and Apple Watch logging. A verified
-complimentary balance can fund three primary Pro analyses and keeps the former
-trial's fair-use caps for non-scan Pro AI actions while at least one credit or
-active hold remains. An active hold is functional access but cannot fund a
-fourth analysis.
-High database fair-use and rate ceilings bound automation and provider cost, so
-product copy must not promise technically unbounded model traffic.
+path, short video scans, follow-up AI chat, mixed multi-capture, Expedition
+Mode, offline queue benefits, group-event hosting, and Apple Watch logging. A
+verified complimentary balance can fund three primary Pro analyses and keeps the
+former trial's fair-use caps for non-scan Pro AI actions while at least one
+credit or active hold remains. An active hold is functional access but cannot
+fund a fourth analysis. High database fair-use and rate ceilings bound
+automation and provider cost, so product copy must not promise technically
+unbounded model traffic.
 
 An active store trial or beta promotional `pro` grant receives this paid
 capability set for its active period, including private Insight and Explore
 Field Chat, after authoritative RevenueCat state is projected to Supabase.
 
 This list must be read with implementation status. Events are generally
-available. Apple Watch logging is partial because the phone receiver is incomplete. Paywall
-copy must not promise an end-to-end capability that the released client cannot
-fulfill.
+available. Apple Watch logging is partial because the phone receiver is
+incomplete. Paywall copy must not promise an end-to-end capability that the
+released client cannot fulfill.
 
 ## 8.4 Entitlement synchronization
 
@@ -633,19 +631,19 @@ need not match Supabase profiles, and provider history is never deleted merely
 to normalize counts.
 
 A signed-out anonymous UUID is a first-class customer identity. It can purchase,
-restore, redeem, and receive reviewed beta Pro without login. OAuth normally links
-credentials to that same UUID. Explicit **Sign out** closes the linked local
-session only after securing a durable StoreKit purchase handoff, requests a
-fresh anonymous UUID, and reports completion only after RevenueCat receipt
+restore, redeem, and receive reviewed beta Pro without login. OAuth normally
+links credentials to that same UUID. Explicit **Sign out** closes the linked
+local session only after securing a durable StoreKit purchase handoff, requests
+a fresh anonymous UUID, and reports completion only after RevenueCat receipt
 transfer and server entitlement verification. Receipt-backed purchases follow
 the signed-out session; account-issued beta/promotional access stays with the
 linked account and is never duplicated. **Continue with Apple** or **Continue
 with Google** later links that anonymous account or returns through the
-existing-account conflict flow. That conflict merge mirrors and verifies
-active Pro before source Auth deletion and then synchronizes the real store
-receipt under RevenueCat's **Transfer to new App User ID** behavior.
-Product copy calls this state signed out or anonymous and never exposes the
-internal legacy term “Ghost.”
+existing-account conflict flow. That conflict merge mirrors and verifies active
+Pro before source Auth deletion and then synchronizes the real store receipt
+under RevenueCat's **Transfer to new App User ID** behavior. Product copy calls
+this state signed out or anonymous and never exposes the internal legacy term
+“Ghost.”
 
 During prelaunch, an exact guarded cleanup may delete inactive provider shells
 created by the historical identity-rotation bug, but only when fresh exports and
@@ -698,8 +696,7 @@ section titles or a divider. The labels omit terminal periods:
 
 1. “I confirm I am 18 or older” — required.
 2. “I accept the terms and allow this data sharing” — required; the word
-   **terms** links
-   inline to the Terms of Service.
+   **terms** links inline to the Terms of Service.
 3. “Share usage and diagnostics to help improve Naturebook” — optional and
    changeable in Settings.
 
@@ -709,16 +706,15 @@ with the old onboarding flag remain on a launch-matched neutral surface while
 the initial session and authoritative account evidence are restored. A known
 cached session with an expired access token remains on that surface until
 Supabase refreshes it or establishes sign-out; expiry is not treated as an
-unauthenticated result. If that
-resolved account still lacks current required evidence, they route directly to
-this screen without repeating Camera or Location. If restoration supplies the
-evidence, they open the scanner without seeing the approval controls. A fetch,
-decode, pending consent upload, or verified-ledger-write failure keeps the neutral
-surface active, offers **Try Again**, and performs bounded 5-, 10-, and
-20-second retries. It does not ask the user to consent again. For an
-authenticated restoration, only a successful authoritative merge may establish
-absence and present the Ready consent screen; an authoritative no-session
-result may begin the local consent flow directly.
+unauthenticated result. If that resolved account still lacks current required
+evidence, they route directly to this screen without repeating Camera or
+Location. If restoration supplies the evidence, they open the scanner without
+seeing the approval controls. A fetch, decode, pending consent upload, or
+verified-ledger-write failure keeps the neutral surface active, offers **Try
+Again**, and performs bounded 5-, 10-, and 20-second retries. It does not ask
+the user to consent again. For an authenticated restoration, only a successful
+authoritative merge may establish absence and present the Ready consent screen;
+an authoritative no-session result may begin the local consent flow directly.
 
 For a first-time user, **Start scanning** records consent locally but does not
 make that local flag a provider credential. Before the first Identify request,
@@ -730,13 +726,13 @@ must not leave it in an active-looking scanning loop with **Retry now**.
 
 An exact `403 ai_consent_required` from the provider-admission boundary is a
 required-disclosure transition, not quota exhaustion. Naturebook preserves the
-queued media, stops automatic inference retries, durably returns that account
-to Ready, and requires fresh head-anchored evidence. Selecting **Start scanning**
+queued media, stops automatic inference retries, durably returns that account to
+Ready, and requires fresh head-anchored evidence. Selecting **Start scanning**
 then resumes only the newest same-account, same-scan row with an unreleased,
-dispatchable funding reservation; every unproven row stays paused in Scans. A new
-account's included Pro scans and eligible daily Flash path are evaluated only
-after consent succeeds; their `402`/`429` outcomes retain separate upgrade and
-daily-limit experiences. See the
+dispatchable funding reservation; every unproven row stays paused in Scans. A
+new account's included Pro scans and eligible daily Flash path are evaluated
+only after consent succeeds; their `402`/`429` outcomes retain separate upgrade
+and daily-limit experiences. See the
 [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md).
 
 Photo-library and notification permissions are requested progressively at the
@@ -780,9 +776,9 @@ purchase, restore, and redeem. Generic `401` responses preserve that UUID rather
 than creating another account, and the normal provider link keeps its purchase
 identity. The existing-account conflict path separately requires tested store
 transfer behavior; beta promotion remains restricted to the reviewed permanent
-cohort because it has no store receipt to transfer. The
-beta/canonical-ID production rollout remains release-held for the independent
-database replay, staging, exact-SHA, and provider-operation gates. See the
+cohort because it has no store receipt to transfer. The beta/canonical-ID
+production rollout remains release-held for the independent database replay,
+staging, exact-SHA, and provider-operation gates. See the
 [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
 Sign-out clears the local user scope without redefining backend retention or
@@ -844,10 +840,10 @@ destructive action. A claim-fenced database transaction queues object-store
 cleanup, makes retained observations ownerless tombstones, clears all stored
 media references, semantic/public location labels, device context, custom tags,
 and free-form account-linked notes, and clears account linkage from aggregate
-cost records. Exact
-coordinates/elevation, time, taxonomy, identification, environmental, quality,
-and provenance facts remain unchanged as the mandatory scientific observation.
-The complete product and engineering boundary is normative in the
+cost records. Exact coordinates/elevation, time, taxonomy, identification,
+environmental, quality, and provenance facts remain unchanged as the mandatory
+scientific observation. The complete product and engineering boundary is
+normative in the
 [scientific-observation retention contract](../backend-and-data/17-scientific-observation-retention.md).
 A scheduled reaper cursor-sweeps durable uploads, staging data, avatars, and
 exports, then performs a delayed empty verification sweep. For Apple sign-ins
@@ -862,13 +858,12 @@ deleted only after relational, storage, and applicable provider verification
 succeed. Transient failures are resumed automatically. After immediate
 completion or durable acceptance, the supporting client persists any manual
 Apple disposition, signs out locally, and removes its local store. An
-independent scheduled
-health check alerts when the reaper is disabled or misconfigured, deletion work
-is overdue, leases expire, storage work is orphaned, or queue age/backlog
-breaches the deletion SLA.
+independent scheduled health check alerts when the reaper is disabled or
+misconfigured, deletion work is overdue, leases expire, storage work is
+orphaned, or queue age/backlog breaches the deletion SLA.
 
-The provider-specific implementation and production exit criteria are
-normative in the
+The provider-specific implementation and production exit criteria are normative
+in the
 [Sign in with Apple account-deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 Deleting an individual scan uses an owner-bound `/delete-scan` path that first
@@ -894,9 +889,9 @@ account identifiers, and optional location to provide its service.
 
 Naturebook uses self-attested 18+ eligibility and does not collect a birth date
 or exact age. Current adult, Terms, and Gemini evidence is required for AI
-identification. PostHog is a separate, optional, default-off account-wide
-choice with a Settings withdrawal control that must take effect immediately and
-must not change core functionality.
+identification. PostHog is a separate, optional, default-off account-wide choice
+with a Settings withdrawal control that must take effect immediately and must
+not change core functionality.
 
 Gemini and PostHog event streams use causal compare-and-append. Each action
 names the account/provider event it observed. The server accepts a grant only
@@ -924,13 +919,12 @@ archive, and exported-IPA checks reject broad or domain-scoped exceptions; see
 the
 [iOS App Transport Security Contract](../development-guides/17-ios-transport-security.md).
 
-The repository also cannot establish jurisdiction-specific consent
-sufficiency or production age-rating configuration. Those require review and
-owner evidence. All tracked client consent findings are closed in source, but
-public production remains release-blocked until exact-SHA lifecycle/rollout
-evidence and the external controls are complete. Internal test builds may
-continue. No App Attest or DeviceCheck enforcement was found in the reviewed
-paths.
+The repository also cannot establish jurisdiction-specific consent sufficiency
+or production age-rating configuration. Those require review and owner evidence.
+All tracked client consent findings are closed in source, but public production
+remains release-blocked until exact-SHA lifecycle/rollout evidence and the
+external controls are complete. Internal test builds may continue. No App Attest
+or DeviceCheck enforcement was found in the reviewed paths.
 
 ## 10.5 Localization status - Partial
 
@@ -1209,15 +1203,15 @@ Each release should exercise at minimum:
 2. Completed-account cold launch with the local consent ledger absent: the
    neutral restoration surface must proceed directly to the scanner when the
    account restores current evidence, and to Ready only when evidence resolves
-   absent. Network, decoding, pending consent upload, and persistence failures must
-   retain the neutral retry surface; the approval screen must not flash during
-   any pending path.
-3. Anonymous still scan, queued acceptance, exactly one first provider
-   dispatch, identification, and Insight. A forced missing-cloud-consent case
-   must instead preserve the same scan/media, issue no automatic redispatch or
-   entitlement consumption, route to Ready across relaunch, and succeed under
-   exactly one eligible original scan ID after fresh head-anchored approval and
-   an automatic guarded resume.
+   absent. Network, decoding, pending consent upload, and persistence failures
+   must retain the neutral retry surface; the approval screen must not flash
+   during any pending path.
+3. Anonymous still scan, queued acceptance, exactly one first provider dispatch,
+   identification, and Insight. A forced missing-cloud-consent case must instead
+   preserve the same scan/media, issue no automatic redispatch or entitlement
+   consumption, route to Ready across relaunch, and succeed under exactly one
+   eligible original scan ID after fresh head-anchored approval and an automatic
+   guarded resume.
 4. Offline submission, relaunch, and later synchronization.
 5. Online complimentary verification, three durable Pro results, fourth-scan
    Flash fallback, third-result persistence, stale-response rejection, and
@@ -1252,11 +1246,11 @@ This contract is an engineering provenance requirement, not a product-readiness
 shortcut. Device, purchase/restore, push, privacy, migration, and critical
 journey acceptance remain required. The archive must contain the validated
 main-app privacy manifest and retain ATS defaults with HTTPS-only origins.
-Promotion beyond internal testing requires the
-reviewed Xcode aggregate privacy report. See the
+Promotion beyond internal testing requires the reviewed Xcode aggregate privacy
+report. See the
 [Xcode release architecture](../system-architecture/09-ios-release-publisher.md),
-the [operator runbook](../development-guides/14-ios-release-versioning.md),
-the [privacy manifest contract](../development-guides/16-ios-privacy-manifest.md),
+the [operator runbook](../development-guides/14-ios-release-versioning.md), the
+[privacy manifest contract](../development-guides/16-ios-privacy-manifest.md),
 and the
 [transport security contract](../development-guides/17-ios-transport-security.md).
 
@@ -1273,17 +1267,17 @@ migrations, vendor credentials, and release flags.
 
 ## 17.2 Release-gated or partial work
 
-| Area                                 | Current status            | Exit condition                                                                       |
-| ------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------ |
-| Events and Seasonal Challenges       | Generally available       | Continue server-authorized operations, product review, and regression coverage.      |
-| Apple Watch logging                  | Partial                   | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests. |
-| Full localization                    | Partial                   | Localized resource architecture, content coverage, taxonomy rules, and QA.           |
-| 18+ and third-party AI consent controls | Implemented gate / Production-blocked | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
-| iOS app privacy manifest             | Implemented in source / Evidence pending | Pass the hosted exact-SHA root-bundle check, generate the signed archive's aggregate privacy report, and reconcile App Store privacy/ATT answers with SDK manifests, policy, and counsel. |
-| iOS App Transport Security            | Implemented in source / Evidence pending | Pass the hosted exact-SHA archive check with ATS defaults and credential-free HTTPS origins, then repeat it against the signed Organizer archive. |
-| App Attest / DeviceCheck enforcement | Planned                   | Threat model, server verification, failure policy, and rollout.                      |
-| Targeted observation bounties        | Planned                   | Product model, abuse controls, incentives, backend, and UX.                          |
-| Insight-triggered 1 FPS camera idle  | Partial hook only         | Wire lifecycle calls and validate restoration across navigation and interruptions.   |
+| Area                                    | Current status                           | Exit condition                                                                                                                                                                                          |
+| --------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events and Seasonal Challenges          | Generally available                      | Continue server-authorized operations, product review, and regression coverage.                                                                                                                         |
+| Apple Watch logging                     | Partial                                  | Implement phone receiver, reconciliation UI, failure handling, and end-to-end tests.                                                                                                                    |
+| Full localization                       | Partial                                  | Localized resource architecture, content coverage, taxonomy rules, and QA.                                                                                                                              |
+| 18+ and third-party AI consent controls | Implemented gate / Production-blocked    | Pass hosted exact-SHA lifecycle and replacement-build rollout gates, configure and archive App Store 18+ and non-minor marketing evidence, complete legal review, and verify strict server enforcement. |
+| iOS app privacy manifest                | Implemented in source / Evidence pending | Pass the hosted exact-SHA root-bundle check, generate the signed archive's aggregate privacy report, and reconcile App Store privacy/ATT answers with SDK manifests, policy, and counsel.               |
+| iOS App Transport Security              | Implemented in source / Evidence pending | Pass the hosted exact-SHA archive check with ATS defaults and credential-free HTTPS origins, then repeat it against the signed Organizer archive.                                                       |
+| App Attest / DeviceCheck enforcement    | Planned                                  | Threat model, server verification, failure policy, and rollout.                                                                                                                                         |
+| Targeted observation bounties           | Planned                                  | Product model, abuse controls, incentives, backend, and UX.                                                                                                                                             |
+| Insight-triggered 1 FPS camera idle     | Partial hook only                        | Wire lifecycle calls and validate restoration across navigation and interruptions.                                                                                                                      |
 
 ## 17.3 Retired concepts
 
@@ -1398,7 +1392,7 @@ numbers.
 | Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                        |
 | Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV50`.                                                                                        |
 | Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                   |
-| New accounts receive a seven-day introductory Pro trial. | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.             |
+| New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.              |
 | Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                        |
 | Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                    |
 | Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                             |

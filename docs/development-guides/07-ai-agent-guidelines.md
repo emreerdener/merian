@@ -73,24 +73,24 @@ The `docs/` folder contains the master reference for the application:
   `make test-ios-ci-tooling`.
 - The main app must retain ATS defaults. App-configured and remotely supplied
   network URLs must pass the shared credential-free HTTPS boundary; local-file
-  handling must remain explicit. Run `make validate-ios-transport-security`
-  and the adversarial archive/IPA fixtures whenever that boundary changes.
+  handling must remain explicit. Run `make validate-ios-transport-security` and
+  the adversarial archive/IPA fixtures whenever that boundary changes.
 - Do not hardcode a real Apple Developer Team ID in `project.yml` or shared
   tracked config. Signing must flow through `Signing.xcconfig` -> optional
   `Signing.local.xcconfig`, with the local file ignored by git.
-- **Build Versioning**: `project.yml` tracks the reviewed
-  `MARKETING_VERSION` release train and the archive build baseline;
-  `Info.plist` files must strictly inherit `$(MARKETING_VERSION)` and
-  `$(CURRENT_PROJECT_VERSION)`. After the exact SHA passes **iOS Build and
-  Test**, archive a clean checkout with Xcode Organizer, use **TestFlight & App
-  Store**, and keep **Manage version and build number** enabled. Xcode is the
-  sole signed archive/upload authority and App Store Connect reports the
-  authoritative uploaded build. Keep the approved release train until
-  intentionally starting a new one; do not increment the baseline per beta or
-  add a competing CI, Fastlane, script, or agent upload recipe. Point to the
-  canonical runbook instead.
+- **Build Versioning**: `project.yml` tracks the reviewed `MARKETING_VERSION`
+  release train and the archive build baseline; `Info.plist` files must strictly
+  inherit `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)`. After the
+  exact SHA passes **iOS Build and Test**, archive a clean checkout with Xcode
+  Organizer, use **TestFlight & App Store**, and keep **Manage version and build
+  number** enabled. Xcode is the sole signed archive/upload authority and App
+  Store Connect reports the authoritative uploaded build. Keep the approved
+  release train until intentionally starting a new one; do not increment the
+  baseline per beta or add a competing CI, Fastlane, script, or agent upload
+  recipe. Point to the canonical runbook instead.
 - API Keys must be injected via `Config.xcconfig` or `MerianEnvironment.swift`.
-  NEVER hardcode `GEMINI_PAID_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift` files.
+  NEVER hardcode `GEMINI_PAID_API_KEY` or `SUPABASE_ANON_KEY` inside `.swift`
+  files.
 
 ## 2. Directory Structure
 
@@ -304,8 +304,8 @@ dependency audit, tests, type-check, and production build; preserve the required
   and `/update-scan-context` use cached-JWKS `auth.getClaims(token)` plus
   explicit issuer, audience, time, role, and `sub` validation. Never substitute
   unverified JWT decoding or request-body user IDs.
-- **Identify success owns the scan row.** Do not move moderation, required
-  media promotion, primary species resolution, scan creation, or owner-scoped
+- **Identify success owns the scan row.** Do not move moderation, required media
+  promotion, primary species resolution, scan creation, or owner-scoped
   read-back behind `EdgeRuntime.waitUntil`. Completion must be written last,
   after every claimed staging-key disposition and ready canonical media row are
   proved. A current multimodal `200` must make its `scan_id` immediately usable.
@@ -317,32 +317,30 @@ dependency audit, tests, type-check, and production build; preserve the required
   serialize against ingestion claim creation, defer to active/retryable
   ingestion, permit exact structured `replay_exhausted`, and require matching
   composite dead-letter/quota/media-lifecycle provenance for exact
-  `media_reconciliation_abandoned`, including rejection of active attempts,
-  dead letters older than later charged policy authority, invalid timestamps,
+  `media_reconciliation_abandoned`, including rejection of active attempts, dead
+  letters older than later charged policy authority, invalid timestamps,
   unstructured rows absent from the immutable migration-time ID snapshot or
   outside its cutoff, and incomplete modern safety evidence. Never use
   transaction timestamp alone as the legacy boundary: a DDL-blocked insert can
-  resume later with an earlier `now()`.
-  Restore signing must obtain the same decision from the
-  bounded service-only proof RPC; both signatures remain in the privileged
-  grant ledger and production no-write readiness gate. All exact
+  resume later with an earlier `now()`. Restore signing must obtain the same
+  decision from the bounded service-only proof RPC; both signatures remain in
+  the privileged grant ledger and production no-write readiness gate. All exact
   failed/committed normal and replay reservations remain retained as
   chronological authority until the terminal job is resolved. It must insert
-  without overwrite and reload by both scan and owner.
-  Never trust the terminal label alone, add a direct client scan upsert, or
-  weaken RLS/grants to make recovery work.
+  without overwrite and reload by both scan and owner. Never trust the terminal
+  label alone, add a direct client scan upsert, or weaken RLS/grants to make
+  recovery work.
 - **New migrations use the CLI transaction.** Supabase CLI `2.109.1` batches
   each migration with its history insert. Do not add top-level transaction
-  controls or any executable concurrent index DDL to a new migration.
-  Historical applied files are immutable compatibility artifacts, not
-  templates. Use the supervised production index preflight for a large or
-  partitioned relation.
+  controls or any executable concurrent index DDL to a new migration. Historical
+  applied files are immutable compatibility artifacts, not templates. Use the
+  supervised production index preflight for a large or partitioned relation.
 - **A queue marker is not destructive authority.** Do not blanket-delete an
   orphaned `pending_storage_deletions` row, sweep its prefixes, make it due,
   reset its cursor/lease, or delete Auth to clear monitoring. Preserve evidence,
-  investigate request and private-job provenance with restricted access, and
-  use a reviewed durable request or forward metadata migration only after the
-  cause is classified.
+  investigate request and private-job provenance with restricted access, and use
+  a reviewed durable request or forward metadata migration only after the cause
+  is classified.
 - **Redundant queue state must reconcile monotonically.** Scan-ingestion
   retry/completion markers and attempts live on both `OfflineQueuedScan` and
   `OfflineJobRecord`. Fresh reads consult both, serialized writers repair drift
@@ -402,15 +400,15 @@ dependency audit, tests, type-check, and production build; preserve the required
   ```
 - **Classify internal signals before sending them.** Loss-tolerant reload and
   lifecycle hints use the `AppEventPublisher` owned by the test's
-  `AppDIContainer`; delivery-critical navigation uses its
-  `AppRouteCoordinator`. Neither service exposes a separate `.shared`
-  singleton. Application-defined `Notification.Name` values and posts are
-  forbidden. Tests that trigger foreground timeout behavior send
-  `.appDidResumeAfterTimeout` through the container bus. Sheet cleanup remains
-  timeout-driven from the foreground path, while `.inactive` only pauses
-  hardware so system overlays do not close the Insight sheet. Routed sheets and
-  Capture-local editors/covers resume delivery only from exact `onDismiss`
-  callbacks; do not introduce a teardown `Task.sleep`. Follow the
+  `AppDIContainer`; delivery-critical navigation uses its `AppRouteCoordinator`.
+  Neither service exposes a separate `.shared` singleton. Application-defined
+  `Notification.Name` values and posts are forbidden. Tests that trigger
+  foreground timeout behavior send `.appDidResumeAfterTimeout` through the
+  container bus. Sheet cleanup remains timeout-driven from the foreground path,
+  while `.inactive` only pauses hardware so system overlays do not close the
+  Insight sheet. Routed sheets and Capture-local editors/covers resume delivery
+  only from exact `onDismiss` callbacks; do not introduce a teardown
+  `Task.sleep`. Follow the
   [canonical routing contract](../system-architecture/10-event-and-presentation-routing.md).
 - **Do not call private methods via `@testable import`.** Swift allows calling
   internal-level methods from test targets, but `private` members are
@@ -466,14 +464,14 @@ live under `skills/` and their repository discovery links live only under
 
 The six project skills are:
 
-| Skill | Responsibility |
-| --- | --- |
-| `$merian-ios` | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, hardware limits, and safe Debug/UI-test fixtures |
-| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery |
-| `$merian-supabase` | Merian database, RLS, Edge, security, client, and candidate-validation overlay |
-| `$merian-api-contracts` | Deno, generated Swift, and web payload coordination through generate → review diff → validate |
-| `$merian-web-admin` | Public web/internal admin trust boundaries and package-local verification |
-| `$merian-release` | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures |
+| Skill                          | Responsibility                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `$merian-ios`                  | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, hardware limits, and safe Debug/UI-test fixtures |
+| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                             |
+| `$merian-supabase`             | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                     |
+| `$merian-api-contracts`        | Deno, generated Swift, and web payload coordination through generate → review diff → validate                      |
+| `$merian-web-admin`            | Public web/internal admin trust boundaries and package-local verification                                          |
+| `$merian-release`              | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                          |
 
 `$merian-release` cannot be invoked implicitly. Implementation, preparation,
 candidate validation, or green CI never authorizes a deployment or publication.
@@ -504,8 +502,8 @@ the model-shape invariants exist.
 
 The durable invariant is concise: retired schemas reference fully qualified,
 frozen snapshot types; only the current schema references global active types;
-and relationship-bearing snapshots preserve matching Swift type identity. On
-iOS 26 and later, every custom stage must also resolve distinct from/to model
+and relationship-bearing snapshots preserve matching Swift type identity. On iOS
+26 and later, every custom stage must also resolve distinct from/to model
 references.
 
 The skill owns the ordered freeze procedure, relationship rules, custom-stage

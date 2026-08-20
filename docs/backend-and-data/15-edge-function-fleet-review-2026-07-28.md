@@ -13,11 +13,11 @@ not silently waived.
 
 ## Scope
 
-This review inventories every configured deployable Supabase Edge Function entrypoint, its
-`config.toml` records, isolated deployment graphs, shared authentication/error/
-request-size/outbound/quota boundaries, database migration contracts, and static
-production callers across every application target, workflows, Edge workers,
-operator scripts, and migrations.
+This review inventories every configured deployable Supabase Edge Function
+entrypoint, its `config.toml` records, isolated deployment graphs, shared
+authentication/error/ request-size/outbound/quota boundaries, database migration
+contracts, and static production callers across every application target,
+workflows, Edge workers, operator scripts, and migrations.
 
 PostgreSQL routines are not counted as Edge Functions. Their effective grants,
 caller binding, RLS, cron transport, and migration compatibility are covered by
@@ -70,8 +70,8 @@ the privileged-routine catalog audit and migration/security contract suites.
 
 ## Boundary Review
 
-- **User or hybrid routes:** `withEdgeHandler` authenticates the Supabase
-  user before route logic. `identify-multimodal` additionally permits the exact
+- **User or hybrid routes:** `withEdgeHandler` authenticates the Supabase user
+  before route logic. `identify-multimodal` additionally permits the exact
   service-key replay boundary before entering the same owner-scoped handler.
 - **Internal workers:** exact environment-backed server-key comparison runs
   before body parsing and privileged client construction. Current opaque keys

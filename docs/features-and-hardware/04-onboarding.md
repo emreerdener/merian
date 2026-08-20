@@ -2,20 +2,19 @@
 
 Naturebook gates the main workspace, hardware initialization, ordinary
 background/provider sync, and inference behind both completed onboarding and
-current legal consent. Consent reconciliation itself remains available while
-the required gate is closed. This
-document explains the four-step permission flow, versioned consent receipts,
-and the three-part required completion gate.
+current legal consent. Consent reconciliation itself remains available while the
+required gate is closed. This document explains the four-step permission flow,
+versioned consent receipts, and the three-part required completion gate.
 
 > [!WARNING]
 > **Release status:** the internal-testing screen and evidence model are
 > implemented. `CONSENT-001` through `CONSENT-012` are closed in source,
 > including the local-ledger handoff, PostHog withdrawal, account restoration,
 > final synchronization merge fence, Realtime, OAuth lifecycle, and first-scan
-> consent-policy recovery findings.
-> Same-SHA hosted iOS and validation-only Supabase evidence, counsel approval,
-> and operator evidence still block production. Treat the
-> guarantees below as required invariants until every item in the
+> consent-policy recovery findings. Same-SHA hosted iOS and validation-only
+> Supabase evidence, counsel approval, and operator evidence still block
+> production. Treat the guarantees below as required invariants until every item
+> in the
 > [canonical consent readiness record](../legal/production-consent-readiness-2026-08-03.md)
 > is closed. Internal test builds may continue; do not submit the candidate for
 > production or enable strict enforcement yet.
@@ -24,17 +23,17 @@ and the three-part required completion gate.
 
 ## Architecture
 
-| File | Role |
-|---|---|
-| `App/MerianApp.swift` | Applies the three-state root presentation policy: onboarding, required-consent restoration, or workspace |
-| `Steps/Models/OnboardingStep.swift` | Defines the four steps in order |
-| `Shell/ViewModels/OnboardingViewModel.swift` | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag |
-| `Core/Security/ConsentManager.swift` | Owns the local append-only consent ledger, current policy versions, account synchronization, launch-restoration state, and inference gate |
-| `Core/Security/ConsentLedgerStore.swift` | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal |
-| `Shell/Views/OnboardingView.swift` | Root view, switches content based on `currentStep` |
-| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step |
-| `Steps/Shared/OnboardingStepWrapper.swift` | Shared step layout and action-button chrome |
-| `Permissions/Location/LocationPermissionDelegate.swift` | `CLLocationManagerDelegate` for native location permission priming |
+| File                                                                                 | Role                                                                                                                                      |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `App/MerianApp.swift`                                                                | Applies the three-state root presentation policy: onboarding, required-consent restoration, or workspace                                  |
+| `Steps/Models/OnboardingStep.swift`                                                  | Defines the four steps in order                                                                                                           |
+| `Shell/ViewModels/OnboardingViewModel.swift`                                         | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag                                  |
+| `Core/Security/ConsentManager.swift`                                                 | Owns the local append-only consent ledger, current policy versions, account synchronization, launch-restoration state, and inference gate |
+| `Core/Security/ConsentLedgerStore.swift`                                             | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal   |
+| `Shell/Views/OnboardingView.swift`                                                   | Root view, switches content based on `currentStep`                                                                                        |
+| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step                                                                                       |
+| `Steps/Shared/OnboardingStepWrapper.swift`                                           | Shared step layout and action-button chrome                                                                                               |
+| `Permissions/Location/LocationPermissionDelegate.swift`                              | `CLLocationManagerDelegate` for native location permission priming                                                                        |
 
 ---
 
@@ -49,17 +48,16 @@ enum OnboardingStep: Int, CaseIterable {
 }
 ```
 
-| Step | Component | What happens |
-|---|---|---|
-| `.welcome` | `WelcomeStepView` | Branding screen — no permission request |
-| `.camera` | `CameraPermissionStepView` | Requests `AVCaptureDevice` camera permission |
-| `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate` |
-| `.ready` | `ReadyStepView` | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and places three initially-off switch-and-label rows on a common leading edge in one continuous stack without section titles or a divider. The labels omit terminal periods. The 18+ self-attestation and Terms/data-sharing permission with an inline Terms link are required; usage/diagnostics remains optional and changeable in Settings. **Start scanning** requires the two required switches only. |
+| Step        | Component                    | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.welcome`  | `WelcomeStepView`            | Branding screen — no permission request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `.camera`   | `CameraPermissionStepView`   | Requests `AVCaptureDevice` camera permission                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `.ready`    | `ReadyStepView`              | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and places three initially-off switch-and-label rows on a common leading edge in one continuous stack without section titles or a divider. The labels omit terminal periods. The 18+ self-attestation and Terms/data-sharing permission with an inline Terms link are required; usage/diagnostics remains optional and changeable in Settings. **Start scanning** requires the two required switches only. |
 
-The first three step views use `OnboardingStepWrapper` for consistent layout
-and action chrome. The ready step uses a dedicated layout so the disclosure,
-linked acceptance statement, switches, and disabled state remain one clear
-surface.
+The first three step views use `OnboardingStepWrapper` for consistent layout and
+action chrome. The ready step uses a dedicated layout so the disclosure, linked
+acceptance statement, switches, and disabled state remain one clear surface.
 
 ---
 
@@ -88,14 +86,14 @@ in memory only after the throwing store verifies an atomic file replacement,
 then records the activation event when analytics is allowed and writes the
 onboarding flag. A failure leaves the completion flag false, keeps scanning and
 analytics disabled, and presents a retryable alert on the same screen. The local
-legal action is therefore durable before the workspace can open. The
-full lifecycle requires both `hasCompletedOnboarding` and
+legal action is therefore durable before the workspace can open. The full
+lifecycle requires both `hasCompletedOnboarding` and
 `ConsentManager.hasCurrentRequiredConsent`:
 
 - `AppLifecycleManager.handleActivePhase()` requires both gates before it
   initializes active hardware work or drains queued submissions.
-- `AppLifecycleManager.handleInactivePhase()` still uses completed onboarding
-  to stop an existing camera session during system interruptions.
+- `AppLifecycleManager.handleInactivePhase()` still uses completed onboarding to
+  stop an existing camera session during system interruptions.
 - `AppLifecycleManager.handleBackgroundPhase()` always records the background
   time used by session-timeout recovery; it does not submit provider work.
 
@@ -107,7 +105,8 @@ submission drain runs.
 
 ## Root Presentation Gate
 
-`OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property backed by its injected `AppSettings` boundary:
+`OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property
+backed by its injected `AppSettings` boundary:
 
 ```swift
 var hasCompletedOnboarding: Bool {
@@ -121,12 +120,12 @@ var hasCompletedOnboarding: Bool {
 `ConsentManager.isRestoringRequiredConsent`. Production construction uses the
 shared managers; tests inject isolated settings and consent ledgers.
 
-| Root inputs | Presentation |
-|---|---|
-| Onboarding is incomplete | `OnboardingView`, beginning at `.welcome` |
-| Onboarding is complete and current required consent is present | `CaptureWorkspaceView` |
+| Root inputs                                                                                          | Presentation                                   |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Onboarding is incomplete                                                                             | `OnboardingView`, beginning at `.welcome`      |
+| Onboarding is complete and current required consent is present                                       | `CaptureWorkspaceView`                         |
 | Onboarding is complete, current evidence is missing locally, and restoration is pending or retryable | Launch-screen-matched `ConsentRestorationView` |
-| Onboarding is complete, restoration has resolved, and current evidence is still missing | `OnboardingView`, beginning at `.ready` |
+| Onboarding is complete, restoration has resolved, and current evidence is still missing              | `OnboardingView`, beginning at `.ready`        |
 
 The restoration surface is deliberately neutral: it matches the black launch
 screen and delays its progress indicator for 350 milliseconds. A quick account
@@ -136,30 +135,30 @@ or initialize the Capture workspace. A recoverable synchronization failure
 replaces the progress indicator with neutral explanatory copy and a **Try
 Again** action during the automatic retry cycle and after its exhaustion.
 
-`SupabaseManager` configures Auth to emit the locally cached session immediately.
-That initial session may carry a known user while its access token is expired.
-The listener classifies this as `.awaitingRefresh`, keeps authenticated request
-state closed, and passes the known user to `ConsentManager`; it must not collapse
-the event into a no-session result. The root therefore remains neutral until
-Supabase emits `tokenRefreshed` with a valid session or `signedOut` after a
-terminal refresh failure.
+`SupabaseManager` configures Auth to emit the locally cached session
+immediately. That initial session may carry a known user while its access token
+is expired. The listener classifies this as `.awaitingRefresh`, keeps
+authenticated request state closed, and passes the known user to
+`ConsentManager`; it must not collapse the event into a no-session result. The
+root therefore remains neutral until Supabase emits `tokenRefreshed` with a
+valid session or `signedOut` after a terminal refresh failure.
 
 `ConsentManager.RequiredConsentRestorationState` distinguishes evidence that is
 not known yet from evidence that is known to be absent:
 
 - `.awaitingInitialSession` covers startup before the initial auth result.
 - `.reconciling(userId:)` covers a known account—either valid or awaiting token
-  refresh—whose local ledger does not yet prove current adult, Terms, and
-  Gemini consent.
+  refresh—whose local ledger does not yet prove current adult, Terms, and Gemini
+  consent.
 - `.waitingToRetry(userId:attempt:)` records a failed reconciliation and its
   next bounded automatic retry without changing the account's authority.
 - `.retryRequired(userId:)` records an exhausted automatic budget and exposes
   explicit retry on the same neutral surface.
 - `.resolved` means the initial result is unauthenticated, current local
-  required evidence already bypasses restoration, or an identity-fenced,
-  durably persisted authoritative merge can choose a real root. Remote absence
-  is authoritative; network, decoding, pending-row push, and persistence
-  failures are not.
+  required evidence already bypasses restoration, or an identity-fenced, durably
+  persisted authoritative merge can choose a real root. Remote absence is
+  authoritative; network, decoding, pending-row push, and persistence failures
+  are not.
 
 ```mermaid
 stateDiagram-v2
@@ -179,8 +178,8 @@ stateDiagram-v2
 
 Automatic retries wait 5, 10, and 20 seconds after the failed attempt. The
 Supabase client may already have retried transient reads internally, so this
-outer budget is intentionally bounded. Every timer, attempt, and manual retry
-is fenced by the observed account, synchronous SDK account, and synchronization
+outer budget is intentionally bounded. Every timer, attempt, and manual retry is
+fenced by the observed account, synchronous SDK account, and synchronization
 generation. Invalidating synchronization cancels its timer and moves the same
 unresolved account back to `.reconciling`; the replacement account/session then
 owns the next decision and a fresh retry budget. Cancellation never establishes
@@ -194,25 +193,25 @@ case.
 An older install with completed onboarding but no current receipt therefore
 enters directly at `.ready` only after initial session restoration determines
 that the receipt is genuinely absent. An expired cached session remains part of
-that restoration until refresh succeeds or Auth establishes sign-out, so the
-app never flashes `.ready` while account evidence is still being fetched. A
-material adult policy, Terms, or Gemini
-disclosure change increments its policy version and routes every account
-without that version back to the same step after reconciliation.
+that restoration until refresh succeeds or Auth establishes sign-out, so the app
+never flashes `.ready` while account evidence is still being fetched. A material
+adult policy, Terms, or Gemini disclosure change increments its policy version
+and routes every account without that version back to the same step after
+reconciliation.
 
 ## Versioned Consent Evidence
 
 `ConsentPolicy` currently pins adult policy and Terms versions `2026-08-03`,
 Gemini disclosure version `2026-08-04.1`, PostHog disclosure version
 `2026-08-04`, and providers `google_gemini` and `posthog`. The exact displayed
-statement is stored with each action, along with a client-generated UUID,
-device action time, platform, app version, and app build. Adult eligibility is
+statement is stored with each action, along with a client-generated UUID, device
+action time, platform, app version, and app build. Adult eligibility is
 self-attested on every supported iOS version; Naturebook does not collect a
 birth date or exact age.
 
-`ConsentManager` writes the append-only JSON ledger through
-`ConsentLedgerStore` immediately, including while the first anonymous Supabase
-session is still being created. Production storage uses the file-protected
+`ConsentManager` writes the append-only JSON ledger through `ConsentLedgerStore`
+immediately, including while the first anonymous Supabase session is still being
+created. Production storage uses the file-protected
 `Application Support/Naturebook/Consent/ledger-v1.json`, atomically replaces it,
 and verifies the exact bytes before the candidate becomes live. The store
 migrates and removes the former `UserDefaultsKeys.legalConsentLedger` copy only
@@ -240,44 +239,42 @@ deny-wins. The returned accepted parent is persisted locally, and the
 server-only monotonic `consent_revision`—not `occurred_at`, upload receipt time,
 or a device clock—determines cloud permission. Client-generated IDs keep an
 accepted retry idempotent, while a stale grant returns the authoritative head
-without inserting a row and is retained locally as superseded evidence.
-After an ambiguous network failure, iOS accepts a fetched row only when its
-immutable payload matches the attempted append; the accepted parent may differ
-only for a revocation that the server rebased.
-Clients have no `UPDATE` or `DELETE` path and cannot supply `recorded_at` or the
-revision.
-Database ghost-to-signed-in merge policies reparent every synchronized
-immutable row without coalescing evidence. After server completion, iOS now
-rebinds the complete local adult, Terms, Gemini, and analytics ledger to the
-permanent UUID in one verified write. Ghost-synchronized records follow the
-server mapping; every other ghost-owned record remains pending for the
-permanent account. A durable handoff suppresses analytics across restart until
-pending actions are pushed, authoritative state is refetched, and throwing
-verified queue removal succeeds. Analytics INSERT events are in the owner-scoped
-Realtime publication. The client tracks the channel owner and confirmed
-subscriber separately from auth-session assignment, fences stale listeners by
-generation, and retries failed subscriptions for the same account with bounded
-backoff. Auth observation and foreground/session adoption both ensure the
-owner-scoped channel, while foreground refetch remains the recovery path for a
-missed event. When returning to an account, auth observation first moves
-analytics into an explicit remote-authority wait state, before cached ledger
-state is refreshed or applied to the SDK. Synchronization then activates that
-account's local ledger and pushes its pending evidence before refetching remote
-state. That order is safe because each AI/analytics append atomically locks and
-resolves its observed causal parent: grants compare it with the current head,
-while revocations rebase to that head. Merely fetching first would not close a
-concurrent cross-device race. The refetch includes both the current disclosure state and
-the all-version stream head, so new local actions attach to the actual provider
-head. A delayed offline grant whose parent predates another device's revocation
-is rejected and cannot gain authority from a newer server receipt time. Only an
-all-version head that is itself an authoritative current-version grant and
-survives an identity-fenced, verified ledger write resolves the account to
-enabled. Remote absence, a head revocation under any disclosure version, network
-failure, or persistence failure leaves analytics closed. A repeated same-account
-auth notification after resolution does not
-flap a healthy SDK session. Immediately before the merge mutates or persists
-any evidence, it again requires an uncancelled task, the expected observed
-account, the matching synchronous Supabase SDK session, and the same
+without inserting a row and is retained locally as superseded evidence. After an
+ambiguous network failure, iOS accepts a fetched row only when its immutable
+payload matches the attempted append; the accepted parent may differ only for a
+revocation that the server rebased. Clients have no `UPDATE` or `DELETE` path
+and cannot supply `recorded_at` or the revision. Database ghost-to-signed-in
+merge policies reparent every synchronized immutable row without coalescing
+evidence. After server completion, iOS now rebinds the complete local adult,
+Terms, Gemini, and analytics ledger to the permanent UUID in one verified write.
+Ghost-synchronized records follow the server mapping; every other ghost-owned
+record remains pending for the permanent account. A durable handoff suppresses
+analytics across restart until pending actions are pushed, authoritative state
+is refetched, and throwing verified queue removal succeeds. Analytics INSERT
+events are in the owner-scoped Realtime publication. The client tracks the
+channel owner and confirmed subscriber separately from auth-session assignment,
+fences stale listeners by generation, and retries failed subscriptions for the
+same account with bounded backoff. Auth observation and foreground/session
+adoption both ensure the owner-scoped channel, while foreground refetch remains
+the recovery path for a missed event. When returning to an account, auth
+observation first moves analytics into an explicit remote-authority wait state,
+before cached ledger state is refreshed or applied to the SDK. Synchronization
+then activates that account's local ledger and pushes its pending evidence
+before refetching remote state. That order is safe because each AI/analytics
+append atomically locks and resolves its observed causal parent: grants compare
+it with the current head, while revocations rebase to that head. Merely fetching
+first would not close a concurrent cross-device race. The refetch includes both
+the current disclosure state and the all-version stream head, so new local
+actions attach to the actual provider head. A delayed offline grant whose parent
+predates another device's revocation is rejected and cannot gain authority from
+a newer server receipt time. Only an all-version head that is itself an
+authoritative current-version grant and survives an identity-fenced, verified
+ledger write resolves the account to enabled. Remote absence, a head revocation
+under any disclosure version, network failure, or persistence failure leaves
+analytics closed. A repeated same-account auth notification after resolution
+does not flap a healthy SDK session. Immediately before the merge mutates or
+persists any evidence, it again requires an uncancelled task, the expected
+observed account, the matching synchronous Supabase SDK session, and the same
 synchronization generation. An old-account fetch that returns late therefore
 cannot change the active ledger or reopen analytics.
 
@@ -307,20 +304,18 @@ the active account. Its cloud-ready proof comes from the just-fetched adult and
 Terms rows plus the all-version Gemini provider stream head; persisted local
 `syncedUserId` markers alone are never treated as proof that the rows still
 exist remotely. The database repeats the check inside both service-only
-`reserve_ai_quota` overloads immediately
-before provider admission, so an outdated or modified client cannot bypass it.
-Missing or revoked evidence fails with `403 ai_consent_required` and no Gemini
-dispatch.
+`reserve_ai_quota` overloads immediately before provider admission, so an
+outdated or modified client cannot bypass it. Missing or revoked evidence fails
+with `403 ai_consent_required` and no Gemini dispatch.
 
 That stable rejection is a disclosure transition, not a transient inference
 failure. The client durably fences the active account back to `.ready`, leaves
 the queued media intact in a needs-attention state, and does not schedule the
 same request again while consent is invalid. The required switches are reset in
-the UI.
-After the user explicitly approves them and selects **Start scanning**, the
-client records a fresh adult, Terms, and Gemini evidence bundle under the same
-account. The new Gemini grant is causally anchored to the provider stream head
-fetched after the rejection, so it can repair missing evidence without
+the UI. After the user explicitly approves them and selects **Start scanning**,
+the client records a fresh adult, Terms, and Gemini evidence bundle under the
+same account. The new Gemini grant is causally anchored to the provider stream
+head fetched after the rejection, so it can repair missing evidence without
 overwriting an unseen cross-device revocation. Another authoritative fetch is
 required before provider dispatch. Once the local lifecycle gate is open, the
 client automatically resumes at most the newest consent-blocked observation
@@ -346,8 +341,8 @@ configured-host transport gate closes before `reset()` and cancels PostHog
 3.69.0's reset-time feature-flag reload locally while preserving
 `reset → optOut → close`; see completed `CONSENT-001` in the readiness record.
 Before OAuth installs a session that can replace the current account, the app
-synchronously suppresses analytics and stops consent Realtime. It reconciles
-the SDK's actual session on success or failure, and only the newest overlapping
+synchronously suppresses analytics and stops consent Realtime. It reconciles the
+SDK's actual session on success or failure, and only the newest overlapping
 transition may reopen analytics for a currently granted account.
 
 The sanitized evidence, root cause, release status, and exact-SHA first-user
@@ -358,7 +353,9 @@ closure test are retained in the
 
 ## Permission Philosophy
 
-Each permission step presents the rationale for the request before triggering the system dialog. This "permission priming" pattern maximizes grant rates by ensuring users understand the value before iOS shows the system alert.
+Each permission step presents the rationale for the request before triggering
+the system dialog. This "permission priming" pattern maximizes grant rates by
+ensuring users understand the value before iOS shows the system alert.
 
 - **Camera**: Required for visual capture. If denied, the camera shutter is
   unavailable; non-camera modes remain the alternative.
@@ -383,9 +380,9 @@ Each permission step presents the rationale for the request before triggering th
 ## Re-entering from a Deep Link
 
 Most transient navigation events cannot present Capture sheets until onboarding
-and current required consent are complete. Photos document imports are the deliberate exception: the file is
-copied into `ExternalImageImportStore` before the event is published, so an
-unfinished onboarding flow may ignore the transient event without losing the
-photo. `CaptureWorkspaceView` checks the durable inbox after onboarding and
-current required consent, then routes the item through the normal quota, crop,
-confirmation, and submission flow.
+and current required consent are complete. Photos document imports are the
+deliberate exception: the file is copied into `ExternalImageImportStore` before
+the event is published, so an unfinished onboarding flow may ignore the
+transient event without losing the photo. `CaptureWorkspaceView` checks the
+durable inbox after onboarding and current required consent, then routes the
+item through the normal quota, crop, confirmation, and submission flow.

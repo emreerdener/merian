@@ -23,8 +23,8 @@ model changes and by verifying both migration and startup-recovery paths.
    and any changed recovery contract.
 
 If the outgoing shape cannot be reconstructed confidently, stop before the
-active-model edit and recover it from the current source and version history.
-Do not guess a historical schema.
+active-model edit and recover it from the current source and version history. Do
+not guess a historical schema.
 
 ## Non-negotiable invariants
 

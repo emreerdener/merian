@@ -127,9 +127,9 @@ Database-backed Edge cases reported skips because the workspace cannot reach the
 disposable PostgreSQL service; production CI supplies an explicit test URL and
 fails closed if it is unavailable. Full Xcode compilation remains
 environment-limited by the workspace's nested SwiftPM/CoreSimulator
-restrictions. The fleet-wide route gate and thirteen stricter authorization probes
-have not yet run against the repository changes in production. None of these
-limitations is counted as a passing result.
+restrictions. The fleet-wide route gate and thirteen stricter authorization
+probes have not yet run against the repository changes in production. None of
+these limitations is counted as a passing result.
 
 ## Required Production Verification
 

@@ -57,6 +57,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -71,11 +72,37 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Deno
         uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
+
+      - name: Resolve deployed rotation health mode
+        id: rotation-health-mode
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mode="$(
+            deno run --quiet --frozen \
+              --config services/supabase/functions/deno.json \
+              --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+              --allow-net=api.github.com \
+              --allow-run=git \
+              services/supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+              --feature purchase-principal-signout-rotation
+          )"
+          case "$mode" in
+            expand-compatible|required) ;;
+            *)
+              echo "Resolver returned an invalid rotation health mode." >&2
+              exit 1
+              ;;
+          esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
       - name: Validate monitor secrets
         env:
@@ -118,6 +145,7 @@ jobs:
           INPUT_WARNING_PREPARED_ROTATIONS: ${{ inputs.warning_prepared_rotations || '100' }}
           INPUT_CRITICAL_PREPARED_ROTATIONS: ${{ inputs.critical_prepared_rotations || '500' }}
           INPUT_FAIL_ON: ${{ inputs.fail_on || 'warning' }}
+          PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE: ${{ steps.rotation-health-mode.outputs.mode }}
         run: |
           summary_json="${RUNNER_TEMP}/revenuecat-reconciliation-health.json"
           summary_md="${RUNNER_TEMP}/revenuecat-reconciliation-health.md"
@@ -128,10 +156,9 @@ jobs:
           fail_on="${INPUT_FAIL_ON:-warning}"
 
           # The established purchase-principal aggregate remains mandatory.
-          # Until the additive protocol-3 rotation migration and hosted smoke
-          # succeed, only that exact missing rotation RPC may report
-          # not_deployed. Every other catalog, authorization, transport, or
-          # response error remains fatal.
+          # The evidence resolver selects compatibility only during the bounded
+          # pre-deploy window. A successful production deploy or the hard
+          # compatibility deadline makes the rotation aggregate required.
           set +e
           deno run --frozen \
             --config services/supabase/functions/deno.json \
@@ -144,7 +171,7 @@ jobs:
             --warning-prepared-rotations "$warning_prepared_rotations" \
             --critical-prepared-rotations "$critical_prepared_rotations" \
             --fail-on "$fail_on" \
-            --purchase-principal-signout-rotation-health-mode expand-compatible \
+            --purchase-principal-signout-rotation-health-mode "$PURCHASE_PRINCIPAL_SIGNOUT_ROTATION_HEALTH_MODE" \
             --summary-json "$summary_json" \
             --summary-md "$summary_md"
           exit_code=$?

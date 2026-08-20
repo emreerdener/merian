@@ -1,14 +1,15 @@
 # Naturebook Internal Admin
 
 This document is the architecture and product contract for the private
-operations application in `apps/admin`. Day-two setup, deployment, recovery,
-and incident procedures live in
+operations application in `apps/admin`. Day-two setup, deployment, recovery, and
+incident procedures live in
 [`11-internal-admin-operations.md`](./11-internal-admin-operations.md).
 
 The application is served from `admin.naturebook.earth` as a separate Next.js
-+ Mantine deployment. It is not a route in `apps/web`, is not a public support
-tool, and must never share the public site's deployment credentials or analytics
-configuration.
+
+- Mantine deployment. It is not a route in `apps/web`, is not a public support
+  tool, and must never share the public site's deployment credentials or
+  analytics configuration.
 
 ## Security invariants
 
@@ -20,10 +21,10 @@ The following rules are release blockers:
 - Google OAuth establishes a cookie-based Supabase SSR session. Admin data is
   unavailable until a verified TOTP factor upgrades that session to `aal2`.
 - Every database call independently verifies the immutable Auth UUID, active
-  membership, Google identity, non-anonymous account, `aal2`, JWT
-  `session_id`, matching `auth.sessions` row, internal session age, and role.
-- The browser has no direct grants on private admin tables or the AI ledger.
-  The only browser-facing database surface is the explicitly granted RPC list.
+  membership, Google identity, non-anonymous account, `aal2`, JWT `session_id`,
+  matching `auth.sessions` row, internal session age, and role.
+- The browser has no direct grants on private admin tables or the AI ledger. The
+  only browser-facing database surface is the explicitly granted RPC list.
 - `internal` is not an exposed Data API schema. `PUBLIC`, `anon`, and
   `authenticated` have no schema, table, sequence, or internal-function access.
 - Every privileged RPC is `SECURITY DEFINER`, uses `SET search_path = ''`,
@@ -44,8 +45,8 @@ The following rules are release blockers:
   blocking high-severity audit, unit tests, type-check, and production build
   must pass as one ordered gate.
 - GitHub must require `Naturebook Admin Quality / test`, and Vercel must add the
-  same Action as a required Deployment Check before production domain
-  promotion. Force Promote is emergency authority, not a normal bypass.
+  same Action as a required Deployment Check before production domain promotion.
+  Force Promote is emergency authority, not a normal bypass.
 
 Supabase's SSR package stores the Auth session in cookies and uses the PKCE
 callback flow. Supabase currently labels `@supabase/ssr` as beta, so dependency
@@ -81,8 +82,8 @@ The application flow is:
    challenged; otherwise a factor named `Naturebook Admin` is enrolled and its
    QR code/secret is shown once.
 4. The server routing helper first calls Supabase Auth `getUser()`. If no valid
-   cookie-backed user exists, it returns an unauthenticated routing state without
-   invoking a restricted RPC. For an authenticated user,
+   cookie-backed user exists, it returns an unauthenticated routing state
+   without invoking a restricted RPC. For an authenticated user,
    `admin_get_access_state` may run before AAL2 so routing can distinguish an
    inactive/nonmember account from a member that still needs MFA. It returns no
    raw product data; this preflight is not an authorization substitute.
@@ -91,30 +92,30 @@ The application flow is:
 6. Every later RPC calls `internal.require_admin`. Successful calls advance
    `last_seen_at`; failed calls never return partial data.
 
-An internal session expires after 30 minutes without a successful authorized
-RPC or eight hours from its creation, whichever comes first. An expired,
-revoked, or disabled session cannot be revived with the same Supabase session;
-the user must start a new Google session. Owner revocation also deletes the
-matching `auth.sessions` row.
+An internal session expires after 30 minutes without a successful authorized RPC
+or eight hours from its creation, whichever comes first. An expired, revoked, or
+disabled session cannot be revived with the same Supabase session; the user must
+start a new Google session. Owner revocation also deletes the matching
+`auth.sessions` row.
 
 ## Roles and capabilities
 
 Roles are stored only in `internal.admin_memberships`; user-editable metadata is
 never used for authorization.
 
-| Capability | Analyst | Moderator | Owner |
-|---|---:|---:|---:|
-| Overview aggregates and date ranges | Yes | Yes | Yes |
-| AI usage aggregates and filters | Yes | Yes | Yes |
-| Raw review queue and case details | No | Yes | Yes |
-| Exact coordinates for identification review | No | Yes, audited | Yes, audited |
-| Raw feedback and linked context | No | Yes | Yes |
-| User search and account details | No | Yes | Yes |
-| Assign cases, set priority/status, append notes | No | Yes | Yes |
-| Hide/restore posts and comments | No | Yes | Yes |
-| Membership and role management | No | No | Yes |
-| Active-session listing/revocation | No | No | Yes |
-| Audit-history search | No | No | Yes |
+| Capability                                      | Analyst |    Moderator |        Owner |
+| ----------------------------------------------- | ------: | -----------: | -----------: |
+| Overview aggregates and date ranges             |     Yes |          Yes |          Yes |
+| AI usage aggregates and filters                 |     Yes |          Yes |          Yes |
+| Raw review queue and case details               |      No |          Yes |          Yes |
+| Exact coordinates for identification review     |      No | Yes, audited | Yes, audited |
+| Raw feedback and linked context                 |      No |          Yes |          Yes |
+| User search and account details                 |      No |          Yes |          Yes |
+| Assign cases, set priority/status, append notes |      No |          Yes |          Yes |
+| Hide/restore posts and comments                 |      No |          Yes |          Yes |
+| Membership and role management                  |      No |           No |          Yes |
+| Active-session listing/revocation               |      No |           No |          Yes |
+| Audit-history search                            |      No |           No |          Yes |
 
 Owners add or update only an existing, email-confirmed, non-anonymous Google
 user by exact email. Disabling a member revokes their internal admin sessions.
@@ -129,17 +130,17 @@ tables that existing service-role Edge Functions must write.
 
 ### Private `internal` tables
 
-| Table | Purpose | Mutation model |
-|---|---|---|
-| `admin_memberships` | Auth UUID to owner/moderator/analyst role | Owner RPC only after bootstrap |
-| `admin_sessions` | Idle/absolute session window and revocation | Auth/session RPCs and owner revocation |
-| `admin_audit_log` | Actor, action, target, request ID, before/after state, reason | Insert-only; update/delete trigger rejects changes |
-| `review_cases` | One current case per subject | Moderator transition RPC and intake grouping triggers |
-| `review_case_sources` | Immutable links to intake rows/reporters | Intake grouping triggers |
-| `feedback_state` | Status, assignment, and tags over original feedback | Moderator RPC |
-| `admin_notes` | Internal notes for reviews and feedback | Append-only; update/delete trigger rejects changes |
-| `ai_model_pricing` | Effective-dated model/modality pricing | Migration/controlled SQL only |
-| `admin_aggregate_cache` | Authorized overview/AI cache payloads | Aggregate RPCs; five-minute validity |
+| Table                   | Purpose                                                       | Mutation model                                        |
+| ----------------------- | ------------------------------------------------------------- | ----------------------------------------------------- |
+| `admin_memberships`     | Auth UUID to owner/moderator/analyst role                     | Owner RPC only after bootstrap                        |
+| `admin_sessions`        | Idle/absolute session window and revocation                   | Auth/session RPCs and owner revocation                |
+| `admin_audit_log`       | Actor, action, target, request ID, before/after state, reason | Insert-only; update/delete trigger rejects changes    |
+| `review_cases`          | One current case per subject                                  | Moderator transition RPC and intake grouping triggers |
+| `review_case_sources`   | Immutable links to intake rows/reporters                      | Intake grouping triggers                              |
+| `feedback_state`        | Status, assignment, and tags over original feedback           | Moderator RPC                                         |
+| `admin_notes`           | Internal notes for reviews and feedback                       | Append-only; update/delete trigger rejects changes    |
+| `ai_model_pricing`      | Effective-dated model/modality pricing                        | Migration/controlled SQL only                         |
+| `admin_aggregate_cache` | Authorized overview/AI cache payloads                         | Aggregate RPCs; five-minute validity                  |
 
 All internal tables have RLS enabled as defense in depth even though runtime
 roles have no direct schema/table grants.
@@ -153,37 +154,37 @@ roles have no direct schema/table grants.
   grants. `record_ai_usage_event` is executable only by `service_role`.
 - `explore_posts.moderated_at` and `moderated_by_user_id` provide reversible
   post moderation. Existing comment moderation columns are reused.
-- `scans.llm_usage_metadata` and
-  `insight_chat_messages.llm_usage_metadata` retain the normalized Gemini
-  usage payload used by transactional ledger triggers.
+- `scans.llm_usage_metadata` and `insight_chat_messages.llm_usage_metadata`
+  retain the normalized Gemini usage payload used by transactional ledger
+  triggers.
 
 Supabase changed new projects so public tables are not necessarily exposed to
 the Data API automatically. This feature does not depend on automatic exposure:
-all required table and function grants are explicit, and direct client access
-to `user_reports`, `ai_usage_events`, and `internal` remains denied.
+all required table and function grants are explicit, and direct client access to
+`user_reports`, `ai_usage_events`, and `internal` remains denied.
 
 ## RPC surface
 
-| RPC | Minimum role | Cache | Purpose |
-|---|---|---|---|
-| `admin_get_access_state` | Authenticated routing check | None | Membership, role, AAL, and internal-session state |
-| `admin_begin_session` | Active member at AAL2 | None | Start/refresh the eight-hour internal session |
-| `admin_get_overview` | Analyst | Five minutes | Account, plan, scan, review, feedback, token, and estimated-cost aggregates |
-| `admin_complimentary_entitlement_summary` | Analyst | None | Derived balances, hold age, settlement, Flash fallback, exhaustion, and conversion aggregates |
-| `admin_list_review_cases` | Moderator | None | Filtered cursor-paginated review queue |
-| `admin_get_review_case` | Moderator | None | Reports, subject, notes, and scoped identification context |
-| `admin_update_review_case` | Moderator | None | Status, priority, assignment, resolution code, and optional note |
-| `admin_set_content_visibility` | Moderator | None | Reversible post/comment hide or restore with reason |
-| `admin_list_feedback` | Moderator | None | Unified cursor-paginated feedback queue |
-| `admin_update_feedback` | Moderator | None | Workflow state, assignee, tags, and optional note |
-| `admin_list_users` | Moderator | None | Email/UUID/handle search with cursor pagination |
-| `admin_get_user_detail` | Moderator | None | Auth, plan, activity, reports, abuse, and feedback context |
-| `admin_ai_usage_summary` | Analyst | Five minutes | Token, cache, modality, percentile, and estimated-cost aggregates |
-| `admin_list_members` | Owner | None | Membership inventory |
-| `admin_upsert_member` | Owner | None | Exact-email membership/role/state update |
-| `admin_list_sessions` | Owner | None | Supabase and internal admin session inventory |
-| `admin_revoke_session` | Owner | None | Immediate internal and Auth session revocation |
-| `admin_list_audit` | Owner | None | Cursor-paginated immutable audit history |
+| RPC                                       | Minimum role                | Cache        | Purpose                                                                                       |
+| ----------------------------------------- | --------------------------- | ------------ | --------------------------------------------------------------------------------------------- |
+| `admin_get_access_state`                  | Authenticated routing check | None         | Membership, role, AAL, and internal-session state                                             |
+| `admin_begin_session`                     | Active member at AAL2       | None         | Start/refresh the eight-hour internal session                                                 |
+| `admin_get_overview`                      | Analyst                     | Five minutes | Account, plan, scan, review, feedback, token, and estimated-cost aggregates                   |
+| `admin_complimentary_entitlement_summary` | Analyst                     | None         | Derived balances, hold age, settlement, Flash fallback, exhaustion, and conversion aggregates |
+| `admin_list_review_cases`                 | Moderator                   | None         | Filtered cursor-paginated review queue                                                        |
+| `admin_get_review_case`                   | Moderator                   | None         | Reports, subject, notes, and scoped identification context                                    |
+| `admin_update_review_case`                | Moderator                   | None         | Status, priority, assignment, resolution code, and optional note                              |
+| `admin_set_content_visibility`            | Moderator                   | None         | Reversible post/comment hide or restore with reason                                           |
+| `admin_list_feedback`                     | Moderator                   | None         | Unified cursor-paginated feedback queue                                                       |
+| `admin_update_feedback`                   | Moderator                   | None         | Workflow state, assignee, tags, and optional note                                             |
+| `admin_list_users`                        | Moderator                   | None         | Email/UUID/handle search with cursor pagination                                               |
+| `admin_get_user_detail`                   | Moderator                   | None         | Auth, plan, activity, reports, abuse, and feedback context                                    |
+| `admin_ai_usage_summary`                  | Analyst                     | Five minutes | Token, cache, modality, percentile, and estimated-cost aggregates                             |
+| `admin_list_members`                      | Owner                       | None         | Membership inventory                                                                          |
+| `admin_upsert_member`                     | Owner                       | None         | Exact-email membership/role/state update                                                      |
+| `admin_list_sessions`                     | Owner                       | None         | Supabase and internal admin session inventory                                                 |
+| `admin_revoke_session`                    | Owner                       | None         | Immediate internal and Auth session revocation                                                |
+| `admin_list_audit`                        | Owner                       | None         | Cursor-paginated immutable audit history                                                      |
 
 List RPCs clamp page size to 1–100 and use stable tuple cursors. Clients must
 pass back the entire returned cursor and must not invent an offset. Queue and
@@ -225,10 +226,10 @@ and estimated-cost aggregates. All-time has no previous-period result.
 
 `/complimentary-entitlements` calls the uncached, analyst-authorized
 `admin_complimentary_entitlement_summary()` RPC. It returns aggregate account
-count, active complimentary access, exhausted accounts, paid exhausted
-accounts, in-flight holds, holds older than 15 minutes and one hour, oldest hold
-time, ledger state totals, settlement-reason totals, available-balance
-histogram, and Flash-fallback reservation count. The authorized read writes the
+count, active complimentary access, exhausted accounts, paid exhausted accounts,
+in-flight holds, holds older than 15 minutes and one hour, oldest hold time,
+ledger state totals, settlement-reason totals, available-balance histogram, and
+Flash-fallback reservation count. The authorized read writes the
 `complimentary_entitlement_summary_viewed` audit action.
 
 The view is diagnostic only. It intentionally exposes no ledger row, account
@@ -245,12 +246,12 @@ Case types are `identification`, `post`, `comment`, and `user`; statuses are
 
 New intake rows are attached by trigger:
 
-| Intake table | Source type | Case subject |
-|---|---|---|
-| `flagged_reviews` | `flagged_review` | Scan ID |
-| `explore_post_reports` | `explore_post_report` | Post ID |
-| `explore_comment_reports` | `explore_comment_report` | Comment ID |
-| `user_reports` | `user_report` | Reported user ID |
+| Intake table              | Source type              | Case subject     |
+| ------------------------- | ------------------------ | ---------------- |
+| `flagged_reviews`         | `flagged_review`         | Scan ID          |
+| `explore_post_reports`    | `explore_post_report`    | Post ID          |
+| `explore_comment_reports` | `explore_comment_report` | Comment ID       |
+| `user_reports`            | `user_report`            | Reported user ID |
 
 Grouping uses a transaction advisory lock per case. The first report from an
 independent reporter increments `report_count`; a new independent reporter
@@ -259,14 +260,14 @@ source from a reporter already attached to that case updates the evidence
 timeline without incrementing the independent-reporter count or reopening a
 terminal case. Migrated identification rows are excluded from backfill.
 
-Identification state is advisory only in V1: changing a case does not change
-the identification. `scans.is_flagged` is recomputed from whether any matching
+Identification state is advisory only in V1: changing a case does not change the
+identification. `scans.is_flagged` is recomputed from whether any matching
 identification case remains `open` or `in_review`.
 
 Hide/restore and case resolution are deliberately independent:
 
-- Hiding sets the reversible moderation fields and removes the post/comment
-  from its public surfaces.
+- Hiding sets the reversible moderation fields and removes the post/comment from
+  its public surfaces.
 - Restoring clears those fields.
 - Neither action changes case status or resolution code.
 - Every public Explore feed, map, profile, detail, community/notification
@@ -278,12 +279,12 @@ Hide/restore and case resolution are deliberately independent:
 
 The unified feedback queue reads four immutable source families:
 
-| Admin source | Original data |
-|---|---|
-| `community` | Community/general feedback |
-| `survey` | Product survey responses |
+| Admin source   | Original data                         |
+| -------------- | ------------------------------------- |
+| `community`    | Community/general feedback            |
+| `survey`       | Product survey responses              |
 | `chat_message` | Feedback on a Field assistant message |
-| `chat_feature` | Feedback about the Field feature |
+| `chat_feature` | Feedback about the Field feature      |
 
 The original submission is never edited by admin workflow. The
 `internal.feedback_state` overlay adds `new`, `reviewed`, `planned`, or `closed`
@@ -327,9 +328,9 @@ trigger. Deleting an account clears user, scan, conversation, message, source,
 and identifying metadata linkage while retaining anonymous cost and usage
 aggregates.
 
-Pricing rows are effective-dated by exact model and modality. The initial
-Gemini 2.5 Flash/Pro values mirror Google's Standard paid-tier table as checked
-on 2026-07-19. Estimates charge non-cached input at prompt price, cached input at
+Pricing rows are effective-dated by exact model and modality. The initial Gemini
+2.5 Flash/Pro values mirror Google's Standard paid-tier table as checked on
+2026-07-19. Estimates charge non-cached input at prompt price, cached input at
 cache price, and candidate/thinking/tool tokens at output price. Long-context,
 grounding, cache-storage, batch, flex, priority, taxes, credits, and negotiated
 discounts are not modeled. Price maintenance is documented in the operations
@@ -378,10 +379,9 @@ matching GitHub check passes.
 ## V1 exclusions
 
 V1 does not provide CSV/bulk export, bulk moderation, permanent bans, account
-deletion, subscription editing, alert integration, or automated case
-resolution. Account deletion remains in the existing user-owned deletion
-pipeline, and subscription state remains owned by RevenueCat/backend billing
-flows.
+deletion, subscription editing, alert integration, or automated case resolution.
+Account deletion remains in the existing user-owned deletion pipeline, and
+subscription state remains owned by RevenueCat/backend billing flows.
 
 The private `internal.revenuecat_webhook_events`,
 `internal.revenuecat_webhook_event_subjects`, and
@@ -399,14 +399,17 @@ directly.
 - Auth/server boundary: `apps/admin/lib/admin.ts`,
   `apps/admin/lib/supabase-server.ts`, and `apps/admin/proxy.ts`
 - Server mutations: `apps/admin/app/actions.ts`
-- Database migration: `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`
+- Database migration:
+  `services/supabase/migrations/20260719161112_add_internal_admin_foundation.sql`
 - Complimentary extension migration:
   `services/supabase/migrations/20260802235833_three_complimentary_pro_scans.sql`
 - User-report endpoint: `services/supabase/functions/report-user`
 - AI writer helper: `services/supabase/functions/_shared/aiUsage.ts`
-- Database security tests: `services/supabase/tests/admin_foundation_security.sql`
+- Database security tests:
+  `services/supabase/tests/admin_foundation_security.sql`
 - Review/AI behavior tests: `services/supabase/tests/admin_review_ai.sql`
-- Static migration contract: `services/supabase/functions/_tests/adminFoundationMigration.test.ts`
+- Static migration contract:
+  `services/supabase/functions/_tests/adminFoundationMigration.test.ts`
 - Admin application security tests: `apps/admin/lib/admin-foundation.test.ts`
   and `apps/admin/lib/dependency-security.test.ts`
 - Admin production gate: `.github/workflows/admin-quality.yml`

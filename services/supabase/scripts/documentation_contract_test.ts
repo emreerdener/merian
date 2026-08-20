@@ -4738,16 +4738,19 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
   );
   assertStringIncludes(
     runbook,
-    "--purchase-principal-signout-rotation-health-mode expand-compatible",
+    "resolve_deployed_health_monitor_modes.ts",
   );
   assertStringIncludes(
     api,
-    "--purchase-principal-signout-rotation-health-mode expand-compatible",
+    "resolve_deployed_health_monitor_modes.ts",
   );
   assertStringIncludes(
     testing,
-    "additive rotation aggregate alone uses `--purchase-principal-signout-rotation-health-mode expand-compatible`",
+    "additive rotation aggregate's scheduled mode comes from `resolve_deployed_health_monitor_modes.ts`",
   );
+  for (const source of [api, runbook, testing]) {
+    assertStringIncludes(source, "2026-09-19 UTC");
+  }
   for (const source of [api, runbook, testing]) {
     assert(
       !source.includes("--purchase-principal-health-mode"),

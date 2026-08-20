@@ -24,9 +24,9 @@ generic guidance differs.
    production. Resolve the project reference or database URL source and whether
    each available MCP/CLI path is read-only or mutating. Treat an unknown target
    as hosted and read-only.
-6. Verify unstable Supabase behavior against current official documentation,
-   but do not replace a reviewed repository contract or pin without changing
-   and validating that contract explicitly.
+6. Verify unstable Supabase behavior against current official documentation, but
+   do not replace a reviewed repository contract or pin without changing and
+   validating that contract explicitly.
 
 ## Keep mutation boundaries explicit
 
@@ -35,9 +35,9 @@ generic guidance differs.
   create a repository schema change. Make the change through the checked-in
   migration workflow and prove it on a disposable database.
 - Do not edit an applied historical migration. Add a forward repair.
-- Do not run production deployment, cleanup, account deletion, migration
-  repair, secret rotation, or other hard-to-reverse operations without explicit
-  user authorization for the resolved target and operation.
+- Do not run production deployment, cleanup, account deletion, migration repair,
+  secret rotation, or other hard-to-reverse operations without explicit user
+  authorization for the resolved target and operation.
 - Prefer read-only inspection and dry-run commands when diagnosing hosted state.
 - Never print credentials, database URLs, response bodies that may contain user
   data, raw coordinates, email addresses, names, or variable request IDs.
@@ -45,8 +45,9 @@ generic guidance differs.
 ## Route the task
 
 - **Migration, RLS, grants, triggers, indexes, database functions, or schema
-  drift:** Read [migrations-and-database.md](references/migrations-and-database.md)
-  completely before acting.
+  drift:** Read
+  [migrations-and-database.md](references/migrations-and-database.md) completely
+  before acting.
 - **Edge Function, Auth, Storage, Realtime, API payload, generated DTO, or
   Supabase Swift boundary:** Read
   [edge-functions-and-clients.md](references/edge-functions-and-clients.md)

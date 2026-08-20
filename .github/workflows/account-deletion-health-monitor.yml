@@ -76,6 +76,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -90,11 +91,37 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Deno
         uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
+
+      - name: Resolve deployed recovery health mode
+        id: recovery-health-mode
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          mode="$(
+            deno run --quiet --frozen \
+              --config services/supabase/functions/deno.json \
+              --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+              --allow-net=api.github.com \
+              --allow-run=git \
+              services/supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+              --feature account-deletion-recovery
+          )"
+          case "$mode" in
+            expand-compatible|required) ;;
+            *)
+              echo "Resolver returned an invalid recovery health mode." >&2
+              exit 1
+              ;;
+          esac
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
 
       - name: Validate monitor secrets
         env:
@@ -139,6 +166,7 @@ jobs:
           INPUT_WARNING_BACKLOG: ${{ inputs.warning_backlog || '25' }}
           INPUT_CRITICAL_BACKLOG: ${{ inputs.critical_backlog || '100' }}
           INPUT_FAIL_ON: ${{ inputs.fail_on || 'warning' }}
+          RECOVERY_HEALTH_MODE: ${{ steps.recovery-health-mode.outputs.mode }}
         run: |
           summary_json="${RUNNER_TEMP}/account-deletion-health.json"
           summary_md="${RUNNER_TEMP}/account-deletion-health.md"
@@ -151,8 +179,9 @@ jobs:
           fail_on="${INPUT_FAIL_ON:-warning}"
 
           set +e
-          # Temporary additive-schema window. Switch to `required` immediately
-          # after both recovery-health RPCs pass the hosted deploy smoke.
+          # The evidence resolver selects compatibility only during the bounded
+          # pre-deploy window. A successful production deploy or the hard
+          # compatibility deadline makes both recovery aggregates required.
           deno run --frozen \
             --config services/supabase/functions/deno.json \
             --allow-net="${PROJECT_ID}.supabase.co" \
@@ -166,7 +195,7 @@ jobs:
             --warning-backlog "$warning_backlog" \
             --critical-backlog "$critical_backlog" \
             --fail-on "$fail_on" \
-            --recovery-health-mode expand-compatible \
+            --recovery-health-mode "$RECOVERY_HEALTH_MODE" \
             --summary-json "$summary_json" \
             --summary-md "$summary_md"
           exit_code=$?

@@ -6308,15 +6308,21 @@ invoke deletion work and does not read the Vault values required by the reaper,
 so cron or Vault misconfiguration remains independently observable. UUIDs, claim
 tokens, prefixes, cursors, and raw errors are absent from logs and artifacts.
 
-The monitor CLI defaults to `required`. While these two recovery-health RPCs are
-additive and not yet present in the hosted catalog, the production schedule uses
-`--recovery-health-mode expand-compatible`. Only an exact `PGRST202` for a named
-zero-argument recovery RPC is accepted; the artifact reports `not_deployed` and
-a null payload while baseline queue/cron/credential/erasure health remains
-enforced. It never reports unavailable recovery data as a zero backlog. Once the
-exact deployed SHA passes both hosted health-RPC smokes, change the scheduled
-command to `required` in a reviewed follow-up. Do not leave compatibility mode
-selected after that gate.
+The monitor CLI defaults to `required`. The production schedule resolves the
+mode before loading Supabase credentials. During the bounded additive window,
+`resolve_deployed_health_monitor_modes.ts` selects `expand-compatible` only when
+it cannot find a qualifying successful production deploy. Qualification requires
+a successful `deploy` job on `main`, a deploy SHA that is an ancestor of the
+monitor checkout, both controlling recovery migrations in that exact source, and
+both recovery-health endpoints in that source's unconditioned hosted smoke step.
+Qualifying evidence selects `required` automatically. API, payload, pagination,
+or Git-history ambiguity fails the workflow rather than silently downgrading.
+The 2026-09-19 UTC hard deadline also selects `required`, so Actions retention
+cannot make compatibility permanent. While compatibility is selected, only an
+exact `PGRST202` for a named zero-argument recovery RPC is accepted; the
+artifact reports `not_deployed` and a null payload while baseline
+queue/cron/credential/erasure health remains enforced. It never reports
+unavailable recovery data as a zero backlog.
 
 Scheduled runs warn and fail on claimable work aged 10 minutes, active work aged
 27 hours, backlog of 25 jobs, any retry error, or any expired lease. They become
@@ -6369,16 +6375,17 @@ idempotent recovery finish. Do not cancel or delete a bound proof manually.
 
 The scheduled command makes the already-deployed principal aggregate
 unconditionally required; the CLI exposes no compatibility flag for that RPC.
-Until the additive protocol-3 rotation migration and its hosted health-RPC smoke
-pass, the command independently uses
-`--purchase-principal-signout-rotation-health-mode expand-compatible`. Only an
-exact `PGRST202` naming that zero-argument rotation RPC becomes
-`not_deployed`/null; the established reconciliation and principal aggregates
-remain required, and malformed responses, authorization failures, timeouts, and
-unrelated catalog errors remain fatal. After the exact deployed SHA passes the
-rotation health smoke, change only the rotation flag to `required` in a reviewed
-follow-up. Both aggregates must return valid health before stable canary
-activation.
+For the additive rotation aggregate, `resolve_deployed_health_monitor_modes.ts`
+selects `required` as soon as a successful `deploy` job on `main` proves an
+ancestor SHA containing the protocol-3 migration and exact hosted
+rotation-health smoke. Before that proof, it may select `expand-compatible` only
+until the 2026-09-19 UTC hard deadline. API or Git-history ambiguity fails the
+workflow, and the deadline selects `required` without relying on retained
+Actions history. In compatibility mode, only an exact `PGRST202` naming that
+zero-argument rotation RPC becomes `not_deployed`/null; the established
+reconciliation and principal aggregates remain required, and malformed
+responses, authorization failures, timeouts, and unrelated catalog errors remain
+fatal. Both aggregates must return valid health before stable canary activation.
 
 ## DwC-A Export and Archive Health Automation
 

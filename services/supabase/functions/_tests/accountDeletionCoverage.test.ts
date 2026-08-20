@@ -522,13 +522,19 @@ Deno.test("account deletion health alert is independent of the database reaper",
       'cron: "2-57/5 * * * *"',
       "environment: Production",
       "timeout-minutes: 5",
-      "permissions:\n  contents: read",
+      "actions: read",
+      "contents: read",
+      "fetch-depth: 0",
+      "persist-credentials: false",
       "resolve_project_api_keys.ts",
+      "resolve_deployed_health_monitor_modes.ts",
+      "--feature account-deletion-recovery",
       "SUPABASE_ACCESS_TOKEN",
       "monitor_account_deletion_health.ts",
       "--warning-due-after-minutes",
       "--critical-sla-hours",
-      "--recovery-health-mode expand-compatible",
+      "RECOVERY_HEALTH_MODE",
+      '--recovery-health-mode "$RECOVERY_HEALTH_MODE"',
       "if: ${{ always() }}",
     ]
   ) {
@@ -564,7 +570,7 @@ Deno.test("account deletion health alert is independent of the database reaper",
     assertStringIncludes(monitor, fragment);
   }
   assert(
-    !workflow.includes("--recovery-health-mode required"),
-    "The production schedule must remain expand-compatible until the additive recovery RPCs pass hosted smoke.",
+    !workflow.includes("--recovery-health-mode expand-compatible"),
+    "The production schedule must resolve recovery strictness from immutable deploy evidence.",
   );
 });

@@ -170,14 +170,20 @@ returns the remaining prepared count, oldest prepared age, and terminal
 throughput. The scheduled RevenueCat/purchase-principal monitor requires that
 RPC after deployment. During the additive pre-deploy window, the already-hosted
 principal aggregate remains unconditionally required and exposes no
-compatibility flag; the schedule selects
-`--purchase-principal-signout-rotation-health-mode expand-compatible` only for
-the rotation aggregate. That narrow mode accepts only the exact named
-zero-argument `PGRST202`, records `not_deployed` with a null payload, and leaves
-every established backlog check active. After the migration and hosted smoke
-pass, switch the rotation flag to `required`. Rotation health applies the same
-warning/critical age thresholds as the other identity backlogs and warns at 100
-prepared rotations or becomes critical at 500 by default.
+compatibility flag. The schedule calls
+`resolve_deployed_health_monitor_modes.ts` before loading Supabase credentials.
+During the bounded pre-deploy window it selects `expand-compatible` only when no
+qualifying production deploy exists. A qualifying deploy is a successful
+`deploy` job on `main`, from an ancestor of the monitor checkout, whose exact
+source contains the controlling migration and hosted rotation-health smoke. That
+proof selects `required` immediately. GitHub API or Git-history ambiguity fails
+the workflow, and the 2026-09-19 UTC compatibility deadline selects `required`
+even if historical Actions evidence is unavailable. The narrow compatibility
+mode accepts only the exact named zero-argument `PGRST202`, records
+`not_deployed` with a null payload, and leaves every established backlog check
+active. Rotation health applies the same warning/critical age thresholds as the
+other identity backlogs and warns at 100 prepared rotations or becomes critical
+at 500 by default.
 
 Forward migration
 `20260819194315_repair_stable_signout_rotation_routine_definitions.sql`
@@ -608,16 +614,21 @@ eight active proofs for one job is critical, while eight is a warning. Active
 preparations participate in the same backlog/age thresholds. The workflow fails
 on warning by default and retains JSON and Markdown evidence.
 
-The monitor CLI defaults to `--recovery-health-mode required`. During the
-additive recovery-ledger pre-deploy window, the scheduled workflow selects
-`expand-compatible`: only an exact PostgREST `PGRST202` for either named
-zero-argument recovery-health RPC is accepted. The JSON and Markdown summaries
-then record that aggregate as `not_deployed` with a `null` payload while the
-established deletion queue, cron, credential, storage, and lease checks remain
-active. It never substitutes zero counts, and authorization, transport,
-response-shape, or unrelated catalog errors remain fatal. After both migrations
-and the hosted RPC smokes pass at the deployed SHA, change the scheduled command
-to `required` in a reviewed follow-up.
+The monitor CLI defaults to `--recovery-health-mode required`. The scheduled
+workflow calls `resolve_deployed_health_monitor_modes.ts` before loading
+Supabase credentials. During the bounded recovery-ledger pre-deploy window it
+selects `expand-compatible` only when no qualifying production deploy exists. A
+successful `deploy` job on `main` qualifies only when its SHA is an ancestor of
+the monitor checkout and its exact source contains both recovery migrations and
+both hosted RPC smokes. That proof selects `required` immediately. GitHub API or
+Git-history ambiguity fails the workflow, and the 2026-09-19 UTC compatibility
+deadline selects `required` without depending on retained Actions history. In
+compatibility mode, only an exact PostgREST `PGRST202` for either named
+zero-argument recovery-health RPC is accepted. The summaries record that
+aggregate as `not_deployed` with a `null` payload while established deletion
+queue, cron, credential, storage, and lease checks remain active. The monitor
+never substitutes zero counts, and authorization, transport, response-shape, or
+unrelated catalog errors remain fatal.
 
 Coverage lives in `_shared/appleSignIn_test.ts`,
 `register-apple-revocation-token/handler_test.ts`,
@@ -628,7 +639,9 @@ Coverage lives in `_shared/appleSignIn_test.ts`,
 `_tests/accountDeletionRecoveryConcurrencyDb.test.ts`, and
 `tests/account_deletion_security.sql`, with R2 worker coverage in
 `functions/safe-delete/storageWorker_test.ts` and monitor policy coverage in
-`scripts/monitor_account_deletion_health_test.ts`.
+`scripts/monitor_account_deletion_health_test.ts`. Deployment-evidence and hard
+deadline promotion coverage lives in
+`scripts/resolve_deployed_health_monitor_modes_test.ts`.
 
 The complete Apple authorization, provider-stage, legacy fallback, hosted
 secret, rotation, rollout, and smoke-test contract is

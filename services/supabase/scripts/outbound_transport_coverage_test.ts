@@ -9,6 +9,10 @@ const taxonomyImportScript = new URL(
   "import_community_taxonomy.ts",
   scriptsDirectory,
 );
+const deployedHealthMonitorModeResolver = new URL(
+  "resolve_deployed_health_monitor_modes.ts",
+  scriptsDirectory,
+);
 const GLOBAL_FETCH_CALL_PATTERN =
   /(?:^|[^.\w])fetch\s*\(|\b(?:globalThis|self|window)\s*(?:(?:\?\.|\.)\s*fetch|\[\s*["']fetch["']\s*\])\s*\(/m;
 
@@ -90,6 +94,22 @@ Deno.test("taxonomy import bounds its long-running function invocation", async (
       "requestTimeoutMs: IMPORT_REQUEST_TIMEOUT_MS",
       "maximumResponseBytes: IMPORT_MAXIMUM_RESPONSE_BYTES",
       "invokeServiceRoleJson<T>(",
+    ]
+  ) {
+    assertStringIncludes(source, fragment);
+  }
+});
+
+Deno.test("deployment-evidence lookup bounds GitHub deadline and response bytes", async () => {
+  const source = await Deno.readTextFile(deployedHealthMonitorModeResolver);
+
+  for (
+    const fragment of [
+      "REQUEST_TIMEOUT_MS = 15_000",
+      "MAXIMUM_RESPONSE_BYTES = 2 * 1_024 * 1_024",
+      "fetchWithDeadline(",
+      "readResponseTextWithinLimit(",
+      'redirect: "error"',
     ]
   ) {
     assertStringIncludes(source, fragment);
