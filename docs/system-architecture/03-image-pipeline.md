@@ -104,13 +104,17 @@ image and the first visual item's accepted focus region to
 at most 512 px, then crops the derivative to the already-padded top-left focus
 rectangle when one exists. An absent or invalid region keeps the full bounded
 square. Vision and the future on-device Foundation Models provider reuse this
-single derivative; no additional capture is decoded for local copy.
+single derivative. The current `AppleImageVisualTraitExtractor` also samples it
+at 32×32 pixels to derive five bounded palette, color-intensity, tone,
+tonal-contrast, and edge-variation cues; no additional capture is decoded for
+local analysis.
 
 This derivative is ephemeral and independent of the remote image pipeline. It
 does not replace, crop, reorder, or add a part to the images sent to Gemini, and
 it is released on result arrival, dismissal, scan replacement, queue handoff,
 Auth transition, failure, or application deactivation. It is never written to
-disk, analytics, or logs.
+disk, analytics, or logs. Its classifications and rendered trait strings are
+also never persisted, logged, or attached to telemetry.
 
 During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
 image bounds through the carousel's aspect-fill transform, dims only the

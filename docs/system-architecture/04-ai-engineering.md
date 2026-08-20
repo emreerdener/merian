@@ -982,20 +982,29 @@ remains the only authority for species identity and completed Insight content.
 
 ### Current Pipeline
 
-`AppDIContainer` owns injected `VisionSubjectClassifying` and
-`FoundationVisualCueProviding` implementations. `InferenceEngine` builds one
-bounded image from the primary visual item, applying its accepted, already-
-padded `NormalizedImageFocusRegion` when present and otherwise using the full
-square inference image. The local derivative is bounded to 512 px and reused;
-additional captures are not analyzed locally, and Gemini's request payload is
-not changed.
+`AppDIContainer` owns injected `VisionSubjectClassifying`,
+`LocalVisualTraitExtracting`, and `FoundationVisualCueProviding`
+implementations. `InferenceEngine` builds one bounded image from the primary
+visual item, applying its accepted, already-padded `NormalizedImageFocusRegion`
+when present and otherwise using the full square inference image. The local
+derivative is bounded to 512 px and reused; additional captures are not analyzed
+locally, and Gemini's request payload is not changed.
 
 The tracked `localClassificationTask` starts generic copy and a light-impact
-haptic immediately, then calls `AppleVisionSubjectClassifier` off the main
-actor. A qualifying broad category is published as soon as Vision returns. A
-single `ScanningPhraseCoordinator` owns source priority, so a later generic tick
-cannot replace Vision or Foundation context. The injected phrase sleeper keeps
-automatic transitions at the 2.3-second cadence without exposing partial tokens.
+haptic immediately, then runs `AppleVisionSubjectClassifier` off the main actor.
+A qualifying broad category is published as soon as Vision returns. The engine
+then launches a separately owned `localVisualTraitTask` without awaiting it.
+`AppleImageVisualTraitExtractor` samples the same local derivative at 32×32
+pixels and deterministically describes its dominant color tones, color
+intensity, overall tone, tonal contrast, and local edge variation. The five
+pixel observations are validated against the Vision candidate denylist and
+become eligible at the next phrase tick.
+
+A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
+Vision category → deterministic image trait → Foundation Models cue. A less
+specific tick therefore cannot replace image-derived context. The injected
+phrase sleeper keeps automatic transitions at the 2.3-second cadence without
+exposing partial tokens.
 
 ### Broad-Category Qualification
 
@@ -1014,11 +1023,15 @@ A broad-category phrase series is only activated if all four conditions are met:
 
 ### Phrase Format
 
-Generic and category decks describe only directly visible morphology: form,
-color, texture, structure, arrangement, proportions, and markings. Local copy
-must not imply species identity, confidence, a candidate match, a database or
-record lookup, geographic range, or Gemini completion. `ConfidenceBadge`
-auto-appends `...` to any phrase not already ending with one.
+Generic, category, and image-trait decks describe only directly visible
+morphology: form, color, contrast, texture, structure, arrangement, proportions,
+and markings. Deterministic traits and future Foundation cues share the bounded
+cue validator: details contain 2–5 words, the rendered pill plus ellipsis is at
+most 36 characters, and duplicate, identity-bearing, certainty, match, taxonomy,
+`-like`, or unsupported text is discarded. Local copy must not imply species
+identity, confidence, a candidate match, a database or record lookup, geographic
+range, or Gemini completion. `ConfidenceBadge` auto-appends `...` to any phrase
+not already ending with one.
 
 ### Phrase Cycling & Freshness
 
@@ -1026,8 +1039,14 @@ auto-appends `...` to any phrase not already ending with one.
 phrase is visible immediately; a qualifying Vision category hands off
 immediately and restarts the interval so another label cannot follow less than
 2.3 seconds later. Later phrases advance through
-`MerianConfig.scanningPhaseRotationIntervalNs`. Foundation cues, when available,
-enter at the next clock tick and permanently raise source priority.
+`MerianConfig.scanningPhaseRotationIntervalNs`. Deterministic image traits enter
+at the next clock tick. Foundation cues, when available, replace that deck at a
+later tick and permanently raise source priority. `ScanningPhraseCoordinator`
+records every normalized phrase already displayed during the scan and advances
+through every currently available deck entry before wrapping to index zero for a
+new round. A newly appended cue is consumed before the deck can wrap. When all
+five deterministic image cues qualify, they span 11.5 seconds at the shared
+cadence before their first repeat.
 
 `InferenceEngine.genericScanningPhasePhrases` preserves the established
 cloud-analysis deck for queued Insights, including audio-only and Describe
@@ -1041,9 +1060,9 @@ scanning layout.
 
 - Local classification start fires `triggerLightImpact(intensity: 0.3)`.
 - Result arrival, dismissal, replacement, queue handoff, Auth transition,
-  inference failure, and app deactivation cancel Vision, phrase rotation, and
-  Foundation work while leaving Gemini networking and durable queue ownership
-  intact.
+  inference failure, and app deactivation cancel Vision, pixel-trait extraction,
+  phrase rotation, and Foundation work while leaving Gemini networking and
+  durable queue ownership intact.
 - `simulateProgressiveAnalyzing()` supplies the deterministic generic → category
   → visible-trait seed used by UI automation.
 
@@ -1052,7 +1071,8 @@ scanning layout.
 Broad-category series exist for: birds, insects/arthropods, arachnids,
 fungi/lichen, flowering plants, trees/conifers, cacti/succulents, general
 plants, reptiles, amphibians, fish, and mammals. Unrecognised, low-confidence,
-or ambiguous subjects remain on the generic visible-trait series.
+or ambiguous subjects do not receive a category phrase, but can still advance
+from generic copy to deterministic image-trait wording.
 
 ### Stable Xcode 27 Foundation Models Milestone
 
@@ -1061,6 +1081,11 @@ The release toolchain remains Xcode 26.6 with an iOS 17.2 deployment target.
 implementation; no beta Foundation Models API ships. After stable Xcode 27 is
 available locally and in hosted CI, the provider can be implemented behind iOS
 27 availability without changing the deployment target.
+
+This no-op applies only to generative multimodal cues. The injected
+`AppleImageVisualTraitExtractor` already supplies image-specific color,
+contrast, and surface wording on the current toolchain and remains the silent
+fallback when the richer provider is unavailable or ineligible.
 
 The provider contract is deliberately stricter than its UI consumer:
 
@@ -1082,6 +1107,13 @@ sent to Gemini, attached to analytics, or logged. Foundation work is an
 asynchronous, best-effort UI enhancement and is never awaited by networking,
 persistence, or result publication; even a permanently hung stream is fenced and
 cancelled at terminal ownership boundaries.
+
+Deterministic trait extraction has the same non-blocking ownership rule. Its
+protocol requires cooperative cancellation, but the engine still owns it as a
+separate weak-engine task: an injected implementation that ignores cancellation
+cannot suspend Vision completion, networking, result publication, or an Auth
+drain, and its eventual return fails both cancellation and scan-generation
+checks before touching the phrase coordinator.
 
 This milestone changes no backend route, wire DTO, SwiftData schema, consent
 surface, analytics event, or privacy-manifest declaration. Reassess those

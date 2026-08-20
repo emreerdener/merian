@@ -55,13 +55,17 @@ Queued scans rotate phrases from their exact queue/server state and reuse
 generic engine phrases during active inference.
 
 Foreground visual analysis begins with morphology-only generic copy. A
-qualifying Apple Vision category replaces it immediately; validated local
-visible-trait cues, when supported, are published only on the shared 2.3-second
-phrase clock. Source priority is monotonic, so generic text cannot return after
-more-specific context arrives, and partial streamed cue objects never reach the
-view. The pill never claims a species, confidence, candidate match, records or
-range lookup, or completed Gemini result. Audio-only, Describe, and queued
-processing keep their existing cloud-analysis phrase decks.
+qualifying Apple Vision category replaces it immediately. The current toolchain
+then publishes five validated, image-specific palette, color-intensity, tone,
+contrast, and surface cues from the bounded local derivative on the shared
+2.3-second phrase clock. A future eligible Foundation Models provider may
+replace that deterministic trait deck with richer complete cues. Source priority
+is monotonic, so generic or category text cannot return after more-specific
+context arrives. Every currently available phrase appears before the active deck
+loops to its first phrase. Partial streamed cue objects never reach the view.
+The pill never claims a species, confidence, candidate match, records or range
+lookup, or completed Gemini result. Audio-only, Describe, and queued processing
+keep their existing cloud-analysis phrase decks.
 
 `ConfidenceBadge` retains its opacity-only label transition and intrinsic native
 Button bounds as text widths change. The Debug-only

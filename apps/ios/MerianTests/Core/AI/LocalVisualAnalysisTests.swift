@@ -10,6 +10,46 @@ private struct AlwaysEligibleFoundationCueChecker: FoundationVisualCueEligibilit
     func isEligibleForVisualCues() -> Bool { true }
 }
 
+private struct StubLocalVisualTraitExtractor: LocalVisualTraitExtracting {
+    let cues: [FoundationVisualCue]
+
+    func extractCues(
+        from _: ImageDownsampler.SendableImage
+    ) async -> [FoundationVisualCue] {
+        cues
+    }
+}
+
+private actor ControlledLocalVisualTraitExtractor: LocalVisualTraitExtracting {
+    private let cues: [FoundationVisualCue]
+    private var continuation: CheckedContinuation<[FoundationVisualCue], Never>?
+    private var started = false
+
+    init(cues: [FoundationVisualCue]) {
+        self.cues = cues
+    }
+
+    func extractCues(
+        from _: ImageDownsampler.SendableImage
+    ) async -> [FoundationVisualCue] {
+        started = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func complete() {
+        continuation?.resume(returning: cues)
+        continuation = nil
+    }
+
+    func waitUntilStarted() async {
+        while !started {
+            await Task.yield()
+        }
+    }
+}
+
 private actor ControlledVisionSubjectClassifier: VisionSubjectClassifying {
     private let result: VisionSubjectClassification
     private var releaseContinuation: CheckedContinuation<Void, Never>?
@@ -246,12 +286,24 @@ struct LocalVisualAnalysisTests {
         #expect(coordinator.specificity == .vision)
         #expect(coordinator.nextPhrase() == "Examining wing veins")
 
-        let cue = FoundationVisualCue(
+        let localCue = FoundationVisualCue(
+            kind: .colorPattern,
+            detail: "green and brown tones"
+        )
+        let acceptedLocalCue = coordinator.acceptLocalTraitCue(localCue)
+        let acceptedLocalDuplicate = coordinator.acceptLocalTraitCue(localCue)
+        #expect(acceptedLocalCue)
+        #expect(!acceptedLocalDuplicate)
+        #expect(coordinator.nextPhrase() == "Color: green and brown tones")
+        #expect(coordinator.specificity == .localTrait)
+        #expect(coordinator.promote(to: .avian) == "Color: green and brown tones")
+
+        let foundationCue = FoundationVisualCue(
             kind: .colorPattern,
             detail: "amber banded wings"
         )
-        let acceptedCue = coordinator.acceptFoundationCue(cue)
-        let acceptedDuplicate = coordinator.acceptFoundationCue(cue)
+        let acceptedCue = coordinator.acceptFoundationCue(foundationCue)
+        let acceptedDuplicate = coordinator.acceptFoundationCue(foundationCue)
         let acceptedDuplicateDetail = coordinator.acceptFoundationCue(
             FoundationVisualCue(
                 kind: .marking,
@@ -266,6 +318,110 @@ struct LocalVisualAnalysisTests {
 
         #expect(coordinator.promote(to: .avian) == "Color: amber banded wings")
         #expect(coordinator.nextPhrase() == nil)
+    }
+
+    @Test func phraseCoordinatorWrapsOnlyAfterExhaustingEachActiveDeck() throws {
+        var coordinator = ScanningPhraseCoordinator()
+        let firstGenericPhrase = coordinator.reset()
+        var genericCycle = Set([firstGenericPhrase.lowercased()])
+        for _ in 1..<ScanningPhraseCoordinator.genericPhrases.count {
+            let nextPhrase = coordinator.nextPhrase()
+            let phrase = try #require(nextPhrase)
+            #expect(genericCycle.insert(phrase.lowercased()).inserted)
+        }
+        let wrappedGenericPhrase = coordinator.nextPhrase()
+        #expect(wrappedGenericPhrase == firstGenericPhrase)
+
+        let categoryPhrase = coordinator.promote(to: .arthropod)
+        var categoryCycle = Set([categoryPhrase.lowercased()])
+        for _ in 1..<LocalSubjectCategory.arthropod.phraseSeries.count {
+            let nextPhrase = coordinator.nextPhrase()
+            let phrase = try #require(nextPhrase)
+            #expect(categoryCycle.insert(phrase.lowercased()).inserted)
+        }
+        let wrappedCategoryPhrase = coordinator.nextPhrase()
+        #expect(wrappedCategoryPhrase == categoryPhrase)
+
+        let localCues = [
+            FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "green and brown tones"
+            ),
+            FoundationVisualCue(
+                kind: .colorIntensity,
+                detail: "mostly vivid colors"
+            ),
+            FoundationVisualCue(
+                kind: .tone,
+                detail: "balanced light and dark"
+            ),
+            FoundationVisualCue(
+                kind: .contrast,
+                detail: "strong tonal separation"
+            ),
+            FoundationVisualCue(
+                kind: .surfaceTexture,
+                detail: "broad smooth regions"
+            )
+        ]
+        for cue in localCues {
+            let accepted = coordinator.acceptLocalTraitCue(cue)
+            #expect(accepted)
+        }
+        let acceptedOverflow = coordinator.acceptLocalTraitCue(
+            FoundationVisualCue(
+                kind: .arrangement,
+                detail: "alternating light bands"
+            )
+        )
+        #expect(!acceptedOverflow)
+        var localCycle: [String] = []
+        for _ in localCues.indices {
+            let nextPhrase = coordinator.nextPhrase()
+            localCycle.append(try #require(nextPhrase))
+        }
+        #expect(Set(localCycle).count == localCues.count)
+        #expect(localCycle == localCues.map(\.pillText))
+        let wrappedLocalPhrase = coordinator.nextPhrase()
+        #expect(wrappedLocalPhrase == localCues[0].pillText)
+
+        let nextScanPhrase = coordinator.reset()
+        #expect(nextScanPhrase == "Analyzing subject")
+        #expect(coordinator.shownPhrases == [nextScanPhrase.lowercased()])
+        #expect(coordinator.nextPhrase() == "Examining visible form")
+    }
+
+    @Test func deterministicTraitExtractorVariesCuesWithImagePixels() async throws {
+        let extractor = AppleImageVisualTraitExtractor()
+        let redGreenCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(red: 1, green: 0, blue: 0, alpha: 1).cgColor,
+                right: UIColor(red: 0, green: 1, blue: 0, alpha: 1).cgColor
+            )
+        )
+        let yellowBlueCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(red: 1, green: 1, blue: 0, alpha: 1).cgColor,
+                right: UIColor(red: 0, green: 0, blue: 1, alpha: 1).cgColor
+            )
+        )
+
+        #expect(redGreenCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
+        #expect(yellowBlueCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
+        #expect(redGreenCues[0].pillText == "Color: red and green tones")
+        #expect(yellowBlueCues[0].pillText == "Color: yellow and blue tones")
+        #expect(redGreenCues[0] != yellowBlueCues[0])
+        #expect(redGreenCues[1].pillText == "Color: mostly vivid colors")
+        #expect(redGreenCues[2].pillText == "Tone: balanced light and dark")
+        #expect(redGreenCues[3].pillText == "Contrast: strong tonal separation")
+        #expect(redGreenCues[4].pillText == "Surface: broad smooth regions")
+
+        for cue in redGreenCues + yellowBlueCues {
+            #expect(FoundationVisualCueValidator.validatedCue(
+                cue,
+                forbiddenIdentityTerms: []
+            ) == cue)
+        }
     }
 
     @Test func foundationSnapshotsStayBufferedUntilComplete() {
@@ -404,7 +560,7 @@ struct LocalVisualAnalysisTests {
         #expect(crop == CGRect(x: 50, y: 80, width: 200, height: 200))
     }
 
-    @Test func enginePublishesVisionCategoryImmediatelyAndRestartsCadence() async throws {
+    @Test func enginePublishesVisionCategoryThenImageTraitsOnCadence() async throws {
         let classifier = ControlledVisionSubjectClassifier(
             result: VisionSubjectClassification(
                 category: .arthropod,
@@ -419,6 +575,28 @@ struct LocalVisualAnalysisTests {
         let clock = ControlledScanningPhraseClock()
         let engine = InferenceEngine(
             visionSubjectClassifier: classifier,
+            localVisualTraitExtractor: StubLocalVisualTraitExtractor(cues: [
+                FoundationVisualCue(
+                    kind: .colorPattern,
+                    detail: "green and brown tones"
+                ),
+                FoundationVisualCue(
+                    kind: .colorIntensity,
+                    detail: "mostly vivid colors"
+                ),
+                FoundationVisualCue(
+                    kind: .tone,
+                    detail: "balanced light and dark"
+                ),
+                FoundationVisualCue(
+                    kind: .contrast,
+                    detail: "strong tonal separation"
+                ),
+                FoundationVisualCue(
+                    kind: .surfaceTexture,
+                    detail: "broad smooth regions"
+                )
+            ]),
             scanningPhraseSleeper: clock
         )
         let classificationTask = try #require(
@@ -430,14 +608,108 @@ struct LocalVisualAnalysisTests {
 
         await classifier.complete()
         await classificationTask.value
+        await engine.debugWaitForLocalVisualTraits()
         #expect(engine.scanningPhaseText == "Arthropod form visible")
         await clock.waitUntilSleepCallCount(2)
         #expect(engine.scanningPhaseText == "Arthropod form visible")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(3)
-        #expect(engine.scanningPhaseText == "Examining wing veins")
+        #expect(engine.scanningPhaseText == "Color: green and brown tones")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(4)
+        #expect(engine.scanningPhaseText == "Color: mostly vivid colors")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(5)
+        #expect(engine.scanningPhaseText == "Tone: balanced light and dark")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(6)
+        #expect(engine.scanningPhaseText == "Contrast: strong tonal separation")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(7)
+        #expect(engine.scanningPhaseText == "Surface: broad smooth regions")
+
+        await clock.advance()
+        await clock.waitUntilSleepCallCount(8)
+        #expect(engine.scanningPhaseText == "Color: green and brown tones")
         engine.cancelActiveRequest()
+    }
+
+    @Test func hungLocalTraitExtractorCannotDelayOrPublishAfterGeminiCompletion() async throws {
+        let classifier = ControlledVisionSubjectClassifier(
+            result: VisionSubjectClassification(
+                category: .arthropod,
+                candidates: []
+            )
+        )
+        let extractor = ControlledLocalVisualTraitExtractor(cues: [
+            FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "green and brown tones"
+            )
+        ])
+        let engine = InferenceEngine(
+            visionSubjectClassifier: classifier,
+            localVisualTraitExtractor: extractor
+        )
+        let classificationTask = try #require(
+            engine.debugStartLocalClassification(imageData: try makeImageData())
+        )
+        await classifier.waitUntilStarted()
+        await classifier.complete()
+        await classificationTask.value
+        await extractor.waitUntilStarted()
+        let phaseBeforeCompletion = engine.scanningPhaseText
+
+        let startedAt = ContinuousClock.now
+        engine.debugSimulateGeminiResponseArrival()
+        let elapsed = startedAt.duration(to: .now)
+
+        #expect(elapsed < .milliseconds(100))
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        #expect(!engine.debugLocalVisualTraitIsRunning)
+        await extractor.complete()
+        await Task.yield()
+        #expect(engine.scanningPhaseText == phaseBeforeCompletion)
+    }
+
+    @Test func replacementRejectsDelayedLocalTraitCue() async throws {
+        let classifier = ControlledVisionSubjectClassifier(
+            result: VisionSubjectClassification(
+                category: .arthropod,
+                candidates: []
+            )
+        )
+        let extractor = ControlledLocalVisualTraitExtractor(cues: [
+            FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "green and brown tones"
+            )
+        ])
+        let engine = InferenceEngine(
+            visionSubjectClassifier: classifier,
+            localVisualTraitExtractor: extractor
+        )
+        let classificationTask = try #require(
+            engine.debugStartLocalClassification(imageData: try makeImageData())
+        )
+        await classifier.waitUntilStarted()
+        await classifier.complete()
+        await classificationTask.value
+        await extractor.waitUntilStarted()
+
+        engine.prepareForNewScan()
+        let replacementPhrase = engine.scanningPhaseText
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+
+        await extractor.complete()
+        await Task.yield()
+        #expect(engine.scanningPhaseText == replacementPhrase)
+        #expect(engine.scanningPhaseText == "Analyzing subject...")
     }
 
     @Test func enginePublishesOnlyCompleteUniqueFoundationCuesOnClockTicks() async throws {
@@ -714,6 +986,41 @@ struct LocalVisualAnalysisTests {
             bytesPerRow: 0,
             space: colorSpace,
             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ))
+        return ImageDownsampler.SendableImage(
+            cgImage: try #require(context.makeImage())
+        )
+    }
+
+    private func makeSplitImage(
+        left: CGColor,
+        right: CGColor
+    ) throws -> ImageDownsampler.SendableImage {
+        let width = 32
+        let height = 32
+        let context = try #require(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ))
+        let halfWidth = CGFloat(width) / 2
+        context.setFillColor(left)
+        context.fill(CGRect(
+            x: 0,
+            y: 0,
+            width: halfWidth,
+            height: CGFloat(height)
+        ))
+        context.setFillColor(right)
+        context.fill(CGRect(
+            x: halfWidth,
+            y: 0,
+            width: halfWidth,
+            height: CGFloat(height)
         ))
         return ImageDownsampler.SendableImage(
             cgImage: try #require(context.makeImage())

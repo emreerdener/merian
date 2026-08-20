@@ -11,10 +11,10 @@ remote identification pipeline. Capture-specific composition remains under
   handoff, offline-queue adoption, enrichment, awards, and Field trips.
 - `InferenceProcessingActor` performs CPU/file/database work away from the main
   actor, including image encoding, response parsing, and scan persistence.
-- `LocalVisualAnalysis` owns the injected Vision classifier, bounded-image
-  builder, phrase coordinator, Foundation visual-cue seam, validation, and
-  runtime eligibility policy. `AppDIContainer` owns the live providers and
-  injects them into `InferenceEngine`.
+- `LocalVisualAnalysis` owns the injected Vision classifier, deterministic
+  pixel-trait extractor, bounded-image builder, phrase coordinator, Foundation
+  visual-cue seam, validation, and runtime eligibility policy. `AppDIContainer`
+  owns the live providers and injects them into `InferenceEngine`.
 - On-device Vision classification runs concurrently with the network request to
   provide scanning phrases. It does not replace or add a Gemini call, and the
   local image and phrase text never enter the request, persistence, analytics,
@@ -74,11 +74,24 @@ captures and Gemini's payload are unchanged.
 `AppleVisionSubjectClassifier` runs `VNClassifyImageRequest`. A top result must
 meet the 0.65 confidence threshold, lead the runner-up by at least 0.15, and map
 to a supported broad category. A qualifying category replaces the generic pill
-immediately. The single injected phrase clock then advances no more often than
-every 2.3 seconds. Once a more-specific source is active, generic phrases can no
-longer overwrite it. Phrase decks describe only visible form, color, texture,
-arrangement, markings, and proportions; they do not imply an identity,
-confidence, record lookup, geographic range, or Gemini completion.
+immediately. After Vision completes, `AppleImageVisualTraitExtractor` samples
+the same bounded image at 32×32 pixels and derives five image-specific
+observations: dominant color tones, color intensity, overall tone, tonal
+contrast, and local edge variation. It does not use Vision labels to generate
+text or infer identity.
+
+The single injected phrase clock advances no more often than every 2.3 seconds.
+Every phrase in the current deck is displayed once before that deck can wrap to
+its first phrase. When all five deterministic cues qualify, that deck spans 11.5
+seconds before any image-trait wording repeats. Newly accepted phrases join the
+current round before a wrap. Source priority is generic → Vision category →
+deterministic image trait → Foundation Models cue, so context never regresses
+and a future richer cue can replace the deterministic deck. Pixel-derived traits
+use the same validator as Foundation cues and are limited to complete, unique,
+2–5-word details whose rendered pill text fits within 36 characters. All local
+phrases describe only visible form, color, tone, contrast, texture, arrangement,
+markings, and proportions; they do not imply an identity, confidence, record
+lookup, geographic range, or Gemini completion.
 
 Every local mutation is fenced by the current scan ID, presentation-attempt
 UUID, and durable foreground generation. Result arrival, dismissal, scan
@@ -88,20 +101,29 @@ image and classification state. Gemini networking, response parsing, durable
 queue work, persistence, and result publication continue independently and never
 await Vision or a visual-cue stream.
 
+Vision and deterministic trait extraction have separate task owners. The trait
+provider must cooperate with cancellation, but even a test provider that hangs
+or ignores cancellation cannot keep Vision completion, result publication, or an
+Auth drain suspended; a late return is rejected by cancellation and
+scan-generation checks before it can publish text.
+
 Queued, audio-only, and Describe flows retain their existing cloud-analysis
 phrase decks. The morphology-only generic deck belongs only to foreground visual
 local analysis.
 
 ### Foundation Models milestone
 
-The current Xcode 26.6 release toolchain injects
-`UnavailableFoundationVisualCueProvider`; there is no beta API or cloud
-fallback. `FoundationVisualCueProviding` is the stable integration seam for the
-multimodal API after stable Xcode 27 is installed locally and in hosted CI. That
-provider must use only `SystemLanguageModel.default`, start only after both the
-Identify request body's completion callback and local Vision completion, and
-return at most three indexed structured snapshots with a constrained trait kind
-and 2–5-word visible detail.
+The current Xcode 26.6 release toolchain injects the deterministic
+`AppleImageVisualTraitExtractor` and `UnavailableFoundationVisualCueProvider`.
+Five image-specific palette, color-intensity, tone, contrast, and surface cues
+are therefore available now, but generative multimodal wording is not; there is
+no beta API or cloud fallback. `FoundationVisualCueProviding` is the stable
+integration seam for the multimodal API after stable Xcode 27 is installed
+locally and in hosted CI. That provider must use only
+`SystemLanguageModel.default`, start only after both the Identify request body's
+completion callback and local Vision completion, and return at most three
+indexed structured snapshots with a constrained trait kind and 2–5-word visible
+detail.
 
 The engine buffers partial snapshots until the indexed object is complete. It
 silently rejects duplicates, identity/candidate language, certainty or match

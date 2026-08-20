@@ -85,10 +85,13 @@ Examples:
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local
 analysis that improves foreground scanning copy. `InferenceEngine` remains the
 single state owner exposed to SwiftUI through `scanningPhaseText`.
-`LocalVisualAnalysis.swift` supplies the injected Vision classifier, one bounded
-primary-image derivative, phrase coordination, future Foundation visual-cue
-seam, validation, and runtime eligibility policy; `AppDIContainer` owns the live
-implementations.
+`LocalVisualAnalysis.swift` supplies the injected Vision classifier,
+deterministic pixel-trait extractor, one bounded primary-image derivative,
+phrase coordination, future Foundation visual-cue seam, validation, and runtime
+eligibility policy; `AppDIContainer` owns the live implementations. The current
+toolchain derives five image-specific palette, color-intensity, tone, contrast,
+and surface cues locally; generative multimodal cues remain the stable-Xcode-27
+milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,

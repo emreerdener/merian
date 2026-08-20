@@ -68,16 +68,21 @@ are satisfied.
 For foreground visual scans, `AnalyzingContentView` continues to read only
 `InferenceEngine.scanningPhaseText`. The engine now progresses that value from
 generic visible analysis to a qualifying broad Apple Vision category, then to
-bounded visible-trait cues when an eligible local provider exists. The category
+five bounded image-specific palette, color-intensity, tone, contrast, and
+surface cues from the current deterministic local extractor. The category
 handoff is immediate; later automatic label changes use the shared 2.3-second
-clock. Source priority is monotonic, so generic text never returns after
-category or trait context arrives.
+clock. A future eligible Foundation Models provider may replace the
+deterministic trait deck with richer visible cues. Source priority is monotonic,
+so generic or category text never returns after more-specific trait context
+arrives. The pill shows every phrase in its active deck before wrapping to the
+first phrase for a new round.
 
 The pill does not claim a species, confidence, candidate match, records lookup,
-range check, or completed cloud result. Generated local cues are limited to
-three complete, unique labels of at most 36 rendered characters. Partial stream
-snapshots and invalid identity-bearing text never reach SwiftUI. Gemini remains
-the only source for the completed identification and Insight content.
+range check, or completed cloud result. Deterministic local analysis is limited
+to five complete, unique labels of at most 36 rendered characters; the future
+Foundation stream remains limited to three. Partial stream snapshots and invalid
+identity-bearing text never reach SwiftUI. Gemini remains the only source for
+the completed identification and Insight content.
 
 `ConfidenceBadge` keeps the same opacity-only text transition and intrinsic
 capsule composition. The deterministic `-seedProgressiveAnalyzingFlow` UI
@@ -85,12 +90,13 @@ fixture advances generic → category → trait on explicit badge taps and verif
 that the native Button's accessibility frame remains inside the application
 window at every label width.
 
-Unsupported devices silently retain the improved Vision experience. The Xcode
-26.6 build injects a no-op Foundation visual-cue provider; stable Xcode 27 is a
-prerequisite for the availability-gated multimodal implementation. Low Power
-Mode, serious/critical thermal pressure, inactive app state, unavailable or
-not-ready Apple Intelligence, result arrival, and every scan-ownership handoff
-all suppress or cancel the richer stage without changing the visible fallback.
+Unsupported devices silently retain Vision plus deterministic image-trait
+wording. The Xcode 26.6 build injects a no-op Foundation visual-cue provider;
+stable Xcode 27 is a prerequisite for the availability-gated generative
+multimodal implementation. Low Power Mode, serious/critical thermal pressure,
+inactive app state, unavailable or not-ready Apple Intelligence, result arrival,
+and every scan-ownership handoff all suppress or cancel the richer stage without
+changing the visible fallback.
 
 Daily-quota presentation is normally decided before Insight exists. Online
 Capture runs the caller-scoped scan-admission preview before the camera shutter,

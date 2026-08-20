@@ -1456,9 +1456,14 @@ on gesture-driven layout abstractions.
   copy starts immediately. A Vision result that clears the 0.65 confidence
   floor, 0.15 runner-up margin, and broad-category mapping replaces that copy
   immediately; all later automatic changes use the single 2.3-second phrase
-  clock, and source priority prevents generic regression. `AppDIContainer`
-  injects the classifier and Foundation visual-cue seam. The Xcode 26.6 provider
-  is intentionally a no-op; after stable Xcode 27, an iOS 27 availability-gated
+  clock. After Vision completes, a 32×32 sample of the same derivative produces
+  five validated, image-specific palette, color-intensity, tone, contrast, and
+  edge-variation cues for subsequent ticks. Source priority prevents generic or
+  category regression. Within the active deck, every available phrase appears
+  before its first phrase becomes eligible again. `AppDIContainer` injects the
+  classifier, deterministic trait extractor, and Foundation visual-cue seam. The
+  Xcode 26.6 Foundation provider is intentionally a no-op, but deterministic
+  image traits are active; after stable Xcode 27, an iOS 27 availability-gated
   on-device provider may start only after the Gemini request body is sent and
   local Vision completes. Partial or unsafe cue snapshots never reach SwiftUI.
   Scan ID, presentation-attempt, and durable foreground-generation fences

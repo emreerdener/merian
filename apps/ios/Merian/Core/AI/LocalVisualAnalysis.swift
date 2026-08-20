@@ -108,84 +108,96 @@ enum LocalSubjectCategory: String, CaseIterable, Sendable {
                 "Avian form visible",
                 "Examining feather pattern",
                 "Studying bill shape",
-                "Tracing wing proportions"
+                "Tracing wing proportions",
+                "Comparing tail outline"
             ]
         case .arthropod:
             return [
                 "Arthropod form visible",
                 "Examining wing veins",
                 "Studying body segments",
-                "Tracing appendage shape"
+                "Tracing appendage shape",
+                "Comparing limb proportions"
             ]
         case .arachnid:
             return [
                 "Arachnid form visible",
                 "Examining leg arrangement",
                 "Studying body segments",
-                "Tracing surface markings"
+                "Tracing surface markings",
+                "Comparing body proportions"
             ]
         case .fungal:
             return [
                 "Fungal form visible",
                 "Examining cap shape",
                 "Studying gill structure",
-                "Tracing surface texture"
+                "Tracing surface texture",
+                "Comparing underside pattern"
             ]
         case .floweringPlant:
             return [
                 "Flowering form visible",
                 "Examining petal layout",
                 "Studying flower structure",
-                "Tracing bloom pattern"
+                "Tracing bloom pattern",
+                "Reviewing center markings"
             ]
         case .tree:
             return [
                 "Tree form visible",
                 "Examining bark texture",
                 "Studying leaf shape",
-                "Tracing branch structure"
+                "Tracing branch structure",
+                "Comparing canopy outline"
             ]
         case .succulent:
             return [
                 "Succulent form visible",
                 "Examining spine pattern",
                 "Studying stem shape",
-                "Tracing surface texture"
+                "Tracing surface texture",
+                "Reviewing rib contours"
             ]
         case .botanical:
             return [
                 "Plant form visible",
                 "Examining leaf shape",
                 "Studying vein pattern",
-                "Tracing growth structure"
+                "Tracing growth structure",
+                "Comparing edge contours"
             ]
         case .reptile:
             return [
                 "Reptile form visible",
                 "Examining scale pattern",
                 "Studying body shape",
-                "Tracing dorsal markings"
+                "Tracing dorsal markings",
+                "Reviewing head profile"
             ]
         case .amphibian:
             return [
                 "Amphibian form visible",
                 "Examining skin texture",
                 "Studying body shape",
-                "Tracing surface markings"
+                "Tracing surface markings",
+                "Comparing limb proportions"
             ]
         case .fish:
             return [
                 "Aquatic form visible",
                 "Examining fin shape",
                 "Studying body proportions",
-                "Tracing side markings"
+                "Tracing side markings",
+                "Reviewing tail profile"
             ]
         case .mammal:
             return [
                 "Mammal form visible",
                 "Examining coat pattern",
                 "Studying body proportions",
-                "Tracing facial markings"
+                "Tracing facial markings",
+                "Reviewing limb proportions"
             ]
         }
     }
@@ -306,10 +318,326 @@ enum LocalVisualAnalysisImageBuilder {
     }
 }
 
+// MARK: - Deterministic image-derived traits
+
+protocol LocalVisualTraitExtracting: Sendable {
+    /// Implementations must observe task cancellation and return promptly.
+    func extractCues(
+        from image: ImageDownsampler.SendableImage
+    ) async -> [FoundationVisualCue]
+}
+
+enum LocalVisualTraitCuePolicy {
+    /// Five cues cover the normal 11-second analysis window at the shared
+    /// 2.3-second cadence before a deck needs to wrap.
+    static let maximumCueCount = 5
+}
+
+/// Produces directly observable, image-specific cues on the current toolchain.
+/// This is deliberately deterministic: it samples a tiny RGBA derivative and
+/// never infers identity, taxonomy, confidence, or a candidate label.
+struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
+    private static let sampleDimension = 32
+
+    private enum PaletteTone: String, CaseIterable {
+        case dark
+        case gray
+        case light
+        case red
+        case orange
+        case yellow
+        case green
+        case teal
+        case blue
+        case purple
+        case pink
+        case brown
+
+        var rank: Int {
+            Self.allCases.firstIndex(of: self) ?? 0
+        }
+    }
+
+    private struct PixelSample {
+        let red: Double
+        let green: Double
+        let blue: Double
+        let luminance: Double
+    }
+
+    private struct SampledImage {
+        let pixels: [PixelSample]
+        let width: Int
+        let height: Int
+    }
+
+    func extractCues(
+        from image: ImageDownsampler.SendableImage
+    ) async -> [FoundationVisualCue] {
+        let extractionTask = Task.detached(priority: .utility) {
+            Self.extractCues(from: image.cgImage)
+        }
+        return await withTaskCancellationHandler {
+            await extractionTask.value
+        } onCancel: {
+            extractionTask.cancel()
+        }
+    }
+
+    private static func extractCues(from image: CGImage) -> [FoundationVisualCue] {
+        guard !Task.isCancelled,
+              let sampled = sampledPixels(from: image),
+              !sampled.pixels.isEmpty else {
+            return []
+        }
+
+        let pixels = sampled.pixels
+        let paletteCue = FoundationVisualCue(
+            kind: .colorPattern,
+            detail: paletteDetail(for: pixels)
+        )
+        let colorIntensityCue = FoundationVisualCue(
+            kind: .colorIntensity,
+            detail: colorIntensityDetail(for: pixels)
+        )
+        let toneCue = FoundationVisualCue(
+            kind: .tone,
+            detail: toneDetail(for: pixels)
+        )
+        let contrastCue = FoundationVisualCue(
+            kind: .contrast,
+            detail: contrastDetail(for: pixels)
+        )
+        let surfaceCue = FoundationVisualCue(
+            kind: .surfaceTexture,
+            detail: surfaceDetail(
+                for: pixels,
+                width: sampled.width,
+                height: sampled.height
+            )
+        )
+        return [
+            paletteCue,
+            colorIntensityCue,
+            toneCue,
+            contrastCue,
+            surfaceCue
+        ]
+    }
+
+    private static func sampledPixels(from image: CGImage) -> SampledImage? {
+        let width = min(sampleDimension, image.width)
+        let height = min(sampleDimension, image.height)
+        guard width > 0, height > 0 else { return nil }
+
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var bytes = [UInt8](repeating: 0, count: bytesPerRow * height)
+        let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue
+            | CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let context = CGContext(
+            data: &bytes,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo
+        ) else {
+            return nil
+        }
+        context.interpolationQuality = .medium
+        context.draw(
+            image,
+            in: CGRect(
+                x: 0,
+                y: 0,
+                width: CGFloat(width),
+                height: CGFloat(height)
+            )
+        )
+        guard !Task.isCancelled else { return nil }
+
+        var pixels: [PixelSample] = []
+        pixels.reserveCapacity(width * height)
+        for offset in stride(from: 0, to: bytes.count, by: bytesPerPixel) {
+            let alpha = Double(bytes[offset + 3]) / 255
+            guard alpha >= 0.10 else { continue }
+            let red = min(1, Double(bytes[offset]) / 255 / alpha)
+            let green = min(1, Double(bytes[offset + 1]) / 255 / alpha)
+            let blue = min(1, Double(bytes[offset + 2]) / 255 / alpha)
+            pixels.append(PixelSample(
+                red: red,
+                green: green,
+                blue: blue,
+                luminance: 0.2126 * red + 0.7152 * green + 0.0722 * blue
+            ))
+        }
+        return SampledImage(pixels: pixels, width: width, height: height)
+    }
+
+    private static func paletteDetail(for pixels: [PixelSample]) -> String {
+        var counts: [PaletteTone: Int] = [:]
+        for pixel in pixels {
+            counts[paletteTone(for: pixel), default: 0] += 1
+        }
+        let ranked = PaletteTone.allCases
+            .map { ($0, counts[$0, default: 0]) }
+            .filter { $0.1 > 0 }
+            .sorted { left, right in
+                if left.1 == right.1 {
+                    return left.0.rank < right.0.rank
+                }
+                return left.1 > right.1
+            }
+        guard let first = ranked.first else { return "mostly gray tones" }
+        let firstShare = Double(first.1) / Double(pixels.count)
+        guard ranked.count > 1 else {
+            return "mostly \(first.0.rawValue) tones"
+        }
+        let second = ranked[1]
+        let secondShare = Double(second.1) / Double(pixels.count)
+        if firstShare >= 0.72 || secondShare < 0.12 {
+            return "mostly \(first.0.rawValue) tones"
+        }
+        return "\(first.0.rawValue) and \(second.0.rawValue) tones"
+    }
+
+    private static func paletteTone(for pixel: PixelSample) -> PaletteTone {
+        let maximum = max(pixel.red, max(pixel.green, pixel.blue))
+        let minimum = min(pixel.red, min(pixel.green, pixel.blue))
+        let delta = maximum - minimum
+        let saturation = maximum == 0 ? 0 : delta / maximum
+
+        if maximum < 0.18 || pixel.luminance < 0.12 { return .dark }
+        if saturation < 0.16 {
+            if pixel.luminance > 0.78 { return .light }
+            return .gray
+        }
+
+        var hue: Double
+        if maximum == pixel.red {
+            hue = 60 * ((pixel.green - pixel.blue) / delta)
+        } else if maximum == pixel.green {
+            hue = 60 * (2 + (pixel.blue - pixel.red) / delta)
+        } else {
+            hue = 60 * (4 + (pixel.red - pixel.green) / delta)
+        }
+        if hue < 0 { hue += 360 }
+
+        if (20..<55).contains(hue), maximum < 0.65 {
+            return .brown
+        }
+        switch hue {
+        case 0..<20, 345..<360: return .red
+        case 20..<45: return .orange
+        case 45..<70: return .yellow
+        case 70..<165: return .green
+        case 165..<195: return .teal
+        case 195..<255: return .blue
+        case 255..<290: return .purple
+        default: return .pink
+        }
+    }
+
+    private static func contrastDetail(for pixels: [PixelSample]) -> String {
+        let mean = pixels.reduce(0) { $0 + $1.luminance }
+            / Double(pixels.count)
+        let variance = pixels.reduce(0) {
+            let difference = $1.luminance - mean
+            return $0 + difference * difference
+        } / Double(pixels.count)
+        switch sqrt(variance) {
+        case 0..<0.10: return "gentle tonal variation"
+        case 0.22...: return "strong tonal separation"
+        default: return "balanced tonal contrast"
+        }
+    }
+
+    private static func colorIntensityDetail(for pixels: [PixelSample]) -> String {
+        let meanSaturation = pixels.reduce(0.0) { result, pixel in
+            let maximum = max(pixel.red, max(pixel.green, pixel.blue))
+            let minimum = min(pixel.red, min(pixel.green, pixel.blue))
+            let saturation = maximum == 0 ? 0 : (maximum - minimum) / maximum
+            return result + saturation
+        } / Double(pixels.count)
+        switch meanSaturation {
+        case 0..<0.18: return "mostly muted colors"
+        case 0.48...: return "mostly vivid colors"
+        default: return "moderate color intensity"
+        }
+    }
+
+    private static func toneDetail(for pixels: [PixelSample]) -> String {
+        let meanLuminance = pixels.reduce(0) { $0 + $1.luminance }
+            / Double(pixels.count)
+        switch meanLuminance {
+        case 0..<0.32: return "mostly dark values"
+        case 0.68...: return "mostly bright values"
+        default: return "balanced light and dark"
+        }
+    }
+
+    private static func surfaceDetail(
+        for pixels: [PixelSample],
+        width: Int,
+        height: Int
+    ) -> String {
+        guard pixels.count == width * height else {
+            return "mixed edge variation"
+        }
+        var totalDifference = 0.0
+        var comparisonCount = 0
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = y * width + x
+                if x + 1 < width {
+                    totalDifference += pixelDifference(
+                        pixels[index],
+                        pixels[index + 1]
+                    )
+                    comparisonCount += 1
+                }
+                if y + 1 < height {
+                    totalDifference += pixelDifference(
+                        pixels[index],
+                        pixels[index + width]
+                    )
+                    comparisonCount += 1
+                }
+            }
+        }
+        guard comparisonCount > 0 else { return "broad smooth regions" }
+        switch totalDifference / Double(comparisonCount) {
+        case 0..<0.07: return "broad smooth regions"
+        case 0.17...: return "fine edge variation"
+        default: return "mixed edge variation"
+        }
+    }
+
+    private static func pixelDifference(
+        _ first: PixelSample,
+        _ second: PixelSample
+    ) -> Double {
+        let luminanceDifference = abs(first.luminance - second.luminance)
+        let channelDifference = max(
+            abs(first.red - second.red),
+            max(
+                abs(first.green - second.green),
+                abs(first.blue - second.blue)
+            )
+        )
+        return 0.7 * luminanceDifference + 0.3 * channelDifference
+    }
+}
+
 // MARK: - Foundation visual cue contract
 
 enum FoundationVisualTraitKind: String, CaseIterable, Sendable {
     case colorPattern
+    case colorIntensity
+    case tone
+    case contrast
     case shape
     case surfaceTexture
     case structure
@@ -320,6 +648,9 @@ enum FoundationVisualTraitKind: String, CaseIterable, Sendable {
     var pillPrefix: String {
         switch self {
         case .colorPattern: "Color"
+        case .colorIntensity: "Color"
+        case .tone: "Tone"
+        case .contrast: "Contrast"
         case .shape: "Shape"
         case .surfaceTexture: "Surface"
         case .structure: "Structure"
@@ -536,6 +867,7 @@ struct ScanningPhraseCoordinator {
     enum Specificity: Int, Sendable {
         case generic
         case vision
+        case localTrait
         case foundation
     }
 
@@ -543,13 +875,19 @@ struct ScanningPhraseCoordinator {
         "Analyzing subject",
         "Examining visible form",
         "Studying surface patterns",
-        "Tracing structural details"
+        "Tracing structural details",
+        "Reviewing visible contours"
     ]
 
     private(set) var specificity: Specificity = .generic
     private(set) var currentPhrase = genericPhrases[0]
     private(set) var phrases = genericPhrases
     private(set) var nextIndex = 1
+    private(set) var shownPhrases: Set<String> = [
+        genericPhrases[0].lowercased()
+    ]
+    private(set) var acceptedLocalTraitPhrases: Set<String> = []
+    private(set) var acceptedLocalTraitDetails: Set<String> = []
     private(set) var acceptedFoundationPhrases: Set<String> = []
     private(set) var acceptedFoundationDetails: Set<String> = []
 
@@ -558,6 +896,9 @@ struct ScanningPhraseCoordinator {
         phrases = Self.genericPhrases
         currentPhrase = Self.genericPhrases[0]
         nextIndex = 1
+        shownPhrases = [currentPhrase.lowercased()]
+        acceptedLocalTraitPhrases = []
+        acceptedLocalTraitDetails = []
         acceptedFoundationPhrases = []
         acceptedFoundationDetails = []
         return currentPhrase
@@ -566,20 +907,41 @@ struct ScanningPhraseCoordinator {
     /// Vision completion is an immediate context handoff. The next automatic
     /// transition still waits for the shared phrase clock.
     mutating func promote(to category: LocalSubjectCategory) -> String {
-        guard specificity.rawValue <= Specificity.vision.rawValue else {
+        guard specificity == .generic else {
             return currentPhrase
         }
         specificity = .vision
         phrases = category.phraseSeries
-        currentPhrase = phrases[0]
-        nextIndex = phrases.count > 1 ? 1 : 0
-        return currentPhrase
+        nextIndex = 0
+        return publishNextPhraseInCycle() ?? currentPhrase
+    }
+
+    mutating func acceptLocalTraitCue(_ cue: FoundationVisualCue) -> Bool {
+        let normalized = cue.pillText.lowercased()
+        let normalizedDetail = cue.detail.lowercased()
+        guard specificity.rawValue <= Specificity.localTrait.rawValue,
+              !shownPhrases.contains(normalized),
+              !acceptedLocalTraitPhrases.contains(normalized),
+              !acceptedLocalTraitDetails.contains(normalizedDetail),
+              acceptedLocalTraitPhrases.count < LocalVisualTraitCuePolicy.maximumCueCount else {
+            return false
+        }
+        acceptedLocalTraitPhrases.insert(normalized)
+        acceptedLocalTraitDetails.insert(normalizedDetail)
+        if specificity != .localTrait {
+            specificity = .localTrait
+            phrases = []
+            nextIndex = 0
+        }
+        phrases.append(cue.pillText)
+        return true
     }
 
     mutating func acceptFoundationCue(_ cue: FoundationVisualCue) -> Bool {
         let normalized = cue.pillText.lowercased()
         let normalizedDetail = cue.detail.lowercased()
-        guard !acceptedFoundationPhrases.contains(normalized),
+        guard !shownPhrases.contains(normalized),
+              !acceptedFoundationPhrases.contains(normalized),
               !acceptedFoundationDetails.contains(normalizedDetail),
               acceptedFoundationPhrases.count < FoundationVisualCueRequest.maximumCueCount else {
             return false
@@ -596,19 +958,28 @@ struct ScanningPhraseCoordinator {
     }
 
     mutating func nextPhrase() -> String? {
-        guard !phrases.isEmpty else { return nil }
-        if phrases.count == 1, phrases[0] == currentPhrase {
-            return nil
-        }
+        publishNextPhraseInCycle()
+    }
 
-        var candidate = phrases[nextIndex % phrases.count]
-        nextIndex = (nextIndex + 1) % phrases.count
-        if candidate == currentPhrase, phrases.count > 1 {
-            candidate = phrases[nextIndex % phrases.count]
-            nextIndex = (nextIndex + 1) % phrases.count
+    /// Walks every currently available phrase before wrapping to the beginning.
+    /// A one-phrase deck holds steady because reassigning the same label would
+    /// not create a meaningful UI transition.
+    private mutating func publishNextPhraseInCycle() -> String? {
+        guard !phrases.isEmpty else { return nil }
+        var examinedCount = 0
+        while examinedCount < phrases.count {
+            if nextIndex >= phrases.count {
+                nextIndex = 0
+            }
+            let candidate = phrases[nextIndex]
+            nextIndex += 1
+            examinedCount += 1
+            let normalized = candidate.lowercased()
+            guard candidate != currentPhrase else { continue }
+            shownPhrases.insert(normalized)
+            currentPhrase = candidate
+            return candidate
         }
-        guard candidate != currentPhrase else { return nil }
-        currentPhrase = candidate
-        return candidate
+        return nil
     }
 }

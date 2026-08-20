@@ -593,12 +593,16 @@ states remain static. Phrase rotation uses
 
 For a foreground visual scan, that single text binding progresses from a
 morphology-only generic phrase to an immediate qualifying Vision category and,
-when an eligible provider exists, complete validated visible-trait cues at the
-next phrase tick. Specificity never moves backward. The badge keeps an
-opacity-only label transition and intrinsic native Button bounds across these
-width changes; do not reintroduce translated label geometry or a second
-foreground scanning component. Audio-only and Describe analysis, plus active
-queued inference, retain their existing cloud-analysis phrase sources.
+on the current toolchain, five complete validated palette, color-intensity,
+tone, contrast, and surface cues derived from the bounded image at the next
+phrase tick. An eligible future Foundation provider may replace that
+deterministic deck with richer visible traits. Specificity never moves backward.
+The badge keeps an opacity-only label transition and intrinsic native Button
+bounds across these width changes. Every foreground visual label in the active
+deck appears before that deck loops to its first phrase. Do not reintroduce
+translated label geometry or a second foreground scanning component. Audio-only
+and Describe analysis, plus active queued inference, retain their existing
+cloud-analysis phrase sources.
 
 Queued lifecycle polling, retry scheduling, friendly errors, countdowns, and
 `Retry now` remain in `QueuedContentView`. Only actionable queue content is

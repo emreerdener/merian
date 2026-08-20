@@ -17,6 +17,8 @@ import SwiftUI
     @ObservationIgnored
     let visionSubjectClassifier: any VisionSubjectClassifying
     @ObservationIgnored
+    let localVisualTraitExtractor: any LocalVisualTraitExtracting
+    @ObservationIgnored
     let foundationVisualCueProvider: any FoundationVisualCueProviding
     @ObservationIgnored
     let foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking
@@ -64,17 +66,20 @@ import SwiftUI
     // MARK: - Initialization Engine
     private init(bindGlobalManagers: Bool) {
         let visionSubjectClassifier = AppleVisionSubjectClassifier()
+        let localVisualTraitExtractor = AppleImageVisualTraitExtractor()
         let foundationVisualCueProvider = UnavailableFoundationVisualCueProvider()
         let foundationVisualCueEligibilityChecker =
             SystemFoundationCueEligibility()
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
         self.visionSubjectClassifier = visionSubjectClassifier
+        self.localVisualTraitExtractor = localVisualTraitExtractor
         self.foundationVisualCueProvider = foundationVisualCueProvider
         self.foundationVisualCueEligibilityChecker =
             foundationVisualCueEligibilityChecker
         self.inferenceEngine = InferenceEngine(
             visionSubjectClassifier: visionSubjectClassifier,
+            localVisualTraitExtractor: localVisualTraitExtractor,
             foundationVisualCueProvider: foundationVisualCueProvider,
             foundationVisualCueEligibilityChecker:
                 foundationVisualCueEligibilityChecker

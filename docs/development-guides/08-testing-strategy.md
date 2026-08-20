@@ -2794,17 +2794,23 @@ source contract also requires their integration declarations to remain present.
 The compiled hosted UI gate adds
 `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`. Its Debug-only
 fixture opens the normal analyzing Insight with generic copy and advances to a
-Vision category and a validated visible-trait cue only after explicit badge
-taps. The smoke requires the exact three labels in order and rechecks that the
-native badge accessibility frame stays inside the app window after each
-opacity-only label transition. `LocalVisualAnalysisTests` separately lock Vision
-threshold and margin qualification, every broad-category mapping, directly
-observable phrase decks, the injected clock and monotonic source handoff,
-focus-region crop math, partial snapshot buffering, duplicate and unsafe cue
-rejection, runtime power/thermal/lifecycle eligibility, provider errors,
+Vision category and a validated image-derived visible-trait cue only after
+explicit badge taps. The smoke requires the exact three labels in order and
+rechecks that the native badge accessibility frame stays inside the app window
+after each opacity-only label transition. `LocalVisualAnalysisTests` separately
+lock Vision threshold and margin qualification, every broad-category mapping,
+directly observable phrase decks, deterministic pixel inputs producing distinct
+palette cues, bounded color-intensity, tone, contrast, and surface wording, the
+injected clock and monotonic generic → category → local-trait → Foundation
+source handoff, and full-deck exhaustion before a phrase cycle wraps. They also
+cover focus-region crop math, partial snapshot buffering, duplicate and unsafe
+cue rejection, runtime power/thermal/lifecycle eligibility, provider errors,
 replacement fences, app-deactivation cancellation for delayed Vision, phrase
-rotation, and Foundation streams, and cancellation of a permanently hung stream
-at simulated Gemini response arrival.
+rotation and Foundation streams, and cancellation of a permanently hung stream
+at simulated Gemini response arrival. Separate non-cooperative trait-extractor
+cases prove Gemini completion returns immediately, replacement clears the
+engine's task ownership, and either boundary rejects the extractor's eventual
+stale cue.
 
 The compiled hosted UI gate also includes
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only

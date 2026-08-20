@@ -33,6 +33,10 @@ TestFlight, App Store, support, and QA.
   and reopened.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
+- Foreground visual analysis now advances beyond canned category phrases to five
+  image-specific color, tone, contrast, and surface observations derived
+  privately on device while the final identification is still processing. Each
+  active phrase deck completes a full unique round before it loops.
 - Online scan recovery now keeps the status pill focused on identification and
   removes the redundant saved/continuing explanation. Offline recovery still
   clearly shows when a scan is waiting for connection.

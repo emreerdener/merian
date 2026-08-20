@@ -164,8 +164,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// cancelled if the user fires a new scan before Wikipedia/enrichment/GBIF finish.
     @ObservationIgnored private var liveHydrationTask: Task<Void, Never>?
     @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
+    @ObservationIgnored private var localVisualTraitTask: Task<Void, Never>?
     @ObservationIgnored private var foundationVisualCueTask: Task<Void, Never>?
     @ObservationIgnored private let visionSubjectClassifier: any VisionSubjectClassifying
+    @ObservationIgnored private let localVisualTraitExtractor: any LocalVisualTraitExtracting
     @ObservationIgnored private let foundationVisualCueProvider: any FoundationVisualCueProviding
     @ObservationIgnored private let foundationVisualCueEligibilityChecker:
         any FoundationVisualCueEligibilityChecking
@@ -212,11 +214,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     init(
         visionSubjectClassifier: any VisionSubjectClassifying = AppleVisionSubjectClassifier(),
+        localVisualTraitExtractor: any LocalVisualTraitExtracting = AppleImageVisualTraitExtractor(),
         foundationVisualCueProvider: any FoundationVisualCueProviding = UnavailableFoundationVisualCueProvider(),
         foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking = SystemFoundationCueEligibility(),
         scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper()
     ) {
         self.visionSubjectClassifier = visionSubjectClassifier
+        self.localVisualTraitExtractor = localVisualTraitExtractor
         self.foundationVisualCueProvider = foundationVisualCueProvider
         self.foundationVisualCueEligibilityChecker = foundationVisualCueEligibilityChecker
         self.scanningPhraseSleeper = scanningPhraseSleeper
@@ -479,6 +483,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         gbifHydrationTask = nil
         enrichmentWriteTask = nil
         localClassificationTask = nil
+        localVisualTraitTask = nil
         foundationVisualCueTask = nil
         phaseRotationTask = nil
         localVisualAnalysisImage = nil
@@ -3951,8 +3956,9 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     }
 
     /// Builds one bounded image from the primary visual item, then reuses it for
-    /// Vision and the future Foundation Models provider. This work never joins
-    /// the network task and cannot delay request dispatch or result publication.
+    /// Vision, deterministic visible-trait extraction, and the future Foundation
+    /// Models provider. This work never joins the network task and cannot delay
+    /// request dispatch or result publication.
     private func classifySubjectLocally(
         from data: Data,
         focusRegion: NormalizedImageFocusRegion?
@@ -4008,6 +4014,48 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 self.startPhaseRotation()
             }
             self.startFoundationVisualCuesIfReady(ownership: ownership)
+            self.startLocalVisualTraits(
+                from: image,
+                classification: classification,
+                ownership: ownership
+            )
+        }
+    }
+
+    /// Runs outside the Vision task so a non-cooperative injected extractor can
+    /// never keep category publication or the network/result path suspended.
+    /// The task captures the engine weakly until extraction returns; cancellation
+    /// and ownership are rechecked before any phrase can be accepted.
+    private func startLocalVisualTraits(
+        from image: ImageDownsampler.SendableImage,
+        classification: VisionSubjectClassification,
+        ownership: LocalAnalysisOwnership
+    ) {
+        localVisualTraitTask?.cancel()
+        let extractor = localVisualTraitExtractor
+        localVisualTraitTask = Task(priority: .utility) { [weak self] in
+            let extractedCues = await extractor.extractCues(from: image)
+            guard !Task.isCancelled,
+                  let self,
+                  self.isLocalAnalysisCurrent(ownership) else {
+                return
+            }
+
+            self.localVisualTraitTask = nil
+            let forbiddenIdentityTerms = FoundationVisualCueValidator.identityTerms(
+                from: classification.candidates
+            )
+            for extractedCue in extractedCues {
+                guard let cue = FoundationVisualCueValidator.validatedCue(
+                    extractedCue,
+                    forbiddenIdentityTerms: forbiddenIdentityTerms,
+                    existingPhrases: self.scanningPhraseCoordinator
+                        .acceptedLocalTraitPhrases
+                ) else {
+                    continue
+                }
+                _ = self.scanningPhraseCoordinator.acceptLocalTraitCue(cue)
+            }
         }
     }
 
@@ -4062,7 +4110,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                               bufferedCue,
                               forbiddenIdentityTerms: request.forbiddenIdentityTerms,
                               existingPhrases: self.scanningPhraseCoordinator
-                                  .acceptedFoundationPhrases
+                                  .acceptedFoundationPhrases.union(
+                                      self.scanningPhraseCoordinator
+                                          .acceptedLocalTraitPhrases
+                                  )
                           ),
                           self.scanningPhraseCoordinator.acceptFoundationCue(cue) else {
                         continue
@@ -4120,9 +4171,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     private func cancelLocalVisualAnalysis() {
         localClassificationTask?.cancel()
+        localVisualTraitTask?.cancel()
         foundationVisualCueTask?.cancel()
         phaseRotationTask?.cancel()
         localClassificationTask = nil
+        localVisualTraitTask = nil
         foundationVisualCueTask = nil
         phaseRotationTask = nil
         localVisualAnalysisImage = nil
@@ -4172,7 +4225,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 kind: .colorPattern,
                 detail: "amber banded wings"
             )
-            guard scanningPhraseCoordinator.acceptFoundationCue(cue),
+            guard scanningPhraseCoordinator.acceptLocalTraitCue(cue),
                   let phrase = scanningPhraseCoordinator.nextPhrase() else {
                 return
             }
@@ -4244,13 +4297,21 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         await foundationVisualCueTask?.value
     }
 
+    func debugWaitForLocalVisualTraits() async {
+        await localVisualTraitTask?.value
+    }
+
     var debugLocalVisionCategory: LocalSubjectCategory? {
         localVisionClassification?.category
     }
 
     var debugLocalVisualAnalysisIsRunning: Bool {
-        localClassificationTask != nil || foundationVisualCueTask != nil
-            || phaseRotationTask != nil
+        localClassificationTask != nil || localVisualTraitTask != nil
+            || foundationVisualCueTask != nil || phaseRotationTask != nil
+    }
+
+    var debugLocalVisualTraitIsRunning: Bool {
+        localVisualTraitTask != nil
     }
     #endif
 

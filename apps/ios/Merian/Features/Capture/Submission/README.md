@@ -14,9 +14,12 @@ Insight sheet or durable queued state.
 For visual scans, submission passes only the first visual item's existing focus
 region to local analysis. `InferenceEngine` derives one 512 px local image from
 the primary inference image, uses the accepted padded focus region when one is
-present, and otherwise uses the full square. It never analyzes the second
-capture locally or changes the ordered images sent to Gemini. Audio-only and
-Describe submissions retain their established analyzing copy.
+present, and otherwise uses the full square. Apple Vision and the deterministic
+pixel-trait extractor reuse that derivative; the extractor samples it at 32×32
+pixels to produce five bounded palette, color-intensity, tone, contrast, and
+surface cues. It never analyzes the second capture locally or changes the
+ordered images sent to Gemini. Audio-only and Describe submissions retain their
+established analyzing copy.
 
 ## Analysis Submission Contract
 
