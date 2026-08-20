@@ -1091,6 +1091,14 @@ Only analytics and optional enrichment may continue in Edge background work.
 Provider success without an owned durable scan is a retryable failure, never an
 HTTP success.
 
+Ordinary producer-owned `failed_retryable` transitions obtain their deadline
+from `functions/_shared/scanIngestionRetry.ts`. The helper returns a
+deterministic 30-second value for `identify-multimodal` and for the
+compatibility ingestion path shared by `identify`, `identify-describe`, and
+`audio-spec`. Explicit server-directed retry values remain separate and
+authoritative. This timing policy changes no request/response shape, ledger
+schema, lease, replay cadence, or stored historical deadline.
+
 A fresh, provider-owning `identify-multimodal` invocation requires successful
 completion-last finalization before its initial HTTP 200. If that finalizer
 fails after owner-row commit, the invocation returns retryable 503. A later

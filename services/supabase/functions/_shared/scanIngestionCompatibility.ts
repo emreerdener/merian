@@ -13,6 +13,7 @@ import {
   updateScanIngestionJob,
 } from "./scanIngestionJobs.ts";
 import { SCAN_INGESTION_INTENT_SCHEMA_VERSION } from "./scanIngestionIntents.ts";
+import { scanIngestionRetryAfterIso } from "./scanIngestionRetry.ts";
 
 export type CompatibilityScanIngestionEndpoint =
   | "identify"
@@ -197,10 +198,6 @@ function hex(bytes: ArrayBuffer): string {
 async function sha256Hex(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(stableJson(value));
   return hex(await crypto.subtle.digest("SHA-256", bytes));
-}
-
-function retryAfterIso(minutes = 5): string {
-  return new Date(Date.now() + minutes * 60_000).toISOString();
 }
 
 function positiveInteger(value: number | undefined): number {
@@ -497,7 +494,7 @@ export async function createCompatibilityScanIngestionLedger(
         logUpdateFailure("scan_ingestion_finalization_failed", error);
         await mark("failed_retryable", "media_finalization_failed", {
           lastError: error instanceof Error ? error.message : String(error),
-          retryAfter: retryAfterIso(),
+          retryAfter: scanIngestionRetryAfterIso(),
         });
         throw error;
       }
@@ -505,7 +502,7 @@ export async function createCompatibilityScanIngestionLedger(
     markRetryableFailure: (stage: string, error: unknown) =>
       mark("failed_retryable", stage, {
         lastError: error instanceof Error ? error.message : String(error),
-        retryAfter: retryAfterIso(),
+        retryAfter: scanIngestionRetryAfterIso(),
       }),
     markTerminalFailure: (
       stage: string,

@@ -288,15 +288,15 @@ struct LocalVisualAnalysisTests {
 
         let localCue = FoundationVisualCue(
             kind: .colorPattern,
-            detail: "green and brown tones"
+            detail: "green and brown colors"
         )
         let acceptedLocalCue = coordinator.acceptLocalTraitCue(localCue)
         let acceptedLocalDuplicate = coordinator.acceptLocalTraitCue(localCue)
         #expect(acceptedLocalCue)
         #expect(!acceptedLocalDuplicate)
-        #expect(coordinator.nextPhrase() == "Color: green and brown tones")
+        #expect(coordinator.nextPhrase() == "Analyzing green and brown colors")
         #expect(coordinator.specificity == .localTrait)
-        #expect(coordinator.promote(to: .avian) == "Color: green and brown tones")
+        #expect(coordinator.promote(to: .avian) == "Analyzing green and brown colors")
 
         let foundationCue = FoundationVisualCue(
             kind: .colorPattern,
@@ -313,10 +313,10 @@ struct LocalVisualAnalysisTests {
         #expect(acceptedCue)
         #expect(!acceptedDuplicate)
         #expect(!acceptedDuplicateDetail)
-        #expect(coordinator.nextPhrase() == "Color: amber banded wings")
+        #expect(coordinator.nextPhrase() == "Analyzing amber banded wings")
         #expect(coordinator.specificity == .foundation)
 
-        #expect(coordinator.promote(to: .avian) == "Color: amber banded wings")
+        #expect(coordinator.promote(to: .avian) == "Analyzing amber banded wings")
         #expect(coordinator.nextPhrase() == nil)
     }
 
@@ -345,7 +345,7 @@ struct LocalVisualAnalysisTests {
         let localCues = [
             FoundationVisualCue(
                 kind: .colorPattern,
-                detail: "green and brown tones"
+                detail: "green and brown colors"
             ),
             FoundationVisualCue(
                 kind: .colorIntensity,
@@ -391,6 +391,48 @@ struct LocalVisualAnalysisTests {
         #expect(coordinator.nextPhrase() == "Examining visible form")
     }
 
+    @Test func handoffDeckKeepsCurrentPhraseThenExhaustsUnseenOptions() {
+        var coordinator = ScanningPhraseCoordinator()
+        _ = coordinator.reset()
+        _ = coordinator.promote(to: .arthropod)
+        let cues = [
+            FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "green and brown colors"
+            ),
+            FoundationVisualCue(
+                kind: .colorIntensity,
+                detail: "mostly vivid colors"
+            ),
+            FoundationVisualCue(
+                kind: .tone,
+                detail: "balanced light and dark"
+            ),
+            FoundationVisualCue(
+                kind: .contrast,
+                detail: "strong tonal separation"
+            ),
+            FoundationVisualCue(
+                kind: .surfaceTexture,
+                detail: "broad smooth regions"
+            )
+        ]
+        for cue in cues {
+            let accepted = coordinator.acceptLocalTraitCue(cue)
+            #expect(accepted)
+        }
+
+        #expect(coordinator.nextPhrase() == cues[0].pillText)
+        #expect(coordinator.nextPhrase() == cues[1].pillText)
+        #expect(coordinator.handoffPhraseDeck == [
+            cues[1].pillText,
+            cues[2].pillText,
+            cues[3].pillText,
+            cues[4].pillText,
+            cues[0].pillText
+        ])
+    }
+
     @Test func deterministicTraitExtractorVariesCuesWithImagePixels() async throws {
         let extractor = AppleImageVisualTraitExtractor()
         let redGreenCues = await extractor.extractCues(
@@ -408,13 +450,13 @@ struct LocalVisualAnalysisTests {
 
         #expect(redGreenCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
         #expect(yellowBlueCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
-        #expect(redGreenCues[0].pillText == "Color: red and green tones")
-        #expect(yellowBlueCues[0].pillText == "Color: yellow and blue tones")
+        #expect(redGreenCues[0].pillText == "Analyzing red and green colors")
+        #expect(yellowBlueCues[0].pillText == "Analyzing yellow and blue colors")
         #expect(redGreenCues[0] != yellowBlueCues[0])
-        #expect(redGreenCues[1].pillText == "Color: mostly vivid colors")
-        #expect(redGreenCues[2].pillText == "Tone: balanced light and dark")
-        #expect(redGreenCues[3].pillText == "Contrast: strong tonal separation")
-        #expect(redGreenCues[4].pillText == "Surface: broad smooth regions")
+        #expect(redGreenCues[1].pillText == "Reviewing mostly vivid colors")
+        #expect(redGreenCues[2].pillText == "Comparing balanced light and dark")
+        #expect(redGreenCues[3].pillText == "Studying strong tonal separation")
+        #expect(redGreenCues[4].pillText == "Tracing broad smooth regions")
 
         for cue in redGreenCues + yellowBlueCues {
             #expect(FoundationVisualCueValidator.validatedCue(
@@ -478,7 +520,7 @@ struct LocalVisualAnalysisTests {
             ),
             forbiddenIdentityTerms: forbidden
         )
-        #expect(valid?.pillText == "Color: amber banded wings")
+        #expect(valid?.pillText == "Analyzing amber banded wings")
 
         let invalidDetails = [
             "amber",
@@ -502,7 +544,7 @@ struct LocalVisualAnalysisTests {
         #expect(FoundationVisualCueValidator.validatedCue(
             FoundationVisualCue(kind: .marking, detail: "two pale bands"),
             forbiddenIdentityTerms: [],
-            existingPhrases: ["marking: two pale bands"]
+            existingPhrases: ["reviewing two pale bands"]
         ) == nil)
     }
 
@@ -578,7 +620,7 @@ struct LocalVisualAnalysisTests {
             localVisualTraitExtractor: StubLocalVisualTraitExtractor(cues: [
                 FoundationVisualCue(
                     kind: .colorPattern,
-                    detail: "green and brown tones"
+                    detail: "green and brown colors"
                 ),
                 FoundationVisualCue(
                     kind: .colorIntensity,
@@ -615,27 +657,27 @@ struct LocalVisualAnalysisTests {
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(3)
-        #expect(engine.scanningPhaseText == "Color: green and brown tones")
+        #expect(engine.scanningPhaseText == "Analyzing green and brown colors")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(4)
-        #expect(engine.scanningPhaseText == "Color: mostly vivid colors")
+        #expect(engine.scanningPhaseText == "Reviewing mostly vivid colors")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(5)
-        #expect(engine.scanningPhaseText == "Tone: balanced light and dark")
+        #expect(engine.scanningPhaseText == "Comparing balanced light and dark")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(6)
-        #expect(engine.scanningPhaseText == "Contrast: strong tonal separation")
+        #expect(engine.scanningPhaseText == "Studying strong tonal separation")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(7)
-        #expect(engine.scanningPhaseText == "Surface: broad smooth regions")
+        #expect(engine.scanningPhaseText == "Tracing broad smooth regions")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(8)
-        #expect(engine.scanningPhaseText == "Color: green and brown tones")
+        #expect(engine.scanningPhaseText == "Analyzing green and brown colors")
         engine.cancelActiveRequest()
     }
 
@@ -649,7 +691,7 @@ struct LocalVisualAnalysisTests {
         let extractor = ControlledLocalVisualTraitExtractor(cues: [
             FoundationVisualCue(
                 kind: .colorPattern,
-                detail: "green and brown tones"
+                detail: "green and brown colors"
             )
         ])
         let engine = InferenceEngine(
@@ -687,7 +729,7 @@ struct LocalVisualAnalysisTests {
         let extractor = ControlledLocalVisualTraitExtractor(cues: [
             FoundationVisualCue(
                 kind: .colorPattern,
-                detail: "green and brown tones"
+                detail: "green and brown colors"
             )
         ])
         let engine = InferenceEngine(
@@ -709,7 +751,206 @@ struct LocalVisualAnalysisTests {
         await extractor.complete()
         await Task.yield()
         #expect(engine.scanningPhaseText == replacementPhrase)
-        #expect(engine.scanningPhaseText == "Analyzing subject...")
+        #expect(engine.scanningPhaseText == "Analyzing subject")
+    }
+
+    @Test func sameScanQueueHandoffPreservesContextualPhraseSession() {
+        let engine = InferenceEngine()
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+        engine.debugAdvanceProgressiveAnalyzing()
+        engine.debugAdvanceProgressiveAnalyzing()
+        let contextualPhrase = engine.scanningPhaseText
+
+        #expect(engine.debugTransitionProgressiveAnalyzingToQueue(
+            scanId: "same-scan-handoff"
+        ))
+
+        #expect(contextualPhrase == "Analyzing amber banded wings")
+        #expect(engine.scanningPhaseText == contextualPhrase)
+        #expect(engine.liveQueueHandoffScanningPhrases(
+            for: "same-scan-handoff"
+        ) == [contextualPhrase])
+        #expect(engine.liveQueueHandoffScanningPhrases(
+            for: "another-scan"
+        ).isEmpty)
+        engine.cancelActiveRequest()
+    }
+
+    @Test func preparedVisualQueueHandoffUsesCompleteGenericDeckWithoutLiveMedia() {
+        let engine = InferenceEngine()
+        let scanId = "prepared-visual-handoff"
+        let attemptGeneration = UUID()
+        engine.activeMedia = ActiveScanMedia(
+            items: [.liveImage(Data([0x01]))]
+        )
+        engine.prepareForNewScan(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
+
+        #expect(engine.transitionToQueuedPresentation(
+            scanId: scanId,
+            source: .prepared(attemptGeneration: attemptGeneration)
+        ))
+        #expect(
+            engine.liveQueueHandoffScanningPhrases(for: scanId)
+                == ScanningPhraseCoordinator.genericPhrases
+        )
+        #expect(!engine.hasLiveQueueHandoffMedia(for: scanId))
+        engine.cancelActiveRequest()
+    }
+
+    @Test func staleQueueHandoffCannotRebrandAnotherVisualSession() async throws {
+        let engine = InferenceEngine()
+        let scanId = "owned-visual-handoff"
+        let attemptGeneration = UUID()
+        engine.debugStartFoundationCueStream(
+            image: try makeImage(),
+            classification: VisionSubjectClassification(
+                category: .arthropod,
+                candidates: []
+            ),
+            scanId: scanId,
+            attemptGeneration: attemptGeneration
+        )
+        let contextualPhrase = engine.scanningPhaseText
+        engine.activeMedia = ActiveScanMedia(
+            items: [.liveImage(try makeImageData())]
+        )
+
+        #expect(!engine.transitionToQueuedPresentation(
+            scanId: "stale-visual-handoff",
+            source: .active(attemptGeneration: attemptGeneration)
+        ))
+        #expect(engine.queuedPresentationScanId == nil)
+        #expect(engine.scanningPhaseText == contextualPhrase)
+        #expect(!engine.hasLiveVisualQueueHandoff(for: "stale-visual-handoff"))
+
+        #expect(engine.transitionToQueuedPresentation(
+            scanId: scanId,
+            source: .active(attemptGeneration: attemptGeneration)
+        ))
+        #expect(!engine.liveQueueHandoffScanningPhrases(for: scanId).isEmpty)
+        #expect(engine.hasLiveQueueHandoffMedia(for: scanId))
+
+        #expect(!engine.transitionToQueuedPresentation(
+            scanId: "stale-visual-handoff",
+            source: .active(attemptGeneration: UUID())
+        ))
+        #expect(engine.queuedPresentationScanId == scanId)
+        #expect(engine.liveQueueHandoffScanningPhrases(for: scanId).isEmpty)
+        #expect(!engine.hasLiveVisualQueueHandoff(for: scanId))
+        #expect(!engine.hasLiveQueueHandoffMedia(for: scanId))
+        #expect(engine.liveQueueHandoffScanningPhrases(
+            for: "stale-visual-handoff"
+        ).isEmpty)
+        #expect(!engine.hasLiveVisualQueueHandoff(for: "stale-visual-handoff"))
+        #expect(!engine.hasLiveQueueHandoffMedia(for: "stale-visual-handoff"))
+        engine.cancelActiveRequest()
+    }
+
+    @Test func nonVisualPresentationNeverInheritsVisualPhrasesOrRotation() {
+        for (index, phrase) in ["Listening", "Identifying describe"].enumerated() {
+            let engine = InferenceEngine()
+            let scanId = "nonvisual-handoff-\(index)"
+            let attemptGeneration = engine.debugStartNonVisualPresentation(
+                scanId: scanId,
+                phrase: phrase
+            )
+            engine.activeMedia = ActiveScanMedia(
+                items: index == 0
+                    ? [.audio("documents/nonvisual.wav")]
+                    : [.description(ObservationContext(
+                        freeText: "Observed beside a path"
+                    ))]
+            )
+
+            engine.handleApplicationActiveStateChange(isActive: false)
+            engine.handleApplicationActiveStateChange(isActive: true)
+            #expect(engine.scanningPhaseText == phrase)
+            #expect(!engine.debugLocalVisualAnalysisIsRunning)
+
+            #expect(engine.transitionToQueuedPresentation(
+                scanId: scanId,
+                source: .active(attemptGeneration: attemptGeneration)
+            ))
+            #expect(engine.liveQueueHandoffScanningPhrases(for: scanId).isEmpty)
+            #expect(!engine.hasLiveVisualQueueHandoff(for: scanId))
+            #expect(!engine.hasLiveQueueHandoffMedia(for: scanId))
+            engine.cancelActiveRequest()
+        }
+    }
+
+    @Test func appDeactivationStopsLocalWorkWithoutResettingVisibleContext() {
+        let engine = InferenceEngine()
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+        engine.debugAdvanceProgressiveAnalyzing()
+        engine.debugAdvanceProgressiveAnalyzing()
+        let contextualPhrase = engine.scanningPhaseText
+
+        engine.handleApplicationActiveStateChange(isActive: false)
+
+        #expect(engine.scanningPhaseText == contextualPhrase)
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        engine.cancelActiveRequest()
+    }
+
+    @Test func initialApplicationActivationDoesNotInventACadenceResume() {
+        let engine = InferenceEngine()
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+        let initialPhrase = engine.scanningPhaseText
+
+        engine.handleApplicationActiveStateChange(isActive: true)
+
+        #expect(engine.scanningPhaseText == initialPhrase)
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        engine.cancelActiveRequest()
+    }
+
+    @Test func dismissalFencesLateLocalCueWithoutCancellingNetwork() async throws {
+        let classifier = ControlledVisionSubjectClassifier(
+            result: VisionSubjectClassification(
+                category: .arthropod,
+                candidates: []
+            )
+        )
+        let extractor = ControlledLocalVisualTraitExtractor(cues: [
+            FoundationVisualCue(
+                kind: .colorPattern,
+                detail: "green and brown colors"
+            )
+        ])
+        let engine = InferenceEngine(
+            visionSubjectClassifier: classifier,
+            localVisualTraitExtractor: extractor
+        )
+        engine.activeMedia = ActiveScanMedia(
+            items: [.liveImage(try makeImageData())]
+        )
+        let networkTask = Task<Void, Error> {
+            try await Task.sleep(for: .seconds(30))
+        }
+        engine.inferenceTask = networkTask
+        let classificationTask = try #require(
+            engine.debugStartLocalClassification(imageData: try makeImageData())
+        )
+        await classifier.waitUntilStarted()
+        await classifier.complete()
+        await classificationTask.value
+        await extractor.waitUntilStarted()
+
+        engine.dismissAnalyzingPresentation()
+
+        #expect(!networkTask.isCancelled)
+        #expect(!engine.debugLocalVisualAnalysisIsRunning)
+        #expect(engine.scanningPhaseText == "Analyzing subject")
+        #expect(engine.activeMedia.totalItems == 0)
+        await extractor.complete()
+        await Task.yield()
+        #expect(engine.scanningPhaseText == "Analyzing subject")
+        engine.cancelActiveRequest()
+        _ = try? await networkTask.value
     }
 
     @Test func enginePublishesOnlyCompleteUniqueFoundationCuesOnClockTicks() async throws {
@@ -758,7 +999,7 @@ struct LocalVisualAnalysisTests {
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(2)
-        #expect(engine.scanningPhaseText == "Color: amber banded wings")
+        #expect(engine.scanningPhaseText == "Analyzing amber banded wings")
         engine.cancelActiveRequest()
     }
 
@@ -822,7 +1063,7 @@ struct LocalVisualAnalysisTests {
         ))
         await Task.yield()
         #expect(replacementEngine.debugAcceptedFoundationPhraseCount == 0)
-        #expect(replacementEngine.scanningPhaseText == "Analyzing subject...")
+        #expect(replacementEngine.scanningPhaseText == "Analyzing subject")
 
         let hungProvider = ControlledFoundationVisualCueProvider()
         let hungEngine = InferenceEngine(
@@ -898,6 +1139,15 @@ struct LocalVisualAnalysisTests {
         await Task.yield()
         #expect(engine.debugLocalVisionCategory == nil)
         #expect(engine.scanningPhaseText == phaseBeforeDeactivation)
+
+        engine.handleApplicationActiveStateChange(isActive: true)
+        await clock.waitUntilSleepCallCount(2)
+        await clock.advance()
+        for _ in 0..<100 {
+            if engine.scanningPhaseText != phaseBeforeDeactivation { break }
+            await Task.yield()
+        }
+        #expect(engine.scanningPhaseText != phaseBeforeDeactivation)
         engine.cancelActiveRequest()
         _ = try? await networkTask.value
     }
@@ -972,6 +1222,31 @@ struct LocalVisualAnalysisTests {
         await classificationTask.value
         await drain.value
         #expect(engine.debugLocalVisionCategory == nil)
+        engine.finishAuthTransitionWriteFence()
+        engine.cancelActiveRequest()
+    }
+
+    @Test func authTransitionClearsQueuedVisualPhraseAndMediaContext() {
+        let engine = InferenceEngine()
+        let scanId = "auth-visual-handoff"
+        let liveImage = Data([0x01, 0x02, 0x03])
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
+        engine.debugAdvanceProgressiveAnalyzing()
+        engine.debugAdvanceProgressiveAnalyzing()
+        engine.activeMedia = ActiveScanMedia(items: [.liveImage(liveImage)])
+        #expect(engine.debugTransitionProgressiveAnalyzingToQueue(
+            scanId: scanId
+        ))
+        #expect(!engine.liveQueueHandoffScanningPhrases(for: scanId).isEmpty)
+        #expect(engine.hasLiveQueueHandoffMedia(for: scanId))
+
+        engine.beginAuthTransitionWriteFence()
+
+        #expect(engine.queuedPresentationScanId == nil)
+        #expect(engine.liveQueueHandoffScanningPhrases(for: scanId).isEmpty)
+        #expect(!engine.hasLiveQueueHandoffMedia(for: scanId))
+        #expect(engine.activeMedia.totalItems == 0)
+        #expect(engine.scanningPhaseText == "Analyzing subject")
         engine.finishAuthTransitionWriteFence()
         engine.cancelActiveRequest()
     }

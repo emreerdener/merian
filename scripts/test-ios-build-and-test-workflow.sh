@@ -387,9 +387,10 @@ assert_contains "MERIAN_REQUIRE_PRODUCTION_REVENUECAT_KEY"
 assert_contains "bash scripts/validate-ios-critical-test-results.sh"
 assert_contains "bash scripts/validate-ios-focused-test-results.sh"
 assert_contains 'Critical scan-flow regressions: \`passed\`'
-assert_contains 'Exact analyzing, live-to-queue, and completion UX regressions: \`passed\`'
+assert_contains 'Exact analyzing, live-to-queue, retry, and completion UX regressions: \`passed\`'
 assert_contains "-only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow"
 assert_contains "-only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue"
+assert_contains "-only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy"
 assert_contains "-only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
 assert_contains 'echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"'
 assert_contains '${{ runner.temp }}/ios-critical-scan-ui.xcresult'
@@ -408,8 +409,8 @@ assert_release_seed_denylist_matches_debug_source
 assert_count 1 "ios-release-main-binary-strings.txt"
 assert_contains "ui_test_seed_markers_absent: true"
 assert_contains "Debug-only UI-test seed markers: absent"
-assert_contains "deterministic analyzing, live-to-queue, and queued-completion UI smokes"
-assert_count 2 "all three critical scan UI smokes"
+assert_contains "deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes"
+assert_count 2 "all four critical scan UI smokes"
 assert_contains "production-readiness:"
 assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
@@ -431,10 +432,10 @@ fi
 # Building and running the whole unit-test target is deliberate. A selector
 # below the target level can silently remove Camera, inference, or offline-sync
 # coverage while leaving xcodebuild green. The UI bundle is compiled in full,
-# then exactly three deterministic critical-path regressions are executed.
+# then exactly four deterministic critical-path regressions are executed.
 assert_count 2 "-only-testing:merianTests"
-assert_count 4 "-only-testing:merianUITests"
-assert_count 3 "-only-testing:merianUITests/"
+assert_count 5 "-only-testing:merianUITests"
+assert_count 4 "-only-testing:merianUITests/"
 if grep -Fq -- "-only-testing:merianTests/" "$workflow"; then
   fail "The production gate must not narrow merianTests to selected suites."
 fi
@@ -497,6 +498,7 @@ assert_file_contains \
   "ProcessInfo.processInfo.arguments.contains(requiredConsentArgument)"
 assert_file_contains "$ui_test_source" '"-seedCurrentRequiredConsent"'
 assert_file_contains "$ui_test_source" '"-seedLiveQueueHandoffFlow"'
+assert_file_contains "$ui_test_source" '"-seedQueuedRetryPresentationFlow"'
 assert_file_count \
   "$ui_seed_source" \
   2 \
@@ -554,6 +556,9 @@ assert_file_contains \
 assert_file_contains \
   "$ui_test_source" \
   "testLiveInsightConnectivityFailureTransitionsToDurableQueue()"
+assert_file_contains \
+  "$ui_test_source" \
+  "testQueuedRetryPresentationUsesSafeActionableCopy()"
 assert_file_contains \
   "$ui_test_source" \
   'identifier: "QueuedPresentation_\(scanId)"'

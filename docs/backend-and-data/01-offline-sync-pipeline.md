@@ -325,15 +325,20 @@ Two presentation refresh loops have different scopes. While queued tiles exist,
 dropped presented-sheet SwiftData notifications. While a queued Insight is
 visible, `QueuedContentView` reads the exact row through a fresh `ModelContext`
 every second to update queue state and retry presentation. Neither loop owns
-retry scheduling or pipeline dispatch, and unchanged values remain silent.
-Future deadlines render `Automatic retry in N sec/min`, elapsed deadlines render
-`Automatic retry is starting`, and offline rows render
-`Retry when connection returns`. Eligible pending/staged rows expose
-`Retry now`; this clears persisted backoff and resets the bounded automatic
-attempt counter under the same scan UUID before entering the same atomic claim
-path. Description-only staged work receives the same fresh budget. A known
-cloud-complete result preserves its owner-result recovery marker and never
-re-enables provider dispatch.
+retry scheduling or pipeline dispatch, and unchanged values remain silent. One
+safe presentation resolver maps stable queue/server codes to customer reasons
+and never renders `queueLastErrorMessage`. Future online deadlines show a live
+countdown plus **Retry now** when another attempt can help. Offline rows explain
+that retry resumes with connectivity and show neither a numeric countdown nor a
+**Retry now** action. Local navigation such as **View plans** may remain
+available because it does not attempt network recovery. Elapsed deadlines show
+no helper or retry action because the analyzing state already communicates the
+attempt. Consent, entitlement, missing-media, retry-limit, and terminal states
+use category-specific copy or actions. A manual retry clears persisted backoff
+and resets the bounded automatic attempt counter under the same scan UUID before
+entering the same atomic claim path. Description-only staged work receives the
+same fresh budget. A known cloud-complete result preserves its owner-result
+recovery marker and never re-enables provider dispatch.
 
 **Value-Type Snapshot Pattern** — `ScansGrid` never holds a live
 `OfflineQueuedScan @Model` reference. When `ScansSheetView.refreshQueuedScans()`
@@ -350,13 +355,15 @@ same UUID.
 
 **Failed-row retention (`purgeSoftDeletedRecords`)**: Terminal `.failed` (raw
 value 5) rows are not all disposable. Rows marked `queueNeedsAttention == true`
-remain visible so the user can retry now or cancel after local problems such as
-missing media files, corrupt payloads, auth mismatch, or permanent validation
-failure. Non-actionable failed rows are purged periodically. The purge rebuilds
-paths through `CapturedMediaSnapshot` so image, audio, video, thumbnail, and
-extracted-audio cleanup all follow the same canonical media timeline. File
-removal happens after the SwiftData save via `FileIOActor.deleteFiles(at:)`,
-keeping the database state authoritative.
+remain visible so the user receives a safe explanation and only the action that
+can help. Online transient or retry-limit rows may offer **Retry now**;
+entitlement rows may offer **View plans**; consent, missing-media, auth,
+validation, and terminal rows retain their dedicated explanation without a
+misleading retry. Non-actionable failed rows are purged periodically. The purge
+rebuilds paths through `CapturedMediaSnapshot` so image, audio, video,
+thumbnail, and extracted-audio cleanup all follow the same canonical media
+timeline. File removal happens after the SwiftData save via
+`FileIOActor.deleteFiles(at:)`, keeping the database state authoritative.
 
 **The Circuit Breaker (`CircuitBreakerManager`)**: If repeated HTTP errors or
 timeouts cross a threshold, the circuit "trips", routing all new captures
@@ -1188,12 +1195,15 @@ the latch without waiting for a URLSession delegate callback.
   cancels server polling and retains the scan in needs-attention state rather
   than creating a status/upload loop. Other provider/inference failures return
   the row to `.staged`. A retry timestamp that is already stale schedules a
-  one-second recheck rather than the maximum five-minute wait, so clock skew or
-  an expired lease cannot stall recovery. HTTP `401`, `408`, `409`, `425`, and
-  `429` are retryable; a safe integer `Retry-After` raises the persisted delay
-  up to the queue maximum. Exact `403 ai_consent_required` preserves local media
-  in `queueNeedsAttention`, durably closes the active account's consent gate,
-  and schedules no automatic inference retry while consent is invalid. After the
+  one-second recheck rather than a newly computed backoff, so clock skew or an
+  expired lease cannot stall recovery. Scan-analysis backoff has a five-second
+  minimum, jittered exponential growth, a 30-second ordinary local maximum, and
+  ten automatic attempts. HTTP `401`, `408`, `409`, `425`, and `429` are
+  retryable; a safe integer `Retry-After`, or a status-poll `retry_after`, is an
+  authoritative minimum and may exceed 30 seconds within the existing safety
+  bound. Exact `403 ai_consent_required` preserves local media in
+  `queueNeedsAttention`, durably closes the active account's consent gate, and
+  schedules no automatic inference retry while consent is invalid. After the
   user explicitly reapproves, the queue resumes at most its newest matching row
   only when durable funding metadata proves the current account, exact scan ID,
   unreleased reservation, and dispatch eligibility. It never bulk retries or
@@ -1421,22 +1431,22 @@ body and decodes explicit `success: true`. `invalidResponse` is not not-found
 proof: it can represent a missing/non-HTTP response, an unresolved auth/session
 failure, or a malformed/contradictory 2xx body. That error and every transport,
 HTTP, or decoding failure retain the task for the next cycle until the server
-explicitly confirms success. Cloud erasure does not inherit the generic
-ten-attempt pause: its exponential delay caps at 15 minutes, but the privacy
-request never expires. A pending task is authoritative, so the next drain also
-repairs legacy `needsAttention` jobs and contradictory local `complete` or
-`cancelled` job states before retrying. The owner-bound endpoint rejects a
-different active account rather than confirming someone else's deletion; the
-task remains queued until its owner session can resume it. Server-declared
-already-absent scans use the same validated `success: true` envelope, so
-idempotency never requires guessing from a client error category. The
-result-processing loop builds a `[String: PendingCloudDeletionTask]` dictionary
-once before iterating results, making each lookup O(1) instead of the previous
-O(n) linear scan (was O(n²) overall for large batches). One process-local
-single-flight latch serializes the whole drain across scheduler, repository, and
-UI wake sources. It resets in `defer`; after process termination, the persisted
-`.running` status remains runnable and the owner-fenced endpoint makes replay
-idempotent.
+explicitly confirms success. Cloud erasure does not inherit the scan-analysis
+ten-attempt pause: its maintenance-scope exponential delay still caps at 15
+minutes, but the privacy request never expires. A pending task is authoritative,
+so the next drain also repairs legacy `needsAttention` jobs and contradictory
+local `complete` or `cancelled` job states before retrying. The owner-bound
+endpoint rejects a different active account rather than confirming someone
+else's deletion; the task remains queued until its owner session can resume it.
+Server-declared already-absent scans use the same validated `success: true`
+envelope, so idempotency never requires guessing from a client error category.
+The result-processing loop builds a `[String: PendingCloudDeletionTask]`
+dictionary once before iterating results, making each lookup O(1) instead of the
+previous O(n) linear scan (was O(n²) overall for large batches). One
+process-local single-flight latch serializes the whole drain across scheduler,
+repository, and UI wake sources. It resets in `defer`; after process
+termination, the persisted `.running` status remains runnable and the
+owner-fenced endpoint makes replay idempotent.
 
 ## The Collections Pipeline
 

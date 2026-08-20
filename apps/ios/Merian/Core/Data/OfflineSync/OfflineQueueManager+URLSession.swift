@@ -3008,13 +3008,9 @@ extension OfflineQueueManager {
             return
         }
 
-        let requestedMinimumDelay = min(
-            max(minimumRetryDelay ?? 0, 0),
-            OfflineQueueRetryPolicy.maximumRetryDelay
-        )
-        let delay = max(
-            OfflineQueueRetryPolicy.jitteredDelay(forAttempt: currentAttempt + 1),
-            requestedMinimumDelay
+        let delay = OfflineQueueRetryPolicy.scanRetryDelay(
+            forAttempt: currentAttempt + 1,
+            serverMinimumDelay: minimumRetryDelay
         )
         let retryActor = resolvedQueueDbActor(container: container)
         guard let retries = await retryActor.scheduleInferenceRetry(

@@ -116,7 +116,7 @@ Deno.test("malformed provider output remains retryable across every scan produce
 
     if (path === "../identify-multimodal/index.ts") {
       assert(
-        /updateIngestionJobBestEffort\(\s*"failed_retryable",\s*"ai_response_malformed",\s*\{[\s\S]*?retryAfter:\s*retryAfterIso\(\)/
+        /updateIngestionJobBestEffort\(\s*"failed_retryable",\s*"ai_response_malformed",\s*\{[\s\S]*?retryAfter:\s*scanIngestionRetryAfterIso\(\)/
           .test(
             source,
           ),
@@ -145,6 +145,48 @@ Deno.test("malformed provider output remains retryable across every scan produce
         `${path} must not terminalize a retryable malformed provider response`,
       );
     }
+  }
+});
+
+Deno.test("every scan producer uses the shared 30-second ingestion retry default", async () => {
+  const multimodalSource = await Deno.readTextFile(
+    new URL("../identify-multimodal/index.ts", import.meta.url),
+  );
+  const compatibilitySource = await Deno.readTextFile(
+    new URL("../_shared/scanIngestionCompatibility.ts", import.meta.url),
+  );
+  const retrySource = await Deno.readTextFile(
+    new URL("../_shared/scanIngestionRetry.ts", import.meta.url),
+  );
+
+  assertStringIncludes(
+    retrySource,
+    "DEFAULT_SCAN_INGESTION_RETRY_SECONDS = 30",
+  );
+  assertStringIncludes(
+    multimodalSource,
+    'from "../_shared/scanIngestionRetry.ts"',
+  );
+  assertStringIncludes(
+    compatibilitySource,
+    'from "./scanIngestionRetry.ts"',
+  );
+  assert(!multimodalSource.includes("function retryAfterIso"));
+  assert(!compatibilitySource.includes("function retryAfterIso"));
+
+  for (
+    const path of [
+      "../identify/index.ts",
+      "../identify-describe/index.ts",
+      "../audio-spec/index.ts",
+    ]
+  ) {
+    const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    assertStringIncludes(
+      source,
+      "createCompatibilityScanIngestionLedger(",
+      `${path} must inherit the shared ingestion retry default`,
+    );
   }
 });
 

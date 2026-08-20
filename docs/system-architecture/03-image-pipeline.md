@@ -116,6 +116,13 @@ Auth transition, failure, or application deactivation. It is never written to
 disk, analytics, or logs. Its classifications and rendered trait strings are
 also never persisted, logged, or attached to telemetry.
 
+Only an exact active visual presentation owner can associate the original
+in-memory carousel media with a queue handoff. Prepared visual work carries
+generic copy without media, and audio/Describe work is typed nonvisual. A stale
+scan or attempt cannot rebrand either phrases or media. Dismissal and Auth
+invalidate the association immediately even though durable upload, Gemini,
+persistence, and result recovery continue.
+
 During still-image inference, `AnalyzingMediaOverlay` maps the normalized square
 image bounds through the carousel's aspect-fill transform, dims only the
 exterior by 22%, and draws four detached white corner brackets. The brackets
@@ -137,15 +144,22 @@ the region's midpoint. Queued Insight caches use the focus-aware
 plus the canonical still-image source index. User-adjusted geometry is stored in
 normalized carousel coordinates by the stable Insight view model rather than a
 mounted overlay. It therefore survives queue refreshes, overlay remounts, and
-the queued-to-foreground or in-memory-image-to-persisted-path handoffs while
-remaining isolated from another scan or still image. The carousel follows the
-analyzing content mode across a same-scan owner handoff, preventing a transient
-engine flag from hiding the focus treatment. Its last confirmed canonical scan
-ID also bridges the brief nil-owner window before the next owner publishes that
-same ID. If no region exists, the still image has no focus geometry and falls
-back to the original full-image scan animation. The full-image and
-isolated-region sweeps are mutually exclusive. Video keeps its existing laser
-animation, while audio and description keep their existing sweeps.
+the queued-to-foreground or completed-result media handoffs while remaining
+isolated from another scan or still image. The carousel follows the analyzing
+content mode across a same-scan owner handoff, preventing a transient engine
+flag from hiding the focus treatment. Its last confirmed canonical scan ID also
+bridges the brief nil-owner window before the next owner publishes that same ID.
+If no region exists, the still image has no focus geometry and falls back to the
+original full-image scan animation. The full-image and isolated-region sweeps
+are mutually exclusive. Video keeps its existing laser animation, while audio
+and description keep their existing sweeps.
+
+An online live-to-queue presentation keeps `InferenceEngine.activeMedia` for the
+exact scan instead of immediately replacing its live image data with the newly
+persisted queue paths. This prevents a save-state update from remounting the
+carousel mid-analysis. Offline queued navigation and ordinary historical queued
+scans still resolve their media from `QueuedScanContext`; completed result
+publication remains the terminal source handoff.
 
 The camera shutter path explicitly separates orchestration from ImageIO work.
 `executeCapture()` snapshots location, composing-zone center, and Pro tier on

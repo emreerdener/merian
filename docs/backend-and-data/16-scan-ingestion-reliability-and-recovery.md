@@ -1046,6 +1046,14 @@ a `4xx` or terminal ledger would incorrectly strand the offline job. Gemini
 delivery presents recapture guidance without opening the network circuit and
 background delivery removes only the rejected queue generation.
 
+Ordinary producer-owned retryable failures share one deterministic 30-second
+deadline helper. `identify-multimodal` calls it directly; `identify`,
+`identify-describe`, and `audio-spec` receive it through the compatibility
+ingestion boundary. Server-directed retry values remain authoritative minimums,
+so a deliberate delay above 30 seconds is preserved by the client within the
+existing safety bounds. This is timing policy only: no ledger schema, wire DTO,
+stored historical deadline, lease, replay cadence, or rate limit changes.
+
 The consent row above is intentionally not grouped with transient `4xx` or quota
 exhaustion. The `reserve_ai_quota` function name is an implementation boundary,
 not a customer classification; this rejection creates no provider reservation or

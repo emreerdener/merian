@@ -135,7 +135,14 @@ extension InsightSheetViewModel {
     }
 
     var activeMedia: ActiveScanMedia {
-        if queuedContext != nil {
+        if let queuedContext {
+            if let inferenceEngine,
+               inferenceEngine.hasLiveQueueHandoffMedia(
+                   for: queuedContext.id
+               ),
+               inferenceEngine.activeMedia.totalItems > 0 {
+                return displayMedia(inferenceEngine.activeMedia)
+            }
             return displayMedia(cachedActiveMedia ?? ActiveScanMedia())
         }
 
@@ -391,6 +398,11 @@ extension InsightSheetViewModel {
     /// Resolves the ActiveScanMedia for the view, correctly prioritizing a live passed-in queuedScan context.
     func resolvedMedia(for explicitQueuedScan: QueuedScanContext?) -> ActiveScanMedia {
         if let queued = explicitQueuedScan ?? queuedContext {
+            if let inferenceEngine,
+               inferenceEngine.hasLiveQueueHandoffMedia(for: queued.id),
+               inferenceEngine.activeMedia.totalItems > 0 {
+                return displayMedia(inferenceEngine.activeMedia)
+            }
             if let cached = cachedActiveMedia { return displayMedia(cached) }
             return displayMedia(queued.activeScanMedia)
         }

@@ -490,17 +490,17 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
                 }
                 return left.1 > right.1
             }
-        guard let first = ranked.first else { return "mostly gray tones" }
+        guard let first = ranked.first else { return "mostly gray colors" }
         let firstShare = Double(first.1) / Double(pixels.count)
         guard ranked.count > 1 else {
-            return "mostly \(first.0.rawValue) tones"
+            return "mostly \(first.0.rawValue) colors"
         }
         let second = ranked[1]
         let secondShare = Double(second.1) / Double(pixels.count)
         if firstShare >= 0.72 || secondShare < 0.12 {
-            return "mostly \(first.0.rawValue) tones"
+            return "mostly \(first.0.rawValue) colors"
         }
-        return "\(first.0.rawValue) and \(second.0.rawValue) tones"
+        return "\(first.0.rawValue) and \(second.0.rawValue) colors"
     }
 
     private static func paletteTone(for pixel: PixelSample) -> PaletteTone {
@@ -564,7 +564,7 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
         switch meanSaturation {
         case 0..<0.18: return "mostly muted colors"
         case 0.48...: return "mostly vivid colors"
-        default: return "moderate color intensity"
+        default: return "moderate color levels"
         }
     }
 
@@ -645,18 +645,18 @@ enum FoundationVisualTraitKind: String, CaseIterable, Sendable {
     case proportion
     case marking
 
-    var pillPrefix: String {
+    var pillAction: String {
         switch self {
-        case .colorPattern: "Color"
-        case .colorIntensity: "Color"
-        case .tone: "Tone"
-        case .contrast: "Contrast"
-        case .shape: "Shape"
-        case .surfaceTexture: "Surface"
-        case .structure: "Structure"
-        case .arrangement: "Pattern"
-        case .proportion: "Proportion"
-        case .marking: "Marking"
+        case .colorPattern: "Analyzing"
+        case .colorIntensity: "Reviewing"
+        case .tone: "Comparing"
+        case .contrast: "Studying"
+        case .shape: "Examining"
+        case .surfaceTexture: "Tracing"
+        case .structure: "Inspecting"
+        case .arrangement: "Following"
+        case .proportion: "Comparing"
+        case .marking: "Reviewing"
         }
     }
 }
@@ -666,7 +666,7 @@ struct FoundationVisualCue: Sendable, Equatable {
     let detail: String
 
     var pillText: String {
-        "\(kind.pillPrefix): \(detail)"
+        "\(kind.pillAction) \(detail)"
     }
 }
 
@@ -959,6 +959,35 @@ struct ScanningPhraseCoordinator {
 
     mutating func nextPhrase() -> String? {
         publishNextPhraseInCycle()
+    }
+
+    /// Captures the active deck for a same-scan presentation handoff. The
+    /// currently visible phrase stays first, unseen phrases follow in cadence
+    /// order, and already-seen phrases are deferred until every available
+    /// option has been exhausted.
+    var handoffPhraseDeck: [String] {
+        guard !phrases.isEmpty else { return [currentPhrase] }
+
+        let orderedCandidates = phrases.indices.map { offset in
+            phrases[(nextIndex + offset) % phrases.count]
+        }
+        let currentKey = currentPhrase.lowercased()
+        let unseen = orderedCandidates.filter {
+            let key = $0.lowercased()
+            return key != currentKey && !shownPhrases.contains(key)
+        }
+        let previouslySeen = orderedCandidates.filter {
+            let key = $0.lowercased()
+            return key != currentKey && shownPhrases.contains(key)
+        }
+
+        var result = [currentPhrase]
+        var included = Set([currentKey])
+        for phrase in unseen + previouslySeen
+            where included.insert(phrase.lowercased()).inserted {
+            result.append(phrase)
+        }
+        return result
     }
 
     /// Walks every currently available phrase before wrapping to the beginning.

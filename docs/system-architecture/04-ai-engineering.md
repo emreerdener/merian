@@ -995,10 +995,10 @@ haptic immediately, then runs `AppleVisionSubjectClassifier` off the main actor.
 A qualifying broad category is published as soon as Vision returns. The engine
 then launches a separately owned `localVisualTraitTask` without awaiting it.
 `AppleImageVisualTraitExtractor` samples the same local derivative at 32×32
-pixels and deterministically describes its dominant color tones, color
-intensity, overall tone, tonal contrast, and local edge variation. The five
-pixel observations are validated against the Vision candidate denylist and
-become eligible at the next phrase tick.
+pixels and deterministically describes its dominant colors, color intensity,
+overall tone, tonal contrast, and local edge variation. The five pixel
+observations are validated against the Vision candidate denylist and become
+eligible at the next phrase tick.
 
 A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
 Vision category → deterministic image trait → Foundation Models cue. A less
@@ -1033,6 +1033,11 @@ identity, confidence, a candidate match, a database or record lookup, geographic
 range, or Gemini completion. `ConfidenceBadge` auto-appends `...` to any phrase
 not already ending with one.
 
+The constrained trait kind selects a natural action verb but is never exposed as
+a field label. Render **Analyzing gray and green colors**, for example, rather
+than **Color: gray and green tones**. Other kinds vary the action with wording
+such as Reviewing, Comparing, Studying, or Tracing.
+
 ### Phrase Cycling & Freshness
 
 `startPhaseRotation` owns one cancellable `phaseRotationTask`. The generic
@@ -1048,21 +1053,35 @@ new round. A newly appended cue is consumed before the deck can wrap. When all
 five deterministic image cues qualify, they span 11.5 seconds at the shared
 cadence before their first repeat.
 
+An active visual live-to-queue handoff snapshots this ephemeral order only after
+the typed presentation owner matches both scan ID and attempt generation. The
+current phrase remains first, unseen entries retain priority over phrases
+already shown, and queue/server/save/connectivity changes do not restart its
+cursor. Offline copy temporarily overlays rather than consumes the deck. A
+prepared visual handoff receives the full generic deck without live media;
+audio, Describe, and stale-owner handoffs receive no visual context. The
+snapshot is cleared on result, replacement, dismissal, historical load, or Auth
+reset and is never persisted, logged, or analyzed.
+
 `InferenceEngine.genericScanningPhasePhrases` preserves the established
-cloud-analysis deck for queued Insights, including audio-only and Describe
-scans. `QueuedContentView` reuses that vocabulary while the server is actively
-processing, while preserving queue-specific phrases for upload, retry,
-finalization, offline, and needs-attention states. Both paths render through
+cloud-analysis deck for ordinary queued Insights, including audio-only and
+Describe scans. `QueuedContentView` reuses that vocabulary while the server is
+actively processing unless it is presenting the exact online handoff described
+above, while preserving queue-specific phrases for upload, retry, finalization,
+offline, and needs-attention states. Both paths render through
 `ScanningExperienceView`, so phrase-source differences do not create a second
 scanning layout.
 
 ### Haptics & Debug Simulation
 
 - Local classification start fires `triggerLightImpact(intensity: 0.3)`.
-- Result arrival, dismissal, replacement, queue handoff, Auth transition,
-  inference failure, and app deactivation cancel Vision, pixel-trait extraction,
-  phrase rotation, and Foundation work while leaving Gemini networking and
-  durable queue ownership intact.
+- Result arrival, dismissal, replacement, queue handoff, Auth transition, and
+  inference failure fence Vision, pixel-trait extraction, phrase rotation, and
+  Foundation work while leaving durable networking intact. Dismissal also
+  invalidates contextual media exposure, while Auth clears phrase and media
+  ownership atomically. App deactivation stops local work but retains the exact
+  visual owner and visible phrase; reactivation restarts cadence only for that
+  owner and never for audio or Describe.
 - `simulateProgressiveAnalyzing()` supplies the deterministic generic → category
   → visible-trait seed used by UI automation.
 

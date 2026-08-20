@@ -13,6 +13,7 @@ import { requireClaimsAuth } from "../_shared/claimsAuth.ts";
 import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
+import { scanIngestionRetryAfterIso } from "../_shared/scanIngestionRetry.ts";
 import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   entitlementProtocolResponse,
@@ -441,10 +442,6 @@ function publicUrlsByStorageKey(
     }
   }
   return urlsByStorageKey;
-}
-
-function retryAfterIso(minutes = 5): string {
-  return new Date(Date.now() + minutes * 60_000).toISOString();
 }
 
 const INTERNAL_REPLAY_HEADER = "X-Merian-Internal-Replay";
@@ -1146,7 +1143,7 @@ export async function handleIdentifyMultimodalRequest(
       "ai_inference_failed",
       {
         lastError: genErr instanceof Error ? genErr.message : String(genErr),
-        retryAfter: retryAfterIso(),
+        retryAfter: scanIngestionRetryAfterIso(),
       },
     );
     return jsonResponse(
@@ -1172,7 +1169,7 @@ export async function handleIdentifyMultimodalRequest(
       "ai_inference_non_stop_finish",
       {
         lastError: `AI finish reason: ${finishReason}`,
-        retryAfter: isPermanent ? null : retryAfterIso(),
+        retryAfter: isPermanent ? null : scanIngestionRetryAfterIso(),
         terminalReasonCode: isPermanent ? "provider_policy_rejected" : null,
       },
     );
@@ -1208,7 +1205,7 @@ export async function handleIdentifyMultimodalRequest(
       "ai_response_malformed",
       {
         lastError: "Malformed AI response.",
-        retryAfter: retryAfterIso(),
+        retryAfter: scanIngestionRetryAfterIso(),
       },
     );
     return jsonResponse(
@@ -1626,7 +1623,7 @@ export async function handleIdentifyMultimodalRequest(
             "moderation_pipeline_error",
             {
               lastError: "Multimodal moderation pipeline failed.",
-              retryAfter: retryAfterIso(),
+              retryAfter: scanIngestionRetryAfterIso(),
             },
           );
           throw new Error("Multimodal moderation pipeline failed.");
@@ -1691,7 +1688,7 @@ export async function handleIdentifyMultimodalRequest(
             "video_promotion_failed",
             {
               lastError: err instanceof Error ? err.message : String(err),
-              retryAfter: retryAfterIso(),
+              retryAfter: scanIngestionRetryAfterIso(),
             },
           );
           throw err;
@@ -2097,7 +2094,7 @@ export async function handleIdentifyMultimodalRequest(
         terminalFailure ? "moderation_rejected" : "background_ingestion_failed",
         {
           lastError: errorMsg,
-          retryAfter: terminalFailure ? null : retryAfterIso(),
+          retryAfter: terminalFailure ? null : scanIngestionRetryAfterIso(),
           terminalReasonCode: terminalFailure
             ? "content_policy_rejected"
             : null,

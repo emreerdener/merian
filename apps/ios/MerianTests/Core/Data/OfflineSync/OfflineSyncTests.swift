@@ -133,6 +133,41 @@ final class OfflineSyncTests: XCTestCase {
         }
     }
 
+    func test_retryScopesKeepScansFastWithoutShorteningMaintenance() async {
+        XCTAssertEqual(
+            OfflineQueueRetryPolicy.delay(
+                forAttempt: 20,
+                scope: .scanAnalysis
+            ),
+            30
+        )
+        XCTAssertEqual(
+            OfflineQueueRetryPolicy.delay(
+                forAttempt: 20,
+                scope: .maintenance
+            ),
+            15 * 60
+        )
+        XCTAssertEqual(
+            OfflineQueueRetryPolicy.maximumServerDirectedRetryDelay,
+            15 * 60
+        )
+        XCTAssertEqual(
+            OfflineQueueRetryPolicy.scanRetryDelay(
+                forAttempt: 1,
+                serverMinimumDelay: 120
+            ),
+            120
+        )
+        XCTAssertEqual(
+            OfflineQueueRetryPolicy.scanRetryDelay(
+                forAttempt: 1,
+                serverMinimumDelay: 3_600
+            ),
+            15 * 60
+        )
+    }
+
     // MARK: - 4. Enqueue Bounds (Free Tier Hoarding)
     
     func test_enqueueCapture_enforcesFreeUserLimits() async {

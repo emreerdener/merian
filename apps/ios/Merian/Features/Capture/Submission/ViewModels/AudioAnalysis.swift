@@ -213,7 +213,11 @@ extension CaptureWorkspaceViewModel {
                 return
             }
 
-            self.diContainer.inferenceEngine.prepareForNewScan()
+            self.diContainer.inferenceEngine.prepareForNewScan(
+                scanId: scanId,
+                attemptGeneration: foregroundInferenceGeneration,
+                modality: .nonVisual
+            )
             self.activeSheet = .insight
             self.diContainer.inferenceEngine.analyzeNonVisual(
                 scanId: scanId,

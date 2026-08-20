@@ -2360,12 +2360,12 @@ struct InferenceEngineTests {
     /// scan's hydration window.
     @Test func testPrepareForNewScanClearsActiveScanId() {
         let engine = InferenceEngine()
-        engine.activeScanId = "stale-scan-id-from-previous-scan"
+        engine.simulateProgressiveAnalyzing(automaticallyAdvances: false)
         engine.recoverablePresentationScanId =
             "stale-recovery-id-from-previous-scan"
-        engine.transitionToQueuedPresentation(
+        #expect(engine.debugTransitionProgressiveAnalyzingToQueue(
             scanId: "stale-queued-presentation"
-        )
+        ))
         engine.prepareForNewScan()
         #expect(engine.activeScanId == nil, "prepareForNewScan must clear activeScanId before the next scan claims the engine")
         #expect(engine.recoverablePresentationScanId == nil)

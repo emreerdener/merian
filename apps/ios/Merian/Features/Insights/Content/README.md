@@ -52,7 +52,9 @@ Field notes, and scan telemetry in that order. This keeps queued retry timing,
 errors, and recovery controls ahead of educational content whenever they are
 present. Foreground analysis supplies `InferenceEngine.scanningPhaseText`.
 Queued scans rotate phrases from their exact queue/server state and reuse
-generic engine phrases during active inference.
+generic engine phrases during ordinary active inference. An exact active-visual
+live-to-queue handoff instead continues the foreground scan's ephemeral
+contextual phrase order.
 
 Foreground visual analysis begins with morphology-only generic copy. A
 qualifying Apple Vision category replaces it immediately. The current toolchain
@@ -67,6 +69,10 @@ The pill never claims a species, confidence, candidate match, records or range
 lookup, or completed Gemini result. Audio-only, Describe, and queued processing
 keep their existing cloud-analysis phrase decks.
 
+Trait cues render as natural verb-led copy such as **Analyzing gray and green
+colors**, never a labeled `Color: description` field. The internal trait kind
+selects wording but is not exposed in the pill.
+
 `ConfidenceBadge` retains its opacity-only label transition and intrinsic native
 Button bounds as text widths change. The Debug-only
 `-seedProgressiveAnalyzingFlow` fixture advances generic → Vision category →
@@ -74,15 +80,24 @@ visible trait on explicit badge taps and verifies the accessibility frame after
 each transition. Release builds contain neither the seed argument nor its
 fixture behavior.
 
-When a live request loses connectivity after this sheet opens, the required
-contract is for the engine to publish the exact durable scan ID and for the
-sheet to snapshot that queued row. Existing queued content then replaces
-analyzing content without exposing queue orchestration: while online, the pill
-keeps ordinary AI-analysis phrases and no saved/automatic-resume message is
-shown. A truly offline handoff may show **Queued for later** and **Waiting for
-connection**. This handoff must not create a synthetic **Network timeout**
-result or an error haptic, and normal same-ID queued completion must still
-replace it in place.
+The Debug-only `-seedQueuedRetryPresentationFlow` fixture supplies a scheduled
+connection retry and a missing-media attention row. Its raw error field contains
+a sentinel that UI automation must never find; the test instead verifies safe
+reason copy, countdown/action eligibility, and suppression of **Retry now** for
+missing media.
+
+When a live request loses connectivity after this sheet opens, the engine may
+publish a queue presentation only from the exact typed scan-and-attempt owner.
+Existing queued content then replaces analyzing content without exposing queue
+orchestration: while online, the pill keeps the current contextual phrase and
+exhausts every unseen phrase before revisiting a seen phrase. Queue upload,
+server-state, save, and offline/online changes do not reset its cursor.
+**Waiting for connection** temporarily overlays that deck and consumes no
+phrase. Only an active visual owner may keep presentation-owned carousel media;
+a prepared visual handoff has generic copy without media, and audio or Describe
+handoffs retain nonvisual copy. A stale caller receives no contextual state. No
+saved/automatic-resume message is shown, and the handoff must not create a
+synthetic **Network timeout** result or error haptic.
 
 This behavior remains release-gated, but the source boundary is remediated. The
 catch path now retains exact local presentation authority after durable
@@ -94,10 +109,22 @@ cannot receive non-biological success treatment. See the
 [live scan connectivity handoff incident](../../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 for remaining exact-SHA and device closure evidence.
 
-Queued scans supply snapshot telemetry but do not add a separate title, helper
-paragraph, media-kind summary, or file-size label. Retry timing, errors, and
-recovery controls are inserted only when actionable. Keep `ScanningStatusBadge`
-on the shared pill for UI-test and accessibility stability.
+Queued scans supply snapshot telemetry but do not add a separate title,
+media-kind summary, or file-size label. `QueuedRetryPresentation` is the only
+customer-copy resolver for retry state. It maps stable machine codes to safe
+connection, service, processing, local-media, consent, entitlement, retry-limit,
+terminal, or neutral explanations and never renders `queueLastErrorMessage`. An
+HTTP `402`, whether stored directly or through the inference-prefixed fallback
+code, resolves to entitlement guidance and **View plans**. An online future
+deadline shows a live automatic-retry countdown plus **Retry now** when useful.
+Offline work explains that it will continue when connectivity returns, with no
+numeric countdown or **Retry now** action. A dedicated local navigation action
+such as **View plans** may remain available because it does not dispatch queue
+work. Once the deadline elapses, the helper and retry action disappear because
+the analyzing state already communicates the attempt. Consent, entitlement,
+missing-media, and terminal states use their dedicated explanation or action
+instead of a misleading retry. Keep `ScanningStatusBadge` on the shared pill for
+UI-test and accessibility stability.
 
 The deterministic queued-audio UI fixture uses that badge as an explicit
 post-assertion handoff control. It first proves queued navigation, shared
@@ -115,7 +142,7 @@ ordinary badge behavior.
 The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight in
 analyzing mode with its exact queue row already committed. UI automation must
 observe that live state before tapping the shared badge. The Debug-only action
-then calls the production `transitionToQueuedPresentation` boundary; the sheet's
+then calls the typed production queue-presentation boundary; the sheet's
 exact-ID task must bind the row, expose only the invisible
 `QueuedPresentation_<scan-id>` marker under that UI-test seed, keep the visible
 pill on normal AI-analysis copy, omit the saved/continuing explanation, avoid

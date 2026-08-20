@@ -385,7 +385,11 @@ extension CaptureWorkspaceViewModel {
                     return
                 }
 
-                self.diContainer.inferenceEngine.prepareForNewScan()
+                self.diContainer.inferenceEngine.prepareForNewScan(
+                    scanId: scanId,
+                    attemptGeneration: foregroundInferenceGeneration,
+                    modality: .visual
+                )
                 self.activeSheet = .insight
 
                 // 6. Concurrently resolve the full telemetry and fire live inference.
@@ -470,7 +474,11 @@ extension CaptureWorkspaceViewModel {
                             self.pendingAnalyzeScanId = nil
                             self.diContainer.inferenceEngine
                                 .transitionToQueuedPresentation(
-                                    scanId: scanId
+                                    scanId: scanId,
+                                    source: .prepared(
+                                        attemptGeneration:
+                                            foregroundInferenceGeneration
+                                    )
                                 )
                             self.offlineToastMessage = .warning(
                                 "Connection lost. Scan queued for later."
@@ -503,7 +511,11 @@ extension CaptureWorkspaceViewModel {
                             self.pendingAnalyzeScanId = nil
                             self.diContainer.inferenceEngine
                                 .transitionToQueuedPresentation(
-                                    scanId: scanId
+                                    scanId: scanId,
+                                    source: .prepared(
+                                        attemptGeneration:
+                                            foregroundInferenceGeneration
+                                    )
                                 )
                             self.offlineToastMessage = .information(
                                 "Scan queued for later."

@@ -90,8 +90,14 @@ deterministic pixel-trait extractor, one bounded primary-image derivative,
 phrase coordination, future Foundation visual-cue seam, validation, and runtime
 eligibility policy; `AppDIContainer` owns the live implementations. The current
 toolchain derives five image-specific palette, color-intensity, tone, contrast,
-and surface cues locally; generative multimodal cues remain the stable-Xcode-27
-milestone.
+and surface cues locally. They render as natural verb-led observations, not
+`Kind: detail` labels. Active visual live-to-queue handoff preserves the
+ephemeral contextual deck and in-memory carousel media only for an exact
+scan-and-attempt owner. Prepared visual work transfers generic copy without
+media; audio and Describe are typed nonvisual owners. The same visual cursor
+survives save and connectivity changes, while dismissal or Auth removes
+contextual phrase/media exposure without blocking durable result recovery.
+Generative multimodal cues remain the stable-Xcode-27 milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,
@@ -100,6 +106,18 @@ analyzed as product telemetry, or added to Gemini's payload. See the
 [Capture submission README](Merian/Features/Capture/Submission/README.md), and
 [Insight content README](Merian/Features/Insights/Content/README.md) for the
 ownership, dispatch, and presentation contracts.
+
+`Core/Data/OfflineSync/OfflineQueueDurability.swift` owns retry timing rather
+than an Insight view. Scan analysis uses a five-second minimum, jittered
+exponential backoff, a 30-second ordinary local maximum, and ten automatic
+attempts; safe server-directed minimums may be longer, while maintenance keeps
+its 15-minute maximum. `QueuedRetryPresentation` translates stable codes into
+safe customer copy, countdowns, and actions without rendering stored error text.
+Offline retryable work exposes no countdown or **Retry now**, and a due deadline
+adds no redundant helper. See the
+[Core Data README](Merian/Core/Data/README.md),
+[Insight content README](Merian/Features/Insights/Content/README.md), and
+[offline sync contract](../../docs/backend-and-data/01-offline-sync-pipeline.md).
 
 ## Tests
 

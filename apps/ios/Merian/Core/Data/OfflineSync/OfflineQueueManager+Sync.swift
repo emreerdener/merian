@@ -229,7 +229,10 @@ extension OfflineQueueManager {
                 after: job.attemptCount
             )
             job.nextRunAt = Date().addingTimeInterval(
-                OfflineQueueRetryPolicy.jitteredDelay(forAttempt: job.attemptCount)
+                OfflineQueueRetryPolicy.jitteredDelay(
+                    forAttempt: job.attemptCount,
+                    scope: .maintenance
+                )
             )
             job.lastErrorCode = "cloud_deletion_failed"
             context.insert(OfflineQueueEvent(
@@ -1456,7 +1459,10 @@ extension OfflineQueueManager {
                 job.attemptCount += 1
                 job.status = .waiting
                 job.nextRunAt = Date().addingTimeInterval(
-                    OfflineQueueRetryPolicy.jitteredDelay(forAttempt: job.attemptCount)
+                    OfflineQueueRetryPolicy.jitteredDelay(
+                        forAttempt: job.attemptCount,
+                        scope: .maintenance
+                    )
                 )
                 job.lastErrorCode = "collection_sync_failed"
                 context.insert(OfflineQueueEvent(

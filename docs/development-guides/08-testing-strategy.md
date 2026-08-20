@@ -2803,14 +2803,39 @@ directly observable phrase decks, deterministic pixel inputs producing distinct
 palette cues, bounded color-intensity, tone, contrast, and surface wording, the
 injected clock and monotonic generic → category → local-trait → Foundation
 source handoff, and full-deck exhaustion before a phrase cycle wraps. They also
-cover focus-region crop math, partial snapshot buffering, duplicate and unsafe
-cue rejection, runtime power/thermal/lifecycle eligibility, provider errors,
-replacement fences, app-deactivation cancellation for delayed Vision, phrase
-rotation and Foundation streams, and cancellation of a permanently hung stream
-at simulated Gemini response arrival. Separate non-cooperative trait-extractor
-cases prove Gemini completion returns immediately, replacement clears the
-engine's task ownership, and either boundary rejects the extractor's eventual
-stale cue.
+cover natural verb-led rendering without `Kind: detail` labels, handoff ordering
+that consumes unseen entries before any prior phrase repeats, focus-region crop
+math, partial snapshot buffering, duplicate and unsafe cue rejection, runtime
+power/thermal/lifecycle eligibility, provider errors, replacement fences,
+app-deactivation cancellation without visible-copy regression, phrase rotation
+and Foundation streams, and cancellation of a permanently hung stream at
+simulated Gemini response arrival. `InsightSheetViewModelTests` separately prove
+that an exact active-visual live-to-queue handoff carries contextual phrases and
+in-memory carousel media, and that save plus offline/online changes preserve its
+cursor. Engine tests cover prepared generic handoff, stale-ID rejection,
+audio/Describe isolation, dismissal with a late producer completion, visual-only
+reactivation, and atomic Auth cleanup of both phrase and media state. Separate
+non-cooperative trait-extractor cases prove Gemini completion returns
+immediately, replacement clears task ownership, and either boundary rejects the
+eventual stale cue.
+
+Retry presentation tests cover every safe reason category, live countdown,
+elapsed-deadline silence, offline behavior, action eligibility, and a sentinel
+raw error that must never render. The matrix includes offline scheduled and
+needs-attention rows, proving neither can expose **Retry now**, plus both direct
+and inference-prefixed HTTP `402` entitlement codes routing to **View plans**.
+Policy tests lock the five-second scan minimum, 30-second ordinary scan maximum,
+ten-attempt limit, unchanged 15-minute maintenance maximum, jitter bounds, and
+server-directed delays above 30 seconds through HTTP and status-poll paths. Deno
+coverage proves all four scan ingestion producers use the shared deterministic
+30-second ordinary retry default.
+
+The Debug-only `-seedQueuedRetryPresentationFlow` fixture creates one scheduled
+connection retry with a raw sentinel error and one missing-media attention row.
+UI automation proves the scheduled row renders safe reason copy plus **Retry
+now**, the missing-media row suppresses that misleading action, the raw sentinel
+never appears, and the removed due-retry helper stays absent. Release builds do
+not include this behavior.
 
 The compiled hosted UI gate also includes
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only

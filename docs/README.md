@@ -254,6 +254,19 @@ as their permanent engineering identity.
   [AI engineering contract](./system-architecture/04-ai-engineering.md#on-device-pre-classification--scanning-phase-ux)
   and
   [Insight UX contract](./features-and-hardware/05-insight-sheet.md#progressive-analyzing-pill).
+- **Queued analysis retry contract (2026-08-20)**: The Insight retry resolver
+  maps stable machine codes to safe customer explanations and never displays
+  stored raw errors. Future online retries show a live countdown and **Retry
+  now** when useful; offline retryable work has no countdown or retry action,
+  and due work has no redundant helper. Scan analysis uses a five-second
+  minimum, jittered exponential backoff, a 30-second ordinary local maximum, and
+  ten automatic attempts. Safe server-directed delays remain authoritative,
+  while maintenance and reconciliation retain their 15-minute maximum. All four
+  scan-producing Edge routes share the deterministic 30-second ordinary
+  `failed_retryable` default. See the
+  [offline sync contract](./backend-and-data/01-offline-sync-pipeline.md),
+  [error-handling guide](./development-guides/06-error-handling.md), and
+  [ingestion reliability contract](./backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
 - **Photos share import contract**: A single image shared from iOS Photos opens
   the containing app through its alternate `public.image` document association.
   `ExternalImageImportStore` copies the file into a durable Application Support

@@ -1296,6 +1296,14 @@ struct OfflineQueueManagerTests {
             retryAfter: nil,
             lastError: "Video promotion failed."
         )
+        let serverDirectedRetryable = ScanStatusResponse(
+            status: .notFound,
+            jobStatus: .failedRetryable,
+            jobStage: "video_promotion_failed",
+            jobAttemptCount: 1,
+            retryAfter: "2026-07-05T15:02:00.000Z",
+            lastError: "Video promotion failed."
+        )
         let staleRetryDate = ScanStatusResponse(
             status: .notFound,
             jobStatus: .retrying,
@@ -1324,6 +1332,12 @@ struct OfflineQueueManagerTests {
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: found, now: now) == .recovered)
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: finalizing, now: now) == .waitForServer(120))
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: retryable, now: now) == .retryAfter(30))
+        #expect(
+            OfflineQueueManager.scanStatusRecoveryAction(
+                for: serverDirectedRetryable,
+                now: now
+            ) == .retryAfter(120)
+        )
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: staleRetryDate, now: now) == .waitForServer(1))
         #expect(OfflineQueueManager.scanStatusRecoveryAction(for: terminal, now: now) == .terminalFailure("Rejected by moderation."))
         #expect(

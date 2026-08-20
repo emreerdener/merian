@@ -210,6 +210,7 @@ Inference (background URLSession download task)
     ├── HTTP 200 → processInferenceDownloadResult → persist LocalScanRecord, delete OfflineQueuedScan
     ├── Platform route 404 or handler 401 / 408 / 409 / 425 / 429
     │   └── handleInferenceRetry: preserve media, poll the ledger, and persist bounded retry
+    ├── HTTP 402 / stable entitlement code → preserve media with needs-attention and View plans guidance
     ├── Exact observation_rejected → terminal policy outcome
     ├── Other handler 4xx → preserve media with queueNeedsAttention for retry/cancel
     └── HTTP 5xx → handleInferenceRetry: persist retry and reset to .staged until retry budget ends
@@ -227,10 +228,16 @@ Collection sync (OfflineJobRecord id "collection-sync")
 running. Every successful retry-date write must ask `OfflineJobScheduler` to
 reselect its earliest wake. Foreground activation and connectivity restoration
 must rebuild that wake from SwiftData because delayed Swift tasks do not survive
-process termination and are cancelled on network loss. Queue UI must use live
-relative copy (`Automatic retry in …`, `Automatic retry is starting`, or
-`Retry when connection returns`) and refresh the value snapshot; a rounded clock
-time alone is not a valid progress indicator.
+process termination and are cancelled on network loss. Queue UI resolves only
+stable machine codes into safe customer categories; it must never display
+`queueLastErrorMessage`. A future online deadline combines the safe reason with
+a live countdown and optional **Retry now** action. Offline work explains that
+retry resumes with connectivity and suppresses both the numeric countdown and
+**Retry now**. It may retain a local navigation action such as **View plans**,
+which does not dispatch queue work. An elapsed deadline renders no helper or
+retry action because the analyzing state already communicates the retry.
+Consent, entitlement, missing-media, retry-limit, and terminal cases use
+dedicated copy or actions rather than a generic retry.
 
 Both uploads and inference use the same background `URLSession`
 (`URLSessionConfiguration.background`) with `sessionSendsLaunchEvents = true`,

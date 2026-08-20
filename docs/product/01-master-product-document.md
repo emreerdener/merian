@@ -363,7 +363,28 @@ patched through `/update-scan-context` without repeating the biological
 identification request. This keeps the capture response fast while preserving
 weather or place data that becomes available shortly afterward.
 
-## 5.4 Expected result shape
+## 5.4 Progressive analyzing feedback - Implemented
+
+While Gemini remains the sole identification authority, foreground visual scans
+use one private 512-pixel derivative of the primary image to improve the waiting
+experience. The analyzing pill starts with neutral morphology copy, may advance
+immediately to a qualifying broad Apple Vision category, and then rotates
+directly observable color, tone, contrast, and surface cues derived on device.
+Copy is sentence-like—for example, **Analyzing gray and green colors**—and never
+claims a species, match, confidence, database lookup, or completed result.
+
+The pill shows every available phrase before repeating one and preserves its
+place when the same scan moves into durable queue presentation or temporarily
+loses connectivity. Contextual phrases and live media belong only to the exact
+visual scan attempt. Replacement, dismissal, authentication changes, and
+completed or failed analysis remove that exposure; audio and Describe scans
+retain their nonvisual copy. Local images, classifications, and cue text are not
+persisted, sent to Gemini, logged, or included in analytics. The Xcode 26.6
+release path uses Vision plus deterministic pixel traits. Generative Apple
+Foundation Models image cues remain deferred until stable Xcode 27 is available
+locally and in CI.
+
+## 5.5 Expected result shape
 
 An identification may include:
 
@@ -380,7 +401,7 @@ An identification may include:
 The interface must present uncertainty as useful information. It must not
 convert model output into guarantees.
 
-## 5.5 Insight and follow-up
+## 5.6 Insight and follow-up
 
 The Insight experience is the structured reading surface for an observation. It
 can combine the primary result with asynchronously hydrated species data,
@@ -392,7 +413,7 @@ sheet-lifecycle call site was found. The product document therefore does not
 claim that opening Insight automatically switches the camera to 1 FPS. Wiring
 and verification are required before making that promise.
 
-## 5.6 AI safety boundary
+## 5.7 AI safety boundary
 
 Naturebook is educational. It is not a substitute for an expert, field guide,
 poison control, veterinary advice, medical advice, or local regulations. The
@@ -988,6 +1009,14 @@ Interfaces should translate these into clear language such as queued, preparing,
 uploading, identifying, enriching, completed, or needs attention. A retry should
 not create a duplicate observation or double-charge quota.
 
+Queued retry copy explains a safe customer-facing reason instead of displaying a
+stored technical error. A future online retry shows a live countdown and **Retry
+now** when another attempt can help. Offline work states that it will continue
+when connectivity returns and suppresses both the countdown and retry action;
+local navigation such as **View plans** may remain available. Once a deadline is
+due, the analyzing state stands alone instead of adding the redundant
+**Automatic retry is starting** message.
+
 ## 12.3 Failure semantics
 
 - Offline is a normal state, not an exceptional alert loop.
@@ -996,8 +1025,12 @@ not create a duplicate observation or double-charge quota.
   refunds only a proven pre-provider no-op; provider failures remain charged and
   may retry as a newly metered attempt.
 - User deletion cancels or reconciles pending work.
-- Background retries must use bounded backoff and preserve enough diagnostics
-  for support.
+- Scan-analysis retries use a five-second minimum, jittered exponential backoff,
+  a 30-second ordinary local maximum, and ten automatic attempts. Explicit
+  server-directed delays remain authoritative within the existing safety bound.
+  Maintenance and reconciliation keep their 15-minute maximum.
+- Background retries preserve enough diagnostics for support, but raw stored
+  errors do not become customer-facing copy.
 - Low-data and constrained-network choices are respected.
 
 # 13. Performance, thermal behavior, and field ergonomics

@@ -2698,6 +2698,14 @@ Malformed paid-provider output is 503, not 422, and its ingestion ledger remains
 `failed_retryable` with a bounded `retry_after`; the linked hold remains held
 for same-UUID recovery.
 
+All four scan producers obtain the ordinary `failed_retryable` deadline from
+`_shared/scanIngestionRetry.ts`. The default is deterministically 30 seconds for
+`identify-multimodal` and the compatibility path used by `identify`,
+`identify-describe`, and `audio-spec`. This changes no request or response
+field: an explicit server `Retry-After` / `retry_after` remains authoritative to
+iOS and may exceed the client's ordinary 30-second local cap within existing
+safety bounds.
+
 Migration `20260728232000_ensure_scan_user_profile.sql` must precede deployment
 of all four scan-producing Edge bundles. It preserves the mandatory Explore
 identity constraints instead of retrying the obsolete partial

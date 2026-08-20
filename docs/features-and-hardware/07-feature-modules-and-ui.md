@@ -729,9 +729,12 @@ an Edge API response or opened offline via the Scans library.
     status pill, `DidYouKnowCard`, Field notes, and `ScanInformationCard`.
     Foreground text comes from `InferenceEngine.scanningPhaseText`; queued text
     rotates from exact queue/server state and reuses generic engine phrases
-    during active inference. Queued retry timing, error text, and `Retry now`
-    are inserted only when actionable. The UI does not show a separate queued
-    heading, sync explainer, media-kind summary, or approximate file size.
+    during active inference. One safe retry resolver supplies reason text,
+    countdowns, and actions without exposing persisted raw errors. Due retries
+    show no redundant helper, and offline retries show neither countdown nor
+    **Retry now**; a local action such as **View plans** may remain available.
+    The UI does not show a separate queued heading, sync explainer, media-kind
+    summary, or approximate file size.
   - `Shared/Cards/Chrome/` owns lightweight card chrome helpers shared by
     Insights and Explore detail cards: `CardModifier.swift`,
     `InsightCardHeader.swift`, `WikipediaSummarySection.swift`,
@@ -1432,46 +1435,55 @@ on gesture-driven layout abstractions.
   active scene phase, all presentation occupancy, and pending/in-flight routes
   before starting the session. **Active Scan Dismissal**: Users can manually
   dismiss the `InsightSheetView` entirely while it is still in the
-  `AnalyzingContentView` processing state. This invokes
-  `dismissAnalysisToBackground()` in `CaptureWorkspaceViewModel`, which
-  immediately hides the UI and re-queues the inference payload into the
-  `OfflineQueueManager`. The server completes the request, consumes a credit,
-  and seamlessly deposits the final result into the user's Library in the
-  background (triggering the `hasUnseenScan` notification dot) without forcing
-  the user to wait on-screen. **Offline Submission Intercept**: To optimize UX
-  and preserve computing power, `CaptureWorkspaceViewModel.submitActiveScan`
-  gates `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the
-  live `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance
-  plus `OfflineQueueManager.isOnline`. If the queue rejects the durable write,
-  the UI shows an error and deletes unowned source media; if the user is
-  un-networked, execution drops after the queued callback, clears the pending
-  live scan ID, circumvents timeout overlays, and surfaces a temporary
-  `ToastBanner` ("No network connection. Scan queued for later.") directly on
-  the camera matrix without locking the viewfinder. **Progressive On-Device
-  Visual Analysis (`VNClassifyImageRequest`)**: After staging images or sampled
-  video frames for inference, `InferenceEngine.analyze` builds one derivative
-  bounded to 512 px from the primary inference image. It applies the first
-  visual item's accepted padded focus region when present and does not analyze
-  another capture or alter Gemini's ordered payload. Morphology-only generic
-  copy starts immediately. A Vision result that clears the 0.65 confidence
-  floor, 0.15 runner-up margin, and broad-category mapping replaces that copy
-  immediately; all later automatic changes use the single 2.3-second phrase
-  clock. After Vision completes, a 32×32 sample of the same derivative produces
-  five validated, image-specific palette, color-intensity, tone, contrast, and
-  edge-variation cues for subsequent ticks. Source priority prevents generic or
-  category regression. Within the active deck, every available phrase appears
-  before its first phrase becomes eligible again. `AppDIContainer` injects the
-  classifier, deterministic trait extractor, and Foundation visual-cue seam. The
-  Xcode 26.6 Foundation provider is intentionally a no-op, but deterministic
-  image traits are active; after stable Xcode 27, an iOS 27 availability-gated
-  on-device provider may start only after the Gemini request body is sent and
-  local Vision completes. Partial or unsafe cue snapshots never reach SwiftUI.
-  Scan ID, presentation-attempt, and durable foreground-generation fences
-  discard stale completions, while result arrival, dismissal, replacement, queue
-  handoff, Auth transition, failure, and app deactivation cancel the local tasks
-  without joining network or persistence work. The app enforces an automatic
-  multi-capture rapid-capture loop via `ActiveScanToolbar`. This isolated
-  `.ultraThinMaterial` glassmorphic capsule swaps views using
+  `AnalyzingContentView` processing state. Every Insight dismissal route invokes
+  `InferenceEngine.dismissAnalyzingPresentation()`, which fences Vision,
+  deterministic trait extraction, future Foundation work, and phrase cadence,
+  then clears presentation-owned contextual copy and in-memory media. The
+  already-durable Gemini request, upload, persistence, and queue recovery remain
+  active; dismissal never creates a second queue insertion or inference request.
+  A completed result can therefore appear in Scans later (and trigger the
+  `hasUnseenScan` notification dot) without forcing the user to wait on-screen.
+  **Offline Submission Intercept**: To optimize UX and preserve computing power,
+  `CaptureWorkspaceViewModel.submitActiveScan` gates `activeSheet = .insight`,
+  `InferenceEngine.prepareForNewScan()`, and the live `InferenceEngine.analyze`
+  Task behind durable `enqueueCapture` acceptance plus
+  `OfflineQueueManager.isOnline`. If the queue rejects the durable write, the UI
+  shows an error and deletes unowned source media; if the user is un-networked,
+  execution drops after the queued callback, clears the pending live scan ID,
+  circumvents timeout overlays, and surfaces a temporary `ToastBanner` ("No
+  network connection. Scan queued for later.") directly on the camera matrix
+  without locking the viewfinder. **Progressive On-Device Visual Analysis
+  (`VNClassifyImageRequest`)**: After staging images or sampled video frames for
+  inference, `InferenceEngine.analyze` builds one derivative bounded to 512 px
+  from the primary inference image. It applies the first visual item's accepted
+  padded focus region when present and does not analyze another capture or alter
+  Gemini's ordered payload. Morphology-only generic copy starts immediately. A
+  Vision result that clears the 0.65 confidence floor, 0.15 runner-up margin,
+  and broad-category mapping replaces that copy immediately; all later automatic
+  changes use the single 2.3-second phrase clock. After Vision completes, a
+  32×32 sample of the same derivative produces five validated, image-specific
+  palette, color-intensity, tone, contrast, and edge-variation cues for
+  subsequent ticks. Source priority prevents generic or category regression.
+  Within the active deck, every available phrase appears before its first phrase
+  becomes eligible again. Trait kinds render as natural verb-led sentences such
+  as **Analyzing gray and green colors**, never `Kind: detail` fields.
+  `AppDIContainer` injects the classifier, deterministic trait extractor, and
+  Foundation visual-cue seam. The Xcode 26.6 Foundation provider is
+  intentionally a no-op, but deterministic image traits are active; after stable
+  Xcode 27, an iOS 27 availability-gated on-device provider may start only after
+  the Gemini request body is sent and local Vision completes. Partial or unsafe
+  cue snapshots never reach SwiftUI. Scan ID, presentation-attempt, and durable
+  foreground-generation fences discard stale completions. Result arrival,
+  dismissal, replacement, queue handoff, Auth transition, and failure fence
+  local producers without joining network or persistence work. App deactivation
+  stops local work but retains the exact visual owner and current phrase;
+  reactivation resumes only that visual cadence. An exact active visual queue
+  handoff requires scan-and-attempt ownership and retains validated phrase order
+  and live carousel media. Prepared visual handoff has generic copy without
+  media, while audio and Describe remain nonvisual. Durable save and
+  connectivity changes do not restart the visual cursor. The app enforces an
+  automatic multi-capture rapid-capture loop via `ActiveScanToolbar`. This
+  isolated `.ultraThinMaterial` glassmorphic capsule swaps views using
   `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails
   are generated. Video thumbnails carry a play badge and open
   `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar

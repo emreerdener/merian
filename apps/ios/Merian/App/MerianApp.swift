@@ -91,11 +91,14 @@ enum UITestSeedCoordinator {
     private static let requiredConsentArgument = "-seedCurrentRequiredConsent"
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
+    private static let queuedRetryPresentationArgument = "-seedQueuedRetryPresentationFlow"
     private static let liveQueueHandoffArgument = "-seedLiveQueueHandoffFlow"
     private static let progressiveAnalyzingArgument = "-seedProgressiveAnalyzingFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
+    private static let queuedRetryScheduledScanId = "ui_test_queued_retry_scheduled"
+    private static let queuedRetryAttentionScanId = "ui_test_queued_retry_attention"
     private static let liveQueueHandoffScanId = "ui_test_live_queue_handoff"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
     private static let queuedAudioHandoffImageFilename = "ui_test_queued_audio_handoff.webp"
@@ -162,6 +165,7 @@ enum UITestSeedCoordinator {
         guard arguments.contains("-seedAchievementDetailFlow") ||
                 arguments.contains(achievementDeletionRefreshArgument) ||
                 arguments.contains(queuedAudioHandoffArgument) ||
+                arguments.contains(queuedRetryPresentationArgument) ||
                 arguments.contains(liveQueueHandoffArgument) ||
                 arguments.contains(progressiveAnalyzingArgument) ||
                 arguments.contains(missingVideoFallbackArgument) else { return }
@@ -191,6 +195,17 @@ enum UITestSeedCoordinator {
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredQueuedAudioHandoffs.removeAll(keepingCapacity: false)
                 MerianLog.general.debug("UITestSeedCoordinator seeded queued audio handoff flow.")
+            } else if arguments.contains(queuedRetryPresentationArgument) {
+                context.insert(queuedRetryScheduledScan())
+                context.insert(queuedRetryAttentionScan())
+                let queueManager = OfflineQueueManager.shared
+                // Queue monitoring is intentionally disabled under tests, so
+                // make this seed's scheduled-retry state explicitly online.
+                queueManager.isOnline = true
+                queueManager.unsyncedItemsCount = 2
+                MerianLog.general.debug(
+                    "UITestSeedCoordinator seeded queued retry presentation flow."
+                )
             } else if arguments.contains(liveQueueHandoffArgument) {
                 context.insert(liveQueueHandoffScan())
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
@@ -313,10 +328,12 @@ enum UITestSeedCoordinator {
             return false
         }
 
-        triggeredLiveQueueHandoffs.insert(liveQueueHandoffScanId)
-        inferenceEngine.transitionToQueuedPresentation(
+        guard inferenceEngine.debugTransitionProgressiveAnalyzingToQueue(
             scanId: liveQueueHandoffScanId
-        )
+        ) else {
+            return false
+        }
+        triggeredLiveQueueHandoffs.insert(liveQueueHandoffScanId)
         MerianLog.general.info(
             "UITestSeedCoordinator published the live queue handoff presentation."
         )
@@ -503,6 +520,50 @@ enum UITestSeedCoordinator {
             weatherTemperatureF: 72,
             locationName: "UITest Garden",
             scanState: .pending
+        )
+    }
+
+    private static func queuedRetryCapturedMediaJSON(
+        description: String
+    ) -> String? {
+        let mediaItems: [SerializedMediaItem] = [
+            .description(ObservationContext(freeText: description))
+        ]
+        guard let data = try? JSONEncoder().encode(mediaItems) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func queuedRetryScheduledScan() -> OfflineQueuedScan {
+        OfflineQueuedScan(
+            id: queuedRetryScheduledScanId,
+            timestamp: Date(timeIntervalSince1970: 1_778_759_000),
+            capturedMediaJSON: queuedRetryCapturedMediaJSON(
+                description: "Seeded scheduled retry observation"
+            ),
+            locationName: "UITest Retry",
+            scanState: .staged,
+            queueAttemptCount: 1,
+            queueNextRetryAt: Date().addingTimeInterval(30),
+            queueLastErrorCode: "network_timed_out",
+            queueLastErrorMessage: "RAW_QUEUE_ERROR_SENTINEL"
+        )
+    }
+
+    private static func queuedRetryAttentionScan() -> OfflineQueuedScan {
+        OfflineQueuedScan(
+            id: queuedRetryAttentionScanId,
+            timestamp: Date(timeIntervalSince1970: 1_778_758_900),
+            capturedMediaJSON: queuedRetryCapturedMediaJSON(
+                description: "Seeded missing-media retry observation"
+            ),
+            locationName: "UITest Retry",
+            scanState: .failed,
+            queueAttemptCount: 10,
+            queueLastErrorCode: "local_media_missing",
+            queueLastErrorMessage: "RAW_QUEUE_ERROR_SENTINEL",
+            queueNeedsAttention: true
         )
     }
 

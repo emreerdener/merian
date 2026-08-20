@@ -72,7 +72,9 @@ Provider failure semantics stay aligned with every scan producer. A Gemini
 user-first entitlement boundary. Malformed or structurally invalid provider
 output returns HTTP `503`, records `failed_retryable` with a bounded
 `retry_after`, retains the linked hold, and remains eligible for same-UUID
-retry. Parse-failure logging records bounded length, finish-reason, and
+retry. The compatibility ingestion boundary supplies the shared deterministic
+30-second ordinary retry deadline; explicit server-directed delays remain
+authoritative. Parse-failure logging records bounded length, finish-reason, and
 structural error metadata only; it never records the provider response or a
 response preview.
 

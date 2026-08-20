@@ -179,8 +179,10 @@ Provider failure semantics stay aligned with every scan producer. A Gemini
 user-first entitlement boundary. Malformed or structurally invalid provider
 output returns HTTP `503`, records `failed_retryable` with a bounded
 `retry_after`, retains the linked hold, and remains eligible for same-UUID
-retry. Provider response text and previews are never written to logs; malformed
-output diagnostics are limited to bounded structural/error metadata.
+retry. Ordinary failures use the shared deterministic 30-second ingestion retry
+deadline; explicit server-directed delays remain authoritative. Provider
+response text and previews are never written to logs; malformed output
+diagnostics are limited to bounded structural/error metadata.
 
 Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
 intentional response changes. The root Swift fields are generated as optional

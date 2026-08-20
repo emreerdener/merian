@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, and queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -319,6 +319,7 @@ jobs:
             -parallel-testing-enabled NO \
             -only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow \
             -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue \
+            -only-testing:merianUITests/merianUITests/testQueuedRetryPresentationUsesSafeActionableCopy \
             -only-testing:merianUITests/merianUITests/testQueuedAudioScanRetainsAudioAcrossCompletionHandoff \
             2>&1 | tee "$XCODE_UI_BUILD_LOG"
 
@@ -350,6 +351,7 @@ jobs:
             --arg suite "merianUITests" \
             --arg analyzing_case "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow" \
             --arg live_handoff_case "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
+            --arg retry_case "testQueuedRetryPresentationUsesSafeActionableCopy" \
             --arg completion_case "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff" \
             --arg xcode "$(xcodebuild -version 2>/dev/null | paste -sd ' ' - || true)" \
             '{
@@ -358,7 +360,7 @@ jobs:
               simulator_destination: $destination,
               test_step_outcome: $outcome,
               required_suite: $suite,
-              required_cases: [$analyzing_case, $live_handoff_case, $completion_case],
+              required_cases: [$analyzing_case, $live_handoff_case, $retry_case, $completion_case],
               xcode: $xcode
             }' > "$XCODE_UI_EVIDENCE"
 
@@ -398,8 +400,9 @@ jobs:
               "merianUITests" \
               "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow" \
               "testLiveInsightConnectivityFailureTransitionsToDurableQueue" \
+              "testQueuedRetryPresentationUsesSafeActionableCopy" \
               "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff"
-            echo "- Exact analyzing, live-to-queue, and completion UX regressions: \`passed\`" \
+            echo "- Exact analyzing, live-to-queue, retry, and completion UX regressions: \`passed\`" \
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -710,11 +713,14 @@ jobs:
             "-seedAchievementDetailFlow" \
             "-seedAchievementDeletionRefreshFlow" \
             "-seedQueuedAudioHandoffFlow" \
+            "-seedQueuedRetryPresentationFlow" \
             "-seedLiveQueueHandoffFlow" \
             "-seedProgressiveAnalyzingFlow" \
             "-seedMissingVideoFallbackFlow" \
             "-seedStagedAudioReviewFlow" \
             "ui_test_queued_audio_handoff" \
+            "ui_test_queued_retry_attention" \
+            "ui_test_queued_retry_scheduled" \
             "ui_test_live_queue_handoff" \
             "ui_test_queued_audio_handoff.wav" \
             "ui_test_queued_audio_handoff.webp" \
@@ -890,8 +896,8 @@ jobs:
             echo \
               "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
-            echo "The complete unit target, all three critical scan UI smokes, and current-SHA Release archive must all pass." >&2
+            echo "The complete unit target, all four critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1
           fi
 
-          echo "The exact workflow SHA passed the complete iOS unit target, all three critical scan UI smokes, and Release archive validation."
+          echo "The exact workflow SHA passed the complete iOS unit target, all four critical scan UI smokes, and Release archive validation."

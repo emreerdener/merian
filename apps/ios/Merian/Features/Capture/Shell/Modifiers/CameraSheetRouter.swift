@@ -6,19 +6,34 @@ struct CameraSheetRouter: ViewModifier {
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
+    @State private var isPresentingInsight = false
     
     func body(content: Content) -> some View {
         content
             .sheet(item: Binding(
                 get: { viewModel.activePresentation },
                 set: { newValue in
-                    if newValue == nil {
-                        viewModel.dismissActivePresentation()
-                    } else {
+                    if let newValue {
+                        switch newValue.destination {
+                        case .insight:
+                            isPresentingInsight = true
+                        default:
+                            isPresentingInsight = false
+                        }
                         viewModel.activePresentation = newValue
+                    } else {
+                        if isPresentingInsight {
+                            inferenceEngine.dismissAnalyzingPresentation()
+                        }
+                        isPresentingInsight = false
+                        viewModel.dismissActivePresentation()
                     }
                 }
             ), onDismiss: {
+                if isPresentingInsight {
+                    inferenceEngine.dismissAnalyzingPresentation()
+                    isPresentingInsight = false
+                }
                 viewModel.handleRootSheetDismissed()
                 onDismiss()
             }) { presentation in
@@ -29,6 +44,8 @@ struct CameraSheetRouter: ViewModifier {
                             get: { viewModel.activeSheet == .insight },
                             set: { 
                                 if !$0 && viewModel.activeSheet == .insight { 
+                                    inferenceEngine.dismissAnalyzingPresentation()
+                                    isPresentingInsight = false
                                     if !appSettings.hasPromptedForNotificationsPostIdent {
                                         appSettings.hasPromptedForNotificationsPostIdent = true
                                         viewModel.queueNotificationPromptAfterInsightDismissal()
@@ -38,6 +55,7 @@ struct CameraSheetRouter: ViewModifier {
                             }
                         ), inferenceEngine: inferenceEngine)
                         .onAppear {
+                            isPresentingInsight = true
                             appSettings.hasUnseenScan = false
                             AppIconBadgeCoordinator.updateAppIconBadge()
                         }

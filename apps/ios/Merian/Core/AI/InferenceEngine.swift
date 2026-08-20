@@ -83,6 +83,27 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 @MainActor
 @Observable final class InferenceEngine {
 
+    enum ScanPresentationModality: Sendable {
+        case visual
+        case nonVisual
+    }
+
+    enum QueuedPresentationSource: Sendable {
+        case prepared(attemptGeneration: UUID)
+        case active(attemptGeneration: UUID)
+    }
+
+    private struct AnalysisPresentationOwner: Sendable {
+        let scanId: String?
+        let attemptGeneration: UUID
+        let modality: ScanPresentationModality
+
+        func matches(scanId: String, attemptGeneration: UUID) -> Bool {
+            self.attemptGeneration == attemptGeneration &&
+                self.scanId?.caseInsensitiveCompare(scanId) == .orderedSame
+        }
+    }
+
     // MARK: - Pipeline State
     @ObservationIgnored var inferenceTask: Task<Void, Error>?
     /// The client scan ID passed to `analyze()` — matches the `OfflineQueuedScan.id` for the
@@ -105,9 +126,19 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// `recoverablePresentationScanId`, this value is observable because the
     /// visible sheet uses it to bind the matching `OfflineQueuedScan` snapshot.
     private(set) var queuedPresentationScanId: String?
+    /// Exact queued visual presentation that may continue the foreground
+    /// phrase deck. Nonvisual and stale handoffs never populate this owner.
+    @ObservationIgnored private var queuedVisualPresentationScanId: String?
+    /// Only an exact active visual handoff may surface the in-memory carousel.
+    /// Prepared handoffs use durable queue media even though they inherit the
+    /// generic visual phrase deck.
+    @ObservationIgnored private var queuedPresentationCarriesLiveMedia = false
+    /// Ephemeral phrase order transferred with an exact live-to-queue
+    /// presentation. It is never persisted, logged, or included in analytics.
+    @ObservationIgnored private var queuedPresentationScanningPhrases: [String] = []
     @ObservationIgnored private var pendingFirstRenderMetric: (scanId: String, startedAt: CFAbsoluteTime)?
     var isProcessing: Bool = false
-    var scanningPhaseText: String = "Analyzing subject..."
+    var scanningPhaseText: String = "Analyzing subject"
     @ObservationIgnored private var phaseRotationTask: Task<Void, Never>?
     var activeMedia = ActiveScanMedia()
     var speciesData: SpeciesData?
@@ -166,6 +197,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private var localClassificationTask: Task<Void, Never>?
     @ObservationIgnored private var localVisualTraitTask: Task<Void, Never>?
     @ObservationIgnored private var foundationVisualCueTask: Task<Void, Never>?
+    /// Set only by an actual active → inactive transition that paused a live
+    /// visual presentation. An initial `.active` notification must not start a
+    /// cadence task that the current presentation never asked to resume.
+    @ObservationIgnored private var didPauseLocalVisualAnalysisForInactivity = false
     @ObservationIgnored private let visionSubjectClassifier: any VisionSubjectClassifying
     @ObservationIgnored private let localVisualTraitExtractor: any LocalVisualTraitExtracting
     @ObservationIgnored private let foundationVisualCueProvider: any FoundationVisualCueProviding
@@ -177,6 +212,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private var didFinishLocalVisionClassification = false
     @ObservationIgnored private var didSendInferenceRequestBody = false
     @ObservationIgnored private var scanningPhraseCoordinator = ScanningPhraseCoordinator()
+    @ObservationIgnored private var preparedPresentationOwner:
+        AnalysisPresentationOwner?
+    @ObservationIgnored private var activePresentationOwner:
+        AnalysisPresentationOwner?
     #if DEBUG
     @ObservationIgnored private var debugProgressiveAnalyzingStep = 0
     #endif
@@ -455,6 +494,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         gbifHydrationTask?.cancel()
         enrichmentWriteTask?.cancel()
         cancelLocalVisualAnalysis()
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
+        recoverablePresentationScanId = nil
+        queuedPresentationScanId = nil
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
+        queuedPresentationScanningPhrases = []
+        scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
+        activeMedia = ActiveScanMedia()
         identificationReviewWriteTail?.cancel()
         resetTrackedBackgroundWrites()
     }
@@ -491,6 +539,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         didFinishLocalVisionClassification = false
         didSendInferenceRequestBody = false
         _ = scanningPhraseCoordinator.reset()
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
         identificationReviewWriteTail = nil
     }
 
@@ -565,7 +617,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// new scan's data once the async telemetry Task resolves.
     ///
     /// Contrast with `cancelActiveRequest()`, which resets to idle with no upcoming scan.
-    func prepareForNewScan() {
+    func prepareForNewScan(
+        scanId: String? = nil,
+        attemptGeneration: UUID? = nil,
+        modality: ScanPresentationModality = .visual
+    ) {
         guard !authTransitionWriteFenceActive else { return }
         // Cancel all in-flight async work before the new scan claims the engine.
         invalidateActiveLiveInferenceAttempt(
@@ -585,11 +641,24 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
         // Reset scan identity and processing flags.
         self.activeScanId = nil
+        self.activePresentationOwner = nil
         self.recoverablePresentationScanId = nil
         self.queuedPresentationScanId = nil
+        self.queuedVisualPresentationScanId = nil
+        self.queuedPresentationCarriesLiveMedia = false
+        self.queuedPresentationScanningPhrases = []
+        if let scanId, let attemptGeneration {
+            self.preparedPresentationOwner = AnalysisPresentationOwner(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                modality: modality
+            )
+        } else {
+            self.preparedPresentationOwner = nil
+        }
         self.pendingFirstRenderMetric = nil
         self.isProcessing = true
-        self.scanningPhaseText = "Analyzing subject..."
+        self.scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.speciesData = nil
@@ -883,8 +952,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         _ speciesData: SpeciesData,
         persistedMediaItems: [MediaItem]? = nil
     ) {
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
         recoverablePresentationScanId = nil
         queuedPresentationScanId = nil
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
+        queuedPresentationScanningPhrases = []
         if let persistedMediaItems {
             activeMedia.items = persistedMediaItems
         }
@@ -1305,6 +1379,12 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.activeLiveInferenceAttemptGeneration = attemptGeneration
         self.activeForegroundInferenceGeneration =
             foregroundInferenceGeneration
+        self.preparedPresentationOwner = nil
+        self.activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -1352,6 +1432,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     self.activeScanId = nil
                     self.activeLiveInferenceAttemptGeneration = nil
                     self.activeForegroundInferenceGeneration = nil
+                    if self.activePresentationOwner?.attemptGeneration
+                        == attemptGeneration {
+                        self.activePresentationOwner = nil
+                    }
                     self.cancelLocalVisualAnalysis()
                 }
             }
@@ -1502,7 +1586,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                 )
                 let responseReceivedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug("Gemini inference completed in \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - inferenceStart), privacy: .public)s.")
-                self.cancelLocalVisualAnalysis()
+                self.cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
 
                 // --- Step 3: Response Parsing & Local Persistence ---
                 
@@ -1900,17 +1984,27 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.gbifHydrationTask = nil
         self.enrichmentWriteTask = nil
 
-        self.prepareForNewScan()
-        self.scanningPhaseText = submissionProjection.audioFilePaths.isEmpty
-            ? "Identifying describe..."
-            : "Listening..."
-
         let attemptGeneration =
             foregroundInferenceGeneration ?? UUID()
+        self.prepareForNewScan(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .nonVisual
+        )
+        self.scanningPhaseText = submissionProjection.audioFilePaths.isEmpty
+            ? "Identifying describe"
+            : "Listening"
+
         self.activeScanId = scanId
         self.activeLiveInferenceAttemptGeneration = attemptGeneration
         self.activeForegroundInferenceGeneration =
             foregroundInferenceGeneration
+        self.activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .nonVisual
+        )
+        self.preparedPresentationOwner = nil
         self.activeLatitude = telemetry.gpsLatitude
         self.activeLongitude = telemetry.gpsLongitude
         self.activeElevation = telemetry.gpsElevation
@@ -1945,6 +2039,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                     self.activeScanId = nil
                     self.activeLiveInferenceAttemptGeneration = nil
                     self.activeForegroundInferenceGeneration = nil
+                    if self.activePresentationOwner?.attemptGeneration
+                        == attemptGeneration {
+                        self.activePresentationOwner = nil
+                    }
                     self.cancelLocalVisualAnalysis()
                 }
             }
@@ -2275,21 +2373,103 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         "Naturebook couldn’t process this observation. Try a different photo or " +
         "recording with the subject clearly visible."
 
-    /// Moves an already-durable scan out of the live-result state and into the
-    /// Insight queue presentation. The queue owns all retry work from this point;
-    /// no synthetic `SpeciesData` or error haptic is appropriate.
-    func transitionToQueuedPresentation(scanId: String) {
+    private func clearQueuedVisualPresentationContext() {
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
+        queuedPresentationScanningPhrases = []
+    }
+
+    /// Moves an already-durable, exactly owned scan out of the live-result state
+    /// and into the Insight queue presentation. The queue owns all retry work
+    /// from this point; no synthetic `SpeciesData` or error haptic is
+    /// appropriate.
+    @discardableResult
+    func transitionToQueuedPresentation(
+        scanId: String,
+        source: QueuedPresentationSource
+    ) -> Bool {
         let normalizedScanId = scanId
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedScanId.isEmpty else { return }
+        guard !normalizedScanId.isEmpty else {
+            clearQueuedVisualPresentationContext()
+            return false
+        }
 
+        let owner: AnalysisPresentationOwner
+        let isPreparedHandoff: Bool
+        switch source {
+        case .prepared(let attemptGeneration):
+            guard let preparedPresentationOwner,
+                  preparedPresentationOwner.matches(
+                      scanId: normalizedScanId,
+                      attemptGeneration: attemptGeneration
+                  ) else {
+                clearQueuedVisualPresentationContext()
+                return false
+            }
+            owner = preparedPresentationOwner
+            isPreparedHandoff = true
+        case .active(let attemptGeneration):
+            guard let activePresentationOwner,
+                  activePresentationOwner.matches(
+                      scanId: normalizedScanId,
+                      attemptGeneration: attemptGeneration
+                  ),
+                  isLocalLiveInferenceAttemptCurrent(
+                      scanId: normalizedScanId,
+                      attemptGeneration: attemptGeneration
+                  ) else {
+                clearQueuedVisualPresentationContext()
+                return false
+            }
+            owner = activePresentationOwner
+            isPreparedHandoff = false
+        }
+
+        clearQueuedVisualPresentationContext()
+        if owner.modality == .visual {
+            queuedVisualPresentationScanId = normalizedScanId
+            queuedPresentationCarriesLiveMedia =
+                !isPreparedHandoff && activeMedia.totalItems > 0
+            let phraseDeck = isPreparedHandoff
+                ? ScanningPhraseCoordinator.genericPhrases
+                : scanningPhraseCoordinator.handoffPhraseDeck
+            queuedPresentationScanningPhrases = phraseDeck
+            if let firstPhrase = phraseDeck.first {
+                scanningPhaseText = firstPhrase
+            }
+        }
+
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
         recoverablePresentationScanId = normalizedScanId
         queuedPresentationScanId = normalizedScanId
         pendingFirstRenderMetric = nil
-        cancelLocalVisualAnalysis()
-        scanningPhaseText = "Queued for later"
+        cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
         speciesData = nil
         isProcessing = false
+        return true
+    }
+
+    /// Returns visual copy only for the exact queued presentation that inherited
+    /// a prepared or active visual scan. Values remain process-local and
+    /// ephemeral.
+    func liveQueueHandoffScanningPhrases(for scanId: String) -> [String] {
+        guard queuedVisualPresentationScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame else {
+            return []
+        }
+        return queuedPresentationScanningPhrases
+    }
+
+    func hasLiveVisualQueueHandoff(for scanId: String) -> Bool {
+        queuedVisualPresentationScanId?
+            .caseInsensitiveCompare(scanId) == .orderedSame
+    }
+
+    func hasLiveQueueHandoffMedia(for scanId: String) -> Bool {
+        queuedPresentationCarriesLiveMedia &&
+            hasLiveVisualQueueHandoff(for: scanId)
     }
 
     private static func isConnectivityFailure(_ error: Error) -> Bool {
@@ -2369,7 +2549,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         MerianLog.general.debug(
             "Live inference handed presentation to durable queue state."
         )
-        transitionToQueuedPresentation(scanId: scanId)
+        transitionToQueuedPresentation(
+            scanId: scanId,
+            source: .active(attemptGeneration: attemptGeneration)
+        )
         return true
     }
 
@@ -3587,6 +3770,24 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     // MARK: - Pipeline Modifiers
 
+    /// Ends only presentation-owned local analysis. Durable inference, queue
+    /// recovery, persistence, and result publication continue independently.
+    /// Clearing the owners before cancellation fences even non-cooperative local
+    /// providers from publishing after the sheet has gone away.
+    func dismissAnalyzingPresentation() {
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
+        recoverablePresentationScanId = nil
+        queuedPresentationScanId = nil
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
+        queuedPresentationScanningPhrases = []
+        pendingFirstRenderMetric = nil
+        cancelLocalVisualAnalysis()
+        scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
+        activeMedia = ActiveScanMedia()
+    }
+
     /// Cancels all in-flight work and resets the engine to idle.
     ///
     /// Contrast with `prepareForNewScan()`, which also cancels in-flight work but leaves
@@ -3620,12 +3821,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         self.enrichmentWriteTask?.cancel()
         self.enrichmentWriteTask = nil
         // Reset loading flags synchronously so stale defer blocks from cancelled task group
-        self.scanningPhaseText = "Analyzing subject..."
+        self.scanningPhaseText = ScanningPhraseCoordinator.genericPhrases[0]
         self.isEnrichmentLoading = false
         self.isLookalikesLoading = false
         self.speciesData = nil
         self.recoverablePresentationScanId = nil
         self.queuedPresentationScanId = nil
+        self.queuedVisualPresentationScanId = nil
+        self.queuedPresentationCarriesLiveMedia = false
+        self.queuedPresentationScanningPhrases = []
+        self.preparedPresentationOwner = nil
+        self.activePresentationOwner = nil
         self.pendingFirstRenderMetric = nil
         self.activeMedia = ActiveScanMedia()
         activeLatitude = nil
@@ -3696,6 +3902,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         inferenceTask?.cancel()
         recoverablePresentationScanId = nil
         queuedPresentationScanId = nil
+        queuedVisualPresentationScanId = nil
+        queuedPresentationCarriesLiveMedia = false
+        queuedPresentationScanningPhrases = []
+        preparedPresentationOwner = nil
+        activePresentationOwner = nil
         liveHydrationTask?.cancel()
         self.isProcessing = true
         historicHydrationTask?.cancel()
@@ -4134,6 +4345,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         let ownedScanId = activeScanId
         let ownedAttemptGeneration = activeLiveInferenceAttemptGeneration
         let ownedForegroundInferenceGeneration = activeForegroundInferenceGeneration
+        let ownedPresentationOwner = activePresentationOwner
         let sleeper = scanningPhraseSleeper
         phaseRotationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -4149,7 +4361,10 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
                        attemptGeneration: ownedAttemptGeneration,
                        foregroundInferenceGeneration:
                            ownedForegroundInferenceGeneration
-                   ) {
+                   ) ||
+                       ownedPresentationOwner?.modality != .visual ||
+                       self.activePresentationOwner?.attemptGeneration
+                           != ownedPresentationOwner?.attemptGeneration {
                     return
                 }
                 if let nextPhrase = self.scanningPhraseCoordinator.nextPhrase() {
@@ -4162,14 +4377,21 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     private func isLocalAnalysisCurrent(
         _ ownership: LocalAnalysisOwnership
     ) -> Bool {
-        isLiveInferenceAttemptCurrent(
+        guard activePresentationOwner?.modality == .visual,
+              activePresentationOwner?.attemptGeneration
+                == ownership.attemptGeneration else {
+            return false
+        }
+        return isLiveInferenceAttemptCurrent(
             scanId: ownership.scanId,
             attemptGeneration: ownership.attemptGeneration,
             foregroundInferenceGeneration: ownership.foregroundGeneration
         )
     }
 
-    private func cancelLocalVisualAnalysis() {
+    private func cancelLocalVisualAnalysis(
+        resetPhraseCoordinator: Bool = true
+    ) {
         localClassificationTask?.cancel()
         localVisualTraitTask?.cancel()
         foundationVisualCueTask?.cancel()
@@ -4182,12 +4404,31 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         localVisionClassification = nil
         didFinishLocalVisionClassification = false
         didSendInferenceRequestBody = false
-        _ = scanningPhraseCoordinator.reset()
+        didPauseLocalVisualAnalysisForInactivity = false
+        if resetPhraseCoordinator {
+            _ = scanningPhraseCoordinator.reset()
+        }
     }
 
     func handleApplicationActiveStateChange(isActive: Bool) {
-        guard !isActive else { return }
-        cancelLocalVisualAnalysis()
+        if isActive {
+            let shouldResume = didPauseLocalVisualAnalysisForInactivity
+            didPauseLocalVisualAnalysisForInactivity = false
+            if shouldResume,
+               isProcessing,
+               activePresentationOwner?.modality == .visual,
+               activePresentationOwner?.attemptGeneration
+                == activeLiveInferenceAttemptGeneration {
+                startPhaseRotation()
+            }
+            return
+        }
+        let shouldResume = isProcessing
+            && activePresentationOwner?.modality == .visual
+            && activePresentationOwner?.attemptGeneration
+                == activeLiveInferenceAttemptGeneration
+        cancelLocalVisualAnalysis(resetPhraseCoordinator: false)
+        didPauseLocalVisualAnalysisForInactivity = shouldResume
     }
 
     #if DEBUG
@@ -4195,6 +4436,15 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// and the analyzing-pill UI contract test.
     func simulateProgressiveAnalyzing(automaticallyAdvances: Bool = true) {
         cancelLocalVisualAnalysis()
+        let attemptGeneration = UUID()
+        activeScanId = "debug-progressive-analysis"
+        activeLiveInferenceAttemptGeneration = attemptGeneration
+        activeForegroundInferenceGeneration = nil
+        activePresentationOwner = AnalysisPresentationOwner(
+            scanId: activeScanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
         isProcessing = true
         scanningPhaseText = scanningPhraseCoordinator.reset()
         debugProgressiveAnalyzingStep = 0
@@ -4250,6 +4500,11 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         activeScanId = scanId
         activeLiveInferenceAttemptGeneration = attemptGeneration
         activeForegroundInferenceGeneration = nil
+        activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
         isProcessing = true
         scanningPhaseText = scanningPhraseCoordinator.reset()
         if let category = classification.category {
@@ -4280,9 +4535,50 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         activeScanId = scanId
         activeLiveInferenceAttemptGeneration = attemptGeneration
         activeForegroundInferenceGeneration = nil
+        activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
         isProcessing = true
         classifySubjectLocally(from: imageData, focusRegion: focusRegion)
         return localClassificationTask
+    }
+
+    @discardableResult
+    func debugTransitionProgressiveAnalyzingToQueue(scanId: String) -> Bool {
+        let attemptGeneration = UUID()
+        activeScanId = scanId
+        activeLiveInferenceAttemptGeneration = attemptGeneration
+        activeForegroundInferenceGeneration = nil
+        activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .visual
+        )
+        return transitionToQueuedPresentation(
+            scanId: scanId,
+            source: .active(attemptGeneration: attemptGeneration)
+        )
+    }
+
+    func debugStartNonVisualPresentation(
+        scanId: String,
+        phrase: String = "Listening"
+    ) -> UUID {
+        cancelLocalVisualAnalysis()
+        let attemptGeneration = UUID()
+        activeScanId = scanId
+        activeLiveInferenceAttemptGeneration = attemptGeneration
+        activeForegroundInferenceGeneration = nil
+        activePresentationOwner = AnalysisPresentationOwner(
+            scanId: scanId,
+            attemptGeneration: attemptGeneration,
+            modality: .nonVisual
+        )
+        isProcessing = true
+        scanningPhaseText = phrase
+        return attemptGeneration
     }
 
     func debugSimulateGeminiResponseArrival() {

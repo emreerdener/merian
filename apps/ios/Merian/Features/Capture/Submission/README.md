@@ -174,6 +174,14 @@ Exact `400 observation_rejected` requires different source media. It presents
 circuit, and mirrors the background queue's terminal non-actionable state
 instead of retrying the rejected observation as a connectivity failure.
 
+Once a scan is durable, Capture does not own an ad hoc retry timer. The shared
+queue policy uses a five-second minimum, jittered exponential backoff, a
+30-second ordinary local maximum, and ten automatic scan-analysis attempts. Safe
+server `Retry-After` and status `retry_after` values remain authoritative
+minimums even when they exceed 30 seconds within the existing safety bound.
+Maintenance and reconciliation retain their separate 15-minute maximum, and
+existing stored deadlines are not rewritten.
+
 ## Field Trip Goal Preference
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal
@@ -206,8 +214,15 @@ That same request-body completion callback is the earliest point at which the
 injected Foundation visual-cue provider may start. The callback only marks the
 current scan/generation as eligible; it never waits for model loading or a
 stream. Vision may run before dispatch, but richer on-device work therefore
-cannot delay Gemini upload. Result arrival and every ownership handoff cancel
-local work without awaiting it.
+cannot delay Gemini upload. Result arrival and every ownership handoff fence
+local producers without awaiting them. A queue transfer is accepted only from a
+typed prepared or active presentation owner. Prepared visual work transfers the
+generic rotating deck without media; active visual work additionally requires
+the exact attempt generation and can carry only already-validated ephemeral
+phrases and presentation-owned media. Audio and Describe owners are nonvisual
+and never inherit either. Dismissing the Insight invalidates local presentation
+state but deliberately leaves durable Gemini, upload, persistence, and result
+recovery work running.
 
 ## Latency Boundaries
 

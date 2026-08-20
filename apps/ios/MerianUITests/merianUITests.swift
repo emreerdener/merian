@@ -391,7 +391,7 @@ final class merianUITests: XCTestCase {
         assertFrameIsInsideApplication(badge.frame, applicationFrame: app.frame)
 
         badge.tap()
-        waitForLabel("Color: amber banded wings...", on: badge)
+        waitForLabel("Analyzing amber banded wings...", on: badge)
         assertFrameIsInsideApplication(badge.frame, applicationFrame: app.frame)
     }
 
@@ -497,6 +497,54 @@ final class merianUITests: XCTestCase {
             ),
             "The exact durable scan disappeared after the live sheet handed off"
         )
+    }
+
+    @MainActor
+    func testQueuedRetryPresentationUsesSafeActionableCopy() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedQueuedRetryPresentationFlow"]
+        )
+
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8.0))
+        scansButton.tap()
+
+        let scheduledTile = app.buttons[
+            "QueuedScanTile_ui_test_queued_retry_scheduled"
+        ]
+        XCTAssertTrue(scheduledTile.waitForExistence(timeout: 8.0))
+        scheduledTile.tap()
+
+        let scheduledReason = app.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS %@",
+                "connection was interrupted"
+            )
+        ).firstMatch
+        XCTAssertTrue(scheduledReason.waitForExistence(timeout: 8.0))
+        XCTAssertTrue(app.buttons["Retry now"].exists)
+        XCTAssertFalse(app.staticTexts["RAW_QUEUE_ERROR_SENTINEL"].exists)
+        XCTAssertFalse(app.staticTexts["Automatic retry is starting"].exists)
+
+        let backButton = app.buttons["Back"]
+        XCTAssertTrue(backButton.waitForExistence(timeout: 4.0))
+        backButton.tap()
+
+        let attentionTile = app.buttons[
+            "QueuedScanTile_ui_test_queued_retry_attention"
+        ]
+        XCTAssertTrue(attentionTile.waitForExistence(timeout: 8.0))
+        attentionTile.tap()
+
+        let missingMediaReason = app.staticTexts.matching(
+            NSPredicate(
+                format: "label CONTAINS %@",
+                "photo or recording is no longer available"
+            )
+        ).firstMatch
+        XCTAssertTrue(missingMediaReason.waitForExistence(timeout: 8.0))
+        XCTAssertFalse(app.buttons["Retry now"].exists)
+        XCTAssertFalse(app.staticTexts["RAW_QUEUE_ERROR_SENTINEL"].exists)
     }
 
     @MainActor

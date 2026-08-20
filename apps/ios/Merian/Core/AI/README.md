@@ -76,9 +76,9 @@ meet the 0.65 confidence threshold, lead the runner-up by at least 0.15, and map
 to a supported broad category. A qualifying category replaces the generic pill
 immediately. After Vision completes, `AppleImageVisualTraitExtractor` samples
 the same bounded image at 32×32 pixels and derives five image-specific
-observations: dominant color tones, color intensity, overall tone, tonal
-contrast, and local edge variation. It does not use Vision labels to generate
-text or infer identity.
+observations: dominant colors, color intensity, overall tone, tonal contrast,
+and local edge variation. It does not use Vision labels to generate text or
+infer identity.
 
 The single injected phrase clock advances no more often than every 2.3 seconds.
 Every phrase in the current deck is displayed once before that deck can wrap to
@@ -93,13 +93,23 @@ phrases describe only visible form, color, tone, contrast, texture, arrangement,
 markings, and proportions; they do not imply an identity, confidence, record
 lookup, geographic range, or Gemini completion.
 
-Every local mutation is fenced by the current scan ID, presentation-attempt
-UUID, and durable foreground generation. Result arrival, dismissal, scan
-replacement, queue handoff, Auth transition, and failure cancel local work. App
-deactivation cancels every local visual-analysis task and clears its ephemeral
-image and classification state. Gemini networking, response parsing, durable
-queue work, persistence, and result publication continue independently and never
-await Vision or a visual-cue stream.
+Image-trait pills use natural verb-led sentences rather than labeled fields: for
+example, **Analyzing gray and green colors**, not **Color: gray and green
+tones**. The constrained trait kind selects the action verb but is never
+rendered as a `Kind: detail` prefix.
+
+Every local mutation is fenced by a typed visual-presentation session containing
+the exact scan ID and presentation-attempt UUID, plus the durable foreground
+generation. Result arrival, dismissal, scan replacement, queue handoff, Auth
+transition, and failure fence all local producers. Dismissal invalidates the
+ephemeral phrase and live-media association while Gemini networking, upload,
+persistence, and result recovery continue independently. Auth admission clears
+that state atomically so a replacement account cannot see the preceding scan's
+phrase or in-memory image. App deactivation stops every local model and cadence
+task but retains the current phrase and visual owner; reactivation resumes only
+that visual session's cadence and never starts local analysis for audio or
+Describe. Networking and result publication never await Vision or a visual-cue
+stream.
 
 Vision and deterministic trait extraction have separate task owners. The trait
 provider must cooperate with cancellation, but even a test provider that hangs
@@ -107,9 +117,16 @@ or ignores cancellation cannot keep Vision completion, result publication, or an
 Auth drain suspended; a late return is rejected by cancellation and
 scan-generation checks before it can publish text.
 
-Queued, audio-only, and Describe flows retain their existing cloud-analysis
-phrase decks. The morphology-only generic deck belongs only to foreground visual
-local analysis.
+Queue transfer is typed rather than inferred from a free scan ID. A prepared
+visual scan can hand off only its full generic deck and never live media. An
+active visual handoff additionally requires the exact scan ID and attempt
+generation; it snapshots the current phrase, every unseen option, and then the
+seen options so nothing repeats before the available deck is exhausted. Its
+cursor and live carousel association survive queue-save and offline/online
+changes. **Waiting for connection** is a temporary overlay that consumes no
+contextual phrase. A stale ownership check clears contextual handoff state and
+falls back safely. Audio and Describe sessions are typed as nonvisual, retain
+their existing copy, and can never inherit a visual phrase or image.
 
 ### Foundation Models milestone
 

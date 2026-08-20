@@ -10,20 +10,59 @@ enum OfflineQueueRetryDisposition: Equatable {
 }
 
 enum OfflineQueueRetryPolicy {
-    static let maximumAutomaticRetryAttempts = 10
-    static let maximumRetryDelay: TimeInterval = 15 * 60
-    static let retryJitterFraction = 0.2
-
-    static func delay(forAttempt attempt: Int) -> TimeInterval {
-        let exponent = max(0, attempt)
-        let base = pow(2.0, Double(exponent))
-        return min(maximumRetryDelay, max(5, base))
+    enum Scope: Sendable {
+        case scanAnalysis
+        case maintenance
     }
 
-    static func jitteredDelay(forAttempt attempt: Int) -> TimeInterval {
-        let baseDelay = delay(forAttempt: attempt)
+    static let maximumAutomaticRetryAttempts = 10
+    static let maximumRetryDelay: TimeInterval = 30
+    static let maximumMaintenanceRetryDelay: TimeInterval = 15 * 60
+    static let maximumServerDirectedRetryDelay: TimeInterval = 15 * 60
+    static let retryJitterFraction = 0.2
+
+    static func maximumDelay(for scope: Scope) -> TimeInterval {
+        switch scope {
+        case .scanAnalysis:
+            maximumRetryDelay
+        case .maintenance:
+            maximumMaintenanceRetryDelay
+        }
+    }
+
+    static func delay(
+        forAttempt attempt: Int,
+        scope: Scope = .scanAnalysis
+    ) -> TimeInterval {
+        let exponent = max(0, attempt)
+        let base = pow(2.0, Double(exponent))
+        return min(maximumDelay(for: scope), max(5, base))
+    }
+
+    static func jitteredDelay(
+        forAttempt attempt: Int,
+        scope: Scope = .scanAnalysis
+    ) -> TimeInterval {
+        let baseDelay = delay(forAttempt: attempt, scope: scope)
         let multiplier = Double.random(in: (1 - retryJitterFraction)...(1 + retryJitterFraction))
-        return min(maximumRetryDelay, max(5, baseDelay * multiplier))
+        return min(
+            maximumDelay(for: scope),
+            max(5, baseDelay * multiplier)
+        )
+    }
+
+    static func scanRetryDelay(
+        forAttempt attempt: Int,
+        serverMinimumDelay: TimeInterval?
+    ) -> TimeInterval {
+        let boundedServerMinimum = min(
+            max(serverMinimumDelay ?? 0, 0),
+            maximumServerDirectedRetryDelay
+        )
+        return max(
+            jitteredDelay(forAttempt: attempt, scope: .scanAnalysis),
+            boundedServerMinimum
+        )
     }
 
     static func canScheduleAutomaticRetry(currentAttempt: Int) -> Bool {

@@ -236,6 +236,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   Malformed or structurally invalid provider output remains HTTP `503` and
   `failed_retryable` with a bounded `retry_after`; it retains the linked hold
   for same-UUID recovery rather than creating a contradictory terminal ledger.
+- **`scanIngestionRetry.ts`**: Owns the deterministic 30-second ordinary
+  `failed_retryable` deadline shared by `identify-multimodal` and the
+  compatibility ingestion path used by `identify`, `identify-describe`, and
+  `audio-spec`. Explicit server-directed retry values remain separate and may be
+  longer; this helper changes no request/response shape or persisted schema.
 - **`scanIngestionIntents.ts`**: Sanitized scan-ingestion replay intent helpers.
   `identify-multimodal` records telemetry, observation context, media
   descriptors (including validated still-image focus regions), staged object

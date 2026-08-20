@@ -37,6 +37,23 @@ TestFlight, App Store, support, and QA.
   image-specific color, tone, contrast, and surface observations derived
   privately on device while the final identification is still processing. Each
   active phrase deck completes a full unique round before it loops.
+- Image-specific analysis copy now reads as natural observations such as
+  **Analyzing gray and green colors** instead of `Kind: detail` labels. If an
+  online scan transfers to durable queue ownership, its current contextual deck
+  and live carousel media continue without restarting when save state changes.
+- Visual analysis copy and live media are now owned by the exact scan and
+  attempt. Signing in, dismissing an Insight, replacing a scan, or handing off a
+  nonvisual scan can no longer expose the preceding photo's contextual copy or
+  media. Connectivity changes preserve the visual phrase cursor, and every
+  available phrase is still shown before one repeats.
+- Queued retry states now explain the safe reason for the pause without exposing
+  internal error text. Future online retries show a live countdown and **Retry
+  now**; offline retries wait for connectivity without a misleading timer or
+  network retry action, while dedicated local navigation such as **View plans**
+  remains available. Due retries no longer show the redundant **Automatic retry
+  is starting** message. Ordinary scan retries now cap locally at 30 seconds
+  with ten attempts, while server-directed delays remain authoritative and
+  maintenance work keeps its existing 15-minute cap.
 - Online scan recovery now keeps the status pill focused on identification and
   removes the redundant saved/continuing explanation. Offline recovery still
   clearly shows when a scan is waiting for connection.

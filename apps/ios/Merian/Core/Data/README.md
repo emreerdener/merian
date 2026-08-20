@@ -165,6 +165,15 @@ description-only staged work, which has no successful upload transition to reset
 the counter. A known cloud-complete result is the exception: manual retry
 preserves its owner-result marker and cannot re-enable provider dispatch.
 
+`OfflineQueueRetryPolicy` separates scan analysis from maintenance work. Scan
+analysis uses a five-second minimum, jittered exponential growth, a 30-second
+ordinary local maximum, and ten automatic attempts. A safe HTTP `Retry-After` or
+status `retry_after` is an authoritative minimum and may exceed 30 seconds
+within the existing server-directed safety bound. Maintenance and reconciliation
+retain the 15-minute maximum; each maintenance workflow continues to own its
+existing attempt or no-expiration contract. Existing stored deadlines are read
+as written; this policy introduces no SwiftData migration.
+
 The foreground generation and the open Insight's local presentation generation
 serve different purposes. Connectivity loss may synchronously retire durable
 provider ownership so the queue can recover, but that retirement must not erase

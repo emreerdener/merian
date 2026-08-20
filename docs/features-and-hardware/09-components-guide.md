@@ -587,8 +587,13 @@ location/weather telemetry, and the `.analyzing` Field-notes prompt. The queued
 wrapper supplies exact snapshot telemetry and rotates honest phrases keyed by
 scan ID, queue state, connectivity, server job status, attention state, and
 retry state. Active `.inferencing` work reuses
-`InferenceEngine.genericScanningPhasePhrases`; offline and needs-attention
-states remain static. Phrase rotation uses
+`InferenceEngine.genericScanningPhasePhrases` for ordinary queued scans. An
+exact active-visual live-to-queue handoff continues its contextual foreground
+deck and keeps presentation-owned carousel media only after matching scan ID and
+attempt generation. Prepared visual, audio, Describe, and stale-owner transfers
+cannot inherit that media or contextual deck. Queue-state and connectivity
+changes cannot reset the visual cursor; **Waiting for connection** temporarily
+overlays it without consuming a phrase. Phrase rotation uses
 `MerianConfig.scanningPhaseRotationIntervalNs`.
 
 For a foreground visual scan, that single text binding progresses from a
@@ -597,19 +602,23 @@ on the current toolchain, five complete validated palette, color-intensity,
 tone, contrast, and surface cues derived from the bounded image at the next
 phrase tick. An eligible future Foundation provider may replace that
 deterministic deck with richer visible traits. Specificity never moves backward.
-The badge keeps an opacity-only label transition and intrinsic native Button
-bounds across these width changes. Every foreground visual label in the active
-deck appears before that deck loops to its first phrase. Do not reintroduce
-translated label geometry or a second foreground scanning component. Audio-only
-and Describe analysis, plus active queued inference, retain their existing
-cloud-analysis phrase sources.
+Visible traits use natural verb-led copy such as **Analyzing gray and green
+colors**, not `Color: description` labels. The badge keeps an opacity-only label
+transition and intrinsic native Button bounds across these width changes. Every
+foreground visual label in the active deck appears before that deck loops to its
+first phrase. Do not reintroduce translated label geometry or a second
+foreground scanning component. Audio-only and Describe analysis, plus active
+queued inference, retain their existing cloud-analysis phrase sources.
 
-Queued lifecycle polling, retry scheduling, friendly errors, countdowns, and
-`Retry now` remain in `QueuedContentView`. Only actionable queue content is
-inserted into the shared body, where it stays above the educational fact card.
-It does not render a separate heading, sync explanation, media-kind summary, or
-approximate file size. Those copied fields can remain available for internal
-routing and diagnostics without becoming customer-facing UI.
+Queued lifecycle polling and retry scheduling remain in `QueuedContentView`.
+`QueuedRetryPresentation` alone maps stable codes to safe reason text,
+countdowns, and actions; raw stored errors never render. Future online deadlines
+may show **Retry now**, offline deadlines show no countdown or retry action, and
+elapsed deadlines show no redundant helper at all. A non-network action such as
+**View plans** may remain available offline. Consent, entitlement,
+missing-media, retry-limit, and terminal states receive category-appropriate
+copy/action. The block stays above the educational fact card and adds no
+heading, sync explanation, media-kind summary, or approximate file size.
 
 `QueuedScanContext` is copied while the SwiftData row is live, so queue deletion
 and completed-result handoff cannot detach data still needed by the view. The
