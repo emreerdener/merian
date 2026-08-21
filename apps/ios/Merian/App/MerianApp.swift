@@ -95,6 +95,8 @@ enum UITestSeedCoordinator {
     private static let queuedRetryPresentationArgument = "-seedQueuedRetryPresentationFlow"
     private static let liveQueueHandoffArgument = "-seedLiveQueueHandoffFlow"
     private static let progressiveAnalyzingArgument = "-seedProgressiveAnalyzingFlow"
+    private static let suppressLocationPermissionPromptArgument =
+        "-seedLocationPermissionPromptSuppressed"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let nonBiologicalCollectionRouteArgument =
@@ -119,6 +121,12 @@ enum UITestSeedCoordinator {
 
     static var isEnabled: Bool {
         return TestExecutionCoordinator.isRunningUITests
+    }
+
+    static var isLocationPermissionPromptSuppressed: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains(
+            suppressLocationPermissionPromptArgument
+        )
     }
 
     @MainActor
@@ -703,6 +711,7 @@ enum UITestSeedCoordinator {
 #else
 enum UITestSeedCoordinator {
     static var isEnabled: Bool { return false }
+    static var isLocationPermissionPromptSuppressed: Bool { return false }
 
     @MainActor
     static func prepareRequiredConsentIfNeeded(

@@ -710,6 +710,7 @@ jobs:
           LC_ALL=C /usr/bin/strings -a "$main_binary" > "$release_strings_file"
           for forbidden_ui_seed_marker in \
             "-seedCurrentRequiredConsent" \
+            "-seedLocationPermissionPromptSuppressed" \
             "-seedAchievementDetailFlow" \
             "-seedAchievementDeletionRefreshFlow" \
             "-seedQueuedAudioHandoffFlow" \

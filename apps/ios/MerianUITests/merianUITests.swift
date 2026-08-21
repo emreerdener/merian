@@ -15,6 +15,7 @@ enum UITestAppLauncher {
         app.launchArguments += [
             "-skipOnboarding",
             "-seedCurrentRequiredConsent",
+            "-seedLocationPermissionPromptSuppressed",
             "-mockCameraFeed",
             "-hasCompletedOnboarding", "YES"
         ]

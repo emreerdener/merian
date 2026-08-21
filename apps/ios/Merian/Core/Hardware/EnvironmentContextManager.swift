@@ -66,15 +66,29 @@ import WeatherKit
         }
     }
 
+    nonisolated static func shouldRequestLocationAuthorization(
+        for status: CLAuthorizationStatus,
+        suppressesLocationPermissionPrompt: Bool
+    ) -> Bool {
+        status == .notDetermined && !suppressesLocationPermissionPrompt
+    }
+
     func validatePermissions() {
-        if locationManager.authorizationStatus == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
-        }
+        guard Self.shouldRequestLocationAuthorization(
+            for: locationManager.authorizationStatus,
+            suppressesLocationPermissionPrompt:
+                UITestSeedCoordinator.isLocationPermissionPromptSuppressed
+        ) else { return }
+        locationManager.requestWhenInUseAuthorization()
     }
 
     func requestLocationAuthorizationIfNeeded() async -> CLAuthorizationStatus {
         let status = locationAuthorizationStatus
-        guard status == .notDetermined else { return status }
+        guard Self.shouldRequestLocationAuthorization(
+            for: status,
+            suppressesLocationPermissionPrompt:
+                UITestSeedCoordinator.isLocationPermissionPromptSuppressed
+        ) else { return status }
 
         let taskID = UUID()
         return await withTaskCancellationHandler {

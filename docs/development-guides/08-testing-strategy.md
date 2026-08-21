@@ -2843,8 +2843,16 @@ fixture opens the normal analyzing Insight with generic copy and advances to a
 Vision category and a validated image-derived visible-trait cue only after
 explicit badge taps. The smoke requires the exact three labels in order and
 rechecks that the native badge accessibility frame stays inside the app window
-after each opacity-only label transition. `LocalVisualAnalysisTests` separately
-lock Vision threshold and margin qualification, every broad-category mapping,
+after each opacity-only label transition. Every configured UI-test launch also
+includes `-seedLocationPermissionPromptSuppressed`; the Debug seed coordinator
+accepts it only with the `UITesting` environment contract, and
+`EnvironmentContextManager` applies it at both location-authorization request
+entry points. The fixture does not invent an authorized state or location. It
+only prevents a fresh simulator's Core Location alert from consuming the first
+deterministic interaction. A location-permission UI test must launch without
+that argument. The Release archive marker denylist prevents this Debug contract
+from reaching the shipped executable. `LocalVisualAnalysisTests` separately lock
+Vision threshold and margin qualification, every broad-category mapping,
 directly observable phrase decks, deterministic pixel inputs producing distinct
 palette cues; concrete saturation, lighting, contrast, and surface wording;
 rejection of vague midpoint bucket language; the injected clock and monotonic

@@ -1,6 +1,6 @@
-import Testing
 import CoreLocation
 import Foundation
+import Testing
 
 @testable import Merian
 
@@ -45,6 +45,35 @@ struct EnvironmentContextManagerTests {
         #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .notDetermined))
         #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .denied))
         #expect(!EnvironmentContextManager.allowsPassiveRegionResolution(for: .restricted))
+    }
+
+    @Test func locationAuthorizationRequestPolicySuppressesUITestPrompts() {
+        #expect(
+            EnvironmentContextManager.shouldRequestLocationAuthorization(
+                for: .notDetermined,
+                suppressesLocationPermissionPrompt: false
+            )
+        )
+        #expect(
+            !EnvironmentContextManager.shouldRequestLocationAuthorization(
+                for: .notDetermined,
+                suppressesLocationPermissionPrompt: true
+            )
+        )
+
+        for status in [
+            CLAuthorizationStatus.denied,
+            .restricted,
+            .authorizedWhenInUse,
+            .authorizedAlways
+        ] {
+            #expect(
+                !EnvironmentContextManager.shouldRequestLocationAuthorization(
+                    for: status,
+                    suppressesLocationPermissionPrompt: false
+                )
+            )
+        }
     }
 
     @Test func testRegionIdentifierNormalizationTrimsAndUppercasesISOCode() {

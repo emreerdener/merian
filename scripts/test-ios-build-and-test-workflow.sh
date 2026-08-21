@@ -14,6 +14,7 @@ focused_results_check="$repo_root/scripts/validate-ios-focused-test-results.sh"
 failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagnostics.sh"
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
+environment_context_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContextManager.swift"
 scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
 confidence_badge_source="$repo_root/apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift"
 queued_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift"
@@ -495,8 +496,25 @@ assert_file_contains \
   'private static let requiredConsentArgument = "-seedCurrentRequiredConsent"'
 assert_file_contains \
   "$ui_seed_source" \
+  '"-seedLocationPermissionPromptSuppressed"'
+assert_file_count \
+  "$ui_seed_source" \
+  2 \
+  "static var isLocationPermissionPromptSuppressed: Bool"
+assert_file_contains \
+  "$ui_seed_source" \
   "ProcessInfo.processInfo.arguments.contains(requiredConsentArgument)"
 assert_file_contains "$ui_test_source" '"-seedCurrentRequiredConsent"'
+assert_file_contains \
+  "$ui_test_source" \
+  '"-seedLocationPermissionPromptSuppressed"'
+assert_file_contains \
+  "$environment_context_source" \
+  "UITestSeedCoordinator.isLocationPermissionPromptSuppressed"
+assert_file_count \
+  "$environment_context_source" \
+  3 \
+  "shouldRequestLocationAuthorization("
 assert_file_contains "$ui_test_source" '"-seedLiveQueueHandoffFlow"'
 assert_file_contains "$ui_test_source" '"-seedQueuedRetryPresentationFlow"'
 assert_file_count \
