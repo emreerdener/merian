@@ -57,6 +57,13 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var isTopScrollEdgeEffectHidden = true
     @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
     @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var dictionaryChatViewModel = InsightChatViewModel(
+        source: .speciesDictionary
+    )
+    @State private var pendingDictionaryChatSpeciesID: String?
+    @State private var dictionaryChatPresentation: SpeciesDictionaryChatPresentation?
+    @State private var isDictionaryChatPaywallPresented = false
+    @State private var dictionaryChatToast: ToastPayload?
 
     init(
         scientificName: String,
@@ -133,19 +140,58 @@ struct SpeciesDictionaryPageContentView: View {
                         .accessibilityLabel("Share species page")
                     }
                 }
+
+                if fieldChatSpeciesID != nil {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Spacer()
+                        FieldChatToolbarButton {
+                            openDictionaryFieldChat()
+                        }
+                    }
+                }
             }
             .task(id: speciesId ?? scientificName) {
                 isCommonNameScrolledPast = false
                 isTopScrollEdgeEffectHidden = true
                 await viewModel.load()
             }
-            .toolbar(.hidden, for: .bottomBar)
+            .toolbar(
+                fieldChatSpeciesID == nil ? .hidden : .visible,
+                for: .bottomBar
+            )
+            .task(id: pendingDictionaryChatSpeciesID) {
+                await prepareDictionaryFieldChatIfNeeded()
+            }
             .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
                 InsightFullscreenImageCarousel(presentation: presentation)
             }
             .sheet(item: $selectedAuthorProfileRoute) { route in
                 ExploreAuthorProfileSheet(viewModel: effectiveExploreViewModel, route: route)
             }
+            .sheet(item: $dictionaryChatPresentation) { presentation in
+                InsightChatSheet(
+                    viewModel: dictionaryChatViewModel,
+                    scanId: presentation.id,
+                    speciesData: nil,
+                    displayName: presentation.displayName,
+                    timestamp: nil,
+                    publicScientificName: presentation.scientificName,
+                    publicAlternativeNames: presentation.alternativeScientificNames,
+                    allowsOwnerActions: false,
+                    prepareForInitialLoad: nil,
+                    onToast: { dictionaryChatToast = $0 },
+                    onAppendToFieldNotes: { _, _ in },
+                    onReviewAlternatives: nil,
+                    onReanalyzeSpecies: nil,
+                    onClose: { dictionaryChatPresentation = nil }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.hidden)
+            }
+            .sheet(isPresented: $isDictionaryChatPaywallPresented) {
+                PaywallView()
+            }
+            .merianSystemFeedback(toast: $dictionaryChatToast)
     }
 
     @ViewBuilder
@@ -180,7 +226,7 @@ struct SpeciesDictionaryPageContentView: View {
 
     private func loadedView(_ species: SpeciesDictionaryEntry) -> some View {
         ScrollView(.vertical, showsIndicators: true) {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 0) {
                 SpeciesDictionaryReferenceGallery(
                     scientificName: species.scientificName,
                     images: species.referenceImages,
@@ -199,55 +245,58 @@ struct SpeciesDictionaryPageContentView: View {
                     }
                 )
 
-                header(for: species)
+                VStack(alignment: .leading, spacing: 24) {
+                    header(for: species)
 
-                VStack(alignment: .leading, spacing: 32) {
-                    SpeciesDictionaryContentQualityCard(quality: species.effectiveContentQuality)
+                    VStack(alignment: .leading, spacing: 32) {
+                        SpeciesDictionaryContentQualityCard(quality: species.effectiveContentQuality)
 
-                    SpeciesDictionaryStatusCard(hazardType: species.hazardType)
+                        SpeciesDictionaryStatusCard(hazardType: species.hazardType)
 
-                    ExploreOverviewCard(
-                        scientificName: species.scientificName,
-                        iucnRedListStatus: species.iucnRedListStatus,
-                        wikipediaOverview: species.wikipediaOverview
-                    )
+                        ExploreOverviewCard(
+                            scientificName: species.scientificName,
+                            iucnRedListStatus: species.iucnRedListStatus,
+                            wikipediaOverview: species.wikipediaOverview
+                        )
 
-                    if let taxonomyData = species.taxonomyData {
-                        TaxonomyCard(
-                            taxonomyData: taxonomyData,
+                        if let taxonomyData = species.taxonomyData {
+                            TaxonomyCard(
+                                taxonomyData: taxonomyData,
+                                scientificName: species.scientificName
+                            )
+                        }
+
+                        if species.gbifTaxonKey != nil || species.habitatDescription?.trimmedNonEmpty != nil {
+                            ExploreHabitatDistributionCard(
+                                scientificName: species.scientificName,
+                                habitatDescription: species.habitatDescription,
+                                gbifTaxonKey: species.gbifTaxonKey
+                            )
+                        }
+
+                        SpeciesObservationChartsCard(
+                            speciesId: species.id,
                             scientificName: species.scientificName
                         )
-                    }
 
-                    if species.gbifTaxonKey != nil || species.habitatDescription?.trimmedNonEmpty != nil {
-                        ExploreHabitatDistributionCard(
-                            scientificName: species.scientificName,
-                            habitatDescription: species.habitatDescription,
-                            gbifTaxonKey: species.gbifTaxonKey
+                        SpeciesCommunitySightingsSection(
+                            speciesId: species.id,
+                            exploreViewModel: effectiveExploreViewModel
                         )
+
+                        if let similarData = species.similarSpeciesData {
+                            SimilarSpeciesGallery(
+                                similarData: similarData,
+                                currentScientificName: species.scientificName,
+                                currentCommonName: species.commonName,
+                                routeForSpecies: speciesDictionaryRoute
+                            )
+                        }
                     }
-
-                    SpeciesObservationChartsCard(
-                        speciesId: species.id,
-                        scientificName: species.scientificName
-                    )
-
-                    SpeciesCommunitySightingsSection(
-                        speciesId: species.id,
-                        exploreViewModel: effectiveExploreViewModel
-                    )
-
-                    if let similarData = species.similarSpeciesData {
-                        SimilarSpeciesGallery(
-                            similarData: similarData,
-                            currentScientificName: species.scientificName,
-                            currentCommonName: species.commonName,
-                            routeForSpecies: speciesDictionaryRoute
-                        )
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .modifier(DictionaryHeroContentSheetModifier())
             }
         }
         .background(Color(uiColor: .systemBackground))
@@ -358,6 +407,12 @@ struct SpeciesDictionaryPageContentView: View {
         viewModel.loadedSpecies?.commonName ?? ""
     }
 
+    private var fieldChatSpeciesID: String? {
+        SpeciesDictionaryFieldChatPresentationPolicy.canonicalSpeciesID(
+            viewModel.loadedSpecies?.id
+        )
+    }
+
     private var effectiveExploreViewModel: ExploreFeedViewModel {
         suppliedExploreViewModel ?? fallbackExploreViewModel
     }
@@ -368,6 +423,90 @@ struct SpeciesDictionaryPageContentView: View {
             speciesId: entry.speciesId,
             entryPoint: .speciesDictionarySimilarSpecies
         )
+    }
+
+    private func openDictionaryFieldChat() {
+        guard let species = viewModel.loadedSpecies,
+              let canonicalSpeciesID = SpeciesDictionaryFieldChatPresentationPolicy
+                .canonicalSpeciesID(species.id) else {
+            return
+        }
+
+        HapticManager.shared.triggerSelectionPulse()
+        let isProActive = RevenueCatManager.shared.isProActive
+        AppTelemetry.trackSpeciesDictionaryFieldChatTapped(
+            entryPoint: viewModel.entryPoint.rawValue,
+            contentQuality: species.effectiveContentQuality.telemetryValue,
+            isPro: isProActive
+        )
+
+        guard SpeciesDictionaryFieldChatPresentationPolicy.destination(
+            isProActive: isProActive
+        ) == .fieldChat else {
+            isDictionaryChatPaywallPresented = true
+            return
+        }
+
+        pendingDictionaryChatSpeciesID = canonicalSpeciesID
+    }
+
+    @MainActor
+    private func prepareDictionaryFieldChatIfNeeded() async {
+        guard let speciesID = pendingDictionaryChatSpeciesID else { return }
+        let canPresent = await dictionaryChatViewModel.prepareForPresentation(
+            scanId: speciesID
+        )
+        guard !Task.isCancelled,
+              pendingDictionaryChatSpeciesID == speciesID,
+              fieldChatSpeciesID == speciesID,
+              let species = viewModel.loadedSpecies else {
+            return
+        }
+
+        if canPresent {
+            HapticManager.shared.triggerSheetSpring()
+            dictionaryChatPresentation = SpeciesDictionaryChatPresentation(
+                id: speciesID,
+                displayName: species.commonName,
+                scientificName: species.scientificName,
+                alternativeScientificNames: species.similarSpecies.map(\.scientificName)
+            )
+        } else {
+            HapticManager.shared.triggerErrorThump()
+            dictionaryChatToast = .error(
+                dictionaryChatViewModel.errorMessage
+                    ?? FieldChatSource.speciesDictionary.unavailableMessage
+            )
+        }
+        pendingDictionaryChatSpeciesID = nil
+    }
+}
+
+private struct SpeciesDictionaryChatPresentation: Identifiable {
+    let id: String
+    let displayName: String
+    let scientificName: String
+    let alternativeScientificNames: [String]
+}
+
+enum SpeciesDictionaryFieldChatPresentationPolicy {
+    enum Destination: Equatable {
+        case fieldChat
+        case paywall
+    }
+
+    static func canonicalSpeciesID(_ value: String?) -> String? {
+        guard let value,
+              let uuid = UUID(
+                uuidString: value.trimmingCharacters(in: .whitespacesAndNewlines)
+              ) else {
+            return nil
+        }
+        return uuid.uuidString.lowercased()
+    }
+
+    static func destination(isProActive: Bool) -> Destination {
+        isProActive ? .fieldChat : .paywall
     }
 }
 
@@ -480,33 +619,36 @@ private struct SpeciesDictionaryDetailLoadingSkeleton: View {
             let contentWidth = max(pageWidth - 32, 1)
 
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 0) {
                     hero(width: pageWidth)
 
-                    header(width: contentWidth)
+                    VStack(alignment: .leading, spacing: 24) {
+                        header(width: contentWidth)
 
-                    VStack(alignment: .leading, spacing: 32) {
-                        SpeciesDictionaryDetailSkeletonCard(
-                            width: contentWidth,
-                            titleWidthRatio: 0.34,
-                            rowWidthRatios: [0.64, 0.46],
-                            showsBadge: true
-                        )
+                        VStack(alignment: .leading, spacing: 32) {
+                            SpeciesDictionaryDetailSkeletonCard(
+                                width: contentWidth,
+                                titleWidthRatio: 0.34,
+                                rowWidthRatios: [0.64, 0.46],
+                                showsBadge: true
+                            )
 
-                        SpeciesDictionaryDetailSkeletonCard(
-                            width: contentWidth,
-                            titleWidthRatio: 0.3,
-                            rowWidthRatios: [0.9, 0.82, 0.58]
-                        )
+                            SpeciesDictionaryDetailSkeletonCard(
+                                width: contentWidth,
+                                titleWidthRatio: 0.3,
+                                rowWidthRatios: [0.9, 0.82, 0.58]
+                            )
 
-                        taxonomyCard(width: contentWidth)
+                            taxonomyCard(width: contentWidth)
 
-                        observationChart(width: contentWidth)
+                            observationChart(width: contentWidth)
 
-                        similarSpecies(width: contentWidth)
+                            similarSpecies(width: contentWidth)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 32)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 32)
+                    .modifier(DictionaryHeroContentSheetModifier())
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -628,6 +770,31 @@ private struct SpeciesDictionaryDetailLoadingSkeleton: View {
             SpeciesDictionaryDetailSkeletonBlock(width: 24, height: 24, cornerRadius: 12)
             SpeciesDictionaryDetailSkeletonBlock(width: width, height: 18)
         }
+    }
+}
+
+private struct DictionaryHeroContentSheetModifier: ViewModifier {
+    private let overlapRadius: CGFloat = 32
+    private let contentTopSpacing: CGFloat = 24
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.top, overlapRadius + contentTopSpacing)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: overlapRadius,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: overlapRadius
+                )
+                .fill(Color(uiColor: .systemBackground))
+                .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
+                .padding(.bottom, -1000)
+            )
+            .offset(y: -overlapRadius)
+            .padding(.bottom, -overlapRadius)
+            .zIndex(1)
     }
 }
 

@@ -403,6 +403,9 @@ verify_jwt = false
 [functions.explore-post-chat]
 verify_jwt = false
 
+[functions.species-dictionary-chat]
+verify_jwt = false
+
 [functions.safe-delete]
 verify_jwt = false
 

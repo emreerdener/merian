@@ -6131,17 +6131,17 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes thirteen
+an unmarked gateway response. The workflow then separately probes fourteen
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
 `get-scan-explore-share-state`, `get-explore-composer-media`,
 `get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
-`request-community-identification`, `transfer-signout-purchases`,
-`resolve-purchase-principal`, and `delete-scan`. Each critical route must return
-`401` with the marker, additionally proving user-scoped access fails closed. A
-gateway `404` with no handler marker never counts as a missing scan and never
-permits the production workflow to report success. Do not run the matching iOS
-smoke while either gate is still retrying.
+`species-dictionary-chat`, `request-community-identification`,
+`transfer-signout-purchases`, `resolve-purchase-principal`, and `delete-scan`.
+Each critical route must return `401` with the marker, additionally proving
+user-scoped access fails closed. A gateway `404` with no handler marker never
+counts as a missing scan and never permits the production workflow to report
+success. Do not run the matching iOS smoke while either gate is still retrying.
 
 Using the same resolved server credential, the workflow then posts exactly
 `{"dry_run":true}` to `reconcile-account-deletions` and requires the exact
@@ -7079,16 +7079,50 @@ After deployment:
   without provider dispatch.
 - For a Field Chat admission release, first prove
   `20260729163616_reserve_field_chat_sends_atomically.sql` and
-  `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. In staging,
-  replay one exact UUID/text pair, reject contradictory text under that UUID,
-  race different UUIDs in one conversation, cross 28/29/30 rows, and cross 19/20
-  daily sends split between Insight and Explore. Prove direct browser roles
-  cannot access feedback, cross-bound message/feedback inserts fail, and the
-  anonymous-account merge still commits with all deferred identities exact.
-  Terminate after quota commit, require in-progress before ten minutes, then
-  prove exact stale-row recovery starts one newly metered retry.
+  `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. For Species
+  Dictionary Chat, also prove
+  `20260821030027_add_species_dictionary_field_chat.sql` is present before
+  deploying any updated `insight-chat`, `explore-post-chat`, or
+  `species-dictionary-chat` bundle from that candidate. All three current
+  bundles import the three-table daily-usage helper, so deploying either legacy
+  route first against an older catalog can fail when it reads the absent
+  Dictionary message table. Preserve migration-first ordering even if the new
+  route itself is held back.
+- In staging, replay one exact UUID/text pair, reject contradictory text under
+  that UUID, race different UUIDs in one conversation, cross 28/29/30 rows, and
+  cross 19/20 daily sends split across Insight, Explore, and Species Dictionary.
+  Delete each conversation family after admitted sends and prove those sends
+  still count for the same UTC day. The current candidate counts cascading
+  message rows and does not meet this deletion-resistant invariant; do not
+  deploy until durable admission accounting and this regression pass. Prove
+  direct browser roles cannot access feedback, cross-bound message/feedback
+  inserts fail, and the anonymous-account merge still commits with all deferred
+  identities exact. Terminate after quota commit, require in-progress before ten
+  minutes, then prove exact stale-row recovery starts one newly metered retry.
   Admission/recovery timeout must return retryable `503` without provider
   dispatch.
+- Smoke-test `/species-dictionary-chat` with `load` and `suggest_prompts` for a
+  canonical biological Species Dictionary UUID. Verify Free receives
+  `pro_required`, Pro restores one private viewer/species thread, missing or
+  malformed `species_id` returns `invalid_request`, a valid absent or
+  nonbiological UUID returns `species_not_available`, and every success echoes
+  the exact species UUID through `subject_id` and `messages[].scan_id`. Enrich a
+  dictionary row between two sends and prove the second prompt uses the new
+  bounded reference context. The prompt must contain no Community observation,
+  chart, scan, note, user, location, media, reference URL, or attribution data.
+- Keep the Dictionary client release held until `species-dictionary-chat` is in
+  `MerianNetworkClient`'s audited idempotency-aware Function allowlist and a
+  lost-response/`5xx` test proves an automatic retry reuses the same UUID and
+  returns one saved pair. The current candidate sends the idempotency header and
+  supports manual retry, but does not automatically replay this route after an
+  ambiguous failure.
+- Require executable authenticated route tests for all five Dictionary chat
+  actions, Pro enforcement, request errors, ownership, strict echoes, replay,
+  conflict, and in-flight recovery. Source-string contract inspection is not a
+  handler test. The deploy workflow's focused Function test list must include
+  the route contract and its runtime tests before candidate acceptance. Also
+  verify every refusal uses Dictionary-specific language and local fallback
+  chips apply the server's safe, bounded display-name normalization.
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
   smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment

@@ -1751,6 +1751,66 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.focusOverlayInteractionState[identity] == nil)
     }
 
+    @Test func carouselAnalysisRemainsActiveAcrossExactLiveQueueHandoff() {
+        let scanId = "live_visual_queue_handoff"
+        let engine = InferenceEngine()
+        engine.simulateProgressiveAnalyzing(
+            automaticallyAdvances: false,
+            scanId: scanId
+        )
+        #expect(engine.debugTransitionProgressiveAnalyzingToQueue(
+            scanId: scanId
+        ))
+        let viewModel = InsightSheetViewModel(inferenceEngine: engine)
+
+        func context(
+            id: String = scanId,
+            state: ScanQueueState,
+            needsAttention: Bool = false
+        ) -> QueuedScanContext {
+            QueuedScanContext(
+                id: id,
+                capturedMediaItems: [.image(.documents("handoff.png"))],
+                queueState: state,
+                timestamp: Date(timeIntervalSince1970: 1),
+                queueNeedsAttention: needsAttention
+            )
+        }
+
+        for state in [
+            ScanQueueState.pending,
+            .uploading,
+            .staged,
+            .inferencing
+        ] {
+            #expect(viewModel.isCarouselAnalysisActive(
+                for: context(state: state)
+            ))
+        }
+
+        for state in [
+            ScanQueueState.pending,
+            .uploading,
+            .staged
+        ] {
+            #expect(!viewModel.isCarouselAnalysisActive(
+                for: context(id: "ordinary_queued_scan", state: state)
+            ))
+        }
+        #expect(viewModel.isCarouselAnalysisActive(
+            for: context(id: "ordinary_queued_scan", state: .inferencing)
+        ))
+        #expect(!viewModel.isCarouselAnalysisActive(
+            for: context(state: .failed)
+        ))
+        #expect(!viewModel.isCarouselAnalysisActive(
+            for: context(state: .externalImport)
+        ))
+        #expect(!viewModel.isCarouselAnalysisActive(
+            for: context(state: .inferencing, needsAttention: true)
+        ))
+    }
+
     @Test func testQueuedRefreshRejectsChangedPresentationIdentity() {
         let first = QueuedScanContext(
             id: "queued_scan_1",
@@ -1948,7 +2008,7 @@ struct InsightSheetViewModelTests {
         let contextualPhrases = [
             "Analyzing gray and green colors",
             "Reviewing mostly muted colors",
-            "Tracing broad smooth regions"
+            "Noting broad smooth areas"
         ]
         let onlinePhrases = QueuedContentView.liveQueueHandoffPhrases(
             isOnline: true,

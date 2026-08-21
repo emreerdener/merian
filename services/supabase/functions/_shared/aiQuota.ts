@@ -31,7 +31,8 @@ export type AIQuotaOperation =
   | "insight_chat_reply"
   | "insight_chat_prompt_suggestions"
   | "insight_chat_summary"
-  | "explore_post_chat_reply";
+  | "explore_post_chat_reply"
+  | "species_dictionary_chat_reply";
 
 interface AIQuotaReservationRow {
   reservation_id: string;

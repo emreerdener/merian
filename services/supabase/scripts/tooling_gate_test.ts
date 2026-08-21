@@ -789,6 +789,7 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       "get-explore-media-incidents",
       "insight-chat",
       "explore-post-chat",
+      "species-dictionary-chat",
       "request-community-identification",
       "transfer-signout-purchases",
       "resolve-purchase-principal",

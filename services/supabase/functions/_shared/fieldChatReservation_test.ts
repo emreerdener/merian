@@ -124,6 +124,40 @@ Deno.test("atomic Field Chat admission rejects malformed or contradictory rows",
   }
 });
 
+Deno.test("atomic Field Chat admission validates a dictionary subject row", async () => {
+  const message = {
+    id: MESSAGE_ID,
+    conversation_id: CONVERSATION_ID,
+    species_dictionary_id: SUBJECT_ID,
+    user_id: USER_ID,
+    role: "user",
+    message_text: MESSAGE_TEXT,
+    client_message_id: REQUEST_ID,
+  };
+  const observed: {
+    name?: string;
+    arguments?: Record<string, unknown>;
+  } = {};
+  assertEquals(
+    await reserveFieldChatSend<typeof message>(
+      mockRpcClient({
+        data: [{ message, is_replay: true, sends_today: 7 }],
+        error: null,
+      }, observed),
+      {
+        userId: USER_ID,
+        conversationId: CONVERSATION_ID,
+        subjectType: "species_dictionary",
+        subjectId: SUBJECT_ID,
+        messageText: MESSAGE_TEXT,
+        clientMessageId: REQUEST_ID,
+      },
+    ),
+    { message, isReplay: true, sendsToday: 7 },
+  );
+  assertEquals(observed.arguments?.p_subject_type, "species_dictionary");
+});
+
 Deno.test("atomic Field Chat admission maps stable database failures", async () => {
   const cases = [
     ["field_chat_idempotency_conflict", 409],
@@ -194,4 +228,18 @@ Deno.test("stale Field Chat quota recovery accepts only a boolean RPC result", a
     PublicHttpError,
   );
   assertEquals(error.code, "field_chat_recovery_unavailable");
+
+  assertEquals(
+    await recoverStaleFieldChatQuota(
+      mockRpcClient({ data: false, error: null }),
+      {
+        userId: USER_ID,
+        operation: "species_dictionary_chat_reply",
+        requestId: REQUEST_ID,
+        conversationId: CONVERSATION_ID,
+        subjectId: SUBJECT_ID,
+      },
+    ),
+    false,
+  );
 });

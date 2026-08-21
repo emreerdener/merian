@@ -3,6 +3,9 @@ import { fetchExplorePost } from "../get-explore-post/db.ts";
 import { fetchExplorePostDetail } from "../get-explore-post-detail/db.ts";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
 import {
+  countAllFieldChatSendsToday as countSharedFieldChatSendsToday,
+} from "../_shared/fieldChatDailyUsage.ts";
+import {
   deriveFieldChatAssistantMessageId,
   fieldChatAssistantMetadata,
   fieldChatMessageRequestId,
@@ -259,39 +262,9 @@ export async function upsertFeedback(
   }
 }
 
-async function countTableSendsToday(
-  table: string,
-  userId: string,
-  start: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<number> {
-  const { count, error } = await supabaseAdmin
-    .from(table)
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("role", "user")
-    .gte("created_at", start);
-  if (error) {
-    throw new Error(`Failed to count Field chat sends: ${error.message}`);
-  }
-  return count ?? 0;
-}
-
 export async function countAllFieldChatSendsToday(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<number> {
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const iso = start.toISOString();
-  const [insight, explore] = await Promise.all([
-    countTableSendsToday("insight_chat_messages", userId, iso, supabaseAdmin),
-    countTableSendsToday(
-      "explore_post_chat_messages",
-      userId,
-      iso,
-      supabaseAdmin,
-    ),
-  ]);
-  return insight + explore;
+  return await countSharedFieldChatSendsToday(userId, supabaseAdmin);
 }

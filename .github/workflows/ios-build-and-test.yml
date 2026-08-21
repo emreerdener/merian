@@ -722,6 +722,7 @@ jobs:
             "ui_test_queued_retry_attention" \
             "ui_test_queued_retry_scheduled" \
             "ui_test_live_queue_handoff" \
+            "ui_test_live_queue_handoff.png" \
             "ui_test_queued_audio_handoff.wav" \
             "ui_test_queued_audio_handoff.webp" \
             "ui_test_missing_video_fallback" \

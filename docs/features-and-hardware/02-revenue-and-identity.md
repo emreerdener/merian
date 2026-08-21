@@ -343,6 +343,17 @@ delivery. After `subscription_tier = pro` is projected, the server resolves
 for the active period. Editing the database tier directly is never a grant and
 will be overwritten by the next authoritative reconciliation.
 
+The Field Chat entitlement is identical for owned Insight scans, visible Explore
+posts, and canonical in-app Species Dictionary pages. Each backend route
+re-resolves effective tier; a client paywall check is presentation only and
+cannot grant access. Public web dictionary pages remain anonymous reference
+content and do not expose Field Chat.
+
+This describes the authorization contract, not release status. The Dictionary
+surface remains release-held by the
+[Species Dictionary candidate checklist](16-species-dictionary.md#candidate-release-status);
+do not infer availability from an effective Pro entitlement alone.
+
 The independent `pro_complimentary` path can also resolve `effective_tier = pro`
 while an exactly verified credit or active hold remains, so it passes the Field
 Chat gate without creating a RevenueCat entitlement or paid badge. That

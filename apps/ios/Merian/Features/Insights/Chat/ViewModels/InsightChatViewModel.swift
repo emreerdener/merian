@@ -22,6 +22,29 @@ struct PendingInsightChatMessage: Identifiable, Equatable {
 enum FieldChatSource: Equatable {
     case insightScan
     case explorePost
+    case speciesDictionary
+
+    var telemetryValue: String {
+        switch self {
+        case .insightScan:
+            "insight_scan"
+        case .explorePost:
+            "explore_post"
+        case .speciesDictionary:
+            "species_dictionary"
+        }
+    }
+
+    var unavailableMessage: String {
+        switch self {
+        case .insightScan:
+            "Field chat isn't available for this scan."
+        case .explorePost:
+            "This Explore post isn't available for Field chat."
+        case .speciesDictionary:
+            "This species isn't available for Field chat."
+        }
+    }
 }
 
 @MainActor
@@ -67,7 +90,7 @@ final class InsightChatViewModel {
     @ObservationIgnored private var subjectGeneration: UInt64 = 0
     @ObservationIgnored private var loadRequestGeneration: UInt64 = 0
     @ObservationIgnored private var promptRequestGeneration = 0
-    @ObservationIgnored private let source: FieldChatSource
+    @ObservationIgnored let source: FieldChatSource
     @ObservationIgnored private var presentationPreparationGeneration: UInt64 = 0
     @ObservationIgnored private var presentationPreparationScanId: String?
     @ObservationIgnored private var presentationPreparationTask: Task<Bool, Never>?
@@ -123,10 +146,13 @@ final class InsightChatViewModel {
         using preparation: @escaping @MainActor () async -> Bool
     ) async -> Bool {
         guard !isUnavailable(for: scanId) else {
-            errorMessage = "Field chat isn't available for this scan."
+            errorMessage = source.unavailableMessage
             return false
         }
         guard !isOffline else {
+            if didLoadCurrentSubject, isLoadedSubject(scanId) {
+                return true
+            }
             errorMessage = "Connect to use Field chat."
             return false
         }
@@ -169,7 +195,7 @@ final class InsightChatViewModel {
     }
 
     private func performPresentationPreparation(scanId: String) async -> Bool {
-        if source == .explorePost {
+        if source != .insightScan {
             let generation = activateSubject(scanId: scanId)
             await loadCurrentSubject(scanId: scanId, generation: generation)
             return isCurrentSubject(scanId: scanId, generation: generation) &&
@@ -208,7 +234,7 @@ final class InsightChatViewModel {
 
     func markUnavailable(scanId: String, message: String? = nil) {
         unavailableScanId = scanId
-        errorMessage = message ?? "Field chat isn't available for this scan."
+        errorMessage = message ?? source.unavailableMessage
     }
 
     func markAvailable(scanId: String) {
@@ -277,6 +303,10 @@ final class InsightChatViewModel {
                 try await MerianNetworkClient.shared.loadInsightChat(scanId: scanId)
             case .explorePost:
                 try await MerianNetworkClient.shared.loadExplorePostChat(postId: scanId)
+            case .speciesDictionary:
+                try await MerianNetworkClient.shared.loadSpeciesDictionaryChat(
+                    speciesId: scanId
+                )
             }
             guard isCurrentSubject(scanId: scanId, generation: generation),
                   loadRequestGeneration == requestGeneration,
@@ -379,6 +409,12 @@ final class InsightChatViewModel {
                     messageText: trimmed,
                     clientMessageId: clientMessageId
                 )
+            case .speciesDictionary:
+                try await MerianNetworkClient.shared.sendSpeciesDictionaryChatMessage(
+                    speciesId: scanId,
+                    messageText: trimmed,
+                    clientMessageId: clientMessageId
+                )
             }
             guard isCurrentSubject(
                 scanId: scanId,
@@ -408,7 +444,7 @@ final class InsightChatViewModel {
                 id: clientMessageId,
                 text: trimmed,
                 createdAt: Date(),
-                deliveryState: .failed(Self.userFacingMessage(for: error))
+                deliveryState: .failed(Self.userFacingMessage(for: error, source: source))
             )
             isSending = false
         }
@@ -469,6 +505,10 @@ final class InsightChatViewModel {
                 try await MerianNetworkClient.shared.deleteInsightChat(scanId: scanId)
             case .explorePost:
                 try await MerianNetworkClient.shared.deleteExplorePostChat(postId: scanId)
+            case .speciesDictionary:
+                try await MerianNetworkClient.shared.deleteSpeciesDictionaryChat(
+                    speciesId: scanId
+                )
             }
             guard isCurrentSubject(
                 scanId: scanId,
@@ -541,6 +581,13 @@ final class InsightChatViewModel {
             case .explorePost:
                 try await MerianNetworkClient.shared.submitExplorePostChatFeedback(
                     postId: scanId,
+                    messageId: messageId,
+                    rating: rating,
+                    note: note
+                )
+            case .speciesDictionary:
+                try await MerianNetworkClient.shared.submitSpeciesDictionaryChatFeedback(
+                    speciesId: scanId,
                     messageId: messageId,
                     rating: rating,
                     note: note
@@ -1275,6 +1322,10 @@ final class InsightChatViewModel {
                 try await MerianNetworkClient.shared.suggestInsightChatPrompts(scanId: scanId)
             case .explorePost:
                 try await MerianNetworkClient.shared.suggestExplorePostChatPrompts(postId: scanId)
+            case .speciesDictionary:
+                try await MerianNetworkClient.shared.suggestSpeciesDictionaryChatPrompts(
+                    speciesId: scanId
+                )
             }
             guard promptRequestGeneration == requestGeneration,
                   isCurrentSubject(
@@ -1304,10 +1355,10 @@ final class InsightChatViewModel {
             error,
             source: source
         )
-        if source == .explorePost, shouldMarkUnavailable {
-            errorMessage = "This Explore post isn't available for Field chat."
+        if shouldMarkUnavailable {
+            errorMessage = source.unavailableMessage
         } else {
-            errorMessage = Self.userFacingMessage(for: error)
+            errorMessage = Self.userFacingMessage(for: error, source: source)
         }
         if shouldMarkUnavailable {
             unavailableScanId = scanId
@@ -1333,15 +1384,21 @@ final class InsightChatViewModel {
             return false
         }
 
-        if statusCode == 403 { return true }
         let code = MerianNetworkClient.stableEdgeErrorCode(from: error)
+        if source == .speciesDictionary {
+            return statusCode == 404 && code == "species_not_available"
+        }
+        if statusCode == 403 { return true }
         if source == .explorePost {
             return statusCode == 404 && code == "post_not_available"
         }
         return statusCode == 400 && code == "unsupported_scan"
     }
 
-    static func userFacingMessage(for error: Error) -> String {
+    static func userFacingMessage(
+        for error: Error,
+        source: FieldChatSource = .insightScan
+    ) -> String {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed:
@@ -1356,11 +1413,15 @@ final class InsightChatViewModel {
             case 402:
                 return "Naturebook Pro is required."
             case 403:
-                return "This scan belongs to another account."
+                return source == .insightScan
+                    ? "This scan belongs to another account."
+                    : source.unavailableMessage
             case 429:
                 return "Chat limit reached for today."
             case 404:
-                return "This scan is not ready for chat yet."
+                return source == .insightScan
+                    ? "This scan is not ready for chat yet."
+                    : source.unavailableMessage
             default:
                 return "Chat is unavailable right now."
             }

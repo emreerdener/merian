@@ -30,101 +30,111 @@ struct ActiveScanToolbar: View {
             cancelButton
 
             HStack(spacing: 16) {
-                ForEach(orderedNodes) { node in
-                    switch node {
-                    case .image(let uiImage, let index, _):
-                        Button(action: { onThumbnailTap(index) }, label: {
-                            Image(uiImage: uiImage)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 48, height: 48)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
-                        })
-                        .buttonStyle(PlainButtonStyle())
-                        
-                    case .description(let index, _):
-                        Button(action: { onDescriptionTap(index) }) {
-                            StagedDescriptionBadge()
-                        }
-                        .buttonStyle(.plain)
-                        
-                    case .audio(let index, _):
-                        Button(action: { onAudioTap(index) }) {
-                            StagedAudioBadge()
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Review audio recording")
-                        .accessibilityIdentifier("StagedAudioBadge_\(index)")
-
-                    case .video(let uiImage, let index, _):
-                        Button(action: { onVideoTap(index) }) {
-                            ZStack(alignment: .bottomTrailing) {
+                // Keep the edit hint centered on media slots; Identify is submit-only.
+                HStack(spacing: 16) {
+                    ForEach(orderedNodes) { node in
+                        switch node {
+                        case .image(let uiImage, let index, _):
+                            Button(action: { onThumbnailTap(index) }, label: {
                                 Image(uiImage: uiImage)
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 48, height: 48)
                                     .clipShape(Circle())
                                     .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
+                            })
+                            .buttonStyle(PlainButtonStyle())
 
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 18, height: 18)
-                                    .background(Color.black.opacity(0.62))
-                                    .clipShape(Circle())
-                                    .offset(x: 1, y: 1)
+                        case .description(let index, _):
+                            Button(action: { onDescriptionTap(index) }) {
+                                StagedDescriptionBadge()
                             }
+                            .buttonStyle(.plain)
+
+                        case .audio(let index, _):
+                            Button(action: { onAudioTap(index) }) {
+                                StagedAudioBadge()
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Review audio recording")
+                            .accessibilityIdentifier("StagedAudioBadge_\(index)")
+
+                        case .video(let uiImage, let index, _):
+                            Button(action: { onVideoTap(index) }) {
+                                ZStack(alignment: .bottomTrailing) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
+
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 18, height: 18)
+                                        .background(Color.black.opacity(0.62))
+                                        .clipShape(Circle())
+                                        .offset(x: 1, y: 1)
+                                }
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    }
+
+                    let currentLimit = stagedCaptureLimit
+                    if orderedNodes.count < currentLimit {
+                        let selectionCount = max(
+                            1,
+                            stagedCapture.availableSlots(limit: currentLimit)
+                        )
+                        // Use isPresented + explicit keyboard resign so iOS cannot restore the
+                        // text field as first responder when the picker dismisses — that restoration
+                        // fires keyboardWillShow and hides the toolbar behind the keyboard overlay.
+                        Button(action: {
+                            requestPhotoPickerPresentation(
+                                selectionCount: selectionCount
+                            )
+                        }) {
+                            Circle()
+                                .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                                .frame(width: 48, height: 48)
+                                .overlay(
+                                    Group {
+                                        if isCheckingPhotoImportAdmission {
+                                            ProgressView()
+                                                .tint(.white)
+                                        } else {
+                                            Image(systemName: "plus")
+                                                .font(.system(size: 20, weight: .medium))
+                                                .foregroundColor(.white.opacity(0.5))
+                                        }
+                                    }
+                                    .accessibilityHidden(true)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .disabled(isCheckingPhotoImportAdmission)
+                        .accessibilityLabel(
+                            isCheckingPhotoImportAdmission
+                                ? "Checking scan availability"
+                                : "Add photo"
+                        )
+                        .photosPicker(
+                            isPresented: $isPhotoPickerPresented,
+                            selection: $selectedPhotoItems,
+                            maxSelectionCount: selectionCount,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        )
                     }
                 }
-                
-                let currentLimit = stagedCaptureLimit
-                if orderedNodes.count < currentLimit {
-                    let selectionCount = max(
-                        1,
-                        stagedCapture.availableSlots(limit: currentLimit)
-                    )
-                    // Use isPresented + explicit keyboard resign so iOS cannot restore the
-                    // text field as first responder when the picker dismisses — that restoration
-                    // fires keyboardWillShow and hides the toolbar behind the keyboard overlay.
-                    Button(action: {
-                        requestPhotoPickerPresentation(
-                            selectionCount: selectionCount
-                        )
-                    }) {
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                            .frame(width: 48, height: 48)
-                            .overlay(
-                                Group {
-                                    if isCheckingPhotoImportAdmission {
-                                        ProgressView()
-                                            .tint(.white)
-                                    } else {
-                                        Image(systemName: "plus")
-                                            .font(.system(size: 20, weight: .medium))
-                                            .foregroundColor(.white.opacity(0.5))
-                                    }
-                                }
-                                .accessibilityHidden(true)
-                            )
+                .overlay(alignment: .bottom) {
+                    if showTooltip {
+                        ActiveScanTooltipOverlay()
+                            .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
+                            .allowsHitTesting(false)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(isCheckingPhotoImportAdmission)
-                    .accessibilityLabel(
-                        isCheckingPhotoImportAdmission
-                            ? "Checking scan availability"
-                            : "Add photo"
-                    )
-                    .photosPicker(
-                        isPresented: $isPhotoPickerPresented,
-                        selection: $selectedPhotoItems,
-                        maxSelectionCount: selectionCount,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    )
                 }
 
                 submitButton
@@ -132,13 +142,6 @@ struct ActiveScanToolbar: View {
             .padding(8)
             .background(glassBackground)
             .overlay(glassBorder)
-            .overlay(alignment: .bottom) {
-                if showTooltip {
-                    ActiveScanTooltipOverlay()
-                        .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.95)))
-                        .allowsHitTesting(false)
-                }
-            }
             .disabled(isCheckingPhotoImportAdmission)
         }
         .environment(\.colorScheme, .dark)

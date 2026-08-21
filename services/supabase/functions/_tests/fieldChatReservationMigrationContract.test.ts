@@ -128,7 +128,7 @@ Deno.test("Field Chat quota rescue is stale, exact-row-bound, and service-only",
   );
 });
 
-Deno.test("both Field Chat routes use atomic admission and stale quota rescue", async () => {
+Deno.test("all Field Chat routes use atomic admission and stale quota rescue", async () => {
   const shared = await Deno.readTextFile(
     new URL("../_shared/fieldChatReservation.ts", import.meta.url),
   );
@@ -140,6 +140,7 @@ Deno.test("both Field Chat routes use atomic admission and stale quota rescue", 
     const path of [
       "../insight-chat/db.ts",
       "../explore-post-chat/db.ts",
+      "../species-dictionary-chat/db.ts",
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
@@ -150,6 +151,7 @@ Deno.test("both Field Chat routes use atomic admission and stale quota rescue", 
     const path of [
       "../insight-chat/index.ts",
       "../explore-post-chat/index.ts",
+      "../species-dictionary-chat/index.ts",
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));

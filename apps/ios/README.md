@@ -89,15 +89,23 @@ single state owner exposed to SwiftUI through `scanningPhaseText`.
 deterministic pixel-trait extractor, one bounded primary-image derivative,
 phrase coordination, future Foundation visual-cue seam, validation, and runtime
 eligibility policy; `AppDIContainer` owns the live implementations. The current
-toolchain derives five image-specific palette, color-intensity, tone, contrast,
-and surface cues locally. They render as natural verb-led observations, not
-`Kind: detail` labels. Active visual live-to-queue handoff preserves the
-ephemeral contextual deck and in-memory carousel media only for an exact
-scan-and-attempt owner. Prepared visual work transfers generic copy without
-media; audio and Describe are typed nonvisual owners. The same visual cursor
-survives save and connectivity changes, while dismissal or Auth removes
-contextual phrase/media exposure without blocking durable result recovery.
-Generative multimodal cues remain the stable-Xcode-27 milestone.
+toolchain derives five image-specific observations covering dominant colors,
+color saturation, lighting, light contrast, and surface detail. They render as
+plain visible descriptions such as **Reviewing softly colored areas** and
+**Observing light and shadow areas**, not `Kind: detail` labels or internal
+statistical buckets such as “moderate” and “balanced.” Active visual
+live-to-queue handoff preserves the ephemeral contextual deck and in-memory
+carousel media only for an exact scan-and-attempt owner. Prepared visual work
+transfers generic copy without media; audio and Describe are typed nonvisual
+owners. That exact handoff also retains the canonical scan ID, selected carousel
+page, focus state, and time-derived analysis sweep through pending, uploading,
+staged, and inferencing queue states while none requires attention; ordinary
+queued scans animate only while inferencing. The trailing Insight toolbar slot
+stays mounted and fades in its queued delete action only after the durable ID is
+bound. The same visual cursor survives save and connectivity changes, while
+dismissal or Auth removes contextual phrase/media exposure without blocking
+durable result recovery. Generative multimodal cues remain the stable-Xcode-27
+milestone.
 
 Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,
@@ -105,7 +113,10 @@ analyzed as product telemetry, or added to Gemini's payload. See the
 [Core AI README](Merian/Core/AI/README.md),
 [Capture submission README](Merian/Features/Capture/Submission/README.md), and
 [Insight content README](Merian/Features/Insights/Content/README.md) for the
-ownership, dispatch, and presentation contracts.
+ownership and dispatch contracts. The
+[Insight media README](Merian/Features/Insights/Media/README.md) and
+[toolbar README](Merian/Features/Insights/Toolbars/README.md) own the carousel
+clock, page continuity, and trailing-action presentation rules.
 
 `Core/Data/OfflineSync/OfflineQueueDurability.swift` owns retry timing rather
 than an Insight view. Scan analysis uses a five-second minimum, jittered

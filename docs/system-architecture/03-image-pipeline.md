@@ -105,9 +105,10 @@ at most 512 px, then crops the derivative to the already-padded top-left focus
 rectangle when one exists. An absent or invalid region keeps the full bounded
 square. Vision and the future on-device Foundation Models provider reuse this
 single derivative. The current `AppleImageVisualTraitExtractor` also samples it
-at 32×32 pixels to derive five bounded palette, color-intensity, tone,
-tonal-contrast, and edge-variation cues; no additional capture is decoded for
-local analysis.
+at 32×32 pixels to derive five bounded dominant-color, saturation-distribution,
+lighting-distribution, light-contrast, and surface-detail cues; no additional
+capture is decoded for local analysis. User-facing wording describes the visible
+result rather than the extractor's numeric buckets.
 
 This derivative is ephemeral and independent of the remote image pipeline. It
 does not replace, crop, reorder, or add a part to the images sent to Gemini, and
@@ -146,20 +147,35 @@ normalized carousel coordinates by the stable Insight view model rather than a
 mounted overlay. It therefore survives queue refreshes, overlay remounts, and
 the queued-to-foreground or completed-result media handoffs while remaining
 isolated from another scan or still image. The carousel follows the analyzing
-content mode across a same-scan owner handoff, preventing a transient engine
-flag from hiding the focus treatment. Its last confirmed canonical scan ID also
-bridges the brief nil-owner window before the next owner publishes that same ID.
-If no region exists, the still image has no focus geometry and falls back to the
-original full-image scan animation. The full-image and isolated-region sweeps
-are mutually exclusive. Video keeps its existing laser animation, while audio
-and description keep their existing sweeps.
+presentation policy across a same-scan owner handoff, preventing a transient
+engine flag from hiding the focus treatment. Exact active visual handoffs keep
+the overlay through pending, uploading, staged, and inferencing; an ordinary
+queued scan activates it only while inferencing, and failed, external-import,
+attention-required, and completed states remain still. Its last confirmed
+canonical scan ID also bridges the brief nil-owner window before the next owner
+publishes that same ID. If no region exists, the still image has no focus
+geometry and falls back to the original full-image scan animation. The
+full-image and isolated-region sweeps are mutually exclusive. Video keeps its
+existing laser animation, while audio and description keep their existing
+sweeps.
+
+The analysis clock belongs to `ImagesCarousel`, above the conditional
+`AnalyzingMediaOverlay`. `AnalyzingMediaAnimationSession.startedAt` drives a
+time-derived `TimelineView` sweep, so overlay recomposition and the
+foreground-to-queue content switch cannot restart the phase. Only a different
+canonical scan ID or a later false-to-true analysis transition resets the clock;
+Reduce Motion holds the phase at its midpoint. The same session also owns a
+continuity token that is exposed only through Debug UI automation and never in
+Release accessibility.
 
 An online live-to-queue presentation keeps `InferenceEngine.activeMedia` for the
 exact scan instead of immediately replacing its live image data with the newly
 persisted queue paths. This prevents a save-state update from remounting the
-carousel mid-analysis. Offline queued navigation and ordinary historical queued
-scans still resolve their media from `QueuedScanContext`; completed result
-publication remains the terminal source handoff.
+carousel mid-analysis. The canonical scan ID, page identity, selected index, and
+existing `ZoomPageViewController` therefore remain stable while ownership
+changes. Offline queued navigation and ordinary historical queued scans still
+resolve their media from `QueuedScanContext`; completed result publication
+remains the terminal source handoff.
 
 The camera shutter path explicitly separates orchestration from ImageIO work.
 `executeCapture()` snapshots location, composing-zone center, and Pro tier on

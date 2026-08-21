@@ -82,8 +82,28 @@ SELECT extensions.ok(
         'authenticated',
         'public.explore_post_chat_messages',
         'INSERT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.species_dictionary_chat_conversations',
+        'SELECT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.species_dictionary_chat_conversations',
+        'INSERT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.species_dictionary_chat_messages',
+        'SELECT'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.species_dictionary_chat_messages',
+        'INSERT'
     ),
-    'unprivileged API roles cannot bypass either Edge-only Field Chat API'
+    'unprivileged API roles cannot bypass any Edge-only Field Chat API'
 );
 
 SELECT extensions.ok(
@@ -147,6 +167,16 @@ SELECT extensions.ok(
         'public.explore_post_chat_messages',
         'INSERT'
     )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary_chat_conversations',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary_chat_messages',
+        'SELECT, INSERT'
+    )
     AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
         'public.insight_chat_messages',
@@ -166,13 +196,18 @@ SELECT extensions.ok(
         'service_role',
         'public.explore_post_chat_messages',
         'DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary_chat_messages',
+        'UPDATE, DELETE'
     ),
     'service-role Field Chat table ACLs are explicit and least privilege'
 );
 
 SELECT extensions.ok(
     (
-        SELECT pg_catalog.COUNT(*) = 7
+        SELECT pg_catalog.COUNT(*) = 9
         FROM pg_catalog.pg_constraint AS constraint_row
         WHERE constraint_row.conname IN (
             'insight_chat_conversations_bound_scan_owner_fk',
@@ -181,7 +216,9 @@ SELECT extensions.ok(
             'explore_post_chat_messages_bound_conversation_fk',
             'insight_chat_message_feedback_bound_message_fk',
             'explore_post_chat_message_feedback_bound_message_fk',
-            'insight_chat_feature_feedback_bound_conversation_fk'
+            'insight_chat_feature_feedback_bound_conversation_fk',
+            'species_dictionary_chat_messages_bound_conversation_fk',
+            'species_dictionary_chat_feedback_bound_message_fk'
         )
           AND constraint_row.contype = 'f'
           AND constraint_row.convalidated
@@ -220,6 +257,16 @@ SELECT extensions.ok(
     AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
         'authenticated',
         'public.explore_post_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'anon',
+        'public.species_dictionary_chat_message_feedback',
+        'SELECT, INSERT, UPDATE, DELETE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'authenticated',
+        'public.species_dictionary_chat_message_feedback',
         'SELECT, INSERT, UPDATE, DELETE'
     ),
     'unprivileged API roles cannot write or read private Field Chat feedback'
@@ -279,6 +326,16 @@ SELECT extensions.ok(
     AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',
         'public.explore_post_chat_message_feedback',
+        'DELETE'
+    )
+    AND pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary_chat_message_feedback',
+        'SELECT, INSERT, UPDATE'
+    )
+    AND NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+        'service_role',
+        'public.species_dictionary_chat_message_feedback',
         'DELETE'
     ),
     'backend feedback privileges are explicit and least privilege'
@@ -683,7 +740,7 @@ DECLARE
     fixture_conversation_id UUID;
     fixture_request_id UUID;
 BEGIN
-    FOR fixture_number IN 1..5
+    FOR fixture_number IN 1..3
     LOOP
         fixture_scan_id := pg_catalog.GEN_RANDOM_UUID();
         fixture_conversation_id := pg_catalog.GEN_RANDOM_UUID();
@@ -746,6 +803,104 @@ BEGIN
 END;
 $fixture$;
 
+INSERT INTO public.explore_posts (
+    id,
+    user_id,
+    scan_id,
+    location_sharing,
+    shared_at
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc20',
+    '00000000-0000-4000-8000-00000000fc01',
+    '00000000-0000-4000-8000-00000000fc02',
+    'obscured',
+    pg_catalog.NOW()
+);
+
+INSERT INTO public.explore_post_chat_conversations (
+    id,
+    post_id,
+    user_id
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc21',
+    '00000000-0000-4000-8000-00000000fc20',
+    '00000000-0000-4000-8000-00000000fc01'
+);
+
+INSERT INTO public.explore_post_chat_messages (
+    id,
+    conversation_id,
+    post_id,
+    user_id,
+    role,
+    message_text,
+    client_message_id
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc22',
+    '00000000-0000-4000-8000-00000000fc21',
+    '00000000-0000-4000-8000-00000000fc20',
+    '00000000-0000-4000-8000-00000000fc01',
+    'user',
+    'Explore daily-limit fixture question',
+    '00000000-0000-4000-8000-00000000fc23'
+);
+
+INSERT INTO public.species_dictionary (
+    id,
+    scientific_name,
+    common_names,
+    kingdom,
+    phylum,
+    class,
+    "order",
+    family,
+    genus
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc24',
+    'Ardea alba shared quota fixture',
+    '{"en":"Great Egret Shared Quota Fixture"}',
+    'Animalia',
+    'Chordata',
+    'Aves',
+    'Pelecaniformes',
+    'Ardeidae',
+    'Ardea'
+);
+
+INSERT INTO public.species_dictionary_chat_conversations (
+    id,
+    species_dictionary_id,
+    user_id
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc25',
+    '00000000-0000-4000-8000-00000000fc24',
+    '00000000-0000-4000-8000-00000000fc01'
+);
+
+INSERT INTO public.species_dictionary_chat_messages (
+    id,
+    conversation_id,
+    species_dictionary_id,
+    user_id,
+    role,
+    message_text,
+    client_message_id
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fc26',
+    '00000000-0000-4000-8000-00000000fc25',
+    '00000000-0000-4000-8000-00000000fc24',
+    '00000000-0000-4000-8000-00000000fc01',
+    'user',
+    'Dictionary daily-limit fixture question',
+    '00000000-0000-4000-8000-00000000fc27'
+);
+
 INSERT INTO public.scans (
     id,
     user_id,
@@ -786,7 +941,7 @@ SELECT extensions.throws_ok(
     $statement$,
     'P0001',
     'field_chat_daily_limit_reached',
-    'cross-conversation daily admission stops at twenty user sends'
+    'three-family daily admission stops at twenty user sends'
 );
 
 CREATE TEMPORARY TABLE recovery_quota ON COMMIT DROP AS

@@ -4435,10 +4435,13 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     #if DEBUG
     /// Deterministic generic → category → trait progression for UI development
     /// and the analyzing-pill UI contract test.
-    func simulateProgressiveAnalyzing(automaticallyAdvances: Bool = true) {
+    func simulateProgressiveAnalyzing(
+        automaticallyAdvances: Bool = true,
+        scanId: String = "debug-progressive-analysis"
+    ) {
         cancelLocalVisualAnalysis()
         let attemptGeneration = UUID()
-        activeScanId = "debug-progressive-analysis"
+        activeScanId = scanId
         activeLiveInferenceAttemptGeneration = attemptGeneration
         activeForegroundInferenceGeneration = nil
         activePresentationOwner = AnalysisPresentationOwner(
@@ -4548,7 +4551,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
 
     @discardableResult
     func debugTransitionProgressiveAnalyzingToQueue(scanId: String) -> Bool {
-        let attemptGeneration = UUID()
+        let attemptGeneration = activeLiveInferenceAttemptGeneration ?? UUID()
         activeScanId = scanId
         activeLiveInferenceAttemptGeneration = attemptGeneration
         activeForegroundInferenceGeneration = nil

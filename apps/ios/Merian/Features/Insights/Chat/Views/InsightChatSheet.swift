@@ -583,12 +583,25 @@ struct InsightChatSheet: View {
     }
 
     private func trackAction(_ action: String, message: InsightChatMessage?) {
+        let hasLookalikes = speciesData.map {
+            InsightChatViewModel.hasLookalikeContext($0)
+        } ?? !publicAlternativeNames.isEmpty
+        if viewModel.source == .speciesDictionary {
+            AppTelemetry.trackSpeciesDictionaryFieldChatAction(
+                action: action,
+                isRefusal: message?.isRefusal ?? false,
+                hasLookalikes: hasLookalikes
+            )
+            return
+        }
+
         PostHogManager.shared.capture("InsightChatActionTapped", properties: [
             "action": action,
             "scan_id": scanId,
             "message_id": message?.id ?? "",
             "is_refusal": message?.isRefusal ?? false,
-            "has_lookalikes": speciesData.map { InsightChatViewModel.hasLookalikeContext($0) } ?? false
+            "has_lookalikes": hasLookalikes,
+            "field_chat_source": viewModel.source.telemetryValue
         ])
     }
 
@@ -609,13 +622,28 @@ struct InsightChatSheet: View {
     }
 
     private func trackPromptChip(_ prompt: String) {
+        let promptCategory = viewModel.category(forPrompt: prompt)
+        let hasLookalikes = speciesData.map {
+            InsightChatViewModel.hasLookalikeContext($0)
+        } ?? !publicAlternativeNames.isEmpty
+        if viewModel.source == .speciesDictionary {
+            AppTelemetry.trackSpeciesDictionaryFieldChatAction(
+                action: "prompt_chip",
+                promptCategory: promptCategory,
+                isRefusal: false,
+                hasLookalikes: hasLookalikes
+            )
+            return
+        }
+
         PostHogManager.shared.capture("InsightChatActionTapped", properties: [
             "action": "prompt_chip",
-            "prompt_category": viewModel.category(forPrompt: prompt),
+            "prompt_category": promptCategory,
             "scan_id": scanId,
             "message_id": "",
             "is_refusal": false,
-            "has_lookalikes": speciesData.map { InsightChatViewModel.hasLookalikeContext($0) } ?? false
+            "has_lookalikes": hasLookalikes,
+            "field_chat_source": viewModel.source.telemetryValue
         ])
     }
 }

@@ -669,19 +669,29 @@ provider dispatch:
   `llm_cached_tokens` (from `usageMetadata.cachedContentTokenCount`) to track
   implicit cache hit volume — a non-zero value means Google served those prefix
   tokens from cache at the 75% discount rate.
-- **Field Chat (`insight-chat` + `explore-post-chat`)**: Pro follow-up chat uses
-  `gemini-2.5-flash` from authenticated Edge Functions and appears as an Insight
-  or private per-viewer Explore conversation surface. Insight context is
-  text-only evidence from the owned completed scan; Explore context is only the
-  privacy-filtered public post and Species Dictionary projection. Neither route
-  receives raw media, object keys/URLs, exact GPS, comments, another viewer's
-  chat, or export payloads. Conversations, messages, and feedback are private
-  per user and subject. User messages are capped at 600 characters, each
-  conversation at 30 messages, and both routes share 20 model sends per Pro user
-  per day. Token usage and bounded telemetry retain route-specific events
-  without prompt/chat text. Both routes use `_shared/fieldChatResponse.ts` so
-  every empty/populated thread and action success echoes the exact requested
-  scan/post as `subject_id`; iOS treats `200` as candidate evidence and
+- **Field Chat (`insight-chat` + `explore-post-chat` +
+  `species-dictionary-chat`)**: Pro follow-up chat uses `gemini-2.5-flash` from
+  authenticated Edge Functions and appears as an Insight, private per-viewer
+  Explore, or private per-viewer Species Dictionary conversation surface.
+  Insight context is text-only evidence from the owned completed scan; Explore
+  context is only the privacy-filtered public post and Species Dictionary
+  projection; Dictionary context is the latest bounded canonical names,
+  taxonomy, overview, habitat, hazard, conservation, group tags, and lookalikes.
+  Dictionary grounding excludes sightings, observation charts, scans, notes,
+  users, locations, media, reference URLs, and attribution identities, and
+  fences all source text as untrusted data. No route receives raw media, object
+  keys/URLs, exact GPS, another viewer's chat, or export payloads.
+  Conversations, messages, and feedback are private per user and subject. User
+  messages are capped at 600 characters, each conversation at 30 messages, and
+  all three routes share 20 sends per Pro user per day. That allowance is an
+  admission-history limit: deleting private chat content must not restore sends
+  from the same UTC day. The current candidate counts live message rows, so its
+  cascading delete violates this invariant and blocks release until durable
+  accounting plus delete-then-send database coverage exists. Token usage and
+  bounded telemetry retain route-specific events without prompt/chat text or
+  dictionary identity. All routes use `_shared/fieldChatResponse.ts` so every
+  empty/populated thread and action success echoes the exact requested
+  scan/post/species as `subject_id`; iOS treats `200` as candidate evidence and
   validates that echo plus populated message/conversation identity before
   applying it. Every send requires a UUID request identity; the assistant stores
   its canonical lowercase form in private metadata and projects it as
@@ -695,11 +705,13 @@ provider dispatch:
   no direct chat-table or feedback privileges, so they cannot bypass admission
   or forge a copied rating target. Deferred composite foreign keys bind every
   retained Insight conversation to its exact scan owner, each retained message
-  to its exact conversation/scan-or-post/viewer, and each rating to the exact
-  copied message identity. Conversation-optional feature feedback has its own
-  exact scan-owner binding; impossible historical cross-bound private rows are
-  removed before those constraints validate
-  (`20260730180000_bind_field_chat_rows_to_subjects.sql`). Deterministic
+  to its exact conversation/scan-or-post-or-species/viewer, and each rating to
+  the exact copied message identity. Conversation-optional feature feedback has
+  its own exact scan-owner binding; impossible historical cross-bound private
+  rows are removed before those constraints validate
+  (`20260730180000_bind_field_chat_rows_to_subjects.sql`). Dictionary tables,
+  three-family admission/recovery, and account merge are added by
+  `20260821030027_add_species_dictionary_field_chat.sql`. Deterministic
   assistant UUIDv8 rows and read-after-write reconciliation make answer
   persistence idempotent, including concurrent local refusals. In-flight replay
   polling is bounded, failed provider or persistence attempts resume under the
@@ -714,10 +726,13 @@ provider dispatch:
   fall back to bounded non-sensitive text if scrubbing empties the draft. An
   exact-row-bound service routine may reopen a committed request only after a
   ten-minute crash-safety window and proof that its assistant is absent; the
-  retry is newly metered. Apply the atomic reservation migration before both
-  functions, then smoke same-UUID replay, different-key concurrency, both
-  limits, stale recovery, and empty/action subject echoes before shipping the
-  fail-closed iOS validator.
+  retry is newly metered. Apply the dictionary migration before any updated
+  version of the three chat functions, then deploy them from one reviewed SHA
+  and smoke same-UUID replay, different-key concurrency, both limits, stale
+  recovery, and empty/action subject echoes before shipping the fail-closed iOS
+  validator. Dictionary client release additionally requires automatic ambiguous
+  replay to be allowlisted and tested, executable handler coverage in the deploy
+  gate, and source-specific refusal/fallback prompt copy.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:
@@ -995,10 +1010,13 @@ haptic immediately, then runs `AppleVisionSubjectClassifier` off the main actor.
 A qualifying broad category is published as soon as Vision returns. The engine
 then launches a separately owned `localVisualTraitTask` without awaiting it.
 `AppleImageVisualTraitExtractor` samples the same local derivative at 32×32
-pixels and deterministically describes its dominant colors, color intensity,
-overall tone, tonal contrast, and local edge variation. The five pixel
-observations are validated against the Vision candidate denylist and become
-eligible at the next phrase tick.
+pixels and deterministically describes its dominant colors, saturation
+distribution, lighting distribution, light contrast, and surface detail. The
+five pixel observations are validated against the Vision candidate denylist and
+become eligible at the next phrase tick. Numeric midpoint buckets are converted
+to plain observations—for example, **Reviewing softly colored areas** or
+**Observing light and shadow areas**—rather than exposing phrases such as
+**moderate color levels** or **balanced light and dark**.
 
 A single `ScanningPhraseCoordinator` owns the monotonic source order: generic →
 Vision category → deterministic image trait → Foundation Models cue. A less
@@ -1103,8 +1121,8 @@ available locally and in hosted CI, the provider can be implemented behind iOS
 
 This no-op applies only to generative multimodal cues. The injected
 `AppleImageVisualTraitExtractor` already supplies image-specific color,
-contrast, and surface wording on the current toolchain and remains the silent
-fallback when the richer provider is unavailable or ineligible.
+lighting, contrast, and surface wording on the current toolchain and remains the
+silent fallback when the richer provider is unavailable or ineligible.
 
 The provider contract is deliberately stricter than its UI consumer:
 

@@ -921,22 +921,30 @@ an Edge API response or opened offline via the Scans library.
   and `InsightChatSheet`, backed by an
   `InsightChatViewModel(source: .explorePost)`. Eligibility is independent of
   ownership and whether the post contains images, video, audio, or mixed media.
-  The Explore button hides as soon as the comment composer becomes sticky (and
-  remains hidden while focused), so private chat never competes with the public
-  comment action at the bottom of the post. While hidden, Field chat moves into
-  the post overflow menu. Non-Pro users open the existing paywall. Insight
-  threads preflight ownership through `/check-scan-status` and call
-  `/insight-chat`; Explore threads call `/explore-post-chat` and are private to
-  the requesting viewer, never another viewer. The Explore empty state says
+  The source candidate also uses
+  `InsightChatViewModel(source: .speciesDictionary)` from every loaded canonical
+  Dictionary detail: Field Chat stays bottom-right, Share stays in the top bar,
+  and loading/error/invalid-ID states hide the bottom bar. Direct, deep-linked,
+  and similar-species routes all share that presentation owner. The Explore
+  button hides as soon as the comment composer becomes sticky (and remains
+  hidden while focused), so private chat never competes with the public comment
+  action at the bottom of the post. While hidden, Field chat moves into the post
+  overflow menu. Non-Pro users open the existing paywall. Insight threads
+  preflight ownership through `/check-scan-status` and call `/insight-chat`;
+  Explore threads call `/explore-post-chat` and are private to the requesting
+  viewer, never another viewer. The Explore empty state says
   `This Field chat is private and visible only to you.` without the former
   technical context/media disclaimer. Loaded messages remain readable offline,
   failed sends stay in-thread with retry/edit recovery, and prompt chips refresh
   after load and successful assistant responses. Owner-only notes,
   feature-feedback, candidate-review, and reanalysis actions remain unavailable
-  from Explore threads. The backend still enforces the complete boundary:
-  Insight uses private owned scan text; Explore uses privacy-filtered public
-  post/detail and Species Dictionary text, with no owner chat history, private
-  scan identifiers, exact GPS, or media payloads.
+  from Explore and Dictionary threads. The backend still enforces the complete
+  boundary: Insight uses private owned scan text; Explore uses privacy-filtered
+  public post/detail and Species Dictionary text; and Dictionary uses only
+  bounded canonical reference text. No source receives unauthorized owner
+  history, private scan identifiers, exact GPS, or media payloads. Dictionary
+  release remains held by the
+  [canonical candidate blockers](16-species-dictionary.md#candidate-release-status).
 - **Field Chat Owner-Row Repair**: Insight Field Chat preflight uses a single
   `/check-scan-status` request. If an older/interrupted local observation is
   missing its cloud owner row, the client may attach the bounded non-media
@@ -1462,30 +1470,36 @@ on gesture-driven layout abstractions.
   and broad-category mapping replaces that copy immediately; all later automatic
   changes use the single 2.3-second phrase clock. After Vision completes, a
   32×32 sample of the same derivative produces five validated, image-specific
-  palette, color-intensity, tone, contrast, and edge-variation cues for
-  subsequent ticks. Source priority prevents generic or category regression.
+  dominant-color, saturation, lighting, light-contrast, and surface-detail cues
+  for subsequent ticks. Source priority prevents generic or category regression.
   Within the active deck, every available phrase appears before its first phrase
   becomes eligible again. Trait kinds render as natural verb-led sentences such
-  as **Analyzing gray and green colors**, never `Kind: detail` fields.
-  `AppDIContainer` injects the classifier, deterministic trait extractor, and
-  Foundation visual-cue seam. The Xcode 26.6 Foundation provider is
-  intentionally a no-op, but deterministic image traits are active; after stable
-  Xcode 27, an iOS 27 availability-gated on-device provider may start only after
-  the Gemini request body is sent and local Vision completes. Partial or unsafe
-  cue snapshots never reach SwiftUI. Scan ID, presentation-attempt, and durable
-  foreground-generation fences discard stale completions. Result arrival,
-  dismissal, replacement, queue handoff, Auth transition, and failure fence
-  local producers without joining network or persistence work. App deactivation
-  stops local work but retains the exact visual owner and current phrase;
-  reactivation resumes only that visual cadence. An exact active visual queue
-  handoff requires scan-and-attempt ownership and retains validated phrase order
-  and live carousel media. Prepared visual handoff has generic copy without
-  media, while audio and Describe remain nonvisual. Durable save and
-  connectivity changes do not restart the visual cursor. The app enforces an
-  automatic multi-capture rapid-capture loop via `ActiveScanToolbar`. This
-  isolated `.ultraThinMaterial` glassmorphic capsule swaps views using
-  `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails
-  are generated. Video thumbnails carry a play badge and open
+  as **Analyzing gray and green colors**, **Reviewing softly colored areas**, or
+  **Observing light and shadow areas**, never `Kind: detail` fields or numeric
+  bucket labels such as **moderate** and **balanced**. `AppDIContainer` injects
+  the classifier, deterministic trait extractor, and Foundation visual-cue seam.
+  The Xcode 26.6 Foundation provider is intentionally a no-op, but deterministic
+  image traits are active; after stable Xcode 27, an iOS 27 availability-gated
+  on-device provider may start only after the Gemini request body is sent and
+  local Vision completes. Partial or unsafe cue snapshots never reach SwiftUI.
+  Scan ID, presentation-attempt, and durable foreground-generation fences
+  discard stale completions. Result arrival, dismissal, replacement, queue
+  handoff, Auth transition, and failure fence local producers without joining
+  network or persistence work. App deactivation stops local work but retains the
+  exact visual owner and current phrase; reactivation resumes only that visual
+  cadence. An exact active visual queue handoff requires scan-and-attempt
+  ownership and retains validated phrase order and live carousel media. Prepared
+  visual handoff has generic copy without media, while audio and Describe remain
+  nonvisual. Durable save and connectivity changes do not restart the visual
+  cursor. The exact visual handoff also keeps the same selected carousel page,
+  focus state, and time-derived scan sweep through pending, uploading, staged,
+  and inferencing queue states while none requires attention; ordinary queued
+  scans animate only while inferencing. Its queued trash action fades into the
+  existing trailing toolbar slot once durable ownership is bound. The app
+  enforces an automatic multi-capture rapid-capture loop via
+  `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic capsule
+  swaps views using `.transition(.move(edge: .bottom).combined(with: .opacity))`
+  when thumbnails are generated. Video thumbnails carry a play badge and open
   `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar
   close and remove actions; removal deletes the staged clip plus companion WAV.
   Audio waveform badges now route their staged index into

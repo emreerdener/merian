@@ -280,6 +280,7 @@ jobs:
             supabase/functions/reconcile-explore-media-health/worker_test.ts \
             supabase/functions/explore-post-chat/index.ts \
             supabase/functions/insight-chat/index.ts \
+            supabase/functions/species-dictionary-chat/index.ts \
             supabase/functions/replay-scan-ingestion/index.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/send-push-notification/delivery_test.ts \
@@ -338,6 +339,7 @@ jobs:
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
             supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
+            supabase/functions/_shared/fieldChatReservation_test.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/identify/latencyDb_test.ts \
@@ -360,6 +362,9 @@ jobs:
             supabase/functions/_tests/auth.test.ts \
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/functions/explore-post-chat/prompt_test.ts \
+            supabase/functions/species-dictionary-chat/eligibility_test.ts \
+            supabase/functions/species-dictionary-chat/prompt_test.ts \
+            supabase/functions/species-dictionary-chat/promptSuggestions_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
@@ -1147,6 +1152,7 @@ jobs:
             get-explore-media-incidents
             insight-chat
             explore-post-chat
+            species-dictionary-chat
             request-community-identification
             transfer-signout-purchases
             resolve-purchase-principal

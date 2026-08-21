@@ -47,15 +47,29 @@ extension InsightSheetViewModel {
         return inferenceEngine?.isProcessing ?? false
     }
 
-    /// Keeps the carousel analysis treatment continuous while the same scan
-    /// transfers between queued and foreground presentation owners. During the
-    /// brief owner gap, `contentMode` remains `.analyzing` even if the engine's
-    /// processing flag has not propagated yet.
+    /// Keeps the carousel analysis treatment continuous while the same visual
+    /// scan transfers from foreground inference to its durable queue owner.
+    /// Ordinary queued scans animate only while inferencing; a typed live visual
+    /// handoff also covers its non-terminal recovery states without remounting
+    /// the overlay between queue claims.
     func isCarouselAnalysisActive(
         for explicitQueuedContext: QueuedScanContext?
     ) -> Bool {
         if let explicitQueuedContext {
-            return explicitQueuedContext.queueState == .inferencing
+            guard !explicitQueuedContext.queueNeedsAttention else {
+                return false
+            }
+
+            switch explicitQueuedContext.queueState {
+            case .inferencing:
+                return true
+            case .pending, .uploading, .staged:
+                return inferenceEngine?.hasLiveVisualQueueHandoff(
+                    for: explicitQueuedContext.id
+                ) == true
+            case .externalImport, .failed:
+                return false
+            }
         }
         return contentMode == .analyzing
     }

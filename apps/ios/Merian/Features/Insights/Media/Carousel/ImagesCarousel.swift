@@ -1008,6 +1008,8 @@ struct ImagesCarousel: View {
     @State private var unavailableImageIdentifiers: Set<String> = []
     @State private var loadedReferenceImageIdentifiers: Set<String> = []
     @State private var unavailableVideoPageIDs: Set<String> = []
+    @State private var analyzingAnimationSession =
+        AnalyzingMediaAnimationSession()
 
     // MARK: - Body
     var body: some View {
@@ -1042,6 +1044,8 @@ struct ImagesCarousel: View {
                                     kind: selectedMediaKind,
                                     focusRegion: selectedFocusRegion,
                                     focusInteractionIdentity: focusInteractionIdentity,
+                                    animationStartedAt:
+                                        analyzingAnimationSession.startedAt,
                                     committedFocusRect: committedFocusRectBinding(
                                         for: focusInteractionIdentity
                                     )
@@ -1064,6 +1068,22 @@ struct ImagesCarousel: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: isProcessing)
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+            if UITestSeedCoordinator.isEnabled,
+               isProcessing,
+               !carouselPages.isEmpty {
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Analyzing carousel continuity")
+                    .accessibilityIdentifier("AnalyzingMediaCarousel")
+                    .accessibilityValue(analyzingCarouselContinuityValue)
+            }
+        }
+        #endif
         .onChange(of: carouselScanIdentity, initial: true) { _, newScanID in
             // Carousel interaction and availability belong to one observation.
             // A failed URL may legitimately be reused by a later scan, and a
@@ -1078,6 +1098,16 @@ struct ImagesCarousel: View {
                 updatedState.retainValues(forScanID: newScanID)
                 focusOverlayInteractionState = updatedState
             }
+            analyzingAnimationSession.update(
+                scanID: newScanID,
+                isProcessing: isProcessing
+            )
+        }
+        .onChange(of: isProcessing) { _, isNowProcessing in
+            analyzingAnimationSession.update(
+                scanID: carouselScanIdentity,
+                isProcessing: isNowProcessing
+            )
         }
     }
 
@@ -1132,6 +1162,13 @@ struct ImagesCarousel: View {
     private var carouselScanIdentity: String? {
         focusOverlayInteractionState.resolvedScanID(for: scanId)
     }
+
+    #if DEBUG
+    private var analyzingCarouselContinuityValue: String {
+        let pageID = carouselPages[safe: selectedIndex]?.id ?? "none"
+        return "\(analyzingAnimationSession.continuityToken.uuidString)|\(pageID)"
+    }
+    #endif
 
     private func committedFocusRectBinding(
         for identity: FocusInteractionIdentity
@@ -1280,7 +1317,44 @@ enum StillImageAnalyzingMode: Equatable {
     }
 }
 
-/// Derives motion from time so a retained overlay can recover after its render
+/// Owns one analysis clock above the conditional media overlay. Queue-owner
+/// handoffs keep the same session, while a different scan or a later analysis
+/// of the same scan receives a fresh clock and continuity token.
+struct AnalyzingMediaAnimationSession: Equatable {
+    private(set) var scanID: String?
+    private(set) var startedAt: Date
+    private(set) var continuityToken: UUID
+    private(set) var isProcessing: Bool
+
+    init(
+        scanID: String? = nil,
+        startedAt: Date = Date(),
+        continuityToken: UUID = UUID(),
+        isProcessing: Bool = false
+    ) {
+        self.scanID = FocusInteractionIdentity.canonicalScanID(scanID)
+        self.startedAt = startedAt
+        self.continuityToken = continuityToken
+        self.isProcessing = isProcessing
+    }
+
+    mutating func update(
+        scanID: String?,
+        isProcessing: Bool,
+        at date: Date = Date()
+    ) {
+        let canonicalScanID = FocusInteractionIdentity.canonicalScanID(scanID)
+        let startedNewAnalysis = !self.isProcessing && isProcessing
+        if canonicalScanID != self.scanID || startedNewAnalysis {
+            startedAt = date
+            continuityToken = UUID()
+        }
+        self.scanID = canonicalScanID
+        self.isProcessing = isProcessing
+    }
+}
+
+/// Derives motion from time so a retained session can recover after its render
 /// transaction is interrupted by carousel updates or scene transitions.
 enum AnalyzingMediaAnimationClock {
     static func sweepProgress(
@@ -1306,11 +1380,11 @@ private struct AnalyzingMediaOverlay: View {
     let kind: CarouselMediaKind
     let focusRegion: NormalizedImageFocusRegion?
     let focusInteractionIdentity: FocusInteractionIdentity
+    let animationStartedAt: Date
     @Binding var committedFocusRect: NormalizedFocusOverlayRect?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @State private var animationStartedAt = Date()
 
     private let descriptionBandHeight: CGFloat = 89.2
     private let pulseDuration: TimeInterval = 1.25

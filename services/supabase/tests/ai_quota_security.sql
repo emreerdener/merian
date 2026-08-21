@@ -520,9 +520,10 @@ BEGIN
             'insight_chat_reply',
             'insight_chat_prompt_suggestions',
             'insight_chat_summary',
-            'explore_post_chat_reply'
+            'explore_post_chat_reply',
+            'species_dictionary_chat_reply'
         )
-    ) <> 40 THEN
+    ) <> 44 THEN
         RAISE EXCEPTION 'AI quota policy matrix including complimentary plans is incomplete';
     END IF;
 END;

@@ -157,16 +157,17 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
-- **`fieldChatResponse.ts`**: Shared Insight/Explore Field Chat success-envelope
-  builders. Every thread and action payload echoes the exact requested scan or
-  post as `subject_id`; thread builders also own the v1 limits and clamp the
-  remaining daily sends. The helper also binds an assistant to its originating
-  send UUID in private safety metadata, canonicalizes request UUID case, derives
-  a deterministic UUIDv8 assistant-row identity, and performs bounded completion
-  polling when the quota layer identifies an in-flight or completed replay. Keep
-  this boundary shared so an empty thread, feedback, note summary, prompt
-  response, concurrent local refusal, or ambiguous send retry cannot silently
-  lose subject/request identity in one route.
+- **`fieldChatResponse.ts`**: Shared Insight/Explore/Species Dictionary Field
+  Chat success-envelope builders. Every thread and action payload echoes the
+  exact requested scan, post, or species as `subject_id`; thread builders also
+  own the v1 limits and clamp the remaining daily sends. The helper also binds
+  an assistant to its originating send UUID in private safety metadata,
+  canonicalizes request UUID case, derives a deterministic UUIDv8 assistant-row
+  identity, and performs bounded completion polling when the quota layer
+  identifies an in-flight or completed replay. Keep this boundary shared so an
+  empty thread, feedback, note summary, prompt response, concurrent local
+  refusal, or ambiguous send retry cannot silently lose subject/request identity
+  in one route.
 - **`fieldChatReservation.ts`**: Fail-closed adapter to the service-only atomic
   Field Chat admission and stale-quota recovery RPCs. It validates the exact
   subject/conversation/user/request-bound persisted user row returned by
@@ -174,7 +175,19 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   database tokens to public errors, and treats timeout or malformed RPC output
   as retryable unavailability. The database transaction—not an Edge
   count-then-insert read—owns same-key replay/conflict, one unanswered request
-  per conversation, two-row capacity, and the shared Insight/Explore daily cap.
+  per conversation, two-row capacity, and the shared three-family daily cap.
+  Migration `20260821030027_add_species_dictionary_field_chat.sql` extends both
+  RPCs with the Species Dictionary subject and quota operation while preserving
+  those transaction boundaries.
+- **`fieldChatDailyUsage.ts`**: Read-side counter for user messages admitted
+  across Insight, Explore, and Species Dictionary chat. PostgreSQL admission is
+  still authoritative; this helper only shapes current limit responses. Daily
+  usage is contractually independent of content retention, so deleting a
+  conversation must not restore same-day allowance. The current candidate counts
+  live rows here and in the reservation RPC, while conversation cascades can
+  erase them. Do not release the three-family bundle until durable
+  delete-resistant accounting replaces that dependency and executable
+  delete-then-send coverage passes.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
   signing creates staged scan-media asset rows with `scan_id` null until the
   final scan exists, identify finalization marks them promoted/deleted/failed,

@@ -83,6 +83,13 @@ public post metadata, or Darwin Core export payloads to the prompt.
   revokes the legacy authenticated Data API surface from Insight answer and
   feature feedback; all current writes remain through these authenticated Edge
   routes.
+- The current three-family bundle also requires
+  `20260821030027_add_species_dictionary_field_chat.sql` before deploying this
+  updated `insight-chat`, even if `species-dictionary-chat` remains held. The
+  shared daily-usage helper queries the new Dictionary message table. Keep the
+  complete candidate release-held until daily admission survives cascading
+  conversation deletion; live message-row counting does not yet meet that
+  invariant.
 - Requires durable effective Pro entitlement. Active store subscriptions,
   receipt-backed free trials, and explicitly approved finite RevenueCat beta
   promotions unlock Field Chat only after the provider entitlement is projected
@@ -104,13 +111,13 @@ public post metadata, or Darwin Core export payloads to the prompt.
   duplicate insert races the initial read and again before a waited replay is
   returned. New user rows go through the atomic reservation RPC, which locks the
   user before the conversation and owns exact replay/conflict, the combined
-  Insight/Explore daily count, unanswered-request fencing, capacity, and insert
-  in one transaction. A duplicate, quota-layer replay, automatic transport
-  retry, or user retry first coalesces into that exact saved pair. Assistant
-  rows use a deterministic UUIDv8 derived from conversation and request
-  identity, so concurrent local refusals and ambiguous inserts cannot persist a
-  second answer. An in-flight replay waits for the original answer within a
-  bounded window and otherwise returns retryable
+  Insight/Explore/Species Dictionary daily count, unanswered-request fencing,
+  capacity, and insert in one transaction. A duplicate, quota-layer replay,
+  automatic transport retry, or user retry first coalesces into that exact saved
+  pair. Assistant rows use a deterministic UUIDv8 derived from conversation and
+  request identity, so concurrent local refusals and ambiguous inserts cannot
+  persist a second answer. An in-flight replay waits for the original answer
+  within a bounded window and otherwise returns retryable
   `503 field_chat_send_in_progress`; a failed provider or assistant-persistence
   attempt can resume under the same UUID without inserting a second user
   question. If quota is committed but the assistant remains absent for ten
@@ -127,7 +134,10 @@ public post metadata, or Darwin Core export payloads to the prompt.
   new send reserves room for its user and assistant rows together; a retry that
   already owns the user row adds only the missing assistant and must still have
   that one slot available. All Insight chat sends share the 20 sends per Pro
-  user per day limit across Insight and Explore.
+  user per day limit across Insight, Explore, and Species Dictionary. Migration
+  `20260821030027_add_species_dictionary_field_chat.sql` extends the existing
+  atomic admission and stale-recovery RPCs to that third family without changing
+  this route's request or response fields.
 - Quick prompt suggestions are generated asynchronously from saved text context
   and recent chat history, then regenerated after successful chat turns. Prompt
   generation does not consume the user send limit and falls back to local iOS

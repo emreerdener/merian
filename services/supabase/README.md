@@ -1347,6 +1347,15 @@ quality, and attribution auditing; the latter locks UUID validation, public
 mapping, slug generation and compatibility redirects, 404/transient error
 semantics, metadata helpers, native URLs, and the exact AASA path list.
 
+`species-dictionary-chat` is a separate authenticated Pro Function for the iOS
+dictionary detail surface. It never extends the public projection or web page.
+Every send selects only bounded canonical names, taxonomy, overview, habitat,
+hazard, conservation, group tags, and nonrejected lookalikes, with source text
+fenced as untrusted data. Sightings, charts, scans, notes, users, locations,
+media, URLs, and attribution identities are not selected for chat context. This
+route is a release-held source candidate; the Field Chat admission section and
+deployment runbook own its unresolved release gates.
+
 ### Internal Admin Boundary
 
 Migration `20260719161112_add_internal_admin_foundation.sql` owns the private
@@ -1627,7 +1636,7 @@ and change procedure are
 #### Atomic Field Chat Admission
 
 Migration `20260729163616_reserve_field_chat_sends_atomically.sql` must apply
-before the matching `insight-chat` and `explore-post-chat` functions. Its
+before the original `insight-chat` and `explore-post-chat` functions. Its
 service-only `reserve_field_chat_send(...)` RPC takes the per-user advisory lock
 before the per-conversation lock, validates the exact subject and owner, and
 atomically performs same-key replay/conflict handling, cross-table UTC-day
@@ -1654,6 +1663,24 @@ commit. Conversation-optional Insight feature feedback is independently bound to
 its exact scan owner. The migration also revokes the legacy authenticated Data
 API privileges from Insight answer/feature feedback and retains exact RLS joins
 as defense in depth.
+
+Migration `20260821030027_add_species_dictionary_field_chat.sql` adds the
+Edge-only Species Dictionary conversation, message, and feedback tables, their
+validated deferred composite bindings, the `species_dictionary_chat_reply` quota
+policies, and anonymous-account merge references. It compatibly replaces the
+shared RPCs so subject type `species_dictionary` joins the same user-first
+admission, 30-row conversation cap, 20-send UTC-day limit across all three
+families, and exact ten-minute stale recovery. Because the updated Insight and
+Explore bundles also import the three-table daily-usage helper, apply it before
+deploying any updated `insight-chat`, `explore-post-chat`, or
+`species-dictionary-chat` bundle from this candidate.
+
+The daily allowance must survive conversation deletion. The current candidate
+still calculates the total from live user-message rows; cascading deletion can
+therefore erase admission evidence and restore allowance. This is a release
+blocker until a durable delete-resistant admission record is authoritative and
+the disposable PostgreSQL suite proves delete-then-send behavior across all
+three families.
 
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
@@ -1833,23 +1860,23 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls all
-thirteen customer-critical scan, signing, share-state, Explore, Field Chat,
+fourteen customer-critical scan, signing, share-state, Explore, Field Chat,
 Community, identity-handoff, and deletion routes without Authorization until
 each returns fail-closed `401` with the fixed handler marker:
 `generate-upload-urls`, `identify-multimodal`, `check-scan-status`,
 `share-scan-to-explore`, `get-scan-explore-share-state`,
 `get-explore-composer-media`, `get-explore-media-incidents`, `insight-chat`,
-`explore-post-chat`, `request-community-identification`,
-`transfer-signout-purchases`, `resolve-purchase-principal`, and `delete-scan`. A
-platform `404` therefore cannot be mistaken for an application-level missing
-scan or a successful rollout. The RevenueCat reconciliation-health monitor uses
-that resolver and transport too. Do not replace the resolver with the CLI
-API-key listing: its hidden secret-key representation cannot pass the exact
-request boundary. Migration
-`20260726212549_harden_service_role_request_authentication.sql` separately
-revokes all `taxonomy_import_runs` table access from `PUBLIC`, `anon`, and
-`authenticated`, then grants `service_role` only `SELECT`, `INSERT`, and
-`UPDATE`.
+`explore-post-chat`, `species-dictionary-chat`,
+`request-community-identification`, `transfer-signout-purchases`,
+`resolve-purchase-principal`, and `delete-scan`. A platform `404` therefore
+cannot be mistaken for an application-level missing scan or a successful
+rollout. The RevenueCat reconciliation-health monitor uses that resolver and
+transport too. Do not replace the resolver with the CLI API-key listing: its
+hidden secret-key representation cannot pass the exact request boundary.
+Migration `20260726212549_harden_service_role_request_authentication.sql`
+separately revokes all `taxonomy_import_runs` table access from `PUBLIC`,
+`anon`, and `authenticated`, then grants `service_role` only `SELECT`, `INSERT`,
+and `UPDATE`.
 
 No custom server credential header is supported. Diagnostics never expose a key
 prefix, suffix, length, partial fingerprint, accepted candidate, or failed
@@ -2440,7 +2467,7 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for thirteen
+followed by stricter fail-closed authorization probes for fourteen
 customer-critical scan, signing, share-state, Explore media-incident, Field
 Chat, Community, identity-handoff, and deletion routes. It then reaches the
 exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile`,
@@ -2481,13 +2508,22 @@ an Edge region without the documented A/B evidence.
 For Field Chat reliability releases, apply
 `20260729163616_reserve_field_chat_sends_atomically.sql` before either chat
 function and include `20260730180000_bind_field_chat_rows_to_subjects.sql`
-before release acceptance. Deploy `insight-chat` and `explore-post-chat` from
-the same exact SHA, then stage same-key replay/conflict, different-key
-concurrency in one conversation, 28/29/30-row boundaries, a 19-to-20 send
-transition split across both chat families, cross-bound-row rejection, feedback
-ACLs, and the ten-minute stale-quota path before releasing iOS. An RPC timeout,
-malformed admission row, or missing migration must remain a retryable `503`
-without provider dispatch.
+before release acceptance. For Dictionary Field Chat, additionally apply
+`20260821030027_add_species_dictionary_field_chat.sql` before any updated chat
+Function, not only the new route. Deploy `insight-chat`, `explore-post-chat`,
+and `species-dictionary-chat` from the same exact SHA, then stage same-key
+replay/conflict, different-key concurrency in one conversation, 28/29/30-row
+boundaries, a 19-to-20 send transition split across all three chat families,
+deletion without daily-allowance restoration, cross-bound-row rejection,
+feedback ACLs, and the ten-minute stale-quota path before releasing iOS. An RPC
+timeout, malformed admission row, or missing migration must remain a retryable
+`503` without provider dispatch.
+
+Dictionary release also requires executable authenticated handler coverage in
+the deploy Function test list, automatic iOS ambiguous replay under the stable
+send UUID, Dictionary-specific refusal wording, and a safely normalized local
+fallback label. Source-contract inspection, header presence, and manual retry
+alone are insufficient evidence.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through

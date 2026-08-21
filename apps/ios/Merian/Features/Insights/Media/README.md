@@ -58,11 +58,34 @@ in-memory live image with its persisted path does not replace the focus overlay
 or discard a user-adjusted rectangle. User-adjusted geometry is normalized to
 the visible carousel and owned by `InsightSheetViewModel`, so it also survives a
 carousel remount and the queued-to-foreground analysis-owner handoff. The
-carousel analysis treatment follows the stable analyzing content mode across
-that handoff instead of a momentary engine processing flag. The interaction
-state retains the last confirmed canonical scan ID through a transient nil-owner
-window and treats casing-only ID changes as equivalent, while a genuinely
-different scan prunes the prior state.
+carousel analysis treatment comes from
+`InsightSheetViewModel.isCarouselAnalysisActive(for:)`, not the broad toolbar
+processing flag:
+
+| Presentation state                                     | Analysis overlay |
+| ------------------------------------------------------ | ---------------- |
+| Foreground analysis                                    | Active           |
+| Exact live visual handoff: pending/uploading/staged    | Active           |
+| Exact live visual handoff: inferencing                 | Active           |
+| Ordinary queued scan: pending/uploading/staged         | Inactive         |
+| Ordinary queued scan: inferencing                      | Active           |
+| Failed, external-import, attention-required, or result | Inactive         |
+
+For the exact handoff, `resolvedMedia(for:)` continues returning the engine's
+in-memory `ActiveScanMedia` instead of swapping immediately to the persisted
+queue path. The canonical scan ID and page identity therefore remain unchanged,
+allowing `NativePageCarousel` to retain its page controller, selected index,
+decoded image, and focus state while only the internal owner changes.
+
+`ImagesCarousel` owns `AnalyzingMediaAnimationSession` above the conditional
+`AnalyzingMediaOverlay`. The overlay derives its sweep and pulse from the
+session's `startedAt` value through `TimelineView`; recomposition or an exact
+same-scan owner change cannot restart the phase. A canonical scan-ID change or a
+false-to-true processing transition after completion creates a fresh clock and
+continuity token. Reduce Motion keeps the sweep at its midpoint without changing
+those reset rules. The interaction state also retains the last confirmed
+canonical scan ID through a transient nil-owner window and treats casing-only ID
+changes as equivalent, while a genuinely different scan prunes the prior state.
 
 Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded

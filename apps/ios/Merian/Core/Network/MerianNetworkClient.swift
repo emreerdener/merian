@@ -5557,6 +5557,126 @@ final class MerianNetworkClient {
         return data
     }
 
+    func loadSpeciesDictionaryChat(speciesId: String) async throws -> InsightChatResponse {
+        try await performSpeciesDictionaryChat(
+            action: "load",
+            speciesId: speciesId
+        )
+    }
+
+    func sendSpeciesDictionaryChatMessage(
+        speciesId: String,
+        messageText: String,
+        clientMessageId: String
+    ) async throws -> InsightChatResponse {
+        try await performSpeciesDictionaryChat(
+            action: "send",
+            speciesId: speciesId,
+            messageText: messageText,
+            clientMessageId: clientMessageId
+        )
+    }
+
+    func deleteSpeciesDictionaryChat(speciesId: String) async throws -> InsightChatResponse {
+        try await performSpeciesDictionaryChat(
+            action: "delete",
+            speciesId: speciesId
+        )
+    }
+
+    func submitSpeciesDictionaryChatFeedback(
+        speciesId: String,
+        messageId: String,
+        rating: InsightChatFeedbackRating,
+        note: String? = nil
+    ) async throws -> InsightChatFeedbackResponse {
+        let body = SpeciesDictionaryChatRequestBody(
+            action: "feedback",
+            speciesId: speciesId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: messageId,
+            feedbackRating: rating,
+            feedbackNote: note
+        )
+        let data = try await performSpeciesDictionaryChatRequest(body)
+        return try decodeInsightChatFeedbackResponse(
+            data,
+            expectedSubjectId: speciesId,
+            expectedMessageId: messageId,
+            expectedRating: rating
+        )
+    }
+
+    func suggestSpeciesDictionaryChatPrompts(
+        speciesId: String
+    ) async throws -> InsightChatPromptSuggestionsResponse {
+        let body = SpeciesDictionaryChatRequestBody(
+            action: "suggest_prompts",
+            speciesId: speciesId,
+            messageText: nil,
+            clientMessageId: nil,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performSpeciesDictionaryChatRequest(
+            body,
+            timeoutInterval: 30.0
+        )
+        return try decodeInsightChatPromptSuggestionsResponse(
+            data,
+            expectedSubjectId: speciesId
+        )
+    }
+
+    private func performSpeciesDictionaryChat(
+        action: String,
+        speciesId: String,
+        messageText: String? = nil,
+        clientMessageId: String? = nil
+    ) async throws -> InsightChatResponse {
+        let body = SpeciesDictionaryChatRequestBody(
+            action: action,
+            speciesId: speciesId,
+            messageText: messageText,
+            clientMessageId: clientMessageId,
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try await performSpeciesDictionaryChatRequest(
+            body,
+            timeoutInterval: action == "send" ? 45.0 : 20.0,
+            idempotencyKey: action == "send" ? clientMessageId : nil
+        )
+        return try decodeInsightChatResponse(
+            data,
+            expectedSubjectId: speciesId,
+            expectedClientMessageId:
+                action == "send" ? clientMessageId : nil,
+            expectedUserMessageText:
+                action == "send" ? messageText : nil
+        )
+    }
+
+    private func performSpeciesDictionaryChatRequest(
+        _ body: SpeciesDictionaryChatRequestBody,
+        timeoutInterval: TimeInterval = 20.0,
+        idempotencyKey: String? = nil
+    ) async throws -> Data {
+        let functionUrl = try endpointURL("species-dictionary-chat")
+        let bodyData = try JSONEncoder().encode(body)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: functionUrl,
+            method: "POST",
+            body: bodyData,
+            timeoutInterval: timeoutInterval,
+            idempotencyKey: idempotencyKey
+        )
+        return data
+    }
+
     private func shouldAttemptExploreMediaRestore(after error: Error) -> Bool {
         guard case let MerianError.httpError(statusCode, message) = error else {
             return false

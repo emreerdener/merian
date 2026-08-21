@@ -55,6 +55,17 @@ final class AppTelemetryTests: XCTestCase {
         AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: "explore_detail_similar_species")
         AppTelemetry.trackSpeciesDictionaryRetry(entryPoint: "explore_detail_similar_species")
         AppTelemetry.trackSpeciesDictionaryImageFallback(entryPoint: "insight_similar_species", source: "gbif")
+        AppTelemetry.trackSpeciesDictionaryFieldChatTapped(
+            entryPoint: "explore_dictionary_catalog",
+            contentQuality: "complete",
+            isPro: true
+        )
+        AppTelemetry.trackSpeciesDictionaryFieldChatAction(
+            action: "prompt_chip",
+            promptCategory: "lookalike_compare",
+            isRefusal: false,
+            hasLookalikes: true
+        )
         AppTelemetry.trackStartupStoreRecovery(outcome: "safe_mode", reason: "unit_test")
 
         XCTAssertEqual(capturedEvents.map(\.name), [
@@ -87,6 +98,8 @@ final class AppTelemetryTests: XCTestCase {
             "SpeciesDictionaryNotFound",
             "SpeciesDictionaryRetry",
             "SpeciesDictionaryReferenceImageFallback",
+            "SpeciesDictionaryFieldChatTapped",
+            "SpeciesDictionaryFieldChatActionTapped",
             "StartupStoreRecovery"
         ])
         XCTAssertTrue(capturedEvents.allSatisfy { $0.properties["event_source"] as? String == "ios_client" })
@@ -94,6 +107,39 @@ final class AppTelemetryTests: XCTestCase {
 
     func testIsInitializedAfterSetUp() {
         XCTAssertTrue(AppTelemetry.isInitialized, "setUp() must call initialize() so track methods are not silently no-oped")
+    }
+
+    func testSpeciesDictionaryFieldChatTelemetryOmitsSubjectIdentity() {
+        AppTelemetry.trackSpeciesDictionaryFieldChatTapped(
+            entryPoint: "deep_link",
+            contentQuality: "sparse",
+            isPro: false
+        )
+        AppTelemetry.trackSpeciesDictionaryFieldChatAction(
+            action: "feedback_helpful",
+            isRefusal: false,
+            hasLookalikes: true
+        )
+
+        XCTAssertEqual(capturedEvents.count, 2)
+        let forbiddenKeys = [
+            "species_id",
+            "speciesId",
+            "scientific_name",
+            "scientificName",
+            "common_name",
+            "commonName",
+            "subject_id",
+            "scan_id",
+            "conversation_id",
+            "message_id"
+        ]
+        for event in capturedEvents {
+            XCTAssertTrue(
+                forbiddenKeys.allSatisfy { event.properties[$0] == nil },
+                "\(event.name) unexpectedly included subject identity"
+            )
+        }
     }
 
     func testStartupStoreRecoveryIncludesDiagnosticProperties() {

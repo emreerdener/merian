@@ -24,25 +24,6 @@ extension InsightSheetView {
             expectedGeneration: toolbarGeneration
         )
 
-        // Queued scan path: the standard ellipsis menu is suppressed (isAnalyzing == true),
-        // so surface a dedicated trash button for the only available destructive action.
-        if toolbarQueuedScanId != nil {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) {
-                    toolbarDeleteBinding.wrappedValue = true
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .bold))
-                        .imageOverlayToolbarIconChrome(
-                            isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
-                            foregroundColor: .red
-                        )
-                }
-                .tint(.red)
-                .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
-            }
-        }
-
         TopToolbar(
             commonName: viewModel.resolvedHeaderTitle,
             isCommonNameScrolledPast: viewModel.state.isCommonNameScrolledPast,
@@ -205,6 +186,7 @@ extension InsightSheetView {
                 }
                 viewModel.state.audioBoostActionToken = UUID()
             },
+            showsQueuedDeleteAction: toolbarQueuedScanId != nil,
             isAnalyzing: viewModel.isProcessing,
             isProActive: RevenueCatManager.shared.isProActive
         )

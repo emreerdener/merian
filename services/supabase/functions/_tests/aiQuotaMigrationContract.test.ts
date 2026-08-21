@@ -4,6 +4,10 @@ const migrationUrl = new URL(
   "../../migrations/20260723160229_enforce_server_ai_quotas.sql",
   import.meta.url,
 );
+const speciesDictionaryChatMigrationUrl = new URL(
+  "../../migrations/20260821030027_add_species_dictionary_field_chat.sql",
+  import.meta.url,
+);
 
 function normalized(sql: string): string {
   return sql.replaceAll(/\s+/g, " ").trim();
@@ -137,5 +141,19 @@ Deno.test("AI quota policy matrix covers every public paid-model operation", asy
     for (const plan of ["free", "pro_trial", "pro_paid"]) {
       assertStringIncludes(sql, `('${operation}', '${plan}'`);
     }
+  }
+});
+
+Deno.test("Species Dictionary chat adds every effective-plan quota policy", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(speciesDictionaryChatMigrationUrl),
+  );
+  for (
+    const plan of ["free", "pro_trial", "pro_complimentary", "pro_paid"]
+  ) {
+    assertStringIncludes(
+      sql,
+      `'species_dictionary_chat_reply', '${plan}'`,
+    );
   }
 });

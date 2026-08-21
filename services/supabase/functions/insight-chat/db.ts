@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import { countAllFieldChatSendsToday } from "../_shared/fieldChatDailyUsage.ts";
 import {
   deriveFieldChatAssistantMessageId,
   fieldChatAssistantMetadata,
@@ -357,24 +358,5 @@ export async function countUserSendsToday(
   userId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<number> {
-  const start = new Date();
-  start.setUTCHours(0, 0, 0, 0);
-  const countTable = async (table: string): Promise<number> => {
-    const { count, error } = await supabaseAdmin
-      .from(table)
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .eq("role", "user")
-      .gte("created_at", start.toISOString());
-    if (error) {
-      throw new Error(`Failed to count daily chat sends: ${error.message}`);
-    }
-    return count ?? 0;
-  };
-
-  const [insightSends, exploreSends] = await Promise.all([
-    countTable("insight_chat_messages"),
-    countTable("explore_post_chat_messages"),
-  ]);
-  return insightSends + exploreSends;
+  return await countAllFieldChatSendsToday(userId, supabaseAdmin);
 }

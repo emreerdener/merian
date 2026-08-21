@@ -94,9 +94,21 @@ outbound transport, and a matching explicit configuration record.
 
 All normal iOS Function requests use `MerianNetworkClient`, including Share,
 composer media, Ask the Community, Insight/Field Chat, Explore, Dictionary, and
-feedback routes. Its platform-router `404` recovery is separate from
-handler-owned `404`, and ambiguous transport/`5xx` replay fails closed unless
-the route is an audited read or carries a server-supported idempotency key.
+feedback routes. The authenticated `species-dictionary-chat` route is a private
+Pro Field Chat surface distinct from the anonymous Dictionary read projection.
+Its platform-router `404` recovery is separate from handler-owned `404`, and
+ambiguous transport/`5xx` replay fails closed unless the route is an audited
+read or carries a server-supported idempotency key.
+
+The Dictionary send carries a server-supported idempotency key, but the current
+iOS candidate has not added `species-dictionary-chat` to
+`idempotencyAwareFunctionNames`. It therefore does not automatically replay an
+ambiguous transport/`5xx` failure yet; manual retry remains available under the
+same UUID. This allowlist entry and its lost-response regression are required
+before release. The current deploy workflow also runs the route's eligibility
+and prompt tests but omits `_tests/speciesDictionaryChatRouteContract.test.ts`;
+that test is source-string inspection in any case, so executable authenticated
+handler coverage must be added to the focused gate.
 
 The only direct iOS SDK callers were reviewed separately:
 
@@ -219,6 +231,7 @@ set-explore-post-like
 set-user-follow
 share-scan-to-explore
 species-dictionary
+species-dictionary-chat
 species-observation-stats
 submit-community-feedback
 submit-community-identification

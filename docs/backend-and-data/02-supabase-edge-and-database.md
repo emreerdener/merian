@@ -1190,14 +1190,27 @@ API access. Chat context comes only from the same public post/detail projections
 used by Explore plus Species Dictionary fields; unpublishing the post deletes
 all attached viewer conversations.
 
-Insight and Explore sends share the service-only `reserve_field_chat_send(...)`
-database boundary. It serializes per-user cross-table daily accounting before
-per-conversation admission, validates the exact subject, and inserts the user
-row in the same transaction as idempotency, unanswered-request, 30-row, and
-20/day checks. Edge count reads are presentation only and cannot authorize a
-send. An exact committed request whose assistant is still absent after ten
-minutes may use the narrow `recover_stale_field_chat_quota(...)` proof before a
-newly metered retry.
+The source candidate also adds authenticated `species-dictionary-chat` for the
+in-app detail page. It creates one private conversation per viewer and canonical
+biological species UUID, and reloads only bounded public reference text for each
+send. It is separate from the anonymous, cacheable `species-dictionary` read
+route and is never called by public web pages.
+
+Insight, Explore, and Species Dictionary sends share the service-only
+`reserve_field_chat_send(...)` database boundary after migration
+`20260821030027_add_species_dictionary_field_chat.sql`. It serializes per-user
+cross-table daily accounting before per-conversation admission, validates the
+exact subject, and inserts the user row in the same transaction as idempotency,
+unanswered-request, 30-row, and 20/day checks. Edge count reads are presentation
+only and cannot authorize a send. An exact committed request whose assistant is
+still absent after ten minutes may use the narrow
+`recover_stale_field_chat_quota(...)` proof before a newly metered retry.
+
+The 20/day contract must survive conversation deletion. The current candidate
+still counts live user-message rows, so cascading deletion can remove admission
+evidence and restore allowance. Dictionary Field Chat remains release-held until
+that accounting is delete-resistant and covered by executable three-family
+database tests.
 
 The in-app notifications feed is backed by server tables, not by local client
 state. Explore post activity lives in `public.explore_post_notifications`. Field

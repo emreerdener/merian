@@ -77,7 +77,7 @@ uses the validated legacy anon JWT only where the two intentional gateway
 never sends a publishable key as Bearer and fails closed if the required
 execution credential is unavailable.
 
-The following thirteen customer-critical routes receive an additional semantic
+The following fourteen customer-critical routes receive an additional semantic
 authorization probe:
 
 1. `generate-upload-urls`;
@@ -89,16 +89,17 @@ authorization probe:
 7. `get-explore-media-incidents`;
 8. `insight-chat`;
 9. `explore-post-chat`;
-10. `request-community-identification`;
-11. `transfer-signout-purchases`;
-12. `resolve-purchase-principal`; and
-13. `delete-scan`.
+10. `species-dictionary-chat`;
+11. `request-community-identification`;
+12. `transfer-signout-purchases`;
+13. `resolve-purchase-principal`; and
+14. `delete-scan`.
 
 Each unauthenticated critical-route probe must return fail-closed `401` with the
 marker.
 
 These gates prevent a deployment from reporting success while any configured
-route is absent and preserve stricter auth evidence on the thirteen affected
+route is absent and preserve stricter auth evidence on the fourteen affected
 customer paths. They do not claim that a later Supabase regional incident is
 impossible; the typed client failure keeps that incident retryable and
 distinguishable from scan state.
@@ -127,7 +128,7 @@ Database-backed Edge cases reported skips because the workspace cannot reach the
 disposable PostgreSQL service; production CI supplies an explicit test URL and
 fails closed if it is unavailable. Full Xcode compilation remains
 environment-limited by the workspace's nested SwiftPM/CoreSimulator
-restrictions. The fleet-wide route gate and thirteen stricter authorization
+restrictions. The fleet-wide route gate and fourteen stricter authorization
 probes have not yet run against the repository changes in production. None of
 these limitations is counted as a passing result.
 
@@ -138,7 +139,7 @@ Do not close this incident until:
 1. the repository changes pass production CI and are promoted in the matching
    iOS release;
 2. the deployment record shows the complete graph-derived route inventory
-   reaching marked handlers and all thirteen critical routes failing closed;
+   reaching marked handlers and all fourteen critical routes failing closed;
 3. an authenticated post-release scan immediately reports owner status `found`,
    opens Field Chat, and publishes to Explore;
 4. an eligible older local observation repairs through the owner-row recovery

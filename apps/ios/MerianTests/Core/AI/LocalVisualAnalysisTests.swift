@@ -353,15 +353,15 @@ struct LocalVisualAnalysisTests {
             ),
             FoundationVisualCue(
                 kind: .tone,
-                detail: "balanced light and dark"
+                detail: "light and shadow areas"
             ),
             FoundationVisualCue(
                 kind: .contrast,
-                detail: "strong tonal separation"
+                detail: "stark lighting"
             ),
             FoundationVisualCue(
                 kind: .surfaceTexture,
-                detail: "broad smooth regions"
+                detail: "broad smooth areas"
             )
         ]
         for cue in localCues {
@@ -406,15 +406,15 @@ struct LocalVisualAnalysisTests {
             ),
             FoundationVisualCue(
                 kind: .tone,
-                detail: "balanced light and dark"
+                detail: "light and shadow areas"
             ),
             FoundationVisualCue(
                 kind: .contrast,
-                detail: "strong tonal separation"
+                detail: "stark lighting"
             ),
             FoundationVisualCue(
                 kind: .surfaceTexture,
-                detail: "broad smooth regions"
+                detail: "broad smooth areas"
             )
         ]
         for cue in cues {
@@ -454,11 +454,115 @@ struct LocalVisualAnalysisTests {
         #expect(yellowBlueCues[0].pillText == "Analyzing yellow and blue colors")
         #expect(redGreenCues[0] != yellowBlueCues[0])
         #expect(redGreenCues[1].pillText == "Reviewing mostly vivid colors")
-        #expect(redGreenCues[2].pillText == "Comparing balanced light and dark")
-        #expect(redGreenCues[3].pillText == "Studying strong tonal separation")
-        #expect(redGreenCues[4].pillText == "Tracing broad smooth regions")
+        #expect(redGreenCues[2].pillText == "Observing light and shadow areas")
+        #expect(redGreenCues[3].pillText == "Assessing stark lighting")
+        #expect(redGreenCues[4].pillText == "Noting broad smooth areas")
 
         for cue in redGreenCues + yellowBlueCues {
+            #expect(FoundationVisualCueValidator.validatedCue(
+                cue,
+                forbiddenIdentityTerms: []
+            ) == cue)
+        }
+    }
+
+    @Test func deterministicTraitExtractorUsesConcreteMidrangeWording() async throws {
+        let extractor = AppleImageVisualTraitExtractor()
+        let softlyColoredCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(
+                    red: 0.60,
+                    green: 0.40,
+                    blue: 0.40,
+                    alpha: 1
+                ).cgColor,
+                right: UIColor(
+                    red: 0.40,
+                    green: 0.60,
+                    blue: 0.40,
+                    alpha: 1
+                ).cgColor
+            )
+        )
+        let mixedIntensityCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(
+                    red: 0.50,
+                    green: 0.50,
+                    blue: 0.50,
+                    alpha: 1
+                ).cgColor,
+                right: UIColor(
+                    red: 0,
+                    green: 0.60,
+                    blue: 0,
+                    alpha: 1
+                ).cgColor
+            )
+        )
+        let variedLightingCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(white: 0.35, alpha: 1).cgColor,
+                right: UIColor(white: 0.65, alpha: 1).cgColor
+            )
+        )
+
+        #expect(softlyColoredCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
+        #expect(mixedIntensityCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
+        #expect(variedLightingCues.count == LocalVisualTraitCuePolicy.maximumCueCount)
+        #expect(softlyColoredCues[1].pillText == "Reviewing softly colored areas")
+        #expect(softlyColoredCues[2].pillText == "Observing evenly lit areas")
+        #expect(softlyColoredCues[3].pillText == "Assessing subtle light changes")
+        #expect(mixedIntensityCues[1].pillText == "Reviewing muted and vivid colors")
+        #expect(variedLightingCues[2].pillText == "Observing light and shadow areas")
+        #expect(variedLightingCues[3].pillText == "Assessing varied lighting")
+
+        for cue in softlyColoredCues + mixedIntensityCues + variedLightingCues {
+            let lowercasePhrase = cue.pillText.lowercased()
+            #expect(!lowercasePhrase.contains("balanced"))
+            #expect(!lowercasePhrase.contains("moderate"))
+            #expect(!lowercasePhrase.contains("levels"))
+            #expect(!lowercasePhrase.contains("values"))
+            #expect(FoundationVisualCueValidator.validatedCue(
+                cue,
+                forbiddenIdentityTerms: []
+            ) == cue)
+        }
+    }
+
+    @Test func deterministicTraitExtractorUsesConcreteLightingAndSurfaceExtremes() async throws {
+        let extractor = AppleImageVisualTraitExtractor()
+        let shadowCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(white: 0.10, alpha: 1).cgColor,
+                right: UIColor(white: 0.10, alpha: 1).cgColor
+            )
+        )
+        let brightCues = await extractor.extractCues(
+            from: try makeSplitImage(
+                left: UIColor(white: 0.90, alpha: 1).cgColor,
+                right: UIColor(white: 0.90, alpha: 1).cgColor
+            )
+        )
+        let detailedCues = await extractor.extractCues(
+            from: try makeCheckerboardImage(
+                first: UIColor(white: 0.425, alpha: 1).cgColor,
+                second: UIColor(white: 0.575, alpha: 1).cgColor
+            )
+        )
+        let fineEdgeCues = await extractor.extractCues(
+            from: try makeCheckerboardImage(
+                first: UIColor.black.cgColor,
+                second: UIColor.white.cgColor
+            )
+        )
+
+        #expect(shadowCues[2].pillText == "Observing mostly shadowed areas")
+        #expect(brightCues[2].pillText == "Observing mostly bright areas")
+        #expect(detailedCues[4].pillText == "Noting smooth and detailed areas")
+        #expect(fineEdgeCues[4].pillText == "Noting many fine edges")
+
+        for cue in shadowCues + brightCues + detailedCues + fineEdgeCues {
             #expect(FoundationVisualCueValidator.validatedCue(
                 cue,
                 forbiddenIdentityTerms: []
@@ -628,15 +732,15 @@ struct LocalVisualAnalysisTests {
                 ),
                 FoundationVisualCue(
                     kind: .tone,
-                    detail: "balanced light and dark"
+                    detail: "light and shadow areas"
                 ),
                 FoundationVisualCue(
                     kind: .contrast,
-                    detail: "strong tonal separation"
+                    detail: "stark lighting"
                 ),
                 FoundationVisualCue(
                     kind: .surfaceTexture,
-                    detail: "broad smooth regions"
+                    detail: "broad smooth areas"
                 )
             ]),
             scanningPhraseSleeper: clock
@@ -665,15 +769,15 @@ struct LocalVisualAnalysisTests {
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(5)
-        #expect(engine.scanningPhaseText == "Comparing balanced light and dark")
+        #expect(engine.scanningPhaseText == "Observing light and shadow areas")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(6)
-        #expect(engine.scanningPhaseText == "Studying strong tonal separation")
+        #expect(engine.scanningPhaseText == "Assessing stark lighting")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(7)
-        #expect(engine.scanningPhaseText == "Tracing broad smooth regions")
+        #expect(engine.scanningPhaseText == "Noting broad smooth areas")
 
         await clock.advance()
         await clock.waitUntilSleepCallCount(8)
@@ -1310,6 +1414,37 @@ struct LocalVisualAnalysisTests {
             width: halfWidth,
             height: CGFloat(height)
         ))
+        return ImageDownsampler.SendableImage(
+            cgImage: try #require(context.makeImage())
+        )
+    }
+
+    private func makeCheckerboardImage(
+        first: CGColor,
+        second: CGColor
+    ) throws -> ImageDownsampler.SendableImage {
+        let width = 32
+        let height = 32
+        let context = try #require(CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        ))
+        for y in 0..<height {
+            for x in 0..<width {
+                context.setFillColor((x + y).isMultiple(of: 2) ? first : second)
+                context.fill(CGRect(
+                    x: CGFloat(x),
+                    y: CGFloat(y),
+                    width: 1,
+                    height: 1
+                ))
+            }
+        }
         return ImageDownsampler.SendableImage(
             cgImage: try #require(context.makeImage())
         )

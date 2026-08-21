@@ -462,21 +462,42 @@ unknown request statuses, false success flags, identity mismatches, invalid
 UUIDs/timestamps, or non-`needs_id` results become
 `MerianError.invalidResponse`.
 
-Field Chat responses are decoded through one strict path for both Insight scans
-and Explore posts. Every envelope must echo the requested scan/post through
-`subject_id`, including when the thread is empty. Every message must have a
-unique UUID, match that same subject through `scan_id`, match the envelope's
-valid conversation UUID, contain trimmed/nonempty text bounded to 4,000
-characters, and fit the exact v1 server limits. Field Chat JSON is rejected
-above the reviewed 1 MiB decode ceiling. A send response must also contain
-exactly one user message and one assistant message carrying the requested
-`client_message_id`, and the acknowledged user row must contain the exact
-trimmed text that was sent. Invalid, contradictory, or incomplete envelopes
-never reach `InsightChatViewModel.apply`; failed sends remain retryable under
-the same canonical lowercase idempotency UUID rather than clearing the pending
-question or creating a duplicate on manual retry. A backend
+Field Chat responses are decoded through one strict path for Insight scans,
+Explore posts, and Species Dictionary entries. Requests select exactly one
+source-specific key: `scan_id`, `post_id`, or `species_id`. Every envelope must
+echo the requested subject through `subject_id`, including when the thread is
+empty. Every message must have a unique UUID, match that same subject through
+the compatibility `scan_id`, match the envelope's valid conversation UUID,
+contain trimmed/nonempty text bounded to 4,000 characters, and fit the exact v1
+server limits. Field Chat JSON is rejected above the reviewed 1 MiB decode
+ceiling. A send response must also contain exactly one user message and one
+assistant message carrying the requested `client_message_id`, and the
+acknowledged user row must contain the exact trimmed text that was sent.
+Invalid, contradictory, or incomplete envelopes never reach
+`InsightChatViewModel.apply`; failed sends remain retryable under the same
+canonical lowercase idempotency UUID rather than clearing the pending question
+or creating a duplicate on manual retry. A backend
 `field_chat_idempotency_conflict` means that UUID was reused for edited text and
 is never treated as confirmation of either send.
+
+Species Dictionary Field Chat calls `/species-dictionary-chat`; the app sends
+only the canonical dictionary UUID as `species_id`. The route's stable
+`species_not_available` response is permanent only for that dictionary subject,
+while shared transport and admission failures remain retryable. Dictionary
+product telemetry records the source/action outcome without the species UUID,
+name, conversation ID, or message ID. Migration
+`20260821030027_add_species_dictionary_field_chat.sql` extends atomic admission
+and stale recovery to all three chat families.
+
+The request already sends the canonical `client_message_id` as
+`Idempotency-Key`, and manual retry reuses it. The current candidate has not yet
+added `species-dictionary-chat` to `idempotencyAwareFunctionNames`, so
+`canReplayAfterAmbiguousFailure` does not automatically retry this route after a
+lost response or retryable `5xx`. That allowlist entry and an exact one-pair
+replay regression are required before Dictionary Field Chat can ship. Missing or
+malformed `species_id` maps to `400 invalid_request`; only a valid canonical
+UUID that is unavailable/nonbiological maps to the permanent
+`404 species_not_available` subject state.
 
 Atomic admission and stale-request recovery remain backend authority.
 `field_chat_send_in_progress`, `field_chat_admission_unavailable`, and

@@ -2,20 +2,20 @@
 
 The Species Dictionary Page is the standalone in-app and public-web reference
 page for a discovered species. Its primary content remains canonical public
-species-level dictionary data and licensed reference imagery. A separate authenticated **Community sightings**
-request adds visibility-safe Explore cards without placing viewer-sensitive
-data in the cacheable dictionary response. The on-device local-observation
-overlay inside `SpeciesObservationChartsCard` remains local; those counts are
-never sent to Supabase.
+species-level dictionary data and licensed reference imagery. A separate
+authenticated **Community sightings** request adds visibility-safe Explore cards
+without placing viewer-sensitive data in the cacheable dictionary response. The
+on-device local-observation overlay inside `SpeciesObservationChartsCard`
+remains local; those counts are never sent to Supabase.
 
 This creates three separate species surfaces in the iOS app:
 
-| Surface                 | Scope                         | Primary data source                                                               |
-| ----------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
-| Insight scan            | A user's specific scan result | `InferenceEngine.shared.speciesData`, local scan media, and per-scan AI reasoning |
-| Explore post            | A public shared scan          | Explore post/detail endpoints plus the backing public scan projection             |
+| Surface                 | Scope                         | Primary data source                                                                                                                                                                                                |
+| ----------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Insight scan            | A user's specific scan result | `InferenceEngine.shared.speciesData`, local scan media, and per-scan AI reasoning                                                                                                                                  |
+| Explore post            | A public shared scan          | Explore post/detail endpoints plus the backing public scan projection                                                                                                                                              |
 | Species dictionary page | General species reference     | `species_dictionary`, `species_lookalikes`, public reference imagery, local on-device observation aggregates, cached global public iNaturalist stats, and a separate authenticated Explore species-post projection |
-| Public species page      | Anonymous species reference   | Versioned public `/species-dictionary` Edge response only                         |
+| Public species page     | Anonymous species reference   | Versioned public `/species-dictionary` Edge response only                                                                                                                                                          |
 
 ## Product Scope
 
@@ -41,6 +41,9 @@ Included in V1:
 - hazard status
 - similar species that route to another dictionary page in the same stack
 - a top-right native share action after the canonical UUID and names have loaded
+- a bottom-right private Pro Field Chat action for every loaded canonical UUID
+  in the source candidate (release-held; see
+  [Candidate Release Status](#candidate-release-status))
 - a server-rendered browser fallback at
   `https://naturebook.earth/species/{speciesId}/{slug}`
 
@@ -57,13 +60,16 @@ Excluded in V1:
 The public web page additionally excludes local observation charts,
 authenticated Community sightings, all user media, and similar-species
 thumbnails. Those thumbnails are withheld until their payload includes public
-license and attribution fields.
+license and attribution fields. It does not expose or link to authenticated
+Field Chat.
 
 ## Architecture
 
 Primary files:
 
 - `services/supabase/functions/_shared/publicSpeciesProjection.ts`
+- `services/supabase/functions/species-dictionary-chat/index.ts`
+- `services/supabase/functions/species-dictionary-chat/db.ts`
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
@@ -76,6 +82,8 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/Insights/Chat/ViewModels/InsightChatViewModel.swift`
+- `apps/ios/Merian/Features/Insights/Chat/Views/InsightChatSheet.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
@@ -89,10 +97,10 @@ Primary files:
 
 `SpeciesDictionaryPageView` is the standalone sheet shell. It owns a
 `NavigationStack`, presents at `.large`, hides the sheet grabber, and renders
-the root `SpeciesDictionaryPageContentView` with an `xmark` close button.
-Pushed dictionary pages render the same content view with native back
-navigation instead of a close button. When dictionary content is pushed from
-Insight or Explore, those sheet roots own the navigation stack and register
+the root `SpeciesDictionaryPageContentView` with an `xmark` close button. Pushed
+dictionary pages render the same content view with native back navigation
+instead of a close button. When dictionary content is pushed from Insight or
+Explore, those sheet roots own the navigation stack and register
 `SpeciesDictionaryRoute`; the dictionary content does not create a nested sheet.
 It does not mount `InferenceEngine`, does not read SwiftData scan records, and
 does not reuse `InsightSheetViewModel`.
@@ -123,10 +131,11 @@ resolve/store `inaturalist_taxon_id` or call the provider.
 similar species. It loads six square tiles, hides itself after an empty or
 failed request, and shows **View all** only when the backend returns another
 cursor. The destination reuses those six results, loads 30-item pages in the
-same three-column grid, deduplicates posts, and supports pull-to-refresh. Explore
-and Profile hosts supply their existing `ExploreFeedViewModel`; standalone
-Dictionary, Scans, and Insight routes use a local fallback so tile taps still
-push the existing Explore post detail in the current navigation stack.
+same three-column grid, deduplicates posts, and supports pull-to-refresh.
+Explore and Profile hosts supply their existing `ExploreFeedViewModel`;
+standalone Dictionary, Scans, and Insight routes use a local fallback so tile
+taps still push the existing Explore post detail in the current navigation
+stack.
 
 ## Entry Point
 
@@ -171,10 +180,9 @@ readable common-name slug is unavailable. The slug is presentation-only. The
 parser accepts the canonical form, UUID-only compatibility form, and legacy
 host/scheme forms, ignores the optional slug for identity, and requests
 `AppRoute.speciesDictionary` with only the normalized UUID.
-`CaptureWorkspaceViewModel`
-clears conflicting launch routes, protects the destination from the immediate
-foreground timeout reset, opens Explore, selects Identify/Index, and pushes a
-`SpeciesDictionaryRoute(entryPoint: .deepLink)`.
+`CaptureWorkspaceViewModel` clears conflicting launch routes, protects the
+destination from the immediate foreground timeout reset, opens Explore, selects
+Identify/Index, and pushes a `SpeciesDictionaryRoute(entryPoint: .deepLink)`.
 
 The share button appears only after the loaded response supplies a valid UUID
 and uses the loaded names to build its readable slug. Its primary item is the
@@ -182,14 +190,77 @@ canonical HTTPS URL, its subject is the common name, and its message is brief
 Naturebook copy. A browser recipient gets the public page; an installed current
 app claims the same URL through Universal Links.
 
+## In-App Field Chat
+
+`SpeciesDictionaryPageContentView` shows the shared `FieldChatToolbarButton` at
+the bottom right only when its loaded response contains a valid canonical
+species UUID. Loading, not-found, error, and invalid ID states keep the bottom
+bar hidden. Share remains in the top bar. Because the same content view owns
+direct, deep-linked, and pushed dictionary pages, the behavior also follows
+similar-species navigation without adding a nested sheet or stack.
+
+The client captures the loaded UUID before asynchronous presentation work. A
+Free tap routes to the existing paywall. A Pro tap activates
+`FieldChatSource.speciesDictionary`, loads the viewer's saved thread from
+`/species-dictionary-chat`, revalidates the active loaded UUID, and presents the
+shared `InsightChatSheet` at `.large`. Owner-only Insight actions—field-note
+summary, sheet-level feature feedback, candidate review, and reanalysis—remain
+disabled. Answer feedback, delete, retry/edit, and deterministic prompt chips
+remain available. A thread already loaded in memory stays readable offline;
+network mutations remain unavailable.
+
+Each network success is untrusted until the shared strict decoder verifies that
+top-level `subject_id` and every compatibility `messages[].scan_id` equal the
+captured species UUID, message/conversation identities agree, and a send
+contains its exact user/assistant `client_message_id` pair. Subject generations
+fence late load, send, delete, feedback, and prompt completions so navigation to
+another species cannot flash or overwrite the previous thread.
+
+Dictionary product events report entry point, content quality, entitlement
+state, action category, refusal state, and lookalike availability only. They do
+not contain species UUIDs or names. The public web route and anonymous
+`/species-dictionary` contract are unchanged.
+
+### Candidate Release Status
+
+Species Dictionary Field Chat is implemented in the source candidate but is
+release-held. It must not be described as shipped or added to paywall/App Store
+copy until all of these boundaries pass:
+
+1. The shared 20-send UTC-day allowance survives deletion of any Insight,
+   Explore, or Dictionary conversation. The current candidate counts live user
+   message rows, so a cascading conversation delete can restore allowance; the
+   admission record must become independent of retained chat content.
+2. `species-dictionary-chat` is added to the iOS network client's audited
+   idempotent replay allowlist and a lost-response/`5xx` test proves automatic
+   replay returns the one saved pair. The request already carries the stable
+   UUID header and manual retry preserves it, but automatic ambiguous retry is
+   not active for this route yet.
+3. Runtime handler tests—not source-string inspection alone—prove
+   authentication, Pro access, all five actions, invalid/unavailable species,
+   exact echoes, ownership, replay/conflict/in-flight recovery, and current
+   dictionary context. The route-contract test must also run in the deploy
+   workflow's focused Function gate.
+4. Every refusal uses Dictionary-specific wording, and iOS fallback prompt
+   labels use the same trimmed, bounded safe label as server suggestions. Raw or
+   overlong dictionary names must not become fallback instructions or oversized
+   chips.
+5. Migration `20260821030027_add_species_dictionary_field_chat.sql` is applied
+   before any updated `insight-chat`, `explore-post-chat`, or
+   `species-dictionary-chat` bundle, followed by the database, iOS, and Great
+   Egret manual matrix in this document and the deployment runbook.
+
+These are candidate defects and missing evidence, not accepted product
+limitations. Public web remains unchanged regardless of this release hold.
+
 ## Title And Alternate Names
 
 The header renders the scientific name, then the primary common name, then
 `AlternativeCommonNamesLine` when alternate names are available. The line uses
 the compact copy `Also known as: Name, Name` and wraps naturally for long lists.
 It trims names, splits comma-delimited source values, deduplicates
-case-insensitively, treats whitespace/underscore/dash variants as the same
-name, and excludes the primary common name. For example, `Desert Rose` and
+case-insensitively, treats whitespace/underscore/dash variants as the same name,
+and excludes the primary common name. For example, `Desert Rose` and
 `Desert-rose` share the same display key, so the alternate line is suppressed
 instead of repeating the title with punctuation changed.
 
@@ -215,6 +286,28 @@ That method POSTs to the `species-dictionary` Edge Function:
   "scientific_name": "Danaus plexippus"
 }
 ```
+
+Field Chat is a separate authenticated request surface:
+
+```json
+{
+  "action": "send",
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+  "message_text": "How can I distinguish this species from lookalikes?",
+  "client_message_id": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+`/species-dictionary-chat` supports `load`, `send`, `delete`, `feedback`, and
+`suggest_prompts`. It requires authenticated functional Pro access and keeps one
+private conversation per `(viewer, species)`. Every send reloads the latest
+bounded canonical names, taxonomy, overview, habitat, hazard, conservation,
+group tags, and nonrejected lookalikes. All dictionary values are fenced as
+untrusted data. Community sightings, observation charts, scans, notes, users,
+locations, media, reference URLs, and attribution identities are excluded.
+Missing or malformed `species_id` input returns `400 invalid_request`; a valid
+UUID that is absent or does not resolve to an available biological dictionary
+row returns `404 species_not_available`.
 
 Successful responses are wrapped in a `data` envelope:
 
@@ -312,17 +405,16 @@ The response returns image-backed category summaries for `All`, `Your Region`,
 `Taxonomy`, and `Recently Added`, a Recently Added featured species card with
 overview copy, graphic-led high-level group summaries such as Birds and Plants,
 plus country summaries derived from canonical GBIF occurrence facets in
-`species_country_occurrences`.
-`Recently Added` is capped to the newest 40 biological entries for its overview
-count and representative image so it does not duplicate the `All` total. iOS
-uses that featured card as the visible Recently Added entry point, renders
-`Your Region` as a full-width MapKit snapshot card whenever iOS can supply an
-ISO country. The card links to the exact country catalog when coverage exists
-and remains visible, non-interactive, with `Coverage updating` while the
-scheduled backfill is still filling that country. `All` moves into a bottom row
-link. Explore keeps all
-Dictionary surfaces under the Identify tab's `Index` mode; Index renders the
-Catalog overview/search content directly.
+`species_country_occurrences`. `Recently Added` is capped to the newest 40
+biological entries for its overview count and representative image so it does
+not duplicate the `All` total. iOS uses that featured card as the visible
+Recently Added entry point, renders `Your Region` as a full-width MapKit
+snapshot card whenever iOS can supply an ISO country. The card links to the
+exact country catalog when coverage exists and remains visible, non-interactive,
+with `Coverage updating` while the scheduled backfill is still filling that
+country. `All` moves into a bottom row link. Explore keeps all Dictionary
+surfaces under the Identify tab's `Index` mode; Index renders the Catalog
+overview/search content directly.
 `FeatureFlags.isEnabled(.speciesDictionaryTree)` remains the default-off release
 gate for the Tree canvas and preserved internal taxonomy destination. DEBUG
 builds can override it from Settings → Feature Flags, but the override does not
@@ -331,25 +423,23 @@ default. The region snapshot uses the backend's country display title and falls
 back to a default United States map only when MapKit geocoding cannot resolve
 that title. If the overview has no non-empty country summaries with species
 counts, iOS hides the Region section and the "Browse all regions" row while the
-personal country card still communicates the pending refresh state.
-Catalog detail pages opened from overview cards or rows, including Birds,
-Mammals, All, Your Region, and Recently Added, keep the same paginated species
-row list but add toolbar search, matching the Scans library search presentation,
-that filters within the active category.
-Overview, catalog, and tree results are gated to public biological taxa: a row
-must have a scientific name plus either a positive GBIF taxon key or usable
-biological taxonomy with a kingdom and at least one downstream rank. Rows that
-only resolve to generic encyclopedia concepts are filtered out before they can
-appear as dictionary records.
-`user_region` may be an ISO country code from an already-authorized physical
-location or, when location is unavailable/not granted, from
-`Locale.current.region?.identifier`. The function normalizes the code and
-queries exact ISO-country occurrence rows; it never substring-matches a broad
-range such as `North America` as the long-term regional source. During the
-backfill only, a country with no occurrence rows may fall back to the legacy
-`native_region` display-name compatibility filter. iOS includes `cache_buster` so
-overview requests bypass old cached response bodies while category thumbnails
-are randomized.
+personal country card still communicates the pending refresh state. Catalog
+detail pages opened from overview cards or rows, including Birds, Mammals, All,
+Your Region, and Recently Added, keep the same paginated species row list but
+add toolbar search, matching the Scans library search presentation, that filters
+within the active category. Overview, catalog, and tree results are gated to
+public biological taxa: a row must have a scientific name plus either a positive
+GBIF taxon key or usable biological taxonomy with a kingdom and at least one
+downstream rank. Rows that only resolve to generic encyclopedia concepts are
+filtered out before they can appear as dictionary records. `user_region` may be
+an ISO country code from an already-authorized physical location or, when
+location is unavailable/not granted, from `Locale.current.region?.identifier`.
+The function normalizes the code and queries exact ISO-country occurrence rows;
+it never substring-matches a broad range such as `North America` as the
+long-term regional source. During the backfill only, a country with no
+occurrence rows may fall back to the legacy `native_region` display-name
+compatibility filter. iOS includes `cache_buster` so overview requests bypass
+old cached response bodies while category thumbnails are randomized.
 
 The scheduled `refresh-species-content` worker obtains GBIF country facets for
 records with `occurrenceStatus=PRESENT`, coordinates, and no geospatial issue.
@@ -357,7 +447,8 @@ It atomically replaces each species' country rows and refreshes them every 180
 days through `species_content_provenance`. These rows mean "recorded in this
 country," not "native to this country." Identification paths omit the legacy
 range column and nullish provider fields so an upsert cannot erase curated text
-with `Unknown` or remove a known GBIF identity during a transient lookup failure.
+with `Unknown` or remove a known GBIF identity during a transient lookup
+failure.
 
 ```json
 {
@@ -422,10 +513,9 @@ Catalog mode powers search results and category detail pages:
 `category` defaults to `all` for backward compatibility. `region` is required
 when `category` is `region`; new clients send the response's ISO `region_code`
 or region-summary `code`. English country titles remain accepted for deployed
-client compatibility. `group` is
-required when `category` is `group`; supported high-level groups are `plants`,
-`birds`, `insects`, `fungi`, `mammals`, and `reptiles_amphibians`.
-`recently_added` sorts by
+client compatibility. `group` is required when `category` is `group`; supported
+high-level groups are `plants`, `birds`, `insects`, `fungi`, `mammals`, and
+`reptiles_amphibians`. `recently_added` sorts by
 `species_dictionary.created_at DESC, id DESC`; other catalog views sort by
 `scientific_name ASC, id ASC`. The response keeps the shared schema version and
 returns a cursor-paginated list:
@@ -533,10 +623,10 @@ detail and catalog responses.
 
 The tree response is still species-level public data only. It adds graph-ready
 taxonomy nodes, parent/child edges, species counts, representative species, and
-preview fields so the iOS canvas can zoom, focus branches, and show
-species previews without exposing scan IDs, users, media, locations, comments,
-Explore posts, or field notes. Empty scan libraries return an empty graph and
-the iOS canvas shows a scanned-taxonomy empty state.
+preview fields so the iOS canvas can zoom, focus branches, and show species
+previews without exposing scan IDs, users, media, locations, comments, Explore
+posts, or field notes. Empty scan libraries return an empty graph and the iOS
+canvas shows a scanned-taxonomy empty state.
 
 Observation pattern charts use a separate public endpoint:
 
@@ -546,14 +636,14 @@ MerianNetworkClient.shared.getSpeciesObservationStats(
 )
 ```
 
-That method sends an authenticated GET to the public
-`species-observation-stats` route with the dictionary `species_id` and
-`scientific_name`. Authentication supplies a per-user rate bucket; it does not
-personalize the global iNaturalist response. An IP budget is consumed before
-optional token verification. Local Merian logs are aggregated on-device and
-are not sent to Supabase. The client rejects malformed UUIDs and invalid name
-bounds before networking, then requires response schema version 2 or newer plus
-the same canonical UUID/name pair before memoizing a result. See
+That method sends an authenticated GET to the public `species-observation-stats`
+route with the dictionary `species_id` and `scientific_name`. Authentication
+supplies a per-user rate bucket; it does not personalize the global iNaturalist
+response. An IP budget is consumed before optional token verification. Local
+Merian logs are aggregated on-device and are not sent to Supabase. The client
+rejects malformed UUIDs and invalid name bounds before networking, then requires
+response schema version 2 or newer plus the same canonical UUID/name pair before
+memoizing a result. See
 [`Species Observation Charts`](./18-species-observation-charts.md) for the full
 contract, cache behavior, annotation mappings, and privacy rules.
 
@@ -687,8 +777,7 @@ Exact external-media suppression:
   `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` (GBIF occurrence
   `5938154750`) and no other `Felis silvestris` or GBIF media.
 - If the denied URL was first, the next permitted image is promoted without
-  changing source order. If none remain, the existing leaf placeholder is
-  shown.
+  changing source order. If none remain, the existing leaf placeholder is shown.
 - `ExternalReferenceImagePolicy` applies the same check to iOS DTO
   normalization, persisted cache writes, historical
   `SimilarSpeciesEntry.referenceImageUrl` decoding, catalog/tree URL creation,
@@ -724,9 +813,9 @@ Lookalikes:
   (`reason`, `visual_traits`, `confidence`, `source`, `review_status`,
   `is_bidirectional`, `sort_order`); thumbnail URLs prefer
   `species_reference_images` and fall back to the legacy dictionary cache.
-- Cards show only the common/scientific names over the image. Relation
-  rationale and visual-trait explanation copy are intentionally hidden in the
-  UI even though the payload remains additive for future curation views.
+- Cards show only the common/scientific names over the image. Relation rationale
+  and visual-trait explanation copy are intentionally hidden in the UI even
+  though the payload remains additive for future curation views.
 - The page renders the section as same-stack navigation in V1.
 
 Provenance:
@@ -736,10 +825,9 @@ Provenance:
   for dictionary fields and durable lookalikes.
 - `refresh-species-content` claims `gbif_wikipedia_reference` jobs from
   `species_enrichment_jobs` first, then falls back to
-  `public.get_species_content_refresh_queue(...)` for older
-  provenance-driven refreshes. It refreshes GBIF/Wikipedia-backed fields:
-  alternate common names, taxonomy, Wikipedia URL/overview, GBIF taxon key, and
-  reference images.
+  `public.get_species_content_refresh_queue(...)` for older provenance-driven
+  refreshes. It refreshes GBIF/Wikipedia-backed fields: alternate common names,
+  taxonomy, Wikipedia URL/overview, GBIF taxon key, and reference images.
 - `refresh-species-model-content` claims `habitat`, `lookalikes`, and
   `group_tags` jobs from the same queue and reuses the species-level biology
   primitives behind `enrich-scan` without pretending a user rescanned the
@@ -752,8 +840,8 @@ Provenance:
   license/attribution metadata for matching URLs and preserving Merian rows.
 - `refresh-merian-reference-images` runs hourly as a separate service-role cron
   worker. It promotes published Explore media with `image_quality_score >= 80`
-  and either `ai_confidence_score >= 0.95` or a resolved
-  `confirmed_species_id`, stores private source/confidence provenance in
+  and either `ai_confidence_score >= 0.95` or a resolved `confirmed_species_id`,
+  stores private source/confidence provenance in
   `species_reference_image_merian_sources`, and removes public Merian rows when
   the source Explore post/media stops being visible.
 
@@ -784,24 +872,30 @@ The public `/species-dictionary` response must never expose:
 - preferred common-name overrides
 - scan-level pet-identification labels
 
-The public web frontend consumes this endpoint without an authenticated user
-and maps only the documented versioned fields.
+The public web frontend consumes this endpoint without an authenticated user and
+maps only the documented versioned fields.
 
-The separate authenticated sightings endpoint may return standard public
-Explore card identifiers and media, but only through
-`public.explore_projected_post_cards(viewer_id)`. Unshared, tombstoned,
-blocked, shadowbanned, identification-pending, and media-less posts remain
-excluded, and the SQL RPC is executable only by `service_role`.
+The separate authenticated sightings endpoint may return standard public Explore
+card identifiers and media, but only through
+`public.explore_projected_post_cards(viewer_id)`. Unshared, tombstoned, blocked,
+shadowbanned, identification-pending, and media-less posts remain excluded, and
+the SQL RPC is executable only by `service_role`.
 
 ## Testing
 
 Backend:
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --allow-net --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/index.ts
+deno test --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts
 deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
 ```
+
+The current route-contract file in that command inspects source structure; it
+does not execute an authenticated handler. Before release, add the executable
+route suite described in [Candidate Release Status](#candidate-release-status)
+and include both it and the contract file in the deploy workflow's focused
+Function tests.
 
 iOS:
 
@@ -830,14 +924,28 @@ Manual acceptance:
 - Confirm the similar-species section appears after habitat/distribution, then
   tap a card and verify the same species page sheet opens.
 - Confirm gallery images render, and missing images fall back gracefully.
+- On Great Egret, confirm Free opens the paywall and Pro opens Field Chat; send,
+  close/reopen, delete, feedback, similar-species navigation, and an
+  already-loaded offline transcript must remain species-scoped.
+- At the 20-send boundary, delete the Great Egret thread and confirm neither the
+  returned remaining count nor a new send regains allowance that UTC day.
+- Lose one successful send response and force one retryable `5xx`; confirm the
+  automatic client retry reuses the exact lowercase UUID and restores one saved
+  pair without requiring a second tap.
+- Exercise missing/malformed `species_id` as `400 invalid_request` and a valid
+  absent/nonbiological UUID as `404 species_not_available`.
+- Trigger every local refusal class and server-suggestion fallback; confirm no
+  scan/observation wording remains and an empty or overlong/untrusted display
+  name produces a safe, bounded generic label.
+- Confirm the public Great Egret web page has no Field Chat change.
 - Reopen the pictured Brown Tabby scan and confirm the European wildcat card
   remains visible and navigable but media `605615444` does not appear in
   Insight, Explore, the Dictionary catalog/tree, or the Dictionary detail
   gallery. Confirm the next live image is used when available and the leaf
   placeholder appears when every candidate is blocked or fails.
 - Confirm a missing dictionary row shows the not-found/retry state.
-- Share a loaded dictionary page and confirm the payload uses the canonical
-  UUID HTTPS URL and common-name subject.
+- Share a loaded dictionary page and confirm the payload uses the canonical UUID
+  HTTPS URL and common-name subject.
 - Open canonical and legacy HTTPS/custom-scheme species links and confirm
   Explore selects Identify/Index, pushes the species, and survives an immediate
   session-timeout event.

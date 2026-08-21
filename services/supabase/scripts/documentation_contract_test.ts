@@ -3358,6 +3358,7 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     sharedSource,
     insightSource,
     exploreSource,
+    speciesSource,
     testingSource,
     errorSource,
     aiSource,
@@ -3375,6 +3376,7 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     read("services/supabase/functions/_shared/README.md"),
     read("services/supabase/functions/insight-chat/README.md"),
     read("services/supabase/functions/explore-post-chat/README.md"),
+    read("services/supabase/functions/species-dictionary-chat/README.md"),
     read("docs/development-guides/08-testing-strategy.md"),
     read("docs/development-guides/06-error-handling.md"),
     read("docs/system-architecture/04-ai-engineering.md"),
@@ -3469,12 +3471,51 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     compact(testingSource),
     "2026-07-30 exact-source rerun passed 32 tests and 0 failed across the same nine files",
   );
-  for (const source of [insightSource, exploreSource]) {
+  for (const source of [insightSource, exploreSource, speciesSource]) {
     assertStringIncludes(
       compact(source),
       "deno test --frozen --config services/supabase/functions/deno.json",
     );
   }
+
+  for (
+    const source of [
+      schemaSource,
+      apiSource,
+      backendSource,
+      sharedSource,
+      insightSource,
+      exploreSource,
+      speciesSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      networkSource,
+      clientSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "`20260821030027_add_species_dictionary_field_chat.sql`",
+    );
+  }
+  assertStringIncludes(
+    compact(speciesSource),
+    "`species_not_available`",
+  );
+  assertStringIncludes(
+    compact(speciesSource),
+    "Source values are fenced as untrusted reference data",
+  );
+  assertStringIncludes(
+    compact(testingSource),
+    "`tests/species_dictionary_chat_security.sql`",
+  );
+  assertStringIncludes(
+    compact(speciesSource),
+    "share one 20-send UTC-day limit with Insight and Explore Field Chat",
+  );
 
   assertStringIncludes(
     compact(sharedSource),
@@ -3644,6 +3685,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
       "`get-explore-media-incidents`",
       "`insight-chat`",
       "`explore-post-chat`",
+      "`species-dictionary-chat`",
       "`request-community-identification`",
       "`transfer-signout-purchases`",
       "`resolve-purchase-principal`",
@@ -3690,26 +3732,27 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     runbook,
-    "separately probes thirteen customer-critical routes",
+    "separately probes fourteen customer-critical routes",
   );
   assertStringIncludes(
     backend,
-    "all thirteen customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
+    "all fourteen customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
   );
   assertStringIncludes(
     incident,
-    "The following thirteen customer-critical routes",
+    "The following fourteen customer-critical routes",
   );
   assert(
     !incident.includes("twelve stricter authorization probes") &&
-      !incident.includes("all twelve critical routes"),
-    "The incident release checklist must use the current thirteen-route authorization inventory.",
+      !incident.includes("all twelve critical routes") &&
+      !incident.includes("all thirteen critical routes"),
+    "The incident release checklist must use the current fourteen-route authorization inventory.",
   );
   assert(
     !backend.includes(
       "stricter fail-closed authorization probes for twelve",
     ),
-    "The Supabase operations README must use the current thirteen-route authorization inventory.",
+    "The Supabase operations README must use the current fourteen-route authorization inventory.",
   );
   assertStringIncludes(
     backend,
@@ -4273,6 +4316,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/Merian/Features/Capture/Submission/README.md",
     "apps/ios/Merian/Features/Explore/Feed/README.md",
     "apps/ios/Merian/Features/Insights/Chat/README.md",
+    "apps/ios/Merian/Features/SpeciesDictionary/Detail/README.md",
     "apps/ios/Merian/Features/Insights/IdentificationReview/README.md",
     "apps/ios/Merian/Features/Insights/Sharing/README.md",
     "apps/ios/Merian/Features/Insights/Shared/README.md",
@@ -4318,6 +4362,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "docs/features-and-hardware/06-profile-and-gamification.md",
     "docs/features-and-hardware/07-feature-modules-and-ui.md",
     "docs/features-and-hardware/14-explore-author-profiles.md",
+    "docs/features-and-hardware/16-species-dictionary.md",
     "docs/features-and-hardware/25-field-trips.md",
     "docs/features-and-hardware/27-camera-roll-media-export.md",
     "docs/incidents/2026-07-account-scoped-r2-image-loss.md",
@@ -4357,6 +4402,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/identify-describe/README.md",
     "services/supabase/functions/identify-multimodal/README.md",
     "services/supabase/functions/insight-chat/README.md",
+    "services/supabase/functions/explore-post-chat/README.md",
     "services/supabase/functions/merge-ghost-profile/README.md",
     "services/supabase/functions/reconcile-account-deletions/README.md",
     "services/supabase/functions/register-apple-revocation-token/README.md",
@@ -4373,6 +4419,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "services/supabase/functions/safe-delete/README.md",
     "services/supabase/functions/share-scan-to-explore/README.md",
     "services/supabase/functions/species-dictionary/README.md",
+    "services/supabase/functions/species-dictionary-chat/README.md",
     "services/supabase/functions/sync-collections/README.md",
     "services/supabase/functions/sync-community-taxonomy-index/README.md",
     "services/supabase/functions/transfer-signout-purchases/README.md",

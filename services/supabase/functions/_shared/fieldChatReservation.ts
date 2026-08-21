@@ -4,13 +4,17 @@ import { publicHttpError } from "./http.ts";
 const FIELD_CHAT_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export type FieldChatSubjectType = "insight" | "explore";
+export type FieldChatSubjectType =
+  | "insight"
+  | "explore"
+  | "species_dictionary";
 
 interface StoredFieldChatUserMessage {
   id: string;
   conversation_id: string;
   scan_id?: string;
   post_id?: string;
+  species_dictionary_id?: string;
   user_id: string;
   role: string;
   message_text: string;
@@ -115,7 +119,9 @@ function isBoundUserMessage(
   const message = value as Partial<StoredFieldChatUserMessage>;
   const subjectId = input.subjectType === "insight"
     ? message.scan_id
-    : message.post_id;
+    : input.subjectType === "explore"
+    ? message.post_id
+    : message.species_dictionary_id;
   return (
     typeof message.id === "string" &&
     FIELD_CHAT_UUID_PATTERN.test(message.id) &&
@@ -185,7 +191,10 @@ export async function recoverStaleFieldChatQuota(
   supabaseAdmin: SupabaseClient,
   input: {
     userId: string;
-    operation: "insight_chat_reply" | "explore_post_chat_reply";
+    operation:
+      | "insight_chat_reply"
+      | "explore_post_chat_reply"
+      | "species_dictionary_chat_reply";
     requestId: string;
     conversationId: string;
     subjectId: string;

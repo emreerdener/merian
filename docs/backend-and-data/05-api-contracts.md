@@ -6027,10 +6027,10 @@ does not consume the daily send limit, and is best-effort so load/send chat
 behavior remains independent if prompt generation fails. The server caps v1 at
 600 characters per user message, 30 total persisted message rows per
 conversation, and 20 sends per Pro user per day across all of that user's
-Insight and Explore chats. A new request reserves room for its user and
-assistant rows together; an incomplete retry already owns its user row but must
-still have one slot for the assistant. Functional Pro includes paid access and
-current server-verified complimentary access.
+Insight, Explore, and Species Dictionary chats. A new request reserves room for
+its user and assistant rows together; an incomplete retry already owns its user
+row but must still have one slot for the assistant. Functional Pro includes paid
+access and current server-verified complimentary access.
 
 `send` uses `client_message_id` as the UUID provider idempotency key. The iOS
 client sends a UUID `Idempotency-Key` header for `suggest_prompts` and
@@ -6349,14 +6349,14 @@ the owner's source scan ID. Top-level `subject_id` also contains the requested
 Explore post ID on every thread, feedback, and prompt-suggestion response,
 including an empty thread. Conversations allow 600 characters per user message,
 30 total persisted rows, and share the 20-send UTC daily allowance with the
-viewer's Insight chats. New sends reserve room for user and assistant rows
-together through the same atomic cross-table RPC, which also rejects a different
-request while one bound user row remains unanswered. Request UUIDs are canonical
-lowercase values; UUID reuse with different normalized text returns
-`409 field_chat_idempotency_conflict`, and deterministic assistant UUIDv8 rows
-make answer persistence idempotent. A charged request missing its assistant
-follows the same exact-row-bound ten-minute stale recovery contract as Insight
-Field Chat. Assistant text is capped at 4,000 Unicode code points before
+viewer's Insight and Species Dictionary chats. New sends reserve room for user
+and assistant rows together through the same atomic cross-table RPC, which also
+rejects a different request while one bound user row remains unanswered. Request
+UUIDs are canonical lowercase values; UUID reuse with different normalized text
+returns `409 field_chat_idempotency_conflict`, and deterministic assistant
+UUIDv8 rows make answer persistence idempotent. A charged request missing its
+assistant follows the same exact-row-bound ten-minute stale recovery contract as
+Insight Field Chat. Assistant text is capped at 4,000 Unicode code points before
 persistence. Prompt suggestions and feedback do not consume a send. The same iOS
 candidate-success validation binds the envelope and every returned message to
 the requested post ID and one conversation; a send also requires its exact
@@ -6381,6 +6381,110 @@ feedback targeting a non-owned assistant message; and `429 daily_limit_reached`
 returns the current conversation envelope with no new send. Shared `409`, `429`,
 and fail-closed `503` AI quota errors follow the authorization table above.
 Unpublishing a post deletes all of its private viewer conversations.
+
+---
+
+## Deno `/species-dictionary-chat` Edge Node
+
+Private Pro Field Chat for any canonical biological Species Dictionary UUID in
+the iOS app. This is an authenticated route distinct from the public, cacheable
+`/species-dictionary` endpoint. Public web species pages do not call it.
+`withEdgeHandler` derives the viewer from the verified session, and each
+`(species_id, viewer user_id)` pair has one saved conversation.
+
+Requests support `load`, `send`, `delete`, `feedback`, and `suggest_prompts`:
+
+```json
+{
+  "action": "send",
+  "species_id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+  "message_text": "How can I distinguish this species from lookalikes?",
+  "client_message_id": "11111111-1111-4111-8111-111111111111"
+}
+```
+
+`species_id` must be present and parse as a UUID. Missing or malformed input
+returns `400 invalid_request`. A syntactically valid UUID that is absent or does
+not resolve to an available canonical biological dictionary row returns
+`404 species_not_available`. Functional Pro is resolved server-side through the
+same paid, trial, projected promotion, and exactly verified complimentary
+authority as the other Field Chat routes; other viewers receive
+`402 pro_required`.
+
+Every success uses the strict shared Field Chat envelope. Top-level `subject_id`
+equals the requested species UUID. Thread messages repeat that UUID in
+compatibility `scan_id`; it is not a scan identifier in this route. Feedback
+echoes the exact subject, message UUID, and rating. Prompt suggestions echo the
+subject and optional conversation UUID. iOS applies none of these responses
+until the shared 1 MiB, limits, identity, bounded-text, and exact send-pair
+validations pass.
+
+Each send reloads the latest bounded canonical source projection: common,
+alternative, and scientific names; kingdom through genus; overview; habitat;
+hazard; IUCN conservation status; group tags; and up to six nonrejected
+lookalikes with names, rationale, and visual traits. The system prompt fences
+all source values as untrusted reference data and never follows instructions
+inside them. The projection and prompt exclude Community sightings, local and
+global observation charts/counts, scans, notes, users, locations, media,
+reference URLs, licenses, and attribution identities. Questions that require
+those sources are answered with the limitation rather than invented context.
+
+`send` uses `species_dictionary_chat_reply` and the database-selected
+`gemini-2.5-flash` model with 700 output tokens, JSON output, no Search
+grounding, and thinking disabled. Local safety refusals and deterministic prompt
+suggestions do not invoke the provider. Assistant text is normalized and capped
+at 4,000 Unicode code points. Product telemetry includes only broad action,
+length, refusal, latency, and plan fields—never species names or IDs. The
+private AI usage ledger records operational conversation/message linkage and
+`source_type = species_dictionary`, with no species `source_id`.
+
+Migration `20260821030027_add_species_dictionary_field_chat.sql` adds the
+Edge-only conversation/message/feedback tables and extends
+`reserve_field_chat_send(...)` and `recover_stale_field_chat_quota(...)` to the
+third subject and operation. The 30-row conversation cap, exact same-UUID
+replay/conflict contract, one-unanswered-request fence, deterministic assistant
+identity, and ten-minute exact-row stale recovery match the other chat routes.
+All three families share the authoritative 20-send UTC-day limit. Dictionary
+conversations also participate in anonymous-account merge handling.
+
+The 20-send limit is defined over admitted sends, regardless of whether a user
+later deletes conversation content. The current candidate derives that total
+from live user-message rows, while conversation deletion cascades to those rows;
+it therefore does not yet preserve the limit after deletion. Release remains
+blocked until durable accounting and a three-family delete-then-send regression
+prove that deletion cannot restore allowance.
+
+iOS already sends the send UUID as both `client_message_id` and
+`Idempotency-Key`, and manual retry preserves it. However,
+`species-dictionary-chat` is not yet in the network client's audited
+idempotency-aware Function allowlist, so automatic replay after an ambiguous
+transport/`5xx` failure does not currently run for this route. That allowlist
+entry and its lost-response regression are required before client release.
+
+The current route-contract test validates source structure rather than executing
+the handler, and the deploy workflow's focused Function test list does not
+include it. Candidate acceptance additionally requires authenticated runtime
+tests for all actions and errors, plus source-specific refusal copy and the same
+safe, bounded dictionary-name normalization in iOS fallback chips that the
+server uses. These are release blockers, not compatibility promises.
+
+| Status | Body                                             | Meaning                                                |
+| ------ | ------------------------------------------------ | ------------------------------------------------------ |
+| `400`  | `{ "code": "unsupported_action", ... }`          | Action is not one of the five supported values         |
+| `400`  | `{ "code": "invalid_request", ... }`             | Required input is missing, malformed, or out of bounds |
+| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not functional Pro                   |
+| `404`  | `{ "code": "species_not_available", ... }`       | Canonical biological dictionary subject unavailable    |
+| `404`  | `{ "code": "message_not_found", ... }`           | Feedback target is not the viewer's assistant row      |
+| `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text         |
+| `429`  | `{ "code": "daily_limit_reached", ... }`         | Shared three-family daily send cap reached             |
+| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Bound request has no answer yet                        |
+| `503`  | `{ "code": "field_chat_admission_unavailable" }` | Atomic admission could not be verified                 |
+| `503`  | `{ "code": "field_chat_recovery_unavailable" }`  | Stale recovery could not be verified                   |
+
+The client marks only exact `404 species_not_available` as permanent for that
+loaded dictionary subject. Feedback `message_not_found`, daily/AI quotas,
+network failure, and platform route failure remain retryable and do not hide a
+healthy loaded page's toolbar action.
 
 ---
 

@@ -1056,8 +1056,11 @@ MerianTests/
   otherwise valid empty thread from the wrong subject. Send cases additionally
   reject an incomplete or mismatched `client_message_id` pair, padded/empty or
   over-4,000-character message text, and a JSON body over 1 MiB; manual retry
-  retains the failed send UUID. The foreground identify boundary also proves an
-  exact handler-owned `403 ai_consent_required` becomes
+  retains the failed send UUID. Species Dictionary cases additionally pin the
+  `species_id` request body and idempotency header, strict species subject echo,
+  cross-subject rejection, source-specific `species_not_available` handling, and
+  identifier-free product telemetry. The foreground identify boundary also
+  proves an exact handler-owned `403 ai_consent_required` becomes
   `MerianError.aiConsentRequired`, so the app can enter disclosure recovery
   instead of exposing a generic HTTP retry. Backend source/helper tests lock
   bounded same-UUID quota replay coalescing. Action-response cases reject
@@ -1735,11 +1738,17 @@ success echoes its exact subject, while prompt-suggestion tests prove
 action-intent filtering does not reject harmless species names or educational
 ecology questions. Explore fixtures also cap deterministic common-name labels so
 all generated chips remain within 120 characters.
-`_shared/fieldChatReservation_test.ts` verifies the fail-closed RPC adapter,
-exact persisted-row binding, replay projection, and stable database-error
-mapping. `_tests/fieldChatReservationMigrationContract.test.ts` pins per-user
-then per-conversation lock ordering, atomic cross-table limits, direct-client
-revocations, and exact stale-quota recovery in
+`services/supabase/functions/species-dictionary-chat/` adds route, eligibility,
+prompt, and prompt-suggestion coverage for authenticated Pro access, canonical
+biological species lookup, bounded current dictionary grounding, untrusted-data
+fencing, excluded private/observation/media/attribution sources, stable
+`400 invalid_request` for missing or malformed IDs, `404 species_not_available`
+for a valid unavailable/nonbiological UUID, deterministic chips, and all action
+envelopes. `_shared/fieldChatReservation_test.ts` verifies the fail-closed RPC
+adapter, exact persisted-row binding, replay projection, and stable
+database-error mapping. `_tests/fieldChatReservationMigrationContract.test.ts`
+pins per-user then per-conversation lock ordering, atomic cross-table limits,
+direct-client revocations, and exact stale-quota recovery in
 `20260729163616_reserve_field_chat_sends_atomically.sql`. It also pins
 cleanup-before-validation, the retained Insight conversation's exact scan owner,
 the conversation-optional feature-feedback scan owner, deferred composite
@@ -1748,15 +1757,48 @@ message/feedback identity, exact RLS joins, and feedback Data API revocation in
 `tests/field_chat_reservation_security.sql` is the PostgreSQL authority for
 runtime transaction, 19 admission/binding/ACL assertions, replay/conflict,
 capacity, daily-limit, and stale recovery behavior.
+`_tests/speciesDictionaryChatMigrationContract.test.ts` and
+`tests/species_dictionary_chat_security.sql` pin the Edge-only tables, RLS,
+least-privilege grants, composite species/conversation/viewer bindings, account
+merge, cascade deletion, feedback ownership, and shared three-family admission.
+Both bind those assertions to
+`20260821030027_add_species_dictionary_field_chat.sql`.
 
 The focused portable Field Chat selection uses the two shared tests, the
 migration contract, and the Insight/Explore guard, eligibility, prompt, and
 prompt-suggestion tests. The 2026-07-29 baseline passed 30 tests; the 2026-07-30
 exact-source rerun passed 32 tests and 0 failed across the same nine files after
 adding structural binding and feedback-ACL contracts, with a frozen dependency
-graph. This is deterministic runtime and source-contract evidence; it does not
-replace execution of `field_chat_reservation_security.sql` against the exact
-deployed PostgreSQL catalog or the joined physical-device chat smoke.
+graph. The 2026-08-21 Species Dictionary extension selection passed 40 tests
+across the shared adapters, the new route, and both migration contracts. This is
+deterministic runtime and source-contract evidence; it does not replace
+execution of `field_chat_reservation_security.sql` against the exact deployed
+PostgreSQL catalog, execution of `species_dictionary_chat_security.sql`, or the
+joined physical-device chat smoke.
+
+The candidate is not release-ready on that evidence alone. The following
+regressions are mandatory before Candidate Validation can accept Species
+Dictionary Field Chat:
+
+- PostgreSQL must admit sends, delete each of the three conversation families,
+  and prove the same UTC-day 20-send total does not decrease. Current accounting
+  reads live user-message rows, so cascading deletion presently fails this
+  invariant.
+- Swift network tests must simulate a lost successful response and retryable
+  `5xx` for `species-dictionary-chat`, prove automatic replay is allowed, and
+  require the same lowercase send UUID and one persisted pair. Header presence
+  and manual retry coverage do not prove the automatic path.
+- Tests must invoke the authenticated handler for `load`, `send`, `delete`,
+  `feedback`, and `suggest_prompts`, covering Free/Pro, malformed and
+  unavailable species, cross-user/cross-species access, strict echoes,
+  replay/conflict, and in-flight/stale recovery.
+  `_tests/speciesDictionaryChatRouteContract.test.ts` currently inspects source
+  text; it and the executable handler suite must be in
+  `.github/workflows/deploy.yml`'s focused Function selection.
+- Swift and Deno copy/safety tests must reject leftover scan/observation wording
+  in Dictionary refusals and must prove local deterministic fallback names are
+  normalized and bounded to the same 120-character chip contract as server
+  suggestions.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and
@@ -1946,7 +1988,10 @@ readiness does not become permanent UI state. HTTP `404 scan_not_ready`, missing
 message/conversation actions, and status `not_found` must leave
 `unavailableScanId` unset and preserve a retryable toolbar action. Terminal
 ownership failure, `unsupported_scan`, and unavailable Explore-post sources
-remain deterministic unavailability.
+remain deterministic unavailability. Species Dictionary tests classify only the
+exact stable `species_not_available` response as permanent for that subject;
+`pro_required` routes to the paywall and transport/admission failures remain
+retryable.
 
 Send/retry coverage must also force an ambiguous response after the user row is
 saved, replay the same `client_message_id` while the provider call is in flight,
@@ -1961,17 +2006,17 @@ allow an incomplete retry at 29 while rejecting one at 30. Race two
 deterministic local refusals. Assistant persistence must read-after-write
 reconcile an ambiguous insert and expose one deterministic UUIDv8 answer row.
 Race different request UUIDs from two devices and require one unanswered request
-to win. Repeat at 19 total UTC-day sends split across Insight and Explore, and
-at 28 conversation rows, to prove the database admission—not an earlier Edge
-count—owns both limits. Terminate after quota commit, require in-progress
-behavior before ten minutes, age only the exact reservation, then require stale
-recovery to prove the bound user row and missing assistant before a newly
-metered retry. Completed, mismatched, and live reservations must remain closed.
-Reload a UUID-bound user row without its assistant—even with a filtered orphan
-assistant after it—and require the same UUID/text to return as the failed
-pending bubble rather than a delivered message; orphan and duplicate bound
-assistants must not enter the transcript, and hidden recovery rows must still
-count against composer capacity.
+to win. Repeat at 19 total UTC-day sends split across Insight, Explore, and
+Species Dictionary, and at 28 conversation rows, to prove the database
+admission—not an earlier Edge count—owns both limits. Terminate after quota
+commit, require in-progress behavior before ten minutes, age only the exact
+reservation, then require stale recovery to prove the bound user row and missing
+assistant before a newly metered retry. Completed, mismatched, and live
+reservations must remain closed. Reload a UUID-bound user row without its
+assistant—even with a filtered orphan assistant after it—and require the same
+UUID/text to return as the failed pending bubble rather than a delivered
+message; orphan and duplicate bound assistants must not enter the transcript,
+and hidden recovery rows must still count against composer capacity.
 
 Explore composer regression coverage must distinguish “request stopped” from
 “publication succeeded.” The create callback returns success only after the post
@@ -2173,7 +2218,7 @@ production checks:
   bounded propagation window. It uses only a validated legacy anon JWT to cross
   any intentional gateway `verify_jwt = true` boundary and fails closed if that
   execution credential is unavailable; a publishable key is never sent in Bearer
-  authorization. Eleven customer-critical scan, signing, share-state, Explore,
+  authorization. Fourteen customer-critical scan, signing, share-state, Explore,
   Field Chat, Community, and deletion routes additionally return marked
   fail-closed `401` responses without user Authorization. Final Function
   failures classify only whether the fixed `X-Merian-Handler: 1` marker was
@@ -2800,24 +2845,30 @@ rechecks that the native badge accessibility frame stays inside the app window
 after each opacity-only label transition. `LocalVisualAnalysisTests` separately
 lock Vision threshold and margin qualification, every broad-category mapping,
 directly observable phrase decks, deterministic pixel inputs producing distinct
-palette cues, bounded color-intensity, tone, contrast, and surface wording, the
-injected clock and monotonic generic → category → local-trait → Foundation
-source handoff, and full-deck exhaustion before a phrase cycle wraps. They also
-cover natural verb-led rendering without `Kind: detail` labels, handoff ordering
-that consumes unseen entries before any prior phrase repeats, focus-region crop
-math, partial snapshot buffering, duplicate and unsafe cue rejection, runtime
+palette cues; concrete saturation, lighting, contrast, and surface wording;
+rejection of vague midpoint bucket language; the injected clock and monotonic
+generic → category → local-trait → Foundation source handoff; and full-deck
+exhaustion before a phrase cycle wraps. They also cover natural verb-led
+rendering without `Kind: detail` labels, handoff ordering that consumes unseen
+entries before any prior phrase repeats, focus-region crop math, partial
+snapshot buffering, duplicate and unsafe cue rejection, runtime
 power/thermal/lifecycle eligibility, provider errors, replacement fences,
 app-deactivation cancellation without visible-copy regression, phrase rotation
 and Foundation streams, and cancellation of a permanently hung stream at
 simulated Gemini response arrival. `InsightSheetViewModelTests` separately prove
 that an exact active-visual live-to-queue handoff carries contextual phrases and
-in-memory carousel media, and that save plus offline/online changes preserve its
-cursor. Engine tests cover prepared generic handoff, stale-ID rejection,
-audio/Describe isolation, dismissal with a late producer completion, visual-only
-reactivation, and atomic Auth cleanup of both phrase and media state. Separate
-non-cooperative trait-extractor cases prove Gemini completion returns
-immediately, replacement clears task ownership, and either boundary rejects the
-eventual stale cue.
+in-memory carousel media, that save plus offline/online changes preserve its
+cursor, and that the carousel overlay remains active for the exact handoff in
+pending, uploading, staged, and inferencing. The same matrix rejects mismatched
+IDs, failed/external-import/attention states, and ordinary queued states before
+inferencing. `ImageFocusRegionDetectorTests` lock the time-derived sweep, Reduce
+Motion midpoint, same-scan animation-session continuity, and resets for a
+different scan or a later analysis after completion. Engine tests cover prepared
+generic handoff, stale-ID rejection, audio/Describe isolation, dismissal with a
+late producer completion, visual-only reactivation, and atomic Auth cleanup of
+both phrase and media state. Separate non-cooperative trait-extractor cases
+prove Gemini completion returns immediately, replacement clears task ownership,
+and either boundary rejects the eventual stale cue.
 
 Retry presentation tests cover every safe reason category, live countdown,
 elapsed-deadline silence, offline behavior, action eligibility, and a sentinel
@@ -2839,21 +2890,32 @@ not include this behavior.
 
 The compiled hosted UI gate also includes
 `testLiveInsightConnectivityFailureTransitionsToDurableQueue`. Its Debug-only
-fixture commits an exact description-backed queue row, opens the standard live
-Insight in analyzing mode, and waits for an explicit `ScanningStatusBadge` tap
-before invoking the production queue-presentation boundary. The test requires
-the Debug-only exact `QueuedPresentation_<scan-id>` marker, continued normal AI
-analysis copy, absence of the removed saved/continuing explanation and **Network
+fixture commits an exact image-backed queue row and opens the standard live
+Insight with the same scan ID and real `fieldtrip-park-flowering-plant` bytes in
+its in-memory carousel. It waits for an explicit `ScanningStatusBadge` tap
+before invoking the production queue-presentation boundary.
+
+Before the tap, the smoke records the Debug-only `AnalyzingMediaCarousel` value,
+which combines the animation-session continuity token and selected page ID, and
+requires queued deletion to remain inaccessible. After the pending row binds,
+the exact value, overlay, selected page identity, and analyzing badge must
+remain present. `InsightQueuedDeleteButton` must fade into the stable trailing
+slot, become hittable, and open a confirmation containing **Cancel upload &
+delete**; the smoke cancels that alert before continuing. It also requires the
+exact `QueuedPresentation_<scan-id>` state marker, continued normal AI analysis
+copy, absence of the removed saved/continuing explanation and **Network
 timeout**, successful sheet dismissal, and the same `QueuedScanTile_<scan-id>`
-in Scans. The marker exists only under the UI-test seed and contributes no
-visible layout or release accessibility element. This complements rather than
-replaces the URLSession regression: the unit test proves transport and ownership
-ordering; the UI smoke proves the open sheet consumes the resulting exact-ID
-state. Sheet dismissal must resolve the native `InsightSheetCloseButton`
-accessibility identifier through the current `InsightSheetView`. A global
-`Close` label query is not a valid test contract because layered SwiftUI
-presentations can expose both the active Insight control and an underlying close
-control.
+in Scans.
+
+The state and continuity markers exist only under the UI-test seed and
+contribute no visible layout or Release accessibility element. This complements
+rather than replaces the URLSession regression: unit coverage proves transport,
+ownership, state-matrix, and clock behavior; the UI smoke proves the open sheet
+consumes the exact-ID handoff without remounting its visible presentation. Sheet
+dismissal must resolve the native `InsightSheetCloseButton` accessibility
+identifier through the current `InsightSheetView`. A global `Close` label query
+is not a valid test contract because layered SwiftUI presentations can expose
+both the active Insight control and an underlying close control.
 
 `foregroundGenerationCannotBeStartedTwiceOrDuringRetirement` covers both
 single-use boundaries: a duplicate active UUID is an idempotent no-op, and the

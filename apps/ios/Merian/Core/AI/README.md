@@ -76,9 +76,9 @@ meet the 0.65 confidence threshold, lead the runner-up by at least 0.15, and map
 to a supported broad category. A qualifying category replaces the generic pill
 immediately. After Vision completes, `AppleImageVisualTraitExtractor` samples
 the same bounded image at 32×32 pixels and derives five image-specific
-observations: dominant colors, color intensity, overall tone, tonal contrast,
-and local edge variation. It does not use Vision labels to generate text or
-infer identity.
+observations: dominant colors, saturation distribution, lighting distribution,
+light contrast, and surface detail. It does not use Vision labels to generate
+text or infer identity.
 
 The single injected phrase clock advances no more often than every 2.3 seconds.
 Every phrase in the current deck is displayed once before that deck can wrap to
@@ -94,9 +94,12 @@ markings, and proportions; they do not imply an identity, confidence, record
 lookup, geographic range, or Gemini completion.
 
 Image-trait pills use natural verb-led sentences rather than labeled fields: for
-example, **Analyzing gray and green colors**, not **Color: gray and green
-tones**. The constrained trait kind selects the action verb but is never
-rendered as a `Kind: detail` prefix.
+example, **Analyzing gray and green colors**, **Reviewing softly colored
+areas**, or **Observing light and shadow areas**, not **Color: gray and green
+tones**. Middle measurements are translated into visible distributions instead
+of exposing statistical bucket language such as **moderate color levels** or
+**balanced light and dark**. The constrained trait kind selects the action verb
+but is never rendered as a `Kind: detail` prefix.
 
 Every local mutation is fenced by a typed visual-presentation session containing
 the exact scan ID and presentation-attempt UUID, plus the durable foreground
@@ -132,15 +135,15 @@ their existing copy, and can never inherit a visual phrase or image.
 
 The current Xcode 26.6 release toolchain injects the deterministic
 `AppleImageVisualTraitExtractor` and `UnavailableFoundationVisualCueProvider`.
-Five image-specific palette, color-intensity, tone, contrast, and surface cues
-are therefore available now, but generative multimodal wording is not; there is
-no beta API or cloud fallback. `FoundationVisualCueProviding` is the stable
-integration seam for the multimodal API after stable Xcode 27 is installed
-locally and in hosted CI. That provider must use only
-`SystemLanguageModel.default`, start only after both the Identify request body's
-completion callback and local Vision completion, and return at most three
-indexed structured snapshots with a constrained trait kind and 2–5-word visible
-detail.
+Five image-specific dominant-color, saturation, lighting, light-contrast, and
+surface-detail cues are therefore available now, but generative multimodal
+wording is not; there is no beta API or cloud fallback.
+`FoundationVisualCueProviding` is the stable integration seam for the multimodal
+API after stable Xcode 27 is installed locally and in hosted CI. That provider
+must use only `SystemLanguageModel.default`, start only after both the Identify
+request body's completion callback and local Vision completion, and return at
+most three indexed structured snapshots with a constrained trait kind and
+2–5-word visible detail.
 
 The engine buffers partial snapshots until the indexed object is complete. It
 silently rejects duplicates, identity/candidate language, certainty or match

@@ -36,6 +36,17 @@ with its current phrase first and every unseen phrase before any repeat; queue
 state changes do not restart that rotation. Ordinary queued and historical
 presentations still use durable media and queue-aware copy.
 
+`InsightContentView` resolves the carousel overlay independently through
+`isCarouselAnalysisActive(for:)`. An exact visual owner remains active across
+non-attention pending, uploading, staged, and inferencing queue snapshots;
+ordinary queued presentations activate it only for inferencing, and terminal or
+attention-required states remain still. The shell continues supplying the same
+canonical scan ID and engine media, so the carousel's selected controller, focus
+state, and animation session survive the `.analyzing` to `.queued` content
+switch. Once the exact queued snapshot is bound, the toolbar exposes deletion by
+fading its already-mounted trailing placeholder rather than rebuilding toolbar
+structure.
+
 Durable foreground retirement and local presentation ownership are distinct: a
 connectivity callback may release provider ownership while the still-current
 sheet remains authorized to become queued. Source and protected transport tests

@@ -244,6 +244,38 @@ enum AppTelemetry {
         ])
     }
 
+    /// Records the dictionary Field Chat entry action without species identity.
+    static func trackSpeciesDictionaryFieldChatTapped(
+        entryPoint: String,
+        contentQuality: String,
+        isPro: Bool
+    ) {
+        send("SpeciesDictionaryFieldChatTapped", with: [
+            "entryPoint": entryPoint,
+            "contentQuality": contentQuality,
+            "isPro": String(isPro)
+        ])
+    }
+
+    /// Records dictionary Field Chat behavior without species, conversation, or message IDs.
+    static func trackSpeciesDictionaryFieldChatAction(
+        action: String,
+        promptCategory: String? = nil,
+        isRefusal: Bool,
+        hasLookalikes: Bool
+    ) {
+        var properties = [
+            "action": action,
+            "fieldChatSource": "species_dictionary",
+            "isRefusal": String(isRefusal),
+            "hasLookalikes": String(hasLookalikes)
+        ]
+        if let promptCategory {
+            properties["promptCategory"] = promptCategory
+        }
+        send("SpeciesDictionaryFieldChatActionTapped", with: properties)
+    }
+
     // MARK: - Hardware Events
 
     /// Records a thermal throttling event.

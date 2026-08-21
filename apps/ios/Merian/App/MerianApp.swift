@@ -1,6 +1,7 @@
 import GoogleSignIn
 import SwiftData
 import SwiftUI
+import UIKit
 
 enum StartupStoreState: Equatable {
     case normal
@@ -100,6 +101,10 @@ enum UITestSeedCoordinator {
     private static let queuedRetryScheduledScanId = "ui_test_queued_retry_scheduled"
     private static let queuedRetryAttentionScanId = "ui_test_queued_retry_attention"
     private static let liveQueueHandoffScanId = "ui_test_live_queue_handoff"
+    private static let liveQueueHandoffImageFilename =
+        "ui_test_live_queue_handoff.png"
+    private static let liveQueueHandoffImageAssetName =
+        "fieldtrip-park-flowering-plant"
     private static let queuedAudioHandoffAudioFilename = "ui_test_queued_audio_handoff.wav"
     private static let queuedAudioHandoffImageFilename = "ui_test_queued_audio_handoff.webp"
     private static let missingVideoFallbackScanId = "ui_test_missing_video_fallback"
@@ -207,6 +212,7 @@ enum UITestSeedCoordinator {
                     "UITestSeedCoordinator seeded queued retry presentation flow."
                 )
             } else if arguments.contains(liveQueueHandoffArgument) {
+                try prepareLiveQueueHandoffImage()
                 context.insert(liveQueueHandoffScan())
                 OfflineQueueManager.shared.unsyncedItemsCount = 1
                 triggeredLiveQueueHandoffs.removeAll(keepingCapacity: false)
@@ -224,12 +230,24 @@ enum UITestSeedCoordinator {
 
             AppSettings.shared.hasUnseenScan = false
 
-            if arguments.contains(liveQueueHandoffArgument) ||
-                arguments.contains(progressiveAnalyzingArgument) {
-                AppDIContainer.shared.inferenceEngine.simulateProgressiveAnalyzing(
-                    automaticallyAdvances:
-                        !arguments.contains(progressiveAnalyzingArgument)
+            if arguments.contains(liveQueueHandoffArgument) {
+                let inferenceEngine = AppDIContainer.shared.inferenceEngine
+                inferenceEngine.simulateProgressiveAnalyzing(
+                    automaticallyAdvances: true,
+                    scanId: liveQueueHandoffScanId
                 )
+                inferenceEngine.activeMedia = ActiveScanMedia(
+                    items: [.liveImage(try liveQueueHandoffImageData())]
+                )
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .debugPreviewAnalyzing,
+                    source: .debug
+                )
+            } else if arguments.contains(progressiveAnalyzingArgument) {
+                AppDIContainer.shared.inferenceEngine
+                    .simulateProgressiveAnalyzing(
+                        automaticallyAdvances: false
+                    )
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .debugPreviewAnalyzing,
                     source: .debug
@@ -503,11 +521,7 @@ enum UITestSeedCoordinator {
 
     private static func liveQueueHandoffScan() -> OfflineQueuedScan {
         let mediaItems: [SerializedMediaItem] = [
-            .description(
-                ObservationContext(
-                    freeText: "Small flowering plant beside a walkway"
-                )
-            )
+            .image(.documents(liveQueueHandoffImageFilename))
         ]
         let capturedMediaJSON = try? JSONEncoder().encode(mediaItems)
         return OfflineQueuedScan(
@@ -516,6 +530,7 @@ enum UITestSeedCoordinator {
             capturedMediaJSON: capturedMediaJSON.flatMap {
                 String(data: $0, encoding: .utf8)
             },
+            coverImagePath: liveQueueHandoffImageFilename,
             weatherCondition: "partly cloudy",
             weatherTemperatureF: 72,
             locationName: "UITest Garden",
@@ -595,17 +610,46 @@ enum UITestSeedCoordinator {
         )
     }
 
+    private static func prepareLiveQueueHandoffImage() throws {
+        guard let documentsURL = FileManager.default.urls(
+            for: .documentDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try liveQueueHandoffImageData().write(
+            to: documentsURL.appendingPathComponent(
+                liveQueueHandoffImageFilename
+            ),
+            options: .atomic
+        )
+    }
+
+    private static func liveQueueHandoffImageData() throws -> Data {
+        guard let image = UIImage(named: liveQueueHandoffImageAssetName),
+              let imageData = image.pngData() else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return imageData
+    }
+
+    private static func uiTestPNGData() throws -> Data {
+        guard let imageData = Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        ) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        return imageData
+    }
+
     private static func prepareMissingVideoFallbackImage() throws {
         guard let documentsURL = FileManager.default.urls(
             for: .documentDirectory,
             in: .userDomainMask
-        ).first,
-        let imageData = Data(base64Encoded:
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-        ) else {
+        ).first else {
             throw CocoaError(.fileNoSuchFile)
         }
-        try imageData.write(
+        try uiTestPNGData().write(
             to: documentsURL.appendingPathComponent(missingVideoFallbackImageFilename),
             options: .atomic
         )

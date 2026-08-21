@@ -22,6 +22,37 @@ struct InsightChatTests {
         #expect(json["scan_id"] == nil)
     }
 
+    @Test func speciesDictionaryRequestUsesSpeciesIdentifierContract() throws {
+        let body = SpeciesDictionaryChatRequestBody(
+            action: "send",
+            speciesId: "019fb718-6c44-77ee-985a-4883bfd3d2df",
+            messageText: "How does this species differ from its lookalikes?",
+            clientMessageId: "019fb718-7220-78f5-afbd-0732585afab3",
+            messageId: nil,
+            feedbackRating: nil,
+            feedbackNote: nil
+        )
+        let data = try JSONEncoder().encode(body)
+        let json = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        #expect(
+            json["species_id"] as? String ==
+                "019fb718-6c44-77ee-985a-4883bfd3d2df"
+        )
+        #expect(json["post_id"] == nil)
+        #expect(json["scan_id"] == nil)
+    }
+
+    @Test func speciesDictionarySourceHasPrivateTelemetryClassification() {
+        #expect(FieldChatSource.speciesDictionary.telemetryValue == "species_dictionary")
+        #expect(
+            FieldChatSource.speciesDictionary.unavailableMessage ==
+                "This species isn't available for Field chat."
+        )
+    }
+
     @Test func explorePostSuggestionChipsReturnThreeDistinctQuestions() {
         let viewModel = InsightChatViewModel(source: .explorePost)
         let chips = viewModel.publicPostSuggestionChips(displayName: "Monarch")
@@ -744,6 +775,36 @@ struct InsightChatTests {
             ),
             source: .explorePost
         ))
+        #expect(InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 404,
+                message: #"{"code":"species_not_available"}"#
+            ),
+            source: .speciesDictionary
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 404,
+                message: #"{"code":"message_not_found"}"#
+            ),
+            source: .speciesDictionary
+        ))
+        #expect(!InsightChatViewModel.isDeterministicallyUnavailable(
+            MerianError.httpError(
+                statusCode: 403,
+                message: #"{"error":"Forbidden"}"#
+            ),
+            source: .speciesDictionary
+        ))
+        #expect(
+            InsightChatViewModel.userFacingMessage(
+                for: MerianError.httpError(
+                    statusCode: 404,
+                    message: #"{"code":"species_not_available"}"#
+                ),
+                source: .speciesDictionary
+            ) == "This species isn't available for Field chat."
+        )
         #expect(
             InsightChatViewModel.userFacingMessage(for: MerianError.edgeFunctionUnavailable)
                 == "Chat is unavailable right now."

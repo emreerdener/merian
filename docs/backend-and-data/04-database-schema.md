@@ -1590,17 +1590,46 @@ including their own, added in `20260721141655_add_explore_post_chat.sql`.
 These rows are private conversation data, not Explore comments, notifications,
 public profile content, web post data, or Species Dictionary contributions.
 
+### `species_dictionary_chat_conversations`, `species_dictionary_chat_messages`, `species_dictionary_chat_message_feedback`
+
+Private per-viewer Field Chat for in-app canonical Species Dictionary subjects,
+added by `20260821030027_add_species_dictionary_field_chat.sql`.
+
+- Conversations are unique on `(species_dictionary_id, user_id)`, producing one
+  saved thread per viewer and species while allowing many viewers to ask about
+  the same public reference row.
+- Messages copy `conversation_id`, `species_dictionary_id`, and `user_id`. Their
+  validated deferred composite foreign key requires that exact parent identity
+  at commit. User rows may carry one UUID `client_message_id` per conversation;
+  assistant rows store refusal and Gemini token metadata.
+- Feedback is unique per `(message_id, user_id)`, copies the exact conversation,
+  species, and viewer identity, and is a deferred composite child of the rated
+  assistant message. Notes are capped at 500 characters.
+- All tables enable owner RLS as defense in depth, but direct `anon` and
+  `authenticated` privileges are revoked. `service_role` receives only the
+  select/insert/update/delete operations required by the authenticated Edge
+  actions. Foreign-key cascades erase the complete thread with its species or
+  viewer.
+- The three table references are registered in the Ghost merge manifest.
+  Duplicate viewer/species conversations are normalized before generic account
+  reparenting, so an anonymous thread follows the permanent identity without
+  violating uniqueness or composite bindings.
+
+These rows are private application data. They are not Species Dictionary
+contributions, public web data, Community sightings, observation aggregates, or
+Explore post state.
+
 Migration `20260729163616_reserve_field_chat_sends_atomically.sql` joins
-admission for both chat families in service-only
+admission for the original Insight and Explore chat families in service-only
 `reserve_field_chat_send(uuid,uuid,text,uuid,text,uuid)`. Every new user row is
 created in the same short transaction that takes the cross-table per-user lock,
 then the per-conversation lock, verifies exact subject ownership, rejects a
 different unanswered request, reserves two of the 30 conversation rows, and
-enforces the 20-send UTC-day cap across Insight and Explore. Exact same-key/text
-replays return the original user row without consuming either cap; contradictory
-same-key text is rejected. The migration explicitly reconstructs least-privilege
-service-role table ACLs and removes direct browser-role access, so app clients
-cannot bypass the serialized boundary.
+enforces the original 20-send UTC-day cap across Insight and Explore. Exact
+same-key/text replays return the original user row without consuming either cap;
+contradictory same-key text is rejected. The migration explicitly reconstructs
+least-privilege service-role table ACLs and removes direct browser-role access,
+so app clients cannot bypass the serialized boundary.
 
 The same migration adds service-only
 `recover_stale_field_chat_quota(uuid,text,uuid,uuid,uuid)`. It may transition
@@ -1623,6 +1652,26 @@ feedback. It also removes direct `anon` and `authenticated` privileges from all
 private Field Chat feedback tables and grants the backend only the
 select/insert/update operations its routes use. Exact relationship-based RLS
 policies remain as defense in depth.
+
+Migration `20260821030027_add_species_dictionary_field_chat.sql` replaces the
+same admission and recovery signatures compatibly. It adds subject type
+`species_dictionary` and operation `species_dictionary_chat_reply`, counts user
+rows from all three message tables under the same user-first lock, and preserves
+the 20-send UTC-day cap, 30-row per-conversation cap, exact replay/conflict, and
+one-unanswered-request rules. Stale recovery requires an exact dictionary
+conversation/species/viewer user row and no UUID-bound assistant. The new
+operation receives explicit free, trial, complimentary, and paid quota-policy
+rows using the same chat buckets and model as the existing families.
+
+The daily cap's durable contract is independent of message retention: deleting a
+private conversation must not erase the fact that its sends were admitted
+earlier in the same UTC day. The current candidate counts retained user-message
+rows in both admission and response shaping, while the conversation foreign-key
+cascade deletes those rows. It is therefore release-blocked until a durable
+admission ledger or equivalent delete-resistant counter becomes authoritative
+and PostgreSQL coverage proves that deleting any of the three conversation
+families does not restore daily allowance. Do not document the cascade as a
+quota-reset mechanism or weaken deletion to retain private message content.
 
 ### `flagged_reviews`
 

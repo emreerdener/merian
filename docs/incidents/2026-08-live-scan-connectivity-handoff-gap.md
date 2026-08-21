@@ -1,6 +1,6 @@
 # Live Scan Connectivity Handoff Gap
 
-**Date:** 2026-08-09 (updated 2026-08-10)\
+**Date:** 2026-08-09 (updated 2026-08-20)\
 **Severity:** Release-blocking scan-reliability risk\
 **Affected boundary:** Caller-scoped admission preview → durable queue
 acceptance → foreground Identify transport → offline replay → open Insight
@@ -78,6 +78,7 @@ below.
 | Offline before live dispatch                                                   | Capture queues the scan and does not start provider transport                                                             | Durable queue                             |
 | Connectivity changes during the 150 ms context grace                           | Offline Insight shows queued/waiting; an online durable handoff keeps ordinary analysis copy                              | Durable queue                             |
 | First queue-backed transport failure after dispatch                            | Same-ID Insight keeps normal analysis copy online, or queued/waiting offline, without an error haptic or synthetic result | Durable queue; no inline transport replay |
+| Exact active visual presentation transfers to queue ownership                  | Same carousel image, selected page, focus state, and scan-sweep clock continue; queued deletion fades into the toolbar    | Durable queue                             |
 | Path stays satisfied but transport silently stalls                             | Same-ID Insight keeps ordinary analysis copy after the 15-second durable handoff                                          | Durable queue; exact-ID status/replay     |
 | Queue-less direct request loses transport                                      | **Network timeout / Please try again** may be shown                                                                       | Caller                                    |
 | Handler/provider returns an exhausted service failure                          | **Analysis delayed / Scan saved** as an error placeholder, never a biological classification                              | Durable queue                             |
@@ -238,9 +239,13 @@ following:
 9. The complete iOS unit-test target, protected critical scan-flow inventory,
    deterministic live-Insight-to-queue and queued-scan-completion UI smokes, and
    current-SHA Release archive all pass with zero failures or skipped required
-   cases. The live-sheet dismissal resolves `InsightSheetCloseButton` through
-   the current `InsightSheetView`; a global `Close` label query is ambiguous
-   when an underlying presentation remains in the accessibility tree.
+   cases. The live-to-queue smoke uses the same real image and scan ID on both
+   sides, preserves its carousel page and animation-session continuity value,
+   keeps the pending overlay and analyzing badge mounted, and proves the queued
+   delete action becomes hittable without replacing the toolbar. The live-sheet
+   dismissal resolves `InsightSheetCloseButton` through the current
+   `InsightSheetView`; a global `Close` label query is ambiguous when an
+   underlying presentation remains in the accessibility tree.
 10. Physical-device QA covers airplane mode, Wi-Fi with no upstream internet,
     captive portal, Wi-Fi-to-cellular handoff, app backgrounding during upload,
     and reconnect. The saved scan must remain visible and complete exactly once.
@@ -252,6 +257,12 @@ two-case result set. The current workflow retains both incident cases inside its
 later three-case set, alongside the progressive-analyzing smoke. The incident
 remains open because gate 9 has not run from a clean commit containing the
 remediation and gate 10 requires physical-device evidence.
+
+The 2026-08-20 visual-continuity follow-up extends gate 9 so a technically
+correct queue takeover cannot still remount the analyzing carousel or toolbar.
+Its real-image fixture, continuity marker, and queued-delete assertion are local
+regression evidence only; they do not replace the outstanding exact-SHA hosted
+run or physical connectivity matrix.
 
 ## Validation Status at Review
 

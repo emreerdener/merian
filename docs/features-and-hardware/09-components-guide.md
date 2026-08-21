@@ -494,13 +494,12 @@ full-screen strip with per-page pinch-to-zoom and pan.
 injected as plain parameters, making the component reusable across both the live
 camera pipeline and the offline queued-scan path:
 
-| Parameter      | Type              | Source                                                                                                                                                                                                                                                                             |
-| -------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scanId`       | `String?`         | `viewModel.persistentScanId` — prefers `queuedScan.id`, then `activeLocalRecord?.id`, then `inferenceEngine.speciesData?.scanId`                                                                                                                                                   |
-| `refUrls`      | `[String]`        | `viewModel.refUrls` — the filtered `activeMedia.referenceState.urls`, never the raw species URL list                                                                                                                                                                               |
-| `activeMedia`  | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — queued scans seed this from `QueuedScanContext.capturedMediaSnapshot`, while completed scans hydrate it from `record.capturedMediaSnapshot`; `displayMedia(_:)` applies reference suppression and current-scan deduplication before returning it |
-| `totalImages`  | `Int`             | `viewModel.totalImages`, derived from the same filtered `ActiveScanMedia` used by inline and fullscreen galleries                                                                                                                                                                  |
-| `isProcessing` | `Bool`            | `viewModel.isProcessing`                                                                                                                                                                                                                                                           |
+| Parameter               | Type              | Source                                                                                                                                                                                                                             |
+| ----------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scanId`                | `String?`         | Active queued snapshot ID, otherwise `viewModel.persistentScanId`; the carousel canonicalizes this identity for state retention                                                                                                    |
+| `activeMedia`           | `ActiveScanMedia` | `viewModel.resolvedMedia(for:)` — exact active visual handoffs retain engine media; ordinary queued scans use `QueuedScanContext.activeScanMedia`; `displayMedia(_:)` applies reference suppression and current-scan deduplication |
+| `referenceWikipediaUrl` | `String?`         | The current completed result's Wikipedia URL, used only to classify reference attribution                                                                                                                                          |
+| `isProcessing`          | `Bool`            | `viewModel.isCarouselAnalysisActive(for:)` — exact non-attention visual handoffs stay active through pending/uploading/staged/inferencing; ordinary queued scans are active only while inferencing                                 |
 
 - **`NativePageCarousel`**: A shared `UIViewControllerRepresentable` used by
   both Insight and the private Field-trip Goals hero. It wraps
@@ -555,6 +554,20 @@ camera pipeline and the offline queued-scan path:
   while external URLs retain strict identity. This preserves other scans'
   references, ordering, and attribution; an all-duplicate set becomes `.empty`
   and cannot create a stale page indicator.
+- **Live-to-queue media continuity**: For an exact active visual handoff,
+  `InsightSheetViewModel.resolvedMedia(for:)` keeps returning the engine's
+  in-memory `ActiveScanMedia` rather than immediately replacing it with the
+  persisted queue path. The canonical scan ID and page identities stay equal, so
+  `NativePageCarousel` retains the selected index, decoded image, page
+  controller, and focus interaction state. Ordinary queued navigation continues
+  to use `QueuedScanContext` media.
+- **Analysis clock ownership**: `AnalyzingMediaAnimationSession` is `@State` on
+  `ImagesCarousel`, above the conditional `AnalyzingMediaOverlay`. Its
+  `startedAt` value drives time-derived sweep and pulse progress through
+  `TimelineView`. Exact owner changes do not reset it; a new canonical scan or a
+  false-to-true analysis after completion does. Reduce Motion fixes the sweep at
+  its midpoint. A Debug-only continuity value combines the session token and
+  selected page ID for the seeded UI regression.
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in
   `DetachedWork.value(category: .imagePreparation)` and commits only the final
   `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed
@@ -598,17 +611,19 @@ overlays it without consuming a phrase. Phrase rotation uses
 
 For a foreground visual scan, that single text binding progresses from a
 morphology-only generic phrase to an immediate qualifying Vision category and,
-on the current toolchain, five complete validated palette, color-intensity,
-tone, contrast, and surface cues derived from the bounded image at the next
-phrase tick. An eligible future Foundation provider may replace that
+on the current toolchain, five complete validated dominant-color, saturation,
+lighting, light-contrast, and surface-detail cues derived from the bounded image
+at the next phrase tick. An eligible future Foundation provider may replace that
 deterministic deck with richer visible traits. Specificity never moves backward.
 Visible traits use natural verb-led copy such as **Analyzing gray and green
-colors**, not `Color: description` labels. The badge keeps an opacity-only label
-transition and intrinsic native Button bounds across these width changes. Every
-foreground visual label in the active deck appears before that deck loops to its
-first phrase. Do not reintroduce translated label geometry or a second
-foreground scanning component. Audio-only and Describe analysis, plus active
-queued inference, retain their existing cloud-analysis phrase sources.
+colors**, **Reviewing softly colored areas**, or **Observing light and shadow
+areas**, not `Color: description` labels or internal **moderate**/**balanced**
+buckets. The badge keeps an opacity-only label transition and intrinsic native
+Button bounds across these width changes. Every foreground visual label in the
+active deck appears before that deck loops to its first phrase. Do not
+reintroduce translated label geometry or a second foreground scanning component.
+Audio-only and Describe analysis, plus active queued inference, retain their
+existing cloud-analysis phrase sources.
 
 Queued lifecycle polling and retry scheduling remain in `QueuedContentView`.
 `QueuedRetryPresentation` alone maps stable codes to safe reason text,
@@ -661,21 +676,31 @@ identification confirmations behind intentional gesture input.
 
 **Location**:
 `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift` and
-`Features/Insights/Chat/Views/InsightChatSheet.swift`
+`Features/Insights/Chat/Views/InsightChatSheet.swift`, with Dictionary
+presentation in
+`Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 
 The floating Field chat button and sheet are shared by eligible Insight scans
-and every visible Explore post detail, including the viewer's own posts. Explore
-creates a private conversation owned by the requesting viewer. Other viewers
-cannot see it. On Explore detail, the button is shown while browsing post
-content and is removed when the comment composer becomes sticky or receives
-focus. It returns after scrolling back above the sticky-comment threshold. While
-the floating control is hidden, `ExplorePostDetailMenuButton` exposes the same
-Field chat action. Media type does not participate in Field chat eligibility;
-image, video, audio, and mixed-media posts use the same presentation rules. When
-an Explore thread has no messages, the only explanatory copy below the question
-is `This Field chat is private and visible only to you.` Technical model-context
-limitations are enforced by `/explore-post-chat` and belong in engineering/API
-documentation rather than additional empty-state disclaimers.
+and every visible Explore post detail, including the viewer's own posts. The
+source candidate also places it at the bottom right of every loaded canonical
+in-app Species Dictionary detail while keeping Share in the top bar; loading,
+error, and invalid-subject states hide the Dictionary bottom bar. Explore and
+Dictionary each create a private conversation owned by the requesting viewer.
+Other viewers cannot see it. On Explore detail, the button is shown while
+browsing post content and is removed when the comment composer becomes sticky or
+receives focus. It returns after scrolling back above the sticky-comment
+threshold. While the floating control is hidden, `ExplorePostDetailMenuButton`
+exposes the same Field chat action. Media type does not participate in Field
+chat eligibility; image, video, audio, and mixed-media posts use the same
+presentation rules. When an Explore thread has no messages, the only explanatory
+copy below the question is `This Field chat is private and visible only to you.`
+Technical model-context limitations are enforced by the source-specific backend
+route and belong in engineering/API documentation rather than additional
+empty-state disclaimers.
+
+Dictionary component reuse is release-held until the
+[canonical candidate blockers](16-species-dictionary.md#candidate-release-status)
+are fixed and proven; this guide does not override that status.
 
 ## 21. Shared Feedback Surfaces: `ToastBanner` and `MilestoneToastBanner`
 

@@ -495,9 +495,9 @@ as their permanent engineering identity.
   ownership, and AppDelegate background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
-  dictionary workers, private Insight and Explore Field chat boundaries,
-  service-only Identify Activity projection/read boundaries, and cron/webhook
-  boundaries.
+  dictionary workers, private Insight, Explore, and in-app Dictionary Field chat
+  boundaries, service-only Identify Activity projection/read boundaries, and
+  cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)**
   — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`,
   and `FileIOActor`.
@@ -506,7 +506,7 @@ as their permanent engineering identity.
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
   V50 durable queued Field trip goal hints, private Insight and per-viewer
-  Explore Field chat tables, scan media assets, and Explore Community
+  Explore/Dictionary Field chat tables, scan media assets, and Explore Community
   Identification versioned taxonomy, consensus jobs, requests, public
   projections, and internal grouped Activity projection, atomic ingestion
   setup/dictionary RPCs, deferred scan-context staging, and the private
@@ -516,13 +516,14 @@ as their permanent engineering identity.
 - **[`/backend-and-data/05-api-contracts.md`](./backend-and-data/05-api-contracts.md)**
   — JSON mapping contracts between the iOS client and Deno Edge functions,
   including `/identify-multimodal`, `/insight-chat`, `/explore-post-chat`,
-  `/field-trips` starter enrollment, preferred progress, and scan contributions,
-  `/update-public-avatar`, Community Identification request/detail and grouped
-  Activity endpoints, `/species-dictionary`, `/species-observation-stats`,
-  `/report-user`, the internal admin RPC surface, Explore detail similar
-  species, and internal cron workers such as Merian reference-image refresh,
-  diagnostic `Server-Timing`, and `/update-scan-context`, plus the
-  owner-authenticated `/repair-scan-image` inspection and recovery contract.
+  `/species-dictionary-chat`, `/field-trips` starter enrollment, preferred
+  progress, and scan contributions, `/update-public-avatar`, Community
+  Identification request/detail and grouped Activity endpoints,
+  `/species-dictionary`, `/species-observation-stats`, `/report-user`, the
+  internal admin RPC surface, Explore detail similar species, and internal cron
+  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
+  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
+  inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — Validation-only Supabase candidate gate, separately authorized production
   deployment path, required GitHub secrets, local emergency fallback, frozen
@@ -640,8 +641,9 @@ as their permanent engineering identity.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)**
   — Standalone public species dictionary page, `species-dictionary` Edge
   Function detail/catalog/user-scanned tree contracts, similar-species entry
-  points from Insight and Explore detail, cache rules, content quality, media
-  attribution, enrichment queue/backfill, and refresh provenance.
+  points from Insight and Explore detail, release-held in-app private Field
+  Chat, cache rules, content quality, media attribution, enrichment
+  queue/backfill, and refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `naturebook.earth`, including Explore
   posts, UUID-first readable Species Dictionary references, legacy-domain and

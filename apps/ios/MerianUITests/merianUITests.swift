@@ -363,6 +363,13 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    private func analyzingMediaCarouselElement(
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        app.descendants(matching: .any)["AnalyzingMediaCarousel"]
+    }
+
+    @MainActor
     private func insightSheetCloseButtonElement(
         in app: XCUIApplication
     ) -> XCUIElement {
@@ -448,6 +455,21 @@ final class merianUITests: XCTestCase {
             liveScanningStatusBadge.waitForExistence(timeout: 8.0),
             "Live Insight did not expose its analyzing status badge"
         )
+        let analyzingCarousel = analyzingMediaCarouselElement(in: app)
+        XCTAssertTrue(
+            analyzingCarousel.waitForExistence(timeout: 8.0),
+            "Live Insight did not expose its visual analyzing carousel"
+        )
+        let continuityValueBeforeHandoff = try XCTUnwrap(
+            analyzingCarousel.value as? String
+        )
+        let queuedDeleteButton = insightSheet.buttons[
+            "InsightQueuedDeleteButton"
+        ]
+        XCTAssertFalse(
+            queuedDeleteButton.exists,
+            "Queued deletion was accessible before the durable handoff"
+        )
         XCTAssertFalse(
             app.staticTexts["Network timeout"].exists,
             "The live sheet started in the obsolete timeout presentation"
@@ -462,6 +484,47 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(
             exactQueuedPresentation.waitForExistence(timeout: 8.0),
             "The open live Insight did not bind the exact durable queued row"
+        )
+        XCTAssertTrue(
+            analyzingCarousel.waitForExistence(timeout: 4.0),
+            "The pending queue handoff removed the analyzing carousel overlay"
+        )
+        XCTAssertEqual(
+            analyzingCarousel.value as? String,
+            continuityValueBeforeHandoff,
+            "The same-scan queue handoff remounted the carousel or restarted its animation clock"
+        )
+        XCTAssertTrue(
+            queuedDeleteButton.waitForExistence(timeout: 4.0),
+            "The queued delete action did not fade into the stable toolbar slot"
+        )
+        let queuedDeleteBecameHittable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"),
+            object: queuedDeleteButton
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [queuedDeleteBecameHittable], timeout: 4.0),
+            .completed,
+            "The queued delete action was visible but not interactive"
+        )
+        queuedDeleteButton.tap()
+        let queuedDeleteAlert = app.alerts["Delete scan?"]
+        XCTAssertTrue(
+            queuedDeleteAlert.waitForExistence(timeout: 4.0),
+            "The queued delete action did not preserve its confirmation binding"
+        )
+        XCTAssertTrue(
+            queuedDeleteAlert.buttons["Cancel upload & delete"].exists,
+            "The queued delete action opened the completed-scan deletion path"
+        )
+        queuedDeleteAlert.buttons["Cancel"].tap()
+        XCTAssertFalse(
+            queuedDeleteAlert.waitForExistence(timeout: 4.0),
+            "The queued deletion confirmation did not dismiss"
+        )
+        XCTAssertTrue(
+            liveScanningStatusBadge.exists,
+            "The analyzing badge disappeared during the queue-owner handoff"
         )
         XCTAssertFalse(
             liveScanningStatusBadge.label.localizedCaseInsensitiveContains(

@@ -58,20 +58,22 @@ contextual phrase order.
 
 Foreground visual analysis begins with morphology-only generic copy. A
 qualifying Apple Vision category replaces it immediately. The current toolchain
-then publishes five validated, image-specific palette, color-intensity, tone,
-contrast, and surface cues from the bounded local derivative on the shared
-2.3-second phrase clock. A future eligible Foundation Models provider may
-replace that deterministic trait deck with richer complete cues. Source priority
-is monotonic, so generic or category text cannot return after more-specific
-context arrives. Every currently available phrase appears before the active deck
-loops to its first phrase. Partial streamed cue objects never reach the view.
-The pill never claims a species, confidence, candidate match, records or range
-lookup, or completed Gemini result. Audio-only, Describe, and queued processing
-keep their existing cloud-analysis phrase decks.
+then publishes five validated, image-specific dominant-color, saturation,
+lighting, light-contrast, and surface-detail cues from the bounded local
+derivative on the shared 2.3-second phrase clock. A future eligible Foundation
+Models provider may replace that deterministic trait deck with richer complete
+cues. Source priority is monotonic, so generic or category text cannot return
+after more-specific context arrives. Every currently available phrase appears
+before the active deck loops to its first phrase. Partial streamed cue objects
+never reach the view. The pill never claims a species, confidence, candidate
+match, records or range lookup, or completed Gemini result. Audio-only,
+Describe, and queued processing keep their existing cloud-analysis phrase decks.
 
 Trait cues render as natural verb-led copy such as **Analyzing gray and green
-colors**, never a labeled `Color: description` field. The internal trait kind
-selects wording but is not exposed in the pill.
+colors**, **Reviewing softly colored areas**, and **Observing light and shadow
+areas**, never a labeled `Color: description` field. The internal trait kind
+selects wording but is not exposed in the pill. Internal midpoint buckets such
+as **moderate color levels** and **balanced light and dark** are never rendered.
 
 `ConfidenceBadge` retains its opacity-only label transition and intrinsic native
 Button bounds as text widths change. The Debug-only
@@ -140,11 +142,20 @@ the exact Debug UI-test seed; normal app sessions and Release builds retain
 ordinary badge behavior.
 
 The companion `-seedLiveQueueHandoffFlow` fixture opens a normal live Insight in
-analyzing mode with its exact queue row already committed. UI automation must
-observe that live state before tapping the shared badge. The Debug-only action
-then calls the typed production queue-presentation boundary; the sheet's
-exact-ID task must bind the row, expose only the invisible
-`QueuedPresentation_<scan-id>` marker under that UI-test seed, keep the visible
-pill on normal AI-analysis copy, omit the saved/continuing explanation, avoid
-**Network timeout**, and leave the same tile present in Scans after dismissal.
-The trigger and marker are absent from Release and ordinary Debug sessions.
+analyzing mode with its exact image-backed queue row already committed. The seed
+uses the same scan ID and the real `fieldtrip-park-flowering-plant` asset for
+the engine's in-memory image and the Documents-backed queue image. UI automation
+must observe that live state before tapping the shared badge.
+
+The Debug-only action then calls the typed production queue-presentation
+boundary. The test captures the `AnalyzingMediaCarousel` accessibility value,
+which combines the animation-session continuity token and selected page
+identity, and requires the exact value after the pending queue snapshot binds.
+It also requires the overlay and analyzing badge to remain present, the queued
+trash action to become visible and hittable, and that action to open the queued
+**Cancel upload & delete** confirmation before cancellation. The sheet must
+still expose only the invisible `QueuedPresentation_<scan-id>` state marker,
+keep normal AI-analysis copy, omit the saved/continuing explanation, avoid
+**Network timeout**, dismiss through `InsightSheetCloseButton`, and leave the
+same tile in Scans. The trigger and continuity/state markers are absent from
+Release and ordinary Debug sessions.

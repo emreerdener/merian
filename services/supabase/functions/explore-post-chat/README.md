@@ -23,8 +23,8 @@ The function supports `load`, `send`, `delete`, `feedback`, and
 `client_message_id`. It deliberately excludes owner scan rows, media bytes or
 URLs, exact coordinates, comments, and owner chat history.
 
-Explore and Insight chat share the 20-send daily allowance. Unpublishing a post
-deletes its Explore chat conversations.
+Explore, Insight, and Species Dictionary chat share the 20-send daily allowance.
+Unpublishing a post deletes its Explore chat conversations.
 
 Every success response echoes the exact requested post UUID as
 `data.subject_id`. Thread messages retain the shared iOS compatibility shape
@@ -46,17 +46,18 @@ without inserting a second question. Assistant rows use deterministic UUIDv8
 identities, preventing a concurrent local refusal or ambiguous insert from
 saving a second answer. New sends reserve two of the 30 persisted-message slots
 together through the atomic database reservation RPC. Per-user admission is
-serialized before conversation admission, so simultaneous Insight/Explore
-requests cannot race the shared 20/day count and different UUIDs in this
-conversation cannot both become unanswered. An incomplete retry must still fit
-its missing assistant inside that cap. A bounded in-flight wait that cannot yet
-find the answer returns retryable `503 field_chat_send_in_progress`. Assistant
-text is capped at 4,000 Unicode code points before persistence. The hardened iOS
-client requires the exact two-message pair, bounded message text, and a response
-body no larger than 1 MiB before clearing its pending send; manual retry reuses
-the original UUID. A quota-committed request missing its assistant stays in
-progress for ten minutes; afterward, exact-row-bound service recovery may fail
-only that reservation and the next provider attempt is newly metered.
+serialized before conversation admission, so simultaneous
+Insight/Explore/Dictionary requests cannot race the shared 20/day count and
+different UUIDs in this conversation cannot both become unanswered. An
+incomplete retry must still fit its missing assistant inside that cap. A bounded
+in-flight wait that cannot yet find the answer returns retryable
+`503 field_chat_send_in_progress`. Assistant text is capped at 4,000 Unicode
+code points before persistence. The hardened iOS client requires the exact
+two-message pair, bounded message text, and a response body no larger than 1 MiB
+before clearing its pending send; manual retry reuses the original UUID. A
+quota-committed request missing its assistant stays in progress for ten minutes;
+afterward, exact-row-bound service recovery may fail only that reservation and
+the next provider attempt is newly metered.
 
 Deterministic prompt labels normalize the public common name and use
 `this species` when it is empty or longer than 64 characters. This keeps all
@@ -75,6 +76,15 @@ to its scan owner, and keeps feedback on the Edge-only API boundary. Old clients
 safely ignore `subject_id` and the additive assistant request projection; the
 corrected client intentionally fails closed when an old function response omits
 the subject or cannot confirm its current send pair.
+
+Migration `20260821030027_add_species_dictionary_field_chat.sql` subsequently
+extends the same atomic count and stale recovery to Dictionary chat without
+changing this route's request or response fields. Apply it before deploying this
+updated `explore-post-chat`, not only before the new Dictionary route, because
+the shared daily-usage helper now reads all three message tables. Keep the
+three-family candidate release-held until deletion of any conversation can no
+longer restore same-day allowance; the current live-row count does not satisfy
+that invariant.
 
 ## Verification
 

@@ -17,6 +17,21 @@ TestFlight, App Store, support, and QA.
   Account-issued beta or promotional access stays with the linked account
   instead of being duplicated.
 
+### Species Dictionary Field Chat — Release-Gated
+
+- The source candidate adds the existing private Field Chat experience to every
+  loaded in-app Species Dictionary page. Share stays in the top bar; Free opens
+  the existing paywall; Pro can restore one private saved thread per species,
+  with retry/edit, feedback, deletion, prompt chips, and already-loaded offline
+  reading. Public web species pages remain unchanged.
+- Do not publish this as a completed TestFlight, App Store, or paywall
+  capability yet. Release requires shared daily sends to remain charged after
+  conversation deletion, automatic idempotent replay after an ambiguous
+  Dictionary chat response, executable authenticated route coverage in the
+  deploy gate, and fully Dictionary-specific refusal and fallback-prompt copy.
+  The canonical status is in the
+  [Species Dictionary documentation](docs/features-and-hardware/16-species-dictionary.md#candidate-release-status).
+
 ### More Reliable Links, Notifications, and Sheets
 
 - Shared links, notification taps, Siri actions, Field trip destinations, and
@@ -41,6 +56,13 @@ TestFlight, App Store, support, and QA.
   **Analyzing gray and green colors** instead of `Kind: detail` labels. If an
   online scan transfers to durable queue ownership, its current contextual deck
   and live carousel media continue without restarting when save state changes.
+- The analyzing image and scan sweep now remain visually continuous during that
+  durable handoff. The carousel keeps its selected image while the queued trash
+  action fades into the existing toolbar position instead of causing a visible
+  refresh.
+- Ambiguous midpoint labels such as **moderate color levels** and **balanced
+  light and dark** now resolve into visible descriptions such as **softly
+  colored areas**, **evenly lit areas**, or **light and shadow areas**.
 - Visual analysis copy and live media are now owned by the exact scan and
   attempt. Signing in, dismissing an Insight, replacing a scan, or handing off a
   nonvisual scan can no longer expose the preceding photo's contextual copy or

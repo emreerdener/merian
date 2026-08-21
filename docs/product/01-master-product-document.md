@@ -369,9 +369,11 @@ While Gemini remains the sole identification authority, foreground visual scans
 use one private 512-pixel derivative of the primary image to improve the waiting
 experience. The analyzing pill starts with neutral morphology copy, may advance
 immediately to a qualifying broad Apple Vision category, and then rotates
-directly observable color, tone, contrast, and surface cues derived on device.
-Copy is sentence-like—for example, **Analyzing gray and green colors**—and never
-claims a species, match, confidence, database lookup, or completed result.
+directly observable color, lighting, contrast, and surface cues derived on
+device. Copy is sentence-like—for example, **Analyzing gray and green colors**,
+**Reviewing softly colored areas**, or **Observing light and shadow areas**—and
+never exposes internal **moderate**/**balanced** buckets or claims a species,
+match, confidence, database lookup, or completed result.
 
 The pill shows every available phrase before repeating one and preserves its
 place when the same scan moves into durable queue presentation or temporarily
@@ -625,8 +627,17 @@ automation and provider cost, so product copy must not promise technically
 unbounded model traffic.
 
 An active store trial or beta promotional `pro` grant receives this paid
-capability set for its active period, including private Insight and Explore
-Field Chat, after authoritative RevenueCat state is projected to Supabase.
+capability set for its active period, including private Insight, Explore, and
+in-app Species Dictionary Field Chat, after authoritative RevenueCat state is
+projected to Supabase. Public web dictionary pages remain reference-only.
+
+Species Dictionary Field Chat is currently a release-held source candidate, not
+a capability that product or paywall copy may promise. Release requires
+delete-resistant shared daily admission, automatic idempotent Dictionary replay
+after ambiguous network failure, executable authenticated route coverage in the
+deploy gate, and source-specific safe refusal/fallback prompt copy. The
+[canonical candidate checklist](../features-and-hardware/16-species-dictionary.md#candidate-release-status)
+owns the current status.
 
 This list must be read with implementation status. Events are generally
 available. Apple Watch logging is partial because the phone receiver is

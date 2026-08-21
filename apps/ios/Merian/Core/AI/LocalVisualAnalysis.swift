@@ -548,34 +548,49 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
             return $0 + difference * difference
         } / Double(pixels.count)
         switch sqrt(variance) {
-        case 0..<0.10: return "gentle tonal variation"
-        case 0.22...: return "strong tonal separation"
-        default: return "balanced tonal contrast"
+        case 0..<0.10: return "subtle light changes"
+        case 0.22...: return "stark lighting"
+        default: return "varied lighting"
         }
     }
 
     private static func colorIntensityDetail(for pixels: [PixelSample]) -> String {
-        let meanSaturation = pixels.reduce(0.0) { result, pixel in
+        let saturations = pixels.map { pixel in
             let maximum = max(pixel.red, max(pixel.green, pixel.blue))
             let minimum = min(pixel.red, min(pixel.green, pixel.blue))
-            let saturation = maximum == 0 ? 0 : (maximum - minimum) / maximum
-            return result + saturation
-        } / Double(pixels.count)
-        switch meanSaturation {
-        case 0..<0.18: return "mostly muted colors"
-        case 0.48...: return "mostly vivid colors"
-        default: return "moderate color levels"
+            return maximum == 0 ? 0 : (maximum - minimum) / maximum
         }
+        let mutedCount = saturations.reduce(0) { count, saturation in
+            count + (saturation < 0.18 ? 1 : 0)
+        }
+        let vividCount = saturations.reduce(0) { count, saturation in
+            count + (saturation >= 0.48 ? 1 : 0)
+        }
+        let mutedShare = Double(mutedCount) / Double(saturations.count)
+        let vividShare = Double(vividCount) / Double(saturations.count)
+
+        if mutedShare >= 0.60 { return "mostly muted colors" }
+        if vividShare >= 0.60 { return "mostly vivid colors" }
+        if mutedShare >= 0.20, vividShare >= 0.20 {
+            return "muted and vivid colors"
+        }
+        return "softly colored areas"
     }
 
     private static func toneDetail(for pixels: [PixelSample]) -> String {
         let meanLuminance = pixels.reduce(0) { $0 + $1.luminance }
             / Double(pixels.count)
-        switch meanLuminance {
-        case 0..<0.32: return "mostly dark values"
-        case 0.68...: return "mostly bright values"
-        default: return "balanced light and dark"
+        if meanLuminance < 0.32 { return "mostly shadowed areas" }
+        if meanLuminance >= 0.68 { return "mostly bright areas" }
+
+        let variance = pixels.reduce(0.0) { result, pixel in
+            let difference = pixel.luminance - meanLuminance
+            return result + difference * difference
+        } / Double(pixels.count)
+        if sqrt(variance) < 0.10 {
+            return "evenly lit areas"
         }
+        return "light and shadow areas"
     }
 
     private static func surfaceDetail(
@@ -584,7 +599,7 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
         height: Int
     ) -> String {
         guard pixels.count == width * height else {
-            return "mixed edge variation"
+            return "smooth and detailed areas"
         }
         var totalDifference = 0.0
         var comparisonCount = 0
@@ -607,11 +622,11 @@ struct AppleImageVisualTraitExtractor: LocalVisualTraitExtracting {
                 }
             }
         }
-        guard comparisonCount > 0 else { return "broad smooth regions" }
+        guard comparisonCount > 0 else { return "broad smooth areas" }
         switch totalDifference / Double(comparisonCount) {
-        case 0..<0.07: return "broad smooth regions"
-        case 0.17...: return "fine edge variation"
-        default: return "mixed edge variation"
+        case 0..<0.07: return "broad smooth areas"
+        case 0.17...: return "many fine edges"
+        default: return "smooth and detailed areas"
         }
     }
 
@@ -649,10 +664,10 @@ enum FoundationVisualTraitKind: String, CaseIterable, Sendable {
         switch self {
         case .colorPattern: "Analyzing"
         case .colorIntensity: "Reviewing"
-        case .tone: "Comparing"
-        case .contrast: "Studying"
+        case .tone: "Observing"
+        case .contrast: "Assessing"
         case .shape: "Examining"
-        case .surfaceTexture: "Tracing"
+        case .surfaceTexture: "Noting"
         case .structure: "Inspecting"
         case .arrangement: "Following"
         case .proportion: "Comparing"

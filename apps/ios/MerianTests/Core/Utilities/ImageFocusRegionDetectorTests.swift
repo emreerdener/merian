@@ -483,4 +483,66 @@ struct ImageFocusRegionDetectorTests {
             reduceMotion: true
         ) == 0.5)
     }
+
+    @Test func analyzingAnimationSessionSurvivesSameScanOwnerChanges() throws {
+        let startedAt = Date(timeIntervalSinceReferenceDate: 1_000)
+        let token = try #require(UUID(
+            uuidString: "00000000-0000-0000-0000-000000000001"
+        ))
+        var session = AnalyzingMediaAnimationSession(
+            scanID: "scan-1",
+            startedAt: startedAt,
+            continuityToken: token,
+            isProcessing: true
+        )
+
+        session.update(
+            scanID: " SCAN-1 ",
+            isProcessing: true,
+            at: startedAt.addingTimeInterval(5)
+        )
+
+        #expect(session.startedAt == startedAt)
+        #expect(session.continuityToken == token)
+    }
+
+    @Test func analyzingAnimationSessionResetsForNewScanOrAnalysis() throws {
+        let startedAt = Date(timeIntervalSinceReferenceDate: 1_000)
+        let token = try #require(UUID(
+            uuidString: "00000000-0000-0000-0000-000000000001"
+        ))
+        var session = AnalyzingMediaAnimationSession(
+            scanID: "scan-1",
+            startedAt: startedAt,
+            continuityToken: token,
+            isProcessing: true
+        )
+        let newScanStart = startedAt.addingTimeInterval(5)
+
+        session.update(
+            scanID: "scan-2",
+            isProcessing: true,
+            at: newScanStart
+        )
+
+        #expect(session.scanID == "scan-2")
+        #expect(session.startedAt == newScanStart)
+        #expect(session.continuityToken != token)
+
+        session.update(
+            scanID: "scan-2",
+            isProcessing: false,
+            at: newScanStart.addingTimeInterval(1)
+        )
+        let tokenBeforeReanalysis = session.continuityToken
+        let reanalysisStart = newScanStart.addingTimeInterval(2)
+        session.update(
+            scanID: "scan-2",
+            isProcessing: true,
+            at: reanalysisStart
+        )
+
+        #expect(session.startedAt == reanalysisStart)
+        #expect(session.continuityToken != tokenBeforeReanalysis)
+    }
 }

@@ -114,6 +114,7 @@ struct TopToolbar: ToolbarContent {
     var onViewCommunityRequest: (() -> Void)?
     var audioBoostEnabled: Binding<Bool>?
     var onAudioBoostEnableRequested: (() -> Void)?
+    let showsQueuedDeleteAction: Bool
     let isAnalyzing: Bool
     let isProActive: Bool
 
@@ -145,6 +146,7 @@ struct TopToolbar: ToolbarContent {
         onViewCommunityRequest: (() -> Void)? = nil,
         audioBoostEnabled: Binding<Bool>? = nil,
         onAudioBoostEnableRequested: (() -> Void)? = nil,
+        showsQueuedDeleteAction: Bool = false,
         isAnalyzing: Bool,
         isProActive: Bool
     ) {
@@ -175,6 +177,7 @@ struct TopToolbar: ToolbarContent {
         self.onViewCommunityRequest = onViewCommunityRequest
         self.audioBoostEnabled = audioBoostEnabled
         self.onAudioBoostEnableRequested = onAudioBoostEnableRequested
+        self.showsQueuedDeleteAction = showsQueuedDeleteAction
         self.isAnalyzing = isAnalyzing
         self.isProActive = isProActive
     }
@@ -198,17 +201,30 @@ struct TopToolbar: ToolbarContent {
         }
         
         ToolbarItem(placement: .topBarTrailing) {
-            if !isAnalyzing {
-                Menu {
-                    actionMenuContent
-                } label: {
-                    toolbarIcon("ellipsis")
-                        .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
+            ZStack {
+                queuedDeleteButton
+                    .opacity(showsQueuedDeleteAction ? 1 : 0)
+                    .disabled(!showsQueuedDeleteAction)
+                    .accessibilityHidden(!showsQueuedDeleteAction)
+                    .accessibilityIdentifier(
+                        showsQueuedDeleteAction
+                            ? "InsightQueuedDeleteButton"
+                            : ""
+                    )
+
+                if !isAnalyzing && !showsQueuedDeleteAction {
+                    Menu {
+                        actionMenuContent
+                    } label: {
+                        toolbarIcon("ellipsis")
+                            .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
+                    }
+                    .accessibilityIdentifier("InsightTopMenu")
+                    .accessibilityLabel("Scan actions")
+                    .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
                 }
-                .accessibilityIdentifier("InsightTopMenu")
-                .accessibilityLabel("Scan actions")
-                .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
             }
+            .animation(.easeInOut(duration: 0.2), value: showsQueuedDeleteAction)
         }
     }
 
@@ -219,6 +235,23 @@ struct TopToolbar: ToolbarContent {
     private func toolbarIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .bold))
+    }
+
+    private var queuedDeleteButton: some View {
+        Button(role: .destructive) {
+            showDeleteConfirmation = true
+        } label: {
+            toolbarIcon("trash")
+                .imageOverlayToolbarIconChrome(
+                    isFallbackActive: shouldUseContainedToolbarChrome,
+                    foregroundColor: .red
+                )
+        }
+        .tint(.red)
+        .accessibilityLabel("Delete scan")
+        .imageOverlayToolbarButtonChrome(
+            isFallbackActive: shouldUseContainedToolbarChrome
+        )
     }
 
     private var menuState: InsightTopMenuState {
