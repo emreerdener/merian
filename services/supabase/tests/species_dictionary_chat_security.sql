@@ -206,7 +206,15 @@ VALUES (
     pg_catalog.NOW() - INTERVAL '30 days',
     'pro',
     pg_catalog.NOW() + INTERVAL '30 days'
-);
+)
+ON CONFLICT (id) DO UPDATE
+SET email = EXCLUDED.email,
+    public_username = EXCLUDED.public_username,
+    public_author_name = EXCLUDED.public_author_name,
+    public_identity_source = EXCLUDED.public_identity_source,
+    created_at = EXCLUDED.created_at,
+    subscription_tier = EXCLUDED.subscription_tier,
+    subscription_expires_at = EXCLUDED.subscription_expires_at;
 
 INSERT INTO public.species_dictionary (
     id,
