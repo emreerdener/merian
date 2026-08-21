@@ -1281,12 +1281,13 @@ When generating delays such as toast/banner teardown, swallowing
 `CancellationError` and then continuing can let an old task clear replacement
 state. Auto-dismiss tasks use `do/try/catch`, return from cancellation, and
 compare the payload or item identity before mutation. Candidate acknowledgement,
-Field Chat copy confirmation, and note-confirmation delays are structured
-`.task(id:)` work, so unmounting their view cancels the timer instead of
-retaining its SwiftUI state box. The shared system-toast and milestone overlays
-also occupy distinct presentation states so only one bottom feedback layer
-mounts at a time. Feature animation sleeps that perform no teardown may still
-use cancellation-tolerant behavior where explicitly appropriate.
+the Field Chat sheet-local `Copied` badge, and note-confirmation delays are
+structured `.task(id:)` work, so unmounting their view cancels the timer instead
+of retaining its SwiftUI state box. Field Chat copy does not also enqueue a
+parent toast. The shared system-toast and milestone overlays occupy distinct
+presentation states so only one bottom feedback layer mounts at a time. Feature
+animation sleeps that perform no teardown may still use cancellation-tolerant
+behavior where explicitly appropriate.
 
 ### Owner-Scoped Media Observation
 

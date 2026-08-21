@@ -5,6 +5,16 @@ import Testing
 
 @MainActor
 struct InsightChatTests {
+    @Test func copyAnswerPerformsOnlyClipboardSideEffect() {
+        var copiedText: String?
+
+        InsightChatReplyAction.copyAnswer.perform(
+            messageText: "The saved traits support this identification."
+        ) { copiedText = $0 }
+
+        #expect(copiedText == "The saved traits support this identification.")
+    }
+
     @Test func explorePostRequestUsesPostIdentifierContract() throws {
         let body = ExplorePostChatRequestBody(
             action: "send",

@@ -202,15 +202,20 @@ struct TopToolbar: ToolbarContent {
         
         ToolbarItem(placement: .topBarTrailing) {
             ZStack {
-                queuedDeleteButton
-                    .opacity(showsQueuedDeleteAction ? 1 : 0)
-                    .disabled(!showsQueuedDeleteAction)
-                    .accessibilityHidden(!showsQueuedDeleteAction)
-                    .accessibilityIdentifier(
-                        showsQueuedDeleteAction
-                            ? "InsightQueuedDeleteButton"
-                            : ""
-                    )
+                // iOS 26 still draws native Liquid Glass around a transparent
+                // Button. Reserve the slot with a non-control instead.
+                Color.clear
+                    .frame(width: 44, height: 44)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+
+                if showsQueuedDeleteAction {
+                    queuedDeleteButton
+                        .accessibilityIdentifier(
+                            "InsightQueuedDeleteButton"
+                        )
+                        .transition(.opacity)
+                }
 
                 if !isAnalyzing && !showsQueuedDeleteAction {
                     Menu {
@@ -224,6 +229,7 @@ struct TopToolbar: ToolbarContent {
                     .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
                 }
             }
+            .frame(width: 44, height: 44)
             .animation(.easeInOut(duration: 0.2), value: showsQueuedDeleteAction)
         }
     }

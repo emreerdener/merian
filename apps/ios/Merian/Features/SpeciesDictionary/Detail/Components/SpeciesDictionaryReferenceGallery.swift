@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum SpeciesDictionaryHeroLayout {
+    static let contentOverlap: CGFloat = 32
+    static let overlayInset: CGFloat = 14
+    static let overlayBottomInset = contentOverlap + overlayInset
+}
+
 struct SpeciesDictionaryReferenceGallery: View {
     let scientificName: String
     let images: [SpeciesDictionaryReferenceImage]
@@ -72,7 +78,7 @@ struct SpeciesDictionaryReferenceGallery: View {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 14)
+            .padding(.bottom, SpeciesDictionaryHeroLayout.overlayBottomInset)
             .allowsHitTesting(false)
             .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedImageId)
             .transition(.asymmetric(
@@ -143,7 +149,9 @@ struct SpeciesDictionaryReferenceGallery: View {
 
                 sourceBadge(for: image)
             }
-            .padding(14)
+            .padding(.horizontal, SpeciesDictionaryHeroLayout.overlayInset)
+            .padding(.top, SpeciesDictionaryHeroLayout.overlayInset)
+            .padding(.bottom, SpeciesDictionaryHeroLayout.overlayBottomInset)
         }
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity)

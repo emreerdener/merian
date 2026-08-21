@@ -210,6 +210,7 @@ struct CollectionsView: View {
                             ) {
                                 NonBiologicalScansView()
                             }
+                            .accessibilityIdentifier("NonBiologicalCollectionCard")
                         }
                     }
                     .padding(.horizontal, 16)

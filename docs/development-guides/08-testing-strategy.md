@@ -1044,33 +1044,34 @@ MerianTests/
   AI-generated quick prompt merging/filtering, including reserved uncertainty
   context below 70% confidence and server-provided confidence-category
   preservation, failed outgoing recovery state, deterministic unavailable-state
-  hiding, identification-concern action buckets plus negative examples, and the
-  600-character draft cap. It additionally proves a changed chat subject clears
-  the private draft and rejects the old generation's completion, a
-  different-subject preparation replaces obsolete work, and same-subject
-  preparation remains single-flight. `MerianNetworkClientTests.swift` exercises
-  the candidate-success boundary: malformed Community enums become
-  `MerianError.invalidResponse`, and Field Chat rejects cross-subject,
-  missing-subject, cross-conversation, unknown-role, non-UUID-message, or
-  invalid-limit envelopes before the view model can apply them, including an
-  otherwise valid empty thread from the wrong subject. Send cases additionally
-  reject an incomplete or mismatched `client_message_id` pair, padded/empty or
-  over-4,000-character message text, and a JSON body over 1 MiB; manual retry
-  retains the failed send UUID. Species Dictionary cases additionally pin the
-  `species_id` request body and idempotency header, strict species subject echo,
-  cross-subject rejection, source-specific `species_not_available` handling, and
-  identifier-free product telemetry. The foreground identify boundary also
-  proves an exact handler-owned `403 ai_consent_required` becomes
-  `MerianError.aiConsentRequired`, so the app can enter disclosure recovery
-  instead of exposing a generic HTTP retry. Backend source/helper tests lock
-  bounded same-UUID quota replay coalescing. Action-response cases reject
-  false/mismatched answer and feature feedback, empty or internal-ID-leaking
-  note summaries, and malformed, duplicate, unsafe, oversized, or
-  unknown-category prompt suggestions. Safety fixtures distinguish direct action
-  requests such as harvesting/handling from ordinary educational species names
-  and behavior questions such as poison ivy habitat or animal foraging.
-  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
-  before external cloud/search side effects can run.
+  hiding, identification-concern action buckets plus negative examples, the copy
+  action's clipboard-only side effect while the sheet-local control owns its
+  acknowledgement, and the 600-character draft cap. It additionally proves a
+  changed chat subject clears the private draft and rejects the old generation's
+  completion, a different-subject preparation replaces obsolete work, and
+  same-subject preparation remains single-flight.
+  `MerianNetworkClientTests.swift` exercises the candidate-success boundary:
+  malformed Community enums become `MerianError.invalidResponse`, and Field Chat
+  rejects cross-subject, missing-subject, cross-conversation, unknown-role,
+  non-UUID-message, or invalid-limit envelopes before the view model can apply
+  them, including an otherwise valid empty thread from the wrong subject. Send
+  cases additionally reject an incomplete or mismatched `client_message_id`
+  pair, padded/empty or over-4,000-character message text, and a JSON body over
+  1 MiB; manual retry retains the failed send UUID. Species Dictionary cases
+  additionally pin the `species_id` request body and idempotency header, strict
+  species subject echo, cross-subject rejection, source-specific
+  `species_not_available` handling, and identifier-free product telemetry. The
+  foreground identify boundary also proves an exact handler-owned
+  `403 ai_consent_required` becomes `MerianError.aiConsentRequired`, so the app
+  can enter disclosure recovery instead of exposing a generic HTTP retry.
+  Backend source/helper tests lock bounded same-UUID quota replay coalescing.
+  Action-response cases reject false/mismatched answer and feature feedback,
+  empty or internal-ID-leaking note summaries, and malformed, duplicate, unsafe,
+  oversized, or unknown-category prompt suggestions. Safety fixtures distinguish
+  direct action requests such as harvesting/handling from ordinary educational
+  species names and behavior questions such as poison ivy habitat or animal
+  foraging. `UserTagsMutationControllerTests.swift` verifies tag saves commit
+  locally before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.

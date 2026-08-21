@@ -698,6 +698,12 @@ Technical model-context limitations are enforced by the source-specific backend
 route and belong in engineering/API documentation rather than additional
 empty-state disclaimers.
 
+Copying an assistant response writes it to the pasteboard and shows the
+transient `Copied` badge inside `InsightChatAnswerControls`. It does not emit a
+second `Copied answer` payload to the parent toast host, so no duplicate
+confirmation appears behind the sheet on Insight, Explore, or Species
+Dictionary.
+
 Dictionary component reuse is release-held until the
 [canonical candidate blockers](16-species-dictionary.md#candidate-release-status)
 are fixed and proven; this guide does not override that status.

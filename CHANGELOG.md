@@ -46,6 +46,9 @@ TestFlight, App Store, support, and QA.
 - Fresh analysis results now reveal Share and Field chat as soon as their saved
   scan record reaches the Insight, without requiring the Insight to be closed
   and reopened.
+- Copying a Field Chat answer now keeps the transient **Copied** confirmation
+  inside the chat sheet and no longer shows a duplicate toast behind it. The
+  shared fix covers Insight, Explore, and Species Dictionary chats.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
 - Foreground visual analysis now advances beyond canned category phrases to five
@@ -59,7 +62,8 @@ TestFlight, App Store, support, and QA.
 - The analyzing image and scan sweep now remain visually continuous during that
   durable handoff. The carousel keeps its selected image while the queued trash
   action fades into the existing toolbar position instead of causing a visible
-  refresh.
+  refresh. The reserved position no longer appears as an empty circular button
+  before queued deletion is available.
 - Ambiguous midpoint labels such as **moderate color levels** and **balanced
   light and dark** now resolve into visible descriptions such as **softly
   colored areas**, **evenly lit areas**, or **light and shadow areas**.

@@ -88,7 +88,10 @@ closes Field Chat, and resumes it only from the chat sheet's exact `onDismiss`.
 The captured scan ID and presentation generation are checked again before the
 candidate modal, refinement route, or paywall can mount. Field-note confirmation
 and copy acknowledgement timers are identity-keyed SwiftUI `.task` work, so
-unmounting the chat cancels them; the passive confirmation toast cannot block
+unmounting the chat cancels them. Copy acknowledgement stays inside
+`InsightChatAnswerControls` as the transient `Copied` badge and never calls the
+parent `onToast`; this shared rule covers Insight, Explore, and Species
+Dictionary threads. The separate field-note confirmation toast cannot block
 underlying controls.
 
 The preflight:

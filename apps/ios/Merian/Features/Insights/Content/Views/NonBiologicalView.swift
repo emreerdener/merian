@@ -33,7 +33,6 @@ struct NonBiologicalView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .card()
 
             ScanInformationCard(speciesData: species, timestamp: timestamp)
         }

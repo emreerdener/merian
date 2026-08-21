@@ -529,10 +529,8 @@ struct InsightChatSheet: View {
         HapticManager.shared.triggerSelectionPulse()
         trackAction(action.rawValue, message: message)
 
-        switch action {
-        case .copyAnswer:
-            UIPasteboard.general.string = message.text
-            onToast(.information("Copied answer"))
+        action.perform(messageText: message.text) { copiedText in
+            UIPasteboard.general.string = copiedText
         }
     }
 
@@ -648,8 +646,19 @@ struct InsightChatSheet: View {
     }
 }
 
-private enum InsightChatReplyAction: String, CaseIterable {
+enum InsightChatReplyAction: String, CaseIterable {
     case copyAnswer = "copy_answer"
+
+    func perform(
+        messageText: String,
+        writeToPasteboard: (String) -> Void
+    ) {
+        switch self {
+        case .copyAnswer:
+            // InsightChatAnswerControls owns the visible in-sheet acknowledgement.
+            writeToPasteboard(messageText)
+        }
+    }
 }
 
 private struct InsightChatIdentificationReviewActions {

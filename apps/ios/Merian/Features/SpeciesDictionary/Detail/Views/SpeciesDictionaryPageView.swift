@@ -676,7 +676,7 @@ private struct SpeciesDictionaryDetailLoadingSkeleton: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(Color.black.opacity(0.12), in: Capsule(style: .continuous))
-            .padding(.bottom, 14)
+            .padding(.bottom, SpeciesDictionaryHeroLayout.overlayBottomInset)
             .allowsHitTesting(false)
         }
         .frame(width: width, height: width)
@@ -774,26 +774,25 @@ private struct SpeciesDictionaryDetailLoadingSkeleton: View {
 }
 
 private struct DictionaryHeroContentSheetModifier: ViewModifier {
-    private let overlapRadius: CGFloat = 32
     private let contentTopSpacing: CGFloat = 24
 
     func body(content: Content) -> some View {
         content
-            .padding(.top, overlapRadius + contentTopSpacing)
+            .padding(.top, contentTopSpacing)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 UnevenRoundedRectangle(
-                    topLeadingRadius: overlapRadius,
+                    topLeadingRadius: SpeciesDictionaryHeroLayout.contentOverlap,
                     bottomLeadingRadius: 0,
                     bottomTrailingRadius: 0,
-                    topTrailingRadius: overlapRadius
+                    topTrailingRadius: SpeciesDictionaryHeroLayout.contentOverlap
                 )
                 .fill(Color(uiColor: .systemBackground))
                 .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
                 .padding(.bottom, -1000)
             )
-            .offset(y: -overlapRadius)
-            .padding(.bottom, -overlapRadius)
+            .offset(y: -SpeciesDictionaryHeroLayout.contentOverlap)
+            .padding(.bottom, -SpeciesDictionaryHeroLayout.contentOverlap)
             .zIndex(1)
     }
 }

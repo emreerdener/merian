@@ -97,6 +97,8 @@ enum UITestSeedCoordinator {
     private static let progressiveAnalyzingArgument = "-seedProgressiveAnalyzingFlow"
     private static let missingVideoFallbackArgument = "-seedMissingVideoFallbackFlow"
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
+    private static let nonBiologicalCollectionRouteArgument =
+        "-seedNonBiologicalCollectionRoute"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
     private static let queuedRetryScheduledScanId = "ui_test_queued_retry_scheduled"
     private static let queuedRetryAttentionScanId = "ui_test_queued_retry_attention"
@@ -173,7 +175,8 @@ enum UITestSeedCoordinator {
                 arguments.contains(queuedRetryPresentationArgument) ||
                 arguments.contains(liveQueueHandoffArgument) ||
                 arguments.contains(progressiveAnalyzingArgument) ||
-                arguments.contains(missingVideoFallbackArgument) else { return }
+                arguments.contains(missingVideoFallbackArgument) ||
+                arguments.contains(nonBiologicalCollectionRouteArgument) else { return }
 
         let context = container.mainContext
 
@@ -224,6 +227,11 @@ enum UITestSeedCoordinator {
                 context.insert(missingVideoFallbackRecord())
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
                 MerianLog.general.debug("UITestSeedCoordinator seeded missing video fallback flow.")
+            } else if arguments.contains(nonBiologicalCollectionRouteArgument) {
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug(
+                    "UITestSeedCoordinator seeded the non-biological collection route."
+                )
             }
 
             try context.save()
@@ -250,6 +258,11 @@ enum UITestSeedCoordinator {
                     )
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .debugPreviewAnalyzing,
+                    source: .debug
+                )
+            } else if arguments.contains(nonBiologicalCollectionRouteArgument) {
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .nonBiologicalScans,
                     source: .debug
                 )
             }

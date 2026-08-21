@@ -54,6 +54,47 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testNonBiologicalCollectionBackReturnsToCollectionsTab() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedNonBiologicalCollectionRoute"]
+        )
+
+        let nonBiologicalNavigationBar = app.navigationBars["Non-biological"]
+        XCTAssertTrue(
+            nonBiologicalNavigationBar.waitForExistence(timeout: 8.0),
+            "The seeded Non-biological collection did not open"
+        )
+
+        let backButton = nonBiologicalNavigationBar.buttons.element(boundBy: 0)
+        XCTAssertTrue(backButton.isHittable)
+        backButton.tap()
+
+        let collectionsSegment = app.segmentedControls.buttons["Collections"]
+        XCTAssertTrue(collectionsSegment.waitForExistence(timeout: 4.0))
+        XCTAssertTrue(
+            collectionsSegment.isSelected,
+            "Back did not preserve the Collections tab selection"
+        )
+
+        let nonBiologicalCollectionCard = app.buttons[
+            "NonBiologicalCollectionCard"
+        ]
+        XCTAssertTrue(
+            nonBiologicalCollectionCard.waitForExistence(timeout: 4.0),
+            "Back did not reveal the Collections page"
+        )
+        let cardBecameHittable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"),
+            object: nonBiologicalCollectionCard
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [cardBecameHittable], timeout: 4.0),
+            .completed,
+            "The Collections segment was selected while the Scans page remained visible"
+        )
+    }
+
+    @MainActor
     func testExistingBiologicalHistoryDoesNotPresentFeedbackSurveyOnLaunch() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: [

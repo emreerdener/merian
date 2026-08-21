@@ -27,12 +27,13 @@ completed Insight presentations.
 ## Queued deletion continuity
 
 `TopToolbar` owns exactly one `.topBarTrailing` item throughout analyzing and
-queued presentation. Its queued delete button stays structurally mounted at zero
-opacity, disabled, accessibility-hidden, and without its automation identifier
-until the shell has an exact durable queued scan ID. Binding that ID sets
-`showsQueuedDeleteAction`, fades the same button in with a 0.2-second
-ease-in-out transition, and exposes `InsightQueuedDeleteButton` without
-inserting a second native toolbar item or relaying out the sheet.
+queued presentation. A clear, non-control 44-point placeholder reserves that
+item's layout while analyzing. The native queued delete `Button` is not mounted
+until the shell has an exact durable queued scan ID; this prevents iOS 26 from
+drawing empty toolbar glass before the handoff. Binding that ID sets
+`showsQueuedDeleteAction`, inserts the button with a 0.2-second opacity
+transition, and exposes `InsightQueuedDeleteButton` without inserting a second
+native toolbar item or relaying out the sheet.
 
 The fade changes presentation only. Tapping the visible button still enters the
 queued deletion confirmation and its **Cancel upload & delete** action; queue

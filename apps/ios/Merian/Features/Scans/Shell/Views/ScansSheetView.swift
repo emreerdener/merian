@@ -198,47 +198,64 @@ struct ScansSheetView: View {
     }
 
     private var tabPager: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                LibraryTabContent(
-                    searchManager: searchManager,
-                    filterCategories: filterCategories,
-                    queuedScans: queuedScans,
-                    unavailableMediaScanCount:
-                        exploreMediaIncidentSummary.unavailablePublishedScanCount,
-                    isUnavailableMediaOverviewVisible:
-                        isUnavailableMediaOverviewVisible,
-                    isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
-                    onRefreshExploreMediaIncidents: refreshExploreMediaIncidentsNow,
-                    onDismissUnavailableMediaOverview:
-                        dismissUnavailableMediaOverview,
-                    isSearchFocused: $isSearchFocused,
-                    onScanSelected: { record in
-                        navigationPath.append(ScanInsightRoute(scanId: record.id))
-                    },
-                    onQueuedScanSelected: { queuedScan in
-                        navigationPath.append(QueuedScanInsightRoute(queuedScan: queuedScan))
-                    },
-                    showSelectionLimitAlert: $showSelectionLimitAlert,
-                    scanToDelete: $scanToDelete,
-                    showDeleteConfirmation: $showDeleteConfirmation
-                )
-                CollectionsTabContent(
-                    searchManager: searchManager,
-                    isSearchFocused: isSearchFocused,
-                    collections: collections,
-                    hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
-                    onHideSmartCollection: hideSmartCollection,
-                    newlyCreatedCollection: $newlyCreatedCollection
-                )
+        ScrollViewReader { scrollProxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 0) {
+                    LibraryTabContent(
+                        searchManager: searchManager,
+                        filterCategories: filterCategories,
+                        queuedScans: queuedScans,
+                        unavailableMediaScanCount:
+                            exploreMediaIncidentSummary.unavailablePublishedScanCount,
+                        isUnavailableMediaOverviewVisible:
+                            isUnavailableMediaOverviewVisible,
+                        isExploreMediaIncidentRefreshRunning: isExploreMediaIncidentRefreshRunning,
+                        onRefreshExploreMediaIncidents: refreshExploreMediaIncidentsNow,
+                        onDismissUnavailableMediaOverview:
+                            dismissUnavailableMediaOverview,
+                        isSearchFocused: $isSearchFocused,
+                        onScanSelected: { record in
+                            navigationPath.append(ScanInsightRoute(scanId: record.id))
+                        },
+                        onQueuedScanSelected: { queuedScan in
+                            navigationPath.append(QueuedScanInsightRoute(queuedScan: queuedScan))
+                        },
+                        showSelectionLimitAlert: $showSelectionLimitAlert,
+                        scanToDelete: $scanToDelete,
+                        showDeleteConfirmation: $showDeleteConfirmation
+                    )
+                    CollectionsTabContent(
+                        searchManager: searchManager,
+                        isSearchFocused: isSearchFocused,
+                        collections: collections,
+                        hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
+                        onHideSmartCollection: hideSmartCollection,
+                        newlyCreatedCollection: $newlyCreatedCollection
+                    )
+                }
+                .scrollTargetLayout()
             }
-            .scrollTargetLayout()
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: Binding(
+                get: { activeTab },
+                set: { if let val = $0 { activeTab = val } }
+            ))
+            .task(id: navigationPath.isEmpty) { @MainActor in
+                guard navigationPath.isEmpty else { return }
+
+                // A pre-seeded destination can keep the root pager from laying out at its
+                // selected tab. Re-anchor after Back reveals the root so the segment and
+                // visible page cannot disagree.
+                await Task.yield()
+                guard navigationPath.isEmpty else { return }
+
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    scrollProxy.scrollTo(activeTab, anchor: .center)
+                }
+            }
         }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: Binding(
-            get: { activeTab },
-            set: { if let val = $0 { activeTab = val } }
-        ))
     }
 
     private func localInsightDestination(for route: ScanInsightRoute) -> some View {
