@@ -1049,13 +1049,14 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    the source remains under the hard video byte cap. `visualMediaItems` is the
    preferred contract for telling the prompt which visual inputs are still
    photos and which are ordered frames from one or more short clips; still-photo
-   entries may add a validated top-left-normalized `focusRegion` that
-   prioritizes the likely subject without replacing the full image;
-   `audioMediaItems` identifies standalone audio versus audio extracted from a
-   video clip. If optional video audio cannot be parsed or is too short after
-   trimming, the edge skips that audio when visual evidence is present instead
-   of rejecting the whole video scan. `videoFrameCount` remains a legacy
-   fallback when older clients omit explicit media metadata.
+   entries may add a validated top-left-normalized `focusRegion` as a tentative
+   client-side attention hint without replacing the full image. The hint does
+   not prove or force the primary subject; `audioMediaItems` identifies
+   standalone audio versus audio extracted from a video clip. If optional video
+   audio cannot be parsed or is too short after trimming, the edge skips that
+   audio when visual evidence is present instead of rejecting the whole video
+   scan. `videoFrameCount` remains a legacy fallback when older clients omit
+   explicit media metadata.
 2. **WAV Preprocessing**: Audio data is preflighted before decode/fetch. The
    endpoint rejects oversized declared request `Content-Length` headers before
    body parsing, then uses `readRequestJsonWithinBudget` as the authoritative
@@ -1068,13 +1069,19 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    submitted modalities:
    - **Combined Text, Audio & Vision**: Uses
      `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` focusing on comprehensive
-     multi-sensory synthesis.
+     multi-sensory synthesis. This branch preserves its established
+     visual/acoustic arbitration and does not currently interpolate the complete
+     image-only whole-frame primary-subject instruction. Only still photos with
+     an accepted `focusRegion` receive the separate tentative per-photo warning;
+     unhinted stills and sampled video frames do not.
    - **Audio-only (`audioBase64s`)**: Dispatches using
      `BIOACOUSTIC_SYSTEM_INSTRUCTION`, leveraging specific bioacoustic AI
      interpretation.
    - **Vision-only (`imageBase64s`)**: Follows the standard vision
-     identification path. When a video is present, prompt context identifies
-     those visual inputs as ordered frames from one short clip.
+     identification path and asks the provider to select the intended
+     whole-frame visual subject before taxonomy. When a video is present, prompt
+     context identifies those visual inputs as ordered frames from one short
+     clip.
    - **Text-only (`observation_contexts`)**: Follows the legacy sighting
      pipeline utilizing only the user's structured observation text.
 4. The current iOS client sends queued images via `r2ObjectKeys`, queued audio
@@ -1095,7 +1102,9 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    processed-material guard runs before this gate: manufactured/processed
    objects are normalized to non-biological, have candidates and source-species
    scientific names cleared, skip dictionary novelty, and cannot upsert
-   `species_dictionary`.
+   `species_dictionary`. That runtime guard does not infer scene composition and
+   cannot independently demote a real organism that Gemini selected from the
+   background. Primary-subject selection remains provider guidance.
 6. Persisted multimodal scan imagery still lands in `scans.image_storage_urls`;
    promoted playback clips land separately in `scans.video_storage_urls`. Staged
    audio, including extracted video audio, is an inference input, not a public

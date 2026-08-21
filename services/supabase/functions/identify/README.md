@@ -28,12 +28,16 @@ to modify the pipeline, modify the exact module below rather than cluttering
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
   metadata.
-- **`schema.ts`** The semantic brain. Contains the `systemInstruction` prompt
-  sent to Gemini Vision and exports the cached Gemini schema generated from the
-  shared executable contract. Modify the prompt here when changing Vision
-  interpretation; modify `contract.ts` for a response-shape change. Dog/cat
-  breed, mix, coat-pattern, and body-type display hints belong in
-  `pet_identification`, not as replacement species taxonomy.
+- **`../_shared/identify/schema.ts`** The semantic brain. Contains the
+  `systemInstruction` prompt sent to Gemini Vision and exports the cached Gemini
+  schema generated from the shared executable contract. Modify the prompt here
+  when changing Vision interpretation; modify `contract.ts` for a response-shape
+  change. The image-only instruction asks the provider to select the intended
+  whole-frame subject before taxonomy so incidental background biology does not
+  outrank a dominant non-biological subject. This is model guidance, not an
+  independent runtime scene classifier. Dog/cat breed, mix, coat-pattern, and
+  body-type display hints belong in `pet_identification`, not as replacement
+  species taxonomy.
 - **`types.ts`** Request/database structural types and aliases inferred from the
   executable model/client contract.
 - **`media.ts`** The payload resolver. Houses `resolveImagePayloads()`, which
@@ -196,6 +200,19 @@ non-biological Insight, but source-species scientific names, candidates, and
 When a valid biological cache miss does write `species_dictionary.common_names`,
 the existing `common_names.en` value wins. Scan-level names only fill an empty
 English name so a malformed scan cannot rename an existing species row.
+
+The same primary-subject boundary applies when a real organism is merely
+incidental. The provider instruction uses relative area, centrality, focus,
+framing, repeated views, and any user description before taxonomy. Under that
+guidance, a laptop that fills the frame should remain non-biological when plant
+leaves appear only behind it.
+
+This route has no post-parser visual-prominence classifier. Runtime contract
+validation proves the response shape, and
+`normalizeProcessedMaterialSubject(...)` can demote manufactured/processed
+objects, but a plausible background-plant false positive can still pass those
+checks and enter persistence. Prompt-contract tests prove that the instruction
+is assembled; they do not constitute a live Gemini evaluation of a photograph.
 
 ## Shared Micro-Agents
 

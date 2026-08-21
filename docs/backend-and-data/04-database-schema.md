@@ -5066,8 +5066,10 @@ mirror for migration safety and compatibility.
   `[IdentifyVisualMediaItem]` aligned one-to-one with `inferenceImagePaths`, so
   replay can tell `/identify-multimodal` which inference images are still photos
   versus ordered video frames. Still-photo entries may also carry the transient
-  accepted `focusRegion`; this reuses the existing JSON attribute and does not
-  require a schema migration.)
+  `focusRegion` after client/Edge geometry validation. The region remains a
+  non-authoritative attention hint, not a persisted primary-subject decision;
+  this reuses the existing JSON attribute and does not require a schema
+  migration.)
 - `queueAttemptCount`: Int (Added in `MerianSchemaV48`. Persisted retry count
   for the queued scan. Replaces the older process-local `uploadRetryCount`
   authority and feeds the automatic retry budget. Scan-ingestion control mirrors

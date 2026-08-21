@@ -81,6 +81,7 @@ import {
   audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
   buildCapturedMediaManifest,
+  buildVisualMediaPrompt,
   capturedMediaVideoCount,
   descriptorsForProcessedAudioInputs,
   durableAudioInputIndexes,
@@ -355,77 +356,6 @@ function resolveVisualMediaTelemetry(
     declaredVideoFrameCount,
     videoInferenceFrameCount,
   };
-}
-
-function buildVisualMediaPrompt(
-  visualMediaItems: VisualMediaDescriptor[],
-  hasVideo: boolean,
-  resolvedImageCount: number,
-  hasVideoAudio = false,
-): string | null {
-  if (
-    visualMediaItems.length === resolvedImageCount &&
-    visualMediaItems.length > 0
-  ) {
-    const includesVideo = visualMediaItems.some((item) =>
-      item.kind === "video_frame"
-    );
-    const lines = visualMediaItems.map((item, index) => {
-      const inputNumber = index + 1;
-      if (item.kind === "video_frame") {
-        const clipNumber = (item.clipIndex ?? 0) + 1;
-        const frameNumber = (item.frameIndex ?? index) + 1;
-        return `- Visual input ${inputNumber}: sampled video frame ${frameNumber} from video clip ${clipNumber}.`;
-      }
-
-      const sourceNumber = (item.sourceIndex ?? index) + 1;
-      const photoLabel =
-        `- Visual input ${inputNumber}: still photo ${sourceNumber}.`;
-      if (!item.focusRegion) return photoLabel;
-
-      const { x, y, width, height } = item.focusRegion;
-      return `${photoLabel} The likely primary subject is inside top-left-normalized bounds x=${
-        x.toFixed(4)
-      }, y=${y.toFixed(4)}, width=${width.toFixed(4)}, height=${
-        height.toFixed(4)
-      } in this same photo. Prioritize that region while treating everything outside it as environmental context.`;
-    });
-
-    const promptLines = includesVideo
-      ? [
-        "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video, with any listed still photos treated as separate evidence from the same scan.",
-      ]
-      : [
-        "The following visual inputs are ordered still photos from the same scan:",
-      ];
-
-    promptLines.push(
-      ...lines,
-    );
-
-    if (includesVideo) {
-      promptLines.push(
-        hasVideoAudio
-          ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
-          : "Analyze the sampled visual frames as evidence from that video.",
-        "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
-      );
-    }
-
-    return promptLines.join("\n");
-  }
-
-  if (hasVideo && resolvedImageCount > 0) {
-    return [
-      "This scan includes a short user-recorded video. The visual evidence comes from ordered sampled frames from that video.",
-      hasVideoAudio
-        ? "Analyze the sampled visual frames and accompanying audio as evidence from that video."
-        : "Analyze the sampled visual frames as evidence from that video.",
-      "When writing user-facing reasoning for this video scan, do not describe the video-derived evidence as images, photos, or an image set.",
-    ].join("\n");
-  }
-
-  return null;
 }
 
 function publicUrlsByStorageKey(

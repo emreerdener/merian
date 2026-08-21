@@ -2061,6 +2061,22 @@ emit `blur_score`, `colors`, `candidates` (which may be `null`),
 `pet_identification` (which may be `null`), while biological-only enrichment
 remains optional or nullable.
 
+Provider field descriptions and system instructions are classification guidance;
+the executable parser validates structure rather than the truth of visual
+prominence. The processed-material normalizer can deterministically demote a
+manufactured or processed object, but it cannot determine that a real organism
+was merely incidental background content. Image-only `/identify` and
+`/identify-multimodal` use the whole-frame primary-subject instruction. Mixed
+image+audio requests use a separate blended instruction and do not currently
+include that complete policy. The base `is_biological_subject` description also
+flows into blended generation and is inherited by Describe, where its current
+visual-only wording is a known semantic mismatch.
+
+Changing `_shared/identify/contract.ts` or the shared schema can affect multiple
+deployment graphs. For the current primary-subject change, the checked-in
+planner selects `audio-spec`, `identify`, `identify-describe`, and
+`identify-multimodal`; passing validation does not authorize deployment.
+
 The same descriptor generates the marked Identify block in
 `InferenceEdgeDTOs.swift`, including the full nested response graph, explicit
 `CodingKeys`, and explicit `init(from:)` implementations. This makes custom

@@ -404,25 +404,25 @@ struct SpeciesDictionaryTests {
 
     @Test func testSpeciesDictionaryFieldChatRequiresCanonicalLoadedSpeciesUUID() {
         #expect(
-            SpeciesDictionaryFieldChatPresentationPolicy.canonicalSpeciesID(
+            SpeciesDictionaryChatPresentationPolicy.canonicalSpeciesID(
                 " 019FB71A-94DE-7998-A4CE-F163B531D3E0 "
             ) == "019fb71a-94de-7998-a4ce-f163b531d3e0"
         )
         #expect(
-            SpeciesDictionaryFieldChatPresentationPolicy.canonicalSpeciesID(
+            SpeciesDictionaryChatPresentationPolicy.canonicalSpeciesID(
                 "species-external-key"
             ) == nil
         )
         #expect(
-            SpeciesDictionaryFieldChatPresentationPolicy.canonicalSpeciesID(nil) == nil
+            SpeciesDictionaryChatPresentationPolicy.canonicalSpeciesID(nil) == nil
         )
         #expect(
-            SpeciesDictionaryFieldChatPresentationPolicy.destination(
+            SpeciesDictionaryChatPresentationPolicy.destination(
                 isProActive: false
             ) == .paywall
         )
         #expect(
-            SpeciesDictionaryFieldChatPresentationPolicy.destination(
+            SpeciesDictionaryChatPresentationPolicy.destination(
                 isProActive: true
             ) == .fieldChat
         )

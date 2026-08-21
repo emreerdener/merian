@@ -2295,13 +2295,46 @@ To optimize API expenditures, the `identify` Deno Edge node uses two strategies:
   fails closed before Gemini. Both identification models use the structured
   schema generated from `merianModelContract`.
 - **Conditional biological fields**: The static executable contract makes
-  biological-only fields optional and nullable. The prompt requires them to be
-  omitted for non-biological subjects; the runtime parser and processed-material
-  guard then enforce the safe boundary. **Geology Bypass**: Gemini's prompt
-  explicitly instructs the LLM to output `scientific_name` and `common_name` for
-  identifiable geological subjects despite `is_biological_subject=false`. This
-  surfaces rocks cleanly in the iOS layer while routing them out of the main
-  biological dictionary.
+  biological-only fields optional and nullable. The runtime parser enforces the
+  response shape, and the processed-material guard independently demotes
+  manufactured or processed source-material false positives. Neither boundary
+  determines which visible object occupies the primary-subject role. **Geology
+  Bypass**: Gemini's prompt explicitly instructs the LLM to output
+  `scientific_name` and `common_name` for identifiable geological subjects
+  despite `is_biological_subject=false`. This surfaces rocks cleanly in the iOS
+  layer while routing them out of the main biological dictionary.
+
+**Visual primary-subject guidance and current enforcement boundary**:
+`/identify` and the image-only branch of `/identify-multimodal` use
+`getSystemInstruction(...)`. That provider instruction asks Gemini to select the
+intended whole-frame visual subject before taxonomy, using relative area,
+centrality, focus, framing, repeated coverage, and explicit observation text as
+evidence. A client `focusRegion` from Vision objectness is only a tentative
+saliency hint. Under that guidance, a laptop filling the frame should remain
+non-biological when plant leaves are merely in the background, at the periphery,
+in a reflection, or on a display/depiction.
+
+This is model guidance, not a trusted post-parser classification. Runtime
+validation proves the response structure; `normalizeProcessedMaterialSubject`
+can demote manufactured/processed objects, but no current runtime guard can
+infer visual prominence or independently demote a plausible plant result because
+the plant was incidental. A provider false positive can therefore still pass
+validation and reach dictionary/persistence work.
+
+Mixed image+audio requests use the separate
+`MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION`, retain the established visual/acoustic
+arbitration, and do not currently interpolate the complete image-only
+primary-subject instruction. A still photo with an accepted `focusRegion`
+receives the tentative per-photo warning; unhinted stills and sampled video
+frames do not. The base `merianModelContract.is_biological_subject` description
+also flows into blended generation and is inherited by
+`merianDescribeModelContract`; its current visual-only wording is a known
+cross-modality semantic mismatch, not a universal enforcement rule.
+
+Because the changed executable contract/schema modules are shared, the
+repository deployment planner selects `audio-spec`, `identify`,
+`identify-describe`, and `identify-multimodal` together. Validation or green CI
+does not authorize deploying those functions.
 
 The canonical source for every model and final response key is
 `services/supabase/functions/_shared/identify/contract.ts`. It generates the
@@ -5429,10 +5462,11 @@ ordered compositions of images, audio, and descriptive context.
   coordinates for the same complete post-crop image. The edge accepts only
   finite positive rectangles contained within `[0, 1]` with
   `source = vision_objectness`; invalid regions and all video-frame regions are
-  stripped without rejecting the scan. Valid regions add a primary-subject hint
-  to that photo's prompt entry while the full image remains the only Gemini
-  visual part. The sanitized region survives `scan_ingestion_intents` replay; no
-  raw image bytes or completed-scan field are added.
+  stripped without rejecting the scan. Valid regions add a tentative attention
+  hint to that photo's prompt entry; they do not prove or force the primary
+  subject, and the full image remains the only Gemini visual part. The sanitized
+  region survives `scan_ingestion_intents` replay; no raw image bytes or
+  completed-scan field are added.
 - Before inference work starts, the endpoint claims a `scan_ingestion_jobs` row
   for the authenticated user and `client_scan_id`. The claim records media
   counts, genuine staged image/audio/video source keys, recovered upload-session

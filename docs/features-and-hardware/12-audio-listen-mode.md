@@ -621,6 +621,17 @@ success. The multimodal handler:
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives
    as the image pipeline.
 
+The combined image+audio branch does not currently reuse the complete image-only
+whole-frame primary-subject instruction. Its blended prompt retains the
+acoustic-versus-visual precedence policy. A still image with an accepted
+`focusRegion` receives a separate tentative per-photo warning, but an unhinted
+still or sampled video frame does not. Consequently, prompt behavior for an
+incidental background organism is not yet identical between image-only and
+combined requests, and no post-parser runtime classifier repairs that
+difference. The shared base `is_biological_subject` field description also uses
+visual-only wording when the blended provider schema is generated; this is a
+known cross-modality contract gap.
+
 Both the primary route and compatibility `/audio-spec` route import one shared
 audio subject policy and private provider contract. The provider returns a
 required internal `audio_subject_type` discriminator, which is validated and

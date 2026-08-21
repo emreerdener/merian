@@ -300,7 +300,13 @@ export const merianModelContract = deepFreezeJson(object(
       }),
       true,
     ),
-    is_biological_subject: field(truth(), true),
+    is_biological_subject: field(
+      truth({
+        description:
+          "Whether the intended primary visual subject is biological. True only when an organism, organism part, fossil, or preserved specimen is primary after evaluating whole-frame composition and any user description. False when biology is merely incidental background, peripheral, reflected, or displayed content while a non-biological subject dominates.",
+      }),
+      true,
+    ),
     is_live_capture: field(truth(), true),
     confidence_score: field(
       decimal(0, 1, {

@@ -201,10 +201,12 @@ removal, and final scan deletion erase the stored envelope.
 
 - Still images are Gemini visual inputs and durable scan/display media.
 - A still-image descriptor may include `focusRegion` with top-left-normalized
-  bounds and `source: "vision_objectness"`. Valid regions identify the likely
-  primary subject in the prompt while the complete image remains the only Gemini
-  visual part. Invalid, out-of-bounds, non-finite, and video-frame focus regions
-  are stripped without failing the request.
+  bounds and `source: "vision_objectness"`. Valid regions become tentative
+  client-side saliency hints in the prompt while the complete image remains the
+  only Gemini visual part. The provider must verify the hint against whole-frame
+  relative area, centrality, focus, and framing; the region is not proof of the
+  intended subject. Invalid, out-of-bounds, non-finite, and video-frame focus
+  regions are stripped without failing the request.
 - Standalone audio and extracted video audio are Gemini audio inputs. New
   clients submit one complete `ownerMediaTimeline` alongside the aligned
   raw-audio descriptors. An audio timeline item carries both the raw
@@ -441,7 +443,7 @@ same `scan_id`; it never changes this request or creates another model call.
 - `/scan-media-health` reports stuck jobs, stale media assets, missing replay
   intents, and non-resumable redacted intents for operations.
 
-## Biological Boundary
+## Biological Boundary And Current Guidance Limit
 
 The primary subject must be an organism, organism part, fossil, or preserved
 specimen before the response can write or enrich species data. Manufactured or
@@ -451,6 +453,22 @@ cotton or linen fabric, prepared food, toys, artwork, ornaments, and
 printed/painted/sculpted species depictions must not be identified as the source
 organism.
 
+For image-only requests, the provider instruction asks for subject selection
+before taxonomy. It treats relative area, centrality, focus, framing, repeated
+views, and observation text as evidence, and directs the model not to promote an
+organism that is merely in the background, at the periphery, in a reflection, or
+on a display/depiction. Under that guidance, a laptop filling the frame should
+remain non-biological when plant leaves are visible behind it.
+
+Mixed image+audio requests use `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` and keep
+the existing acoustic-versus-visual arbitration. That instruction does not
+currently interpolate the complete image-only whole-frame policy. A still image
+with an accepted `focusRegion` receives the tentative per-photo warning from
+`buildVisualMediaPrompt(...)`; unhinted stills and sampled video frames do not.
+The base `is_biological_subject` schema description is still used for blended
+generation and inherited by Describe, despite its current visual-only wording.
+This is a known cross-modality semantic gap.
+
 After parsing and sanitization, the route calls the shared
 `normalizeProcessedMaterialSubject(...)` guard before `isIdentifiedBio` is
 computed. A demoted result keeps the object `common_name` when useful for the
@@ -458,10 +476,21 @@ non-biological Insight, but clears source-species `scientific_name`, candidates,
 biology-only fields, and `is_new_to_merian_dictionary`. Demotions emit a
 structured `multimodal/processed_material_demoted` event.
 
+There is no independent runtime detector for incidental-background biology.
+Contract parsing validates provider shape, and the processed-material guard can
+demote manufactured/processed objects, but a structurally valid plant result can
+still proceed when the model incorrectly treats a background plant as primary.
+Prompt tests prove instruction composition rather than the provider's outcome
+for a concrete photograph.
+
 Dictionary writes also preserve existing canonical English names. If a
 `species_dictionary.common_names.en` value already exists, a scan-level
 `common_name` cannot replace it; scan names only fill an empty English name for
 a normalized biological subject.
+
+Changes to the shared Identify contract/schema plan all four consumers for
+deployment: `audio-spec`, `identify`, `identify-describe`, and
+`identify-multimodal`. Validation does not authorize deployment.
 
 ## Local Verification
 

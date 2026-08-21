@@ -126,6 +126,9 @@ schema, thresholds, DB helpers, media validation, and moderation logic:
   provider schema generated from the executable contract. The Describe route
   generates its text-only zero-image-quality variant, and both audio-only routes
   generate their private-discriminator variant from the shared audio contract.
+  `/identify` and image-only `/identify-multimodal` use the whole-frame visual
+  primary-subject instruction; mixed image+audio dispatch uses its separate
+  blended instruction.
 - **`_shared/identify/audioSubjectPolicy.ts`**: The single audio-only prompt and
   structural normalization policy shared by active audio-only
   `/identify-multimodal` and compatibility `/audio-spec`. Its private provider
@@ -147,6 +150,34 @@ generated Swift boundary is checked exactly across the full iOS source graph by
 `make validate-edge-dto-contract`. Audio-only normalization reads only the
 private discriminator and structured identity fields, never `ai_reasoning`, and
 provider response text is excluded from parse-failure logs.
+
+### Visual Primary-Subject Guidance Boundary
+
+Image-only provider instructions ask Gemini to decide the intended whole-frame
+visual subject before taxonomic classification. Relative area, centrality,
+focus, framing, repeated coverage, and explicit observation text are evidence.
+An accepted Vision objectness `focusRegion` becomes only a tentative per-photo
+attention hint; the complete image remains the provider input, and the region is
+not proof of user intent. This guidance targets cases such as a laptop filling
+the frame with incidental plant leaves in the background.
+
+The boundary is not deterministic server classification. Executable-contract
+parsing validates types, bounds, requiredness, and conditional response shape;
+`normalizeProcessedMaterialSubject(...)` demotes manufactured and processed
+objects. Neither step can infer visual prominence, so a plausible false positive
+involving a background organism may still pass and persist. Tests that assert
+prompt composition prove instruction wiring, not Gemini's classification of a
+concrete image.
+
+Mixed image+audio requests select `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION`, which
+retains the existing cross-modal and acoustic precedence policy and does not
+currently include the complete image-only whole-frame instruction. A hinted
+still photo continues to receive its tentative per-photo warning; unhinted
+stills and sampled video frames do not. The shared base `is_biological_subject`
+field description is also inherited by Describe and used for blended generation;
+its current visual-only wording is a known semantic coordination gap. A future
+harmonization must update the owning executable contract, every provider
+instruction, tests, and this documentation together.
 
 - **`_shared/identify/clientPayload.ts`**: Shared payload hydration for
   cache-hit species responses. Ensures `/identify` and `/identify-multimodal`

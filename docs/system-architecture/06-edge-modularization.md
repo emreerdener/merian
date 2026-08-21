@@ -277,7 +277,9 @@ machine-parseable and can trigger alerting pipelines on the ops side.
   output before biological gates run. Shared by `identify`,
   `identify-multimodal`, and `identify-describe` so processed/manufactured
   materials cannot drift into `species_dictionary` through one route while
-  another route blocks them.
+  another route blocks them. It does not infer scene composition or determine
+  whether a real organism selected by the provider was only incidental
+  background content.
 - **`_shared/identify/moderation.ts`**: Evaluates Gemini safety ratings, manages
   abuse strikes, and promotes safe media from `staging/` to `public_uploads/` in
   Cloudflare R2. Always runs inside `runBackground` — never on the critical HTTP

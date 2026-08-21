@@ -420,7 +420,15 @@ identical:
   without loading SDK runtime code into contract tooling.
 - **`schema.ts`**: Vision prompt plus cached Gemini schemas generated from
   `contract.ts` through `googleSchema.ts`, including the shared provider-private
-  audio variant used by both audio-only routes.
+  audio variant used by both audio-only routes. `/identify` and image-only
+  `/identify-multimodal` receive the whole-frame visual primary-subject
+  guidance; the blended image+audio instruction does not currently include the
+  complete policy. A client saliency region is only a tentative hint. Contract
+  parsing validates response structure and the processed-material normalizer
+  demotes manufactured/processed objects, but neither independently detects
+  incidental background biology. The base `is_biological_subject` description is
+  also inherited by Describe, so its current visual-only wording remains a known
+  cross-modality semantic gap.
 - **`thresholds.ts`**: Tier-specific confidence thresholds mirrored by
   `MerianConfig`.
 - **`types.ts`**: Shared request/database types plus model and client payload

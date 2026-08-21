@@ -2675,7 +2675,15 @@ Identification latency has focused contract coverage at each boundary:
   generation configuration, one `generateContent` call, exact Gemini timer stop,
   privacy-safe latency event, awaited durability boundary, customer-safe
   `400 observation_rejected`, retryable `503 scan_persistence_failed`, and
-  optional-only `EdgeRuntime.waitUntil` placement.
+  optional-only `EdgeRuntime.waitUntil` placement. It also locks the tentative
+  focus-region prompt text assembled for a hinted still image.
+- `_shared/identify/schema_test.ts` locks the image-only whole-frame
+  primary-subject clauses, including the incidental-background biology example
+  and non-authoritative focus-region rule. These prompt tests prove checked-in
+  instruction composition and route wiring; they do not call Gemini or prove how
+  the provider classifies a concrete photograph. The mixed image+audio branch
+  continues to use its separate blended instruction and is not covered by the
+  complete image-only policy.
 - `_shared/identify/db_test.ts` locks duplicate-safe insertion followed by
   owner-scoped read-back. `_shared/scanRecovery_test.ts` locks the bounded
   non-media payload, derived privacy fields, cross-owner/UUID rejection, direct

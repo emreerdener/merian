@@ -71,8 +71,9 @@ capture or gallery pick (consolidated into
   Toolbar. The camera path wraps the already-decoded `CGImage` directly; the
   gallery path reconstructs the image once during the final main-actor commit
   from the prepared inference payload.
-- `StagedImage.focusRegion` — optional transient top-left-normalized subject
-  bounds from Vision objectness saliency. It is queue/inference context, not
+- `StagedImage.focusRegion` — optional transient top-left-normalized objectness
+  saliency bounds from Vision. It is a tentative attention hint for queue and
+  inference context, not proof of the intended primary subject and not
   completed-scan storage.
 
 ### Automatic focus metadata
@@ -85,6 +86,12 @@ subject-relative padding, a 3–70% accepted area range, and ambiguity rejection
 for spatially separate near-confidence candidates. Failure, timeout, a broad
 scene, or no clear subject produces `nil`; no synthetic fallback rectangle is
 created.
+
+An accepted region has passed the client confidence, ambiguity, area, and
+geometry checks only. It has not been semantically verified as the user's
+primary subject. The Edge prompt therefore tells Gemini to treat the region as
+tentative and verify it against the complete image's relative area, centrality,
+focus, and framing.
 
 Camera preparation overlaps detection with display-payload preparation. Gallery
 imports are detected after bounded preparation and then recalculated from the

@@ -408,7 +408,7 @@ struct SpeciesDictionaryPageContentView: View {
     }
 
     private var fieldChatSpeciesID: String? {
-        SpeciesDictionaryFieldChatPresentationPolicy.canonicalSpeciesID(
+        SpeciesDictionaryChatPresentationPolicy.canonicalSpeciesID(
             viewModel.loadedSpecies?.id
         )
     }
@@ -427,7 +427,7 @@ struct SpeciesDictionaryPageContentView: View {
 
     private func openDictionaryFieldChat() {
         guard let species = viewModel.loadedSpecies,
-              let canonicalSpeciesID = SpeciesDictionaryFieldChatPresentationPolicy
+              let canonicalSpeciesID = SpeciesDictionaryChatPresentationPolicy
                 .canonicalSpeciesID(species.id) else {
             return
         }
@@ -440,7 +440,7 @@ struct SpeciesDictionaryPageContentView: View {
             isPro: isProActive
         )
 
-        guard SpeciesDictionaryFieldChatPresentationPolicy.destination(
+        guard SpeciesDictionaryChatPresentationPolicy.destination(
             isProActive: isProActive
         ) == .fieldChat else {
             isDictionaryChatPaywallPresented = true
@@ -489,7 +489,7 @@ private struct SpeciesDictionaryChatPresentation: Identifiable {
     let alternativeScientificNames: [String]
 }
 
-enum SpeciesDictionaryFieldChatPresentationPolicy {
+enum SpeciesDictionaryChatPresentationPolicy {
     enum Destination: Equatable {
         case fieldChat
         case paywall
