@@ -101,6 +101,14 @@ enum UITestSeedCoordinator {
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let nonBiologicalCollectionRouteArgument =
         "-seedNonBiologicalCollectionRoute"
+    private static let captureGoalIndicatorArgument =
+        "-seedCaptureGoalIndicatorFlow"
+    private static let captureGoalIntroductionArgument =
+        "-seedCaptureGoalIntroductionFlow"
+    private static let captureGoalFixtureAccountId =
+        "00000000-0000-4000-8000-0000000000c1"
+    private static let captureGoalFixtureDefaultsSuite =
+        "merian.ui-tests.capture-goal"
     private static let queuedAudioHandoffScanId = "ui_test_queued_audio_handoff"
     private static let queuedRetryScheduledScanId = "ui_test_queued_retry_scheduled"
     private static let queuedRetryAttentionScanId = "ui_test_queued_retry_attention"
@@ -129,6 +137,16 @@ enum UITestSeedCoordinator {
         )
     }
 
+    static var captureGoalAccountId: String? {
+        guard isEnabled else { return nil }
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains(captureGoalIndicatorArgument) ||
+                arguments.contains(captureGoalIntroductionArgument) else {
+            return nil
+        }
+        return captureGoalFixtureAccountId
+    }
+
     @MainActor
     static func prepareRequiredConsentIfNeeded(
         consentManager: ConsentManager
@@ -140,6 +158,31 @@ enum UITestSeedCoordinator {
         try? consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
             analyticsEnabled: false
         )
+    }
+
+    @MainActor
+    static func prepareCaptureGoalStoreIfNeeded(
+        container: AppDIContainer
+    ) {
+        guard isEnabled,
+              let snapshot = captureGoalSnapshot(
+                  arguments: ProcessInfo.processInfo.arguments
+              ),
+              let fixtureDefaults = UserDefaults(
+                  suiteName: captureGoalFixtureDefaultsSuite
+              ) else {
+            return
+        }
+
+        fixtureDefaults.removePersistentDomain(
+            forName: captureGoalFixtureDefaultsSuite
+        )
+        container.appSettings.showsCaptureGoalProgress = true
+        container.activeCaptureGoalStore = ActiveCaptureGoalStore(
+            userDefaults: fixtureDefaults
+        ) {
+            snapshot
+        }
     }
 
     @MainActor
@@ -707,15 +750,96 @@ enum UITestSeedCoordinator {
             hasBeenViewed: true
         )
     }
+
+    private static func captureGoalSnapshot(
+        arguments: [String]
+    ) -> CaptureGoalContextSnapshot? {
+        if arguments.contains(captureGoalIntroductionArgument) {
+            return CaptureGoalContextSnapshot(
+                goals: [],
+                introduction: CaptureGoalIntroduction(
+                    id: "ui-test-field-trip-introduction",
+                    sourceKind: .fieldTrip,
+                    headline: "Start an outing",
+                    subheadline: "Backyard Safari · 2 goals",
+                    progress: CaptureGoalProgress(
+                        completedCount: 0,
+                        targetCount: 2
+                    ),
+                    artworks: [
+                        .bundledImage(name: "fieldtrip-backyard-cardinal"),
+                        .bundledImage(name: "fieldtrip-backyard-dog")
+                    ],
+                    destination: .fieldTripTemplate(slug: "backyard_safari"),
+                    accessibilityLabel: "Start an outing. Backyard Safari, 2 goals.",
+                    accessibilityValue: "0 of 2 goals complete.",
+                    accessibilityHint: "Opens outing details."
+                )
+            )
+        }
+
+        guard arguments.contains(captureGoalIndicatorArgument) else {
+            return nil
+        }
+
+        let source = CaptureGoalSource(
+            kind: .fieldTrip,
+            id: "ui-test-field-trip",
+            title: "Backyard Safari"
+        )
+        return CaptureGoalContextSnapshot(
+            goals: [
+                CaptureGoal(
+                    id: "ui-test-flowering-plant",
+                    source: source,
+                    prompt: "Flowering plant",
+                    progress: CaptureGoalProgress(
+                        completedCount: 3,
+                        targetCount: 4
+                    ),
+                    artwork: .bundledImage(
+                        name: "fieldtrip-backyard-flowers"
+                    ),
+                    destination: .fieldTrip(
+                        templateId: "ui-test-backyard-safari",
+                        checklistItemId: "ui-test-flowering-plant"
+                    )
+                ),
+                CaptureGoal(
+                    id: "ui-test-bird",
+                    source: source,
+                    prompt: "Bird",
+                    progress: CaptureGoalProgress(
+                        completedCount: 3,
+                        targetCount: 4
+                    ),
+                    artwork: .bundledImage(
+                        name: "fieldtrip-backyard-cardinal"
+                    ),
+                    destination: .fieldTrip(
+                        templateId: "ui-test-backyard-safari",
+                        checklistItemId: "ui-test-bird"
+                    )
+                )
+            ],
+            introduction: nil
+        )
+    }
 }
 #else
 enum UITestSeedCoordinator {
     static var isEnabled: Bool { return false }
     static var isLocationPermissionPromptSuppressed: Bool { return false }
+    static var captureGoalAccountId: String? { return nil }
 
     @MainActor
     static func prepareRequiredConsentIfNeeded(
         consentManager _: ConsentManager
+    ) {}
+
+    @MainActor
+    static func prepareCaptureGoalStoreIfNeeded(
+        container _: AppDIContainer
     ) {}
 
     @MainActor
@@ -931,6 +1055,9 @@ struct MerianApp: App {
             initialValue: AccountDeletionLocalCleanupStore.isPending()
         )
         let dependencies = AppDIContainer.shared
+        UITestSeedCoordinator.prepareCaptureGoalStoreIfNeeded(
+            container: dependencies
+        )
         diContainer = dependencies
         lifecycleManager = AppLifecycleManager(container: dependencies)
         UITestSeedCoordinator.prepareRequiredConsentIfNeeded(

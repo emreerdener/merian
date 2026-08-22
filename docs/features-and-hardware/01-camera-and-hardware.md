@@ -466,26 +466,84 @@ launch; the same decoded order drives the pager `ForEach`. Unsupported stored
 tokens are ignored and missing supported modes are appended; the Settings
 reorder UI emits each supported mode once.
 
-`MediaModeToggle` is a glassmorphic capsule segmented control that switches
-between capture modes. It is rendered in `CaptureWorkspaceView`'s fixed top
-overlay (not inside the paged content area) so it is always visible regardless
-of which page is active.
+`MediaModeToggle` is one native `UISegmentedControl` rendered in
+`CaptureWorkspaceView`'s fixed top overlay, outside the paged content. UIKit
+therefore owns the iOS 26 Liquid Glass thumb, interaction, selected state, and
+accessibility semantics instead of a custom drag-tracking capsule.
 
-- **Size probe**: A `GeometryReader` in the background measures the actual
-  rendered width into `toggleSize`, making the pill
-  `segmentWidth = toggleSize.width / 2`.
-- **Pill offset (`pillX`)**: Computed from `activeMode` + `dragOffset` so the
-  pill tracks a live drag smoothly before it commits.
-- **Label colour**: Interpolates between `.black` (active) and
-  `.white.opacity(0.85)` (inactive) in real time as `pillX / segmentWidth`
-  crosses 0.5 — no animation delay during drag.
-- **Drag gesture** (`minimumDistance: 5`, `.simultaneousGesture`): Only
-  activates when the drag starts on the currently active segment, preventing
-  inactive-segment taps from dragging. The pill commits to the new mode when the
-  drag offset exceeds `segmentWidth / 2`, then `dragOffset` resets to zero with
-  a `.spring(response: 0.35, dampingFraction: 0.75)` animation.
-- Hidden (via `CaptureWorkspaceView`) when `activeScanImages.count >= 2` (during
-  multi-capture staging).
+- **Icon-only segments**: Scan uses `viewfinder`, Record uses `waveform`, and
+  Describe uses `text.bubble`. Each `UIAction` retains its text title and each
+  symbol carries the matching accessibility label, so VoiceOver and UI
+  automation continue to expose **Scan**, **Record**, and **Describe** even
+  though no title is drawn.
+- **Local selected tint**: Only this control receives the adaptive near-white
+  selected tint: 82% opacity in dark appearance, 96% in light appearance, and
+  full white under Increased Contrast. The selected symbol is solid black;
+  inactive symbols are white in dark appearance and black in light appearance.
+  Every action receives original-rendering normal and selected images before it
+  is installed. The installed normal image is then refreshed through
+  `setImage(_:forSegmentAt:)` from the actual selected index, preventing UIKit
+  from showing the inactive white image on the light selected thumb. Actions
+  returned by the control are immutable on iOS 18 and must not be mutated. No
+  global `UISegmentedControl.appearance()` state is changed.
+- **Full-track Liquid Glass**: On iOS 26, a regular interactive Liquid Glass
+  capsule covers the selector's complete 200 by 56 pt track instead of the old
+  opacity-reduced material layer. UIKit still owns the selected thumb and
+  segment transitions. Earlier systems use an `ultraThinMaterial` capsule
+  fallback, and Reduce Transparency remains governed by the platform.
+- **Bounded stable layout and ordering**: The control has a direct 200 by 56 pt
+  frame instead of an expanding maximum-width frame or presentation scaling. Its
+  height uses compact tab-bar-like proportions, its equal segments keep the icon
+  centers close, and its 24 pt symbols retain at least 21 pt of approximate
+  horizontal padding. It keeps at least 24 pt side margins on supported phone
+  widths, and all three equal segments remain above the 44 pt minimum touch
+  width. Describe reserves an 82 pt top content band so its question navigation
+  retains the required 8...32 pt rendered gap. The decoded user order supplies
+  their sequence, and the control rebuilds its segments only when that sequence
+  changes. Selection updates the native `selectedSegmentIndex` and the installed
+  segment images without rebuilding actions.
+- **Two-way synchronization**: A segment selection updates `captureMode` with
+  the existing spring, while pager changes update the selected segment. Camera
+  session ownership remains keyed to that shared mode state. Successful
+  user-driven selector changes and settled pager swipes each call
+  `HapticManager.shared.triggerSelectionPulse(...)` exactly once; programmatic
+  page synchronization emits no feedback, and the shared manager preserves the
+  Haptics and Expedition mode gates.
+- **Visibility**: The workspace hides the selector when staging reaches
+  capacity, except that refinement keeps it available so the user can complete
+  the refinement flow.
+- **Verification contract**: `MediaModeToggleTests` locks the exact titles,
+  resolvable and unique symbols, bounded width, compact tab-style height, symbol
+  size, minimum symbol padding, minimum per-segment touch width, installed
+  selected-index image mapping, state-specific symbol palette, original
+  rendering, all configured permutations, and stored-order healing.
+  `HapticManagerTests` locks the selector/pager sources and global suppression
+  gates. The focused selector UI test locks a 196...204 pt rendered width, at
+  least 24 pt side margins, a 52...60 pt rendered height, the three accessible
+  segment names and current value, minimum Scan touch width, tap selection, and
+  pager-to-selector synchronization on both the oldest supported runtime and iOS
+  26; this includes the iOS 18 immutable-action regression. The Audio-first and
+  Description-first UI tests retain reordered-launch coverage. Before release,
+  verify the full selector track and native iOS 26 thumb over bright and dark
+  live camera content, plus light/dark appearance, VoiceOver, Reduced Motion,
+  Reduced Transparency, and Increased Contrast. A physical device is required to
+  accept the refraction/stretch behavior and tactile feedback.
+
+The active Field Trip goal is separate fixed chrome beside or beneath the
+selector according to its presentation state. Its compact 50-point artwork-only
+glass circle uses 42-point artwork and shares the selector's vertical centerline
+on the right while the 200-point selector remains centered on screen. It uses
+the 32-point trailing workspace margin when space permits and preserves at least
+8 points between the two controls on narrow phones. Artwork taps move and morph
+the same surface into the full-width goal/title/progress row beneath the
+selector, restoring a 56-point leading control with 36-point artwork; the
+expanded non-artwork region opens the outing. Horizontal target swipes remain
+scoped to the visible glass surface in either size, so the surrounding
+full-width alignment frame cannot claim viewfinder or capture-pager gestures.
+Leaving visual Scan resets the next presentation to compact, while root sheets,
+foregrounding, and temporary Capture suppression preserve the current choice.
+The canonical data, accessibility, haptics, and routing contract remains
+[Field Trips](./25-field-trips.md#active-target-on-scan).
 
 ---
 
@@ -568,7 +626,8 @@ drag.
 **Fixed overlays**: Rendered in a `ZStack` above the `ScrollView` so they are
 unaffected by page position:
 
-- **Top** — `MediaModeToggle` (hidden during multi-capture staging).
+- **Top** — `MediaModeToggle` (hidden when staging is at capacity, except during
+  refinement).
 - **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and
   **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent
   `VStack` overlays**, each with its own `Spacer()` and fixed bottom padding.
@@ -645,9 +704,10 @@ presentation state is published back to `@MainActor`.
 **Session lifecycle**: The camera session is tightly coupled to the UI state to
 conserve thermal budget and prevent hardware deadlocks.
 
-- `onChange(of: captureMode)` fires `HapticManager.shared.triggerSheetSpring()`
-  on every mode switch, then stops the camera session when switching to `.audio`
-  and restarts it on return to `.visual` (unless `activeSheet` is present).
+- User-driven selector changes and settled pager swipes each fire one selection
+  pulse as they commit `captureMode`. The subsequent capture-mode lifecycle
+  handler stops the camera session when switching to `.audio` and restarts it on
+  return to `.visual` (unless `activeSheet` is present).
 - `stopSession()` remains the fire-and-forget lifecycle API. Audio recording
   uses `stopSessionAndWait()` as the stronger ownership-transfer API: it
   completes `AVCaptureSession.stopRunning()` on the camera queue before the

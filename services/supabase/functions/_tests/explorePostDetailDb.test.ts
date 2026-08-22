@@ -1,4 +1,4 @@
-import { assertEquals, assertExists } from "@std/assert";
+import { assertAlmostEquals, assertEquals, assertExists } from "@std/assert";
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 import {
   insertExplorePost,
@@ -12,6 +12,7 @@ import { publicSpeciesProjectionForbiddenKeys } from "../_shared/publicSpeciesPr
 type ExplorePostDetailRow = {
   post_id: string;
   field_notes: string | null;
+  location_sharing?: "open" | "obscured" | "private";
   hashtags: string[];
   alternative_common_names: string[];
   ai_reasoning: string | null;
@@ -21,6 +22,13 @@ type ExplorePostDetailRow = {
   reference_image_url: string | null;
   wikipedia_overview: string | null;
   similar_species: ExplorePostDetailSimilarSpecies[] | null;
+  map_point?: ExplorePostDetailMapPoint | null;
+};
+
+type ExplorePostDetailMapPoint = {
+  latitude: number;
+  longitude: number;
+  coordinate_visibility: "exact" | "obscured";
 };
 
 type ExplorePostDetailSimilarSpecies = {
@@ -393,6 +401,126 @@ Deno.test("Explore post detail DB - excludes only the current scan media from re
         ],
       );
       assertEquals(legacyFallback.rows[0]?.urls, wikipediaPhoto);
+    },
+  );
+});
+
+Deno.test("Explore post detail DB - gates post-owned map points by current location sharing", async () => {
+  await withExploreDbTest(
+    "explorePostDetailDb.mapPoint.test",
+    async (client: Client) => {
+      const ownerId = crypto.randomUUID();
+      const viewerId = crypto.randomUUID();
+      const exactSpeciesId = crypto.randomUUID();
+      const protectedSpeciesId = crypto.randomUUID();
+      const exactScanId = crypto.randomUUID();
+      const protectedScanId = crypto.randomUUID();
+      const exactPostId = crypto.randomUUID();
+      const protectedPostId = crypto.randomUUID();
+
+      await insertUser(client, ownerId, "Map Point Owner");
+      await insertUser(client, viewerId, "Map Point Viewer");
+      await insertSpecies(client, exactSpeciesId, "Contractus exactus");
+      await insertSpecies(
+        client,
+        protectedSpeciesId,
+        "Contractus protectus",
+        "vulnerable",
+      );
+
+      await insertScan(client, {
+        id: exactScanId,
+        userId: ownerId,
+        speciesId: exactSpeciesId,
+        latitude: 12.3456,
+        longitude: -45.6789,
+        geoprivacy: "open",
+      });
+      await insertExplorePost(client, {
+        id: exactPostId,
+        userId: ownerId,
+        scanId: exactScanId,
+        locationSharing: "open",
+      });
+
+      await insertScan(client, {
+        id: protectedScanId,
+        userId: ownerId,
+        speciesId: protectedSpeciesId,
+        latitude: -23.4567,
+        longitude: 67.8912,
+        geoprivacy: "open",
+      });
+      await insertExplorePost(client, {
+        id: protectedPostId,
+        userId: ownerId,
+        scanId: protectedScanId,
+        locationSharing: "open",
+      });
+
+      const fetchMapPoint = async (postId: string) => {
+        const result = await client.queryObject<ExplorePostDetailRow>(
+          `
+            SELECT post_id, location_sharing, map_point
+            FROM public.get_explore_post_detail($1, $2)
+          `,
+          [viewerId, postId],
+        );
+        return result.rows[0];
+      };
+
+      const exact = await fetchMapPoint(exactPostId);
+      assertExists(exact);
+      assertEquals(exact.location_sharing, "open");
+      assertEquals(exact.map_point?.coordinate_visibility, "exact");
+      assertAlmostEquals(exact.map_point?.latitude ?? 0, 12.3456, 0.0001);
+      assertAlmostEquals(exact.map_point?.longitude ?? 0, -45.6789, 0.0001);
+
+      const protectedPoint = await fetchMapPoint(protectedPostId);
+      assertExists(protectedPoint);
+      assertEquals(protectedPoint.location_sharing, "open");
+      assertEquals(
+        protectedPoint.map_point?.coordinate_visibility,
+        "obscured",
+      );
+      assertAlmostEquals(
+        protectedPoint.map_point?.latitude ?? 0,
+        -23.5,
+        0.0001,
+      );
+      assertAlmostEquals(
+        protectedPoint.map_point?.longitude ?? 0,
+        67.9,
+        0.0001,
+      );
+
+      for (const locationSharing of ["obscured", "private"] as const) {
+        await client.queryArray(
+          `
+            UPDATE public.explore_posts
+            SET location_sharing = $2
+            WHERE id = $1
+          `,
+          [exactPostId, locationSharing],
+        );
+        const hidden = await fetchMapPoint(exactPostId);
+        assertExists(hidden);
+        assertEquals(hidden.location_sharing, locationSharing);
+        assertEquals(hidden.map_point, null);
+      }
+
+      await client.queryArray(
+        `
+          UPDATE public.explore_posts
+          SET location_sharing = 'open'
+          WHERE id = $1
+        `,
+        [exactPostId],
+      );
+      const restored = await fetchMapPoint(exactPostId);
+      assertExists(restored);
+      assertEquals(restored.location_sharing, "open");
+      assertEquals(restored.map_point?.coordinate_visibility, "exact");
     },
   );
 });

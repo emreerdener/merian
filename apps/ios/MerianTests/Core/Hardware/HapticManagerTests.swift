@@ -59,6 +59,30 @@ final class HapticManagerTests: XCTestCase {
         hapticManager.triggerSuccessPulse()
     }
 
+    func testCaptureModeSelectionFeedbackUsesSelectionPulseAndGlobalGates() {
+        appSettings.isHapticsEnabled = true
+        appSettings.isExpeditionModeActive = false
+
+        hapticManager.triggerSelectionPulse(source: "capture.modeSelector")
+
+        XCTAssertEqual(hapticManager.lastAttempt?.event, "selectionPulse")
+        XCTAssertEqual(hapticManager.lastAttempt?.source, "capture.modeSelector")
+        XCTAssertNotEqual(hapticManager.lastAttempt?.outcome, .suppressed)
+
+        appSettings.isHapticsEnabled = false
+        hapticManager.triggerSelectionPulse(source: "capture.modePager")
+
+        XCTAssertEqual(hapticManager.lastAttempt?.event, "selectionPulse")
+        XCTAssertEqual(hapticManager.lastAttempt?.source, "capture.modePager")
+        XCTAssertEqual(hapticManager.lastAttempt?.outcome, .suppressed)
+
+        appSettings.isHapticsEnabled = true
+        appSettings.isExpeditionModeActive = true
+        hapticManager.triggerSelectionPulse(source: "capture.modeSelector")
+
+        XCTAssertEqual(hapticManager.lastAttempt?.outcome, .suppressed)
+    }
+
     func testHapticManagerReadsExpeditionStateFromAppSettings() {
         XCTAssertNotNil(hapticManager)
 

@@ -234,6 +234,16 @@ The capture workspace presents three user-orderable pages:
 The first configured page initializes without unnecessarily starting hardware
 for a different mode. Reordering is a user preference and should be preserved.
 
+One fixed native segmented selector and the horizontal pager share that order
+and active selection. The visible segments are the Scan viewfinder, Record
+waveform, and Describe text-bubble symbols in a compact bounded control. Its
+full track uses interactive Liquid Glass on iOS 26 with a neutral material
+fallback on earlier systems. The active icon remains dark against the light
+selected thumb, while assistive technologies retain the full mode names and
+selected state. A successful user-driven selector change or settled page swipe
+produces one selection cue when haptics are enabled; internal synchronization
+must not generate feedback.
+
 ## 4.2 Mixed-media submission model - Implemented
 
 A submission can contain up to two user-created timeline items across supported

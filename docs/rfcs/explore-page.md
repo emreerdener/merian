@@ -8,14 +8,15 @@ posture for both authenticated and ghost users.
 Field trips, standard Outings, and Events are released for every user. Events
 have no independent iOS feature flag, tester allowlist, simulator bypass, or
 debug override: their segment, fetches, routes, profile badges, progress,
-Insight contributions, hashtag suggestions, and changelog entry are public.
-The backend remains the authorization boundary for every challenge read and
+Insight contributions, hashtag suggestions, and changelog entry are public. The
+backend remains the authorization boundary for every challenge read and
 mutation. The current rollout state is documented in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state).
 
 ## Locked Product Decisions
 
-- Sharing is manual per eligible scan. A scan does not become public just because its `geoprivacy` is `open`.
+- Sharing is manual per eligible scan. A scan does not become public just
+  because its `geoprivacy` is `open`.
 - Audio sharing is manual and fail-closed. Speech and non-speech moderation must
   approve the selected media before the Explore post is created or reactivated;
   flagged or failed checks do not change public state. An unchanged clip may
@@ -30,12 +31,20 @@ mutation. The current rollout state is documented in
   post ID, expires after 180 days, and is capped at 500 posts. Enhancement uses
   bounded temporary local files and never changes the approved R2 recording.
 - Post descriptions/captions are out of scope in V1.
-- Explore ships a hybrid notifications model: the in-app feed is the source of truth, and eligible post-backed activity can also fan out to APNs pushes for users who opt into Explore activity notifications. Follow notifications and Field trip activity are in-app only.
-- Explore feed posts open a dedicated public post detail page when the user taps the post body.
-- The feed comment icon still opens a bottom-sheet comments view for quick interaction from the main feed.
-- Explore includes a privacy-scoped public author profile sheet reachable from feed/detail author headers.
-- The author profile sheet can transition sideways into the author's full published Explore scan library.
-- The feed now ships four user-facing filters: `Recent`, `Following`, `Trending`, and `Nearby`.
+- Explore ships a hybrid notifications model: the in-app feed is the source of
+  truth, and eligible post-backed activity can also fan out to APNs pushes for
+  users who opt into Explore activity notifications. Follow notifications and
+  Field trip activity are in-app only.
+- Explore feed posts open a dedicated public post detail page when the user taps
+  the post body.
+- The feed comment icon still opens a bottom-sheet comments view for quick
+  interaction from the main feed.
+- Explore includes a privacy-scoped public author profile sheet reachable from
+  feed/detail author headers.
+- The author profile sheet can transition sideways into the author's full
+  published Explore scan library.
+- The feed now ships four user-facing filters: `Recent`, `Following`,
+  `Trending`, and `Nearby`.
 - Explore posts may carry up to five normalized public hashtags. Hashtag chips
   open currently visible tagged-post collections; event and BioBlitz
   auto-submission remains later scope.
@@ -66,8 +75,11 @@ mutation. The current rollout state is documented in
   - Public species insight cards
   - Privacy-safe telemetry cards
   - Inline comments with an inline composer
-- Broad time context and weather data remain available as optional feed metadata. They are not rendered on the primary feed card UI, but they may appear as sanitized telemetry on the detail page.
-- Any imported or captured photo already present in the scan library should be eligible for sharing.
+- Broad time context and weather data remain available as optional feed
+  metadata. They are not rendered on the primary feed card UI, but they may
+  appear as sanitized telemetry on the detail page.
+- Any imported or captured photo already present in the scan library should be
+  eligible for sharing.
 - Feed cards continue opening post detail. Similar-species cards already push
   the shipped Species Dictionary route; optional species-first feed navigation
   remains future scope.
@@ -76,20 +88,24 @@ mutation. The current rollout state is documented in
 
 - Give users a lightweight way to publish discoveries to a public Explore feed.
 - Preserve strong privacy defaults for ghost users and authenticated users.
-- Reuse Merian's existing moderation, geoprivacy, blocking, and feed infrastructure where possible.
+- Reuse Merian's existing moderation, geoprivacy, blocking, and feed
+  infrastructure where possible.
 - Keep V1 species-first rather than person-first.
 
 ## Non-Goals
 
 - Destructive or server-side audio enhancement; the shipped boost is a
   reversible, device-local listening aid.
-- Captions, DMs, private sharing, mutual friend requests, or standalone social profile pages beyond the privacy-scoped author sheet
-- Heavy personalization, editorial curation, or ranking beyond the shipped `Recent` / `Following` / `Trending` / `Nearby` modes
+- Captions, DMs, private sharing, mutual friend requests, or standalone social
+  profile pages beyond the privacy-scoped author sheet
+- Heavy personalization, editorial curation, or ranking beyond the shipped
+  `Recent` / `Following` / `Trending` / `Nearby` modes
 - Public species pages in this scope
 
 ## Shipped V1 Snapshot (updated 2026-07-31)
 
-The Explore feed and map shell are now live. The current shipped implementation is:
+The Explore feed and map shell are now live. The current shipped implementation
+is:
 
 - `ExploreView` uses exactly three bottom-navigation items: `Observations`,
   `Field trips`, and `Identify`. Observations owns a root-only Feed/Map header
@@ -98,13 +114,12 @@ The Explore feed and map shell are now live. The current shipped implementation 
   plus stack routes to each complete feed; Index renders the existing Species
   Dictionary catalog. Species links select Identify/Index before detail and
   request links select Identify/Requests. The unfinished taxonomy tree/galaxy
-  work and its default-off `.speciesDictionaryTree` flag remain in code but
-  have no MVP root-navigation entry point. Field trips opens directly to
-  Outings and always owns the Outings/Events toggle. Completed standard-outing
-  goals resolve their private
-  completion scan ID to a device-local photo/video-poster thumbnail; tapping one
-  pushes the existing Insight view in the same Explore navigation stack and
-  returns to the outing on back.
+  work and its default-off `.speciesDictionaryTree` flag remain in code but have
+  no MVP root-navigation entry point. Field trips opens directly to Outings and
+  always owns the Outings/Events toggle. Completed standard-outing goals resolve
+  their private completion scan ID to a device-local photo/video-poster
+  thumbnail; tapping one pushes the existing Insight view in the same Explore
+  navigation stack and returns to the outing on back.
 - Identify request and Activity previews load concurrently with independent
   states, share the current All/Yours/organism filter, and reload together on
   refresh or filter change. **See all requests** and **See all activity** carry
@@ -117,24 +132,52 @@ The Explore feed and map shell are now live. The current shipped implementation 
   than names, resolves visible public usernames at read time, and applies
   request, blocking, moderation, tombstone, unshare, quarantine, and
   active-media rules.
-- `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an offline banner, a top-banner empty state, and a two-step preview-card-to-detail interaction. At broad zooms, individual posts still use simple indicator dots; at close zooms, the shipped client upgrades them into circular scan thumbnails when the visible result set is small enough.
-- Publication state and post geoprivacy live on `explore_posts`. Spatial reads use post-owned `public_latitude` / `public_longitude`; Explore Map reads them through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and Nearby uses the same stored projection for radius matching. Non-owned spatial results require saved `location_sharing = 'open'`.
-- Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql` added `trg_sync_scan_public_coordinates` so newly shared scans with exact coordinates are normalized/backfilled correctly before map reads.
-- `ExplorePostStore` now owns shared Explore post state across feed, map, detail, comments, and notification-driven navigation, while `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
+- `ExploreMapView` and `ExploreMapViewModel` ship a real MapKit-backed surface
+  with clusters, privacy-aware waypoints, `Search This Area`, `Recenter`, an
+  offline banner, a top-banner empty state, and a two-step
+  preview-card-to-detail interaction. At broad zooms, individual posts still use
+  simple indicator dots; at close zooms, the shipped client upgrades them into
+  circular scan thumbnails when the visible result set is small enough.
+- Publication state and post geoprivacy live on `explore_posts`. Spatial reads
+  use post-owned `public_latitude` / `public_longitude`; Explore Map reads them
+  through `public.get_explore_map_posts(...)` and `get-explore-map-points`, and
+  Nearby uses the same stored projection for radius matching. Non-owned spatial
+  results require saved `location_sharing = 'open'`.
+- Migration `20260428213000_fix_explore_map_public_coordinate_fallback.sql`
+  added `trg_sync_scan_public_coordinates` so newly shared scans with exact
+  coordinates are normalized/backfilled correctly before map reads.
+- `ExplorePostStore` now owns shared Explore post state across feed, map,
+  detail, comments, and notification-driven navigation, while
+  `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
 - Explore post projections can carry `pet_identification` from the backing scan.
   Native clients may show its label on cards/detail/share text, while dictionary
   links, species stats, and taxonomy routing continue to use
   `species_scientific_name`.
-- The feed tab now ships a leading `Filters` pill before `Recent`, `Following`, `Trending`, and `Nearby`. The pill opens a sheet for feed mode, species groups, image/audio/video media, shared-date range, and a Nearby-only 10/25/50/100-mile distance.
-- `Recent` remains the default mode and still uses the canonical `(shared_at, post_id)` cursor.
-- `Following` is an asymmetric-follow feed backed by followed authors' visible Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and does not change `Recent`, `Trending`, `Nearby`, or map results.
-- `Trending` is freshness-biased rather than all-time top. It uses recent like activity from the trailing 30 days and paginates on `(ranking_value, shared_at, post_id)`.
-- `Nearby` requires viewer location, reads the same post-owned public coordinates as the map, filters non-owned coordinate-bearing posts to the selected 10–100-mile radius (50 miles by default), and then sorts the surviving posts by recency rather than raw distance.
-- The Explore-tab unread badge and "last seen" bookkeeping remain tied to the `Recent` feed only so browsing alternate modes does not mutate recency tracking.
+- The feed tab now ships a leading `Filters` pill before `Recent`, `Following`,
+  `Trending`, and `Nearby`. The pill opens a sheet for feed mode, species
+  groups, image/audio/video media, shared-date range, and a Nearby-only
+  10/25/50/100-mile distance.
+- `Recent` remains the default mode and still uses the canonical
+  `(shared_at, post_id)` cursor.
+- `Following` is an asymmetric-follow feed backed by followed authors' visible
+  Explore posts. It uses the same `(shared_at, post_id)` cursor as `Recent` and
+  does not change `Recent`, `Trending`, `Nearby`, or map results.
+- `Trending` is freshness-biased rather than all-time top. It uses recent like
+  activity from the trailing 30 days and paginates on
+  `(ranking_value, shared_at, post_id)`.
+- `Nearby` requires viewer location, reads the same post-owned public
+  coordinates as the map, filters non-owned coordinate-bearing posts to the
+  selected 10–100-mile radius (50 miles by default), and then sorts the
+  surviving posts by recency rather than raw distance.
+- The Explore-tab unread badge and "last seen" bookkeeping remain tied to the
+  `Recent` feed only so browsing alternate modes does not mutate recency
+  tracking.
 
 ## Public Author Profile Extension (2026-05-11)
 
-Explore now supports public author profile sheets without turning Explore into a private profile browser. The entry point is the author header on feed cards and post detail pages. The post media still opens `ExplorePostDetailView`.
+Explore now supports public author profile sheets without turning Explore into a
+private profile browser. The entry point is the author header on feed cards and
+post detail pages. The post media still opens `ExplorePostDetailView`.
 
 The sheet renders:
 
@@ -150,13 +193,17 @@ The sheet renders:
 - published Field trip cards, when visible
 - Field trip challenge completion badges, when visible
 - achievements as informational cards
-- a "View all published scans" control that side-transitions into a paginated 3-column library
+- a "View all published scans" control that side-transitions into a paginated
+  3-column library
 
 The profile and library have deliberately different privacy scopes:
 
-- Profile stats, streak, heatmap, and achievement progress are computed from all of the author's non-tombstoned scans.
+- Profile stats, streak, heatmap, and achievement progress are computed from all
+  of the author's non-tombstoned scans.
 - Preview and full library grids include only currently visible Explore posts.
-- Active Field trip profile rows include checklist status only and never expose scan IDs, media, field notes, exact coordinates, public location labels, or evidence.
+- Active Field trip profile rows include checklist status only and never expose
+  scan IDs, media, field notes, exact coordinates, public location labels, or
+  evidence.
 - Automatic Backyard Safari enrollment creates a profile-visible active status
   row, so new and backfilled accounts can satisfy the author-profile visibility
   gate at `0/N` progress. Stopping or resetting an unfinished starter hides the
@@ -166,29 +213,49 @@ The profile and library have deliberately different privacy scopes:
   It includes no media URL and is resolved only against the device-local scan
   library; this field is not part of any public profile, publication, challenge,
   feed, map, or capture-context contract.
-- Published Field trip rows open Field trip publication details, not Explore post details.
+- Published Field trip rows open Field trip publication details, not Explore
+  post details.
 - Field trip challenge badges are lightweight public reward cards. They expose
   badge/challenge labels and broad tags only, never scan IDs, media, exact
   locations, notes, or private evidence.
-- Achievement payloads contain progress only and never include qualifying scan IDs.
+- Achievement payloads contain progress only and never include qualifying scan
+  IDs.
 - Public achievement cards do not open detail sheets or scans.
-- Follow counts are public on visible profiles, but follower/following identities are not exposed and the counts do not open tappable lists.
-- The `Follow` button is hidden for the viewer's own public profile. It follows asymmetrically; there are no friend requests, mutual-only states, DMs, or access changes to private scans.
+- Follow counts are public on visible profiles, but follower/following
+  identities are not exposed and the counts do not open tappable lists.
+- The `Follow` button is hidden for the viewer's own public profile. It follows
+  asymmetrically; there are no friend requests, mutual-only states, DMs, or
+  access changes to private scans.
 
-The backend returns an author profile only if the target author has at least one Explore post visible to the requesting viewer or at least one visible Field trip profile surface. Automatic profile-visible Backyard Safari enrollment means a known account ID normally satisfies this gate until the unfinished starter is stopped or reset; the endpoint does not enumerate account IDs. Shadowbanned authors, blocked relationships, unshared posts, tombstoned scans, posts without public post-owned media, posts without a species key, and non-visible Field trips are all filtered using the same visibility posture as the rest of Explore. Backing-scan geoprivacy does not hide an explicitly shared post; the post-owned location setting controls public location output.
+The backend returns an author profile only if the target author has at least one
+Explore post visible to the requesting viewer or at least one visible Field trip
+profile surface. Automatic profile-visible Backyard Safari enrollment means a
+known account ID normally satisfies this gate until the unfinished starter is
+stopped or reset; the endpoint does not enumerate account IDs. Shadowbanned
+authors, blocked relationships, unshared posts, tombstoned scans, posts without
+public post-owned media, posts without a species key, and non-visible Field
+trips are all filtered using the same visibility posture as the rest of Explore.
+Backing-scan geoprivacy does not hide an explicitly shared post; the post-owned
+location setting controls public location output.
 
-The full library reuses the card-shaped Explore post projection and paginates on `(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
+The full library reuses the card-shaped Explore post projection and paginates on
+`(shared_at DESC, post_id DESC)` using `before_shared_at` and `before_post_id`.
 
 ## Following Extension (2026-05-11)
 
-Explore now supports asymmetric follows for public author profiles. Following is intentionally a small discovery affordance, not a friend system.
+Explore now supports asymmetric follows for public author profiles. Following is
+intentionally a small discovery affordance, not a friend system.
 
 Following changes only these surfaces:
 
-- `get-explore-feed` accepts `filter: "following"` and returns visible posts from authors the viewer follows, ordered by `(shared_at DESC, post_id DESC)`.
-- `get-explore-author-profile` returns `follower_count`, `following_count`, and `viewer_is_following`.
-- `ExploreAuthorProfileSheet` shows follower/following counts and an optimistic `Follow` / `Following` button for non-self profiles.
-- `explore_post_notifications` supports a postless `follow` row for in-app notifications.
+- `get-explore-feed` accepts `filter: "following"` and returns visible posts
+  from authors the viewer follows, ordered by `(shared_at DESC, post_id DESC)`.
+- `get-explore-author-profile` returns `follower_count`, `following_count`, and
+  `viewer_is_following`.
+- `ExploreAuthorProfileSheet` shows follower/following counts and an optimistic
+  `Follow` / `Following` button for non-self profiles.
+- `explore_post_notifications` supports a postless `follow` row for in-app
+  notifications.
 
 Following intentionally does not:
 
@@ -199,9 +266,14 @@ Following intentionally does not:
 - make hidden profiles discoverable by UUID
 - grant access to private scans
 
-The follow write path is `/set-user-follow`. Follow requests require a visible Explore profile, no self-follow, no mutual block, and a non-shadowbanned target. Unfollow deletes the relationship even if the target is no longer visible so stale relationships can always be removed.
+The follow write path is `/set-user-follow`. Follow requests require a visible
+Explore profile, no self-follow, no mutual block, and a non-shadowbanned target.
+Unfollow deletes the relationship even if the target is no longer visible so
+stale relationships can always be removed.
 
-Blocking removes follow rows in both directions. Ghost-account merge reparents follow rows from the ghost public user to the authenticated public user and dedupes conflicts.
+Blocking removes follow rows in both directions. Ghost-account merge reparents
+follow rows from the ghost public user to the authenticated public user and
+dedupes conflicts.
 
 ## Hashtag Extension (2026-05-22)
 
@@ -214,8 +286,8 @@ The shipped browse behavior is:
 - feed-card post projections include `hashtags` arrays from a batched post-page
   lookup and render a one-line horizontally scrolling chip row
 - detail payloads include the same tags and render centered wrapping chips
-- tapping a chip opens `ExploreHashtagPostsView`, a paginated image grid backed by
-  `get-explore-hashtag-posts` and `public.get_explore_hashtag_posts(...)`
+- tapping a chip opens `ExploreHashtagPostsView`, a paginated image grid backed
+  by `get-explore-hashtag-posts` and `public.get_explore_hashtag_posts(...)`
 - hashtag collections apply the same visible-post filters as feed and author
   library reads, then page by `(shared_at DESC, post_id DESC)`
 
@@ -225,7 +297,8 @@ moderation rules for automatically attaching a tagged Explore post to an event.
 
 ## Recommended Product Model
 
-Explore should be treated as a publishing layer on top of scans, not as a direct view over every public scan.
+Explore should be treated as a publishing layer on top of scans, not as a direct
+view over every public scan.
 
 - A user shares a scan.
 - Merian creates a public Explore post for that scan.
@@ -233,11 +306,14 @@ Explore should be treated as a publishing layer on top of scans, not as a direct
 - Unsharing removes the Explore post without deleting the underlying scan.
 - One scan should have at most one active Explore post in V1.
 
-This keeps the private scan record separate from the public publication state and makes manual sharing, unsharing, moderation, and future feed-specific behavior much cleaner.
+This keeps the private scan record separate from the public publication state
+and makes manual sharing, unsharing, moderation, and future feed-specific
+behavior much cleaner.
 
 ## Identity Model
 
-Explore should render a dedicated public author label rather than relying on raw auth metadata.
+Explore should render a dedicated public author label rather than relying on raw
+auth metadata.
 
 Recommended V1 shape on `public.users`:
 
@@ -250,9 +326,12 @@ Recommended V1 shape on `public.users`:
 Rules:
 
 - Ghost users default to a stable alias that is also a valid username handle.
-- Authenticated users default to `First L.` derived from auth metadata when available.
-- If no safe first-name metadata exists, authenticated users also fall back to the stable alias.
-- If auth metadata includes a provider avatar (`avatar_url` or `picture`), Merian may copy it into `public_avatar_url` for Explore rendering.
+- Authenticated users default to `First L.` derived from auth metadata when
+  available.
+- If no safe first-name metadata exists, authenticated users also fall back to
+  the stable alias.
+- If auth metadata includes a provider avatar (`avatar_url` or `picture`),
+  Merian may copy it into `public_avatar_url` for Explore rendering.
 - Ghost users should leave `public_avatar_url` null.
 - Editable usernames update `public_username`. `public_author_name` remains the
   Explore display label for logged-in/provider-derived identities.
@@ -262,9 +341,12 @@ Rules:
 - Comment mentions use `public_username`, not `public_author_name`. Resolved
   mention rows retain the username token that appears in the immutable comment
   body and route through the durable mentioned-user ID when a handle changes.
-- Email and raw auth metadata must never be exposed directly in Explore payloads. Public avatar access should happen only through the copied `public.users.public_avatar_url` field.
+- Email and raw auth metadata must never be exposed directly in Explore
+  payloads. Public avatar access should happen only through the copied
+  `public.users.public_avatar_url` field.
 
-This gives us the "show a user if logged in, otherwise show an alias" behavior without coupling Explore to private identity fields.
+This gives us the "show a user if logged in, otherwise show an alias" behavior
+without coupling Explore to private identity fields.
 
 Normalization rule:
 
@@ -272,7 +354,8 @@ Normalization rule:
 - Feed, map, profile, and comment payloads should join `public.users` at read
   time rather than copying `public_author_name`, `public_username`, or
   `public_avatar_url` into `explore_posts`.
-- This allows public alias and avatar updates to flow through to historical Explore content automatically.
+- This allows public alias and avatar updates to flow through to historical
+  Explore content automatically.
 
 ## Feed Card Anatomy
 
@@ -294,11 +377,14 @@ Each Explore card should contain:
 
 V1 card behavior:
 
-- Tapping the card body pushes a dedicated Explore post detail page inside the Explore navigation stack.
+- Tapping the card body pushes a dedicated Explore post detail page inside the
+  Explore navigation stack.
 - Tapping a hashtag chip opens the visible post collection for that tag.
-- Tapping comments from the feed opens a bottom-sheet comment view for that post.
+- Tapping comments from the feed opens a bottom-sheet comment view for that
+  post.
 - Tapping the overflow menu exposes actions, not navigation.
-- The Explore sheet header includes a bell button with an unread badge that opens the in-app notifications/activity view.
+- The Explore sheet header includes a bell button with an unread badge that
+  opens the in-app notifications/activity view.
 
 ## Post Detail Page
 
@@ -314,14 +400,26 @@ It should contain:
 - Public species insight cards backed by `species_dictionary`
 - A species reference gallery containing eligible images not already presented
   as this post's hero, canonical media, or media thumbnail
-- Privacy-safe telemetry such as general location, broad time context, weather, and shared date
+- Privacy-safe telemetry such as general location, broad time context, weather,
+  and shared date
 - An inline comment thread with an inline composer
 
 Interaction model:
 
-- Feed comment taps intentionally stay in a bottom sheet for quick engagement without leaving the feed.
-- Detail-page comment taps should scroll/focus the inline composer rather than opening another modal.
-- The detail page should not mount private `InferenceEngine` state. It should use a public Explore detail payload.
+- Feed comment taps intentionally stay in a bottom sheet for quick engagement
+  without leaving the feed.
+- Detail-page comment taps should scroll/focus the inline composer rather than
+  opening another modal.
+- The detail page should not mount private `InferenceEngine` state. It should
+  use a public Explore detail payload.
+- For a post whose saved location setting is `open`, the Observation card shows
+  the same post-owned public map point used by Explore Map. Exact projections
+  use a marker; protected or uncertainty-obscured projections use a 10 km
+  circle.
+- Only a detail route opened from the main Explore feed makes the Observation
+  card actionable. Tapping it clears map filters, returns to the Explore root,
+  switches Observations to Map, centers the post, and opens its selected
+  preview. Other detail entry points keep the same preview static.
 - The post's own scan media appears only in the primary media area. Reference
   filtering is exact-scan only: Naturebook media from another scan and unrelated
   Wikipedia/GBIF images remain visible in their existing order. If no reference
@@ -333,26 +431,39 @@ Interaction model:
 
 ## Public Metadata Rules
 
-Explore feed and detail surfaces should never expose exact coordinates. The map may expose privacy-safe public coordinates only when the underlying scan is eligible for exact public display.
+Explore feed cards should never expose coordinates. Authenticated native detail
+may expose one optional post-owned public map point for an `open` post so its
+Observation card can mirror and focus the Explore Map; all other detail fields
+remain non-spatial.
 
 Location:
 
-- Use the scan's existing semantic location data, but sanitize it down to `City, ST` or just `State`.
-- Do not expose exact coordinates, neighborhoods, trails, landmarks, or small-site labels.
+- Use the scan's existing semantic location data, but sanitize it down to
+  `City, ST` or just `State`.
+- Do not expose exact coordinates, neighborhoods, trails, landmarks, or
+  small-site labels.
 - The feed response should omit latitude and longitude entirely.
-- The map response may include only privacy-safe public coordinates: exact for eligible `open` scans, obscured for protected or obscured scans, and no coordinates at all for `private` scans.
+- The detail response may include `map_point` only for the post's current saved
+  `open` setting, using the stored post-owned public projection rather than raw
+  scan GPS. Public-web detail continues to omit it.
+- The map response may include only privacy-safe public coordinates: exact for
+  eligible `open` scans, obscured for protected or obscured scans, and no
+  coordinates at all for `private` scans.
 
 Time:
 
 - Render broad buckets such as `Morning`, `Afternoon`, `Evening`, or `Night`.
-- A month or season can be included if useful, but V1 should avoid minute-level or exact timestamp display.
-- The current V1 feed card does not render time metadata, but the feed contract may still return it for detail-page telemetry use.
+- A month or season can be included if useful, but V1 should avoid minute-level
+  or exact timestamp display.
+- The current V1 feed card does not render time metadata, but the feed contract
+  may still return it for detail-page telemetry use.
 
 Weather:
 
 - Show only if already available on the scan.
 - Use lightweight display such as `Rainy`, `Clear`, or `68F`.
-- The current V1 feed card does not render weather metadata, but the feed contract may still return it for detail-page telemetry use.
+- The current V1 feed card does not render weather metadata, but the feed
+  contract may still return it for detail-page telemetry use.
 
 ## Eligibility Rules
 
@@ -368,14 +479,14 @@ Imported historical photos and in-app captured photos should both be eligible.
 
 ## V1 Media Lifecycle
 
-> Superseded: current Explore media is post-owned through
-> `explore_post_media`, with `hero_image_url` retained as the thumbnail
-> fallback and videos/audio allowed for public posts/Community ID requests.
-> Author-post projections additionally return `reference_thumbnail_url` so
-> compact audio tiles can show species imagery without treating the recording
-> URL as an image. Native full feed/detail and public web detail use the audio
-> media's persisted spectrogram `thumbnail_url`; the public web home grid follows
-> the compact reference-thumbnail policy. See
+> Superseded: current Explore media is post-owned through `explore_post_media`,
+> with `hero_image_url` retained as the thumbnail fallback and videos/audio
+> allowed for public posts/Community ID requests. Author-post projections
+> additionally return `reference_thumbnail_url` so compact audio tiles can show
+> species imagery without treating the recording URL as an image. Native full
+> feed/detail and public web detail use the audio media's persisted spectrogram
+> `thumbnail_url`; the public web home grid follows the compact
+> reference-thumbnail policy. See
 > `docs/backend-and-data/04-database-schema.md#explore_post_media` for the
 > current contract.
 
@@ -402,8 +513,8 @@ Implications:
   system-quarantined across Feed, Map, profile/search, detail, and public share.
 - System quarantine never sets `unshared_at` or deletes the post, likes,
   comments, reports, or audit history.
-- Verified repair restores normal projection automatically if the author has
-  not unpublished and moderation has not removed the post.
+- Verified repair restores normal projection automatically if the author has not
+  unpublished and moderation has not removed the post.
 - Feed, profile visible count, profile preview, and the full author grid use the
   same canonical projection. Local share cache never creates an extra public
   profile tile.
@@ -453,9 +564,13 @@ Shipped normalized tag edges:
 
 Current shipped note:
 
-- Explore posts store post-level `location_sharing` with `open`, `obscured`, or `private`.
-- Spatial reads use post-owned `public_latitude` / `public_longitude` fields. The map RPC returns only rows whose saved `location_sharing` is `open`, and Nearby uses the same stored coordinates for non-owned radius matching.
-- The global/scan geoprivacy setting seeds the share composer, but editing a shared post changes only that post's saved location setting.
+- Explore posts store post-level `location_sharing` with `open`, `obscured`, or
+  `private`.
+- Spatial reads use post-owned `public_latitude` / `public_longitude` fields.
+  The map RPC returns only rows whose saved `location_sharing` is `open`, and
+  Nearby uses the same stored coordinates for non-owned radius matching.
+- The global/scan geoprivacy setting seeds the share composer, but editing a
+  shared post changes only that post's saved location setting.
 
 - `public_latitude DOUBLE PRECISION NULL`
 - `public_longitude DOUBLE PRECISION NULL`
@@ -465,15 +580,21 @@ Current shipped note:
 
 Coordinate rules:
 
-- `public_latitude` and `public_longitude` must never store the raw private scan coordinate unless the post is safe to expose as `open`.
+- `public_latitude` and `public_longitude` must never store the raw private scan
+  coordinate unless the post is safe to expose as `open`.
 - `obscured` posts may keep a stable scrubbed public label but stay off the map.
-- `private` posts remain visible as Explore content but do not expose public location fields.
+- `private` posts remain visible as Explore content but do not expose public
+  location fields.
 
 Eligibility synchronization rules:
 
-- Explore visibility must stay synchronized with the underlying scan after share time.
-- A trigger on `scans` updates should hide or unshare the related `explore_posts` row if the scan becomes tombstoned or loses all publicly available media.
-- The same trigger path refreshes stored post public coordinates when scan coordinates, species safety context, or public labels change.
+- Explore visibility must stay synchronized with the underlying scan after share
+  time.
+- A trigger on `scans` updates should hide or unshare the related
+  `explore_posts` row if the scan becomes tombstoned or loses all publicly
+  available media.
+- The same trigger path refreshes stored post public coordinates when scan
+  coordinates, species safety context, or public labels change.
 
 ### `explore_post_likes`
 
@@ -519,13 +640,15 @@ Shipped constraints:
 
 Shipped privacy rules:
 
-- RLS lets users insert/delete their own follow rows and read only their own following rows.
+- RLS lets users insert/delete their own follow rows and read only their own
+  following rows.
 - Public author profiles expose counts and viewer-specific follow state only.
 - No v1 endpoint exposes follower or following identities.
 
 ### Counter Strategy
 
-The feed should not compute like/comment aggregates expensively on every page load.
+The feed should not compute like/comment aggregates expensively on every page
+load.
 
 Recommended V1 approach:
 
@@ -534,7 +657,8 @@ Recommended V1 approach:
 
 ## Why Not Put Sharing Directly On `scans`
 
-Adding `is_shared_to_explore` directly to `scans` is the fastest-looking option, but it creates long-term coupling:
+Adding `is_shared_to_explore` directly to `scans` is the fastest-looking option,
+but it creates long-term coupling:
 
 - Manual share state gets mixed into the private scan record
 - Likes/comments would attach to a scan rather than a publication
@@ -549,15 +673,20 @@ The `explore_posts` wrapper is the cleaner foundation.
 Recommended V1 endpoints:
 
 - `share-scan-to-explore`
-  - Creates or re-activates an Explore post for a scan, including the optional selected `species_common_name` snapshot
+  - Creates or re-activates an Explore post for a scan, including the optional
+    selected `species_common_name` snapshot
 - `unshare-explore-post`
   - Removes the post from the feed
 - `update-explore-field-notes`
-  - Updates an owned post's public field notes, hashtags, location-sharing intent, and optional `species_common_name` snapshot while preserving the existing name when it is omitted
+  - Updates an owned post's public field notes, hashtags, location-sharing
+    intent, and optional `species_common_name` snapshot while preserving the
+    existing name when it is omitted
 - `get-explore-feed`
-  - Returns Explore cards for `Recent`, `Following`, `Trending`, or `Nearby` depending on the requested filter
+  - Returns Explore cards for `Recent`, `Following`, `Trending`, or `Nearby`
+    depending on the requested filter
 - `get-explore-post`
-  - Returns a single Explore card projection for notification routing and deep links
+  - Returns a single Explore card projection for notification routing and deep
+    links
 - `get-explore-post-detail`
   - Returns public species-detail data for a single Explore post, including
     `alternative_common_names` for the detail header, per-scan `ai_reasoning`
@@ -566,14 +695,28 @@ Recommended V1 endpoints:
     compatibility output with the current scan's `image_storage_urls` removed,
     plus public `similar_species` hydrated from the species dictionary lookalike
     join table with `species_id` for canonical dictionary routing. The contract
-    shape is unchanged; source order, blocked-image handling, and legacy fallback
-    are preserved.
+    shape is unchanged; source order, blocked-image handling, and legacy
+    fallback are preserved.
 - `get-explore-comments`
-  - Returns paginated comments for a post, including the comment author's optional public avatar projection
+  - Returns paginated comments for a post, including the comment author's
+    optional public avatar projection
 - `field-trips`
-  - Returns Field trip catalog, template detail, starts for other outings and resumes, Community publication feed, Recent compatibility, profile-summary/pin, scan-progress, scan-contribution, publication, like, and comment actions, plus Seasonal Challenge catalog/detail/join/progress, challenge entry, badge, and optional challenge hashtag suggestion actions. Private catalog/detail checklist rows can include the completing scan ID through service-role-only RPCs, while public and capture projections remain evidence-free. One qualifying saved photo or video may satisfy at most one current-level goal per eligible outing and joined live challenge while still advancing several experiences. Field trip and challenge comments/likes are stored separately from Explore post interactions, and publishing a Field trip or challenge entry does not write Explore posts, map points, APNs, widgets, public web share pages, prizes, leaderboards, or feed cards.
+  - Returns Field trip catalog, template detail, starts for other outings and
+    resumes, Community publication feed, Recent compatibility,
+    profile-summary/pin, scan-progress, scan-contribution, publication, like,
+    and comment actions, plus Seasonal Challenge catalog/detail/join/progress,
+    challenge entry, badge, and optional challenge hashtag suggestion actions.
+    Private catalog/detail checklist rows can include the completing scan ID
+    through service-role-only RPCs, while public and capture projections remain
+    evidence-free. One qualifying saved photo or video may satisfy at most one
+    current-level goal per eligible outing and joined live challenge while still
+    advancing several experiences. Field trip and challenge comments/likes are
+    stored separately from Explore post interactions, and publishing a Field
+    trip or challenge entry does not write Explore posts, map points, APNs,
+    widgets, public web share pages, prizes, leaderboards, or feed cards.
 - `get-explore-map-points`
-  - Returns privacy-safe map clusters or individual map points for the current visible area
+  - Returns privacy-safe map clusters or individual map points for the current
+    visible area
 - `get-explore-notifications`
   - Returns the viewer's Explore activity feed
 - `get-explore-unread-notification-count`
@@ -591,8 +734,8 @@ Recommended V1 endpoints:
 - `report-explore-comment`
   - Reports a comment for trust-and-safety review
 - `report-explore-post`
-  - Reports visible Explore post content into a dedicated moderation queue;
-    this is separate from identification review
+  - Reports visible Explore post content into a dedicated moderation queue; this
+    is separate from identification review
 
 Existing endpoint reuse:
 
@@ -600,8 +743,8 @@ Existing endpoint reuse:
 
 The in-app notifications feed is the Explore source of truth. Remote APNs
 fan-out layers on top of that same notification row model for eligible
-post-backed activity through push-device registration plus a server-side
-webhook trigger. Follow notifications and Field trip activity stay in-app only.
+post-backed activity through push-device registration plus a server-side webhook
+trigger. Follow notifications and Field trip activity stay in-app only.
 
 ## Feed Query Rules
 
@@ -624,8 +767,10 @@ webhook trigger. Follow notifications and Field trip activity stay in-app only.
 Pagination:
 
 - `get-explore-feed` should use cursor pagination, not offset pagination
-- `Recent`, `Following`, and `Nearby` should use `(shared_at, post_id)` so feed paging remains stable while new posts are inserted above the viewer
-- `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do not skip or duplicate rows
+- `Recent`, `Following`, and `Nearby` should use `(shared_at, post_id)` so feed
+  paging remains stable while new posts are inserted above the viewer
+- `Trending` should use `(ranking_value, shared_at, post_id)` so ranking ties do
+  not skip or duplicate rows
 - Recommended request fields:
   - `filter`
   - `species_categories`
@@ -637,7 +782,8 @@ Pagination:
   - `latitude` and `longitude` for `Nearby`
   - `nearby_radius_miles` for `Nearby` (1–100, default 50)
   - `limit`
-- Current shipped note: both cursor models are now canonical server and client paths.
+- Current shipped note: both cursor models are now canonical server and client
+  paths.
 
 Advanced selections are OR-ed within a group and AND-ed across groups. Media
 matching is existential over a post's ordered public media, so a mixed-media
@@ -654,7 +800,9 @@ Recommended response fields:
 - `author_name`
 - `author_username`
 - `author_avatar_url`
-- `species_common_name` (author-selected post snapshot; native clients may still display a viewer-local SwiftData-backed preferred name on top of this fallback)
+- `species_common_name` (author-selected post snapshot; native clients may still
+  display a viewer-local SwiftData-backed preferred name on top of this
+  fallback)
 - `species_scientific_name`
 - `public_location_label`
 - `time_of_day`
@@ -677,13 +825,22 @@ The Explore payload should not include:
 Implementation note:
 
 - Media availability must be cheap to filter.
-- If the scan-media visibility check becomes a hot path, prefer a trigger-maintained post-level boolean such as `has_active_media` on `explore_posts`, or at minimum an expression/partial index that prevents repeated full-table scans over media arrays.
+- If the scan-media visibility check becomes a hot path, prefer a
+  trigger-maintained post-level boolean such as `has_active_media` on
+  `explore_posts`, or at minimum an expression/partial index that prevents
+  repeated full-table scans over media arrays.
 
-`get-explore-feed` should remain card-oriented even as filters expand. `Following` should stay a followee filter over the same visibility-safe post projection, not a separate user lookup surface. `Nearby` should stay feed-like by using a radius filter plus recency sort, while the map remains a separate spatial endpoint rather than overloading feed pagination with nearest-neighbor map semantics.
+`get-explore-feed` should remain card-oriented even as filters expand.
+`Following` should stay a followee filter over the same visibility-safe post
+projection, not a separate user lookup surface. `Nearby` should stay feed-like
+by using a radius filter plus recency sort, while the map remains a separate
+spatial endpoint rather than overloading feed pagination with nearest-neighbor
+map semantics.
 
 ## Explore Map Addendum
 
-The Explore map should be a second discovery surface over the same `explore_posts` model, not a separate content system.
+The Explore map should be a second discovery surface over the same
+`explore_posts` model, not a separate content system.
 
 Product principle:
 
@@ -694,33 +851,50 @@ Product principle:
 Current backend note:
 
 - `explore_posts` remains the publication state model.
-- The shipped map projection comes from post-owned `explore_posts.public_latitude` / `public_longitude`, joined through `public.get_explore_map_posts(...)`. The map RPC returns only posts whose saved `location_sharing` is `open`; Nearby uses the same stored public coordinate fields for non-owned radius matching.
+- The shipped map projection comes from post-owned
+  `explore_posts.public_latitude` / `public_longitude`, joined through
+  `public.get_explore_map_posts(...)`. The map RPC returns only posts whose
+  saved `location_sharing` is `open`; Nearby uses the same stored public
+  coordinate fields for non-owned radius matching.
 
 ### Why Merian Can Beat A Basic Pin Map
 
-The main weakness of competitor-style maps is "pin soup." Once the user zooms out, the product becomes visually dense but informationally weak.
+The main weakness of competitor-style maps is "pin soup." Once the user zooms
+out, the product becomes visually dense but informationally weak.
 
 Merian should improve on that by:
 
-- Showing clusters or density at broad zoom levels instead of rendering every post as an equal pin
-- Showing individual waypoints only when the camera is close enough for selection to feel intentional
-- Using a compact preview card after tap, then opening the full Explore post detail page only on explicit expansion
-- Making privacy visible through marker treatment so `obscured` posts look meaningfully different from exact public posts
-- Surfacing "what is interesting here?" summaries such as counts, dominant groups, or recent activity rather than only exposing raw coordinates
+- Showing clusters or density at broad zoom levels instead of rendering every
+  post as an equal pin
+- Showing individual waypoints only when the camera is close enough for
+  selection to feel intentional
+- Using a compact preview card after tap, then opening the full Explore post
+  detail page only on explicit expansion
+- Making privacy visible through marker treatment so `obscured` posts look
+  meaningfully different from exact public posts
+- Surfacing "what is interesting here?" summaries such as counts, dominant
+  groups, or recent activity rather than only exposing raw coordinates
 
 ### Map V1 UX
 
 The Explore sheet already has feed and map tabs. Map V1 should behave like this:
 
 - User opens the `Map` tab.
-- The camera starts on either the user's current region or a sensible fallback world/continent view.
-- The server returns clusters at broad zoom levels and individual posts at closer zoom levels.
-- At sufficiently close zoom, individual posts may transition from simple dots into image-backed thumbnail markers so the user starts seeing the actual scans before opening detail.
-- Panning the map does not immediately destroy the current results. Instead, the UI marks the region as stale and shows a `Search This Area` action.
+- The camera starts on either the user's current region or a sensible fallback
+  world/continent view.
+- The server returns clusters at broad zoom levels and individual posts at
+  closer zoom levels.
+- At sufficiently close zoom, individual posts may transition from simple dots
+  into image-backed thumbnail markers so the user starts seeing the actual scans
+  before opening detail.
+- Panning the map does not immediately destroy the current results. Instead, the
+  UI marks the region as stale and shows a `Search This Area` action.
 - Tapping a cluster zooms the camera inward.
-- Tapping an individual point selects it and reveals a compact preview card anchored above the bottom tab bar.
+- Tapping an individual point selects it and reveals a compact preview card
+  anchored above the bottom tab bar.
 - Tapping the preview card opens `ExplorePostDetailView` for the same `post_id`.
-- When no results are in view, the shipped empty state uses a top banner only so the map remains fully interactive underneath.
+- When no results are in view, the shipped empty state uses a top banner only so
+  the map remains fully interactive underneath.
 
 Recommended V1 controls:
 
@@ -736,9 +910,12 @@ Current shipped feed filters:
 - `Trending`
 - `Nearby`
 
-The map tab currently stays viewport-driven rather than mirroring the feed's filter row.
+The map tab currently stays viewport-driven rather than mirroring the feed's
+filter row.
 
-Taxonomic chips such as `Plants`, `Fungi`, `Birds`, and `Insects` are a good phase-two extension, but the initial map does not need to solve every taxonomy slice on day one.
+Taxonomic chips such as `Plants`, `Fungi`, `Birds`, and `Insects` are a good
+phase-two extension, but the initial map does not need to solve every taxonomy
+slice on day one.
 
 ### Map Selection Model
 
@@ -747,14 +924,17 @@ Map taps should not push full detail immediately.
 Recommended interaction sequence:
 
 - First tap selects a point and opens a compact preview card
-- Second tap on the selected point, or tap on the preview card, opens `ExplorePostDetailView`
+- Second tap on the selected point, or tap on the preview card, opens
+  `ExplorePostDetailView`
 - Deselecting the point collapses the preview card
 
-This keeps the map browsable and prevents the "tap anything, lose your place" problem.
+This keeps the map browsable and prevents the "tap anything, lose your place"
+problem.
 
 ### Map Privacy Model
 
-Explore map coordinates must be stricter than the scan library's private map usage.
+Explore map coordinates must be stricter than the scan library's private map
+usage.
 
 Rules:
 
@@ -764,33 +944,47 @@ Rules:
   when the backing scan later becomes private.
 - Posts saved as `obscured` or `private` remain visible on non-map Explore
   surfaces but are excluded from the map.
-- If Merian applies an endangered-species safety offset, the Explore map must use that already-sanitized public coordinate rather than the original point
-- The client should never receive raw coordinates for non-open posts
-- The client should receive a display hint such as `coordinate_visibility: exact|obscured`
+- If Merian applies an endangered-species safety offset, the Explore map must
+  use that already-sanitized public coordinate rather than the original point
+- The client should never receive a map point for non-open posts
+- The client should receive a display hint such as
+  `coordinate_visibility: exact|obscured`
 
 Marker treatment:
 
 - `exact` can use a standard pinpoint or image-backed marker
-- Open posts whose public coordinates are approximate for species-safety or uncertainty rules should use a softer glyph or halo so the user understands the location is approximate
-- In the current shipped client, posts begin as simple indicator dots, then switch to circular scan thumbnails once the camera is close enough. Approximate open posts keep their approximate-location halo in either mode.
+- Open posts whose public coordinates are approximate for species-safety or
+  uncertainty rules should use a softer glyph or halo so the user understands
+  the location is approximate
+- In the current shipped client, posts begin as simple indicator dots, then
+  switch to circular scan thumbnails once the camera is close enough.
+  Approximate open posts keep their approximate-location halo in either mode.
 
 ### Public Coordinate Strategy
 
-The shipped V1 now normalizes privacy-safe coordinates at the Explore post layer.
+The shipped V1 now normalizes privacy-safe coordinates at the Explore post
+layer.
 
 Current approach:
 
-- `public.explore_posts.public_latitude` / `public_longitude` are the authoritative Explore map coordinates today.
-- `trg_project_explore_post_location` derives them from exact scan telemetry only when the post's saved `location_sharing` is `open`.
-- `private` and `obscured` posts produce `NULL` public map coordinates and remain absent from the map.
-- Protected-species and uncertainty rules can round an `open` post into a stable coarse public cell with `public_coordinate_visibility = 'obscured'`.
-- `public.get_explore_map_posts(...)` reads the stored post public coordinate fields and does not derive map output from exact GPS at read time.
+- `public.explore_posts.public_latitude` / `public_longitude` are the
+  authoritative Explore map coordinates today.
+- `trg_project_explore_post_location` derives them from exact scan telemetry
+  only when the post's saved `location_sharing` is `open`.
+- `private` and `obscured` posts produce `NULL` public map coordinates and
+  remain absent from the map.
+- Protected-species and uncertainty rules can round an `open` post into a stable
+  coarse public cell with `public_coordinate_visibility = 'obscured'`.
+- `public.get_explore_map_posts(...)` reads the stored post public coordinate
+  fields and does not derive map output from exact GPS at read time.
 
 Why this shipped post-layer approach works:
 
 - Repeated re-jittering creates privacy leakage over multiple requests
 - Stable points make the map feel consistent when users pan away and back
-- The projection path keeps newly shared or edited exact-coordinate posts visible on spatial surfaces only when that post's saved location setting allows it
+- The projection path keeps newly shared or edited exact-coordinate posts
+  visible on spatial surfaces only when that post's saved location setting
+  allows it
 
 Implementation guardrail:
 
@@ -907,21 +1101,26 @@ Implementation notes:
 - Optional `species_categories` and `media_types` arrays are multi-select OR
   filters within their groups; species and media groups intersect
 - Category counts are computed after media filtering, while media-type counts
-  are computed after species filtering, so each sheet section reflects the
-  other section's active choices
+  are computed after species filtering, so each sheet section reflects the other
+  section's active choices
 - A post matches a selected media type when any authoritative `media_items`
   entry has that kind. A video item's audio track does not classify it as an
   audio post; legacy rows without media items count as images only when they
   retain a non-empty hero image
-- The endpoint should keep the same blocking, shadowban, media-availability, missing-species, and unshared-post exclusions as `get-explore-feed`
-- The endpoint should require post-level `location_sharing = 'open'` and stored post-owned public coordinates for map rows
-- The endpoint should enforce a hard row cap to prevent pathological city-scale payloads
+- The endpoint should keep the same blocking, shadowban, media-availability,
+  missing-species, and unshared-post exclusions as `get-explore-feed`
+- The endpoint should require post-level `location_sharing = 'open'` and stored
+  post-owned public coordinates for map rows
+- The endpoint should enforce a hard row cap to prevent pathological city-scale
+  payloads
 
 Clustering strategy:
 
 - V1 does not require PostGIS
-- Plain Postgres bounding-box filtering plus zoom-dependent grid bucketing is sufficient
-- Bucket coordinates using a zoom-dependent snapped grid such as rounded lat/lon cells or `width_bucket`
+- Plain Postgres bounding-box filtering plus zoom-dependent grid bucketing is
+  sufficient
+- Bucket coordinates using a zoom-dependent snapped grid such as rounded lat/lon
+  cells or `width_bucket`
 - A cluster ID can be derived from the zoom bucket and snapped cell coordinates
 - The shipped read path uses stored post-owned public coordinates; keep its
   partial index aligned with the active/open map eligibility predicate whenever
@@ -929,7 +1128,8 @@ Clustering strategy:
 
 ### Map Preview Payload
 
-The map point payload should be rich enough to render a compact card immediately, without an extra round trip.
+The map point payload should be rich enough to render a compact card
+immediately, without an extra round trip.
 
 The preview card needs:
 
@@ -942,7 +1142,11 @@ The preview card needs:
 - Like/comment counts
 - Coordinate visibility
 
-The full detail page can still use the existing `get-explore-post` and `get-explore-post-detail` path after the user commits to the post. Alternate common names and similar-species content stay on the full detail payload rather than the map preview payload, keeping map cards light while still allowing detail pages to show species synonyms and open the public species dictionary.
+The full detail page can still use the existing `get-explore-post` and
+`get-explore-post-detail` path after the user commits to the post. Alternate
+common names and similar-species content stay on the full detail payload rather
+than the map preview payload, keeping map cards light while still allowing
+detail pages to show species synonyms and open the public species dictionary.
 
 ### iOS Client Architecture For Map
 
@@ -971,34 +1175,46 @@ Current shipped state on `ExploreMapViewModel`:
 - `selectedSpeciesCategories`
 - `selectedMediaTypes`
 - `isOffline`
-- a computed `showsThumbnailWaypoints` gate derived from the active region zoom plus visible post count
+- a computed `showsThumbnailWaypoints` gate derived from the active region zoom
+  plus visible post count
 - an in-memory recent-region cache keyed by viewport, selected species, and
   selected media types, with capped eviction
 
 State machine:
 
-1. On first appearance, request a starting camera position and perform an initial fetch
+1. On first appearance, request a starting camera position and perform an
+   initial fetch
 2. While the user pans or zooms, update `visibleRegion`
-3. Once the camera movement settles, compare `visibleRegion` against `lastCommittedRegion`
+3. Once the camera movement settles, compare `visibleRegion` against
+   `lastCommittedRegion`
 4. If the delta is meaningful, set `needsSearchInArea = true`
-5. If the same area was fetched recently, reuse the cached response immediately and only hit the network again once that cache entry is stale
+5. If the same area was fetched recently, reuse the cached response immediately
+   and only hit the network again once that cache entry is stale
 6. When the user taps `Search This Area`, call `get-explore-map-points`
 7. When a species or media filter changes, clear the selected post and request
    the same region with both filter groups; filter changes apply immediately
 8. If the response is `clusters`, render clusters and clear any selected post
 9. If the response is `posts`, render point annotations
-10. If the camera is sufficiently close and the post count is still low enough, upgrade those point annotations into thumbnail-backed markers instead of plain dots
+10. If the camera is sufficiently close and the post count is still low enough,
+    upgrade those point annotations into thumbnail-backed markers instead of
+    plain dots
 11. On point tap, set `selectedPost`
 12. On preview-card tap, route to `ExplorePostDetailView(postId:)`
 
 Technical notes:
 
 - Use SwiftUI `Map` and `MapCameraPosition`
-- Debounce camera-driven fetch eligibility rather than firing a network request on every frame
+- Debounce camera-driven fetch eligibility rather than firing a network request
+  on every frame
 - Reuse the existing Explore detail route already owned by `ExploreView`
-- Keep selection state local to the map view model so the feed view model does not absorb spatial UI concerns
-- Reuse `ExploreHeroImageView` for thumbnail markers with a smaller decode size instead of introducing a separate image-loading path for the map
-- In the current shipped architecture, feed and map mutations converge through `ExplorePostStore`, which acts as the shared in-memory source for likes, comment counts, unshares, reports, and blocks while screen-specific view models keep their own UI state
+- Keep selection state local to the map view model so the feed view model does
+  not absorb spatial UI concerns
+- Reuse `ExploreHeroImageView` for thumbnail markers with a smaller decode size
+  instead of introducing a separate image-loading path for the map
+- In the current shipped architecture, feed and map mutations converge through
+  `ExplorePostStore`, which acts as the shared in-memory source for likes,
+  comment counts, unshares, reports, and blocks while screen-specific view
+  models keep their own UI state
 
 ### Search And Caching Behavior
 
@@ -1008,14 +1224,21 @@ Current shipped V1 behavior:
 - Only replace results after a successful area or filter fetch; filter changes
   request the current committed region immediately
 - Cap rendered individual post annotations to a strict upper bound such as 500
-- Only promote individual post annotations into thumbnail-backed markers when the zoom level is high enough and the visible post set is small enough, preventing dense areas from turning back into thumbnail soup
-- If map fetches fail because the device is offline, show an explicit offline banner rather than silently leaving the map in a stale state
-- Cache recent region payloads in memory and evict old or off-screen regions aggressively so revisiting nearby areas feels faster without letting long-distance panning grow memory unbounded
+- Only promote individual post annotations into thumbnail-backed markers when
+  the zoom level is high enough and the visible post set is small enough,
+  preventing dense areas from turning back into thumbnail soup
+- If map fetches fail because the device is offline, show an explicit offline
+  banner rather than silently leaving the map in a stale state
+- Cache recent region payloads in memory and evict old or off-screen regions
+  aggressively so revisiting nearby areas feels faster without letting
+  long-distance panning grow memory unbounded
 
 Fast-follow opportunities:
 
-- Eagerly evict point annotations that fall outside an expanded region around the last committed viewport to reduce long-distance panning memory growth
-- Prefetch `get-explore-post` for the selected marker if we want instant detail transitions later
+- Eagerly evict point annotations that fall outside an expanded region around
+  the last committed viewport to reduce long-distance panning memory growth
+- Prefetch `get-explore-post` for the selected marker if we want instant detail
+  transitions later
 
 ### Rollout Strategy
 
@@ -1049,25 +1272,35 @@ Comments:
 Notifications:
 
 - The in-app notifications feed is the source of truth for Explore activity.
-- Like notifications should aggregate to one row per owner/post, maintain the latest actor names, and reset `is_read` whenever a new like arrives.
+- Like notifications should aggregate to one row per owner/post, maintain the
+  latest actor names, and reset `is_read` whenever a new like arrives.
 - Comment notifications should create one row per visible comment.
-- Follow notifications should create one postless informational row per follower/followee pair.
+- Follow notifications should create one postless informational row per
+  follower/followee pair.
 - Self-likes, self-comments, and self-follows should never create notifications.
-- Opening the notifications sheet should mark the fetched rows as read only after the initial fetch succeeds.
-- Notifications pagination should be cursor-based on `(updated_at, notification_id)`, not offset-based.
-- Comments pagination should be cursor-based on `(created_at, comment_id)`, not offset-based.
-- Users can independently opt into remote Explore activity pushes without enabling discovery-result alerts.
+- Opening the notifications sheet should mark the fetched rows as read only
+  after the initial fetch succeeds.
+- Notifications pagination should be cursor-based on
+  `(updated_at, notification_id)`, not offset-based.
+- Comments pagination should be cursor-based on `(created_at, comment_id)`, not
+  offset-based.
+- Users can independently opt into remote Explore activity pushes without
+  enabling discovery-result alerts.
 - Follow notifications are excluded from remote push delivery.
 
 Blocking:
 
-- If user A blocks user B, B's Explore posts and comments should disappear for A.
-- Interaction endpoints should reject likes, comments, reactions, and follows when either direction of blocking should disallow the relationship.
+- If user A blocks user B, B's Explore posts and comments should disappear for
+  A.
+- Interaction endpoints should reject likes, comments, reactions, and follows
+  when either direction of blocking should disallow the relationship.
 
 Reporting:
 
 - V1 should support reporting both posts and comments for safety review.
-- After a successful report, the client should locally hide the reported post or comment for that reporting user immediately rather than waiting for a full feed refresh.
+- After a successful report, the client should locally hide the reported post or
+  comment for that reporting user immediately rather than waiting for a full
+  feed refresh.
 - Native post reports use `/report-explore-post` and the service-only
   `explore_post_reports` queue. They must not call `/flag-issue`, create a
   `flagged_reviews` row, or change `scans.is_flagged`; those belong only to
@@ -1112,7 +1345,8 @@ Client behavior:
 
 - Explore is online-only in V1
 - Likes/comments/shares do not use the offline queue
-- `Recent`, `Following`, and `Nearby` pagination are cursor-based on `(shared_at, post_id)`
+- `Recent`, `Following`, and `Nearby` pagination are cursor-based on
+  `(shared_at, post_id)`
 - `Trending` pagination is cursor-based on `(ranking_value, shared_at, post_id)`
 - Feed species, media, date, and Nearby-distance constraints execute server-side
   before cursor pagination; the client does not trim pages after receipt
@@ -1123,21 +1357,32 @@ Client behavior:
   reserve a centered 96-point playback zone: single tap plays or pauses without
   navigation and double tap likes; taps outside that zone retain the normal
   detail/like behavior.
-- The map should use a dedicated spatial endpoint rather than piggybacking on feed pagination
-- The map should keep stale results visible while the user pans and only refetch on an explicit `Search This Area` action
+- The map should use a dedicated spatial endpoint rather than piggybacking on
+  feed pagination
+- The map should keep stale results visible while the user pans and only refetch
+  on an explicit `Search This Area` action
 - Map filters should keep species shortcuts in the horizontal pill row and put
   image, video, and audio multi-select controls in the full filter sheet. The
   generic Filters count and All/Reset actions include both groups.
 - Feed filters should keep the four modes in the horizontal row and add a
   leading Filters pill. Its sheet owns mode, species, media, shared date, and
   Nearby-only distance; Reset clears advanced constraints but preserves mode.
-- Marker selection should open a preview card first and only then open full detail
-- The map should emit lightweight telemetry for tab open, explicit area search, cluster tap, waypoint preview open, and detail open
-- Feed comment taps present `ExploreCommentsSheet`; detail-page comments render inline with the thread
-- Explore feed share uses the system share sheet with species text plus the current hero image URL
-- The detail page uses a separate public species payload so it can render safe `Taxonomy` and `Habitat & distribution` cards without loading private scan state
-- The sheet toolbar bell shows an unread badge, opens the in-app notifications sheet, and uses `get-explore-post` so notification taps can route into posts that are not already present in the loaded feed page
-- Follow notification rows are informational and do not navigate because their `post_id` is `NULL`
+- Marker selection should open a preview card first and only then open full
+  detail
+- The map should emit lightweight telemetry for tab open, explicit area search,
+  cluster tap, waypoint preview open, and detail open
+- Feed comment taps present `ExploreCommentsSheet`; detail-page comments render
+  inline with the thread
+- Explore feed share uses the system share sheet with species text plus the
+  current hero image URL
+- The detail page uses a separate public species payload so it can render safe
+  `Taxonomy` and `Habitat & distribution` cards without loading private scan
+  state
+- The sheet toolbar bell shows an unread badge, opens the in-app notifications
+  sheet, and uses `get-explore-post` so notification taps can route into posts
+  that are not already present in the loaded feed page
+- Follow notification rows are informational and do not navigate because their
+  `post_id` is `NULL`
 
 ## Implementation Phases
 
@@ -1173,20 +1418,25 @@ Client behavior:
 - Add inline detail-page comments and composer
 - Add a public species-detail payload for safe card reuse
 - Reuse public-safe Insight visuals such as `TaxonomyCard`
-- Add the in-app notifications sheet, unread badge, and single-post fetch path used by notification taps
+- Add the in-app notifications sheet, unread badge, and single-post fetch path
+  used by notification taps
 
 ### Phase 6: Explore Map
 
 - Add `get-explore-map-points`
-- Normalize privacy-safe spatial output through post-owned `explore_posts.public_latitude` / `public_longitude` fields and `public.get_explore_map_posts(...)`
+- Normalize privacy-safe spatial output through post-owned
+  `explore_posts.public_latitude` / `public_longitude` fields and
+  `public.get_explore_map_posts(...)`
 - Add cluster and point rendering in `ExploreMapView`
 - Add a preview-card selection model that routes into `ExplorePostDetailView`
-- Reuse the Explore root navigation, with Map grouped under the Observations Feed/Map header toggle rather than exposed as its own bottom item.
+- Reuse the Explore root navigation, with Map grouped under the Observations
+  Feed/Map header toggle rather than exposed as its own bottom item.
 
 ### Phase 7: Fast Follow Ups
 
 - Optional species-first route from top-level Explore feed cards
-- Standalone public user pages, if Explore later grows beyond the current sheet model
+- Standalone public user pages, if Explore later grows beyond the current sheet
+  model
 - Audio Explore posts
 - Ranking and recommendation logic
 
@@ -1206,31 +1456,48 @@ Client behavior:
 
 - A user can manually share an eligible scan with supported image, video, or
   audio media to Explore.
-- A shared post appears in the public feed, with `Recent` as the default reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby` filters.
+- A shared post appears in the public feed, with `Recent` as the default
+  reverse-chronological mode plus shipped `Following`, `Trending`, and `Nearby`
+  filters.
 - The feed shows privacy-safe author identity and general location.
-- Authenticated authors can show a public avatar when a provider avatar URL is available.
+- Authenticated authors can show a public avatar when a provider avatar URL is
+  available.
 - Ghost users can participate with stable `@username` handles.
 - Authenticated users show a safe public author label.
-- Feed and detail payloads never include coordinates; map payloads include only privacy-safe public coordinates.
+- Feed and public-web detail payloads never include coordinates. Authenticated
+  native detail may include the same privacy-safe post-owned map point as the
+  map, and only for a currently `open` post.
 - Users can like and comment on posts.
 - Users can externally share posts from the feed.
 - Tapping a feed post outside an audio/video center playback zone opens a public
   post detail page. The center zone controls playback locally and never
   navigates.
 - Tapping the feed comment icon opens a bottom-sheet comment view.
-- The detail page shows inline comments plus privacy-safe telemetry and public species cards.
-- The Explore surface includes a map tab backed by the same `explore_posts` model.
+- The detail page shows inline comments plus privacy-safe telemetry and public
+  species cards.
+- The Explore surface includes a map tab backed by the same `explore_posts`
+  model.
 - Broad zoom levels render clusters instead of pin soup.
-- Close zoom levels can upgrade individual points into thumbnail-backed markers without changing the selection flow.
+- Close zoom levels can upgrade individual points into thumbnail-backed markers
+  without changing the selection flow.
 - Tapping a map point opens a compact preview card before opening full detail.
-- Tapping a map preview card opens the same public Explore detail page used by feed posts.
+- Tapping a map preview card opens the same public Explore detail page used by
+  feed posts.
 - Users can filter the map by one or more species categories and one or more
   media types; selections OR within each group and intersect across groups.
-- `obscured` posts can render scrubbed public location text on feed/detail surfaces, but stay off spatial map and non-owned Nearby results.
-- `open` posts with protected-species or uncertainty safety rules render with rounded post-owned public coordinates and `coordinate_visibility = 'obscured'`.
-- The bell icon shows an unread count and opens an in-app notifications sheet for likes, comments, reactions, and follows.
-- The bell unread count is refreshed on foreground, on a lightweight fallback poll, and by a Supabase realtime subscription to the viewer's notification rows.
-- Users can opt into remote Explore activity pushes separately from discovery-result alerts.
+- `obscured` posts can render scrubbed public location text on feed/detail
+  surfaces, but stay off spatial map and non-owned Nearby results.
+- `open` posts with protected-species or uncertainty safety rules render with
+  rounded post-owned public coordinates and
+  `coordinate_visibility = 'obscured'`.
+- The bell icon shows an unread count and opens an in-app notifications sheet
+  for likes, comments, reactions, and follows.
+- The bell unread count is refreshed on foreground, on a lightweight fallback
+  poll, and by a Supabase realtime subscription to the viewer's notification
+  rows.
+- Users can opt into remote Explore activity pushes separately from
+  discovery-result alerts.
 - Users can block and report from Explore surfaces.
 - Unsharing removes the post from the public feed without deleting the scan.
-- Posts disappear from Explore once their backing scan media is no longer available.
+- Posts disappear from Explore once their backing scan media is no longer
+  available.

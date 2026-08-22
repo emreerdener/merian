@@ -1,7 +1,46 @@
+import MapKit
 import SwiftUI
+
+struct ExploreObservationMapPresentation: Equatable {
+    static let approximateCoordinateRadiusMeters: CLLocationDistance = 10_000
+
+    let mapPoint: ExplorePostDetailMapPoint
+    let spanDelta: CLLocationDegrees
+    let approximateRadiusMeters: CLLocationDistance?
+
+    init?(post: ExplorePost, detail: ExplorePostDetail?) {
+        guard post.locationSharing == .open,
+              let detail,
+              detail.postId == post.postId,
+              let mapPoint = detail.visibleMapPoint else {
+            return nil
+        }
+
+        self.mapPoint = mapPoint
+        switch mapPoint.coordinateVisibility {
+        case .exact:
+            spanDelta = 0.05
+            approximateRadiusMeters = nil
+        case .obscured:
+            spanDelta = 0.2
+            approximateRadiusMeters = Self.approximateCoordinateRadiusMeters
+        }
+    }
+}
 
 struct ExploreObservationContextCard: View {
     let post: ExplorePost
+    let detail: ExplorePostDetail?
+    let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
+
+    private var mapPresentation: ExploreObservationMapPresentation? {
+        ExploreObservationMapPresentation(post: post, detail: detail)
+    }
+
+    private var focusTarget: ExploreMapFocusTarget? {
+        guard mapPresentation != nil, let detail else { return nil }
+        return ExploreMapFocusTarget(post: post, detail: detail)
+    }
 
     private var rows: [ExploreObservationContextRow] {
         var rows: [ExploreObservationContextRow] = []
@@ -50,21 +89,75 @@ struct ExploreObservationContextCard: View {
     }
 
     var body: some View {
-        if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-                InsightCardHeader(systemImage: "viewfinder", title: "Observation")
+        if !rows.isEmpty || mapPresentation != nil {
+            if let focusTarget, let onOpenExploreMap {
+                Button {
+                    onOpenExploreMap(focusTarget)
+                } label: {
+                    cardContent
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("ExploreObservationMapCard")
+                .accessibilityHint("Opens Explore Map centered on this observation")
+            } else {
+                cardContent
+            }
+        }
+    }
 
-                VStack(spacing: 12) {
-                    ForEach(rows) { row in
-                        KeyValueRow(
-                            title: row.title,
-                            value: row.value,
-                            valueIcon: row.valueIcon
-                        )
-                    }
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            InsightCardHeader(systemImage: "viewfinder", title: "Observation")
+
+            VStack(spacing: 12) {
+                ForEach(rows) { row in
+                    KeyValueRow(
+                        title: row.title,
+                        value: row.value,
+                        valueIcon: row.valueIcon
+                    )
+                }
+
+                mapPreview
+            }
+        }
+        .card()
+    }
+
+    @ViewBuilder
+    private var mapPreview: some View {
+        if let mapPresentation,
+           let coordinate = mapPresentation.mapPoint.coordinate {
+            let region = MKCoordinateRegion(
+                center: coordinate,
+                span: MKCoordinateSpan(
+                    latitudeDelta: mapPresentation.spanDelta,
+                    longitudeDelta: mapPresentation.spanDelta
+                )
+            )
+
+            Map(initialPosition: .region(region)) {
+                if let approximateRadiusMeters = mapPresentation.approximateRadiusMeters {
+                    MapCircle(
+                        center: coordinate,
+                        radius: approximateRadiusMeters
+                    )
+                    .foregroundStyle(Color.accentColor.opacity(0.3))
+                    .stroke(Color.accentColor, lineWidth: 1)
+                } else {
+                    Marker("Observation", coordinate: coordinate)
+                        .tint(Color.accentColor)
                 }
             }
-            .card()
+            .frame(height: 200)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color(uiColor: .separator), lineWidth: 0.5)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .padding(.top, 4)
         }
     }
 

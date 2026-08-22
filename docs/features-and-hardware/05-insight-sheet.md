@@ -642,11 +642,15 @@ completion; Reduce Motion remains fixed at the sweep midpoint.
 
 `TopToolbar` likewise keeps one trailing item mounted. Before a durable queued
 ID exists, a clear 44-point non-control placeholder reserves its layout; no
-native button is mounted, so iOS does not draw empty toolbar glass. Binding the
-exact queued row inserts the delete button with a 0.2-second opacity transition
-and exposes `InsightQueuedDeleteButton`; tapping it retains the existing queued
-**Cancel upload & delete** confirmation and deletion semantics. No second
-toolbar item or sheet relayout is introduced.
+native button is mounted. On iOS 26, the item's shared toolbar background is
+also hidden while the placeholder is active because the toolbar item itself can
+otherwise draw empty Liquid Glass even when its child content is clear. Binding
+the exact queued row restores automatic toolbar glass, inserts the delete button
+with a 0.2-second opacity transition, and exposes `InsightQueuedDeleteButton`;
+tapping it retains the existing queued **Cancel upload & delete** confirmation
+and deletion semantics. The queued delete button and completed-result actions
+menu explicitly use circular border shapes. No second toolbar item or sheet
+relayout is introduced.
 
 The engine half remains release-gated, with its source behavior now remediated.
 The queue manager can retire durable foreground ownership as soon as the path

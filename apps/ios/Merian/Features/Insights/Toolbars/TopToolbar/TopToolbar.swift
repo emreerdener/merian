@@ -200,38 +200,69 @@ struct TopToolbar: ToolbarContent {
             )
         }
         
-        ToolbarItem(placement: .topBarTrailing) {
-            ZStack {
-                // iOS 26 still draws native Liquid Glass around a transparent
-                // Button. Reserve the slot with a non-control instead.
-                Color.clear
-                    .frame(width: 44, height: 44)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+        trailingToolbarItem
+    }
 
+    private var showsTrailingToolbarControl: Bool {
+        showsQueuedDeleteAction || !isAnalyzing
+    }
+
+    @ToolbarContentBuilder
+    private var trailingToolbarItem: some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            // A clear toolbar item still receives Liquid Glass on iOS 26.
+            // Hide only that background while no real control is present.
+            baseTrailingToolbarItem
+                .sharedBackgroundVisibility(
+                    showsTrailingToolbarControl ? .automatic : .hidden
+                )
+        } else {
+            baseTrailingToolbarItem
+        }
+    }
+
+    private var baseTrailingToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Group {
                 if showsQueuedDeleteAction {
                     queuedDeleteButton
                         .accessibilityIdentifier(
                             "InsightQueuedDeleteButton"
                         )
                         .transition(.opacity)
-                }
-
-                if !isAnalyzing && !showsQueuedDeleteAction {
-                    Menu {
-                        actionMenuContent
-                    } label: {
-                        toolbarIcon("ellipsis")
-                            .imageOverlayToolbarIconChrome(isFallbackActive: shouldUseContainedToolbarChrome)
-                    }
-                    .accessibilityIdentifier("InsightTopMenu")
-                    .accessibilityLabel("Scan actions")
-                    .imageOverlayToolbarButtonChrome(isFallbackActive: shouldUseContainedToolbarChrome)
+                } else if !isAnalyzing {
+                    trailingActionMenu
+                        .transition(.opacity)
+                } else {
+                    // Keep the item stable without presenting a control.
+                    Color.clear
+                        .frame(width: 44, height: 44)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
             }
-            .frame(width: 44, height: 44)
-            .animation(.easeInOut(duration: 0.2), value: showsQueuedDeleteAction)
+            .animation(
+                .easeInOut(duration: 0.2),
+                value: showsTrailingToolbarControl
+            )
         }
+    }
+
+    private var trailingActionMenu: some View {
+        Menu {
+            actionMenuContent
+        } label: {
+            toolbarIcon("ellipsis")
+                .imageOverlayToolbarIconChrome(
+                    isFallbackActive: shouldUseContainedToolbarChrome
+                )
+        }
+        .accessibilityIdentifier("InsightTopMenu")
+        .accessibilityLabel("Scan actions")
+        .buttonBorderShape(.circle)
+        .imageOverlayToolbarButtonChrome(
+            isFallbackActive: shouldUseContainedToolbarChrome
+        )
     }
 
     private var shouldUseContainedToolbarChrome: Bool {
@@ -255,6 +286,7 @@ struct TopToolbar: ToolbarContent {
         }
         .tint(.red)
         .accessibilityLabel("Delete scan")
+        .buttonBorderShape(.circle)
         .imageOverlayToolbarButtonChrome(
             isFallbackActive: shouldUseContainedToolbarChrome
         )

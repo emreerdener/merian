@@ -15,6 +15,7 @@ struct ExplorePostDetailView: View {
     let authorProfileDepth: Int
     let onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)?
     let onOpenCommunityIdentificationRequest: ((String) -> Void)?
+    let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
@@ -24,6 +25,7 @@ struct ExplorePostDetailView: View {
     @State private var detail: ExplorePostDetail?
     @State private var isLoadingDetail = false
     @State private var detailErrorMessage: String?
+    @State private var detailRequestGeneration: UInt64 = 0
     @State private var isUpdatingFieldNotesVisibility = false
     @State private var showFieldNotesEditor = false
     @State private var showPostComposer = false
@@ -82,7 +84,8 @@ struct ExplorePostDetailView: View {
         allowsAuthorProfilePresentation: Bool = true,
         authorProfileDepth: Int = 0,
         onOpenAuthorProfile: ((ExploreAuthorProfileRoute) -> Void)? = nil,
-        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil
+        onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil,
+        onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self.postId = postId
@@ -97,6 +100,7 @@ struct ExplorePostDetailView: View {
         self.authorProfileDepth = authorProfileDepth
         self.onOpenAuthorProfile = onOpenAuthorProfile
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
+        self.onOpenExploreMap = onOpenExploreMap
     }
 
     private var currentPost: ExplorePost? {
@@ -206,7 +210,8 @@ struct ExplorePostDetailView: View {
                                     alternativeCommonNames: detail?.alternativeCommonNames ?? [],
                                     detail: detail,
                                     isLoading: isLoadingDetail,
-                                    errorMessage: detailErrorMessage
+                                    errorMessage: detailErrorMessage,
+                                    onOpenExploreMap: onOpenExploreMap
                                 )
                             }
                             .padding(.horizontal, 16)
@@ -412,7 +417,7 @@ struct ExplorePostDetailView: View {
             case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
                 Task {
                     await viewModel.refreshPost(postId: changedPostId)
-                    await loadPostDetail()
+                    await loadPostDetail(force: true)
                 }
             case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
                 guard let post = currentPost,
@@ -423,7 +428,7 @@ struct ExplorePostDetailView: View {
                       ) else { return }
                 Task {
                     await viewModel.refreshPost(postId: post.id)
-                    await loadPostDetail()
+                    await loadPostDetail(force: true)
                 }
             default:
                 break
@@ -781,18 +786,28 @@ struct ExplorePostDetailView: View {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
-    private func loadPostDetail() async {
-        guard !isLoadingDetail else { return }
+    private func loadPostDetail(force: Bool = false) async {
+        guard force || !isLoadingDetail else { return }
+
+        detailRequestGeneration &+= 1
+        let requestGeneration = detailRequestGeneration
 
         isLoadingDetail = true
         detailErrorMessage = nil
         detail = nil
 
-        defer { isLoadingDetail = false }
+        defer {
+            if requestGeneration == detailRequestGeneration {
+                isLoadingDetail = false
+            }
+        }
 
         do {
-            detail = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
+            let response = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
+            guard requestGeneration == detailRequestGeneration else { return }
+            detail = response
         } catch {
+            guard requestGeneration == detailRequestGeneration else { return }
             detailErrorMessage = ExploreErrorFormatter.message(for: error)
         }
     }
@@ -933,13 +948,14 @@ struct ExplorePostDetailView: View {
                 locationSharing: draft.locationSharing,
                 mediaItems: draft.mediaItems
             )
+            detailRequestGeneration &+= 1
             detail?.fieldNotes = response.fieldNotes
             detail?.locationSharing = response.locationSharing ?? draft.locationSharing
             updateLocalFieldNotes(draft.fieldNotes ?? "")
             showPostComposer = false
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
-            await loadPostDetail()
+            await loadPostDetail(force: true)
             HapticManager.shared.triggerSuccessPulse()
             viewModel.toastMessage = .success("Explore post updated")
         } catch {

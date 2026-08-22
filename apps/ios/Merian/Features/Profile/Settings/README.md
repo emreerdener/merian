@@ -199,7 +199,9 @@ Record, or Describe. Audio-first does not start the camera, and
 Description-first mounts the text workflow immediately. Reordering while the
 workspace already exists preserves the active mode and reanchors that page in
 the new sequence; the new first mode becomes the default on the next fresh
-workspace launch.
+workspace launch. The same decoded sequence supplies the equal-width icon
+segments in `MediaModeToggle`; changing the preference rebuilds those segments
+once while preserving the active page and its accessible mode name.
 
 ## Fresh-launch contract
 

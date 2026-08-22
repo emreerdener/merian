@@ -46,14 +46,28 @@ out independently.
 
 ## Post-detail presentation ownership
 
+The Observation card consumes the optional `map_point` from the public Explore
+detail payload. It renders a noninteractive exact marker or 10 km approximate
+circle only while the saved post location setting is `open`; `obscured`,
+`private`, missing, invalid, and failed-refresh states omit the map. The payload
+uses only the post-owned public coordinate projection and never local or raw
+scan coordinates.
+
+The main Explore feed marks its detail route as map-actionable. Tapping that
+Observation card returns to the Explore root, switches Observations from Feed to
+Map, clears species and media filters, focuses the public point, and selects the
+post preview. Details opened from Map, notifications, hashtags, author/profile,
+or Species Dictionary hosts render the same eligible map preview without a tap
+action.
+
 Auto-opening an owned Insight after a routed detail mounts is part of the
 detail's lifecycle-owned load task; cancellation on unmount prevents its short
 settling delay from targeting another post. Field Chat preparation is keyed to
 the pending post ID with `.task(id:)` and revalidates both cancellation and the
 current post before presenting. Its notes-draft binding is the sole dismissal
-owner; cancel does not also call an independent `DismissAction`.
-Delayed comment focus and follow-up scroll work is stored, replaced on a newer
-request, and cancelled on detail disappearance so a timer cannot retain an old
+owner; cancel does not also call an independent `DismissAction`. Delayed comment
+focus and follow-up scroll work is stored, replaced on a newer request, and
+cancelled on detail disappearance so a timer cannot retain an old
 `ScrollViewProxy` or focus a replacement post.
 
 When a parent supplies the owned-Insight callback, post detail reports the scan
@@ -83,11 +97,12 @@ media keeps its existing local playback controls.
 
 Video recovery is coordinated through `ExploreVideoPlaybackCoordinator` in
 `Feed/Models`. `ExploreView` owns one coordinator and injects it into the
-Explore environment. Sheet hosts use `.exploreVideoPresentedOverlayLifecycle(...)`
-instead of ad-hoc `NotificationCenter` events or paired manual pause/resume
-calls. The coordinator tracks overlay tokens, nested overlay depth,
-`pauseGeneration`, and `resumeGeneration`, so playback resumes only after the
-final Explore overlay is gone.
+Explore environment. Sheet hosts use
+`.exploreVideoPresentedOverlayLifecycle(...)` instead of ad-hoc
+`NotificationCenter` events or paired manual pause/resume calls. The coordinator
+tracks overlay tokens, nested overlay depth, `pauseGeneration`, and
+`resumeGeneration`, so playback resumes only after the final Explore overlay is
+gone.
 
 When a covered video resumes, `ExplorePublicMediaView` treats the interruption
 as recoverable: it saves the current time, rebuilds the `AVPlayer` and

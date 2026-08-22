@@ -8,6 +8,7 @@ struct ExplorePostDetailInsightSection: View {
     let detail: ExplorePostDetail?
     let isLoading: Bool
     let errorMessage: String?
+    let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
 
     private var shouldShowSection: Bool {
         isLoading
@@ -78,7 +79,11 @@ struct ExplorePostDetailInsightSection: View {
                 )
             }
 
-            ExploreObservationContextCard(post: post)
+            ExploreObservationContextCard(
+                post: post,
+                detail: detail,
+                onOpenExploreMap: onOpenExploreMap
+            )
 
             AlternativeCommonNamesLine(
                 names: alternativeCommonNames,

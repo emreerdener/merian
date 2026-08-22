@@ -256,7 +256,11 @@ steps are tracked in the
 
 - User-orderable Scan, Record, and Describe pages. The first configured mode is
   selected during workspace initialization, so Audio-first and Description-first
-  launches do not briefly open Camera or start camera hardware.
+  launches do not briefly open Camera or start camera hardware. A fixed native
+  icon selector stays synchronized with horizontal paging, uses full-capsule
+  Liquid Glass on iOS 26 with a material fallback on earlier systems, retains
+  the three spoken mode names for VoiceOver, and confirms user-driven changes
+  with the app's gated selection haptic.
 - Instant-on `AVCaptureSession` with device priority: triple camera → LiDAR →
   dual → wide. Triple camera is preferred on Pro models to expose the full
   0.5×–15× optical zoom range.

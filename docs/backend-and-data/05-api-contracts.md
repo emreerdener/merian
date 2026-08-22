@@ -3704,8 +3704,9 @@ The detail routine independently inner-joins that canonical card projection.
 `detail_payload` from one statement/MVCC snapshot, and the page helper uses only
 that combined routine. A direct detail call and the combined call therefore
 return no row for content excluded by canonical anonymous visibility. The server
-must not reconstruct this DTO through direct privileged table reads. Exact-SHA
-verification is tracked in the
+must not reconstruct this DTO through direct privileged table reads. Public-web
+wrappers select their detail fields explicitly and do not forward the native
+detail endpoint's optional `map_point`. Exact-SHA verification is tracked in the
 [release assurance record](./14-dwca-and-public-web-release-hold-2026-07-27.md).
 
 ### `GET /api/explore/audio?url={canonicalWavUrl}` (Public Web)
@@ -3747,6 +3748,11 @@ Current response shape:
   "data": {
     "post_id": "uuid",
     "location_sharing": "open",
+    "map_point": {
+      "latitude": 41.873,
+      "longitude": -87.632,
+      "coordinate_visibility": "exact"
+    },
     "hashtags": ["citybioblitz", "springcount"],
     "species_dictionary_id": "uuid",
     "alternative_common_names": ["Milkweed Butterfly", "Common Tiger"],
@@ -3780,6 +3786,16 @@ Current response shape:
 
 This endpoint exists so Explore can render public species cards on the detail
 page without loading private scan state or the Insight `InferenceEngine`.
+
+`map_point` is an additive nullable object used by the native Observation card.
+It is present only when the post's current saved `location_sharing` is `open`
+and its post-owned `public_latitude`, `public_longitude`, and
+`public_coordinate_visibility` projection is complete. It never reads the
+backing scan's exact GPS fields. Protected-species or uncertainty rules may
+return an already-sanitized point with `coordinate_visibility = "obscured"`.
+Post settings `obscured` and `private` return `null`, and older deployed
+responses may omit the key entirely. Explore feed/card responses and public-web
+detail projections remain coordinate-free.
 
 `hashtags` uses the same normalized public tag edge table as feed cards. Detail
 renders tags as centered wrapping chips; tag taps route into the tagged-post
@@ -3817,10 +3833,9 @@ unchanged. If every candidate belongs to the current scan, the field is `null`.
 
 This is a read-time, exact-scan exclusion. It does not remove normalized rows,
 filter all contributions by the author, or perform perceptual matching across
-different storage objects. The response keys and types are unchanged, allowing
-the backend, iOS, and web changes to roll out independently. Explore detail uses
-the field to render the public reference gallery below the post's AI reasoning
-without making an extra authenticated scan fetch.
+different storage objects. The reference-image key and type remain unchanged.
+Explore detail uses the field to render the public reference gallery below the
+post's AI reasoning without making an extra authenticated scan fetch.
 
 `similar_species` is hydrated from `species_lookalikes` for the post's resolved
 dictionary species through `public.public_species_similar_species(...)`. Each
@@ -6398,9 +6413,10 @@ two-message `client_message_id` pair, exact acknowledged user text, and bounded
 response body before the private thread can be displayed, a pending send can be
 cleared, or an action can show success.
 
-The model context is built from the privacy-filtered `get_explore_post` and
-`get_explore_post_detail` projections plus public Species Dictionary fields. It
-excludes private owner scan rows, exact coordinates, unpublished notes,
+The model context is built from explicitly selected fields in the
+privacy-filtered `get_explore_post` and `get_explore_post_detail` projections
+plus public Species Dictionary fields. It does not add `map_point` to the model
+prompt and excludes private owner scan rows, coordinates, unpublished notes,
 comments, owner chat history, and media bytes/URLs. Questions that require
 direct inspection of the post's media must be answered without claiming media
 access. These technical boundaries remain server-enforced even though the iOS

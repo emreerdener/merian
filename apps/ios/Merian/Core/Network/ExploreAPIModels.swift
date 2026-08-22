@@ -1180,7 +1180,7 @@ enum ExploreMapMode: String, Decodable {
     case posts
 }
 
-enum ExploreCoordinateVisibility: String, Decodable {
+enum ExploreCoordinateVisibility: String, Decodable, Equatable {
     case exact
     case obscured
 }
@@ -1200,6 +1200,22 @@ struct ExploreMapPointsResponse: Decodable {
         case mediaTypeCounts
         case clusters
         case posts
+    }
+
+    init(
+        mode: ExploreMapMode,
+        visibleCount: Int,
+        categoryCounts: [ExploreMapCategoryCount] = [],
+        mediaTypeCounts: [ExploreMapMediaTypeCount] = [],
+        clusters: [ExploreMapCluster] = [],
+        posts: [ExploreMapPost] = []
+    ) {
+        self.mode = mode
+        self.visibleCount = visibleCount
+        self.categoryCounts = categoryCounts
+        self.mediaTypeCounts = mediaTypeCounts
+        self.clusters = clusters
+        self.posts = posts
     }
 
     init(from decoder: Decoder) throws {
@@ -1562,10 +1578,28 @@ struct PublicUsernameAvailabilityResponse: Decodable {
     let error: String?
 }
 
+struct ExplorePostDetailMapPoint: Decodable, Equatable {
+    let latitude: Double
+    let longitude: Double
+    let coordinateVisibility: ExploreCoordinateVisibility
+
+    var coordinate: CLLocationCoordinate2D? {
+        guard latitude.isFinite,
+              longitude.isFinite,
+              (-90...90).contains(latitude),
+              (-180...180).contains(longitude) else {
+            return nil
+        }
+
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
 struct ExplorePostDetail: Decodable {
     let postId: String
     var fieldNotes: String?
     var locationSharing: ExplorePostLocationSharing?
+    let mapPoint: ExplorePostDetailMapPoint?
     let hashtags: [String]?
     let speciesDictionaryId: String?
     let alternativeCommonNames: [String]?
@@ -1585,6 +1619,16 @@ struct ExplorePostDetail: Decodable {
     let referenceImageUrl: String?
     let wikipediaOverview: String?
     let similarSpecies: [SimilarSpeciesEntry]?
+
+    var visibleMapPoint: ExplorePostDetailMapPoint? {
+        guard locationSharing == .open,
+              let mapPoint,
+              mapPoint.coordinate != nil else {
+            return nil
+        }
+
+        return mapPoint
+    }
 
     var taxonomyData: TaxonomyData? {
         let taxonomy = TaxonomyData(

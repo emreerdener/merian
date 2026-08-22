@@ -28,15 +28,19 @@ completed Insight presentations.
 
 `TopToolbar` owns exactly one `.topBarTrailing` item throughout analyzing and
 queued presentation. A clear, non-control 44-point placeholder reserves that
-item's layout while analyzing. The native queued delete `Button` is not mounted
-until the shell has an exact durable queued scan ID; this prevents iOS 26 from
-drawing empty toolbar glass before the handoff. Binding that ID sets
-`showsQueuedDeleteAction`, inserts the button with a 0.2-second opacity
-transition, and exposes `InsightQueuedDeleteButton` without inserting a second
-native toolbar item or relaying out the sheet.
+item's layout while analyzing. On iOS 26, the item explicitly hides its shared
+toolbar background while that placeholder is active; hiding only the child
+content is insufficient because the toolbar item itself otherwise receives
+Liquid Glass. The native queued delete `Button` is not mounted until the shell
+has an exact durable queued scan ID. Binding that ID sets
+`showsQueuedDeleteAction`, restores automatic toolbar glass, inserts the button
+with a 0.2-second opacity transition, and exposes `InsightQueuedDeleteButton`
+without inserting a second native toolbar item or relaying out the sheet.
 
 The fade changes presentation only. Tapping the visible button still enters the
 queued deletion confirmation and its **Cancel upload & delete** action; queue
 ownership, persistence, file cleanup, and retry semantics remain with the
 existing deletion path. Completed Insights continue using the ordinary actions
-menu in this same trailing slot.
+menu in this same trailing slot. The delete button and actions menu both set a
+circular button-border shape instead of inheriting a rounded-rectangle platter
+from the placeholder container.

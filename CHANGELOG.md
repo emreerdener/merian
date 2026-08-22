@@ -62,8 +62,9 @@ TestFlight, App Store, support, and QA.
 - The analyzing image and scan sweep now remain visually continuous during that
   durable handoff. The carousel keeps its selected image while the queued trash
   action fades into the existing toolbar position instead of causing a visible
-  refresh. The reserved position no longer appears as an empty circular button
-  before queued deletion is available.
+  refresh. The reserved position no longer draws empty toolbar glass during an
+  initial analysis or reanalysis, and the visible trailing actions retain a
+  circular shape.
 - Ambiguous midpoint labels such as **moderate color levels** and **balanced
   light and dark** now resolve into visible descriptions such as **softly
   colored areas**, **evenly lit areas**, or **light and shadow areas**.
@@ -96,6 +97,18 @@ TestFlight, App Store, support, and QA.
 - The **Open collection** action on a non-biological Insight now opens its
   collection through a stable library navigation route instead of freezing
   during the sheet transition.
+
+### Capture Controls
+
+- Scan, Record, and Describe now use clear viewfinder, waveform, and text-bubble
+  icons in a compact native capture selector. Its full track uses interactive
+  Liquid Glass on iOS 26 with a material fallback on earlier systems. The
+  selected control is brighter, its symbol stays dark and legible, and the
+  selector retains the platform's native transition.
+- Tapping the selector or settling on a page after a horizontal swipe now gives
+  one light selection cue when haptics are enabled. VoiceOver still announces
+  every mode by name, configured mode ordering is unchanged, and Expedition mode
+  continues to suppress haptics.
 
 ### Live Scan Queue Handoff — Release-Gated
 

@@ -6,6 +6,7 @@ export interface ExplorePostDetailRow {
   post_id: string;
   field_notes?: string | null;
   location_sharing: "open" | "obscured" | "private";
+  map_point?: ExplorePostDetailMapPoint | null;
   hashtags?: string[] | null;
   species_dictionary_id?: string | null;
   alternative_common_names?: string[] | null;
@@ -25,6 +26,12 @@ export interface ExplorePostDetailRow {
   reference_image_url?: string | null;
   wikipedia_overview?: string | null;
   similar_species?: ExplorePostDetailSimilarSpecies[] | null;
+}
+
+export interface ExplorePostDetailMapPoint {
+  latitude: number;
+  longitude: number;
+  coordinate_visibility: "exact" | "obscured";
 }
 
 export type ExplorePostDetailSimilarSpecies = PublicSimilarSpecies;

@@ -15,6 +15,30 @@ selected during workspace initialization, and camera-session startup remains
 gated on visual mode. Keep page sizing and `scrollTargetLayout()` on the lazy
 stack when changing pager behavior.
 
+`MediaModeToggle` remains fixed above that pager and uses one native
+`UISegmentedControl`. Its bounded 200 by 56 pt frame uses compact tab-bar-like
+proportions, displays 24 pt symbols, and leaves at least 24 pt side margins on
+supported phone widths. Its equal segments display `viewfinder`, `waveform`, and
+`text.bubble`; the action titles and symbol accessibility labels retain the
+accessible names **Scan**, **Record**, and **Describe**. The selected thumb uses
+a per-instance adaptive near-white tint, reaching full white under Increased
+Contrast. Its symbol is black, while inactive symbols use white in dark
+appearance and black in light appearance. On iOS 26, the full selector track
+uses a regular interactive Liquid Glass capsule; earlier systems use an
+`ultraThinMaterial` capsule fallback. UIKit continues to own the selected thumb,
+segment interaction, and selected-state semantics. Normal and selected images
+are attached before each action is installed, and `setImage(_:forSegmentAt:)`
+refreshes the installed normal images from the actual selected index so UIKit
+cannot show a white active icon. Do not mutate the immutable action snapshots
+returned by the control on iOS 18. The existing SwiftUI binding keeps taps,
+horizontal paging, configured order, and camera-session ownership synchronized.
+Successful selector changes and settled pager swipes each emit one selection
+pulse through `HapticManager`, preserving the user's Haptics setting and
+Expedition mode suppression without vibrating during programmatic page sync. Do
+not replace the control with custom capsules or restore app-wide
+`UISegmentedControl.appearance()` changes. This is the complete mode-selection
+surface, not a trigger for a separate filter or pop-up menu.
+
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
 by `CaptureWorkspaceView`, outside the horizontal pager. Capture chrome derives
@@ -25,7 +49,7 @@ bottom safe-area inset. The primary and secondary capture controls share one
 vertical centerline across every mode. Describe reserves the row's matching 204
 pt height at the bottom of its UIKit-hosted content. Its flexible rounded editor
 fills the space above the row and retains a 24 pt visual gap. At the top, the
-hosted page uses a 60 pt selector band without adding another safe-area inset;
+hosted page uses an 82 pt selector band without adding another safe-area inset;
 UIKit automatic content-inset adjustment is disabled. Together these boundaries
 prevent the nested scroll, sheet, and preference feedback that previously formed
 a startup AttributeGraph cycle when Description was the configured first mode.
@@ -95,9 +119,9 @@ dismissal without restarting the item lifetime or effects.
 ## Active capture goal
 
 `CaptureWorkspaceView` owns the compact active-outing target indicator because
-it is fixed capture chrome beneath `MediaModeToggle`, not part of the camera
-preview. It reads app-injected `ActiveCaptureGoalStore` state and appears only
-when Field trips are enabled, the on-by-default
+it is fixed capture chrome alongside or beneath `MediaModeToggle`, not part of
+the camera preview. It reads app-injected `ActiveCaptureGoalStore` state and
+appears only when Field trips are enabled, the on-by-default
 `AppSettings.showsCaptureGoalProgress` preference is enabled, visual Scan is
 selected, a real unfinished target or validated introduction exists, the staging
 tray is empty, refinement is inactive, and video is not recording. Turning the
@@ -117,30 +141,48 @@ The accepted long-term boundary, second-source integration path, cache-version
 rules, and alternatives are documented in
 `docs/rfcs/active-capture-goal-context.md`.
 
-With active targets, the pill shows exact bundled objective artwork when mapped,
-otherwise a neutral binoculars symbol. A centered `Goal: {target}` label and the
-outing title sit between equal-width artwork and progress slots; the trailing
-circular ring shows `completed/target` and replaces the disclosure caret. The
-capsule matches the visual width of `MediaModeToggle`. A horizontally dominant
-swipe moves through every unfinished target across active standard outings and
-wraps in both directions. Tapping uses the shared light sheet-opening haptic,
-while selection changes use selection feedback. Both respect the global haptics
-and Expedition mode settings. Reduced Motion and VoiceOver adjustable actions
-remain supported.
+With active targets, the indicator starts as a 50 by 50 pt artwork circle on the
+same vertical centerline as `MediaModeToggle`, to its right while the selector
+remains centered on screen. It matches the secondary capture-control diameter,
+uses 42 pt artwork, and remains above the 44 pt minimum touch target. It keeps
+the established 32 pt trailing workspace margin when space permits and
+compresses that margin only enough to preserve an 8 pt gap on narrow phones. It
+shows exact bundled objective artwork when mapped, otherwise a neutral
+binoculars symbol. Tapping the artwork moves and expands the same glass surface
+to the full goal row beneath the selector; its leading control returns to 56 pt
+with 36 pt artwork. The centered `Goal: {target}` label and outing title then
+sit between equal 56 pt artwork and progress slots, and the trailing circular
+ring shows `completed/target`. Tapping the expanded artwork collapses the
+surface back onto the selector row, while tapping the remaining text or progress
+region opens the outing.
+
+Expansion is local to the current visual-Scan visit. It survives goal changes,
+root sheets, foreground transitions, and temporary staging, refinement, or
+recording suppression. Leaving visual Scan, switching or signing out of an
+account, or disabling **Field trip goals** resets the next presentation to the
+artwork-only circle. A horizontally dominant swipe on either size moves through
+every unfinished target across active standard outings and wraps in both
+directions. Opening uses the shared light sheet haptic; expansion, collapse, and
+selection use selection feedback. All respect the global haptics and Expedition
+mode settings. Reduced Motion makes the size change immediate. In compact form,
+VoiceOver still announces the goal, outing, progress, expansion action, and
+adjustable previous/next actions; in expanded form, artwork exposes Collapse
+while the remaining region exposes Open and the adjustable actions.
 
 New and migrated accounts normally receive active Backyard Safari Level 1 goals
 from the server. After a complete successful empty context, such as after Reset,
 the provider looks up the accessible unstarted `backyard_safari` template by
 slug. It then supplies the non-selectable **Start an outing** / **Backyard
-Safari · 2 goals** introduction with a `0/2` ring. Its leading artwork
-cross-fades between Bird and Dog every three seconds and stays static under
-Reduce Motion. The rotation keeps only its currently visible asset mounted
-between transitions, resets when refreshed artwork changes, and uses the neutral
-binoculars fallback if a named bundled asset cannot be resolved; the live
-camera's glass redraws therefore never depend on a transparent sibling remaining
-renderable. A started, completed, locked, missing, or empty template produces no
-introduction. The introduction has no swipe or adjustable action and opens
-outing detail without starting it.
+Safari · 2 goals** introduction through the same collapsed artwork and expanded
+title/progress treatment. Its artwork cross-fades between Bird and Dog every
+three seconds in either size and stays static under Reduce Motion. The rotation
+keeps only its currently visible asset mounted between transitions, resets when
+refreshed artwork changes, and uses the neutral binoculars fallback if a named
+bundled asset cannot be resolved; the live camera's glass redraws therefore
+never depend on a transparent sibling remaining renderable. A started,
+completed, locked, missing, or empty template produces no introduction. The
+introduction has no goal swipe or adjustable action. Its expanded content opens
+outing detail without starting it, while its artwork toggles size.
 
 The capsule is untinted interactive native Liquid Glass on iOS 26 and later.
 Earlier supported versions use a neutral material fallback, and semantic

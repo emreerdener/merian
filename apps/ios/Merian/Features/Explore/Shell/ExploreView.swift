@@ -225,7 +225,8 @@ struct ExploreView: View {
                     onOpenAuthorProfile: { authorRoute in
                         appendAuthorProfileRoute(authorRoute, fromDepth: route.authorProfileDepth)
                     },
-                    onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
+                    onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest,
+                    onOpenExploreMap: observationMapHandler(for: route)
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
@@ -562,6 +563,8 @@ struct ExploreView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .bold))
             }
+            .accessibilityLabel("Close Explore")
+            .accessibilityIdentifier("ExploreCloseButton")
         }
 
         if shouldShowRootModePicker {
@@ -588,7 +591,7 @@ struct ExploreView: View {
         case .feed:
             ExploreFeedTabContent(
                 viewModel: viewModel,
-                onOpenPostDetail: { openPostDetail(for: $0) },
+                onOpenPostDetail: { openPostDetail(for: $0, origin: .feed) },
                 onOpenFieldTrip: { navigationPath.append(FieldTripPublicationRoute(publicationId: $0.publicationId)) },
                 onOpenAuthorProfile: { openAuthorProfile(for: $0) },
                 onOpenFieldTripAuthorProfile: openAuthorProfile,
@@ -601,7 +604,11 @@ struct ExploreView: View {
                 feedViewModel: viewModel,
                 postStore: viewModel.store,
                 onOpenDetail: { post, focusCommentComposer in
-                    openPostDetail(for: post, focusCommentComposer: focusCommentComposer)
+                    openPostDetail(
+                        for: post,
+                        focusCommentComposer: focusCommentComposer,
+                        origin: .map
+                    )
                 }
             )
         }
@@ -634,7 +641,8 @@ struct ExploreView: View {
         openInsight: Bool = false,
         targetCommentId: String? = nil,
         targetReplyParentCommentId: String? = nil,
-        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil
+        notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
+        origin: ExplorePostDetailOrigin = .other
     ) {
         viewModel.upsertPost(post)
         viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
@@ -644,8 +652,29 @@ struct ExploreView: View {
             shouldOpenInsight: canOpenOwnedPostInsight && openInsight,
             targetCommentId: targetCommentId,
             targetReplyParentCommentId: targetReplyParentCommentId,
-            notificationReplyThreadTarget: notificationReplyThreadTarget
+            notificationReplyThreadTarget: notificationReplyThreadTarget,
+            origin: origin
         ))
+    }
+
+    private func observationMapHandler(
+        for route: ExplorePostRoute
+    ) -> ((ExploreMapFocusTarget) -> Void)? {
+        guard route.allowsObservationMapNavigation else { return nil }
+        return { target in
+            openExploreMap(target)
+        }
+    }
+
+    private func openExploreMap(_ target: ExploreMapFocusTarget) {
+        mapViewModel.focus(on: target)
+        navigationPath = NavigationPath()
+        activeTab = .feed
+        activeDiscoveryMode = .map
+
+        Task {
+            await mapViewModel.refreshFocusedArea()
+        }
     }
 
     private func openAuthorProfile(for post: ExplorePost) {
@@ -1627,6 +1656,16 @@ private struct ExploreRootModePicker: View {
     }
 }
 
+enum ExplorePostDetailOrigin: Hashable {
+    case feed
+    case map
+    case other
+
+    var allowsObservationMapNavigation: Bool {
+        self == .feed
+    }
+}
+
 struct ExplorePostRoute: Hashable {
     let postId: String
     let shouldFocusCommentComposer: Bool
@@ -1635,6 +1674,11 @@ struct ExplorePostRoute: Hashable {
     let targetReplyParentCommentId: String?
     let notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget?
     let authorProfileDepth: Int
+    let origin: ExplorePostDetailOrigin
+
+    var allowsObservationMapNavigation: Bool {
+        origin.allowsObservationMapNavigation
+    }
 
     init(
         postId: String,
@@ -1643,7 +1687,8 @@ struct ExplorePostRoute: Hashable {
         targetCommentId: String?,
         targetReplyParentCommentId: String?,
         notificationReplyThreadTarget: ExploreNotificationReplyThreadTarget? = nil,
-        authorProfileDepth: Int = 0
+        authorProfileDepth: Int = 0,
+        origin: ExplorePostDetailOrigin = .other
     ) {
         self.postId = postId
         self.shouldFocusCommentComposer = shouldFocusCommentComposer
@@ -1652,6 +1697,7 @@ struct ExplorePostRoute: Hashable {
         self.targetReplyParentCommentId = targetReplyParentCommentId
         self.notificationReplyThreadTarget = notificationReplyThreadTarget
         self.authorProfileDepth = authorProfileDepth
+        self.origin = origin
     }
 }
 

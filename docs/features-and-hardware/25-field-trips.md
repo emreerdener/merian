@@ -301,38 +301,51 @@ Presentation contract:
   startup and capture remain independent from both requests. A template-detail
   failure preserves the last complete snapshot and never fabricates an
   introduction.
-- Render beneath `MediaModeToggle` at the same visual width, with a minimum
-  56-point height and 36-point bundled goal artwork. On iOS 26 and later the
-  untinted capsule uses interactive native Liquid Glass; earlier supported
-  versions use a neutral material fallback. Foreground styles remain semantic so
-  system contrast adapts to the camera scene and accessibility settings. Unknown
-  goals use a neutral binoculars symbol; they must not borrow semantically
-  incorrect art.
-- Center the `Goal: {target}` prompt and outing title between equal 40-point
-  edge slots. Preserve the curated target text exactly; the colon avoids article
-  and plurality errors for composite or mass-noun prompts. The leading slot
-  contains the artwork; the trailing slot contains a circular `completed/target`
-  progress ring. This keeps the text optically centered while making progress
-  changes understandable when the selection crosses outing boundaries.
-- Swipe left for the next unfinished target and right for the previous target.
-  Selection wraps across every active standard outing. The gesture commits only
-  after 36 points of translation and only when horizontal movement is at least
-  1.25 times vertical movement, preserving camera and capture-page gestures.
-- Tapping the capsule uses a light sheet-opening haptic; selection changes use
-  selection haptics. Both respect the global haptics and Expedition mode gates.
-  Reduced Motion removes the selection animation, and VoiceOver exposes
-  `Outing target. Look for {target}.`, the outing title and progress, plus
-  adjustable previous/next actions.
+- Render compact beside `MediaModeToggle`: the 50-point artwork circle shares
+  its vertical centerline on the right while the 200-point selector remains
+  centered on screen. Use the established 32-point trailing workspace margin
+  when space permits and reduce it only enough to maintain an 8-point
+  inter-control gap on narrow phones. Use 42-point bundled goal artwork in the
+  compact circle and the neutral binoculars symbol for unknown goals. The
+  50-point surface remains above the 44-point minimum touch target. Tapping
+  artwork moves and expands one continuous surface to the full goal row beneath
+  the selector; its leading control returns to 56 points with 36-point artwork.
+  iOS 26 and later use untinted interactive native Liquid Glass, while earlier
+  supported versions use a neutral material fallback. Foreground styles remain
+  semantic.
+- In expanded form, center the `Goal: {target}` prompt and outing title between
+  equal 56-point artwork and progress slots. Preserve the curated target text
+  exactly; the colon avoids article and plurality errors for composite or
+  mass-noun prompts. The trailing circular ring shows `completed/target`.
+  Compact form contains artwork only, without a progress rim, count badge, or
+  disclosure glyph.
+- Tapping compact artwork expands beneath the selector; tapping expanded artwork
+  collapses it back onto the selector row. The rest of the expanded surface,
+  including the progress slot, opens the outing. The expansion choice lasts
+  through goal changes, root sheets, foregrounding, and temporary Capture
+  suppression. Leaving visual Scan, changing or signing out of an account, or
+  disabling the setting resets it to compact.
+- Swipe left for the next unfinished target and right for the previous target on
+  either compact or expanded surfaces. Selection wraps across every active
+  standard outing. The gesture commits only after 36 points of translation and
+  only when horizontal movement is at least 1.25 times vertical movement,
+  preserving camera and capture-page gestures.
+- Opening uses a light sheet haptic; expansion, collapse, and selection use
+  selection haptics. All respect the global haptics and Expedition mode gates.
+  Reduced Motion makes the size transition immediate. Compact VoiceOver exposes
+  goal, outing, progress, Expand, and adjustable previous/next actions. Expanded
+  artwork exposes Collapse; the remaining region exposes Open and the adjustable
+  actions.
 - Settings > Workspace exposes an on-by-default **Field trip goals** toggle with
   the `binoculars.fill` symbol. Turning it off removes the entire target capsule
   from Scan without changing outing progress, cached goal context, or server
   state.
-- For the validated unstarted Backyard Safari zero state after Reset, show
-  **Start an outing** over **Backyard Safari · 2 goals**, rotate the Bird and
-  Dog artwork by cross-fade every three seconds, and show `0/2` in the shared
-  progress ring. Reduce Motion keeps the first artwork static. VoiceOver
-  announces “Start an outing. Backyard Safari, 2 goals.”, “0 of 2 goals
-  complete.”, and “Opens outing details.”
+- For the validated unstarted Backyard Safari zero state after Reset, use the
+  same compact/expanded treatment. Rotate Bird and Dog artwork by cross-fade
+  every three seconds in either size; Reduce Motion keeps the first static.
+  Expanded content shows **Start an outing**, **Backyard Safari · 2 goals**, and
+  `0/2`, then opens outing detail. The introduction never changes goals by swipe
+  or VoiceOver adjustment; artwork only toggles its presentation size.
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing

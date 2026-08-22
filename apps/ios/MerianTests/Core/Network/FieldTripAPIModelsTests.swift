@@ -2213,6 +2213,92 @@ struct ActiveCaptureGoalStoreTests {
         ))
     }
 
+    @Test func captureIndicatorExpansionIsScopedToVisualVisitsAndVisibility() {
+        #expect(
+            CaptureGoalIndicatorExpansionState.collapsed.toggled == .expanded
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.toggled == .collapsed
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.preservingOnly(
+                in: .visual
+            ) == .expanded
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.preservingOnly(
+                in: .audio
+            ) == .collapsed
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.preservingOnly(
+                in: .describe
+            ) == .collapsed
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.preservingOnly(
+                whenVisible: true
+            ) == .expanded
+        )
+        #expect(
+            CaptureGoalIndicatorExpansionState.expanded.preservingOnly(
+                whenVisible: false
+            ) == .collapsed
+        )
+    }
+
+    @Test func captureIndicatorPlacementUsesTrailingCompactSelectorRow() {
+        #expect(CaptureGoalIndicatorLayoutPolicy.compactSize == 50)
+        #expect(CaptureGoalIndicatorLayoutPolicy.expandedSize == 56)
+        #expect(CaptureGoalIndicatorLayoutPolicy.compactArtworkSize == 42)
+        #expect(CaptureGoalIndicatorLayoutPolicy.expandedArtworkSize == 36)
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                isExpanded: false
+            ) == 50
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                isExpanded: true
+            ) == 56
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.artworkSize(
+                isExpanded: false
+            ) == 42
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.artworkSize(
+                isExpanded: true
+            ) == 36
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
+                containerWidth: 402
+            ) == 32
+        )
+        let narrowTrailingMargin =
+            CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
+                containerWidth: 375
+            )
+        #expect(narrowTrailingMargin == 29.5)
+        #expect(
+            ((375 - CaptureModeSelectorStyle.controlWidth) / 2)
+                - narrowTrailingMargin
+                - CaptureGoalIndicatorLayoutPolicy.compactSize == 8
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.verticalOffset(
+                isExpanded: false
+            ) == -65
+        )
+        #expect(
+            CaptureGoalIndicatorLayoutPolicy.verticalOffset(
+                isExpanded: true
+            ) == 0
+        )
+    }
+
     @Test func selectedStandardGoalRemainsPreferredAfterCameraMediaIsStaged() {
         let goal = makeGoal(id: "butterfly")
 
@@ -2393,6 +2479,25 @@ struct ActiveCaptureGoalStoreTests {
         #expect(
             ActiveCaptureGoalIndicatorCopy.accessibilityLabel(for: "Fungus") ==
                 "Outing goal. Fungus."
+        )
+        #expect(
+            CaptureGoalIndicatorAccessibilityCopy.progressValue(
+                sourceTitle: "Backyard Safari",
+                completedCount: 3,
+                targetCount: 4
+            ) == "Backyard Safari, 3 of 4 complete"
+        )
+        #expect(
+            CaptureGoalIndicatorAccessibilityCopy.goalExpandHint ==
+                "Expands goal details. Swipe up or down to change target."
+        )
+        #expect(
+            CaptureGoalIndicatorAccessibilityCopy.goalOpenHint ==
+                "Opens outing details for this target. Swipe up or down to change target."
+        )
+        #expect(
+            CaptureGoalIndicatorAccessibilityCopy.introductionExpandHint ==
+                "Expands the outing name and progress."
         )
     }
 

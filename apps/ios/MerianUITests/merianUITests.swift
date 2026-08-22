@@ -129,6 +129,262 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testCaptureModeSelectorExposesAccessibleIconsAndTracksPagerSelection() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-captureModeOrder", "visual,audio,describe"]
+        )
+
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        XCTAssertTrue(modeToggle.waitForExistence(timeout: 8.0), "Capture mode selector did not render")
+        XCTAssertLessThanOrEqual(
+            modeToggle.frame.width,
+            app.frame.width - 48,
+            "Capture mode selector no longer retains at least 24 pt side margins"
+        )
+        XCTAssertGreaterThanOrEqual(
+            modeToggle.frame.width,
+            196,
+            "Capture mode selector became narrower than the compact-width contract"
+        )
+        XCTAssertLessThanOrEqual(
+            modeToggle.frame.width,
+            204,
+            "Capture mode selector no longer uses compact horizontal spacing"
+        )
+        XCTAssertGreaterThanOrEqual(
+            modeToggle.frame.height,
+            52,
+            "Capture mode selector became shorter than the compact-height contract"
+        )
+        XCTAssertLessThanOrEqual(
+            modeToggle.frame.height,
+            60,
+            "Capture mode selector grew beyond the compact-height contract"
+        )
+        assertCaptureModeToggleIsCentered(modeToggle, in: app)
+        let scanMode = modeToggle.buttons["Scan"]
+        let recordMode = modeToggle.buttons["Record"]
+        let describeMode = modeToggle.buttons["Describe"]
+        XCTAssertTrue(scanMode.exists, "Scan icon is missing its accessible name")
+        XCTAssertTrue(recordMode.exists, "Record icon is missing its accessible name")
+        XCTAssertTrue(describeMode.exists, "Describe icon is missing its accessible name")
+        XCTAssertGreaterThanOrEqual(
+            scanMode.frame.width,
+            44,
+            "Compact Scan segment no longer meets the minimum touch width"
+        )
+        XCTAssertTrue(scanMode.isSelected, "The default visual mode is not selected")
+        XCTAssertEqual(modeToggle.value as? String, "Scan")
+
+        recordMode.tap()
+        XCTAssertTrue(
+            waitForSelectedState(recordMode),
+            "Tapping the Record icon did not select its capture page; selector value: \(String(describing: modeToggle.value))"
+        )
+        XCTAssertEqual(modeToggle.value as? String, "Record")
+        assertCaptureModeToggleIsCentered(modeToggle, in: app)
+
+        describeMode.tap()
+        XCTAssertTrue(
+            waitForSelectedState(describeMode),
+            "Tapping the Describe icon did not select its capture page"
+        )
+        XCTAssertEqual(modeToggle.value as? String, "Describe")
+        assertCaptureModeToggleIsCentered(modeToggle, in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["DescribeTextArea"].waitForExistence(timeout: 4.0),
+            "Selecting the Describe icon did not reveal the Describe page"
+        )
+
+        app.swipeRight()
+        XCTAssertTrue(
+            waitForSelectedState(recordMode),
+            "Paging from Describe to Record did not update the selected icon"
+        )
+        XCTAssertEqual(modeToggle.value as? String, "Record")
+        assertCaptureModeToggleIsCentered(modeToggle, in: app)
+
+        scanMode.tap()
+        XCTAssertTrue(
+            waitForSelectedState(scanMode),
+            "Tapping the Scan icon did not restore the visual capture page"
+        )
+        XCTAssertEqual(modeToggle.value as? String, "Scan")
+        assertCaptureModeToggleIsCentered(modeToggle, in: app)
+        XCTAssertTrue(
+            app.buttons["PhotoLibraryButton"].waitForExistence(timeout: 4.0),
+            "Selecting the Scan icon did not restore camera controls"
+        )
+    }
+
+    @MainActor
+    func testCaptureGoalIndicatorCondensesExpandsSwipesAndResets() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: [
+                "-captureModeOrder", "visual,audio,describe",
+                "-seedCaptureGoalIndicatorFlow"
+            ]
+        )
+
+        let artworkButton = app.buttons["activeCaptureGoalArtworkToggle"]
+        let openButton = app.buttons["activeCaptureGoalOpenButton"]
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        XCTAssertTrue(
+            artworkButton.waitForExistence(timeout: 8.0),
+            "Seeded capture goal artwork did not render"
+        )
+        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4.0))
+        XCTAssertGreaterThanOrEqual(artworkButton.frame.width, 48)
+        XCTAssertLessThanOrEqual(artworkButton.frame.width, 52)
+        XCTAssertGreaterThanOrEqual(artworkButton.frame.height, 48)
+        XCTAssertLessThanOrEqual(artworkButton.frame.height, 52)
+        assertCaptureGoalIsInline(
+            artworkButton: artworkButton,
+            modeToggle: modeToggle,
+            in: app
+        )
+        XCTAssertFalse(openButton.exists, "Goal details should begin collapsed")
+
+        artworkButton.swipeLeft()
+        XCTAssertTrue(
+            waitForLabelContaining("Bird", on: artworkButton),
+            "A compact swipe did not select the next goal"
+        )
+        XCTAssertFalse(openButton.exists, "A goal swipe unexpectedly expanded the indicator")
+
+        artworkButton.swipeRight()
+        XCTAssertTrue(
+            waitForLabelContaining("Flowering plant", on: artworkButton),
+            "A compact swipe did not select the previous goal"
+        )
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(
+            openButton.waitForExistence(timeout: 4.0),
+            "Tapping compact artwork did not reveal goal details"
+        )
+        XCTAssertTrue(
+            waitForCaptureGoalExpanded(
+                artworkButton: artworkButton,
+                openButton: openButton,
+                in: app
+            ),
+            "Expanded goal indicator did not fill the workspace margins"
+        )
+        let expandedFrame = artworkButton.frame.union(openButton.frame)
+        XCTAssertEqual(expandedFrame.minX, app.frame.minX + 32, accuracy: 3)
+        XCTAssertEqual(expandedFrame.maxX, app.frame.maxX - 32, accuracy: 3)
+        XCTAssertGreaterThanOrEqual(
+            expandedFrame.minY,
+            modeToggle.frame.maxY + 8,
+            "Expanded goal details did not move below the media selector"
+        )
+
+        openButton.swipeLeft()
+        XCTAssertTrue(
+            waitForLabelContaining("Bird", on: openButton),
+            "An expanded swipe did not select the next goal"
+        )
+        XCTAssertTrue(openButton.exists, "A goal swipe unexpectedly opened or collapsed the indicator")
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(
+            waitForDisappearance(openButton),
+            "Tapping expanded artwork did not collapse goal details"
+        )
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(openButton.waitForExistence(timeout: 4.0))
+        let recordMode = modeToggle.buttons["Record"]
+        let scanMode = modeToggle.buttons["Scan"]
+        recordMode.tap()
+        XCTAssertTrue(waitForSelectedState(recordMode))
+        scanMode.tap()
+        XCTAssertTrue(waitForSelectedState(scanMode))
+        XCTAssertTrue(artworkButton.waitForExistence(timeout: 4.0))
+        XCTAssertTrue(
+            waitForDisappearance(openButton),
+            "Returning to Scan did not restore the compact goal state"
+        )
+        assertCaptureGoalIsInline(
+            artworkButton: artworkButton,
+            modeToggle: modeToggle,
+            in: app
+        )
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(openButton.waitForExistence(timeout: 4.0))
+        tapCenter(of: openButton)
+        XCTAssertTrue(
+            app.buttons["ExploreCloseButton"].waitForExistence(timeout: 8.0),
+            "Tapping the expanded goal content did not open Explore"
+        )
+    }
+
+    @MainActor
+    func testCaptureGoalIntroductionUsesTheSameCompactPatternWithoutPagingGoals() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: [
+                "-captureModeOrder", "visual,audio,describe",
+                "-seedCaptureGoalIntroductionFlow"
+            ]
+        )
+
+        let artworkButton = app.buttons["captureGoalIntroductionArtworkToggle"]
+        let openButton = app.buttons["captureGoalIntroductionOpenButton"]
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        XCTAssertTrue(
+            artworkButton.waitForExistence(timeout: 8.0),
+            "Seeded outing introduction artwork did not render"
+        )
+        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4.0))
+        XCTAssertGreaterThanOrEqual(artworkButton.frame.width, 48)
+        XCTAssertLessThanOrEqual(artworkButton.frame.width, 52)
+        XCTAssertGreaterThanOrEqual(artworkButton.frame.height, 48)
+        XCTAssertLessThanOrEqual(artworkButton.frame.height, 52)
+        assertCaptureGoalIsInline(
+            artworkButton: artworkButton,
+            modeToggle: modeToggle,
+            in: app
+        )
+        XCTAssertFalse(openButton.exists, "Outing introduction should begin collapsed")
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(
+            openButton.waitForExistence(timeout: 4.0),
+            "Tapping introduction artwork did not reveal its title and progress"
+        )
+        XCTAssertTrue(
+            waitForLabelContaining("Start an outing", on: openButton)
+        )
+        XCTAssertEqual(openButton.value as? String, "0 of 2 goals complete.")
+        let expandedFrame = artworkButton.frame.union(openButton.frame)
+        XCTAssertEqual(expandedFrame.minX, app.frame.minX + 32, accuracy: 3)
+        XCTAssertEqual(expandedFrame.maxX, app.frame.maxX - 32, accuracy: 3)
+        XCTAssertGreaterThanOrEqual(
+            expandedFrame.minY,
+            modeToggle.frame.maxY + 8,
+            "Expanded outing introduction did not move below the media selector"
+        )
+
+        openButton.swipeLeft()
+        XCTAssertTrue(
+            modeToggle.buttons["Scan"].isSelected,
+            "The non-selectable introduction paged capture modes"
+        )
+        XCTAssertTrue(
+            waitForLabelContaining("Start an outing", on: openButton),
+            "The introduction incorrectly changed goals after a swipe"
+        )
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(
+            waitForDisappearance(openButton),
+            "Tapping introduction artwork did not restore the compact state"
+        )
+    }
+
+    @MainActor
     func testStagedAudioBadgeOpensPlaybackReview() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-seedStagedAudioReviewFlow"]
@@ -166,6 +422,122 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    private func waitForSelectedState(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 4.0
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "selected == true"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func tapCenter(of element: XCUIElement) {
+        element.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        ).tap()
+    }
+
+    @MainActor
+    private func assertCaptureModeToggleIsCentered(
+        _ modeToggle: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(
+            modeToggle.frame.midX,
+            app.frame.midX,
+            accuracy: 2,
+            "Capture mode selector is not horizontally centered in the workspace",
+            file: file,
+            line: line
+        )
+    }
+
+    @MainActor
+    private func assertCaptureGoalIsInline(
+        artworkButton: XCUIElement,
+        modeToggle: XCUIElement,
+        in app: XCUIApplication,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let expectedMaxX = max(
+            app.frame.maxX - 32,
+            modeToggle.frame.maxX + artworkButton.frame.width + 8
+        )
+        XCTAssertEqual(
+            artworkButton.frame.maxX,
+            expectedMaxX,
+            accuracy: 3,
+            "Compact goal artwork is not trailing-aligned beside the media selector",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            artworkButton.frame.midY,
+            modeToggle.frame.midY,
+            accuracy: 2,
+            "Compact goal artwork is not vertically centered with the media selector",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            artworkButton.frame.minX - modeToggle.frame.maxX,
+            7,
+            "Compact goal artwork overlaps the media selector",
+            file: file,
+            line: line
+        )
+    }
+
+    @MainActor
+    private func waitForLabelContaining(
+        _ fragment: String,
+        on element: XCUIElement,
+        timeout: TimeInterval = 4.0
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", fragment),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForDisappearance(
+        _ element: XCUIElement,
+        timeout: TimeInterval = 4.0
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
+    private func waitForCaptureGoalExpanded(
+        artworkButton: XCUIElement,
+        openButton: XCUIElement,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 4.0
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                guard artworkButton.exists, openButton.exists else { return false }
+                let expandedFrame = artworkButton.frame.union(openButton.frame)
+                return expandedFrame.width >= app.frame.width - 70
+            },
+            object: openButton
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    @MainActor
     func testCameraHintPreservesClearanceAboveShutter() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: [
@@ -197,21 +569,16 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(describeMode.waitForExistence(timeout: 8.0), "Describe mode did not render")
         XCTAssertTrue(describeMode.isSelected, "The configured Description-first order did not open Describe")
 
-        let descriptionInput = app.textFields[
-            "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
-        ]
-        XCTAssertTrue(descriptionInput.waitForExistence(timeout: 4.0), "Describe input did not render")
-
+        let textArea = app.descendants(matching: .any)["DescribeTextArea"]
+        XCTAssertTrue(textArea.waitForExistence(timeout: 4.0), "Describe text area did not render")
         let promptsButton = app.buttons["DescribePrompts"]
         let captureButton = app.buttons["CaptureShutter"]
         let dictationButton = app.buttons["DescribeDictation"]
-        let textArea = app.descendants(matching: .any)["DescribeTextArea"]
         let modeToggle = app.segmentedControls["CaptureModeToggle"]
         let questionNavigation = app.descendants(matching: .any)["DescribeQuestionNavigation"]
         XCTAssertTrue(promptsButton.waitForExistence(timeout: 4.0), "Describe prompt control did not render")
         XCTAssertTrue(captureButton.waitForExistence(timeout: 4.0), "Describe capture control did not render")
         XCTAssertTrue(dictationButton.waitForExistence(timeout: 4.0), "Describe dictation control did not render")
-        XCTAssertTrue(textArea.waitForExistence(timeout: 4.0), "Describe text area did not render")
         XCTAssertTrue(modeToggle.waitForExistence(timeout: 4.0), "Capture mode toggle did not render")
         XCTAssertTrue(questionNavigation.waitForExistence(timeout: 4.0), "Describe question navigation did not render")
         XCTAssertEqual(promptsButton.frame.midY, captureButton.frame.midY, accuracy: 1)

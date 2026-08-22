@@ -529,10 +529,6 @@ private enum FieldTripLifecycleConfirmation: String, Identifiable {
     var id: String { rawValue }
 }
 
-private enum FieldTripDetailLayout {
-    static let scrollCoordinateSpace = "FieldTripDetailScrollSpace"
-}
-
 enum FieldTripDetailLoadingPresentation {
     static func showsFeaturedMediaHero(
         isLoading: Bool,
@@ -632,7 +628,7 @@ struct FieldTripTemplateDetailView: View {
                         .padding(.bottom, 32)
                 }
             }
-            .coordinateSpace(name: FieldTripDetailLayout.scrollCoordinateSpace)
+            .coordinateSpace(name: FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
             .modifier(MediaHeroTopScrollEdgeEffectModifier(
                 isHidden: underlapsNavigationBar && isFeaturedHeroTopScrollEdgeEffectHidden
             ))
@@ -738,7 +734,7 @@ struct FieldTripTemplateDetailView: View {
                         Color.clear
                             .onChange(
                                 of: proxy.frame(
-                                    in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
+                                    in: .named(FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
                                 ).maxY,
                                 initial: true
                             ) { _, newMaxY in
@@ -804,7 +800,10 @@ struct FieldTripTemplateDetailView: View {
                 FieldTripAboutOutingSection(template: template)
             }
             .padding(.horizontal, 16)
-            .padding(.top, featuredMediaItems.isEmpty ? 16 : 24)
+            .padding(.top, featuredMediaItems.isEmpty ? 16 : 0)
+            .modifier(FieldTripHeroContentSheetModifier(
+                isEnabled: !featuredMediaItems.isEmpty
+            ))
         }
     }
 
@@ -4160,7 +4159,7 @@ private struct FieldTripTemplateDetailSkeleton: View {
                             Color.clear
                                 .onChange(
                                     of: proxy.frame(
-                                        in: .named(FieldTripDetailLayout.scrollCoordinateSpace)
+                                        in: .named(FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
                                     ).maxY,
                                     initial: true
                                 ) { _, newMaxY in
@@ -4181,7 +4180,9 @@ private struct FieldTripTemplateDetailSkeleton: View {
                 )
             }
             .padding(.horizontal, showsFeaturedMediaHero ? 16 : 0)
-            .padding(.top, showsFeaturedMediaHero ? 24 : 0)
+            .modifier(FieldTripHeroContentSheetModifier(
+                isEnabled: showsFeaturedMediaHero
+            ))
         }
         .redacted(reason: .placeholder)
         .accessibilityHidden(true)
@@ -4294,11 +4295,40 @@ private struct FieldTripFeaturedMediaSkeleton: View {
             .padding(.vertical, 6)
             .background(Color.black.opacity(0.2))
             .background(.ultraThinMaterial, in: Capsule())
-            .padding(.bottom, 14)
+            .padding(.bottom, FieldTripFeaturedMediaLayout.overlayBottomInset)
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
         .clipped()
+    }
+}
+
+private struct FieldTripHeroContentSheetModifier: ViewModifier {
+    let isEnabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .padding(.top, FieldTripFeaturedMediaLayout.contentTopSpacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: FieldTripFeaturedMediaLayout.contentOverlap,
+                        bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 0,
+                        topTrailingRadius: FieldTripFeaturedMediaLayout.contentOverlap
+                    )
+                    .fill(Color(uiColor: .systemGroupedBackground))
+                    .shadow(color: .black.opacity(0.12), radius: 12, y: -4)
+                    .padding(.bottom, -1000)
+                )
+                .offset(y: -FieldTripFeaturedMediaLayout.contentOverlap)
+                .padding(.bottom, -FieldTripFeaturedMediaLayout.contentOverlap)
+                .zIndex(1)
+        } else {
+            content
+        }
     }
 }
 

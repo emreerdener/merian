@@ -296,10 +296,28 @@ enum FieldTripFeaturedMediaPresentation {
 }
 
 enum FieldTripFeaturedMediaLayout {
+    static let scrollCoordinateSpace = "FieldTripDetailScrollSpace"
+    static let contentOverlap: CGFloat = 32
+    static let contentTopSpacing: CGFloat = 24
+    static let overlayInset: CGFloat = 14
+    static let overlayBottomInset = contentOverlap + overlayInset
+    static let bleedBuffer: CGFloat = 50
+
     static func underlapsNavigationBar(
         featuredItemCount: Int
     ) -> Bool {
         featuredItemCount > 0
+    }
+
+    static func heroHeight(
+        baseHeight: CGFloat,
+        scrollOffset: CGFloat
+    ) -> CGFloat {
+        baseHeight + max(scrollOffset, 0) + bleedBuffer
+    }
+
+    static func heroOffset(scrollOffset: CGFloat) -> CGFloat {
+        -(max(scrollOffset, 0) + bleedBuffer)
     }
 }
 
@@ -326,15 +344,27 @@ struct FieldTripFeaturedMediaCarousel: View {
     }
 
     var body: some View {
-        GeometryReader { _ in
+        GeometryReader { proxy in
+            let heroFrame = proxy.frame(
+                in: .named(FieldTripFeaturedMediaLayout.scrollCoordinateSpace)
+            )
+            let scrollOffset = heroFrame.minY
+
             NativePageCarousel(selectedIndex: $selectedIndex, pages: carouselPages)
+                .frame(
+                    width: proxy.size.width,
+                    height: FieldTripFeaturedMediaLayout.heroHeight(
+                        baseHeight: proxy.size.height,
+                        scrollOffset: scrollOffset
+                    )
+                )
                 .background(Color(uiColor: .secondarySystemGroupedBackground))
                 .clipped()
                 .overlay(alignment: .bottom) {
                     MediaCarouselPaginationDots(
                         pageCount: items.count,
                         selectedIndex: selectedIndex,
-                        bottomPadding: 14,
+                        bottomPadding: FieldTripFeaturedMediaLayout.overlayBottomInset,
                         accessibilityNoun: "Featured image"
                     )
                 }
@@ -345,9 +375,14 @@ struct FieldTripFeaturedMediaCarousel: View {
                         openSelectedPage()
                     }
                 )
+                .offset(
+                    y: FieldTripFeaturedMediaLayout.heroOffset(scrollOffset: scrollOffset)
+                )
+                .ignoresSafeArea(.all, edges: .top)
         }
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)
+        .ignoresSafeArea(.all, edges: .top)
         .onAppear(perform: reconcileSelection)
         .onChange(of: selectedIndex) { _, newValue in
             guard let item = items[safe: newValue] else { return }
@@ -415,8 +450,8 @@ struct FieldTripFeaturedMediaCarousel: View {
                         )
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.bottom, 14)
+            .padding(.horizontal, FieldTripFeaturedMediaLayout.overlayInset)
+            .padding(.bottom, FieldTripFeaturedMediaLayout.overlayBottomInset)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
             .animation(

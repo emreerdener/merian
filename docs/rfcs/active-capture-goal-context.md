@@ -1,7 +1,7 @@
 # Active Capture Goal Context
 
-Status: Accepted and implemented  
-Decision date: 2026-07-17  
+Status: Accepted and implemented\
+Decision date: 2026-07-17\
 Backend status: capture-context migration and `field-trips` action deployed;
 confidence-gate release pending the normal Supabase deployment process<br>
 Client status: implemented; release remains gated on the normal iOS release
@@ -10,13 +10,12 @@ process
 ## Decision
 
 Capture surfaces consume a small, source-agnostic `CaptureGoalContextSnapshot`
-containing progress-bearing `CaptureGoal` values and an optional non-progress-bearing
-`CaptureGoalIntroduction`.
-Features that own goals remain responsible for eligibility, ordering,
-completion, artwork mapping, and destination construction. Capture owns only
-presentation, local selection, account-scoped caching, refresh timing, the
-bounded submission preference, and the typed hand-off to the destination
-feature.
+containing progress-bearing `CaptureGoal` values and an optional
+non-progress-bearing `CaptureGoalIntroduction`. Features that own goals remain
+responsible for eligibility, ordering, completion, artwork mapping, and
+destination construction. Capture owns only presentation, local selection,
+account-scoped caching, refresh timing, the bounded submission preference, and
+the typed hand-off to the destination feature.
 
 The Field trips feature is the first source. It exposes a private, authenticated
 `capture_context` action backed by
@@ -24,17 +23,17 @@ The Field trips feature is the first source. It exposes a private, authenticated
 verified caller ID; the database RPC is not callable by direct client roles.
 
 This is the long-term integration boundary. Future goal-producing features must
-plug into the same generic provider and destination contracts instead of
-placing their API models, ranking logic, or routes inside the camera feature.
+plug into the same generic provider and destination contracts instead of placing
+their API models, ranking logic, or routes inside the camera feature.
 
 ## Context
 
 The visual Scan page needs lightweight motivation and orientation without
-becoming a second Field trips screen. A user may have several unfinished
-targets across multiple outings, and progress values can change when the user
-swipes between them. The indicator therefore needs enough source context to
-explain the current target while remaining small, non-blocking, and safe to
-show over a live camera.
+becoming a second Field trips screen. A user may have several unfinished targets
+across multiple outings, and progress values can change when the user swipes
+between them. The indicator therefore needs enough source context to explain the
+current target while remaining small, non-blocking, and safe to show over a live
+camera.
 
 The first implementation could have passed Field trip DTOs directly into
 `CaptureWorkspaceView`. That would have made the camera responsible for outing
@@ -61,9 +60,9 @@ needed.
 ## Non-goals
 
 - Selecting which experiences are eligible for scan progress. Progress remains
-  server-authoritative and evaluates the account-enrolled Backyard Safari,
-  every other explicitly started standard outing, and every explicitly joined
-  live Event independently.
+  server-authoritative and evaluates the account-enrolled Backyard Safari, every
+  other explicitly started standard outing, and every explicitly joined live
+  Event independently.
 - Showing Seasonal Challenge targets in the first release.
 - Treating Record, Describe, gallery import, refinement, active video, or mixed
   non-camera evidence as eligible for the preferred-goal hint. A camera-only
@@ -133,8 +132,8 @@ evidence.
 
 `CaptureGoalContextProviding` returns a snapshot whose goals are a flat array in
 final presentation order. `ActiveCaptureGoalStore` must not re-rank that array.
-This makes ordering an
-explicit source/product policy rather than an accidental client sort.
+This makes ordering an explicit source/product policy rather than an accidental
+client sort.
 
 `CaptureGoalDestination` is an enum rather than an untyped dictionary or URL.
 Adding a destination therefore creates compiler errors at every routing switch
@@ -160,12 +159,12 @@ part of this contract. Challenge joins reuse the linked standard
 `user_field_trips` row, so the standard outing and its normal progress remain
 eligible; joining an event must not make an existing Scan target disappear.
 
-Every profile insert opens Backyard Safari Level 1 and its first activity
-period before Capture reads this contract. The migration performs the same
-insert-only enrollment for existing accounts. It never resumes an existing
-stopped, reset, or completed row, and its enrollment timestamp—not historical
-account or scan time—is the first eligible scan boundary.
-Enrollment does not weaken the evidence boundary established by
+Every profile insert opens Backyard Safari Level 1 and its first activity period
+before Capture reads this contract. The migration performs the same insert-only
+enrollment for existing accounts. It never resumes an existing stopped, reset,
+or completed row, and its enrollment timestamp—not historical account or scan
+time—is the first eligible scan boundary. Enrollment does not weaken the
+evidence boundary established by
 `20260730023042_gate_field_trip_progress_by_confidence.sql`.
 
 Ordering is stable and server-owned:
@@ -185,16 +184,15 @@ from an unrelated target.
 
 ## Submission Preference Contract
 
-The visible selection is an optional tie breaker inside its own standard
-outing, not an eligibility override and not a cross-experience winner. A saved
-scan can still advance one goal in every eligible standard outing and one goal
-in every joined live Event. Within each experience the server credits at most
-one goal.
+The visible selection is an optional tie breaker inside its own standard outing,
+not an eligibility override and not a cross-experience winner. A saved scan can
+still advance one goal in every eligible standard outing and one goal in every
+joined live Event. Within each experience the server credits at most one goal.
 
 Automatic AI evidence is eligible only at the exact inference tier's
-Possible-match boundary (75% Flash / 65% Pro). A weaker unreviewed match receives
-no credit regardless of the visible selection. The complete preference remains
-pending in the atomic receipt until explicit confirmation or a confirmed
+Possible-match boundary (75% Flash / 65% Pro). A weaker unreviewed match
+receives no credit regardless of the visible selection. The complete preference
+remains pending in the atomic receipt until explicit confirmation or a confirmed
 correction/community resolution makes the identification eligible.
 
 Capture may attach `preferred_goal: { user_field_trip_id, item_id }` only when:
@@ -240,9 +238,9 @@ not exposed in the current Capture context.
 The cache is a versioned `Codable` envelope in `UserDefaults`, keyed by the
 normalized Supabase account ID. It stores only generic goals, the selected goal
 ID, an optional generic introduction, and the successful refresh date. It does
-not cache source DTOs or evidence.
-Activating a different account clears in-memory state before loading that
-account's key. Signing out clears the in-memory state.
+not cache source DTOs or evidence. Activating a different account clears
+in-memory state before loading that account's key. Signing out clears the
+in-memory state.
 
 The current key prefix is `captureGoalContext.v1.`. Any incompatible Codable,
 identity, ordering, or privacy change must increment the cache version instead
@@ -250,8 +248,8 @@ of trying to decode the old shape opportunistically.
 
 Refresh policy:
 
-- refresh through the five-minute freshness gate on Capture appearance,
-  Supabase account restoration/change, foregrounding, or return to visual Scan;
+- refresh through the five-minute freshness gate on Capture appearance, Supabase
+  account restoration/change, foregrounding, or return to visual Scan;
 - force after outing start/join and standard progress events;
 - force after explicit scanner-routing or capture-goal invalidation events;
 - when lifecycle callbacks overlap at startup, share the current fetch without
@@ -279,12 +277,17 @@ The pill appears only when all of the following are true:
 - refinement is inactive; and
 - video is not recording.
 
-With no complete cache, initial loading renders nothing. The pill sits below the existing
-mode picker, matches its visual width, has a minimum 56-point height, and shows
-36-point artwork. It uses untinted interactive native Liquid Glass on iOS 26 and
-later, with a neutral material fallback on earlier supported versions. Text and
-symbols use semantic foreground styles rather than a fixed brand color so the
-system can maintain contrast over the live camera scene.
+With no complete cache, initial loading renders nothing. The indicator starts as
+a 50-point circle containing 42-point artwork on the mode picker's vertical
+centerline, to its right while the picker remains centered on screen. It uses
+the 32-point trailing workspace margin when space permits and compresses that
+margin only enough to preserve an 8-point gap on narrow phones. Expansion moves
+the same surface to the row beneath the picker, restores a 56-point leading
+control with 36-point artwork, and fills the available goal width. It uses
+untinted interactive native Liquid Glass on iOS 26 and later, with a neutral
+material fallback on earlier supported versions. Text and symbols use semantic
+foreground styles rather than a fixed brand color so the system can maintain
+contrast over the live camera scene.
 
 The on-by-default **Field trip goals** setting controls presentation of the
 capsule and whether Capture may forward that visible selection as a preferred
@@ -293,34 +296,39 @@ stop normal refreshes, or disable server progress; saved scans use deterministic
 fallback ranking instead. Re-enabling is immediate and does not create a
 separate server preference setting.
 
-An active target is rendered as `Goal: {target}` while the
-outing title remains centered beneath it between symmetric artwork and progress
-slots. The curated prompt is preserved exactly instead of adding grammar-aware
-articles. The trailing circular progress ring shows
-`completed/target`, replacing the disclosure caret and avoiding a duplicate
-progress subtitle. Swipe left selects the next target; swipe right selects the
-previous target; both directions wrap. A drag commits only after 36 points and
+Compact form shows artwork only. Tapping it moves the surface beneath the picker
+and expands `Goal: {target}` and the outing title between symmetric 56-point
+artwork and progress slots. The curated prompt is preserved exactly instead of
+adding grammar-aware articles. The trailing circular progress ring shows
+`completed/target`. Tapping artwork again collapses the surface onto the picker
+row; tapping the remaining expanded region opens the owning outing.
+
+Swipe left selects the next target and swipe right selects the previous target
+from either size; both directions wrap. A drag commits only after 36 points and
 when horizontal motion is at least 1.25 times vertical motion, avoiding conflict
-with vertical camera gestures and capture-mode paging.
+with vertical camera gestures and capture-mode paging. Expansion survives goal
+changes, root sheets, foregrounding, and temporary Capture suppression. Leaving
+visual Scan, changing or signing out of an account, or disabling the setting
+resets the next presentation to compact.
 
-Opening the capsule provides a light sheet-opening haptic, while target changes
-provide selection feedback; both use the shared app haptics policy. Reduce
-Motion removes selection animation. VoiceOver announces the element as an
-outing target, then exposes the current target and progress plus adjustable
-previous/next actions. The current compact treatment keeps both text rows to one
-line; Dynamic Type QA must confirm the prompt and outing context remain
-intelligible without covering camera controls. If accessibility sizes do not
-meet that bar, prefer bounded vertical growth over shrinking the tap target or
-hiding the outing context.
+Opening provides a light sheet haptic, while expansion, collapse, and target
+changes provide selection feedback through the shared app haptics policy. Reduce
+Motion makes the size transition immediate and removes target-selection
+animation. Compact VoiceOver announces the goal, outing, progress, Expand, and
+adjustable previous/next actions. Expanded artwork exposes Collapse, while the
+remaining region exposes Open and the adjustable actions. Dynamic Type QA must
+confirm the expanded prompt and outing context remain intelligible without
+covering camera controls.
 
-The post-Reset Field trip introduction renders **Start an outing** over
-**Backyard Safari · 2 goals**, cycles between the exact Bird and Dog artwork by
-three-second cross-fades, and shows the shared `0/2` progress ring. It is not a
-selectable goal and therefore has no horizontal drag or VoiceOver adjustable
-action. Reduce Motion keeps the first image static. Tapping opens outing detail
-without starting it. New and migrated accounts instead receive active Backyard
-Safari Level 1 goals automatically; started, completed, inaccessible, missing,
-and empty templates produce no introduction.
+The post-Reset Field trip introduction uses the same compact/expanded treatment.
+Its exact Bird and Dog artwork continues three-second cross-fades in either
+size, while Reduce Motion keeps the first image static. Expanded content renders
+**Start an outing**, **Backyard Safari · 2 goals**, and the shared `0/2` ring.
+The introduction is not a selectable goal and therefore has no goal swipe or
+VoiceOver adjustable action. Artwork toggles size; the remaining expanded region
+opens outing detail without starting it. New and migrated accounts instead
+receive active Backyard Safari Level 1 goals automatically; started, completed,
+inaccessible, missing, and empty templates produce no introduction.
 
 ## Navigation
 
@@ -349,9 +357,10 @@ progress mutations.
 
 The client request accepts no account identifier. The repository's authenticated
 Edge boundary verifies the session with `withEdgeHandler`, and only the verified
-`user.id` is passed to the database helper. `field-trips` retains the repository's
-documented `verify_jwt = false` gateway compatibility policy; this does not make
-the action anonymous because the handler still requires authentication.
+`user.id` is passed to the database helper. `field-trips` retains the
+repository's documented `verify_jwt = false` gateway compatibility policy; this
+does not make the action anonymous because the handler still requires
+authentication.
 
 `public.get_field_trip_capture_context(uuid)` is `SECURITY INVOKER`, uses an
 empty search path with qualified objects, and has execute permission revoked
@@ -388,7 +397,8 @@ different Edge auth wrapper is a separate decision and must preserve verified
 caller identity, the unauthenticated `401` contract, and the service-only RPC
 boundary. See the official Supabase guidance for
 [Edge Function authentication](https://supabase.com/docs/guides/functions/auth)
-and [database function privileges](https://supabase.com/docs/guides/database/functions).
+and
+[database function privileges](https://supabase.com/docs/guides/database/functions).
 
 ## Telemetry and observability
 
@@ -402,10 +412,10 @@ The standard `event_source = ios_client` property is added by `AppTelemetry`.
 Prompts, IDs, titles, progress values, destination fields, and account identity
 are prohibited.
 
-Operational monitoring should distinguish authentication failures, RPC
-failures, empty success, and decode failures without logging returned target
-content. A refresh error remains invisible over the camera; diagnostics belong
-in privacy-safe logs and aggregate backend monitoring.
+Operational monitoring should distinguish authentication failures, RPC failures,
+empty success, and decode failures without logging returned target content. A
+refresh error remains invisible over the camera; diagnostics belong in
+privacy-safe logs and aggregate backend monitoring.
 
 ## Adding another goal source
 
@@ -436,8 +446,8 @@ store and Scan view should remain unaware of provider count.
 The first composite implementation should preserve snapshot consistency: if a
 required provider fails, throw and let the store retain the last complete
 snapshot. If independent partial freshness later becomes a product requirement,
-redesign the store around source-keyed snapshots and timestamps explicitly;
-do not silently mix fresh results from one source with missing results from
+redesign the store around source-keyed snapshots and timestamps explicitly; do
+not silently mix fresh results from one source with missing results from
 another.
 
 Do not create a global backend goal service merely because a second source
@@ -451,8 +461,8 @@ client provider boundary.
 The current response is intentionally unpaginated because the active curated
 Field trip catalog is bounded and the indicator cycles through the full set. If
 active field trips or target counts can grow materially, add a hard server-side
-limit and payload-size telemetry before broad rollout. Do not allow an
-unbounded user-generated checklist to feed the camera contract.
+limit and payload-size telemetry before broad rollout. Do not allow an unbounded
+user-generated checklist to feed the camera contract.
 
 Realtime is not the default refresh mechanism. Event invalidation plus a
 five-minute stale window is cheaper, more predictable in poor connectivity, and
@@ -478,9 +488,8 @@ Release order is mandatory:
 3. Deploy the updated `field-trips` Edge Function.
 4. Verify signed-in and ghost account enrollment, insert-only backfill,
    enrollment-trigger ACLs, authenticated success, unauthenticated `401`,
-   filtering, order, absence of private evidence, confidence boundaries,
-   pending weak-match behavior, confirmation replay, and evidence-downgrade
-   reopening.
+   filtering, order, absence of private evidence, confidence boundaries, pending
+   weak-match behavior, confirmation replay, and evidence-downgrade reopening.
 5. Release the indicator-enabled iOS client.
 
 The normal production workflow runs
@@ -494,15 +503,14 @@ Existing clients remain compatible because the action and RPC are additive.
 
 For rollback, disable the client surface through the Field trips availability
 gate or ship a client rollback first. Leaving the additive endpoint and RPC in
-place is safer than dropping database objects during an incident. If the
-backend contract itself must be disabled, undeploy or reject only
-`capture_context`; do not delete Field trip progress or publication data.
-If automatic starter enrollment itself must stop, use a new forward migration
-to drop `auto_enroll_backyard_safari_level_one_on_user_insert` from
-`public.users`, then drop
-`internal.auto_enroll_backyard_safari_level_one()`. Preserve all rows and
-periods already created by enrollment because they are normal user progress.
-The confidence migration's repair is forward-only: do not recreate deleted weak
+place is safer than dropping database objects during an incident. If the backend
+contract itself must be disabled, undeploy or reject only `capture_context`; do
+not delete Field trip progress or publication data. If automatic starter
+enrollment itself must stop, use a new forward migration to drop
+`auto_enroll_backyard_safari_level_one_on_user_insert` from `public.users`, then
+drop `internal.auto_enroll_backyard_safari_level_one()`. Preserve all rows and
+periods already created by enrollment because they are normal user progress. The
+confidence migration's repair is forward-only: do not recreate deleted weak
 completion rows or derived artifacts. Retain a pre-deploy backup and use a
 client/Edge rollback or a forward database fix while leaving the evidence gate
 in place.
@@ -577,5 +585,5 @@ battery, and authorization complexity without a demonstrated need.
 ### Build a universal goal backend now
 
 Rejected because one source does not justify a new cross-domain service. The
-generic client boundary preserves the option without moving source
-authorization out of its owner prematurely.
+generic client boundary preserves the option without moving source authorization
+out of its owner prematurely.

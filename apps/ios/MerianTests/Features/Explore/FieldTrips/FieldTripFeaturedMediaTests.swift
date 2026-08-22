@@ -280,6 +280,29 @@ struct FieldTripFeaturedMediaTests {
         ))
     }
 
+    @Test func heroOverlaysClearRoundedContentAndImageExpandsOnPullDown() {
+        #expect(
+            FieldTripFeaturedMediaLayout.overlayBottomInset
+                - FieldTripFeaturedMediaLayout.contentOverlap
+                == FieldTripFeaturedMediaLayout.overlayInset
+        )
+        #expect(FieldTripFeaturedMediaLayout.heroHeight(
+            baseHeight: 320,
+            scrollOffset: 0
+        ) == 370)
+        #expect(FieldTripFeaturedMediaLayout.heroOffset(scrollOffset: 0) == -50)
+        #expect(FieldTripFeaturedMediaLayout.heroHeight(
+            baseHeight: 320,
+            scrollOffset: 40
+        ) == 410)
+        #expect(FieldTripFeaturedMediaLayout.heroOffset(scrollOffset: 40) == -90)
+        #expect(FieldTripFeaturedMediaLayout.heroHeight(
+            baseHeight: 320,
+            scrollOffset: -40
+        ) == 370)
+        #expect(FieldTripFeaturedMediaLayout.heroOffset(scrollOffset: -40) == -50)
+    }
+
     @Test func inlineAttributionSeparatesNaturebookContributorFromSource() {
         let naturebook = FieldTripFeaturedMediaSource.reference(
             referenceImage(source: .merian, authorUsername: "field_author")

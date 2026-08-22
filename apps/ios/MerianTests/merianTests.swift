@@ -1,4 +1,5 @@
 import CoreData
+import MapKit
 import SwiftData
 import SwiftUI
 import UIKit
@@ -1914,6 +1915,7 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
     private func makeMapPost(
         id: String,
         latitude: Double,
+        coordinateVisibility: ExploreCoordinateVisibility = .exact,
         mediaKinds: [ExploreMediaKind] = [.image]
     ) -> ExploreMapPost {
         ExploreMapPost(
@@ -1921,7 +1923,7 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             scanId: "scan-\(id)",
             latitude: latitude,
             longitude: -97.743,
-            coordinateVisibility: .exact,
+            coordinateVisibility: coordinateVisibility,
             heroImageUrl: "https://example.com/\(id).jpg",
             sharedAt: "2026-05-05T12:00:00Z",
             authorUserId: "author-\(id)",
@@ -1935,7 +1937,7 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
             taxonomyKingdom: "Animalia",
             taxonomyClass: "Insecta",
             publicLocationLabel: "Austin, TX",
-            locationSharing: nil,
+            locationSharing: .open,
             timeOfDay: nil,
             currentMonth: nil,
             weatherCondition: nil,
@@ -1954,6 +1956,40 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
                     hasAudio: kind != .image
                 )
             }
+        )
+    }
+
+    private func makeCanonicalPost(
+        from mapPost: ExploreMapPost,
+        locationSharing: ExplorePostLocationSharing
+    ) -> ExplorePost {
+        ExplorePost(
+            postId: mapPost.postId,
+            scanId: mapPost.scanId,
+            heroImageUrl: mapPost.heroImageUrl,
+            referenceThumbnailUrl: mapPost.referenceThumbnailUrl,
+            sharedAt: mapPost.sharedAt,
+            authorUserId: mapPost.authorUserId,
+            authorName: mapPost.authorName,
+            authorUsername: mapPost.authorUsername,
+            authorAvatarUrl: mapPost.authorAvatarUrl,
+            authorIsPro: mapPost.authorIsPro,
+            hashtags: nil,
+            speciesCommonName: mapPost.speciesCommonName,
+            speciesScientificName: mapPost.speciesScientificName,
+            petIdentification: mapPost.petIdentification,
+            publicLocationLabel: mapPost.publicLocationLabel,
+            locationSharing: locationSharing,
+            timeOfDay: mapPost.timeOfDay,
+            currentMonth: mapPost.currentMonth,
+            weatherCondition: mapPost.weatherCondition,
+            weatherTemperatureF: mapPost.weatherTemperatureF,
+            likeCount: mapPost.likeCount,
+            commentCount: mapPost.commentCount,
+            viewerHasLiked: mapPost.viewerHasLiked,
+            isOwnedByViewer: mapPost.isOwnedByViewer,
+            rankingValue: nil,
+            mediaItems: mapPost.mediaItems
         )
     }
 
@@ -2070,6 +2106,295 @@ final class ExploreMapViewModelSelectionTests: XCTestCase {
         XCTAssertTrue(viewModel.selectedMediaTypes.isEmpty)
         XCTAssertNil(viewModel.selectedPostId)
         XCTAssertFalse(viewModel.hasActiveFilters)
+    }
+
+    func testFocusCentersSelectsAndClearsAllFilters() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "focus", latitude: 12.3456)
+        viewModel.selectedSpeciesCategories = [.insects]
+        viewModel.selectedMediaTypes = [.audio]
+
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        XCTAssertEqual(viewModel.posts.map(\.id), [post.id])
+        XCTAssertEqual(viewModel.selectedPostId, post.id)
+        XCTAssertEqual(viewModel.visibleRegion?.center.latitude ?? .nan, post.latitude, accuracy: 0.0001)
+        XCTAssertEqual(viewModel.visibleRegion?.center.longitude ?? .nan, post.longitude, accuracy: 0.0001)
+        XCTAssertEqual(viewModel.visibleRegion?.span.latitudeDelta ?? .nan, 0.05, accuracy: 0.0001)
+        XCTAssertTrue(viewModel.selectedSpeciesCategories.isEmpty)
+        XCTAssertTrue(viewModel.selectedMediaTypes.isEmpty)
+        XCTAssertFalse(viewModel.hasActiveFilters)
+    }
+
+    func testFocusUsesApproximateRegionForObscuredCoordinates() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(
+            id: "obscured-focus",
+            latitude: -23.5,
+            coordinateVisibility: .obscured
+        )
+
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        XCTAssertEqual(viewModel.selectedPostId, post.id)
+        XCTAssertEqual(viewModel.visibleRegion?.span.latitudeDelta ?? .nan, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(viewModel.visibleRegion?.span.longitudeDelta ?? .nan, 0.2, accuracy: 0.0001)
+    }
+
+    func testFocusedCameraCommitPreservesSelectionBeforeUserPan() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "camera-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        let settledRegion = MKCoordinateRegion(
+            center: post.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.08)
+        )
+        viewModel.markCameraChanged(region: settledRegion)
+
+        XCTAssertEqual(viewModel.selectedPostId, post.id)
+        XCTAssertEqual(viewModel.lastCommittedRegion?.span.longitudeDelta ?? .nan, 0.08, accuracy: 0.0001)
+        XCTAssertFalse(viewModel.needsSearchInArea)
+
+        let pannedRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: post.latitude + 1,
+                longitude: post.longitude
+            ),
+            span: settledRegion.span
+        )
+        viewModel.markCameraChanged(region: pannedRegion)
+
+        XCTAssertNil(viewModel.selectedPostId)
+        XCTAssertTrue(viewModel.needsSearchInArea)
+    }
+
+    func testFocusedCameraCommitTreatsNonContainingFirstRegionAsUserPan() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "camera-interrupted", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        let pannedRegion = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: post.latitude + 1,
+                longitude: post.longitude
+            ),
+            span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        )
+        viewModel.markCameraChanged(region: pannedRegion)
+
+        XCTAssertNil(viewModel.selectedPostId)
+        XCTAssertTrue(viewModel.needsSearchInArea)
+        XCTAssertEqual(
+            viewModel.visibleRegion?.center.latitude ?? .nan,
+            pannedRegion.center.latitude,
+            accuracy: 0.0001
+        )
+    }
+
+    func testClusterRefreshPreservesFocusedTarget() async {
+        let viewModel = ExploreMapViewModel { _ in
+            ExploreMapPointsResponse(mode: .clusters, visibleCount: 8)
+        }
+        let post = makeMapPost(id: "cluster-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        await viewModel.refreshFocusedArea()
+
+        XCTAssertEqual(viewModel.posts.map(\.id), [post.id])
+        XCTAssertEqual(viewModel.selectedPostId, post.id)
+    }
+
+    func testAuthoritativePostRefreshRemovesMissingFocusedTarget() async {
+        let viewModel = ExploreMapViewModel { _ in
+            ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+        }
+        let post = makeMapPost(id: "missing-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        await viewModel.refreshFocusedArea()
+
+        XCTAssertTrue(viewModel.posts.isEmpty)
+        XCTAssertNil(viewModel.selectedPostId)
+        XCTAssertNil(viewModel.selectedPost)
+    }
+
+    func testFocusSuppressesOlderInFlightMapResponse() async {
+        var requestCount = 0
+        let stalePost = makeMapPost(id: "stale-map-post", latitude: 40)
+        let staleResponse = ExploreMapPointsResponse(
+            mode: .posts,
+            visibleCount: 1,
+            posts: [stalePost]
+        )
+        let refreshedResponse = ExploreMapPointsResponse(mode: .clusters, visibleCount: 5)
+        let viewModel = ExploreMapViewModel { _ in
+            requestCount += 1
+            if requestCount == 1 {
+                try await Task.sleep(for: .milliseconds(75))
+                return staleResponse
+            }
+            return refreshedResponse
+        }
+        let initialRegion = MKCoordinateRegion(
+            center: stalePost.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        viewModel.visibleRegion = initialRegion
+        viewModel.lastCommittedRegion = initialRegion
+
+        let staleRequest = Task { await viewModel.searchCurrentArea() }
+        while !viewModel.isLoading {
+            await Task.yield()
+        }
+
+        let focusedPost = makeMapPost(id: "current-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: focusedPost))
+        await viewModel.refreshFocusedArea()
+        await staleRequest.value
+
+        for _ in 0..<100 {
+            if requestCount >= 2, !viewModel.isLoading { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertEqual(requestCount, 2)
+        XCTAssertEqual(viewModel.posts.map(\.id), [focusedPost.id])
+        XCTAssertEqual(viewModel.selectedPostId, focusedPost.id)
+        XCTAssertFalse(viewModel.posts.contains(where: { $0.id == stalePost.id }))
+    }
+
+    func testCanonicalPrivacyChangeRemovesFocusedPost() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "privacy-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        viewModel.syncPosts(from: [
+            makeCanonicalPost(from: post, locationSharing: .privateLocation)
+        ])
+
+        XCTAssertTrue(viewModel.posts.isEmpty)
+        XCTAssertNil(viewModel.selectedPostId)
+        XCTAssertNil(viewModel.selectedPost)
+    }
+
+    func testExplicitPostRemovalClearsFocusedTarget() {
+        let viewModel = ExploreMapViewModel()
+        let post = makeMapPost(id: "removed-focus", latitude: 12.3456)
+        viewModel.focus(on: ExploreMapFocusTarget(post: post))
+
+        viewModel.removePost(id: post.id)
+
+        XCTAssertTrue(viewModel.posts.isEmpty)
+        XCTAssertNil(viewModel.selectedPostId)
+    }
+
+    func testFocusTargetMapsPublicDetailPointIntoMapPost() throws {
+        let mapPost = makeMapPost(id: "mapped-focus", latitude: 0)
+        let canonicalPost = makeCanonicalPost(from: mapPost, locationSharing: .open)
+        let detailData = Data("""
+        {
+            "post_id": "mapped-focus",
+            "location_sharing": "open",
+            "taxonomy_kingdom": "Animalia",
+            "taxonomy_class": "Insecta",
+            "map_point": {
+                "latitude": 12.3456,
+                "longitude": -45.6789,
+                "coordinate_visibility": "obscured"
+            }
+        }
+        """.utf8)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let detail = try decoder.decode(ExplorePostDetail.self, from: detailData)
+
+        let target = ExploreMapFocusTarget(post: canonicalPost, detail: detail)
+
+        XCTAssertEqual(target?.post.id, canonicalPost.id)
+        XCTAssertEqual(target?.post.latitude ?? .nan, 12.3456, accuracy: 0.0001)
+        XCTAssertEqual(target?.post.longitude ?? .nan, -45.6789, accuracy: 0.0001)
+        XCTAssertEqual(target?.post.coordinateVisibility, .obscured)
+        XCTAssertEqual(target?.post.taxonomyKingdom, "Animalia")
+        XCTAssertEqual(target?.post.taxonomyClass, "Insecta")
+    }
+
+    func testObservationMapPresentationFailsClosedAndUsesExactOrApproximatePolicy() throws {
+        let mapPost = makeMapPost(id: "presentation", latitude: 0)
+        let openPost = makeCanonicalPost(from: mapPost, locationSharing: .open)
+
+        func decodeDetail(
+            postId: String = "presentation",
+            locationSharing: String = "open",
+            latitude: Double = 12.3456,
+            visibility: String
+        ) throws -> ExplorePostDetail {
+            let data = Data("""
+            {
+                "post_id": "\(postId)",
+                "location_sharing": "\(locationSharing)",
+                "map_point": {
+                    "latitude": \(latitude),
+                    "longitude": -45.6789,
+                    "coordinate_visibility": "\(visibility)"
+                }
+            }
+            """.utf8)
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            return try decoder.decode(ExplorePostDetail.self, from: data)
+        }
+
+        let exact = try XCTUnwrap(ExploreObservationMapPresentation(
+            post: openPost,
+            detail: decodeDetail(visibility: "exact")
+        ))
+        XCTAssertEqual(exact.spanDelta, 0.05, accuracy: 0.0001)
+        XCTAssertNil(exact.approximateRadiusMeters)
+
+        let obscured = try XCTUnwrap(ExploreObservationMapPresentation(
+            post: openPost,
+            detail: decodeDetail(visibility: "obscured")
+        ))
+        XCTAssertEqual(obscured.spanDelta, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(
+            obscured.approximateRadiusMeters ?? .nan,
+            ExploreObservationMapPresentation.approximateCoordinateRadiusMeters,
+            accuracy: 0.0001
+        )
+
+        let privatePost = makeCanonicalPost(from: mapPost, locationSharing: .privateLocation)
+        XCTAssertNil(ExploreObservationMapPresentation(
+            post: privatePost,
+            detail: try decodeDetail(visibility: "exact")
+        ))
+        XCTAssertNil(ExploreObservationMapPresentation(
+            post: openPost,
+            detail: try decodeDetail(postId: "different-post", visibility: "exact")
+        ))
+        XCTAssertNil(ExploreObservationMapPresentation(
+            post: openPost,
+            detail: try decodeDetail(latitude: 200, visibility: "exact")
+        ))
+    }
+}
+
+final class ExplorePostDetailOriginTests: XCTestCase {
+    private func makeRoute(origin: ExplorePostDetailOrigin) -> ExplorePostRoute {
+        ExplorePostRoute(
+            postId: "post-origin",
+            shouldFocusCommentComposer: false,
+            shouldOpenInsight: false,
+            targetCommentId: nil,
+            targetReplyParentCommentId: nil,
+            origin: origin
+        )
+    }
+
+    func testOnlyMainFeedOriginEnablesObservationMapNavigation() {
+        XCTAssertTrue(makeRoute(origin: .feed).allowsObservationMapNavigation)
+        XCTAssertFalse(makeRoute(origin: .map).allowsObservationMapNavigation)
+        XCTAssertFalse(makeRoute(origin: .other).allowsObservationMapNavigation)
     }
 }
 

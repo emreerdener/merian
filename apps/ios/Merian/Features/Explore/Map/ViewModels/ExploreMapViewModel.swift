@@ -16,9 +16,65 @@ private struct ExploreMapCacheEntry {
     }
 }
 
+struct ExploreMapFocusTarget: Equatable {
+    let post: ExploreMapPost
+
+    init(post: ExploreMapPost) {
+        self.post = post
+    }
+
+    init?(post: ExplorePost, detail: ExplorePostDetail) {
+        guard let mapPoint = detail.visibleMapPoint else { return nil }
+
+        self.post = ExploreMapPost(
+            postId: post.postId,
+            scanId: post.scanId,
+            latitude: mapPoint.latitude,
+            longitude: mapPoint.longitude,
+            coordinateVisibility: mapPoint.coordinateVisibility,
+            heroImageUrl: post.heroImageUrl,
+            referenceThumbnailUrl: post.referenceThumbnailUrl,
+            sharedAt: post.sharedAt,
+            authorUserId: post.authorUserId,
+            authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorAvatarUrl: post.authorAvatarUrl,
+            authorIsPro: post.authorIsPro,
+            speciesCommonName: post.speciesCommonName,
+            speciesScientificName: post.speciesScientificName,
+            petIdentification: post.petIdentification,
+            taxonomyKingdom: detail.taxonomyKingdom,
+            taxonomyClass: detail.taxonomyClass,
+            publicLocationLabel: post.publicLocationLabel,
+            locationSharing: .open,
+            timeOfDay: post.timeOfDay,
+            currentMonth: post.currentMonth,
+            weatherCondition: post.weatherCondition,
+            weatherTemperatureF: post.weatherTemperatureF,
+            likeCount: post.likeCount,
+            commentCount: post.commentCount,
+            viewerHasLiked: post.viewerHasLiked,
+            isOwnedByViewer: post.isOwnedByViewer,
+            mediaItems: post.mediaItems
+        )
+    }
+}
+
+struct ExploreMapPointsRequest {
+    let region: MKCoordinateRegion
+    let zoomLevel: Double
+    let limit: Int
+    let speciesCategories: Set<ExploreMapSpeciesCategory>
+    let mediaTypes: Set<ExploreMediaKind>
+}
+
 @MainActor
 @Observable
 final class ExploreMapViewModel {
+    typealias MapPointsLoader = @MainActor (
+        _ request: ExploreMapPointsRequest
+    ) async throws -> ExploreMapPointsResponse
+
     var cameraPosition: MapCameraPosition = .automatic
     var visibleRegion: MKCoordinateRegion?
     var lastCommittedRegion: MKCoordinateRegion?
@@ -51,6 +107,26 @@ final class ExploreMapViewModel {
     @ObservationIgnored private var cachedResponses: [ExploreMapCacheEntry] = []
     @ObservationIgnored private var debounceSearchTask: Task<Void, Never>?
     @ObservationIgnored private var needsRefreshAfterCurrentLoad = false
+    @ObservationIgnored private var needsForcedRefreshAfterCurrentLoad = false
+    @ObservationIgnored private var requestGeneration = 0
+    @ObservationIgnored private var focusedPost: ExploreMapPost?
+    @ObservationIgnored private var isAwaitingFocusedCameraCommit = false
+    @ObservationIgnored private let mapPointsLoader: MapPointsLoader
+
+    init(mapPointsLoader: @escaping MapPointsLoader = { request in
+        try await MerianNetworkClient.shared.getExploreMapPoints(
+            northLatitude: request.region.northLatitude,
+            southLatitude: request.region.southLatitude,
+            eastLongitude: request.region.eastLongitude,
+            westLongitude: request.region.westLongitude,
+            zoomLevel: request.zoomLevel,
+            limit: request.limit,
+            speciesCategories: request.speciesCategories,
+            mediaTypes: request.mediaTypes
+        )
+    }) {
+        self.mapPointsLoader = mapPointsLoader
+    }
 
     private func scheduleAutomaticSearch() {
         debounceSearchTask?.cancel()
@@ -178,11 +254,59 @@ final class ExploreMapViewModel {
         await fetchMapPoints(for: region)
     }
 
+    func focus(on target: ExploreMapFocusTarget) {
+        debounceSearchTask?.cancel()
+        debounceSearchTask = nil
+        requestGeneration &+= 1
+        cachedResponses.removeAll()
+
+        selectedSpeciesCategories = []
+        selectedMediaTypes = []
+        appliedSpeciesCategories = []
+        appliedMediaTypes = []
+
+        let post = target.post
+        let region = focusedRegion(for: post)
+        focusedPost = post
+        isAwaitingFocusedCameraCommit = true
+        mode = .posts
+        clusters = []
+        posts = [post]
+        selectedPostId = post.id
+        visibleCount = 1
+        categoryCounts = []
+        mediaTypeCounts = []
+        errorMessage = nil
+        hasServiceUnavailableError = false
+        isOffline = false
+        needsSearchInArea = false
+        visibleRegion = region
+        lastCommittedRegion = region
+        cameraPosition = .region(region)
+    }
+
+    func refreshFocusedArea() async {
+        guard focusedPost != nil,
+              let region = visibleRegion ?? lastCommittedRegion else { return }
+        await fetchMapPoints(for: region, forceRefresh: true)
+    }
+
     func markCameraChanged(region: MKCoordinateRegion) {
+        if isAwaitingFocusedCameraCommit, let focusedPost {
+            isAwaitingFocusedCameraCommit = false
+            if region.contains(focusedPost.coordinate) {
+                visibleRegion = region
+                lastCommittedRegion = region
+                needsSearchInArea = false
+                return
+            }
+        }
+
         visibleRegion = region
         guard let lastCommittedRegion else { return }
 
         if regionMeaningfullyDiffers(region, from: lastCommittedRegion) {
+            invalidateFocusedPost()
             needsSearchInArea = true
             selectedPostId = nil
             scheduleAutomaticSearch()
@@ -199,6 +323,8 @@ final class ExploreMapViewModel {
     func recenter(using environmentContextManager: EnvironmentContextManager) async {
         debounceSearchTask?.cancel()
         debounceSearchTask = nil
+        invalidateFocusedPost()
+        selectedPostId = nil
         environmentContextManager.validatePermissions()
         let region = regionForInitialLoad(using: environmentContextManager)
         visibleRegion = region
@@ -216,6 +342,7 @@ final class ExploreMapViewModel {
             )
         )
 
+        invalidateFocusedPost()
         selectedPostId = nil
         visibleRegion = nextRegion
         cameraPosition = .region(nextRegion)
@@ -237,6 +364,7 @@ final class ExploreMapViewModel {
 
     func clearFilters() async {
         guard hasActiveFilters else { return }
+        invalidateFocusedPost()
         selectedSpeciesCategories = []
         selectedMediaTypes = []
         selectedPostId = nil
@@ -255,6 +383,7 @@ final class ExploreMapViewModel {
 
     func setSpeciesFilters(_ categories: Set<ExploreMapSpeciesCategory>) async {
         guard categories != selectedSpeciesCategories else { return }
+        invalidateFocusedPost()
         selectedSpeciesCategories = categories
         selectedPostId = nil
         await searchCurrentArea()
@@ -272,6 +401,7 @@ final class ExploreMapViewModel {
 
     func setMediaTypeFilters(_ mediaTypes: Set<ExploreMediaKind>) async {
         guard mediaTypes != selectedMediaTypes else { return }
+        invalidateFocusedPost()
         selectedMediaTypes = mediaTypes
         selectedPostId = nil
         await searchCurrentArea()
@@ -299,6 +429,22 @@ final class ExploreMapViewModel {
 
     func syncPosts(from canonicalPosts: [ExplorePost]) {
         let canonicalById = Dictionary(uniqueKeysWithValues: canonicalPosts.map { ($0.id, $0) })
+        let ineligiblePostIds = Set(canonicalPosts.compactMap { post -> String? in
+            guard let locationSharing = post.locationSharing,
+                  locationSharing != .open else { return nil }
+            return post.id
+        })
+
+        if !ineligiblePostIds.isEmpty {
+            posts.removeAll { ineligiblePostIds.contains($0.id) }
+            if let focusedPost, ineligiblePostIds.contains(focusedPost.id) {
+                invalidateFocusedPost()
+            }
+            if let selectedPostId, ineligiblePostIds.contains(selectedPostId) {
+                self.selectedPostId = nil
+            }
+        }
+
         posts = posts.map { mapPost in
             guard let canonical = canonicalById[mapPost.id] else { return mapPost }
             return ExploreMapPost(
@@ -334,6 +480,11 @@ final class ExploreMapViewModel {
             )
         }
 
+        if let focusedPost,
+           let refreshedFocusedPost = posts.first(where: { $0.id == focusedPost.id }) {
+            self.focusedPost = refreshedFocusedPost
+        }
+
         if let selectedPostId, visiblePosts.contains(where: { $0.id == selectedPostId }) == false {
             self.selectedPostId = nil
         }
@@ -341,26 +492,38 @@ final class ExploreMapViewModel {
 
     func removePost(id: String) {
         posts.removeAll { $0.id == id }
+        if focusedPost?.id == id {
+            invalidateFocusedPost()
+        }
         if selectedPostId == id {
             selectedPostId = nil
         }
     }
 
     func removePosts(byAuthorUserId authorUserId: String) {
+        let removesSelectedPost = selectedPost?.authorUserId == authorUserId
+        if focusedPost?.authorUserId == authorUserId {
+            invalidateFocusedPost()
+        }
         posts.removeAll { $0.authorUserId == authorUserId }
-        if selectedPost?.authorUserId == authorUserId {
+        if removesSelectedPost {
             selectedPostId = nil
         }
     }
 
-    private func fetchMapPoints(for region: MKCoordinateRegion) async {
+    private func fetchMapPoints(
+        for region: MKCoordinateRegion,
+        forceRefresh: Bool = false
+    ) async {
         guard !isLoading else {
             needsRefreshAfterCurrentLoad = true
+            needsForcedRefreshAfterCurrentLoad = needsForcedRefreshAfterCurrentLoad || forceRefresh
             return
         }
 
         let now = Date()
-        let cachedWasFresh = applyCachedResponseIfAvailable(for: region, now: now)
+        let fetchGeneration = requestGeneration
+        let cachedWasFresh = !forceRefresh && applyCachedResponseIfAvailable(for: region, now: now)
         if cachedWasFresh {
             return
         }
@@ -371,9 +534,14 @@ final class ExploreMapViewModel {
 
             if needsRefreshAfterCurrentLoad {
                 needsRefreshAfterCurrentLoad = false
+                let forceQueuedRefresh = needsForcedRefreshAfterCurrentLoad
+                needsForcedRefreshAfterCurrentLoad = false
                 let refreshRegion = visibleRegion ?? region
                 Task { @MainActor [weak self] in
-                    await self?.fetchMapPoints(for: refreshRegion)
+                    await self?.fetchMapPoints(
+                        for: refreshRegion,
+                        forceRefresh: forceQueuedRefresh
+                    )
                 }
             }
         }
@@ -382,16 +550,16 @@ final class ExploreMapViewModel {
         let requestedMediaTypes = selectedMediaTypes
 
         do {
-            let response = try await MerianNetworkClient.shared.getExploreMapPoints(
-                northLatitude: region.northLatitude,
-                southLatitude: region.southLatitude,
-                eastLongitude: region.eastLongitude,
-                westLongitude: region.westLongitude,
-                zoomLevel: zoomLevel(for: region),
-                limit: maxPostLimit,
-                speciesCategories: requestedSpeciesCategories,
-                mediaTypes: requestedMediaTypes
+            let response = try await mapPointsLoader(
+                ExploreMapPointsRequest(
+                    region: region,
+                    zoomLevel: zoomLevel(for: region),
+                    limit: maxPostLimit,
+                    speciesCategories: requestedSpeciesCategories,
+                    mediaTypes: requestedMediaTypes
+                )
             )
+            guard fetchGeneration == requestGeneration else { return }
             storeCachedResponse(
                 response,
                 for: region,
@@ -406,6 +574,7 @@ final class ExploreMapViewModel {
                 mediaTypes: requestedMediaTypes
             )
         } catch let error as MerianError {
+            guard fetchGeneration == requestGeneration else { return }
             if case .httpError(let statusCode, _) = error, statusCode == 503 {
                 hasServiceUnavailableError = true
                 errorMessage = nil
@@ -417,6 +586,7 @@ final class ExploreMapViewModel {
             }
             isOffline = false
         } catch let urlError as URLError {
+            guard fetchGeneration == requestGeneration else { return }
             if isOfflineError(urlError) {
                 isOffline = true
                 hasServiceUnavailableError = false
@@ -431,6 +601,7 @@ final class ExploreMapViewModel {
                     : nil
             }
         } catch let decodingError as DecodingError {
+            guard fetchGeneration == requestGeneration else { return }
 #if DEBUG
             MerianLog.network.error(
                 "Explore map response decoding failed: \(String(describing: decodingError), privacy: .public)"
@@ -442,6 +613,7 @@ final class ExploreMapViewModel {
                 ? "Something went wrong. Please try again."
                 : nil
         } catch {
+            guard fetchGeneration == requestGeneration else { return }
             isOffline = false
             hasServiceUnavailableError = false
             errorMessage = posts.isEmpty && clusters.isEmpty
@@ -458,8 +630,29 @@ final class ExploreMapViewModel {
     ) {
         mode = response.mode
         clusters = response.clusters
-        posts = Array(response.posts.prefix(maxPostLimit))
-        visibleCount = response.visibleCount
+        var nextPosts = Array(response.posts.prefix(maxPostLimit))
+        if let focusedPost {
+            if response.mode == .clusters,
+               region.contains(focusedPost.coordinate),
+               nextPosts.contains(where: { $0.id == focusedPost.id }) == false {
+                if nextPosts.count == maxPostLimit {
+                    nextPosts.removeLast()
+                }
+                nextPosts.append(focusedPost)
+            } else if response.mode == .posts {
+                if let authoritativePost = nextPosts.first(where: { $0.id == focusedPost.id }) {
+                    self.focusedPost = authoritativePost
+                } else {
+                    let focusedPostId = focusedPost.id
+                    invalidateFocusedPost()
+                    if selectedPostId == focusedPostId {
+                        selectedPostId = nil
+                    }
+                }
+            }
+        }
+        posts = nextPosts
+        visibleCount = max(response.visibleCount, nextPosts.count)
         categoryCounts = response.categoryCounts
         mediaTypeCounts = response.mediaTypeCounts
         appliedSpeciesCategories = speciesCategories
@@ -468,11 +661,33 @@ final class ExploreMapViewModel {
         hasServiceUnavailableError = false
         isOffline = false
         needsSearchInArea = false
-        lastCommittedRegion = region
+        if focusedPost != nil,
+           !isAwaitingFocusedCameraCommit,
+           let visibleRegion {
+            lastCommittedRegion = visibleRegion
+        } else {
+            lastCommittedRegion = region
+        }
 
         if let selectedPostId, visiblePosts.contains(where: { $0.id == selectedPostId }) == false {
             self.selectedPostId = nil
         }
+    }
+
+    private func focusedRegion(for post: ExploreMapPost) -> MKCoordinateRegion {
+        let delta = post.coordinateVisibility == .obscured ? 0.2 : 0.05
+        return MKCoordinateRegion(
+            center: post.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: delta, longitudeDelta: delta)
+        )
+    }
+
+    private func invalidateFocusedPost() {
+        guard focusedPost != nil else { return }
+        focusedPost = nil
+        isAwaitingFocusedCameraCommit = false
+        requestGeneration &+= 1
+        needsForcedRefreshAfterCurrentLoad = false
     }
 
     private func regionForInitialLoad(using environmentContextManager: EnvironmentContextManager) -> MKCoordinateRegion {

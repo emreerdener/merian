@@ -19,6 +19,68 @@ enum ActiveCaptureGoalSwipeDirection: Equatable {
     }
 }
 
+enum CaptureGoalIndicatorExpansionState: Equatable {
+    case collapsed
+    case expanded
+
+    var isExpanded: Bool {
+        self == .expanded
+    }
+
+    var toggled: Self {
+        isExpanded ? .collapsed : .expanded
+    }
+
+    func preservingOnly(in captureMode: CaptureMode) -> Self {
+        captureMode == .visual ? self : .collapsed
+    }
+
+    func preservingOnly(whenVisible isVisible: Bool) -> Self {
+        isVisible ? self : .collapsed
+    }
+}
+
+enum CaptureGoalIndicatorLayoutPolicy {
+    static let expandedHorizontalMargin: CGFloat = 32
+    static let compactSize: CGFloat = 50
+    static let expandedSize: CGFloat = 56
+    static let compactArtworkSize: CGFloat = 42
+    static let expandedArtworkSize: CGFloat = 36
+    static let rowSpacing: CGFloat = 12
+    static let minimumInlineGap: CGFloat = 8
+
+    static func surfaceSize(isExpanded: Bool) -> CGFloat {
+        isExpanded ? expandedSize : compactSize
+    }
+
+    static func artworkSize(isExpanded: Bool) -> CGFloat {
+        isExpanded ? expandedArtworkSize : compactArtworkSize
+    }
+
+    static func compactTrailingMargin(containerWidth: CGFloat) -> CGFloat {
+        guard containerWidth.isFinite, containerWidth > 0 else {
+            return expandedHorizontalMargin
+        }
+        let availableSideSpace =
+            (containerWidth - CaptureModeSelectorStyle.controlWidth) / 2
+        return min(
+            expandedHorizontalMargin,
+            max(
+                0,
+                availableSideSpace - compactSize - minimumInlineGap
+            )
+        )
+    }
+
+    static func verticalOffset(isExpanded: Bool) -> CGFloat {
+        guard !isExpanded else { return 0 }
+        let centerlineAdjustment =
+            (CaptureModeSelectorStyle.controlHeight - compactSize) / 2
+        return -(CaptureModeSelectorStyle.controlHeight + rowSpacing)
+            + centerlineAdjustment
+    }
+}
+
 enum CaptureGoalArtworkRotation {
     static func artwork(
         at index: Int,
@@ -118,6 +180,8 @@ struct CaptureWorkspaceView: View {
     @State private var describePromptManager = DescribePromptManager()
     @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
+    @State private var captureGoalIndicatorExpansionState:
+        CaptureGoalIndicatorExpansionState = .collapsed
 
     // MARK: - Zoom Drag Lock
     @State private var isVerticalZooming: Bool = false
@@ -188,7 +252,16 @@ struct CaptureWorkspaceView: View {
     }
 
     private var currentAccountId: String? {
-        supabaseManager.currentUser?.id.uuidString
+        captureGoalAccountId(for: supabaseManager.currentUser?.id)
+    }
+
+    private func captureGoalAccountId(for userId: UUID?) -> String? {
+        #if DEBUG
+        if let seededAccountId = UITestSeedCoordinator.captureGoalAccountId {
+            return seededAccountId
+        }
+        #endif
+        return userId?.uuidString
     }
 
     private var activeCaptureGoalPresentation: ActiveCaptureGoalPresentation? {
@@ -353,6 +426,7 @@ struct CaptureWorkspaceView: View {
                                 dismissCaptureKeyboardAndRestoreChrome()
                             }
                             guard let newPage, newPage != captureMode, !isToggleDragging else { return }
+                            HapticManager.shared.triggerSelectionPulse(source: "capture.modePager")
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
                                 captureMode = newPage
                             }
@@ -370,7 +444,7 @@ struct CaptureWorkspaceView: View {
                         }
                         .onAppear {
                             // Measure the composing zone: the open area between the mode toggle
-                            // (top overlay, 16pt padding + ~48pt height) and the capture button row.
+                            // (top overlay, 16pt padding + 64pt height) and the capture button row.
                             // Crop framing intentionally keeps a 16pt margin above the control
                             // bar's 124pt bottom inset; update this geometry if the fixed
                             // CaptureControlBarLayout dimensions change.
@@ -392,34 +466,61 @@ struct CaptureWorkspaceView: View {
                 )
                 .frame(width: 0, height: 0)
 
-                // MARK: Fixed Overlay — Mode Toggle (top)
+                // MARK: Fixed Overlay — Mode Toggle / Capture Goal (top)
                 if viewModel.shouldShowMediaModeToggle {
-                    VStack(spacing: 12) {
-                        MediaModeToggle(
-                            activeMode: $captureMode, 
-                            isDragging: $isToggleDragging, 
-                            orderedModes: orderedModes, 
-                            onModeChange: {}
-                        )
-
-                        if shouldShowCaptureGoalPresentation,
-                           let presentation = activeCaptureGoalPresentation {
-                            CaptureGoalIndicator(
-                                presentation: presentation,
-                                onOpen: { viewModel.openCaptureGoal($0) },
-                                onNext: { activeCaptureGoalStore.selectNext() },
-                                onPrevious: { activeCaptureGoalStore.selectPrevious() }
+                    GeometryReader { overlayProxy in
+                        VStack(spacing: CaptureGoalIndicatorLayoutPolicy.rowSpacing) {
+                            MediaModeToggle(
+                                activeMode: $captureMode,
+                                isDragging: $isToggleDragging,
+                                orderedModes: orderedModes,
+                                onModeChange: {
+                                    HapticManager.shared.triggerSelectionPulse(
+                                        source: "capture.modeSelector"
+                                    )
+                                }
                             )
-                            .padding(.horizontal, 32)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        }
 
-                        Spacer()
+                            if shouldShowCaptureGoalPresentation,
+                               let presentation = activeCaptureGoalPresentation {
+                                CaptureGoalIndicator(
+                                    presentation: presentation,
+                                    expansionState: $captureGoalIndicatorExpansionState,
+                                    onOpen: { viewModel.openCaptureGoal($0) },
+                                    onNext: { activeCaptureGoalStore.selectNext() },
+                                    onPrevious: { activeCaptureGoalStore.selectPrevious() }
+                                )
+                                .padding(
+                                    .leading,
+                                    CaptureGoalIndicatorLayoutPolicy.expandedHorizontalMargin
+                                )
+                                .padding(
+                                    .trailing,
+                                    captureGoalIndicatorExpansionState.isExpanded
+                                        ? CaptureGoalIndicatorLayoutPolicy.expandedHorizontalMargin
+                                        : CaptureGoalIndicatorLayoutPolicy.compactTrailingMargin(
+                                            containerWidth: overlayProxy.size.width
+                                        )
+                                )
+                                .offset(
+                                    y: CaptureGoalIndicatorLayoutPolicy.verticalOffset(
+                                        isExpanded: captureGoalIndicatorExpansionState.isExpanded
+                                    )
+                                )
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                            }
+
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 16)
+                        .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
+                        .animation(
+                            .spring(response: 0.35, dampingFraction: 0.8),
+                            value: viewModel.shouldShowMediaModeToggle
+                        )
                     }
-                    .padding(.top, 16)
-                    .opacity(viewModel.offlineToastMessage != nil ? 0 : 1)
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.shouldShowMediaModeToggle)
                 }
 
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
@@ -732,6 +833,8 @@ struct CaptureWorkspaceView: View {
             }
         }
         .onChange(of: captureMode) { _, newMode in
+            captureGoalIndicatorExpansionState =
+                captureGoalIndicatorExpansionState.preservingOnly(in: newMode)
             if newMode != .describe {
                 dismissCaptureKeyboardAndRestoreChrome()
             }
@@ -750,7 +853,12 @@ struct CaptureWorkspaceView: View {
             }
         }
 
-        .onChange(of: supabaseManager.currentUser?.id) { _, _ in
+        .onChange(of: supabaseManager.currentUser?.id) { oldUserId, newUserId in
+            guard captureGoalAccountId(for: oldUserId) !=
+                    captureGoalAccountId(for: newUserId) else {
+                return
+            }
+            captureGoalIndicatorExpansionState = .collapsed
             activeCaptureGoalStore.activate(accountId: currentAccountId)
             guard FeatureFlags.isEnabled(.fieldTrips) else { return }
             Task {
@@ -758,6 +866,12 @@ struct CaptureWorkspaceView: View {
                     accountId: currentAccountId
                 )
             }
+        }
+        .onChange(of: appSettings.showsCaptureGoalProgress) { _, isVisible in
+            captureGoalIndicatorExpansionState =
+                captureGoalIndicatorExpansionState.preservingOnly(
+                    whenVisible: isVisible
+                )
         }
 
         .onChange(of: viewModel.activeSheet) { _, newSheet in
@@ -962,7 +1076,9 @@ struct CaptureWorkspaceView: View {
     private func updateComposingZoneVerticalCenter(from proxy: GeometryProxy) {
         guard proxy.size.height.isFinite, proxy.size.height > 0 else { return }
 
-        let toggleBottom = proxy.safeAreaInsets.top + 16 + 48
+        let toggleBottom = proxy.safeAreaInsets.top
+            + 16
+            + CaptureModeSelectorStyle.controlHeight
         let captureButtonTop = proxy.size.height
             - CaptureControlBarLayout.reservedHeight
             - 16
@@ -1044,8 +1160,29 @@ enum ActiveCaptureGoalIndicatorCopy {
     }
 }
 
+enum CaptureGoalIndicatorAccessibilityCopy {
+    static let goalCollapseLabel = "Collapse outing goal details"
+    static let goalCollapseHint = "Hides the goal name and progress."
+    static let goalExpandHint =
+        "Expands goal details. Swipe up or down to change target."
+    static let goalOpenHint =
+        "Opens outing details for this target. Swipe up or down to change target."
+    static let introductionCollapseLabel = "Collapse outing invitation"
+    static let introductionCollapseHint = "Hides the outing name and progress."
+    static let introductionExpandHint = "Expands the outing name and progress."
+
+    static func progressValue(
+        sourceTitle: String,
+        completedCount: Int,
+        targetCount: Int
+    ) -> String {
+        "\(sourceTitle), \(completedCount) of \(targetCount) complete"
+    }
+}
+
 private struct CaptureGoalIndicator: View {
     let presentation: ActiveCaptureGoalPresentation
+    @Binding var expansionState: CaptureGoalIndicatorExpansionState
     let onOpen: (CaptureGoalDestination) -> Void
     let onNext: () -> Void
     let onPrevious: () -> Void
@@ -1056,6 +1193,7 @@ private struct CaptureGoalIndicator: View {
         case .goal(let goal):
             ActiveCaptureGoalIndicator(
                 goal: goal,
+                expansionState: $expansionState,
                 onOpen: { onOpen(goal.destination) },
                 onNext: onNext,
                 onPrevious: onPrevious
@@ -1063,6 +1201,7 @@ private struct CaptureGoalIndicator: View {
         case .introduction(let introduction):
             CaptureGoalIntroductionIndicator(
                 introduction: introduction,
+                expansionState: $expansionState,
                 onOpen: { onOpen(introduction.destination) }
             )
         }
@@ -1077,6 +1216,7 @@ private struct CaptureGoalIntroductionIndicator: View {
     }
 
     let introduction: CaptureGoalIntroduction
+    @Binding var expansionState: CaptureGoalIndicatorExpansionState
     let onOpen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1110,6 +1250,107 @@ private struct CaptureGoalIntroductionIndicator: View {
     }
 
     var body: some View {
+        indicatorSurface
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("captureGoalIntroductionIndicator")
+            .task(id: introduction.id) {
+                AppTelemetry.trackCaptureGoalIndicator(
+                    action: .zeroStateShown,
+                    source: introduction.sourceKind
+                )
+            }
+            .task(id: artworkRotationTaskID) {
+                artworkIndex = 0
+                let artworkCount = artworks.count
+                guard !reduceMotion, artworkCount > 1 else { return }
+                while !Task.isCancelled {
+                    do {
+                        try await Task.sleep(for: .seconds(3))
+                    } catch {
+                        return
+                    }
+                    artworkIndex = CaptureGoalArtworkRotation.nextIndex(
+                        after: artworkIndex,
+                        count: artworkCount
+                    )
+                }
+            }
+            // Expand only the alignment frame. The glass surface above remains
+            // the sole hit-testing and gesture region over the camera.
+            .frame(
+                maxWidth: .infinity,
+                alignment: expansionState.isExpanded ? .leading : .trailing
+            )
+    }
+
+    private var indicatorSurface: some View {
+        HStack(spacing: 0) {
+            artworkButton
+
+            if expansionState.isExpanded {
+                openButton
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+            }
+        }
+        .foregroundStyle(.primary)
+        .frame(
+            maxWidth: expansionState.isExpanded ? .infinity : nil,
+            minHeight: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                isExpanded: expansionState.isExpanded
+            ),
+            alignment: .leading
+        )
+        .clipShape(Capsule())
+        .modifier(ActiveCaptureGoalGlassModifier())
+        .contentShape(Capsule())
+    }
+
+    private var artworkButton: some View {
+        Button(action: toggleExpansion) {
+            ZStack {
+                // Keep one resting image in the live hierarchy instead of
+                // depending on opacity-zero siblings during camera/glass redraws.
+                CaptureGoalArtworkView(
+                    artwork: displayedArtwork,
+                    size: CaptureGoalIndicatorLayoutPolicy.artworkSize(
+                        isExpanded: expansionState.isExpanded
+                    )
+                )
+                .id(displayedArtworkID)
+                .transition(.opacity)
+            }
+            .frame(
+                width: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                    isExpanded: expansionState.isExpanded
+                ),
+                height: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                    isExpanded: expansionState.isExpanded
+                )
+            )
+            .contentShape(Circle())
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 0.2),
+                value: displayedArtworkID
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            expansionState.isExpanded
+                ? CaptureGoalIndicatorAccessibilityCopy.introductionCollapseLabel
+                : introduction.accessibilityLabel
+        )
+        .accessibilityValue(
+            expansionState.isExpanded ? "" : introduction.accessibilityValue
+        )
+        .accessibilityHint(
+            expansionState.isExpanded
+                ? CaptureGoalIndicatorAccessibilityCopy.introductionCollapseHint
+                : CaptureGoalIndicatorAccessibilityCopy.introductionExpandHint
+        )
+        .accessibilityIdentifier("captureGoalIntroductionArtworkToggle")
+    }
+
+    private var openButton: some View {
         Button {
             HapticManager.shared.triggerSheetSpring(source: "capture.goalIntroduction.open")
             AppTelemetry.trackCaptureGoalIndicator(
@@ -1118,20 +1359,7 @@ private struct CaptureGoalIntroductionIndicator: View {
             )
             onOpen()
         } label: {
-            HStack(spacing: 8) {
-                ZStack {
-                    // Keep one resting image in the live hierarchy instead of
-                    // depending on opacity-zero siblings during camera/glass redraws.
-                    CaptureGoalArtworkView(artwork: displayedArtwork)
-                        .id(displayedArtworkID)
-                        .transition(.opacity)
-                }
-                .frame(width: 40, height: 40)
-                .animation(
-                    reduceMotion ? nil : .easeInOut(duration: 0.2),
-                    value: displayedArtworkID
-                )
-
+            HStack(spacing: 0) {
                 VStack(alignment: .center, spacing: 2) {
                     Text(introduction.headline)
                         .font(.subheadline.weight(.bold))
@@ -1147,48 +1375,36 @@ private struct CaptureGoalIntroductionIndicator: View {
                 }
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 4)
 
                 GoalProgressRing(
                     completedCount: introduction.progress.completedCount,
                     targetCount: introduction.progress.targetCount
                 )
                     .frame(width: 40, height: 40)
+                    .frame(width: 56, height: 56)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .modifier(ActiveCaptureGoalGlassModifier())
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(introduction.accessibilityLabel)
         .accessibilityValue(introduction.accessibilityValue)
         .accessibilityHint(introduction.accessibilityHint)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("captureGoalIntroductionIndicator")
-        .task(id: introduction.id) {
-            AppTelemetry.trackCaptureGoalIndicator(
-                action: .zeroStateShown,
-                source: introduction.sourceKind
-            )
-        }
-        .task(id: artworkRotationTaskID) {
-            artworkIndex = 0
-            let artworkCount = artworks.count
-            guard !reduceMotion, artworkCount > 1 else { return }
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(3))
-                } catch {
-                    return
-                }
-                artworkIndex = CaptureGoalArtworkRotation.nextIndex(
-                    after: artworkIndex,
-                    count: artworkCount
-                )
+        .accessibilityIdentifier("captureGoalIntroductionOpenButton")
+    }
+
+    private func toggleExpansion() {
+        HapticManager.shared.triggerSelectionPulse(
+            source: "capture.goalIndicator.toggle"
+        )
+        if reduceMotion {
+            expansionState = expansionState.toggled
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                expansionState = expansionState.toggled
             }
         }
     }
@@ -1196,6 +1412,7 @@ private struct CaptureGoalIntroductionIndicator: View {
 
 private struct ActiveCaptureGoalIndicator: View {
     let goal: CaptureGoal
+    @Binding var expansionState: CaptureGoalIndicatorExpansionState
     let onOpen: () -> Void
     let onNext: () -> Void
     let onPrevious: () -> Void
@@ -1203,15 +1420,97 @@ private struct ActiveCaptureGoalIndicator: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        indicatorSurface
+            .highPriorityGesture(selectionGesture)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("activeCaptureGoalIndicator")
+            .task(id: goal.id) {
+                AppTelemetry.trackCaptureGoalIndicator(action: .shown, source: goal.source.kind)
+            }
+            // Expand only the alignment frame. The glass surface above remains
+            // the sole hit-testing and gesture region over the camera.
+            .frame(
+                maxWidth: .infinity,
+                alignment: expansionState.isExpanded ? .leading : .trailing
+            )
+    }
+
+    private var indicatorSurface: some View {
+        HStack(spacing: 0) {
+            artworkButton
+
+            if expansionState.isExpanded {
+                openButton
+                    .transition(.opacity.combined(with: .move(edge: .leading)))
+            }
+        }
+        .foregroundStyle(.primary)
+        .frame(
+            maxWidth: expansionState.isExpanded ? .infinity : nil,
+            minHeight: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                isExpanded: expansionState.isExpanded
+            ),
+            alignment: .leading
+        )
+        .clipShape(Capsule())
+        .modifier(ActiveCaptureGoalGlassModifier())
+        .contentShape(Capsule())
+    }
+
+    @ViewBuilder
+    private var artworkButton: some View {
+        if expansionState.isExpanded {
+            baseArtworkButton
+                .accessibilityLabel(
+                    CaptureGoalIndicatorAccessibilityCopy.goalCollapseLabel
+                )
+                .accessibilityHint(
+                    CaptureGoalIndicatorAccessibilityCopy.goalCollapseHint
+                )
+        } else {
+            baseArtworkButton
+                .accessibilityLabel(
+                    ActiveCaptureGoalIndicatorCopy.accessibilityLabel(
+                        for: goal.prompt
+                    )
+                )
+                .accessibilityValue(accessibilityValue)
+                .accessibilityHint(
+                    CaptureGoalIndicatorAccessibilityCopy.goalExpandHint
+                )
+                .accessibilityAdjustableAction(handleAccessibilityAdjustment)
+        }
+    }
+
+    private var baseArtworkButton: some View {
+        Button(action: toggleExpansion) {
+            CaptureGoalArtworkView(
+                artwork: goal.artwork,
+                size: CaptureGoalIndicatorLayoutPolicy.artworkSize(
+                    isExpanded: expansionState.isExpanded
+                )
+            )
+            .frame(
+                width: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                    isExpanded: expansionState.isExpanded
+                ),
+                height: CaptureGoalIndicatorLayoutPolicy.surfaceSize(
+                    isExpanded: expansionState.isExpanded
+                )
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("activeCaptureGoalArtworkToggle")
+    }
+
+    private var openButton: some View {
         Button {
             HapticManager.shared.triggerSheetSpring(source: "capture.activeGoal.open")
             AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: goal.source.kind)
             onOpen()
         } label: {
-            HStack(spacing: 8) {
-                CaptureGoalArtworkView(artwork: goal.artwork)
-                    .frame(width: 40, height: 40)
-
+            HStack(spacing: 0) {
                 VStack(alignment: .center, spacing: 2) {
                     Text(
                         ActiveCaptureGoalIndicatorCopy.instruction(for: goal.prompt)
@@ -1229,58 +1528,74 @@ private struct ActiveCaptureGoalIndicator: View {
                 }
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, 4)
 
                 GoalProgressRing(
                     completedCount: goal.progress.completedCount,
                     targetCount: goal.progress.targetCount
                 )
                     .frame(width: 40, height: 40)
+                    .frame(width: 56, height: 56)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .modifier(ActiveCaptureGoalGlassModifier())
-            .contentShape(Capsule())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 20)
-                .onEnded { value in
-                    guard let direction = ActiveCaptureGoalSwipeDirection.resolve(
-                        horizontal: value.translation.width,
-                        vertical: value.translation.height
-                    ) else {
-                        return
-                    }
-                    changeSelection(next: direction == .next)
-                }
-        )
-        .accessibilityElement(children: .ignore)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel(
             ActiveCaptureGoalIndicatorCopy.accessibilityLabel(for: goal.prompt)
         )
-        .accessibilityValue(
-            "\(goal.source.title), \(goal.progress.completedCount) of \(goal.progress.targetCount) complete"
-        )
+        .accessibilityValue(accessibilityValue)
         .accessibilityHint(
-            "Opens outing details for this target. Swipe up or down to change target."
+            CaptureGoalIndicatorAccessibilityCopy.goalOpenHint
         )
-        .accessibilityAddTraits(.isButton)
-        .accessibilityIdentifier("activeCaptureGoalIndicator")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
-                changeSelection(next: true)
-            case .decrement:
-                changeSelection(next: false)
-            @unknown default:
-                break
+        .accessibilityIdentifier("activeCaptureGoalOpenButton")
+        .accessibilityAdjustableAction(handleAccessibilityAdjustment)
+    }
+
+    private var accessibilityValue: String {
+        CaptureGoalIndicatorAccessibilityCopy.progressValue(
+            sourceTitle: goal.source.title,
+            completedCount: goal.progress.completedCount,
+            targetCount: goal.progress.targetCount
+        )
+    }
+
+    private var selectionGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                guard let direction = ActiveCaptureGoalSwipeDirection.resolve(
+                    horizontal: value.translation.width,
+                    vertical: value.translation.height
+                ) else {
+                    return
+                }
+                changeSelection(next: direction == .next)
+            }
+    }
+
+    private func toggleExpansion() {
+        HapticManager.shared.triggerSelectionPulse(
+            source: "capture.goalIndicator.toggle"
+        )
+        if reduceMotion {
+            expansionState = expansionState.toggled
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                expansionState = expansionState.toggled
             }
         }
-        .task(id: goal.id) {
-            AppTelemetry.trackCaptureGoalIndicator(action: .shown, source: goal.source.kind)
+    }
+
+    private func handleAccessibilityAdjustment(_ direction: AccessibilityAdjustmentDirection) {
+        switch direction {
+        case .increment:
+            changeSelection(next: true)
+        case .decrement:
+            changeSelection(next: false)
+        @unknown default:
+            break
         }
     }
 
@@ -1310,6 +1625,7 @@ private struct ActiveCaptureGoalIndicator: View {
 
 private struct CaptureGoalArtworkView: View {
     let artwork: CaptureGoalArtwork
+    let size: CGFloat
 
     @ViewBuilder
     var body: some View {
@@ -1321,7 +1637,7 @@ private struct CaptureGoalArtworkView: View {
                     .resizable()
                     .scaledToFit()
                     .padding(2)
-                    .frame(width: 36, height: 36)
+                    .frame(width: size, height: size)
                     .accessibilityHidden(true)
             } else {
                 systemSymbol(named: "binoculars.fill")
@@ -1333,8 +1649,8 @@ private struct CaptureGoalArtworkView: View {
 
     private func systemSymbol(named symbolName: String) -> some View {
         Image(systemName: symbolName)
-            .font(.system(size: 19, weight: .semibold))
-            .frame(width: 36, height: 36)
+            .font(.system(size: size * 19 / 36, weight: .semibold))
+            .frame(width: size, height: size)
             .background(.primary.opacity(0.08), in: Circle())
             .accessibilityHidden(true)
     }

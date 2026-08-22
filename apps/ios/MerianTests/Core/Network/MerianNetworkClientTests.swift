@@ -3090,6 +3090,63 @@ struct MerianNetworkClientTests {
         #expect(response.schemaVersion == nil)
         #expect(response.effectiveSchemaVersion == 0)
         #expect(response.data.postId == "post-detail-legacy-schema")
+        #expect(response.data.mapPoint == nil)
+        #expect(response.data.visibleMapPoint == nil)
+    }
+
+    @Test func testExplorePostDetailDecodesPrivacySafeMapPoints() throws {
+        let exactData = Data("""
+        {
+            "data": {
+                "post_id": "post-detail-exact-map",
+                "location_sharing": "open",
+                "map_point": {
+                    "latitude": 12.3456,
+                    "longitude": -45.6789,
+                    "coordinate_visibility": "exact"
+                }
+            }
+        }
+        """.utf8)
+        let obscuredData = Data("""
+        {
+            "data": {
+                "post_id": "post-detail-obscured-map",
+                "location_sharing": "open",
+                "map_point": {
+                    "latitude": -23.5,
+                    "longitude": 67.9,
+                    "coordinate_visibility": "obscured"
+                }
+            }
+        }
+        """.utf8)
+        let hiddenData = Data("""
+        {
+            "data": {
+                "post_id": "post-detail-hidden-map",
+                "location_sharing": "private",
+                "map_point": {
+                    "latitude": 1.0,
+                    "longitude": 1.0,
+                    "coordinate_visibility": "exact"
+                }
+            }
+        }
+        """.utf8)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let exact = try decoder.decode(ExplorePostDetailResponse.self, from: exactData)
+        let obscured = try decoder.decode(ExplorePostDetailResponse.self, from: obscuredData)
+        let hidden = try decoder.decode(ExplorePostDetailResponse.self, from: hiddenData)
+
+        #expect(exact.data.visibleMapPoint?.coordinateVisibility == .exact)
+        #expect(exact.data.visibleMapPoint?.coordinate?.latitude == 12.3456)
+        #expect(obscured.data.visibleMapPoint?.coordinateVisibility == .obscured)
+        #expect(obscured.data.visibleMapPoint?.coordinate?.longitude == 67.9)
+        #expect(hidden.data.mapPoint != nil)
+        #expect(hidden.data.visibleMapPoint == nil)
     }
 
     @Test func testExplorePostDetailDecodesWhenSimilarSpeciesIsMissing() throws {

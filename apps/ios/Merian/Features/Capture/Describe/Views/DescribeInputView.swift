@@ -218,7 +218,7 @@ struct DescribeInputView: View {
 
                     // The hosted page already begins in safe-area coordinates.
                     // Reserve only the fixed mode-toggle band and visual gap.
-                    Spacer().frame(height: 60)
+                    Spacer().frame(height: CaptureModeSelectorStyle.describeContentClearance)
 
                     // MARK: Question Header
                     VStack(alignment: .leading, spacing: 0) {

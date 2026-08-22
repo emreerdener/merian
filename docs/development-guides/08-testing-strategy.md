@@ -3087,23 +3087,23 @@ trip-to-`CaptureGoal` provider mapping, server-order preservation, typed
 destinations, bidirectional wraparound, completion advancement, account-isolated
 versioned caching, refresh-failure retention, single-fetch coalescing for
 overlapping startup freshness checks, indicator presentation/gesture policy,
-exact-art fallback, user-visibility gating, and focused Explore route
-compatibility. The exact-art test includes the renamed Park **Spider**,
-**Bird**, and **Meadow plant** prompts while retaining aliases for historical
-publication snapshots. Capture preference tests cover visible selected-goal
-priority across automatic, crop-confirmed, and manual camera-still submission.
-`StagedCaptureTests` locks the camera-only media gate so gallery, mixed
-camera/gallery, audio, video, Describe, Record, refinement, and missing
-selections cannot persist a hint. Capture startup diagnostics must also exercise
-the user-configurable first-mode matrix. For each of Camera, Audio, and
-Description, persist that mode first, cold-launch with `AG_PRINT_CYCLES=3`,
-leave the default page idle long enough for initial tasks and sheets to settle,
-and require no `AttributeGraph: cycle` output. Description-first QA must also
-confirm the question content scrolls, the keyboard dismisses on drag, the
-table-of-contents sheet opens, and dictation stops when leaving the mode.
-Preserve the lazy horizontal pager, the UIKit Describe vertical-scroll boundary,
-workspace-owned lifecycle/sheet state, and the fixed capture-bar layout
-reservation when extending these surfaces.
+compact/expanded state and reset policy, accessibility copy, exact-art fallback,
+user-visibility gating, and focused Explore route compatibility. The exact-art
+test includes the renamed Park **Spider**, **Bird**, and **Meadow plant**
+prompts while retaining aliases for historical publication snapshots. Capture
+preference tests cover visible selected-goal priority across automatic,
+crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
+the camera-only media gate so gallery, mixed camera/gallery, audio, video,
+Describe, Record, refinement, and missing selections cannot persist a hint.
+Capture startup diagnostics must also exercise the user-configurable first-mode
+matrix. For each of Camera, Audio, and Description, persist that mode first,
+cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough
+for initial tasks and sheets to settle, and require no `AttributeGraph: cycle`
+output. Description-first QA must also confirm the question content scrolls, the
+keyboard dismisses on drag, the table-of-contents sheet opens, and dictation
+stops when leaving the mode. Preserve the lazy horizontal pager, the UIKit
+Describe vertical-scroll boundary, workspace-owned lifecycle/sheet state, and
+the fixed capture-bar layout reservation when extending these surfaces.
 `merianUITests.testAudioFirstLaunchSelectsRecordMode` locks the reordered Audio
 launch selection. `testDescribeFirstLaunchRendersAndOpensPrompts` locks the
 Description-first selection, render path, and workspace-owned prompt-sheet
@@ -3114,6 +3114,39 @@ of leaving a blank band above the controls. The question navigation must also
 begin 8...32 pt below the mode selector; this upper bound catches a duplicated
 top-safe-area reservation. Strict cycle tracing remains a separate diagnostic
 requirement.
+
+`MediaModeToggleTests` locks the selector's exact Scan/Record/Describe titles,
+the `viewfinder`/`waveform`/`text.bubble` mapping, SF Symbol resolution and
+uniqueness, the 200 pt bounded width, 56 pt compact tab-style height, 24 pt
+symbol size, 82 pt Describe content clearance, minimum 21 pt approximate
+horizontal symbol padding, minimum 44 pt segment width, installed selected-index
+image mapping, selected and inactive light/dark symbol palette,
+original-rendering images, adaptive thumb tint, all six stored order
+permutations, and missing/unknown-value healing.
+`HapticManagerTests.testCaptureModeSelectionFeedbackUsesSelectionPulseAndGlobalGates`
+locks the distinct selector and pager sources plus the Haptics and Expedition
+mode gates. The focused
+`merianUITests.testCaptureModeSelectorExposesAccessibleIconsAndTracksPagerSelection`
+must find the native `CaptureModeToggle`, discover all three segments by their
+spoken names, require a 196...204 pt rendered width and at least 24 pt side
+margins around its frame, require a 52...60 pt rendered height, retain at least
+a 44 pt Scan touch width, verify the configured first selection and accessible
+control value, tap through modes, and prove that a settled pager swipe updates
+both. Run it on iOS 18 to catch attempts to mutate the immutable `UIAction`
+snapshots returned by `UISegmentedControl`, as well as on iOS 26 to cover the
+current native presentation. Keep the Audio-first and Description-first tests in
+the focused matrix so a reordered sequence is exercised through the real UIKit
+accessibility hierarchy.
+
+Simulator coverage must include the oldest supported iOS runtime and iOS 26 or
+later. Device QA on iOS 26 must inspect the full-track regular interactive glass
+plus the native thumb's drag/stretch and refraction over both bright and dark
+camera content, then repeat in light and dark appearance with VoiceOver, Reduced
+Motion, Reduced Transparency, and Increased Contrast. Confirm exactly one
+tactile selection cue for a successful selector change and a settled pager
+swipe, no cue for programmatic synchronization or reselecting the active
+segment, and suppression when Haptics is disabled or Expedition mode is active.
+Simulator execution cannot accept the tactile or live-camera optical checks.
 
 `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` launches the seeded
 queued-audio flow, opens Scans, and taps the staged tile. It requires the queued
@@ -3188,11 +3221,18 @@ submit, and dictation row rather than letting those controls straddle its bottom
 edge. `AppDIContainerTests` verifies the presentation preference defaults on and
 persists an explicit opt-out. `AppTelemetryTests` locks the coarse
 action/source-only event shape and prevents goal content or identifiers from
-entering analytics. UI/device QA must also confirm Dynamic Type, VoiceOver
-adjustable actions, Reduce Motion, light/dark appearance, idle visual-only
-visibility, and that target swipes do not page capture modes. The architectural
-test obligations for future sources are recorded in
-`docs/rfcs/active-capture-goal-context.md`.
+entering analytics. Debug-only `UITestSeedCoordinator` snapshots drive focused
+active-goal and introduction UI tests without authentication, live Field Trip
+requests, or camera shortcuts. Those tests require a 50-point compact control
+with 42-point artwork, vertically centered to the right of the screen-centered
+media selector, an adaptive minimum 8-point gap on narrow phones, artwork-driven
+movement and expansion into the full-width row beneath the selector, swiping in
+either active-goal size, reset after leaving visual Scan, non-selectable
+introduction behavior, and tap-through to Explore. UI/device QA must also
+confirm Dynamic Type, VoiceOver adjustable actions, Reduce Motion, light/dark
+appearance, idle visual-only visibility, and that target swipes do not page
+capture modes. The architectural test obligations for future sources are
+recorded in `docs/rfcs/active-capture-goal-context.md`.
 
 Explore identity database coverage lives in `_tests/exploreIdentityDb.test.ts`.
 It verifies safe identity derivation, custom-avatar precedence, ownership

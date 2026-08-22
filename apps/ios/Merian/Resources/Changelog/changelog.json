@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-21-capture-mode-selector",
+      "date": "2026-08-21",
+      "title": "Clearer capture mode switching",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Scan, Record, and Describe now use clear icons in a compact capture selector with a full Liquid Glass background, a brighter selected control, a dark active icon, and the native iOS transition.",
+            "Tapping the selector or swiping between pages now gives light haptic feedback when enabled, while VoiceOver continues to announce every mode by name."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-11-sign-out-purchase-continuity",
       "date": "2026-08-11",
       "title": "Clearer account sign-in and sign-out",

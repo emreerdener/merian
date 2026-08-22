@@ -3191,7 +3191,14 @@ coordinates to the client contract.
   overridden the AI identification (report flags do not suppress it),
   `habitat_description`, `gbif_taxon_key`, `iucn_red_list_status`,
   `wikipedia_url`, `reference_image_url`, `wikipedia_overview`, and
-  `similar_species` JSONB hydrated from `species_lookalikes`.
+  `similar_species` JSONB hydrated from `species_lookalikes`. The optional
+  `map_point` JSONB contains `latitude`, `longitude`, and
+  `coordinate_visibility` only while the saved post-level
+  `location_sharing = 'open'` and the post-owned public projection is complete.
+  It reads exclusively from `explore_posts.public_latitude`, `public_longitude`,
+  and `public_coordinate_visibility`; protected or uncertain observations retain
+  their already-sanitized coordinate with `obscured` visibility, while
+  post-level `obscured` and `private` settings return `null`.
   `reference_image_url` is still a comma-separated compatibility string, but the
   RPC composes it through `public.public_species_reference_image_urls(...)` from
   `species_reference_images` first and falls back to
@@ -3212,7 +3219,9 @@ coordinates to the client contract.
   Service-only, fixed-anonymous wrapper over
   `get_explore_post_detail(NULL, target_post_id)` that independently inner-joins
   `explore_projected_post_cards(NULL)`. It returns no detail unless canonical
-  anonymous moderation/publication/media-health visibility also exists.
+  anonymous moderation/publication/media-health visibility also exists. Its
+  explicit projection remains coordinate-free and does not expose the native
+  detail RPC's `map_point`.
 - `public.get_public_web_explore_post_page(target_post_id UUID)`: Service-only
   atomic page projection returning canonical `post_payload` and independently
   gated `detail_payload` from one statement/MVCC snapshot. It is the only
