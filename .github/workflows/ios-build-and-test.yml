@@ -713,6 +713,8 @@ jobs:
             "-seedLocationPermissionPromptSuppressed" \
             "-seedAchievementDetailFlow" \
             "-seedAchievementDeletionRefreshFlow" \
+            "-seedCaptureGoalIndicatorFlow" \
+            "-seedCaptureGoalIntroductionFlow" \
             "-seedQueuedAudioHandoffFlow" \
             "-seedQueuedRetryPresentationFlow" \
             "-seedLiveQueueHandoffFlow" \
