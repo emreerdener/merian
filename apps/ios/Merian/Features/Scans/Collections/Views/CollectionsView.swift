@@ -14,6 +14,7 @@ struct CollectionsView: View {
 
     @State private var nonBioCount: Int = 0
     @State private var collectionSnapshot = CollectionMembershipSnapshot.empty
+    @State private var privateMapSnapshot = PrivateScanMapSnapshot.empty
     @State private var smartCollections: [SmartCollectionSnapshot] = []
     @State private var collectionToEdit: ScanCollection?
     @State private var showRenameAlert = false
@@ -44,6 +45,8 @@ struct CollectionsView: View {
                 let showNonBio = !isSearching ||
                     "non-biological".contains(query) ||
                     "non biological".contains(query)
+                let showPrivateMap = !privateMapSnapshot.points.isEmpty &&
+                    (!isSearching || PrivateScanMapCollectionSearch.matches(query))
                 let featuredCollection = SmartCollectionSuggester.featuredSnapshot(
                     from: allScans,
                     hiddenCollectionIDs: hiddenSmartCollectionIDs,
@@ -58,10 +61,13 @@ struct CollectionsView: View {
                 let smartRowCollections = visibleSmartCollections.filter(\.isPinnedRow)
                 let smartCardCollections = visibleSmartCollections.filter { !$0.isPinnedRow }
                 let hasCardCollections = !userCollections.isEmpty || !smartCardCollections.isEmpty
-                let hasTopCollectionCards = visibleFeaturedCollection != nil || hasCardCollections
+                let hasTopCollectionCards = showPrivateMap ||
+                    visibleFeaturedCollection != nil ||
+                    hasCardCollections
                 let hasRowCollections = showFavoritesRow || showNonBio || !smartRowCollections.isEmpty
                 let totalFound = userCollections.count
                     + visibleSmartCollections.count
+                    + (showPrivateMap ? 1 : 0)
                     + (visibleFeaturedCollection == nil ? 0 : 1)
                     + (showFavoritesRow ? 1 : 0)
                     + (showNonBio ? 1 : 0)
@@ -86,6 +92,7 @@ struct CollectionsView: View {
 
                 if shouldShowEmptyFilteredState(
                     isSearching: isSearching,
+                    showPrivateMap: showPrivateMap,
                     visibleFeaturedCollection: visibleFeaturedCollection,
                     userCollections: userCollections,
                     visibleSmartCollections: visibleSmartCollections,
@@ -98,6 +105,16 @@ struct CollectionsView: View {
                         message: "No collections match \"\(searchQuery)\"."
                     )
                 } else {
+                    if showPrivateMap {
+                        NavigationLink {
+                            PrivateScanMapView()
+                        } label: {
+                            PrivateScanMapCollectionCard(snapshot: privateMapSnapshot)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                    }
+
                     if let visibleFeaturedCollection {
                         NavigationLink {
                             SmartCollectionDetailView(
@@ -161,6 +178,7 @@ struct CollectionsView: View {
                 }
 
                 if !isSearching &&
+                    privateMapSnapshot.points.isEmpty &&
                     visibleFeaturedCollection == nil &&
                     userCollections.isEmpty &&
                     visibleSmartCollections.isEmpty {
@@ -284,6 +302,7 @@ struct CollectionsView: View {
 
     private func shouldShowEmptyFilteredState(
         isSearching: Bool,
+        showPrivateMap: Bool,
         visibleFeaturedCollection: SmartCollectionSnapshot?,
         userCollections: [ScanCollection],
         visibleSmartCollections: [SmartCollectionSnapshot],
@@ -291,6 +310,7 @@ struct CollectionsView: View {
         showNonBio: Bool
     ) -> Bool {
         isSearching &&
+            !showPrivateMap &&
             visibleFeaturedCollection == nil &&
             userCollections.isEmpty &&
             visibleSmartCollections.isEmpty &&
@@ -311,9 +331,11 @@ struct CollectionsView: View {
     }
 
     private var scanSmartCollectionSignature: String {
-        allScans
+        let smartCollectionIdentity = allScans
             .map { scanSmartCollectionSignatureComponent(for: $0) }
             .joined(separator: "|")
+        let mapIdentity = PrivateScanMapSnapshot.sourceIdentity(for: allScans)
+        return "\(smartCollectionIdentity)#map:\(mapIdentity)"
     }
 
     private func scanSmartCollectionSignatureComponent(for scan: LocalScanRecord) -> String {
@@ -335,6 +357,7 @@ struct CollectionsView: View {
 
     private func refreshCollectionSnapshot() {
         collectionSnapshot = CollectionMembershipSnapshot(scans: allScans)
+        privateMapSnapshot = PrivateScanMapSnapshot(records: allScans)
         smartCollections = SmartCollectionSuggester.suggestions(
             from: allScans,
             existingCollections: collections,

@@ -445,6 +445,21 @@ privacy, and field-trip membership.
 Search and filtering should prioritize the mental model of "what I saw, where,
 and when" rather than expose backend taxonomy mechanics.
 
+Collections includes a full-width **Scan map** when at least one completed
+biological observation has valid saved GPS. Its passive preview fits every
+mapped observation without requesting current location. Opening it pushes an
+owner-only map that starts around a one-shot current location, falls back to the
+newest mapped scan, filters species and media locally, clusters dense points,
+and opens the existing private Insight. Shared and unshared observations both
+appear at the owner's exact saved coordinates; **Private** describes the
+owner-only surface rather than a publication filter.
+
+The product contract is ungated, but the current source candidate is not yet
+release-complete. Actor isolation at the SwiftData projection boundary,
+full-preview tap behavior, and the outstanding manual location/accessibility/
+offline matrix are tracked in
+[Private Scan Map](../features-and-hardware/28-private-scan-map.md#candidate-release-status).
+
 Insight offers **Download scan**, and Scan Library selection offers batch
 **Download**. These explicit actions can save local or Naturebook-hosted photos
 and retained videos to iOS Photos even when automatic camera-roll saving is off.
@@ -840,6 +855,15 @@ Each observation can use one of three location-sharing modes:
 The owner record and public projection are separate. Exact owner coordinates may
 synchronize to the backend for owner functionality; they are not necessarily
 "device only." Public clients must consume the privacy-projected representation.
+
+The dedicated Scan map is an owner-only use of the exact local record. It may
+show every mapped observation regardless of whether its backing scan or Explore
+post is open, obscured, private, shared, or unshared. It does not change any
+sharing choice. Explore Map and Nearby remain public projections and must never
+reuse the private map's exact-coordinate snapshot.
+
+The complete private-map data boundary and release verification live in
+[Private Scan Map](../features-and-hardware/28-private-scan-map.md).
 
 For endangered or sensitive species, an additional safety offset can extend to
 approximately 50 km. Ecological sensitivity can therefore override a user's

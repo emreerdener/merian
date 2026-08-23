@@ -936,6 +936,18 @@ problem.
 Explore map coordinates must be stricter than the scan library's private map
 usage.
 
+The private Scan map is a separate Scans-owned, device-local surface. It reads
+value snapshots of the owner's completed biological `LocalScanRecord` rows and
+shows exact saved GPS for both shared and unshared scans. Its **Private** label
+describes access to the surface, not a location-sharing filter. It does not use
+Explore DTOs, RPCs, post location state, social actions, or map telemetry, and
+it must never become an input to Explore Map or Nearby.
+
+The normative owner-only behavior, prohibited crossings, and release evidence
+are maintained in
+[Private Scan Map](../features-and-hardware/28-private-scan-map.md). A change to
+either map must review both documents even when no API field changes.
+
 Rules:
 
 - Backing-scan geoprivacy seeds the composer but does not override an explicitly

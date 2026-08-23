@@ -96,6 +96,117 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testPrivateScanMapCollectionNavigationFiltersAndInsight() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedPrivateScanMapFlow"]
+        )
+
+        let collectionsSegment = app.segmentedControls.buttons["Collections"]
+        XCTAssertTrue(
+            collectionsSegment.waitForExistence(timeout: 8.0),
+            "The seeded Scans library did not open"
+        )
+        collectionsSegment.tap()
+        XCTAssertTrue(waitForSelectedState(collectionsSegment))
+
+        let mapCard = app.descendants(matching: .any)[
+            "PrivateScanMapCollectionCard"
+        ]
+        XCTAssertTrue(
+            mapCard.waitForExistence(timeout: 5.0),
+            "Collections did not show the mapped-scan card"
+        )
+        XCTAssertTrue(mapCard.isHittable)
+        XCTAssertTrue(mapCard.label.contains("3 mapped scans"))
+        XCTAssertTrue(mapCard.label.contains("Private"))
+
+        let featuredTitle = app.staticTexts["Featured scans"]
+        XCTAssertTrue(featuredTitle.waitForExistence(timeout: 4.0))
+        XCTAssertLessThan(
+            mapCard.frame.minY,
+            featuredTitle.frame.minY,
+            "Scan map must be the first full-width collection card"
+        )
+
+        mapCard.tap()
+        let mapNavigationBar = app.navigationBars["Scan map"]
+        XCTAssertTrue(
+            mapNavigationBar.waitForExistence(timeout: 8.0),
+            "Tapping the collection card did not push Scan map"
+        )
+        XCTAssertTrue(mapNavigationBar.buttons["Collections"].exists)
+        XCTAssertFalse(mapNavigationBar.buttons["Close"].exists)
+        XCTAssertFalse(app.segmentedControls.buttons["Scans"].exists)
+        XCTAssertFalse(app.segmentedControls.buttons["Feed"].exists)
+        XCTAssertFalse(app.segmentedControls.buttons["Map"].exists)
+        XCTAssertFalse(app.buttons["New collection"].exists)
+        XCTAssertFalse(app.buttons["Notifications"].exists)
+        XCTAssertFalse(app.buttons["ExploreCloseButton"].exists)
+        XCTAssertFalse(
+            app.buttons["MainTabBar_Scans"].isHittable,
+            "The root bottom navigation must remain hidden on Scan map"
+        )
+
+        let visibleCount = app.buttons["PrivateScanMapVisibleCount"]
+        let locateButton = app.buttons["PrivateScanMapLocate"]
+        XCTAssertTrue(visibleCount.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(locateButton.waitForExistence(timeout: 5.0))
+        XCTAssertGreaterThan(visibleCount.frame.midY, app.frame.height * 0.75)
+        XCTAssertEqual(visibleCount.frame.midY, locateButton.frame.midY, accuracy: 8)
+        XCTAssertLessThan(locateButton.frame.maxY, app.frame.maxY)
+
+        mapNavigationBar.buttons["Collections"].tap()
+        XCTAssertTrue(collectionsSegment.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(collectionsSegment.isSelected)
+        XCTAssertTrue(mapCard.waitForExistence(timeout: 5.0))
+
+        mapCard.tap()
+        XCTAssertTrue(mapNavigationBar.waitForExistence(timeout: 5.0))
+
+        let filtersButton = app.buttons["PrivateScanMapFilters"]
+        XCTAssertTrue(filtersButton.waitForExistence(timeout: 4.0))
+        filtersButton.tap()
+
+        let birdsFilter = app.buttons["PrivateScanMapCategory-birds"]
+        XCTAssertTrue(
+            birdsFilter.waitForExistence(timeout: 4.0),
+            "The local species filter did not appear"
+        )
+        birdsFilter.tap()
+        app.navigationBars["Map filters"].buttons["Done"].tap()
+
+        let oneDiscoveryExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label == %@",
+                "1 discovery in view"
+            ),
+            object: visibleCount
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [oneDiscoveryExpectation], timeout: 5.0),
+            .completed,
+            "Filtering did not preserve the true viewport scan count"
+        )
+
+        visibleCount.tap()
+        let sheetHeader = app.descendants(matching: .any)[
+            "PrivateScanMapSheetHeader"
+        ]
+        XCTAssertTrue(sheetHeader.waitForExistence(timeout: 5.0))
+        XCTAssertTrue(sheetHeader.label.contains("Your scans"))
+        XCTAssertTrue(sheetHeader.label.contains("Private"))
+
+        let birdRow = app.buttons["PrivateScanMapSheetRow-private_map_bird"]
+        XCTAssertTrue(birdRow.waitForExistence(timeout: 4.0))
+        birdRow.tap()
+
+        XCTAssertTrue(
+            app.otherElements["InsightSheetView"].waitForExistence(timeout: 8.0),
+            "Selecting a sheet row did not dismiss before pushing private Insight"
+        )
+    }
+
+    @MainActor
     func testExistingBiologicalHistoryDoesNotPresentFeedbackSurveyOnLaunch() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: [
@@ -125,7 +236,30 @@ final class merianUITests: XCTestCase {
         let recordMode = app.segmentedControls.buttons["Record"]
         XCTAssertTrue(recordMode.waitForExistence(timeout: 8.0), "Record mode did not render")
         XCTAssertTrue(recordMode.isSelected, "The configured Audio-first order did not open Record")
-        XCTAssertTrue(app.buttons["CaptureShutter"].waitForExistence(timeout: 4.0))
+
+        let shutter = app.buttons["CaptureShutter"]
+        let idlePrompt = app.staticTexts["AudioIdlePrompt"]
+        XCTAssertTrue(shutter.waitForExistence(timeout: 4.0), "Audio capture button did not render")
+        XCTAssertTrue(idlePrompt.waitForExistence(timeout: 4.0), "Audio idle prompt did not render")
+        XCTAssertEqual(idlePrompt.label, "Record nearby sounds")
+
+        let renderedGap = shutter.frame.minY - idlePrompt.frame.maxY
+        XCTAssertGreaterThanOrEqual(
+            renderedGap,
+            8,
+            "Audio idle prompt overlaps the recording button; rendered gap was \(renderedGap) pt"
+        )
+
+        let promptDisappearance = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: idlePrompt
+        )
+        promptDisappearance.isInverted = true
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [promptDisappearance], timeout: 4.0),
+            .completed,
+            "Audio idle prompt disappeared before recording started"
+        )
     }
 
     @MainActor
@@ -557,6 +691,31 @@ final class merianUITests: XCTestCase {
             8,
             "Viewfinder hint overlaps the shutter; rendered gap was \(renderedGap) pt"
         )
+    }
+
+    @MainActor
+    func testDescribeTextAreaFocusesFromLowerRegion() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-captureModeOrder", "describe,visual,audio"]
+        )
+
+        let textArea = app.descendants(matching: .any)["DescribeTextArea"]
+        let textInput = app.textFields["DescribeTextInput"]
+        XCTAssertTrue(textArea.waitForExistence(timeout: 8.0), "Describe text area did not render")
+        XCTAssertTrue(textInput.waitForExistence(timeout: 4.0), "Describe text input did not render")
+
+        let relativeInputBottom = (textInput.frame.maxY - textArea.frame.minY) / textArea.frame.height
+        XCTAssertLessThan(
+            relativeInputBottom,
+            0.8,
+            "The lower-region tap no longer lands below the intrinsic text input"
+        )
+
+        textArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
+
+        let enteredText = "Small green shape"
+        textInput.typeText(enteredText)
+        XCTAssertEqual(textInput.value as? String, enteredText)
     }
 
     @MainActor

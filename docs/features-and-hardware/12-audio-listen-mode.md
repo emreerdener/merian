@@ -413,10 +413,11 @@ Full-screen content view for the `.audio` pager page. All persistent controls
 (capture button, `MediaModeToggle`, tab bar, flanking action buttons) live in
 `CaptureWorkspaceView`'s fixed overlay layers.
 
-| State              | Condition                                     | Content                                                                              |
-| ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Idle               | `!isRecording && pendingPlaybackPath == nil`  | Rotating carousel of animal illustration images (6 s crossfade interval)             |
-| Recording / Review | `isRecording \|\| pendingPlaybackPath != nil` | Live or static `SpectrogramView` · `SNRGaugeView` below spectrogram (recording only) |
+| State     | Condition                                    | Content                                                                                                              |
+| --------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Idle      | `!isRecording && pendingPlaybackPath == nil` | Rotating animal illustration carousel · persistent **Record nearby sounds** material badge above the capture control |
+| Recording | `isRecording`                                | Live `SpectrogramView` · `SNRGaugeView` below the spectrogram                                                        |
+| Review    | `pendingPlaybackPath != nil`                 | Static, seekable `SpectrogramView` · no lower guidance badge                                                         |
 
 **Spectrogram sizing**: The spectrogram height is computed symmetrically from
 `composingCenter` (the vertical center of the composing area between
@@ -505,6 +506,12 @@ once per process session for 3.5 seconds, then exposes the current non-clear SNR
 label when audio hints are enabled. The stored prompt task is cancelled on
 unmount, the surface disables hit testing, and no delayed dispatch chain or
 keyframe shake survives view teardown.
+
+`AudioRecordingView` mounts `SNRGaugeView` only after recording starts, so the
+initial guidance timer cannot expire invisibly while the page is idle. Before
+recording, the same lower guidance slot instead shows the persistent,
+non-interactive **Record nearby sounds** badge regardless of the Audio Hints
+preference. Review hides the lower guidance slot.
 
 | `SNRLevel`  | Color            | Label           |
 | ----------- | ---------------- | --------------- |

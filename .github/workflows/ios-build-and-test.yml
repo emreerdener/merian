@@ -722,6 +722,7 @@ jobs:
             "-seedMissingVideoFallbackFlow" \
             "-seedStagedAudioReviewFlow" \
             "-seedNonBiologicalCollectionRoute" \
+            "-seedPrivateScanMapFlow" \
             "ui_test_queued_audio_handoff" \
             "ui_test_queued_retry_attention" \
             "ui_test_queued_retry_scheduled" \

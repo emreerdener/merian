@@ -302,6 +302,7 @@ struct DescribeInputView: View {
                             )
                             .id(textFieldPlaceholder)
                             .accessibilityLabel(textFieldPlaceholder)
+                            .accessibilityIdentifier("DescribeTextInput")
                             .lineLimit(5...10)
                             .font(.body)
                             .foregroundStyle(.primary)
@@ -318,6 +319,10 @@ struct DescribeInputView: View {
                     }
                     .frame(minHeight: 160, maxHeight: .infinity)
                     .layoutPriority(1)
+                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .onTapGesture {
+                        isTextFieldFocused = true
+                    }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("DescribeTextArea")
                     .padding(.horizontal, 20)

@@ -89,6 +89,17 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
 #if DEBUG
 enum UITestSeedCoordinator {
+    private struct PrivateScanMapFixture {
+        let id: String
+        let commonName: String
+        let scientificName: String
+        let kingdom: String
+        let className: String
+        let latitude: Double
+        let longitude: Double
+        let timestamp: Date
+    }
+
     private static let requiredConsentArgument = "-seedCurrentRequiredConsent"
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
@@ -101,6 +112,8 @@ enum UITestSeedCoordinator {
     private static let stagedAudioReviewArgument = "-seedStagedAudioReviewFlow"
     private static let nonBiologicalCollectionRouteArgument =
         "-seedNonBiologicalCollectionRoute"
+    private static let privateScanMapArgument =
+        "-seedPrivateScanMapFlow"
     private static let captureGoalIndicatorArgument =
         "-seedCaptureGoalIndicatorFlow"
     private static let captureGoalIntroductionArgument =
@@ -227,6 +240,7 @@ enum UITestSeedCoordinator {
                 arguments.contains(liveQueueHandoffArgument) ||
                 arguments.contains(progressiveAnalyzingArgument) ||
                 arguments.contains(missingVideoFallbackArgument) ||
+                arguments.contains(privateScanMapArgument) ||
                 arguments.contains(nonBiologicalCollectionRouteArgument) else { return }
 
         let context = container.mainContext
@@ -278,6 +292,14 @@ enum UITestSeedCoordinator {
                 context.insert(missingVideoFallbackRecord())
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
                 MerianLog.general.debug("UITestSeedCoordinator seeded missing video fallback flow.")
+            } else if arguments.contains(privateScanMapArgument) {
+                for record in privateScanMapRecords() {
+                    context.insert(record)
+                }
+                OfflineQueueManager.shared.unsyncedItemsCount = 0
+                MerianLog.general.debug(
+                    "UITestSeedCoordinator seeded the private scan map flow."
+                )
             } else if arguments.contains(nonBiologicalCollectionRouteArgument) {
                 OfflineQueueManager.shared.unsyncedItemsCount = 0
                 MerianLog.general.debug(
@@ -314,6 +336,11 @@ enum UITestSeedCoordinator {
             } else if arguments.contains(nonBiologicalCollectionRouteArgument) {
                 AppDIContainer.shared.appRouteCoordinator.request(
                     .nonBiologicalScans,
+                    source: .debug
+                )
+            } else if arguments.contains(privateScanMapArgument) {
+                AppDIContainer.shared.appRouteCoordinator.request(
+                    .scansLibrary,
                     source: .debug
                 )
             }
@@ -477,6 +504,69 @@ enum UITestSeedCoordinator {
                 confirmedSpeciesId: "fungi_boletus"
             )
         ]
+    }
+
+    private static func privateScanMapRecords() -> [LocalScanRecord] {
+        let baseTimestamp = Date(timeIntervalSince1970: 1_787_501_200)
+        let fixtures = [
+            PrivateScanMapFixture(
+                id: "private_map_bird",
+                commonName: "Map Meadowlark",
+                scientificName: "Sturnella magna",
+                kingdom: "Animalia",
+                className: "Aves",
+                latitude: 12.02,
+                longitude: 45.01,
+                timestamp: baseTimestamp
+            ),
+            PrivateScanMapFixture(
+                id: "private_map_insect",
+                commonName: "Map Dragonfly",
+                scientificName: "Anax junius",
+                kingdom: "Animalia",
+                className: "Insecta",
+                latitude: 11.99,
+                longitude: 45.04,
+                timestamp: baseTimestamp.addingTimeInterval(-60)
+            ),
+            PrivateScanMapFixture(
+                id: "private_map_plant",
+                commonName: "Map Sunflower",
+                scientificName: "Helianthus annuus",
+                kingdom: "Plantae",
+                className: "Magnoliopsida",
+                latitude: 12.00,
+                longitude: 44.98,
+                timestamp: baseTimestamp.addingTimeInterval(-120)
+            )
+        ]
+
+        return fixtures.map { fixture in
+            LocalScanRecord(
+                id: fixture.id,
+                speciesId: fixture.id,
+                scientificName: fixture.scientificName,
+                commonName: fixture.commonName,
+                timestamp: fixture.timestamp,
+                capturedMediaJSON: CapturedMediaSnapshot(items: [
+                    .image(.documents("\(fixture.id).webp"))
+                ]).jsonString,
+                hazardType: "none",
+                isBiological: true,
+                isLiveCapture: true,
+                isInvasive: false,
+                ecologyType: "wild",
+                confidenceScore: 0.98,
+                isLocallyArchived: true,
+                taxonomyKingdom: fixture.kingdom,
+                taxonomyClass: fixture.className,
+                locationName: "Map Test Range",
+                gpsLatitude: fixture.latitude,
+                gpsLongitude: fixture.longitude,
+                hasBeenViewed: true,
+                confirmedSpeciesId: fixture.id
+            )
+        }
     }
 
     private static func achievementDeletionRefreshRecord() -> LocalScanRecord {

@@ -2,9 +2,8 @@
 
 The Describe capture mode is one of the user-orderable pages in
 `CaptureWorkspaceView`'s horizontal pager. It allows users to identify a
-biological subject through free-text description or live voice dictation
-instead of a photograph. The
-shipped path now routes through the same shared non-visual
+biological subject through free-text description or live voice dictation instead
+of a photograph. The shipped path now routes through the same shared non-visual
 `/identify-multimodal` flow used by audio-only captures, via
 `CaptureWorkspaceViewModel.submitNonVisualCapture(...)` and
 `InferenceEngine.analyzeNonVisual(...)`. `/identify-describe` remains deployed
@@ -45,13 +44,13 @@ else is staged:
 
 `submitDescribeSolo` mirrors the resilience pattern of the other capture paths:
 it always inserts a zero-byte `.staged` nonvisual queue row before any provider
-dispatch. An eligible online request persists and carries a foreground
-inference UUID into `InferenceEngine.analyzeNonVisual`; an offline request
-retains the same durable row, skips the live engine, and surfaces a queued
-toast. Because Describe shares `submitNonVisualCapture`, it also consumes an
-existing environment prefetch or resolves the pinned cached location before
-persistence; a description-only scan can therefore produce the same
-privacy-filtered Explore location label as a visual or audio scan.
+dispatch. An eligible online request persists and carries a foreground inference
+UUID into `InferenceEngine.analyzeNonVisual`; an offline request retains the
+same durable row, skips the live engine, and surfaces a queued toast. Because
+Describe shares `submitNonVisualCapture`, it also consumes an existing
+environment prefetch or resolves the pinned cached location before persistence;
+a description-only scan can therefore produce the same privacy-filtered Explore
+location label as a visual or audio scan.
 
 **Submission rule**: descriptions participate in the same 2-item total capacity
 as images and audio clips. Supported combinations are any one- or two-item
@@ -173,12 +172,14 @@ interactive — no content above `safeAreaInsets.top + 64` pt.
   `CaptureWorkspaceView`'s lifted state.
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area
   border highlight.
-- `let promptManager: DescribePromptManager` — workspace-owned prompt state
-  used to render and edit the guided question funnel.
+- `let promptManager: DescribePromptManager` — workspace-owned prompt state used
+  to render and edit the guided question funnel.
 
-The `TextEditor` binds to `$context.freeText`. The placeholder is a separate
-`Text` view rendered when `context.freeText.isEmpty`, with
-`.allowsHitTesting(false)` so it doesn't intercept taps.
+The multiline `TextField` binds to `$context.freeText` and exposes the stable
+`DescribeTextInput` UI-test identifier. Its intrinsic content sits at the top of
+the flexible rounded `DescribeTextArea`; the container's explicit rounded
+interaction shape forwards taps into `isTextFieldFocused`, so the empty space
+below the field remains a typing target instead of becoming a dead zone.
 
 `DescribeInputView` is deliberately render-only. Its full-page vertical content
 uses `DescribeVerticalScrollView`, a UIKit `UIScrollView` containing a
@@ -267,9 +268,8 @@ returns the dictation control to idle after any startup failure.
 
 `DictationUnavailableError` is thrown when five bounded recognizer checks,
 spaced 200 ms apart, cannot obtain an available speech recognizer. Its localized
-description is "Dictation is temporarily unavailable. Please try again." This
-is distinct from permission denial and remains retryable without changing
-Settings.
+description is "Dictation is temporarily unavailable. Please try again." This is
+distinct from permission denial and remains retryable without changing Settings.
 
 ### `startDictation` lifecycle
 
@@ -331,17 +331,18 @@ and Describe lifecycle state:
   `tocRequestID`; it does not own speech tasks or sheet presentation.
 - `DescribeInputLifecycleObserver` observes those intents outside the pager. It
   captures the existing text as a baseline, starts `SpeechManager`, appends live
-  cumulative transcription, and mirrors automatic speech termination back to
-  the coordinator.
+  cumulative transcription, and mirrors automatic speech termination back to the
+  coordinator.
 - Leaving Describe, removing the workspace, or toggling dictation off calls the
-  shared stop path. It stops the speech engine, cancels setup, clears task state,
-  and resets the coordinator flag, including the mid-permission-dialog case.
+  shared stop path. It stops the speech engine, cancels setup, clears task
+  state, and resets the coordinator flag, including the mid-permission-dialog
+  case.
 - `CaptureWorkspaceView` owns `isDescribeQuestionsSheetPresented` and applies
   `DescribeQuestionsSheet` at workspace scope. Reanalysis suppresses that sheet.
 
 This split is part of the startup stability contract: the Describe page renders
-prompt state but does not attach reactive tasks or sheet hosts to the nested page
-hierarchy.
+prompt state but does not attach reactive tasks or sheet hosts to the nested
+page hierarchy.
 
 ---
 
@@ -349,8 +350,8 @@ hierarchy.
 
 Both required `Info.plist` strings are already present:
 
-| Key                                   | Value                                                                                |
-| ------------------------------------- | ------------------------------------------------------------------------------------ |
+| Key                                   | Value                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `NSMicrophoneUsageDescription`        | "Naturebook needs microphone access for aviary and insect sound classification."         |
 | `NSSpeechRecognitionUsageDescription` | "Naturebook uses speech recognition to quickly search your Scans using voice dictation." |
 
@@ -364,12 +365,12 @@ observer clears the dictation request so the control returns to its idle state.
 
 ## 7. AVAudioSession Lifecycle
 
-| Event                                              | Action                                                                                             |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `startDictation` called                            | Acquires a `.recordMeasurement` lease from `AudioSessionCoordinator`                               |
+| Event                                              | Action                                                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `startDictation` called                            | Acquires a `.recordMeasurement` lease from `AudioSessionCoordinator`                              |
 | `stopDictation()` called                           | Tears down recognition and asks the coordinator to deactivate only if this lease is still current |
-| Task cancelled mid-setup (after session activated) | `handleCancelledStartup()` tears down and releases the owned lease                                 |
-| `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine()` → token-aware deactivation                             |
+| Task cancelled mid-setup (after session activated) | `handleCancelledStartup()` tears down and releases the owned lease                                |
+| `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine()` → token-aware deactivation                            |
 
 The lease prevents delayed teardown from one mode from deactivating a newer
 audio owner. This lets `AudioCaptureManager` acquire its own recording lease
@@ -421,7 +422,10 @@ The recognition result handler dispatches back to `@MainActor` via
   retains 8...32 pt of rendered clearance above them. The editor reserves the
   row's fixed 204 pt `CaptureControlBarLayout.describeContentBottomClearance`
   inside its UIKit-hosted scroll content and flexes to consume the remaining
-  height. At the top, the hosted page reserves
-  only a fixed 60 pt selector band because its origin is already safe-area
-  adjusted. UI coverage requires an 8...32 pt gap from `CaptureModeToggle` to
-  `DescribeQuestionNavigation`, preventing duplicate top-safe-area padding.
+  height. At the top, the hosted page reserves only a fixed 60 pt selector band
+  because its origin is already safe-area adjusted. UI coverage requires an
+  8...32 pt gap from `CaptureModeToggle` to `DescribeQuestionNavigation`,
+  preventing duplicate top-safe-area padding.
+- `merianUITests.testDescribeTextAreaFocusesFromLowerRegion` taps below the
+  multiline field's intrinsic frame and types through the newly focused input,
+  locking the full rounded editor as the interaction target.

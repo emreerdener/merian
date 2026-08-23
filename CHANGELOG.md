@@ -32,8 +32,27 @@ TestFlight, App Store, support, and QA.
   The canonical status is in the
   [Species Dictionary documentation](docs/features-and-hardware/16-species-dictionary.md#candidate-release-status).
 
+### Private Scan Map — Source Candidate
+
+- Collections now places a full-width **Scan map** above Featured scans when the
+  library contains mapped biological observations. Its passive preview fits the
+  complete scan extent and clearly labels the surface **Private**.
+- The owner-only map starts around current location, falls back to the newest
+  mapped scan, supports local species and media filters, clusters dense scans,
+  and opens private Insights through the preview's **View scan** action or the
+  **Your scans** sheet. Shared and unshared scans remain together at their exact
+  owner coordinates; Explore publication and public location settings are
+  unchanged.
+- This source candidate is not yet release-complete. The snapshot's main-actor
+  boundary, full-preview tap contract, and the manual location, accessibility,
+  appearance, deletion, large-library, and offline evidence matrix remain open.
+  The canonical status is in the
+  [Private Scan Map documentation](docs/features-and-hardware/28-private-scan-map.md#candidate-release-status).
+
 ### More Reliable Links, Notifications, and Sheets
 
+- The Describe screen's full rounded text box now accepts taps for typing,
+  including the open area below its placeholder and existing text.
 - Shared links, notification taps, Siri actions, Field trip destinations, and
   Photos imports now wait for the workspace and current sheet to be ready
   instead of competing with launch, sign-in, or another presentation.

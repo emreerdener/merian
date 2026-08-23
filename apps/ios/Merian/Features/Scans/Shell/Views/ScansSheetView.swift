@@ -174,6 +174,7 @@ struct ScansSheetView: View {
             }
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .navigationBar)
             .toolbarBackground(searchManager.isSelectionMode ? .visible : .hidden, for: .bottomBar)
+            .navigationTitle(activeTab == .collections ? "Collections" : "Scans")
             .navigationDestination(for: ScanInsightRoute.self) { route in
                 localInsightDestination(for: route)
             }

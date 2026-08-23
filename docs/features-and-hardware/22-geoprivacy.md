@@ -5,11 +5,11 @@ shared UI, Explore, public map data, and public exports.
 
 ## Modes
 
-| Mode | Owner-facing local scan UI | Public/public-share projection |
-|---|---|---|
-| `open` | Shows location label, elevation, weather, and exact map marker when telemetry exists. | May publish exact public coordinates and a sanitized public location label. |
-| `obscured` | Shows a coarse location label, weather, and a rounded map region with a 10 km uncertainty circle. Elevation is hidden. | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore posts default to `obscured` location sharing and stay off the Explore Map unless the author explicitly changes that post to `open`. |
-| `private` | Hides location label, elevation, weather, and map from scan-information surfaces. | Clears scan public coordinates, public uncertainty, and public location labels; Explore posts default to `private` location sharing but can be explicitly changed per post. |
+| Mode       | Owner-facing local scan UI                                                                                                                                                                              | Public/public-share projection                                                                                                                                                                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `open`     | Insight may show location label, elevation, weather, and an exact marker. The dedicated owner-only Scan map also shows the exact saved point.                                                           | May publish exact public coordinates and a sanitized public location label.                                                                                                                                                                                              |
+| `obscured` | Insight shows a coarse label, weather, and a rounded region with a 10 km uncertainty circle; elevation is hidden. The dedicated owner-only Scan map still shows the exact saved point.                  | Publishes rounded public coordinates and a sanitized public location label with `coordinate_uncertainty_in_meters >= 10000`; Explore posts default to `obscured` location sharing and stay off the Explore Map unless the author explicitly changes that post to `open`. |
+| `private`  | Insight hides location label, elevation, weather, and its map. The separate owner-only Scan map still shows the exact saved point because it is a private library index rather than a share projection. | Clears scan public coordinates, public uncertainty, and public location labels; Explore posts default to `private` location sharing but can be explicitly changed per post.                                                                                              |
 
 Audio-only, description-only, and other non-visual captures resolve the cached
 capture coordinate through the same environment-context path used by camera
@@ -26,9 +26,9 @@ not include an explicit value.
 
 ## Backend Contract
 
-The identify stack accepts an optional `geoprivacy` field on visual,
-multimodal, describe, and audio requests. The shared insert helper resolves
-that field through `resolveScanGeoprivacy(userId, supabaseAdmin, explicit)`:
+The identify stack accepts an optional `geoprivacy` field on visual, multimodal,
+describe, and audio requests. The shared insert helper resolves that field
+through `resolveScanGeoprivacy(userId, supabaseAdmin, explicit)`:
 
 1. Valid explicit values (`open`, `obscured`, `private`) are preserved.
 2. Missing or invalid values read `users.default_geoprivacy`.
@@ -37,8 +37,8 @@ that field through `resolveScanGeoprivacy(userId, supabaseAdmin, explicit)`:
 
 For `private`, insert helpers also write `public_location_label = NULL` even if
 an old client accidentally sends a label. The database trigger
-`trg_set_scan_public_location_label` provides the durable guard on insert and
-on updates to `public_location_label`, `semantic_location`, or `geoprivacy`.
+`trg_set_scan_public_location_label` provides the durable guard on insert and on
+updates to `public_location_label`, `semantic_location`, or `geoprivacy`.
 
 Changing `users.default_geoprivacy` retroactively updates that user's scans via
 `trg_sync_user_default_geoprivacy_to_scans`. The scan update re-runs the public
@@ -57,6 +57,13 @@ visibility decisions:
 
 - `ScanInformationCard` hides private location/elevation/weather/map, rounds
   obscured coordinates, and shows exact owner-facing context only for `open`.
+- `PrivateScanMapView` is a deliberate owner-only exception to the Insight
+  presentation rule. It projects every completed local biological scan with
+  valid GPS at its exact saved coordinate, independent of scan geoprivacy,
+  Explore publication, or post-level location sharing. Its passive Collections
+  preview does not request live location; only the interactive page does. The
+  exact exception, prohibited data paths, and acceptance matrix are defined in
+  [Private Scan Map](./28-private-scan-map.md).
 - `InsightBottomToolbar` seeds the Explore composer location option from
   `defaultGeoprivacy`. The composer can override that one post to `open`,
   `obscured`, or `private`.
@@ -67,16 +74,16 @@ visibility decisions:
 - `MerianNetworkClient` sends `geoprivacy` with identify payloads and omits
   `publicLocationLabel` for private scans.
 - Automatic camera-roll saves remain an owner-controlled local Photos export,
-  not a public projection. When that separate default-off preference is
-  enabled, the established capture behavior assigns the resolved shutter
-  location to the Photos asset regardless of public geoprivacy. Explicit later
-  Downloads do not inject `LocalScanRecord` telemetry into the exported asset.
-  See
+  not a public projection. When that separate default-off preference is enabled,
+  the established capture behavior assigns the resolved shutter location to the
+  Photos asset regardless of public geoprivacy. Explicit later Downloads do not
+  inject `LocalScanRecord` telemetry into the exported asset. See
   [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 
 Local SwiftData still stores exact telemetry owned by the user. Do not treat
 `LocalScanRecord.locationName`, `gpsLatitude`, or `gpsLongitude` as display-safe
-without checking the current geoprivacy mode at the UI boundary.
+without checking the current geoprivacy mode at the UI boundary, except inside
+an explicitly reviewed owner-only surface such as the dedicated Scan map.
 
 ## Public Boundaries
 
@@ -85,14 +92,14 @@ geoprivacy, as long as the post remains otherwise eligible. Public location is
 controlled by `explore_posts.location_sharing`: `private` clears public location
 fields, `obscured` can show a scrubbed label while staying off-map, and `open`
 projects post-owned public map coordinates. Open posts may still render
-  approximate map points when species-safety or uncertainty rules round the public
-  projection. Nearby uses the same post-owned public coordinate projection for
-  spatial matching, so non-owned `obscured` and `private` posts remain out of
-  Nearby while still being eligible for non-spatial Explore feeds.
-Global Darwin Core exports snapshot membership from records that are open when
-the job is created; occurrence and multimedia phases must match that
-creation-time eligibility revision. Personal exports may include the user's own
-exact telemetry when they request their own archive.
+approximate map points when species-safety or uncertainty rules round the public
+projection. Nearby uses the same post-owned public coordinate projection for
+spatial matching, so non-owned `obscured` and `private` posts remain out of
+Nearby while still being eligible for non-spatial Explore feeds. Global Darwin
+Core exports snapshot membership from records that are open when the job is
+created; occurrence and multimedia phases must match that creation-time
+eligibility revision. Personal exports may include the user's own exact
+telemetry when they request their own archive.
 
 Field trips have a separate public-profile boundary:
 
@@ -117,8 +124,8 @@ surface, use this checklist:
 
 - never read exact GPS directly in public read RPCs;
 - keep active Field trip profile summaries status-only;
-- keep Field trip Challenge badges evidence-free and challenge entries scoped
-  to Field trips surfaces;
+- keep Field trip Challenge badges evidence-free and challenge entries scoped to
+  Field trips surfaces;
 - keep public Explore post visibility separate from scan geoprivacy;
 - require `explore_posts.location_sharing = 'open'` for public spatial result
   sets such as Explore Map and non-owned Nearby matches;
@@ -127,7 +134,10 @@ surface, use this checklist:
 - use post-owned `public_latitude`, `public_longitude`, and
   `public_coordinate_visibility` for Explore Map display and Nearby spatial
   matching;
-- gate local owner-facing text/map rendering through `defaultGeoprivacy`;
+- gate ordinary Insight owner-facing text/map rendering through
+  `defaultGeoprivacy`;
+- keep any exact-coordinate exception confined to a current-owner-only surface
+  and independent from public DTOs, APIs, caches, logs, and telemetry;
 - add a test for private hide and open/obscured restore behavior.
 
 ## Verification
@@ -137,7 +147,12 @@ Focused backend coverage lives in:
 - `services/supabase/functions/_shared/identify/db_test.ts`
 - `services/supabase/functions/_tests/geoprivacyDb.test.ts`
 
-Use `deno test`, `deno check`, `deno lint`, `swiftlint lint`, and an Xcode
-build for implementation changes. `geoprivacyDb.test.ts` requires a running
-local Supabase/Postgres instance on the configured test port; otherwise it
-skips with a connection-refused message.
+Use `deno test`, `deno check`, `deno lint`, `swiftlint lint`, and an Xcode build
+for implementation changes. `geoprivacyDb.test.ts` requires a running local
+Supabase/Postgres instance on the configured test port; otherwise it skips with
+a connection-refused message.
+
+Private Scan Map changes additionally require the local exact-coordinate tests,
+Debug UI fixture/Release-marker boundary, and owner-only manual privacy matrix
+in the
+[Private Scan Map verification contract](./28-private-scan-map.md#verification-contract).

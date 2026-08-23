@@ -118,6 +118,11 @@ The Scans tab is the user's primary offline biological journal.
   could invalidate that snapshot. The compact progress badge does not block
   unrelated navigation, and durable `scanLibraryChanged` recovery refreshes
   every mounted library projection after commit.
+- **Private map push**: Collections pushes **Scan map** inside this same
+  `NavigationStack`. The destination receives a native **Collections** back item
+  and edge-swipe navigation while omitting the root X, segmented picker, add
+  action, bottom search field, and app bottom navigation. It opens private
+  Insight in the existing stack rather than presenting another root sheet.
 
 ### Search & Filtering
 
@@ -256,6 +261,14 @@ The Scans tab is the user's primary offline biological journal.
   distinct `ScanCollection` buckets.
 - **Inline Search Filtering**: The view supports inline string filtering against
   both custom collections and system folders (Favorites, Non-biological).
+- **Scan Map Entry**: When the completed biological library contains at least
+  one valid saved coordinate, a virtual full-width **Scan map** card appears
+  above Featured scans. It shows the total mapped count plus **Private**, fits
+  the complete scan extent without requesting current location, and joins
+  search/result-count/empty-state behavior through map, private, locations, and
+  "your scans" aliases. It is not a `ScanCollection` and never enters collection
+  synchronization or mutation flows. The normative behavior and privacy contract
+  are in [Private Scan Map](./28-private-scan-map.md).
 - Uses SwiftData `@Relationship` mapping inside a nested 3-column `LazyVGrid`,
   providing an "Explore Library" modal inside `CollectionDetailView` to link IDs
   safely without duplicating local images.
@@ -1558,11 +1571,14 @@ on gesture-driven layout abstractions.
   pushed Insight destinations; `Library/` owns individual private scans,
   `ScansManager`, `SearchDatabaseActor`, `SearchableScan`, fresh queued-context
   hydration, and the scan-library route callback; `Collections/` owns collection
-  cards, collection detail, smart collections, and multi-scan selection flows;
-  `NonBiological/` owns the non-biological scan isolation route; `Shared/` holds
-  scan-only primitives such as `ScansGrid`, `ScanThumbnail`, `EmptyStateView`,
-  and deletion dialogs. Truly cross-feature primitives, including
-  `CategoryFilterBar`, live under `Core/UI/Components/`.
+  cards, collection detail, smart collections, multi-scan selection flows, and
+  the passive private-map entry; `Map/` owns exact owner-coordinate snapshots,
+  region fitting, local filters, deterministic clustering, the interactive map,
+  private previews/list, and embedded Insight routing; `NonBiological/` owns the
+  non-biological scan isolation route; `Shared/` holds scan-only primitives such
+  as `ScansGrid`, `ScanThumbnail`, `EmptyStateView`, and deletion dialogs. Truly
+  cross-feature primitives, including `CategoryFilterBar`, live under
+  `Core/UI/Components/`.
 - **UIKit Window Theme Injection**: Previously,
   `.preferredColorScheme(themeMode.colorScheme)` declarations were utilized
   across view hierarchies, which exhibited a known caching bug where switching

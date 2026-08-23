@@ -65,10 +65,13 @@ struct AudioRecordingView: View {
 
                 VStack {
                     Spacer()
-                    if !showSpectrogram || audioCaptureManager.pendingPlaybackPath == nil {
+                    if !showSpectrogram {
+                        idlePromptBadge
+                            .padding(.bottom, bottomClearance + 16)
+                    } else if audioCaptureManager.isRecording {
                         SNRGaugeView(snrLevel: audioCaptureManager.snrLevel)
                             .padding(.bottom, bottomClearance + 16)
-                            .opacity(audioCaptureManager.isRecording ? 1 : 0)
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -95,6 +98,21 @@ struct AudioRecordingView: View {
     }
 
     // MARK: - Idle
+
+    private var idlePromptBadge: some View {
+        Text("Record nearby sounds")
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial)
+            .environment(\.colorScheme, .dark)
+            .clipShape(Capsule())
+            .transition(.opacity)
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("AudioIdlePrompt")
+    }
 
     private var idleContent: some View {
         VStack(spacing: 16) {

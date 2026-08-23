@@ -937,7 +937,7 @@ struct FieldTripAPIModelsTests {
         )
     }
 
-    @Test func fieldTripCardTagsHidePublicationStateAndPreserveMetadata() {
+    @Test func fieldTripStatusAndDetailTagsPreserveLifecycleAndMetadata() {
         let locked = makeCardTemplate(viewerHasAccess: false, isProOnly: true)
         let privateActive = makeCardTemplate(
             activeProgress: makeCardProgress(completedCount: 0, targetCount: 4)
@@ -965,26 +965,43 @@ struct FieldTripAPIModelsTests {
             )
         )
 
-        let locatedTags = FieldTripTemplatePresentation.cardTags(
+        #expect(
+            FieldTripTemplatePresentation.status(for: locked) ==
+                FieldTripTemplateStatusPresentation(kind: .notStarted, title: "Not started")
+        )
+        #expect(
+            FieldTripTemplatePresentation.status(for: privateActive) ==
+                FieldTripTemplateStatusPresentation(kind: .active, title: "Active")
+        )
+        #expect(
+            FieldTripTemplatePresentation.status(for: stopped) ==
+                FieldTripTemplateStatusPresentation(kind: .stopped, title: "Stopped")
+        )
+        #expect(
+            FieldTripTemplatePresentation.status(for: completed) ==
+                FieldTripTemplateStatusPresentation(kind: .completed, title: "Completed")
+        )
+
+        let locatedTags = FieldTripTemplatePresentation.detailTags(
             for: locked,
             locationLabel: " Austin, TX "
         )
-        let unlocatedTags = FieldTripTemplatePresentation.cardTags(
+        let unlocatedTags = FieldTripTemplatePresentation.detailTags(
             for: locked,
             locationLabel: "   "
         )
 
         let expectedLocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .status, .access, .difficulty, .level, .location
+            .access, .difficulty, .level, .location
         ]
         let expectedUnlocatedKinds: [FieldTripTemplateTagPresentation.Kind] = [
-            .status, .access, .difficulty, .level
+            .access, .difficulty, .level
         ]
 
         #expect(locatedTags.map(\.kind) == expectedLocatedKinds)
         #expect(
             locatedTags.map(\.title) == [
-                "Not started", "Pro", "Starter", "Level 1", "Austin, TX"
+                "Pro", "Starter", "Level 1", "Austin, TX"
             ]
         )
         #expect(
@@ -993,55 +1010,98 @@ struct FieldTripAPIModelsTests {
         )
         #expect(unlocatedTags.map(\.kind) == expectedUnlocatedKinds)
         #expect(unlocatedTags.allSatisfy { $0.kind != .visibility })
-        let privateActiveTags = FieldTripTemplatePresentation.cardTags(
+        let privateActiveTags = FieldTripTemplatePresentation.detailTags(
             for: privateActive,
             locationLabel: nil
         )
         #expect(
             privateActiveTags.map(\.title) == [
-                "Active", "Starter", "Level 1"
+                "Starter", "Level 1"
             ]
         )
         #expect(privateActiveTags.allSatisfy { $0.kind != .visibility })
-        let stoppedTags = FieldTripTemplatePresentation.cardTags(
+        let stoppedTags = FieldTripTemplatePresentation.detailTags(
             for: stopped,
             locationLabel: nil
         )
         #expect(
             stoppedTags.map(\.title) == [
-                "Stopped", "Starter", "Level 1"
+                "Starter", "Level 1"
             ]
         )
         #expect(stoppedTags.allSatisfy { $0.kind != .visibility })
-        let completedTags = FieldTripTemplatePresentation.cardTags(
+        let completedTags = FieldTripTemplatePresentation.detailTags(
             for: completed,
             locationLabel: nil
         )
         #expect(
             completedTags.map(\.title) == [
-                "Completed", "Starter", "Level 1"
+                "Starter", "Level 1"
             ]
         )
         #expect(completedTags.allSatisfy { $0.kind != .visibility })
-        let publishedTags = FieldTripTemplatePresentation.cardTags(
+        let publishedTags = FieldTripTemplatePresentation.detailTags(
             for: published,
             locationLabel: nil
         )
         #expect(
             publishedTags.map(\.title) == [
-                "Completed", "Starter", "Level 1"
+                "Starter", "Level 1"
             ]
         )
         #expect(publishedTags.allSatisfy { $0.kind != .visibility })
 
-        let sharingEnabledTags = FieldTripTemplatePresentation.cardTags(
+        let sharingEnabledPrivateTags = FieldTripTemplatePresentation.detailTags(
+            for: privateActive,
+            locationLabel: nil,
+            sharingEnabled: true
+        )
+        #expect(
+            sharingEnabledPrivateTags.map(\.title) == [
+                "Private", "Starter", "Level 1"
+            ]
+        )
+        #expect(
+            sharingEnabledPrivateTags.first(where: { $0.kind == .visibility })?.systemImage ==
+                "eye.slash.fill"
+        )
+
+        let sharingEnabledPublishedTags = FieldTripTemplatePresentation.detailTags(
             for: published,
             locationLabel: nil,
             sharingEnabled: true
         )
         #expect(
-            sharingEnabledTags.first(where: { $0.kind == .visibility })?.systemImage ==
+            sharingEnabledPublishedTags.map(\.title) == [
+                "Published", "Starter", "Level 1"
+            ]
+        )
+        #expect(
+            sharingEnabledPublishedTags.first(where: { $0.kind == .visibility })?.systemImage ==
                 "eye.fill"
+        )
+    }
+
+    @Test func fieldTripCatalogPreviewUsesTwoUpLayoutOnlyForTwoTargets() {
+        #expect(
+            FieldTripScanPreviewPresentationMode.compactScrollable
+                .resolvedLayout(forTargetCount: 2) == .fixedScrollable
+        )
+        #expect(
+            FieldTripScanPreviewPresentationMode.responsiveCatalog
+                .resolvedLayout(forTargetCount: -1) == .fixedScrollable
+        )
+        #expect(
+            FieldTripScanPreviewPresentationMode.responsiveCatalog
+                .resolvedLayout(forTargetCount: 1) == .fixedScrollable
+        )
+        #expect(
+            FieldTripScanPreviewPresentationMode.responsiveCatalog
+                .resolvedLayout(forTargetCount: 2) == .equalWidthTwoUp
+        )
+        #expect(
+            FieldTripScanPreviewPresentationMode.responsiveCatalog
+                .resolvedLayout(forTargetCount: 3) == .fixedScrollable
         )
     }
 
@@ -2143,6 +2203,127 @@ struct ActiveCaptureGoalStoreTests {
             isTripComplete: false,
             hasGuide: false
         ))
+    }
+
+    @Test func fieldTripLevelStatusUsesLifecycleForCurrentAndOverridesOtherLevels() {
+        let notStarted = FieldTripTemplateStatusPresentation(
+            kind: .notStarted,
+            title: "Not started"
+        )
+        let active = FieldTripTemplateStatusPresentation(kind: .active, title: "Active")
+        let stopped = FieldTripTemplateStatusPresentation(kind: .stopped, title: "Stopped")
+
+        #expect(
+            FieldTripLevelStatusPresentation.status(
+                for: .current,
+                currentStatus: notStarted
+            ) == notStarted
+        )
+        #expect(
+            FieldTripLevelStatusPresentation.status(
+                for: .current,
+                currentStatus: active
+            ) == active
+        )
+        #expect(
+            FieldTripLevelStatusPresentation.status(
+                for: .current,
+                currentStatus: stopped
+            ) == stopped
+        )
+        #expect(
+            FieldTripLevelStatusPresentation.status(
+                for: .completed,
+                currentStatus: active
+            ) == FieldTripTemplateStatusPresentation(kind: .completed, title: "Completed")
+        )
+        #expect(
+            FieldTripLevelStatusPresentation.status(
+                for: .locked,
+                currentStatus: active
+            ) == FieldTripTemplateStatusPresentation(kind: .locked, title: "Locked")
+        )
+    }
+
+    @Test func fieldTripLevelProgressResolvesNumericZeroCompletionAndLocking() throws {
+        let unstarted = try #require(FieldTripLevelProgressResolver.resolve(
+            presentationState: .current,
+            currentProgress: nil,
+            itemCount: 2,
+            usesNumericRing: true
+        ))
+        #expect(unstarted.completedCount == 0)
+        #expect(unstarted.targetCount == 2)
+
+        let partial = FieldTripLevelProgressPresentation(completedCount: 1, targetCount: 2)
+        let active = try #require(FieldTripLevelProgressResolver.resolve(
+            presentationState: .current,
+            currentProgress: partial,
+            itemCount: 2,
+            usesNumericRing: true
+        ))
+        #expect(active.completedCount == 1)
+        #expect(active.targetCount == 2)
+
+        let completed = try #require(FieldTripLevelProgressResolver.resolve(
+            presentationState: .completed,
+            currentProgress: nil,
+            itemCount: 2,
+            usesNumericRing: true
+        ))
+        #expect(completed.completedCount == 2)
+        #expect(completed.targetCount == 2)
+
+        #expect(FieldTripLevelProgressResolver.resolve(
+            presentationState: .locked,
+            currentProgress: nil,
+            itemCount: 3,
+            usesNumericRing: true
+        ) == nil)
+        #expect(FieldTripLevelProgressResolver.resolve(
+            presentationState: .current,
+            currentProgress: nil,
+            itemCount: 2,
+            usesNumericRing: false
+        ) == nil)
+    }
+
+    @Test func fieldTripDetailGoalLayoutScrollsOnlyAboveTwoItems() {
+        #expect(
+            FieldTripLevelGoalLayoutPresentation.resolvedLayout(forItemCount: 1)
+                == .equalWidthGrid
+        )
+        #expect(
+            FieldTripLevelGoalLayoutPresentation.resolvedLayout(forItemCount: 2)
+                == .equalWidthGrid
+        )
+        #expect(
+            FieldTripLevelGoalLayoutPresentation.resolvedLayout(forItemCount: 3)
+                == .fixedScrollable
+        )
+    }
+
+    @Test func fieldTripGoalTipsUseOneToggleableSelection() {
+        #expect(FieldTripGoalTipSelection.toggledSelection(
+            currentItemId: nil,
+            tappedItemId: "bird",
+            hasGuide: true
+        ) == "bird")
+        #expect(FieldTripGoalTipSelection.toggledSelection(
+            currentItemId: "bird",
+            tappedItemId: "bird",
+            hasGuide: true
+        ) == nil)
+        #expect(FieldTripGoalTipSelection.toggledSelection(
+            currentItemId: "bird",
+            tappedItemId: "butterfly",
+            hasGuide: true
+        ) == "butterfly")
+        #expect(FieldTripGoalTipSelection.toggledSelection(
+            currentItemId: "bird",
+            tappedItemId: "flower",
+            hasGuide: false
+        ) == "bird")
     }
 
     @Test func captureIndicatorPolicyRequiresIdleVisualScanningAndRealData() {

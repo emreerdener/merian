@@ -740,6 +740,7 @@ MerianTests/
   Features/Capture/Describe/
   Features/Scans/Library/
   Features/Scans/Collections/
+  Features/Scans/Map/
   Features/Profile/UserProfile/
   Features/Profile/Settings/Changelog/
 ```
@@ -1499,6 +1500,12 @@ import, and permission-denial UI require the physical-device checklist in
 - **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
   incremental and coalesced reindexing, sort behavior, and selection limits for
   the Scans library, including the batch-media export selection-mutation fence.
+- **`PrivateScanMapTests.swift`**: Locks mapped-record inclusion and coordinate
+  validation, exact owner-coordinate preservation, antimeridian extent fitting,
+  current-location fallback, local category/media filters, true viewport counts,
+  deletion refresh, the thumbnail zoom threshold, **Show scans** recovery, and
+  deterministic 56-point clustering for coincident points and 5,000-record
+  libraries.
 - **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
   and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
   returns only the non-Favorites collection's direct, deterministically sorted
@@ -1526,6 +1533,45 @@ import, and permission-denial UI require the physical-device checklist in
 - **`SupabaseManagerTests.swift` auth-adoption coverage**: Locks the three cold-
   start classifications: nil is signed out, a current session is authenticated,
   and an expired cached session is awaiting refresh rather than signed out.
+
+### Private Scan Map
+
+The focused UI case
+`merianUITests.testPrivateScanMapCollectionNavigationFiltersAndInsight` uses the
+Debug-only `-seedPrivateScanMapFlow` fixture. It verifies card visibility and
+placement, native **Collections** back navigation, absence of Scans-root and
+Explore chrome, bottom-safe-area controls, local filtering, the true viewport
+count, the **Your scans / Private** sheet, sheet dismissal before embedded
+Insight, and Back returning to Collections.
+
+The shared UI launcher also supplies `-seedLocationPermissionPromptSuppressed`,
+so this test exercises the saved-scan fallback and cannot serve as evidence for
+a real permission prompt, current location, or MapKit user annotation. The
+focused private-map case is not one of the hosted critical UI smokes; run it
+explicitly and retain its result alongside the complete `merianTests` result. A
+permission-path test must launch without the suppression argument.
+
+After `make xcodegen` and build-for-testing, the minimum focused selectors are:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/PrivateScanMapTests
+
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianUITests/merianUITests/testPrivateScanMapCollectionNavigationFiltersAndInsight
+```
+
+Focused passes do not replace `make validate-ios-project`,
+`make validate-ios-privacy-manifest`, the complete `merianTests` target, or
+candidate-build manual QA. The authoritative privacy, accessibility, deletion,
+location, appearance, large-library, offline, and release-readiness matrix is in
+[Private Scan Map](../features-and-hardware/28-private-scan-map.md#verification-contract).
 
 ## Testing Identify Requests and Activity
 

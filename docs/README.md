@@ -699,6 +699,11 @@ as their permanent engineering identity.
   default-off preference semantics, add-only permission, original-recording
   lifetime, file-backed cloud downloads, approved-host policy, cleanup, feedback
   counts, and physical-device QA.
+- **[`/features-and-hardware/28-private-scan-map.md`](./features-and-hardware/28-private-scan-map.md)**
+  — Owner-only Scan library map, including eligible local-record projection,
+  complete-extent Collections preview, current-location fallback, filters,
+  clustering, private Insight routing, exact-coordinate privacy boundaries,
+  accessibility, verification, and candidate release status.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

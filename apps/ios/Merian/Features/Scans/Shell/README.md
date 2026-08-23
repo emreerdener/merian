@@ -8,6 +8,14 @@ Cross-module requests to open this feature arrive as `AppRoute.scansLibrary`,
 sole app-level `.sheet(item:)`; this shell pushes Insight destinations inside
 its existing navigation stack and never adds another app-level sheet.
 
+Collections can also push the private **Scan map** in this stack. The root keeps
+the semantic `Collections` navigation title behind its segmented toolbar so the
+destination receives the native **Collections** back item and edge-swipe
+behavior. The pushed map supplies its own inline title and does not inherit the
+root close button, segmented picker, add button, search field, or bottom bar.
+The full navigation and acceptance contract is in the
+[Private Scan Map documentation](../../../../../../docs/features-and-hardware/28-private-scan-map.md).
+
 The Non-biological route pre-seeds its typed destination over the Collections
 tab. When Back reveals the Scans root, the shell explicitly re-anchors the
 horizontal pager to that selected tab after layout so the segmented control and
