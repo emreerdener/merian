@@ -45,10 +45,14 @@ best-effort rescue later. The durable unit is now a single ordered mixed-media
 timeline that can contain up to 2 total user items across photos, short Pro
 video clips, audio clips, and descriptions.
 
-Timeline ordering comes from each staged item's `addedAt` value. Edits that
-replace media bytes, especially manual image crops, must preserve the original
-`StagedImage.addedAt` through `StagedImage.replacing(...)`; otherwise the queue
-can persist a different media order than the user staged.
+Timeline ordering comes from each staged wrapper's `addedAt` value. Images,
+audio, video, and `StagedObservationContext` own that composition-only metadata;
+the durable `ObservationContext` is text-only. Edits that replace media bytes,
+especially manual image crops, must preserve the original `StagedImage.addedAt`
+through `StagedImage.replacing(...)`; otherwise the queue can persist a
+different media order than the user staged. The final owner timeline and
+captured-media array order carry chronology across the wire, never a description
+timestamp.
 
 When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
 
@@ -701,6 +705,13 @@ retry instead of polling forever. That manual retry preserves the exact-owner
 fence and performs owner-result recovery only; it cannot re-enable provider
 dispatch during a temporary status outage. Successful local recovery deletes the
 queue row.
+
+A deterministic row decode failure is handled separately from those transient
+paths. The targeted fetch returns `contractMismatch`, skips the expensive full
+history fallback, and persists `server_result_local_recovery_contract_mismatch`
+as needs-attention on the first attempt. That code deliberately shares the
+completed-result prefix, so relaunch, orphan reconciliation, and manual retry
+continue to treat the scan as server-owned and can never redispatch Identify.
 
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
@@ -1599,8 +1610,18 @@ Both the scans and collections queries are paginated via Supabase PostgREST's
 - Scans: pages of `MerianConfig.historicalSyncPageSize` (200) records
 - Collections: pages of `MerianConfig.collectionsSyncPageSize` (100) records
 
-Each loop runs until the returned page is smaller than the page size, indicating
-the last page.
+Each loop runs until the raw returned page is smaller than the page size,
+indicating the last page. Scan pagination uses the remote row count before
+decoding, not the count of accepted rows, so quarantining a malformed row cannot
+repeat or skip offsets.
+
+`HistoricalScanPageDecoder` applies the production PostgREST `JSONDecoder` to
+each scan row independently. Captured Media Wire V1 compatibility accepts legacy
+key aliases, retired description timestamps without decoding them, historical
+nested video audio, empty manifests, and `localFile` references. Device-local
+references are discarded during domain mapping and durable URL columns provide
+the fallback. A still-invalid row is logged only with a bounded coding path and
+quarantined; valid rows in the same page continue reconciling.
 
 ### Streaming Reconciliation (`reconcileScanPage` + `syncCollectionsDown`)
 
@@ -1614,19 +1635,13 @@ kills.
 Each page passes through these steps inside the actor:
 
 1. **ID Page Bounding Fetch (per page)**: Inside `reconcileScanPage`, the actor
-   restricts fetching strictly down to the `responseIds` provided in the current
-   PostgREST batch (typically `200` items). It shards this id-set into bounds no
-   larger than 500, and explicitly issues an array intersection query
-   `FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunk.contains($0.id) })`.
-   _CRITICAL QUIRK: We must execute this via
-   `try modelContext.fetchIdentifiers(desc)` rather than `fetch()`. On iOS 17+,
-   invoking `.fetch()` via `#Predicate` natively dynamically unboxes the generic
-   map behind the `@ModelActor` barrier, which completely fails to map back to
-   the `typealias LocalScanRecord` (crashing with
-   `Failed to cast model MerianSchemaV22... to LocalScanRecord`). Extracting
-   identifiers safely and individually reinstantiating
-   `modelContext.model(for: id)` is completely immune to this macro casting
-   panic._
+   restricts fetching strictly to the `responseIds` in the current PostgREST
+   batch (typically `200` items). It shards this ID set into chunks no larger
+   than 500 and issues an array-intersection `FetchDescriptor<LocalScanRecord>`
+   for each chunk. The descriptor projects only `\.id`, avoiding full record
+   faults while preserving the versioned `LocalScanRecord` typealias. The
+   resulting ID set divides the page between `updateExistingScans` and
+   `ingestScans`.
 2. **`updateExistingScans`**: Receives only the local record sets securely
    matched from the previous bounding fetch. Updates: `localImagePath`,
    `additionalImagePaths`, `referenceImageUrl`, GPS fields, `locationName`,

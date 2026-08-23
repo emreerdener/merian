@@ -26,11 +26,15 @@ reuses its complimentary hold; it never acquires another lifetime credit.
 Inline foreground media is never replayed by the server because raw base64 media
 bytes are intentionally redacted from `scan_ingestion_intents`.
 
-Schema-v2 intents retain a validated `ownerMediaTimeline` when it was present on
-the accepted request. Older intents keep that field absent during
-reconstruction; the worker must not turn absence into an empty authoritative
-array, because legacy media descriptors are intentionally handled by
-multimodal's conservative retention path.
+Current schema-v3 intents retain a validated `ownerMediaTimeline` when it was
+present on the accepted request and store observation contexts as text-only
+`{ "freeText": "..." }` objects. Schema-v2 intents remain readable during
+rolling compatibility; any retired `addedAt` / `added_at` value reaches
+multimodal's compatibility normalizer and is discarded before a new replay
+intent, scan row, or Captured Media manifest is written. Older intents keep the
+timeline field absent during reconstruction. The worker must not turn absence
+into an empty authoritative array, because legacy media descriptors are
+intentionally handled by multimodal's conservative retention path.
 
 Automatic replay is capped at 10 claims per sanitized intent. Once
 `replay_attempt_count` reaches that ceiling, the claim RPC marks the paired job

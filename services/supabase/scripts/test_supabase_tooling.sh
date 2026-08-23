@@ -14,7 +14,8 @@ tooling_sources=()
 tooling_tests=()
 for source in services/supabase/scripts/*.ts; do
   case "$source" in
-    */validate_edge_dtos.ts | */validate_edge_dtos_test.ts)
+    */validate_edge_dtos.ts | */validate_edge_dtos_test.ts | \
+      */validate_captured_media_dtos.ts | */validate_captured_media_dtos_test.ts)
       continue
       ;;
   esac
@@ -22,7 +23,7 @@ for source in services/supabase/scripts/*.ts; do
 done
 for test_file in services/supabase/scripts/*_test.ts; do
   case "$test_file" in
-    */validate_edge_dtos_test.ts)
+    */validate_edge_dtos_test.ts | */validate_captured_media_dtos_test.ts)
       continue
       ;;
   esac
@@ -68,7 +69,7 @@ for shell_test in "${shell_tests[@]}"; do
   bash "$shell_test"
 done
 
-printf 'Validated %s standard TypeScript sources, %s standard TypeScript test files, 1 isolated DTO test file, %s shell sources, and %s shell test file(s).\n' \
+printf 'Validated %s standard TypeScript sources, %s standard TypeScript test files, 2 isolated DTO test files, %s shell sources, and %s shell test file(s).\n' \
   "${#tooling_sources[@]}" \
   "${#tooling_tests[@]}" \
   "${#shell_sources[@]}" \

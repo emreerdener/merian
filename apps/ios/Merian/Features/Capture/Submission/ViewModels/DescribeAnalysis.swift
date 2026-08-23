@@ -27,11 +27,10 @@ extension CaptureWorkspaceViewModel {
 
         guard !observationContext.isEmpty else { return false }
 
-        // The observationContext originates from a long-lived @State binding in
-        // CaptureWorkspaceView. We must mint a brand new generation timestamp here right
-        // as the user formally submits it to staging to guarantee chronological accuracy.
-        var stagedContext = observationContext
-        stagedContext.addedAt = Date()
+        // StagedObservationContext owns the submission-order timestamp. Keep
+        // ObservationContext itself as text-only domain data so that capture
+        // chronology never leaks into the durable cloud representation.
+        let stagedContext = observationContext
 
         let isMultiCaptureEnabled = isMultiCaptureFunctionallyEnabled
         let requiresScanConfirmation = diContainer.appSettings.requiresScanConfirmation
@@ -80,8 +79,7 @@ extension CaptureWorkspaceViewModel {
     func stagePendingDescribeDraftForActiveSubmission(_ observationContext: ObservationContext) -> Bool {
         guard !observationContext.isEmpty else { return false }
 
-        var stagedContext = observationContext
-        stagedContext.addedAt = Date()
+        let stagedContext = observationContext
 
         if let index = stagedCapture.observationContexts.indices.last {
             let addedAt = stagedCapture.observationContexts[index].addedAt

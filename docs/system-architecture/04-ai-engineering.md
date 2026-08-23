@@ -416,7 +416,10 @@ validated enrichment repopulate them.
 When a user stages an `ObservationContext` alongside a camera capture (or a
 gallery image), `InferenceEngine.analyze()` runs a **multi-modal combined path**
 that sends both the image and a structured text description to the edge
-function:
+function. Current `ObservationContext` is text-only. Capture-composition time
+belongs to the staged timeline wrapper; durable chronology belongs to
+`ownerMediaTimeline` and final Captured Media array order, not to an `addedAt`
+field inside the description payload:
 
 1. **Media timeline build**: Before calling `identifyMultiModal(...)`,
    `analyze()` builds one ordered mixed-media timeline containing the current
@@ -437,7 +440,10 @@ function:
 4. **Persistence**: `InferenceProcessingActor.parseAndSave(...)` →
    `BackgroundDatabaseActor.saveLiveScanRecord(..., persistenceFence: fence)` →
    scalar `LocalScanRecord.capturedMediaJSON` + V41 `capturedMediaEntries`
-   mirror. The first structured observation context still persists to
+   mirror. New server manifests pass the strict Captured Media Wire V1 boundary:
+   descriptions contain only bounded `freeText`, empty manifests are stored as
+   SQL `null`, and legacy timestamps/device paths/nested video audio are never
+   rewritten. The first structured observation context still persists to
    `public.scans.user_observation_context` on the cloud side.
 
 5. **Attempt ownership**: A queue-backed live request carries the foreground
@@ -966,16 +972,18 @@ provider dispatch:
   ledger, and concurrent delivery coalesces without another model call. Only
   analytics, group tags, and candidate enrichment remain behind
   `EdgeRuntime.waitUntil`. The same request records `scan_ingestion_intents`, a
-  service-role-only sanitized replay payload with a `payload_checksum`; raw
-  inline media bytes are redacted and mark the intent non-resumable. The
-  scheduled `replay-scan-ingestion` worker claims due resumable intents and
-  dispatches them back through `identify-multimodal` with the same
-  `client_scan_id`; inline-media rows remain client retry only. Server replay is
-  capped at 10 claims per sanitized intent, after which the job becomes
-  `failed_terminal / server_replay_limit_reached`. Compatibility scan-producing
-  endpoints (`identify`, `identify-describe`, and `audio-spec`) now use
-  `_shared/scanIngestionCompatibility.ts` to write the same ledger before
-  provider dispatch and await their exact owner scan plus a complete-last
+  service-role-only sanitized schema-v3 replay payload with a
+  `payload_checksum`; observation contexts are text-only, and raw inline media
+  bytes are redacted and mark the intent non-resumable. Schema-v2 rows remain
+  readable, but any retired description timestamp is discarded by multimodal
+  normalization. The scheduled `replay-scan-ingestion` worker claims due
+  resumable intents and dispatches them back through `identify-multimodal` with
+  the same `client_scan_id`; inline-media rows remain client retry only. Server
+  replay is capped at 10 claims per sanitized intent, after which the job
+  becomes `failed_terminal / server_replay_limit_reached`. Compatibility
+  scan-producing endpoints (`identify`, `identify-describe`, and `audio-spec`)
+  now use `_shared/scanIngestionCompatibility.ts` to write the same ledger
+  before provider dispatch and await their exact owner scan plus a complete-last
   finalization attempt before returning. A post-row finalization failure may use
   only the narrow validated compatibility fallback, with a retryable ledger.
   Their staged media and text-only intents are shaped as multimodal replay

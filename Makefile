@@ -1,4 +1,4 @@
-.PHONY: help validate-markdown-format test-markdown-format-tooling validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro grant-account-access db-push functions-deploy
+.PHONY: help validate-markdown-format test-markdown-format-tooling validate-agent-assets xcodegen validate-ios-project validate-ios-event-routing validate-ios-privacy-manifest validate-ios-transport-security validate-ios-versioning test-ios-project-resources test-ios-event-routing test-ios-privacy-manifest test-ios-transport-security test-ios-archive-validation test-ios-exported-ipa-validation test-ios-versioning test-ios-xcode-release-workflow test-ios-ci-tooling validate-ios-migration-guardrails generate-edge-dto-contract generate-captured-media-dto-contract validate-captured-media-dto-contract validate-edge-dto-contract test-supabase-tooling validate-supabase-migrations test-supabase-privileged-routines audit-supabase-privileged-routines audit-ghost-users cleanup-ghost-users audit-revenuecat-customers cleanup-revenuecat-shells reset-revenuecat-customers-prelaunch grant-beta-pro grant-account-access db-push functions-deploy
 
 SUPABASE_WORKDIR := services
 
@@ -25,7 +25,9 @@ help:
 	@printf "  make test-ios-ci-tooling              Test portable iOS CI workflow/result invariants\n"
 	@printf "  make validate-ios-migration-guardrails Check SwiftData migration source invariants\n"
 	@printf "  make generate-edge-dto-contract       Regenerate Identify Swift DTOs from the executable contract\n"
-	@printf "  make validate-edge-dto-contract       Validate the Identify runtime/schema/generated-Swift contract\n"
+	@printf "  make generate-captured-media-dto-contract Regenerate captured-media Swift DTOs from the executable contract\n"
+	@printf "  make validate-captured-media-dto-contract Validate the captured-media runtime/generated-Swift contract\n"
+	@printf "  make validate-edge-dto-contract       Validate Identify and captured-media runtime/generated-Swift contracts\n"
 	@printf "  make test-supabase-tooling            Run complete discovery-based Supabase tooling tests\n"
 	@printf "  make validate-supabase-migrations     Check Supabase migration contracts\n"
 	@printf "  make test-supabase-privileged-routines Run every checked-in Supabase pgTAP catalog locally\n"
@@ -138,6 +140,20 @@ generate-edge-dto-contract:
 		--allow-write=apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift \
 		services/supabase/scripts/validate_edge_dtos.ts \
 		--write-swift
+
+generate-captured-media-dto-contract:
+	deno run --frozen \
+		--config services/supabase/scripts/validate_edge_dtos.deno.json \
+		--allow-read=apps/ios \
+		--allow-write=apps/ios/Merian/Core/Data/Database/CapturedMediaWireDTOs.swift \
+		services/supabase/scripts/validate_captured_media_dtos.ts \
+		--write-swift
+
+validate-captured-media-dto-contract:
+	deno run --frozen \
+		--config services/supabase/scripts/validate_edge_dtos.deno.json \
+		--allow-read=apps/ios \
+		services/supabase/scripts/validate_captured_media_dtos.ts
 
 validate-edge-dto-contract:
 	bash services/supabase/scripts/validate_edge_dto_contract.sh

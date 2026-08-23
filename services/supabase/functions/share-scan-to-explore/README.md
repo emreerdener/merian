@@ -183,9 +183,11 @@ standalone ready image rows; it still requires the ready playback row and every
 genuine standalone image/audio row for the exact owner. Sharing must never
 publish those inference frames as separate observation media.
 
-Video `has_audio` metadata is copied from normalized media rows or derived from
-the `captured_media` video audio reference. Legacy URL-array videos default to
-`false` because those rows do not prove that an audio companion was persisted.
+Video `has_audio` metadata is copied from verified normalized playback rows.
+Historical compatibility manifests may still expose a nested video-audio
+reference as read evidence, but strict Captured Media Wire V1 rewrites remove
+it. V1 manifest and legacy URL-array sources therefore default to `false` unless
+independent durable playback metadata proves audio.
 
 `restored_video_object_keys` is optional and only used by repair-capable
 clients. At most one playback-video staging key is accepted. If the owner still
@@ -212,6 +214,12 @@ preserves promoted objects; deleting them could break a scan whose update
 actually committed. The retry recognizes the canonical durable URLs and does not
 consume the staging source twice. If the local recording is gone, the audio
 cannot be recovered.
+
+Both audio and video restoration use a compatibility-read/strict-write boundary.
+Readable legacy aliases are normalized, device-local references and historical
+nested video audio are removed, and the result is revalidated as Captured Media
+Wire V1 before persistence. If no durable item survives, the writer stores
+`null`, not an empty manifest.
 
 Across images, playback video, and standalone audio, one repair request accepts
 at most six staging keys in total. A key cannot appear under two media kinds.

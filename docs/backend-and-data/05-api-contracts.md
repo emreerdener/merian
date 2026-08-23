@@ -4441,21 +4441,23 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   projection, so a valid playback scan can reach the completed prerequisite
   consumed here without requiring inference frames to become separately
   selectable media.
-- Video `has_audio` metadata is copied from ready media rows or derived from the
-  `captured_media` video audio reference. Legacy URL-array video sources default
-  false because they do not prove that an audio companion exists.
+- Video `has_audio` metadata is copied from verified ready playback metadata.
+  Historical compatibility manifests may still provide a nested video-audio
+  reference as read evidence, but strict Captured Media Wire V1 canonicalization
+  removes that field. V1 manifest sources and legacy URL-array sources therefore
+  default to false unless independent durable playback metadata proves audio.
 - `restored_audio_object_keys` accepts at most two owner-scoped
   `staging/{userId}/` WAV/M4A keys for legacy scans that still have local audio
   but no durable cloud audio. Successful repair promotes the objects, writes
-  `audio_storage_urls`, replaces standalone local references in
-  `captured_media`, preserves `sourceIndex` on already-durable audio items,
-  refreshes normalized assets, and then enters the normal moderation gate. Newly
-  restored legacy items remain unindexed when the restore request cannot prove
-  their original identity. Promotion failure, or a returned persistence
-  rejection plus exact-owner proof that the URLs are absent, publishes nothing
-  and rolls back promoted objects. A lost/unreadable update response returns
-  retryable `scan_media_restore_unavailable` and preserves them until same-owner
-  retry settles the outcome.
+  `audio_storage_urls`, drops unusable device-local references from
+  `captured_media`, appends the newly durable reference, preserves `sourceIndex`
+  on already-durable audio items, refreshes normalized assets, and then enters
+  the normal moderation gate. Newly restored legacy items remain unindexed when
+  the restore request cannot prove their original identity. Promotion failure,
+  or a returned persistence rejection plus exact-owner proof that the URLs are
+  absent, publishes nothing and rolls back promoted objects. A lost/unreadable
+  update response returns retryable `scan_media_restore_unavailable` and
+  preserves them until same-owner retry settles the outcome.
 - If any selected item is standalone audio or an audio-bearing video, every
   audible item must have a matching content-addressed attestation or pass the
   database-selected structured audio classifier (currently `gemini-2.5-flash`)
@@ -5430,8 +5432,7 @@ ordered compositions of images, audio, and descriptive context.
   "timestamp": "2026-03-21T09:46:03.000Z",
   "observation_contexts": [
     {
-      "freeText": "Heard rustling before spotting it",
-      "addedAt": "2026-03-21T09:45:20.000Z"
+      "freeText": "Heard rustling before spotting it"
     }
   ]
 }
@@ -5540,6 +5541,20 @@ ordered compositions of images, audio, and descriptive context.
   ready image/audio/video `scan_media_assets` rows from the same manifest,
   aligns their `order_index` to manifest ordinality (description positions
   intentionally leave gaps), and proves them before completion.
+- Captured Media Wire V1 is executable in `_shared/capturedMediaContract.ts`.
+  Every new manifest is strictly validated before persistence and preserves the
+  deployed outer-key/`_0` wrappers. New descriptions contain only bounded
+  `freeText`; chronology belongs to the validated owner timeline and manifest
+  array order. Strict V1 rejects an empty array, and server writers persist
+  `null` when canonicalization leaves no durable item. Compatibility readers
+  accept historical `[]` as a missing manifest; iOS then uses the durable
+  URL/context fallback columns. The generated iOS decoder accepts legacy key
+  aliases, ignores any retired `addedAt`/`added_at` value without decoding it,
+  tolerates and ignores device-local `localFile` references, and retains
+  historical nested video-audio compatibility. Identify finalization, Explore
+  media restoration, and media reconciliation all pass new manifests through the
+  same strict writer; repair rewrites canonicalize readable legacy rows before
+  persistence.
 - Each canonical standalone-audio reference includes `sourceIndex`, copied from
   the validated descriptor. The request timeline's `audioInputIndex` binds that
   identity to its raw audio byte/key position, including when extracted video
@@ -5551,20 +5566,25 @@ ordered compositions of images, audio, and descriptive context.
   cannot reconstruct the original cross-modal interleaving. Its sanitized replay
   intent classifies every unproven audio input as unindexed durable audio, so
   post-insert recovery uses the same retain-all decision as the original write.
-- Authenticated iOS history hydration prefers `captured_media` and dual-reads
-  `audio_storage_urls` plus `user_observation_context`. Those existing scan
-  columns are compatibility fallbacks when a legacy or incomplete manifest omits
-  the otherwise durable standalone recording or description provenance; they are
-  never public-feed projections. Because those columns do not retain cross-modal
-  positions, legacy hydration appends missing audio in stored-array order, then
-  appends the stored context. `audio_storage_urls` is supplemental recovery
-  data, not deletion authority. Cloud audio replaces an existing standalone clip
-  only when its exact path or a unique `sourceIndex` matches. Unindexed legacy
-  and restore references never consume a local clip by ordinal guess; unmatched
-  references are retained, which can temporarily expose both a local alias and a
-  durable URL but cannot delete the wrong recording. Unmatched local
-  descriptions are retained because this compatibility column stores only one
-  context.
+- Authenticated iOS history hydration treats a nonempty `captured_media`
+  manifest as authoritative only when mapping yields a usable image or video. It
+  dual-reads `audio_storage_urls`, `image_storage_urls`, `video_storage_urls`,
+  and `user_observation_context` so `[]`, device-only references, or an
+  otherwise incomplete legacy manifest cannot erase durable media or description
+  provenance. Those existing scan columns are compatibility fallbacks, never
+  public-feed projections. Because they do not retain cross-modal positions,
+  legacy hydration appends missing audio in stored-array order, then appends the
+  stored context. `audio_storage_urls` is supplemental recovery data, not
+  deletion authority. Cloud audio replaces an existing standalone clip only when
+  its exact path or a unique `sourceIndex` matches. Unindexed legacy and restore
+  references never consume a local clip by ordinal guess; unmatched references
+  are retained, which can temporarily expose both a local alias and a durable
+  URL but cannot delete the wrong recording. Unmatched local descriptions are
+  retained because this compatibility column stores only one context. History
+  pages decode each PostgREST row independently: a malformed row is quarantined
+  with bounded structural diagnostics while valid rows on the same page continue
+  reconciling. A targeted completed-result read classifies a malformed row as a
+  contract mismatch rather than a transport failure.
 - Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
   ingestion.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
@@ -5576,13 +5596,16 @@ ordered compositions of images, audio, and descriptive context.
   validated through `_shared/identify/media.ts` before decode/fetch.
 - The canonical request contract is camelCase telemetry (`gpsLatitude`,
   `semanticLocation`, `publicLocationLabel`, `geoprivacy`, `deviceTimeZone`,
-  etc.), `ownerMediaTimeline`, plus
-  `observation_contexts: [{ freeText, addedAt? }]`, matching
-  `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
+  etc.), `ownerMediaTimeline`, plus `observation_contexts: [{ freeText }]`,
+  matching `MerianNetworkClient.buildMultiModalRequest(...)` and the iOS
   `ObservationContext` model. The same Swift inference payload builder also
   backs `/identify` so visual and multimodal requests share telemetry
   formatting, user context, and pre-serialization inline media budget
-  validation.
+  validation. Legacy `addedAt`/`added_at` input is accepted only for rolling
+  compatibility and discarded before replay intent or scan persistence. New
+  `scan_ingestion_intents` use schema version 3 and persist text-only contexts;
+  schema-v2 rows remain readable and are normalized through the same discard
+  path during replay.
 - If `geoprivacy` is missing, invalid, or supplied by an old queued payload, the
   Edge insert helper resolves the scan privacy from `users.default_geoprivacy`.
   Private scans clear `public_location_label` server-side even if a stale client
@@ -5719,8 +5742,7 @@ body plus the description payload.
   "timestamp": "2026-04-14T10:30:00.000Z",
   "observation_contexts": [
     {
-      "freeText": "Medium-sized bird, vivid blue upperparts, rust-orange breast, perched on fence post in suburban garden. Heard a clear flute-like song before spotting it.",
-      "addedAt": "2026-04-14T10:29:45.000Z"
+      "freeText": "Medium-sized bird, vivid blue upperparts, rust-orange breast, perched on fence post in suburban garden. Heard a clear flute-like song before spotting it."
     }
   ]
 }

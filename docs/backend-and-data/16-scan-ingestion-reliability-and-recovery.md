@@ -99,8 +99,9 @@ Every producer HTTP `200` guarantees the shared boundary below:
    operation. The route commits immediately before provider dispatch.
 4. `scan_ingestion_jobs` and its sanitized `scan_ingestion_intents` row were
    established atomically before provider work. For new multimodal requests the
-   intent includes the validated complete owner-media timeline; no raw media or
-   local path enters the ledger.
+   version-3 intent includes text-only observation contexts and the validated
+   complete owner-media timeline; no raw media, retired description timestamp,
+   or local path enters the ledger.
 5. Gemini returned a response that passes the executable provider schema, and
    the final server-enriched success envelope passes the executable Identify
    wire schema.
@@ -246,6 +247,14 @@ explicit user retry resets the bounded automatic count under the same scan UUID
 before the atomic claim path, including for description-only staged scans that
 have no upload-success reset boundary. Known cloud-complete owner-result
 recovery preserves its exact marker instead and cannot dispatch the provider.
+Transient fetch, lease, and local persistence failures use the bounded recovery
+budget. A decoded owner row that violates the captured-media contract is not
+transient: the first targeted attempt pauses as
+`server_result_local_recovery_contract_mismatch`, retains the durable cloud
+completion/status fence, skips the full-history fallback, and remains available
+for an explicit manual retry after an app update. Full history sync quarantines
+malformed rows individually so one legacy record cannot block the rest of the
+library.
 
 ## Pre-queue Admission Connectivity Boundary
 

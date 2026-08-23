@@ -13,15 +13,22 @@ dto_validator_read_allowlist="apps/ios"
 deno test --frozen \
   --config services/supabase/scripts/validate_edge_dtos.deno.json \
   --allow-read="$dto_validator_read_allowlist" \
-  services/supabase/scripts/validate_edge_dtos_test.ts
+  services/supabase/scripts/validate_edge_dtos_test.ts \
+  services/supabase/scripts/validate_captured_media_dtos_test.ts
 
 deno run --frozen \
   --config services/supabase/scripts/validate_edge_dtos.deno.json \
   --allow-read="$dto_validator_read_allowlist" \
   services/supabase/scripts/validate_edge_dtos.ts
 
+deno run --frozen \
+  --config services/supabase/scripts/validate_edge_dtos.deno.json \
+  --allow-read="$dto_validator_read_allowlist" \
+  services/supabase/scripts/validate_captured_media_dtos.ts
+
 # Exercise the deployed runtime parser and the actual provider-schema export
 # under the same frozen dependency graph used by Edge Functions.
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  services/supabase/functions/_shared/identify/contract_test.ts
+  services/supabase/functions/_shared/identify/contract_test.ts \
+  services/supabase/functions/_shared/capturedMediaContract_test.ts

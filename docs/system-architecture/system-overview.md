@@ -261,7 +261,10 @@ A structured schema built on native SwiftData migrations:
 - **Historical Sync**: `syncHistoricalScansDown` paginates both scans and
   collections cloud fetches (via `.range(from:to:)`), then reconciles data
   dynamically via `HistoricalDatabaseActor.reconcileScanPage`, avoiding memory
-  accumulation of the entire scan library.
+  accumulation of the entire scan library. Scan rows are decoded independently
+  with the production PostgREST decoder; malformed Captured Media rows are
+  quarantined while valid neighbors continue. Pagination advances by the raw
+  remote row count, so rejected rows cannot repeat or skip an offset.
 - **Centralized Policy (`MerianConfig`)**: All batch sizes, page sizes, and
   retention window constants are defined in `MerianConfig.swift`. Tuning any
   policy constant requires exactly one change.

@@ -54,11 +54,17 @@ on:
       - "services/supabase/functions/_shared/identify/contract.ts"
       - "services/supabase/functions/_shared/identify/contract_test.ts"
       - "services/supabase/functions/_shared/identify/schema.ts"
+      - "services/supabase/functions/_shared/capturedMediaContract.ts"
+      - "services/supabase/functions/_shared/capturedMediaContract_test.ts"
+      - "services/supabase/functions/identify-multimodal/capturedMedia.ts"
+      - "services/supabase/functions/identify-multimodal/capturedMedia_test.ts"
       - "services/supabase/scripts/validate_edge_dto_contract.sh"
       - "services/supabase/scripts/validate_edge_dtos.deno.json"
       - "services/supabase/scripts/validate_edge_dtos.dependencies.lock"
       - "services/supabase/scripts/validate_edge_dtos.ts"
       - "services/supabase/scripts/validate_edge_dtos_test.ts"
+      - "services/supabase/scripts/validate_captured_media_dtos.ts"
+      - "services/supabase/scripts/validate_captured_media_dtos_test.ts"
   push:
     branches:
       - main
@@ -114,11 +120,17 @@ on:
       - "services/supabase/functions/_shared/identify/contract.ts"
       - "services/supabase/functions/_shared/identify/contract_test.ts"
       - "services/supabase/functions/_shared/identify/schema.ts"
+      - "services/supabase/functions/_shared/capturedMediaContract.ts"
+      - "services/supabase/functions/_shared/capturedMediaContract_test.ts"
+      - "services/supabase/functions/identify-multimodal/capturedMedia.ts"
+      - "services/supabase/functions/identify-multimodal/capturedMedia_test.ts"
       - "services/supabase/scripts/validate_edge_dto_contract.sh"
       - "services/supabase/scripts/validate_edge_dtos.deno.json"
       - "services/supabase/scripts/validate_edge_dtos.dependencies.lock"
       - "services/supabase/scripts/validate_edge_dtos.ts"
       - "services/supabase/scripts/validate_edge_dtos_test.ts"
+      - "services/supabase/scripts/validate_captured_media_dtos.ts"
+      - "services/supabase/scripts/validate_captured_media_dtos_test.ts"
   workflow_dispatch:
 
 concurrency:

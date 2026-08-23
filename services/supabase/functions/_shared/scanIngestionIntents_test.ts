@@ -85,6 +85,10 @@ Deno.test("buildScanIngestionIntent stores staged media intent without raw inlin
     userFieldTripId: "00000000-0000-4000-8000-000000000001",
     itemId: "00000000-0000-4000-8000-000000000002",
   });
+  assertEquals(intent.payload.observationContexts, [{
+    freeText: "Near a pond",
+  }]);
+  assertEquals(intent.payload.schemaVersion, 3);
 });
 
 Deno.test("legacy intent preserves timeline absence and the retain-all audio role", async () => {

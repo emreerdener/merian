@@ -642,7 +642,7 @@ Deno.test("buildRestoredVideoCapturedMedia collapses frame-only video rows into 
   );
 });
 
-Deno.test("buildRestoredAudioCapturedMedia preserves unproven legacy audio", () => {
+Deno.test("buildRestoredAudioCapturedMedia drops unusable legacy local audio", () => {
   const scan = makeVideoScan([
     { audio: { _0: { storage: "localFile", path: "legacy.wav" } } },
     {
@@ -660,14 +660,6 @@ Deno.test("buildRestoredAudioCapturedMedia preserves unproven legacy audio", () 
     ]),
     [
       {
-        audio: {
-          _0: {
-            storage: "localFile",
-            path: "legacy.wav",
-          },
-        },
-      },
-      {
         image: {
           _0: {
             storage: "remoteURL",
@@ -675,6 +667,31 @@ Deno.test("buildRestoredAudioCapturedMedia preserves unproven legacy audio", () 
           },
         },
       },
+      {
+        audio: {
+          _0: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/restored.wav",
+          },
+        },
+      },
+    ],
+  );
+});
+
+Deno.test("restored-media writes canonicalize legacy description metadata", () => {
+  const scan = makeVideoScan([{
+    description: {
+      _0: { free_text: "  Near the creek  ", addedAt: 807_000_000 },
+    },
+  }]);
+
+  assertEquals(
+    buildRestoredAudioCapturedMedia(scan, [
+      "https://media.merian.app/restored.wav",
+    ]),
+    [
+      { description: { _0: { freeText: "Near the creek" } } },
       {
         audio: {
           _0: {
@@ -714,7 +731,6 @@ Deno.test("media restoration preserves descriptions around repaired media", () =
     ]),
     [
       descriptionBefore,
-      localAudio,
       descriptionAfter,
       {
         audio: {
@@ -745,10 +761,10 @@ Deno.test("media restoration preserves descriptions around repaired media", () =
   assertEquals(repaired?.[0], descriptionBefore);
   assertEquals(Object.hasOwn(repaired?.[1] as object, "video"), true);
   assertEquals(repaired?.[2], descriptionAfter);
-  assertEquals(repaired?.[3], localAudio);
+  assertEquals(repaired?.length, 3);
 });
 
-Deno.test("partial audio restoration never consumes a different local clip", () => {
+Deno.test("partial audio restoration persists only durable references", () => {
   const first = {
     audio: {
       _0: { storage: "localFile", path: "first.wav", sourceIndex: 0 },
@@ -766,8 +782,6 @@ Deno.test("partial audio restoration never consumes a different local clip", () 
       remoteSecond,
     ]),
     [
-      first,
-      second,
       {
         audio: {
           _0: { storage: "remoteURL", path: remoteSecond },
@@ -823,7 +837,7 @@ Deno.test("video restoration preserves already-restored standalone audio", () =>
   const audioItem = {
     audio: {
       _0: {
-        storage: "remoteURL",
+        storage: "remoteURL" as const,
         path: "https://media.merian.app/restored.wav",
       },
     },

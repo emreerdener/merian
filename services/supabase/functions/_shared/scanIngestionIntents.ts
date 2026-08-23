@@ -12,7 +12,7 @@ import type {
   ScanIngestionMediaObjectKeys,
 } from "./scanIngestionJobs.ts";
 
-export const SCAN_INGESTION_INTENT_SCHEMA_VERSION = 2;
+export const SCAN_INGESTION_INTENT_SCHEMA_VERSION = 3;
 
 export interface SanitizedScanIngestionIntent {
   payload: Record<string, unknown>;
@@ -111,14 +111,9 @@ function sanitizeObservationContexts(
   return (contexts ?? [])
     .map((context) => {
       const freeText = cleanString(context.freeText ?? context.free_text);
-      const rawAddedAt = context.addedAt ?? context.added_at;
-      const addedAt = cleanString(rawAddedAt) ?? cleanNumber(rawAddedAt);
-      return stripUndefined({
-        freeText,
-        addedAt,
-      }) as Record<string, unknown>;
+      return stripUndefined({ freeText }) as Record<string, unknown>;
     })
-    .filter((context) => Object.keys(context).length > 0);
+    .filter((context) => typeof context.freeText === "string");
 }
 
 function sanitizeOwnerMediaTimeline(

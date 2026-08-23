@@ -368,12 +368,15 @@ If the scan row already exists, the worker only performs safe finalization:
 matching image rows are marked `promoted`, consumed audio staging objects are
 deleted and marked `deleted`, and stranded playback video objects are promoted
 from `staging/` into `public_uploads/` before the scan's video URL array and
-captured-media manifest are repaired. Rebuilt video rows derive `has_audio` from
-the captured-media video audio reference, not from video kind alone. If no scan
-row exists after the abandonment TTL, remaining staging objects are deleted and
-the asset row is marked `failed` for audit. The worker does not replay AI
-inference; the iOS offline queue remains responsible for inline/redacted scans,
-while `replay-scan-ingestion` retries resumable staged scans that never reached
+captured-media manifest are repaired. Repair compatibility-reads legacy aliases,
+device-local references, and historical nested video audio, then rewrites only
+strict Captured Media Wire V1. Because V1 drops nested audio, a positive rebuilt
+`has_audio` must come from independently verified normalized or durable playback
+metadata; video kind alone is never evidence. If no scan row exists after the
+abandonment TTL, remaining staging objects are deleted and the asset row is
+marked `failed` for audit. The worker does not replay AI inference; the iOS
+offline queue remains responsible for inline/redacted scans, while
+`replay-scan-ingestion` retries resumable staged scans that never reached
 completion.
 
 The worker now reads `scan_ingestion_jobs` before deciding whether stale media
@@ -392,6 +395,13 @@ scheduled every five minutes by pg_cron. It claims retryable or lease-expired
 `scan_ingestion_jobs` rows whose paired `scan_ingestion_intents` are resumable,
 reconstructs the sanitized staged media/audio/video or text-only request, and
 invokes `identify-multimodal` with the same `client_scan_id`.
+
+New intents use schema version 3: observation contexts contain only bounded
+`freeText`, and the validated owner timeline carries ordering. Schema-v2 intents
+remain replay-readable; multimodal accepts and discards any legacy description
+`addedAt` / `added_at` value before new intent, scan, or Captured Media
+persistence. Absence of an older intent's `ownerMediaTimeline` stays absent and
+is never converted into an empty authoritative timeline.
 
 `claim_replayable_scan_ingestion_jobs` caps automatic replay at 10 claims per
 sanitized intent. Rows at or above that budget are handled in the same bounded
@@ -1123,14 +1133,14 @@ pipeline while the legacy endpoints remain deployed for compatibility.
    a normalized `manifest_checksum`; that job row is the server-side source of
    truth for status polling, retry ownership, and later media reconciliation.
    The request also records a `scan_ingestion_intents` row with the sanitized
-   replay payload and a `payload_checksum`; inline base64 media is redacted and
-   marks the intent non-resumable, while queued/staged media requests become
-   eligible for future server-side replay. The `scan_media_assets` lifecycle
-   table is refreshed inside the required database finalization transaction. The
-   ledger cannot become complete unless every claimed promoted URL is
-   represented by a ready canonical row, so newer media readers can use ready
-   display/playback rows instead of inferring user-visible media from
-   compatibility arrays.
+   schema-v3 replay payload and a `payload_checksum`; observation contexts are
+   text-only, inline base64 media is redacted and marks the intent
+   non-resumable, while queued/staged media requests become eligible for future
+   server-side replay. The `scan_media_assets` lifecycle table is refreshed
+   inside the required database finalization transaction. The ledger cannot
+   become complete unless every claimed promoted URL is represented by a ready
+   canonical row, so newer media readers can use ready display/playback rows
+   instead of inferring user-visible media from compatibility arrays.
 
 ### Latency Boundary and Database Round Trips
 

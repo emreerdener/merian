@@ -138,11 +138,19 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     dtoContractGate,
+    /services\/supabase\/scripts\/validate_captured_media_dtos_test\.ts/,
+  );
+  assertMatch(
+    dtoContractGate,
     /dto_validator_read_allowlist="apps\/ios"/,
   );
   assertMatch(
     dtoContractGate,
     /services\/supabase\/functions\/_shared\/identify\/contract_test\.ts/,
+  );
+  assertMatch(
+    dtoContractGate,
+    /services\/supabase\/functions\/_shared\/capturedMediaContract_test\.ts/,
   );
   assertMatch(
     gate,
@@ -380,6 +388,14 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
   assertMatch(
     workflow,
     /- "services\/supabase\/functions\/_shared\/identify\/schema\.ts"/,
+  );
+  assertMatch(
+    workflow,
+    /- "services\/supabase\/functions\/_shared\/capturedMediaContract\.ts"/,
+  );
+  assertMatch(
+    workflow,
+    /- "services\/supabase\/scripts\/validate_captured_media_dtos\.ts"/,
   );
   assertMatch(
     workflow,

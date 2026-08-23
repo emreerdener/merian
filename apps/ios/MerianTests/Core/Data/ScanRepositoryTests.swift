@@ -1,6 +1,7 @@
 import Testing
 import SwiftData
 import Foundation
+import Supabase
 @testable import Merian
 
 @MainActor
@@ -38,21 +39,105 @@ struct ScanRepositoryTests {
         return context
     }
 
-    @Test func testHistoricalObservationContextDecodesSnakeCaseISO8601() throws {
+    @Test func testHistoricalObservationContextIgnoresRetiredOrderingTimestamp() throws {
         let payload = Data(
             #"{"free_text":"  Heard beside the creek  ","added_at":"2026-08-15T05:30:00.000Z"}"#.utf8
         )
 
         let decoded = try JSONDecoder().decode(HistoricalObservationContext.self, from: payload)
         let context = try #require(decoded.observationContext)
-        let expectedAddedAt = try #require(
-            DateUtilities.iso8601FractionalFormatter.date(
-                from: "2026-08-15T05:30:00.000Z"
-            )
-        )
 
         #expect(context.freeText == "Heard beside the creek")
-        #expect(context.addedAt == expectedAddedAt)
+    }
+
+    @Test func testPostgrestHistoricalDecoderAcceptsEveryLegacyDescriptionTimestamp() throws {
+        let payload = Data(
+            """
+            [
+              {"id":"numeric","captured_media":[{"description":{"_0":{"freeText":"Numeric","addedAt":807000000}}}]},
+              {"id":"iso","captured_media":[{"description":{"_0":{"freeText":"ISO","added_at":"2026-08-22T12:00:00.000Z"}}}]},
+              {"id":"missing","captured_media":[{"description":{"_0":{"free_text":"Missing"}}}]},
+              {"id":"malformed","captured_media":[{"description":{"_0":{"freeText":"Malformed","addedAt":{"unexpected":true}}}}]}
+            ]
+            """.utf8
+        )
+
+        let decoded = try HistoricalScanPageDecoder.decode(
+            payload,
+            using: PostgrestClient.Configuration.jsonDecoder
+        )
+
+        #expect(decoded.remoteRowCount == 4)
+        #expect(decoded.rejectedRowCount == 0)
+        #expect(decoded.responses.map(\.id) == [
+            "numeric", "iso", "missing", "malformed"
+        ])
+        #expect(decoded.responses.compactMap(\.capturedMediaItems) == [
+            [.description(ObservationContext(freeText: "Numeric"))],
+            [.description(ObservationContext(freeText: "ISO"))],
+            [.description(ObservationContext(freeText: "Missing"))],
+            [.description(ObservationContext(freeText: "Malformed"))]
+        ])
+    }
+
+    @Test func testHistoricalPageDecoderQuarantinesMalformedRowsIndividually() throws {
+        let payload = Data(
+            """
+            [
+              {"id":"valid-image","captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/image.webp"}}}]},
+              {"id":"unknown-wrapper","captured_media":[{"document":{"_0":{}}}]},
+              {"id":"multiple-wrappers","captured_media":[{"image":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.webp"}},"audio":{"_0":{"storage":"remoteURL","path":"https://cdn.example.com/a.wav"}}}]},
+              {"id":"valid-description","captured_media":[{"description":{"_0":{"freeText":"Still recoverable"}}}]}
+            ]
+            """.utf8
+        )
+
+        let decoded = try HistoricalScanPageDecoder.decode(payload)
+
+        #expect(decoded.remoteRowCount == 4)
+        #expect(decoded.rejectedRowCount == 2)
+        #expect(decoded.responses.map(\.id) == [
+            "valid-image", "valid-description"
+        ])
+        #expect(decoded.firstRejectedCodingPath != nil)
+    }
+
+    @Test func testHistoricalDecoderIgnoresLegacyLocalFileReferencesAndUsesCloudMedia() throws {
+        let remoteImage = "https://cdn.example.com/durable.webp"
+        let payload = Data(
+            """
+            [
+              {
+                "id":"legacy-local-file",
+                "image_storage_urls":["\(remoteImage)"],
+                "video_storage_urls":[],
+                "captured_media":[
+                  {"image":{"_0":{"storage":"localFile","path":"legacy.webp"}}},
+                  {"description":{"_0":{"freeText":"Still recoverable","addedAt":807000000}}}
+                ]
+              }
+            ]
+            """.utf8
+        )
+
+        let decoded = try HistoricalScanPageDecoder.decode(
+            payload,
+            using: PostgrestClient.Configuration.jsonDecoder
+        )
+        let response = try #require(decoded.responses.first)
+
+        #expect(decoded.rejectedRowCount == 0)
+        #expect(response.capturedMediaItems == [
+            .description(ObservationContext(freeText: "Still recoverable"))
+        ])
+        #expect(CapturedMediaSnapshot.cloudHydratedItems(
+            capturedMediaItems: response.capturedMediaItems,
+            imageStorageURLs: response.image_storage_urls,
+            videoStorageURLs: response.video_storage_urls
+        ) == [
+            .image(.remoteURL(remoteImage)),
+            .description(ObservationContext(freeText: "Still recoverable"))
+        ])
     }
 
     @Test func testHistoricalAudioRehydrationPreservesSubjectClassification() async throws {
@@ -173,8 +258,7 @@ struct ScanRepositoryTests {
         let context = ModelContext(container)
         let scanID = "nonvisual-history-\(UUID().uuidString.lowercased())"
         let remoteAudioURL = "https://cdn.example.com/field-recording.wav"
-        var observationContext = ObservationContext(freeText: "Heard beside the creek")
-        observationContext.addedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+        let observationContext = ObservationContext(freeText: "Heard beside the creek")
         let localItems: [SerializedMediaItem] = [
             .audio(.documents("field-recording.wav")),
             .description(observationContext)

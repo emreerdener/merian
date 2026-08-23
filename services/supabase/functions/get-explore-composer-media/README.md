@@ -79,8 +79,11 @@ or:
   arrays. This keeps video clips and poster thumbnails paired while allowing old
   rows to keep working. `/share-scan-to-explore` resolves submitted
   `source_media_id` values through this same source list.
-- `has_audio` is true only when normalized media or `captured_media` proves that
-  a video has an audio companion; legacy URL-array video sources default false.
+- `has_audio` is true only when verified normalized playback metadata proves an
+  audio companion. A historical nested captured-media audio reference may still
+  act as compatibility evidence, but strict Captured Media Wire V1 carries no
+  nested audio; V1 and legacy URL-array fallbacks default false without
+  independent durable proof.
 - The iOS composer should prefer this endpoint for cloud-backed scans before
   opening the share UI. It is server-authoritative for repaired video rows and
   legacy rows whose `image_storage_urls` still contain sampled inference frames.

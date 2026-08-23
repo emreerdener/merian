@@ -17,6 +17,12 @@ enum ScanStatusRecoveryAction: Equatable {
     case unresolved
 }
 
+enum CompletedServerResultHydrationOutcome: Equatable, Sendable {
+    case recovered
+    case retryable
+    case contractMismatch
+}
+
 enum BackgroundInferenceResponseDisposition: Equatable {
     case success
     case retry
@@ -2549,20 +2555,40 @@ extension OfflineQueueManager {
         }
         switch action {
         case .recovered:
-            let didRecover = await recoverFoundScanFromServer(
+            let hydrationOutcome = await recoverFoundScanFromServer(
                 scanId: scanId,
                 reason: reason,
                 expectedGeneration: expectedGeneration,
                 serverPollToken: serverPollToken
             )
-            if didRecover {
+            switch hydrationOutcome {
+            case .recovered:
                 return .recovered
+            case .retryable:
+                return await deferCompletedServerResultRecovery(
+                    scanId: scanId,
+                    expectedGeneration: expectedGeneration,
+                    serverPollToken: serverPollToken
+                )
+            case .contractMismatch:
+                let didPause = markCompletedServerResultContractMismatch(
+                    scanId: scanId
+                )
+                guard didPause else {
+                    return await deferCompletedServerResultRecovery(
+                        scanId: scanId,
+                        expectedGeneration: expectedGeneration,
+                        serverPollToken: serverPollToken
+                    )
+                }
+                clearServerIngestionState(
+                    scanId: scanId,
+                    preservingPollToken: serverPollToken
+                )
+                return .terminalFailure(
+                    Self.completedServerResultContractMismatchMessage
+                )
             }
-            return await deferCompletedServerResultRecovery(
-                scanId: scanId,
-                expectedGeneration: expectedGeneration,
-                serverPollToken: serverPollToken
-            )
         case .waitForServer(let delay):
             scheduleServerIngestionPoll(
                 scanId: scanId,
@@ -2611,7 +2637,7 @@ extension OfflineQueueManager {
         reason: String,
         expectedGeneration: UUID?,
         serverPollToken: UUID?
-    ) async -> Bool {
+    ) async -> CompletedServerResultHydrationOutcome {
         guard !Task.isCancelled,
               allowsAutomaticNetworkWorkOnCurrentPath,
               isServerIngestionPollCurrent(
@@ -2622,21 +2648,21 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return false
+            return .retryable
         }
         // A server-side completion is not yet a local recovery success. Keep
         // both its latest status and persisted retry/backoff history until the
         // result has been hydrated, promoted, and the queue row has been
         // deleted. Clearing either here made a failed local sync look like a
         // fresh attempt and discarded useful recovery state.
-        let didSyncTarget: Bool
+        let targetedSyncOutcome: HistoricalScanDownOutcome
         if let context = modelContext {
-            didSyncTarget = await AppDIContainer.shared.scanRepository.syncHistoricalScanDown(
+            targetedSyncOutcome = await AppDIContainer.shared.scanRepository.syncHistoricalScanDown(
                 scanId: scanId,
                 modelContext: context
             )
         } else {
-            didSyncTarget = false
+            targetedSyncOutcome = .transientFailure
         }
 
         guard !Task.isCancelled,
@@ -2648,15 +2674,22 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return false
+            return .retryable
+        }
+
+        guard targetedSyncOutcome != .contractMismatch else {
+            MerianLog.data.error(
+                "recoverCompletedInferenceFromServer: completed cloud row violates the captured-media contract scanId=\(scanId, privacy: .public)"
+            )
+            return .contractMismatch
         }
 
         var recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
         if recoveredLocalRecord == nil,
-           !didSyncTarget,
+           targetedSyncOutcome != .reconciled,
            let context = modelContext {
             guard allowsAutomaticNetworkWorkOnCurrentPath else {
-                return false
+                return .retryable
             }
             await AppDIContainer.shared.scanRepository.syncHistoricalScansDown(
                 modelContext: context
@@ -2670,16 +2703,16 @@ extension OfflineQueueManager {
                       scanId: scanId,
                       expectedGeneration: expectedGeneration
                   ) else {
-                return false
+                return .retryable
             }
             AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             recoveredLocalRecord = promoteRecoveredLocalScan(scanId: scanId)
         }
         guard let recoveredLocalRecord else {
             MerianLog.data.debug(
-                "recoverCompletedInferenceFromServer: server found scan but no local record after targeted/full sync scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public)"
+                "recoverCompletedInferenceFromServer: server found scan but no local record after targeted/full sync scanId=\(scanId, privacy: .public) targetedOutcome=\(String(describing: targetedSyncOutcome), privacy: .public)"
             )
-            return false
+            return .retryable
         }
 
         guard !Task.isCancelled,
@@ -2691,7 +2724,7 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return false
+            return .retryable
         }
 
         let didDeleteQueue = await deleteQueuedScan(
@@ -2706,7 +2739,7 @@ extension OfflineQueueManager {
             MerianLog.data.debug(
                 "recoverCompletedInferenceFromServer: queue deletion lost ownership or failed scanId=\(scanId, privacy: .public)"
             )
-            return false
+            return .retryable
         }
         await AppDIContainer.shared.scanMilestoneCoordinator.processCompletedScan(
             scanId: scanId,
@@ -2723,7 +2756,7 @@ extension OfflineQueueManager {
                   scanId: scanId,
                   expectedGeneration: expectedGeneration
               ) else {
-            return false
+            return .retryable
         }
         updateUnsyncedItemCount()
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
@@ -2733,10 +2766,10 @@ extension OfflineQueueManager {
                 for: scanId
             )
         MerianLog.data.debug(
-            "recoverCompletedInferenceFromServer: recovered scanId=\(scanId, privacy: .public) targetedSync=\(didSyncTarget, privacy: .public) promotedLocal=true deletedQueue=\(didDeleteQueue, privacy: .public) hydratedPresentation=\(didHydratePresentedResult, privacy: .public)"
+            "recoverCompletedInferenceFromServer: recovered scanId=\(scanId, privacy: .public) targetedOutcome=\(String(describing: targetedSyncOutcome), privacy: .public) promotedLocal=true deletedQueue=\(didDeleteQueue, privacy: .public) hydratedPresentation=\(didHydratePresentedResult, privacy: .public)"
         )
 
-        return true
+        return .recovered
     }
 
     private func deferCompletedServerResultRecovery(

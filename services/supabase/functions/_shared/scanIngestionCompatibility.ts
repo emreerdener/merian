@@ -225,12 +225,8 @@ function sanitizeObservationContexts(
 
   for (const context of input.observationContexts ?? []) {
     const freeText = cleanString(context.freeText ?? context.free_text);
-    const addedAt = cleanString(context.addedAt ?? context.added_at);
-    if (freeText || addedAt) {
-      contexts.push(stripUndefined({ freeText, addedAt }) as Record<
-        string,
-        unknown
-      >);
+    if (freeText) {
+      contexts.push({ freeText });
     }
   }
 

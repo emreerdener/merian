@@ -355,8 +355,10 @@ as their permanent engineering identity.
   `scan_media_assets` rows as the canonical playback timeline. The client uses
   native AVFoundation stabilization only while the recording is active, then
   resets the prepared movie connection so still-photo capture retains normal
-  resolution and latency. Public `has_audio` metadata is true only when
-  captured-media or normalized media rows prove that an audio companion exists.
+  resolution and latency. Public `has_audio` metadata is true only when verified
+  normalized/durable playback metadata proves an audio companion. A nested
+  captured-media audio reference is accepted only as historical compatibility
+  evidence; strict Captured Media Wire V1 writes do not retain one.
 - **Moderation routing contract**: Native Explore post-content reports write the
   service-only `explore_post_reports` queue through `/report-explore-post`.
   Identification disputes alone use `/flag-issue`, `flagged_reviews`, and

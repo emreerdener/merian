@@ -193,11 +193,18 @@ Identify DTO block in `InferenceEdgeDTOs.swift`. The generated client boundary
 includes nested DTOs, array and primitive types, wire `CodingKeys`, and explicit
 decoders. Domain types remain separate and are populated after decoding.
 
+The durable historical-media union has a separate executable descriptor at
+`services/supabase/functions/_shared/capturedMediaContract.ts` and a generated
+block in `Core/Data/Database/CapturedMediaWireDTOs.swift`. Keeping it separate
+prevents the JSONB compatibility union from being coupled to Gemini provider
+schema projection.
+
 For an intentional contract change, regenerate and validate from the repository
 root:
 
 ```sh
 make generate-edge-dto-contract
+make generate-captured-media-dto-contract
 make validate-edge-dto-contract
 ```
 

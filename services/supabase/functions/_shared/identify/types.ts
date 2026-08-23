@@ -18,6 +18,7 @@ export type PetIdentification = NonNullable<
 export interface ObservationContextDTO {
   freeText?: string;
   free_text?: string;
+  /** Legacy capture-composition metadata. Accepted on input but never persisted. */
   addedAt?: string | number;
   added_at?: string | number;
 }

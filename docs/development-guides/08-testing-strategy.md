@@ -125,15 +125,16 @@ make test-supabase-tooling
 `test_supabase_tooling.sh` type-checks every standard TypeScript script and runs
 every conventionally named `*_test.ts`, so the ghost-user audit and cleanup
 tests cannot fall out of CI through list drift. It separately exercises the
-frozen executable DTO contract and Swift generator, syntax-checks every shell
-script, runs every `*_test.sh`, and rejects complete provider-shaped
-`sb_secret_…` literals anywhere in the repository. Format-valid secret-key
-fixtures must be assembled at runtime from separate fragments; diagnostics
-identify only matching filenames so the gate cannot echo an accidentally
-committed credential. `tooling_gate_test.ts` protects that discovery policy. The
-same test locks `validate_migration_contracts.sh`, the discovery-based
-source-migration entrypoint shared by `make validate-supabase-migrations` and
-the production deploy lane.
+frozen Identify and Captured Media executable DTO contracts and their Swift
+generators, syntax-checks every shell script, runs every `*_test.sh`, and
+rejects complete provider-shaped `sb_secret_…` literals anywhere in the
+repository. Format-valid secret-key fixtures must be assembled at runtime from
+separate fragments; diagnostics identify only matching filenames so the gate
+cannot echo an accidentally committed credential. `tooling_gate_test.ts`
+protects that discovery policy. The same test locks
+`validate_migration_contracts.sh`, the discovery-based source-migration
+entrypoint shared by `make validate-supabase-migrations` and the production
+deploy lane.
 
 `_tests/workflowSecurity.test.ts` scans every checked-in GitHub Actions
 workflow. It rejects mutable third-party action tags, missing explicit
@@ -1243,7 +1244,14 @@ MerianTests/
     move that scan to `.staged` or dispatch another provider request even when
     the next status probe is unavailable or inconsistent. Exhaustion must pause
     in needs-attention state, and manual retry must retain the durable
-    owner-result marker while resuming server-result recovery.
+    owner-result marker while resuming server-result recovery. A deterministic
+    Captured Media decode mismatch is a separate first-attempt terminal path:
+    assert it skips the full-history fallback and retry scheduler, writes
+    `server_result_local_recovery_contract_mismatch`, retains cloud `complete`
+    status and the no-redispatch prefix, and remains manually retryable after a
+    compatible app update. History pagination must also prove that one rejected
+    row is quarantined without changing the remote-row offset or blocking valid
+    neighbors.
   - **Atomic Explore publication**: Assert the final RPC revalidates exact owner
     media, preserves request-before-scan lock ordering, rejects a locked
     `needs_id` community request as conflict, and rolls back the prior post,
@@ -3354,7 +3362,7 @@ Also confirm the elapsed/total badge still advances at its lower cadence, the
 spectrogram does not visibly rerender, feed navigation gestures are unchanged,
 and detail seeking still behaves as documented.
 
-### `validate_edge_dtos.ts`
+### Generated Edge DTO Contracts
 
 - **Canonical executable source**:
   `services/supabase/functions/_shared/identify/contract.ts` is a
@@ -3390,6 +3398,16 @@ and detail seeking still behaves as documented.
   redeclarations anywhere under `apps/ios`. Keep wire DTOs, including
   `PetIdentificationDTO`, in the generated block and map them into domain models
   after decoding.
+- **Captured Media boundary**: `_shared/capturedMediaContract.ts` is the
+  dependency-free source for the durable `scans.captured_media` outer-key/`_0`
+  union. `validate_captured_media_dtos.ts` deterministically owns
+  `CapturedMediaWireDTOs.swift` independently of the Gemini provider schema.
+  Tests cover strict image/audio/video/description V1 fixtures, exact wrapper
+  preservation, bounds and unknown/multiple-variant rejection, plus compatible
+  numeric/ISO/missing description timestamps, key aliases, nested video audio,
+  `localFile`, and empty manifests. Swift coverage must decode a complete
+  historical row with the production PostgREST decoder, map device-local
+  references away, and prove durable URL fallbacks still hydrate the scan.
 - **Compatibility and numbers**: The final server contract is strict. Root Swift
   response properties are intentionally generated as optional so older cached
   responses and staggered client/server rollouts continue to decode. Every
@@ -3403,22 +3421,25 @@ and detail seeking still behaves as documented.
   `test_supabase_tooling.sh` suite before any migration or Edge deployment,
   while `ios-project-guardrails.yml` invokes the isolated
   `validate_edge_dto_contract.sh` lane for every iOS source change. Both run the
-  adversarial generator regression tests, the exact checked-in comparison, and
-  deployed runtime-contract tests. The read allowlist includes the complete
-  `apps/ios` tree and asserts every current production source root is present.
-  Shared-contract/tooling changes trigger both lanes; arbitrary app Swift
-  changes trigger the lightweight iOS guardrail without initiating a backend
-  deployment. The validator uses a separate frozen, third-party-free Deno config
-  and lock.
+  adversarial regression tests for both generators, both exact checked-in
+  comparisons, and deployed runtime-contract tests. The read allowlist includes
+  the complete `apps/ios` tree and asserts every current production source root
+  is present. Shared-contract/tooling changes trigger both lanes; arbitrary app
+  Swift changes trigger the lightweight iOS guardrail without initiating a
+  backend deployment. The validator uses a separate frozen, third-party-free
+  Deno config and lock.
 - **Route integration coverage**: `_tests/identifyContractCoverage.test.ts`
   proves every Identify entrypoint parses the provider's unknown JSON, performs
   the final envelope parse before persistence/finalization, settles a charged
   invalid response as failed, and returns only the parsed envelope with the
   stable public error code.
-- **Intentional changes**: Edit `contract.ts`, run
-  `make generate-edge-dto-contract`, review the Swift code-generation diff, and
-  run `make validate-edge-dto-contract`. Do not hand-edit the generated block.
-  Tests must accompany any new server-only field or source-root policy change.
+- **Intentional changes**: For Identify, edit `contract.ts` and run
+  `make generate-edge-dto-contract`. For Captured Media, edit
+  `capturedMediaContract.ts` and run
+  `make generate-captured-media-dto-contract`. Review the generated Swift diff,
+  then run `make validate-edge-dto-contract`; do not hand-edit either generated
+  block/file. Tests must accompany any new server-only field, compatibility
+  rule, or source-root policy change.
 - **Enrich response coverage**: `EnrichData.similar_species` and
   `SimilarSpeciesEntry` are a separate endpoint contract. Their additive
   metadata and legacy decoding behavior are covered by `InferenceEngineTests`,

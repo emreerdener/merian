@@ -334,6 +334,17 @@ extension OfflineQueueManager {
         "The completed cloud analysis could not be restored locally yet."
     }
 
+    nonisolated static var completedServerResultContractMismatchCode: String {
+        "server_result_local_recovery_contract_mismatch"
+    }
+
+    nonisolated static var completedServerResultContractMismatchMessage: String {
+        [
+            "Naturebook found this completed analysis in the cloud, but its saved result",
+            "uses an unsupported format. Update the app and retry this scan manually."
+        ].joined(separator: " ")
+    }
+
     nonisolated static func isCompletedServerResultRecoveryCode(
         _ code: String?
     ) -> Bool {
@@ -361,6 +372,15 @@ extension OfflineQueueManager {
             scan?.queueLastErrorCode
         ) || Self.isCompletedServerResultRecoveryCode(
             job?.lastErrorCode
+        )
+    }
+
+    @discardableResult
+    func markCompletedServerResultContractMismatch(scanId: String) -> Bool {
+        markQueuedScanNeedsAttention(
+            scanId: scanId,
+            code: Self.completedServerResultContractMismatchCode,
+            message: Self.completedServerResultContractMismatchMessage
         )
     }
 
@@ -901,18 +921,21 @@ extension OfflineQueueManager {
         }
     }
 
+    @discardableResult
     func markQueuedScanNeedsAttention(
         scanId: String,
         code: String,
         message: String?,
         httpStatus: Int? = nil
-    ) {
-        guard let context = modelContext else { return }
+    ) -> Bool {
+        guard let context = modelContext else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
         )
         descriptor.fetchLimit = 1
-        guard let scan = (try? context.fetch(descriptor))?.first else { return }
+        guard let scan = (try? context.fetch(descriptor))?.first else {
+            return false
+        }
         let now = Date()
         scan.queueLastAttemptAt = now
         scan.queueNextRetryAt = nil
@@ -943,9 +966,11 @@ extension OfflineQueueManager {
             try context.save()
             updateUnsyncedItemCount()
             OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
+            return true
         } catch {
             context.rollback()
             MerianLog.data.error("markQueuedScanNeedsAttention: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
         }
     }
 

@@ -17,6 +17,10 @@ import { createAudioSpectrogramThumbnail } from "../_shared/audioSpectrogram.ts"
 import type { ExplorePostMediaSnapshotRow } from "../_shared/explorePostMedia.ts";
 import { PublicHttpError, publicHttpError } from "../_shared/http.ts";
 import {
+  canonicalizeCompatibleCapturedMediaWireV1,
+  type SerializedMediaItemDTO,
+} from "../_shared/capturedMediaContract.ts";
+import {
   type OwnedScanRecoveryRow,
   recoverMissingOwnedScan,
 } from "../_shared/scanRecovery.ts";
@@ -99,6 +103,14 @@ function remoteMediaReference(
   return { storage: "remoteURL", path: url };
 }
 
+function canonicalCapturedMediaForWrite(
+  value: unknown[] | null | undefined,
+): SerializedMediaItemDTO[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const canonical = canonicalizeCompatibleCapturedMediaWireV1(value);
+  return canonical.length > 0 ? canonical : null;
+}
+
 function hasManifestVideo(value: unknown[] | null | undefined): boolean {
   if (!Array.isArray(value)) return false;
   return value.some((entry) =>
@@ -150,31 +162,36 @@ function standaloneAudioManifestPath(value: unknown): string | null {
 export function buildRestoredAudioCapturedMedia(
   row: ShareEligibleScanRow,
   audioUrls: string[],
-): unknown[] | null {
+): SerializedMediaItemDTO[] | null {
   const sanitizedAudioUrls = cleanMediaUrls(audioUrls);
-  if (sanitizedAudioUrls.length === 0) return row.captured_media ?? null;
+  if (sanitizedAudioUrls.length === 0) {
+    return canonicalCapturedMediaForWrite(row.captured_media);
+  }
   const existingManifest = Array.isArray(row.captured_media)
     ? row.captured_media
     : [];
   if (existingManifest.length === 0) {
-    return [
+    return canonicalCapturedMediaForWrite([
       ...cleanMediaUrls(row.image_storage_urls).map(imageManifestItem),
       ...sanitizedAudioUrls.map(audioManifestItem),
-    ];
+    ]);
   }
 
+  const canonicalExisting = canonicalizeCompatibleCapturedMediaWireV1(
+    existingManifest,
+  );
   const existingPaths = new Set(
-    existingManifest.flatMap((item) => {
+    canonicalExisting.flatMap((item) => {
       const path = standaloneAudioManifestPath(item);
       return path ? [path] : [];
     }),
   );
-  return [
+  return canonicalCapturedMediaForWrite([
     ...existingManifest,
     ...sanitizedAudioUrls
       .filter((url) => !existingPaths.has(url))
       .map(audioManifestItem),
-  ];
+  ]);
 }
 
 function videoManifestItem(
@@ -246,14 +263,19 @@ function replacingVideoManifestPath(
 export function buildRestoredVideoCapturedMedia(
   row: ShareEligibleScanRow,
   videoUrls: string[],
-): unknown[] | null {
+): SerializedMediaItemDTO[] | null {
   const sanitizedVideoUrls = cleanMediaUrls(videoUrls);
-  if (sanitizedVideoUrls.length === 0) return row.captured_media ?? null;
+  if (sanitizedVideoUrls.length === 0) {
+    return canonicalCapturedMediaForWrite(row.captured_media);
+  }
+  const canonicalExisting = Array.isArray(row.captured_media)
+    ? canonicalizeCompatibleCapturedMediaWireV1(row.captured_media)
+    : [];
   if (
-    hasManifestVideo(row.captured_media) &&
+    hasManifestVideo(canonicalExisting) &&
     cleanMediaUrls(row.video_storage_urls).length >= sanitizedVideoUrls.length
   ) {
-    return row.captured_media ?? null;
+    return canonicalExisting;
   }
 
   const imageUrls = cleanMediaUrls(row.image_storage_urls);
@@ -292,7 +314,7 @@ export function buildRestoredVideoCapturedMedia(
         imageIndex += 1;
       }
       if (!insertedVideos) appendVideos();
-      return repairedItems;
+      return canonicalCapturedMediaForWrite(repairedItems);
     }
 
     let videoIndex = 0;
@@ -314,7 +336,7 @@ export function buildRestoredVideoCapturedMedia(
         videoManifestItem(sanitizedVideoUrls[videoIndex], thumbnailUrl),
       );
     }
-    return items;
+    return canonicalCapturedMediaForWrite(items);
   }
 
   const items: unknown[] = standaloneImageUrls.map(imageManifestItem);
@@ -324,7 +346,7 @@ export function buildRestoredVideoCapturedMedia(
       imageUrls[0];
     items.push(videoManifestItem(url, thumbnailUrl));
   });
-  return items.length > 0 ? items : null;
+  return canonicalCapturedMediaForWrite(items);
 }
 
 async function rollbackPromotedUrls(

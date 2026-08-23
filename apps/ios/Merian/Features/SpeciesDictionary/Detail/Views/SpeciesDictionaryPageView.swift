@@ -490,6 +490,7 @@ private struct SpeciesDictionaryChatPresentation: Identifiable {
 }
 
 enum SpeciesDictionaryChatPresentationPolicy {
+enum SpeciesDictionaryChatPresentationPolicy {
     enum Destination: Equatable {
         case fieldChat
         case paywall

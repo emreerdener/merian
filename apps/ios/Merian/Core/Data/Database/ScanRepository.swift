@@ -1,6 +1,86 @@
 import Foundation
 import os
+import Supabase
 import SwiftData
+
+enum HistoricalScanDownOutcome: Equatable, Sendable {
+    case reconciled
+    case notFound
+    case transientFailure
+    case contractMismatch
+}
+
+struct HistoricalScanPageDecodeResult: Sendable {
+    let responses: [HistoricalScanResponse]
+    let remoteRowCount: Int
+    let rejectedRowCount: Int
+    let firstRejectedCodingPath: String?
+}
+
+enum HistoricalScanPageContractError: Error, Equatable {
+    case invalidTopLevel
+}
+
+enum HistoricalScanPageDecoder {
+    static func decode(
+        _ data: Data,
+        using decoder: JSONDecoder = PostgrestClient.Configuration.jsonDecoder
+    ) throws -> HistoricalScanPageDecodeResult {
+        let root = try JSONSerialization.jsonObject(with: data)
+        guard let rows = root as? [Any] else {
+            throw HistoricalScanPageContractError.invalidTopLevel
+        }
+
+        var responses: [HistoricalScanResponse] = []
+        responses.reserveCapacity(rows.count)
+        var rejectedRowCount = 0
+        var firstRejectedCodingPath: String?
+
+        for (index, row) in rows.enumerated() {
+            do {
+                let rowData = try JSONSerialization.data(withJSONObject: row)
+                responses.append(
+                    try decoder.decode(HistoricalScanResponse.self, from: rowData)
+                )
+            } catch {
+                rejectedRowCount += 1
+                if firstRejectedCodingPath == nil {
+                    firstRejectedCodingPath = boundedCodingPath(
+                        from: error,
+                        fallbackIndex: index
+                    )
+                }
+            }
+        }
+
+        return HistoricalScanPageDecodeResult(
+            responses: responses,
+            remoteRowCount: rows.count,
+            rejectedRowCount: rejectedRowCount,
+            firstRejectedCodingPath: firstRejectedCodingPath
+        )
+    }
+
+    private static func boundedCodingPath(
+        from error: Error,
+        fallbackIndex: Int
+    ) -> String {
+        let codingPath: [CodingKey]
+        switch error {
+        case DecodingError.typeMismatch(_, let context),
+             DecodingError.valueNotFound(_, let context),
+             DecodingError.keyNotFound(_, let context),
+             DecodingError.dataCorrupted(let context):
+            codingPath = context.codingPath
+        default:
+            codingPath = []
+        }
+        let path = codingPath.isEmpty
+            ? "row[\(fallbackIndex)]"
+            : codingPath.map(\.stringValue).joined(separator: ".")
+        return String(path.prefix(256))
+    }
+}
 
 // MARK: - Scan Repository
 
@@ -123,17 +203,23 @@ final class ScanRepository {
             var totalNewRecords = 0
 
             while true {
-                let page: [HistoricalScanResponse] = try await SupabaseManager.shared.client
+                let rawPage = try await SupabaseManager.shared.client
                     .from("scans")
                     .select(Self.historicalScanSelectColumns)
                     .eq("user_id", value: userId)
                     .order("timestamp", ascending: false)
                     .range(from: scanOffset, to: scanOffset + scanPageSize - 1)
                     .execute()
-                    .value
+                let decodedPage = try HistoricalScanPageDecoder.decode(rawPage.data)
+                let page = decodedPage.responses
                 guard SupabaseManager.shared
                     .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
                     return
+                }
+                if decodedPage.rejectedRowCount > 0 {
+                    MerianLog.data.error(
+                        "syncHistoricalScansDown: quarantined malformed cloud rows count=\(decodedPage.rejectedRowCount, privacy: .public) firstPath=\((decodedPage.firstRejectedCodingPath ?? "unknown"), privacy: .public)"
+                    )
                 }
                 if !page.isEmpty {
                     if scanOffset == 0 {
@@ -141,7 +227,7 @@ final class ScanRepository {
                     }
                     totalNewRecords += await dbActor.reconcileScanPage(responses: page)
                 }
-                if page.count < scanPageSize { break }
+                if decodedPage.remoteRowCount < scanPageSize { break }
                 scanOffset += scanPageSize
             }
 
@@ -195,54 +281,76 @@ final class ScanRepository {
     /// Pulls a single completed scan by ID after the outbox status endpoint confirms
     /// the server has persisted it. This avoids waiting for a full historical sync when
     /// the photo's EXIF timestamp places it deep in the user's remote history.
-    func syncHistoricalScanDown(scanId: String, modelContext: ModelContext) async -> Bool {
+    func syncHistoricalScanDown(
+        scanId: String,
+        modelContext: ModelContext
+    ) async -> HistoricalScanDownOutcome {
         guard let accountWorkLease = try? SupabaseManager.shared
-            .beginUnownedAccountBoundWork() else { return false }
+            .beginUnownedAccountBoundWork() else { return .transientFailure }
         defer {
             SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
 
+        let rawResponse: Data
         do {
-            let container = modelContext.container
-            let dbActor = HistoricalDatabaseActor(modelContainer: container)
-            let response: [HistoricalScanResponse] = try await SupabaseManager.shared.client
+            rawResponse = try await SupabaseManager.shared.client
                 .from("scans")
                 .select(Self.historicalScanSelectColumns)
                 .eq("user_id", value: userId)
                 .eq("id", value: scanId)
                 .limit(1)
                 .execute()
-                .value
-
-            guard SupabaseManager.shared
-                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-                return false
-            }
-
-            guard !response.isEmpty else {
-                MerianLog.data.debug(
-                    "syncHistoricalScanDown: server had status=found but targeted fetch returned no row scanId=\(scanId, privacy: .public)"
-                )
-                return false
-            }
-
-            let newRecords = await dbActor.reconcileScanPage(responses: response)
-            guard SupabaseManager.shared
-                .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
-                return false
-            }
-            MerianLog.data.debug(
-                "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
-            )
-            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-            return true
+                .data
         } catch {
             MerianLog.data.error(
-                "syncHistoricalScanDown: failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
+                "syncHistoricalScanDown: targeted fetch failed scanId=\(scanId, privacy: .public)"
             )
-            return false
+            return .transientFailure
         }
+
+        let decodedPage: HistoricalScanPageDecodeResult
+        do {
+            decodedPage = try HistoricalScanPageDecoder.decode(rawResponse)
+        } catch {
+            MerianLog.data.error(
+                "syncHistoricalScanDown: invalid response envelope scanId=\(scanId, privacy: .public)"
+            )
+            return .contractMismatch
+        }
+
+        guard SupabaseManager.shared
+            .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+            return .transientFailure
+        }
+
+        guard decodedPage.rejectedRowCount == 0 else {
+            MerianLog.data.error(
+                "syncHistoricalScanDown: cloud row contract mismatch scanId=\(scanId, privacy: .public) path=\((decodedPage.firstRejectedCodingPath ?? "unknown"), privacy: .public)"
+            )
+            return .contractMismatch
+        }
+
+        guard !decodedPage.responses.isEmpty else {
+            MerianLog.data.debug(
+                "syncHistoricalScanDown: server had status=found but targeted fetch returned no row scanId=\(scanId, privacy: .public)"
+            )
+            return .notFound
+        }
+
+        let dbActor = HistoricalDatabaseActor(modelContainer: modelContext.container)
+        let newRecords = await dbActor.reconcileScanPage(
+            responses: decodedPage.responses
+        )
+        guard SupabaseManager.shared
+            .isAccountBoundWorkLeaseCurrent(accountWorkLease) else {
+            return .transientFailure
+        }
+        MerianLog.data.debug(
+            "syncHistoricalScanDown: reconciled scanId=\(scanId, privacy: .public) newRecords=\(newRecords, privacy: .public)"
+        )
+        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+        return .reconciled
     }
 
     // MARK: - Queue Control
@@ -387,23 +495,16 @@ struct CloudSpeciesDictionary: Decodable, Sendable {
 
 struct HistoricalObservationContext: Decodable, Sendable {
     let freeText: String?
-    let addedAt: Date?
 
     private enum CodingKeys: String, CodingKey {
         case freeText
         case free_text
-        case addedAt
-        case added_at
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         freeText = (try? container.decode(String.self, forKey: .freeText))
             ?? (try? container.decode(String.self, forKey: .free_text))
-        addedAt = Self.decodeDate(
-            from: container,
-            keys: [.addedAt, .added_at]
-        )
     }
 
     var observationContext: ObservationContext? {
@@ -412,28 +513,7 @@ struct HistoricalObservationContext: Decodable, Sendable {
               !normalizedText.isEmpty else {
             return nil
         }
-        var context = ObservationContext(freeText: normalizedText)
-        context.addedAt = addedAt
-        return context
-    }
-
-    private static func decodeDate(
-        from container: KeyedDecodingContainer<CodingKeys>,
-        keys: [CodingKeys]
-    ) -> Date? {
-        for key in keys {
-            if let date = try? container.decode(Date.self, forKey: key) {
-                return date
-            }
-            if let seconds = try? container.decode(Double.self, forKey: key) {
-                return Date(timeIntervalSinceReferenceDate: seconds)
-            }
-            if let value = try? container.decode(String.self, forKey: key) {
-                return DateUtilities.iso8601FractionalFormatter.date(from: value)
-                    ?? DateUtilities.iso8601Formatter.date(from: value)
-            }
-        }
-        return nil
+        return ObservationContext(freeText: normalizedText)
     }
 }
 
@@ -443,7 +523,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let image_storage_urls: [String]?
     let video_storage_urls: [String]?
     let audio_storage_urls: [String]?
-    let captured_media: [SerializedMediaItem]?
+    let captured_media: CapturedMediaWireManifestDTO?
     let user_observation_context: HistoricalObservationContext?
     let timestamp: String?
     let weather_condition: String?
@@ -478,6 +558,10 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let user_confirmed_identification: Bool?
     let image_quality_score: Int?
     let species_dictionary: CloudSpeciesDictionary?
+
+    var capturedMediaItems: [SerializedMediaItem]? {
+        captured_media?.serializedMediaItems
+    }
 }
 
 struct CloudIdentificationCandidate: Decodable, Sendable {
@@ -615,7 +699,7 @@ actor HistoricalDatabaseActor {
 
                 let existingMediaSnapshot = existing.capturedMediaSnapshot
                 let hydratedItems = CapturedMediaSnapshot.cloudHydratedItems(
-                    capturedMediaItems: res.captured_media,
+                    capturedMediaItems: res.capturedMediaItems,
                     imageStorageURLs: res.image_storage_urls,
                     videoStorageURLs: res.video_storage_urls,
                     audioStorageURLs: res.audio_storage_urls,
@@ -849,7 +933,7 @@ actor HistoricalDatabaseActor {
             )
             
             let newItems = CapturedMediaSnapshot.cloudHydratedItems(
-                capturedMediaItems: scan.captured_media,
+                capturedMediaItems: scan.capturedMediaItems,
                 imageStorageURLs: scan.image_storage_urls,
                 videoStorageURLs: scan.video_storage_urls,
                 audioStorageURLs: scan.audio_storage_urls,

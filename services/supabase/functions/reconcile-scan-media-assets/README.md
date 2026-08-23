@@ -15,8 +15,11 @@ Service-role worker for staged scan-media upload-session reconciliation.
   - playback video rows are promoted from `staging/` to `public_uploads/` when
     the staged object still exists, then `scans.video_storage_urls` and
     `scans.captured_media` are rebuilt so sampled frames collapse behind one
-    playable video item. Rebuilt ready playback rows mark `has_audio` only when
-    the captured-media video item has an audio reference.
+    playable video item. The worker compatibility-reads legacy manifests, drops
+    device-local references and historical nested video audio, and validates the
+    rewrite as strict Captured Media Wire V1. Positive `has_audio` must come
+    from independently verified normalized/durable playback metadata; V1 itself
+    does not carry nested audio, and video kind alone is never evidence.
 - If no scan row exists after the abandonment TTL, deletes any remaining staging
   object and marks the asset failed for audit.
 - Checks `scan_ingestion_jobs` before abandoning orphaned staged media: active

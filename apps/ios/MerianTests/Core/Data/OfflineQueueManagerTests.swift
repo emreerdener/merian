@@ -378,8 +378,7 @@ struct OfflineQueueManagerTests {
         let mediaJSON = CapturedMediaSnapshot(items: [
             .image(.documents(privatePath)),
             .description(ObservationContext(
-                freeText: privateDescription,
-                addedAt: Date()
+                freeText: privateDescription
             ))
         ]).jsonString
 
@@ -1436,6 +1435,65 @@ struct OfflineQueueManagerTests {
                 OfflineQueueManager.completedServerResultRecoveryCode
         )
         #expect(scan.queueState == .inferencing)
+    }
+
+    @Test func testCompletedServerResultContractMismatchPausesWithoutRetryLoop() throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        defer { manager.modelContext = originalContext }
+        let context = try createIsolatedContext()
+        let scanId = UUID().uuidString
+        let retryAfter = Date().addingTimeInterval(60)
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            timestamp: Date(),
+            scanState: .inferencing,
+            queueAttemptCount: 0
+        )
+        scan.queueLastServerStatus = "complete"
+        scan.queueLastServerStage = "media_finalization_complete"
+        scan.queueLastServerRetryAfter = retryAfter
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running
+        )
+        job.serverStatus = "complete"
+        job.serverStage = "media_finalization_complete"
+        job.serverRetryAfter = retryAfter
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        #expect(
+            manager.markCompletedServerResultContractMismatch(
+                scanId: scanId
+            )
+        )
+
+        #expect(scan.queueState == .failed)
+        #expect(scan.queueNeedsAttention)
+        #expect(scan.queueAttemptCount == 0)
+        #expect(scan.queueNextRetryAt == nil)
+        #expect(
+            scan.queueLastErrorCode ==
+                OfflineQueueManager.completedServerResultContractMismatchCode
+        )
+        #expect(scan.queueLastServerStatus == "complete")
+        #expect(scan.queueLastServerStage == "media_finalization_complete")
+        #expect(scan.queueLastServerRetryAfter == retryAfter)
+        #expect(job.status == .needsAttention)
+        #expect(job.attemptCount == 0)
+        #expect(job.nextRunAt == nil)
+        #expect(
+            job.lastErrorCode ==
+                OfflineQueueManager.completedServerResultContractMismatchCode
+        )
+        #expect(job.serverStatus == "complete")
+        #expect(job.serverStage == "media_finalization_complete")
+        #expect(job.serverRetryAfter == retryAfter)
+        #expect(manager.hasDurableCompletedServerResult(scanId: scanId))
     }
 
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
@@ -3258,7 +3316,8 @@ struct OfflineQueueManagerTests {
             scanState: .failed,
             inferenceImagePaths: ["already-analyzed.webp"],
             queueAttemptCount: OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts,
-            queueLastErrorCode: "server_result_local_recovery_exhausted",
+            queueLastErrorCode:
+                OfflineQueueManager.completedServerResultContractMismatchCode,
             queueLastErrorMessage: "Local recovery paused.",
             queueNeedsAttention: true
         )

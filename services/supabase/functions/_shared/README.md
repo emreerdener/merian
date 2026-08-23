@@ -196,14 +196,29 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   stale staged-row repair and abandonment cleanup, while checking active
   ingestion jobs before abandoning staged upload-session media. Composer and
   status paths prefer ready display/playback asset rows before falling back to
-  `captured_media` and legacy arrays. Generated video rows derive `has_audio`
-  only from captured-media audio references; legacy video arrays default false
-  because they cannot prove an audio companion survived. `scan-media-health`
-  reads the same lifecycle state for deploy smoke checks and operational drift
-  alerts, but does not mutate media rows. Structured signing registration is
-  idempotent for one authenticated owner/client-scan/deterministic key, composes
-  compatible subsets, reuses the original upload session after an ambiguous
-  response, and enforces the six-source union before signing.
+  `captured_media` and legacy arrays. Historical compatibility manifests may
+  prove `has_audio` through a nested audio reference, but strict Captured Media
+  Wire V1 canonicalization drops that field. Current positive values must come
+  from verified normalized/durable playback metadata; V1 and legacy URL-array
+  fallbacks default false. `scan-media-health` reads the same lifecycle state
+  for deploy smoke checks and operational drift alerts, but does not mutate
+  media rows. Structured signing registration is idempotent for one
+  authenticated owner/client-scan/deterministic key, composes compatible
+  subsets, reuses the original upload session after an ambiguous response, and
+  enforces the six-source union before signing.
+- **`capturedMediaContract.ts`**: Dependency-free executable wire contract for
+  `public.scans.captured_media`. It strictly validates every new V1 manifest,
+  preserves the installed-client outer-key/`_0` union, and canonicalizes legacy
+  reads without decoding retired description timestamps. Compatibility reads
+  tolerate legacy `localFile` references; canonical server rewrites discard
+  those device-only paths and historical nested video audio, then revalidate
+  strict HTTPS-only V1. Strict V1 requires one or more items; the compatibility
+  reader accepts historical `[]` as missing, and writers persist `null` when no
+  durable item survives canonicalization. Identify finalization, Explore
+  restoration, and media reconciliation share this write boundary. Its separate
+  generator owns `CapturedMediaWireDTOs.swift`; keep it independent of the
+  Gemini response contract because durable JSONB and provider-schema unions have
+  different compatibility rules.
 - **`scanPersistence.ts`**: Shared scan-row write settler used by all four scan
   producers. It polls the exact `(scan_id, user_id)` topology after success,
   rejection, or a lost response and classifies the result as committed,

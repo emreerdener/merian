@@ -107,6 +107,22 @@ Deno.test("buildCompatibilityScanIngestionIntent keeps describe-only rows replay
   ]);
 });
 
+Deno.test("buildCompatibilityScanIngestionIntent discards legacy description timestamps", async () => {
+  const intent = await buildCompatibilityScanIngestionIntent({
+    scanId: "scan-legacy-context",
+    endpoint: "identify-describe",
+    observationContexts: [{
+      free_text: "  Heard near the creek  ",
+      added_at: "2026-08-22T12:00:00.000Z",
+    }],
+  });
+
+  assertEquals(intent.requestPayload.schemaVersion, 3);
+  assertEquals(intent.requestPayload.observationContexts, [
+    { freeText: "Heard near the creek" },
+  ]);
+});
+
 Deno.test("buildCompatibilityScanIngestionIntent keeps staged legacy audio replayable", async () => {
   const intent = await buildCompatibilityScanIngestionIntent({
     scanId: "scan-1",

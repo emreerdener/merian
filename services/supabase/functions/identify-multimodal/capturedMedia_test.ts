@@ -10,7 +10,7 @@ import {
   validateOwnerMediaTimeline,
 } from "./capturedMedia.ts";
 
-Deno.test("owner observation contexts normalize ISO dates for Swift Codable", () => {
+Deno.test("owner observation contexts discard legacy ordering timestamps", () => {
   assertEquals(
     normalizeOwnerObservationContexts([
       {
@@ -20,7 +20,6 @@ Deno.test("owner observation contexts normalize ISO dates for Swift Codable", ()
     ]),
     [{
       freeText: "Near a pond",
-      addedAt: Date.parse("2026-07-05T12:00:00.000Z") / 1_000 - 978_307_200,
     }],
   );
 });
@@ -131,7 +130,7 @@ Deno.test("legacy captured media preserves every description after grouped media
       visualMediaItems: [],
       audioMediaItems: [{ kind: "audio", sourceIndex: 0 }],
       observationContexts: [
-        { freeText: "First note", addedAt: 807_000_000 },
+        { freeText: "First note" },
         { freeText: "Second note" },
       ],
     }),
@@ -147,7 +146,7 @@ Deno.test("legacy captured media preserves every description after grouped media
       },
       {
         description: {
-          _0: { freeText: "First note", addedAt: 807_000_000 },
+          _0: { freeText: "First note" },
         },
       },
       {
@@ -216,7 +215,7 @@ Deno.test("canonical captured media preserves interleaved video descriptions and
       audioMediaItems,
       ownerMediaTimeline: validation.timeline,
       observationContexts: [
-        { freeText: "First note", addedAt: 807_000_000 },
+        { freeText: "First note" },
         { freeText: "Second note" },
       ],
     }),
@@ -237,7 +236,7 @@ Deno.test("canonical captured media preserves interleaved video descriptions and
       },
       {
         description: {
-          _0: { freeText: "First note", addedAt: 807_000_000 },
+          _0: { freeText: "First note" },
         },
       },
       {

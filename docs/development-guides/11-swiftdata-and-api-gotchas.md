@@ -511,12 +511,11 @@ actor and trigger frame drops or OOM spikes on big libraries.
 - At the Edge boundary, hydrate existing `collection_scans` rows with the
   `(collection_id, scan_id)` keyset cursor and write only the computed
   membership delta. Do not reintroduce progressively slower range/offset pages.
-- Admit collection ownership through the atomic
-  `upsert_owned_collections` result, never a SELECT-then-service-role-upsert
-  preflight. Use only accepted IDs downstream. Add memberships through
-  `insert_owned_collection_scans`, which joins both parents to the caller;
-  missing/foreign parents are skippable, while RPC/read/write errors must remain
-  retryable failures.
+- Admit collection ownership through the atomic `upsert_owned_collections`
+  result, never a SELECT-then-service-role-upsert preflight. Use only accepted
+  IDs downstream. Add memberships through `insert_owned_collection_scans`, which
+  joins both parents to the caller; missing/foreign parents are skippable, while
+  RPC/read/write errors must remain retryable failures.
 - Recovery sweeps such as lookalike-cache clearing must include a predicate and
   fetch limit; unbounded full-library fetches are zero-OOM violations.
 
@@ -1123,12 +1122,12 @@ queued-scan tile.
 
 **`InsightSheetViewModel.queuedContext: QueuedScanContext?`**: All computed
 properties that previously switched on a live `OfflineQueuedScan?` now switch on
-`queuedContext == nil`. `QueuedContentView` receives
-`QueuedScanContext` rather than a `@Model` reference, and the queued media path
-is always rebuilt from `queuedContext.capturedMediaSnapshot` instead of faulting
-properties off the deleted model. `ScansSheetView` retains that context in its
-private pushed route while hashing and comparing by scan ID, so the destination
-survives queue deletion and completed-result handoff without a nested sheet.
+`queuedContext == nil`. `QueuedContentView` receives `QueuedScanContext` rather
+than a `@Model` reference, and the queued media path is always rebuilt from
+`queuedContext.capturedMediaSnapshot` instead of faulting properties off the
+deleted model. `ScansSheetView` retains that context in its private pushed route
+while hashing and comparing by scan ID, so the destination survives queue
+deletion and completed-result handoff without a nested sheet.
 
 ---
 
@@ -1337,6 +1336,11 @@ counts for those inline media arrays and sets `resumable = false` plus
 `inline_media_redacted = true`. Queued/staged media requests are the replayable
 case because the payload contains server-owned staged object keys, media
 descriptors, upload-session ids, telemetry, observation context, and checksums.
+Current intent schema version 3 stores each observation context as bounded
+`freeText` only. It never persists the retired capture-composition `addedAt` /
+`added_at` field. Schema-v2 rows remain replay-readable; multimodal's input
+normalizer discards any legacy timestamp before a new intent, scan row, or
+Captured Media manifest is written.
 
 ### The Pattern: Store The Sanitized Intent, Keep Raw Media Client-Owned
 
@@ -1344,6 +1348,9 @@ When adding or changing ingestion payload fields:
 
 - Add metadata fields to `_shared/scanIngestionIntents.ts` only if they are safe
   to store server-side.
+- Preserve `ownerMediaTimeline` absence for old intents; do not synthesize an
+  empty authoritative timeline, and never reintroduce description timestamps as
+  a second chronology source.
 - Keep raw media bytes, private file paths, and unbounded text out of
   `request_payload`.
 - Use `payload_checksum` and `manifest_checksum` to prove retry shape, not to
@@ -1401,20 +1408,20 @@ identity and fields, defer to active/retryable richer ingestion, allow exact
 structured `replay_exhausted`, and require matching composite
 dead-letter/quota/media-lifecycle proof for exact
 `media_reconciliation_abandoned`, rejecting later committed policy authority.
-They write without overwrite and reload by
-owner. Media continues through owner staging. Never trust an abandoned terminal
-label alone or repair this class of bug with a direct iOS table upsert, an
-`authenticated` grant, or a server key in the app.
+They write without overwrite and reload by owner. Media continues through owner
+staging. Never trust an abandoned terminal label alone or repair this class of
+bug with a direct iOS table upsert, an `authenticated` grant, or a server key in
+the app.
 
 ---
 
 ## 27. Redundant Queue Authority Must Reconcile Before Mutation
 
-Scan-ingestion retry control is deliberately mirrored on
-`OfflineQueuedScan` and its scan-keyed `OfflineJobRecord`. This lets the
-presented queue row and the media-agnostic scheduler survive migrations and
-independent context lifecycles. It also means one resident SwiftData fault can
-temporarily disagree with the other after a cross-context save.
+Scan-ingestion retry control is deliberately mirrored on `OfflineQueuedScan` and
+its scan-keyed `OfflineJobRecord`. This lets the presented queue row and the
+media-agnostic scheduler survive migrations and independent context lifecycles.
+It also means one resident SwiftData fault can temporarily disagree with the
+other after a cross-context save.
 
 Never decide whether staging may reset retry metadata from only one copy. Build
 one monotonic projection before every serialized mutation:
@@ -1433,8 +1440,8 @@ mirror repair does not replace generation fencing. Missing or unreadable
 authority must fail closed; a message string or approximate state is never
 permission to dispatch Identify.
 
-Regression tests must drift each redundant copy independently. At minimum,
-erase the queue-row retry marker/counter while the job survives, pass through
+Regression tests must drift each redundant copy independently. At minimum, erase
+the queue-row retry marker/counter while the job survives, pass through
 `.pending → .uploading → .staged`, and prove the marker survives, the next
 attempt advances, and a job-only cloud-complete marker vetoes a late inference
 retry.

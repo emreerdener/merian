@@ -234,6 +234,7 @@
 		6AF42ADAA57BBA955A2548FC /* NonBiologicalScansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE2145B49294DE40DA5D634 /* NonBiologicalScansView.swift */; };
 		6C12EA9A3B5E4E76A7478E95 /* SupabaseManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14313D1A36B6C6E044E50CD /* SupabaseManagerTests.swift */; };
 		6D574D20C58C27A77BB57EE3 /* ExploreVideoPlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E870051F4475D454EBD9FAC9 /* ExploreVideoPlaybackCoordinator.swift */; };
+		6DC937B2F0555A5FCBF75DF2 /* CapturedMediaWireDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44182CB979342BBE73F6B74B /* CapturedMediaWireDTOs.swift */; };
 		6DF4FA4647F05081982D6919 /* OnboardingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71E061980A85DE6DD951091 /* OnboardingViewModelTests.swift */; };
 		6ECDDB86B3FF6BA3B6239B90 /* SchemaV9.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA942E70D2AAE75BC52FFE09 /* SchemaV9.swift */; };
 		6F4008BC5037190B9157E8D3 /* ExternalImageImportStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6567CE5A48413D8866280BE9 /* ExternalImageImportStore.swift */; };
@@ -747,6 +748,7 @@
 		425723D909583D5FCF661C3A /* OverviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewCard.swift; sourceTree = "<group>"; };
 		4273CDE53B47959145F1F5A0 /* MessageScanLibraryExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageScanLibraryExtensionView.swift; sourceTree = "<group>"; };
 		42DD9B130EE89A1B3D031436 /* InsightContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightContentView.swift; sourceTree = "<group>"; };
+		44182CB979342BBE73F6B74B /* CapturedMediaWireDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturedMediaWireDTOs.swift; sourceTree = "<group>"; };
 		4421E523E25DBF1782051FB6 /* ExploreCommentComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreCommentComposer.swift; sourceTree = "<group>"; };
 		446094C615DD51DB0C314568 /* Terrarium.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Terrarium.swift; sourceTree = "<group>"; };
 		4473C4D613D3AE4870C791D9 /* FeedbackSurveyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackSurveyModels.swift; sourceTree = "<group>"; };
@@ -1540,6 +1542,7 @@
 			isa = PBXGroup;
 			children = (
 				06402643CAF539C27848A378 /* BackgroundDatabaseActor.swift */,
+				44182CB979342BBE73F6B74B /* CapturedMediaWireDTOs.swift */,
 				58507F2BA73789441DA21050 /* FileIOActor.swift */,
 				5DB6E0EE4C14ACB69D345C9A /* ScanRepository.swift */,
 			);
@@ -4214,6 +4217,7 @@
 				6ABA014D69B09E87A946508E /* CaptureGoalContext.swift in Sources */,
 				CE0450CF7600E5D2F4331361 /* CaptureWorkspaceView.swift in Sources */,
 				B9CC3F27252946348AD32CC5 /* CaptureWorkspaceViewModel.swift in Sources */,
+				6DC937B2F0555A5FCBF75DF2 /* CapturedMediaWireDTOs.swift in Sources */,
 				36606C1BF6B4909B3DB5A8A4 /* CardEntranceModifier.swift in Sources */,
 				B5A4E26BB1F36E65749E25D4 /* CardModifier.swift in Sources */,
 				BFFCAD8D8ED45F72D0988917 /* CategoryFilterBar.swift in Sources */,

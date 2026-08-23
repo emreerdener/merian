@@ -2030,18 +2030,19 @@ contract requires exact config/entrypoint parity and rejects literal calls from
 any application target, workflow, worker, operator script, or migration to
 missing routes; the one historical retired domesticated-purge schedule is
 accepted only while its later unschedule evidence remains exact. The tooling
-gate then tests and executes the executable Identify contract/Swift generator
-under its isolated frozen config, syntax-checks every shell script, and runs
-every `*_test.sh`. It also rejects complete secret-shaped `sb_secret_…` literals
-across repository files before deployment. Tests must construct format-valid
-fake keys from separate fragments, and the gate reports filenames rather than
-matching values. New conventionally named tooling tests therefore enter the gate
-without editing CI.
+gate then tests and executes the isolated executable Identify and Captured Media
+contracts and their Swift generators under the frozen tooling config,
+syntax-checks every shell script, and runs every `*_test.sh`. It also rejects
+complete secret-shaped `sb_secret_…` literals across repository files before
+deployment. Tests must construct format-valid fake keys from separate fragments,
+and the gate reports filenames rather than matching values. New conventionally
+named tooling tests therefore enter the gate without editing CI.
 
 `validate_edge_dto_contract.sh` is the shared isolated entrypoint used by both
-the backend deployment workflow and the lightweight iOS project guardrail.
-Consequently, an extension-only decoder change anywhere under `apps/ios` is
-checked immediately without causing a production backend deployment.
+the backend deployment workflow and the lightweight iOS project guardrail. It
+runs the Identify and Captured Media validators. Consequently, an extension-only
+decoder change anywhere under `apps/ios` or a stale generated historical-media
+DTO is checked immediately without causing a production backend deployment.
 
 `functions/_shared/identify/contract.ts` is the one source of truth for the
 model output and final `{ success, data }` response. Its typed descriptor
@@ -2096,6 +2097,18 @@ and cannot accidentally resolve a shadow declaration: it imports the same
 frozen, dependency-free contract code that the Edge runtime executes. Run
 `make generate-edge-dto-contract` after an intentional contract change, review
 the generated Swift diff, then run `make validate-edge-dto-contract`.
+
+`functions/_shared/capturedMediaContract.ts` separately owns Captured Media Wire
+V1 for `public.scans.captured_media`. It preserves the deployed Swift
+outer-key/`_0` union while strictly bounding new HTTPS-only writes. Its
+compatibility reader accepts legacy key aliases, description timestamps,
+device-local references, nested video audio, and `[]`; canonical rewrites
+discard retired/device-only fields and store `null` when no durable item
+survives. The focused `validate_captured_media_dtos.ts` generator owns
+`CapturedMediaWireDTOs.swift` and remains independent of the Gemini provider
+schema. After an intentional media-wire change, run
+`make generate-captured-media-dto-contract`, review the Swift diff, then run
+`make validate-edge-dto-contract`.
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh

@@ -353,8 +353,7 @@ struct SerializedMediaItemTests {
     }
 
     @Test func cloudHydrationRestoresNonvisualFallbacksInDeterministicOrder() {
-        var context = ObservationContext(freeText: "A distant rhythmic call")
-        context.addedAt = Date(timeIntervalSinceReferenceDate: 123_456)
+        let context = ObservationContext(freeText: "A distant rhythmic call")
 
         let hydrated = CapturedMediaSnapshot.cloudHydratedItems(
             capturedMediaItems: nil,
@@ -380,10 +379,8 @@ struct SerializedMediaItemTests {
             ]
             """.utf8
         )
-        var before = ObservationContext(freeText: "Before the call")
-        before.addedAt = Date(timeIntervalSinceReferenceDate: 123_456)
-        var after = ObservationContext(freeText: "After the call")
-        after.addedAt = nil
+        let before = ObservationContext(freeText: "Before the call")
+        let after = ObservationContext(freeText: "After the call")
 
         let decoded = try JSONDecoder().decode([SerializedMediaItem].self, from: payload)
 

@@ -1,3 +1,15 @@
+import {
+  type CapturedMediaDescriptionContextDTO,
+  parseCapturedMediaWireV1,
+  type SerializedMediaItemDTO,
+  type StoredMediaReferenceDTO,
+} from "../_shared/capturedMediaContract.ts";
+
+export type {
+  SerializedMediaItemDTO,
+  StoredMediaReferenceDTO,
+} from "../_shared/capturedMediaContract.ts";
+
 export type VisualMediaDescriptor = {
   kind: "image" | "video_frame";
   sourceIndex?: number;
@@ -89,11 +101,7 @@ export type AudioMediaDescriptor = {
   clipIndex?: number;
 };
 
-export type OwnerObservationContext = {
-  freeText: string;
-  /** Foundation's default Codable Date representation (seconds since 2001-01-01). */
-  addedAt?: number;
-};
+export type OwnerObservationContext = CapturedMediaDescriptionContextDTO;
 
 export type OwnerMediaTimelineItem =
   | { kind: "image"; sourceIndex: number }
@@ -105,25 +113,6 @@ export type OwnerMediaTimelineValidation =
   | { present: false; timeline: null; error: null }
   | { present: true; timeline: null; error: string }
   | { present: true; timeline: OwnerMediaTimelineItem[]; error: null };
-
-export type StoredMediaReferenceDTO = {
-  storage: "remoteURL";
-  path: string;
-  sourceIndex?: number;
-};
-
-export type SerializedMediaItemDTO =
-  | { image: { _0: StoredMediaReferenceDTO } }
-  | { audio: { _0: StoredMediaReferenceDTO } }
-  | {
-    video: {
-      _0: {
-        video: StoredMediaReferenceDTO;
-        thumbnail?: StoredMediaReferenceDTO;
-      };
-    };
-  }
-  | { description: { _0: OwnerObservationContext } };
 
 export function durableAudioInputIndexes(
   ownerMediaTimeline: OwnerMediaTimelineItem[] | null,
@@ -197,18 +186,10 @@ export function normalizeOwnerObservationContexts(
     const context = rawContext as Record<string, unknown>;
     const freeText = cleanText(context.freeText ?? context.free_text);
     if (!freeText) return [];
-    const rawAddedAt = context.addedAt ?? context.added_at;
-    let addedAt: number | undefined;
-    if (typeof rawAddedAt === "number" && Number.isFinite(rawAddedAt)) {
-      addedAt = rawAddedAt;
-    } else if (typeof rawAddedAt === "string") {
-      const unixMilliseconds = Date.parse(rawAddedAt);
-      if (Number.isFinite(unixMilliseconds)) {
-        // ObservationContext uses Foundation's default Codable Date format.
-        addedAt = unixMilliseconds / 1_000 - 978_307_200;
-      }
-    }
-    return [{ freeText, ...(addedAt == null ? {} : { addedAt }) }];
+    // addedAt/added_at was capture-composition metadata. The validated owner
+    // timeline already owns durable order, so legacy values are accepted but
+    // intentionally omitted from every canonical context and manifest.
+    return [{ freeText }];
   });
 }
 
@@ -487,6 +468,12 @@ function cleanUrls(urls: string[]): string[] {
   return urls.map((url) => url.trim());
 }
 
+function canonicalCapturedMediaManifest(
+  items: SerializedMediaItemDTO[],
+): SerializedMediaItemDTO[] | null {
+  return items.length > 0 ? parseCapturedMediaWireV1(items) : null;
+}
+
 /** Builds the canonical owner-facing mixed-media projection stored in `scans.captured_media`. */
 export function buildCapturedMediaManifest(input: {
   imageStorageUrls: string[];
@@ -551,7 +538,7 @@ export function buildCapturedMediaManifest(input: {
         return context ? [{ description: { _0: context } }] : [];
       },
     );
-    return timelineItems.length > 0 ? timelineItems : null;
+    return canonicalCapturedMediaManifest(timelineItems);
   }
 
   // Legacy clients did not submit an owner timeline. Keep their read-compatible grouped
@@ -611,9 +598,9 @@ export function buildCapturedMediaManifest(input: {
   const hasResolvedVisualItems = items.length > 0;
   items.push(...audioItems, ...descriptionItems);
 
-  if (hasResolvedVisualItems) return items;
+  if (hasResolvedVisualItems) return canonicalCapturedMediaManifest(items);
   if (videoUrls.some(Boolean)) {
-    return [
+    return canonicalCapturedMediaManifest([
       ...videoUrls.flatMap((url, index): SerializedMediaItemDTO[] => {
         if (!url) return [];
         const thumbnailUrl = imageUrls[index] ?? imageUrls[0];
@@ -630,13 +617,13 @@ export function buildCapturedMediaManifest(input: {
       }),
       ...audioItems,
       ...descriptionItems,
-    ];
+    ]);
   }
   const imageItems = imageUrls.flatMap((url): SerializedMediaItemDTO[] =>
     url ? [{ image: { _0: remoteMediaReference(url) } }] : []
   );
   const legacyItems = [...imageItems, ...audioItems, ...descriptionItems];
-  return legacyItems.length > 0 ? legacyItems : null;
+  return canonicalCapturedMediaManifest(legacyItems);
 }
 
 export function capturedMediaVideoCount(

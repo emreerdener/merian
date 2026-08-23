@@ -111,7 +111,7 @@ Deno.test("buildRepairedVideoCapturedMedia preserves nonvisual timeline items", 
   const audio = {
     audio: {
       _0: {
-        storage: "remoteURL",
+        storage: "remoteURL" as const,
         path: "https://media.merian.app/field.wav",
         sourceIndex: 0,
       },
@@ -140,6 +140,48 @@ Deno.test("buildRepairedVideoCapturedMedia preserves nonvisual timeline items", 
   assertEquals(capturedMedia?.[0], description);
   assertEquals(Object.hasOwn(capturedMedia?.[1] as object, "video"), true);
   assertEquals(capturedMedia?.[2], audio);
+});
+
+Deno.test("video reconciliation writes only canonical captured media", () => {
+  const scan = scanRow({
+    captured_media: [
+      {
+        description: {
+          _0: { free_text: "  Before repair  ", addedAt: 807_000_000 },
+        },
+      },
+      {
+        audio: {
+          _0: { storage: "localFile", path: "unusable.wav" },
+        },
+      },
+    ],
+  });
+
+  assertEquals(
+    buildRepairedVideoCapturedMedia(scan, [
+      "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+    ]),
+    [
+      { description: { _0: { freeText: "Before repair" } } },
+      {
+        video: {
+          _0: {
+            video: {
+              storage: "remoteURL",
+              path:
+                "https://media.merian.app/public_uploads/pro/user-1/video.mp4",
+            },
+            thumbnail: {
+              storage: "remoteURL",
+              path:
+                "https://media.merian.app/public_uploads/pro/user-1/frame-1.webp",
+            },
+          },
+        },
+      },
+    ],
+  );
 });
 
 Deno.test("reconcileScanMediaAssets repairs an existing scan with a stranded playback video", async () => {

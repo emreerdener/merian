@@ -17,21 +17,34 @@ entity. Foreground/background completion read the same hint, and every queued-
 scan deletion or orphan repair removes it. Persistent Insight contribution cards
 are server-backed and are intentionally not cached in SwiftData.
 
-Authenticated historical reconciliation treats `scans.captured_media` as the
-primary mixed-media projection. New canonical manifests contain every image,
-standalone audio clip, playback video, and description in submitted order. The
-reader also dual-reads `audio_storage_urls` and `user_observation_context` for
-older or incomplete rows, so an audio-plus-description scan cannot become an
-empty visual placeholder. Those compatibility columns carry no cross-modal
-positions: missing audio URLs are appended in stored-array order, followed by
-the stored context, and they are supplemental rather than deletion authority.
-Standalone audio carries the same `sourceIndex` in local and cloud
+Authenticated historical reconciliation treats a nonempty `scans.captured_media`
+projection as authoritative only when domain mapping yields a usable image or
+video. New canonical manifests contain every image, standalone audio clip,
+playback video, and description in submitted order. The reader also dual-reads
+durable image/audio/video URL columns and `user_observation_context` for older,
+empty, device-only, or incomplete rows, so an audio-plus-description scan cannot
+become an empty visual placeholder. Those compatibility columns carry no
+cross-modal positions: missing audio URLs are appended in stored-array order,
+followed by the stored context, and they are supplemental rather than deletion
+authority. Standalone audio carries the same `sourceIndex` in local and cloud
 `capturedMediaJSON`; reconciliation replaces a local clip only when that unique
 identity or its exact path matches. Unindexed legacy/restore media is merged
 conservatively rather than assigned by ordinal guess, so ambiguous recovery can
 retain an alias but cannot delete the wrong recording. `capturedMediaJSON`
 remains the primary read source, so the expanded JSON union does not change the
 SwiftData schema.
+
+`CapturedMediaWireDTOs.swift` is the generated PostgREST boundary for Captured
+Media Wire V1. It maps into the existing `SerializedMediaItem` domain only after
+strict wrapper, URL, and size validation. Its compatibility decoder accepts
+legacy aliases, ignores retired description timestamps without attempting a date
+decode, and safely drops legacy `localFile` references from server rows so the
+durable URL columns can supply the media instead. Strict V1 requires at least
+one item, while the compatibility decoder treats historical `[]` as a missing
+manifest. Historical pages decode rows independently, quarantining malformed
+rows while reconciling valid neighbors. Targeted completed-result hydration
+returns a typed contract mismatch; the queue immediately pauses that scan as
+needs-attention while preserving the cloud-complete no-redispatch fence.
 
 The historical scan projection also selects the existing `is_biological_subject`
 column. New local records use that value when it is present, and existing

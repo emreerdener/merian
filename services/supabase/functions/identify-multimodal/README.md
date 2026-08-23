@@ -39,8 +39,7 @@ Common fields:
   ],
   "observation_contexts": [
     {
-      "freeText": "Growing beside the porch light",
-      "addedAt": "2026-07-05T03:00:00.000Z"
+      "freeText": "Growing beside the porch light"
     }
   ]
 }
@@ -55,6 +54,12 @@ destination filename hint beside inline bytes; it is validated for traversal but
 excluded from ownership enforcement, public object naming, replay manifests,
 upload-asset failure marking, and strict promotion finalization because no
 source object was uploaded.
+
+Observation context is text-only on current writes. Older clients may still send
+`addedAt`/`added_at`; the compatibility reader accepts and discards that retired
+value without decoding it. Owner chronology comes from the validated
+`ownerMediaTimeline` and final `captured_media` array order, never from a second
+timestamp inside the description payload.
 
 Clients send the UUID `client_scan_id` as `Idempotency-Key` and preserve both
 values across transport, authentication, and queue retries. The database scopes
@@ -184,10 +189,12 @@ deadline; explicit server-directed delays remain authoritative. Provider
 response text and previews are never written to logs; malformed output
 diagnostics are limited to bounded structural/error metadata.
 
-Run `make generate-edge-dto-contract` and `make validate-edge-dto-contract` for
-intentional response changes. The root Swift fields are generated as optional
-for staggered rollout compatibility, but the server contract remains strict
-before delivery.
+Run `make generate-edge-dto-contract` for intentional response changes and
+`make generate-captured-media-dto-contract` for an intentional durable-media
+change. `make validate-edge-dto-contract` validates both generated boundaries.
+The root response Swift fields are generated as optional for staggered rollout
+compatibility, but the server contracts remain strict before delivery or
+persistence.
 
 The validated envelope is stored immutably through the service-only, user-first
 `complete_scan_ingestion_with_entitlement(...)` orchestrator in the same
@@ -234,6 +241,18 @@ removal, and final scan deletion erase the stored envelope.
   videos, and every description are emitted in the exact submitted order. Video
   frames collapse behind one video item with a poster thumbnail; sampled frames
   and extracted video audio must not become standalone shareable media.
+  `_shared/capturedMediaContract.ts` owns wire version 1 and validates every new
+  write before persistence. It preserves the deployed outer-key/`_0` wrappers,
+  permits only bounded credential-free HTTPS references, and writes description
+  payloads as `{ "freeText": "..." }`. The generated iOS decoder separately
+  accepts legacy key aliases, retired description timestamps, and historical
+  nested video-audio references. It tolerates but does not hydrate legacy
+  `localFile` paths from server rows; durable URL arrays remain the fallback.
+  Strict V1 rejects `[]`; compatibility readers treat a historical empty array
+  as a missing manifest, and server writers store `null` when no durable item
+  survives canonicalization. Explore restoration and media reconciliation
+  canonicalize compatible rows through this same strict contract before
+  rewriting `captured_media`.
 - Extracted video audio is request evidence, not an owner-visible standalone
   reference in server `captured_media`. Generated video rows must not infer
   `has_audio` merely from `kind === "video"`; that flag requires independent
@@ -250,9 +269,9 @@ The endpoint writes two server-side records before AI inference:
   retryability, required media counts, upload-session ids, and
   `manifest_checksum`.
 - `scan_ingestion_intents`: the sanitized replay intent for the accepted
-  request. It stores telemetry, every observation context, media descriptors,
-  the validated owner timeline, staged object keys, upload-session ids, accepted
-  focus metadata, and `payload_checksum`.
+  request. Schema version 3 stores telemetry, text-only observation contexts,
+  media descriptors, the validated owner timeline, staged object keys,
+  upload-session ids, accepted focus metadata, and `payload_checksum`.
 
 `begin_scan_ingestion` performs upload-session lookup, job claim, intent upsert,
 server-side checksum canonicalization, and the `ai_inference_started` transition

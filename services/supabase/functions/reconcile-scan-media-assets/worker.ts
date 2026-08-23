@@ -9,6 +9,10 @@ import {
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { refreshScanMediaAssets } from "../_shared/scanMediaAssets.ts";
 import {
+  canonicalizeCompatibleCapturedMediaWireV1,
+  type SerializedMediaItemDTO,
+} from "../_shared/capturedMediaContract.ts";
+import {
   fetchReconciliationJobs,
   fetchReconciliationScans,
   fetchStaleCaptureUploadAssets,
@@ -77,6 +81,14 @@ function addMinutes(date: Date, minutes: number): Date {
 
 function cleanUrls(urls: string[] | null | undefined): string[] {
   return (urls ?? []).map((url) => url.trim()).filter((url) => url.length > 0);
+}
+
+function canonicalCapturedMediaForWrite(
+  value: unknown[] | null | undefined,
+): SerializedMediaItemDTO[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const canonical = canonicalizeCompatibleCapturedMediaWireV1(value);
+  return canonical.length > 0 ? canonical : null;
 }
 
 function fileNameFromPath(value: string | null | undefined): string | null {
@@ -254,15 +266,20 @@ function jobMapByScanIdAndUser(
 export function buildRepairedVideoCapturedMedia(
   scan: ReconciliationScanRow,
   videoUrls: string[],
-): unknown[] | null {
+): SerializedMediaItemDTO[] | null {
   const sanitizedVideoUrls = cleanUrls(videoUrls);
-  if (sanitizedVideoUrls.length === 0) return scan.captured_media ?? null;
+  if (sanitizedVideoUrls.length === 0) {
+    return canonicalCapturedMediaForWrite(scan.captured_media);
+  }
+  const canonicalExisting = Array.isArray(scan.captured_media)
+    ? canonicalizeCompatibleCapturedMediaWireV1(scan.captured_media)
+    : [];
 
   if (
-    hasManifestVideo(scan.captured_media) &&
+    hasManifestVideo(canonicalExisting) &&
     cleanUrls(scan.video_storage_urls).length >= sanitizedVideoUrls.length
   ) {
-    return scan.captured_media ?? null;
+    return canonicalExisting;
   }
 
   const imageUrls = cleanUrls(scan.image_storage_urls);
@@ -301,7 +318,7 @@ export function buildRepairedVideoCapturedMedia(
         imageIndex += 1;
       }
       if (!insertedVideos) appendVideos();
-      return repairedItems;
+      return canonicalCapturedMediaForWrite(repairedItems);
     }
 
     let videoIndex = 0;
@@ -323,7 +340,7 @@ export function buildRepairedVideoCapturedMedia(
         videoManifestItem(sanitizedVideoUrls[videoIndex], thumbnailUrl),
       );
     }
-    return items;
+    return canonicalCapturedMediaForWrite(items);
   }
 
   const items: unknown[] = standaloneImageUrls.map(imageManifestItem);
@@ -334,7 +351,7 @@ export function buildRepairedVideoCapturedMedia(
     items.push(videoManifestItem(url, thumbnailUrl));
   });
 
-  return items.length > 0 ? items : null;
+  return canonicalCapturedMediaForWrite(items);
 }
 
 async function objectExists(

@@ -212,7 +212,7 @@ enum LocalScanMediaRecoveryResolver {
         registerRecoveryMappings(
             responses.map { response in
                 let items = CapturedMediaSnapshot.cloudHydratedItems(
-                    capturedMediaItems: response.captured_media,
+                    capturedMediaItems: response.capturedMediaItems,
                     imageStorageURLs: response.image_storage_urls,
                     videoStorageURLs: response.video_storage_urls,
                     audioStorageURLs: response.audio_storage_urls,

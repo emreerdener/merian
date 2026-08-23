@@ -70,12 +70,20 @@ relational constraints securely away from your proxy layer.
 Request/database interfaces remain explicit in `types.ts`. Identify model and
 client response aliases instead come from the executable descriptor in
 `_shared/identify/contract.ts`, which also generates the Swift wire boundary.
+The durable `captured_media` outer-key union is owned separately by
+`_shared/capturedMediaContract.ts` and `validate_captured_media_dtos.ts`; the
+shared validation gate runs both without projecting the JSONB union into
+Gemini's provider schema.
 
 **Rules for `types.ts`:**
 
 - **Exact Field Matching:** Response-shape changes belong in `contract.ts`.
   Regenerate `InferenceEdgeDTOs.swift` with `make generate-edge-dto-contract`;
   never maintain a duplicate hand-written interface/decoder mapping.
+- **Durable Media Matching:** Captured Media wire changes belong in
+  `capturedMediaContract.ts`. Regenerate `CapturedMediaWireDTOs.swift` with
+  `make generate-captured-media-dto-contract`; do not couple its legacy-read
+  union to the Gemini response descriptor.
 - **Oversharing Defense:** Only declare fields strictly consumed by the
   frontend; do not dump generic Postgres wildcard `*` objects out locally to the
   client natively.

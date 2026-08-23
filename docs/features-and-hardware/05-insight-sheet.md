@@ -862,10 +862,12 @@ together separate image-only arrays.
    in one stable sequence. Video poster thumbnails stay attached to the video
    item for grid/list preview purposes and are not duplicated as separate
    carousel pages; extracted video audio is kept as inference metadata on the
-   video item, not a visible media page. Cloud hydration prefers
-   `scans.captured_media` when present; owner-history hydration also dual-reads
-   `audio_storage_urls` and `user_observation_context` so an incomplete or
-   legacy manifest cannot erase durable audio or submitted description text. New
+   video item, not a visible media page. Cloud hydration uses
+   `scans.captured_media` as authoritative only when its nonempty decoded
+   projection contains a usable image or video; owner-history hydration also
+   dual-reads durable image/audio/video URL columns and
+   `user_observation_context` so an empty, device-only, incomplete, or legacy
+   manifest cannot erase durable media or submitted description text. New
    canonical manifests preserve every audio and description position. The
    compatibility columns lack cross-modal positions, so only legacy missing
    audio is appended in stored-array order and the stored context follows it.

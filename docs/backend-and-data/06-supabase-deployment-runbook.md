@@ -3723,8 +3723,11 @@ row to `scan_media_reconciliation_runs`.
 Video audio-metadata fixes are also migration-plus-function releases. The
 `20260707041259_fix_video_has_audio_metadata.sql` helper/backfill and the
 composer/share/edit function bundles must deploy together so `scan_media_assets`
-and `explore_post_media` only set `has_audio` when `captured_media` proves an
-audio companion exists.
+and `explore_post_media` never infer `has_audio` from video kind alone. That
+migration's nested captured-media audio reference is legacy compatibility
+evidence. Captured Media Wire V1 canonical rewrites drop nested audio, so
+current function releases must source positive `has_audio` from verified
+normalized or other durable playback metadata and otherwise write `false`.
 
 Audio moderation-attestation releases are migration-first. Apply
 `20260711055524_add_explore_audio_moderation_attestations.sql` before deploying

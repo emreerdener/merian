@@ -1307,16 +1307,27 @@ The transaction log for every successful identification.
 - `audio_storage_urls` (Text Array): Durable standalone-audio links. Extracted
   video companion audio is not stored here because the playback MP4 is the
   public artifact.
-- `captured_media` (JSONB): Canonical captured-media timeline using the iOS
-  `SerializedMediaItem` shape. New validated owner timelines preserve every
-  image, standalone audio clip, playback video, and description in submitted
-  order. Video entries attach the playback clip and poster thumbnail together so
-  sampled inference frames do not hydrate as standalone Insight carousel images,
-  while inference-only extracted video audio is not retained as a server media
-  reference. Video rows should be present whenever `video_storage_urls` is
-  present. Ready display/playback rows in `scan_media_assets` are refreshed from
-  this manifest when present and fall back to legacy media arrays for older
-  rows. The compatibility image array is therefore not itself the canonical
+- `captured_media` (JSONB): Canonical Captured Media Wire V1 timeline, validated
+  by `_shared/capturedMediaContract.ts`. It retains the deployed iOS
+  outer-key/`_0` enum wrappers and bounded credential-free HTTPS references. New
+  validated owner timelines preserve every image, standalone audio clip,
+  playback video, and description in submitted order; new description payloads
+  contain only `freeText`. Video entries attach the playback clip and poster
+  thumbnail together so sampled inference frames do not hydrate as standalone
+  Insight carousel images, while inference-only extracted video audio is not
+  retained as a server media reference. Video rows should be present whenever
+  `video_storage_urls` is present. Ready display/playback rows in
+  `scan_media_assets` are refreshed from this manifest when nonempty and fall
+  back to legacy media arrays when it is null or `[]`. The compatibility reader
+  accepts and discards retired description `addedAt`/`added_at` values and
+  accepts historical nested video-audio and `localFile` references. Server
+  canonical rewrites discard device-local references and nested audio, normalize
+  aliases, and validate the result as strict V1 before persistence; new writes
+  accept none of those legacy forms. Strict V1 requires at least one item, so
+  server writers persist SQL `null` rather than `[]` when canonicalization
+  leaves no durable item. Compatibility readers accept historical `[]` as a
+  missing manifest; iOS then hydrates from the durable URL/context fallback
+  columns. The compatibility image array is therefore not itself the canonical
   display-image set for a video scan.
 - `is_flagged` (Boolean): Managed via `00005_flagged_reviews.sql` for
   human-reported moderation flags.
@@ -1413,10 +1424,11 @@ version contains both RPC call sites.
 - `user_observation_context` (JSONB, nullable): Structured observation context
   staged by the user before submission. On the active multimodal path this is
   the first serialized iOS `ObservationContext` object, currently
-  `{ "freeText": "...", "addedAt": "..." }`. Legacy rows may still contain older
-  shapes documented during earlier describe experiments. `NULL` for image-only
-  scans. Added in migration `20260414000000_add_user_observation_context.sql`.
-  Never mutated after scan insertion.
+  `{ "freeText": "..." }`. Legacy rows may still contain `addedAt`, `added_at`,
+  or older shapes documented during earlier describe experiments; history
+  hydration ignores those retired ordering values. `NULL` for image-only scans.
+  Added in migration `20260414000000_add_user_observation_context.sql`. Never
+  mutated after scan insertion.
 - `pet_identification` (JSONB, nullable): Optional dog/cat display metadata
   added in migration `20260621120000_add_pet_identification_to_scans.sql`.
   Populated only when the primary taxon remains `Canis lupus familiaris` or
@@ -2324,8 +2336,13 @@ attempts. Added in migration `20260705140000_add_scan_ingestion_intents.sql`.
   `scan_ingestion_jobs`.
 - `request_payload` (JSONB): Sanitized replay intent containing telemetry,
   observation context, media descriptors, staged object keys, media counts,
-  upload-session ids, and manifest checksum. Raw base64 media bytes and local
-  device paths are never stored here.
+  upload-session ids, and manifest checksum. Current schema version 3 stores
+  observation contexts as `{ "freeText": "..." }` only; capture-composition
+  `addedAt` / `added_at` values are retired and are never copied into a new
+  intent. Schema-v2 intents remain replay-readable during rolling compatibility,
+  and multimodal normalization discards any legacy timestamp before scan or
+  Captured Media persistence. Raw base64 media bytes and local device paths are
+  never stored here.
 - `media_counts`, `media_object_keys`, `upload_session_ids`,
   `manifest_checksum`: Duplicated from the job claim so replay workers and ops
   can recover the exact media shape without joining through logs.
@@ -2546,9 +2563,13 @@ available. Migration
 `20260706193954_fix_scan_media_refresh_image_url_ambiguity.sql` replaces the
 refresh helper after an early deployment exposed an ambiguous PL/pgSQL
 `image_url` reference in the legacy-array fallback path. Migration
-`20260707041259_fix_video_has_audio_metadata.sql` corrects video `has_audio`
-derivation so generated media rows and Explore snapshots only mark audio when a
-captured-media video audio reference exists. Migration
+`20260707041259_fix_video_has_audio_metadata.sql` corrected the legacy video
+`has_audio` derivation so generated media rows and Explore snapshots did not
+infer audio from video kind alone. Historical compatibility manifests may still
+carry a nested video-audio reference as read evidence. Captured Media Wire V1
+does not: canonical rewrites drop that field, so current writers/rebuilders must
+carry a verified value through normalized or other durable playback metadata and
+otherwise use `false`. Migration
 `20260710120000_add_explore_audio_moderation.sql` adds durable standalone-audio
 URLs and permits approved audio snapshots in Explore post media. Migration
 `20260711055524_add_explore_audio_moderation_attestations.sql` adds the
@@ -2618,8 +2639,10 @@ promoted rows remain audit evidence and do not consume this trigger budget.
 - `duration_seconds` (DOUBLE PRECISION, nullable): Reserved for video playback
   metadata.
 - `has_audio` (BOOLEAN): Whether the playback video has a persisted audio
-  companion. This must be derived from normalized media metadata or a
-  `captured_media` video audio reference, not merely from `kind = 'video'`.
+  companion. Current values must come from normalized or other durable playback
+  metadata, not merely from `kind = 'video'`. A nested video-audio reference is
+  read-only historical evidence; strict Captured Media Wire V1 writes and
+  canonical rewrites do not retain that field.
 - `content_type`, `byte_size`, `checksum_sha256`, `width`, `height` (nullable):
   Optional durability, integrity, and presentation metadata.
 - `failure_reason`, `ready_at`, `deleted_at` (nullable): Lifecycle diagnostics
@@ -2629,11 +2652,15 @@ promoted rows remain audit evidence and do not consume this trigger budget.
 - `created_at` / `updated_at` (TIMESTAMPTZ): Asset lifecycle timestamps.
 
 `public.refresh_scan_media_assets(scan_id)` rebuilds generated
-`scan_refresh`/`backfill` rows from `scans.captured_media` first. If the
-manifest is absent, it falls back to `image_storage_urls` / `video_storage_urls`
-and collapses legacy sampled video frames behind a single ready playback video
-asset whose `has_audio` is false because legacy URL arrays cannot prove that an
-audio companion was persisted. The fallback query uses qualified aliases such as
+`scan_refresh`/`backfill` rows from a nonempty `scans.captured_media` manifest
+first. Historical nested video-audio references can prove legacy audio during a
+compatibility refresh, but strict V1 manifests contain no such field. Current
+writers must therefore preserve independently verified playback metadata or
+default the rebuilt row to `has_audio = false`. If the manifest is absent or
+empty, the helper falls back to `image_storage_urls` / `video_storage_urls` and
+collapses legacy sampled video frames behind a single ready playback video asset
+whose `has_audio` is false because legacy URL arrays cannot prove that an audio
+companion was persisted. The fallback query uses qualified aliases such as
 `media_images.raw_image_url` and `media_videos.raw_video_url`; avoid unqualified
 names that match PL/pgSQL variables, because scan inserts execute this helper
 through the `scans` trigger. A trigger keeps generated rows synchronized after
@@ -2752,8 +2779,9 @@ migration `20260703130000_add_explore_post_media.sql`.
   or audio metadata.
 - `has_audio` (BOOLEAN): Whether the video has a persisted audio companion.
   Public playback starts muted; audio requires explicit viewer action. Snapshot
-  writers copy this from ready media rows or from the `captured_media` video
-  audio reference; legacy URL-array video sources default false.
+  writers copy this from verified ready playback metadata. Historical nested
+  captured-media audio may be compatibility evidence, but strict V1 and legacy
+  URL-array sources default false without independent durable proof.
 - `health_status` (TEXT): `healthy`, `suspected_missing`, or `missing`.
   `missing` requires two service-recorded direct R2-origin `404` observations at
   least five minutes apart.
@@ -4997,12 +5025,17 @@ user cycles through overrides.
 `candidates: [CloudIdentificationCandidate]?`,
 `pet_identification: PetIdentification?`, `is_biological_subject: Bool?`,
 `user_identification_override: String?`, `user_confirmed_identification: Bool?`,
-and `image_quality_score: Int?` fields. `CloudIdentificationCandidate` is a
-plain `Codable` struct (`scientific_name: String`, `confidence_score: Double`)
-that maps the JSONB array from `public.scans`. `ingestScans` re-encodes
-candidates to `[IdentificationCandidate]`, writes `is_biological_subject` when
-present (retaining the historical `true` default only for older null rows),
-writes `user_identification_override`, writes `user_confirmed_identification`
+`image_quality_score: Int?`, and the generated `CapturedMediaWireManifestDTO?`
+boundary. Raw PostgREST scan pages are split into rows and decoded independently
+with the SDK's production decoder. A malformed Captured Media row is quarantined
+with bounded structural diagnostics, while valid neighbors continue; pagination
+advances by the raw remote row count rather than the accepted DTO count.
+`CloudIdentificationCandidate` is a plain `Codable` struct
+(`scientific_name: String`, `confidence_score: Double`) that maps the JSONB
+array from `public.scans`. `ingestScans` re-encodes candidates to
+`[IdentificationCandidate]`, writes `is_biological_subject` when present
+(retaining the historical `true` default only for older null rows), writes
+`user_identification_override`, writes `user_confirmed_identification`
 (defaulting to `false`), and writes `image_quality_score`. `updateExistingScans`
 reconciles `isBiological` only from a non-null cloud value, only writes
 `candidatesData` if `existing.candidatesData == nil`, only writes
@@ -5091,10 +5124,13 @@ mirror for migration safety and compatibility.
   User/support-facing last local retry, completed-server-result recovery marker,
   or terminal error. `server_result_local_recovery_pending` durably fences a
   known owner result from provider redispatch; the matching `_exhausted` code
-  pauses that recovery for explicit user retry. High-authority completion and
-  `server_retryable_failure` state is mirrored on the scan-ingestion job;
-  serialized transitions reconcile both copies before mutation, with completion
-  taking precedence.)
+  pauses that recovery for explicit user retry. A deterministic Captured Media
+  decode failure uses `server_result_local_recovery_contract_mismatch` and
+  pauses on the first targeted hydration attempt without clearing the same
+  no-redispatch fence or spending the transient retry budget. High-authority
+  completion and `server_retryable_failure` state is mirrored on the
+  scan-ingestion job; serialized transitions reconcile both copies before
+  mutation, with completion taking precedence.)
 - `queueLastHTTPStatus`: Int? (Added in V48. Last HTTP response status
   associated with upload or inference retry handling.)
 - `queueLastServerStatus`, `queueLastServerStage`: String? (Added in V48.

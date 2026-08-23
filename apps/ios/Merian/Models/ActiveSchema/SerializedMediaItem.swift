@@ -407,8 +407,18 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
             audioStorageURLs: audioStorageURLs,
             observationContext: observationContext
         )
+        let hasUsableManifestVisual = resolvedCapturedMediaItems.contains { item in
+            switch item {
+            case .image, .video:
+                return true
+            case .audio, .description:
+                return false
+            }
+        }
 
-        if let capturedMediaItems, !capturedMediaItems.isEmpty {
+        if let capturedMediaItems,
+           !capturedMediaItems.isEmpty,
+           hasUsableManifestVisual {
             let snapshot = CapturedMediaSnapshot(items: resolvedCapturedMediaItems)
             if snapshot.summary.hasVideo {
                 if videoStorageURLs != nil, videoURLs.isEmpty {

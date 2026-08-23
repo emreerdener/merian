@@ -490,6 +490,12 @@ triggering excessive SwiftUI view rebuilds.
   taxonomy, insight, quality, candidate, and pet response graph. The Identify
   block comes from `_shared/identify/contract.ts`; regenerate it with
   `make generate-edge-dto-contract` rather than editing or extending it.
+- `CapturedMediaWireDTOs.swift` — contains the separate generated PostgREST
+  boundary for the durable `scans.captured_media` outer-key/`_0` union. Its
+  source is `_shared/capturedMediaContract.ts`; regenerate it with
+  `make generate-captured-media-dto-contract`. Keep this compatibility decoder
+  separate from the Gemini response schema and map it into `SerializedMediaItem`
+  only after validation.
 
 ### `OfflineQueueManager`
 
@@ -550,9 +556,11 @@ triggering excessive SwiftUI view rebuilds.
   timeline at the edges. For video, `thumbnailImagePaths` includes the poster
   for thumbnails and upload previews, while `activeScanMedia` emits the video
   page itself so Insight does not show a duplicate image before the clip.
-  Cloud-backed scan refreshes prefer `scans.captured_media`; older rows with
-  video URLs are normalized into playback video items so sampled inference
-  frames do not appear as standalone carousel media.
+  Cloud-backed scan refreshes treat `scans.captured_media` as authoritative only
+  when its nonempty decoded projection contains a usable image or video. Empty
+  manifests and device-only legacy items fall through to durable URL/context
+  columns; older rows with video URLs are normalized into playback video items
+  so sampled inference frames do not appear as standalone carousel media.
 - **Recursive Queue Draining**: The `URLSession` delegate calls
   `syncPendingScans()` recursively when a completed batch detects
   `unsyncedItemsCount > 0`, draining the queue automatically without user
@@ -597,22 +605,28 @@ triggering excessive SwiftUI view rebuilds.
   snapshot cannot reset a newer claim while waiting for that actor.
 - **Server-Owned Inference Recovery**: Before replay resets an orphaned
   `.inferencing` scan, it polls `/check-scan-status` with the queued scan's
-  required video count. `found` scans are synced down and the queue row is
-  deleted, `processing` / `finalizing` / `retrying` server jobs keep the local
-  row in `.inferencing` and schedule another poll, `failed_retryable` respects
-  the server `retry_after` before retreating to `.staged` for provider failures
-  or `.pending` with cleared consumed keys for durable media failures, and
-  terminal failures mark the queue row as needing attention. The server job was
-  claimed with the same media counts, staged object keys, upload-session ids,
-  and manifest checksum that the queue submitted, and the paired
+  required video count. A `found` result first persists the cloud-complete
+  marker, then performs a targeted one-row history fetch. Successful hydration
+  deletes the queue row. Transient fetch, lease, promotion, or queue-delete
+  failures keep the row `.inferencing` and consume only the bounded local
+  recovery budget. A decoded row that violates Captured Media Wire V1 returns a
+  typed contract mismatch, skips the full-history fallback, and immediately
+  pauses as `server_result_local_recovery_contract_mismatch` while retaining the
+  cloud-complete no-redispatch fence. `processing` / `finalizing` / `retrying`
+  server jobs schedule another poll, `failed_retryable` respects the server
+  `retry_after` before retreating to `.staged` for provider failures or
+  `.pending` with cleared consumed keys for durable media failures, and terminal
+  failures mark the queue row as needing attention. The server job was claimed
+  with the same media counts, staged object keys, upload-session ids, and
+  manifest checksum that the queue submitted, and the paired version-3
   `scan_ingestion_intents` row stores the sanitized replay request for staged
-  media/audio/video and text-only scans. The scheduled `replay-scan-ingestion`
-  worker may complete that authoritative server attempt before the app wakes
-  again, so local replay waits on status polling instead of guessing from
-  process-local retry state. This keeps video playback finalization from being
-  mistaken for a local inference failure after app suspension or restart.
-  Server-side replay is also capped at 10 claims per sanitized intent;
-  over-budget jobs are marked `failed_terminal` at
+  media/audio/video and text-only scans without retired description timestamps.
+  The scheduled `replay-scan-ingestion` worker may complete that authoritative
+  server attempt before the app wakes again, so local replay waits on status
+  polling instead of guessing from process-local retry state. This keeps video
+  playback finalization from being mistaken for a local inference failure after
+  app suspension or restart. Server-side replay is also capped at 10 claims per
+  sanitized intent; over-budget jobs are marked `failed_terminal` at
   `server_replay_limit_reached`.
 - **`MerianConfig` Batch Limits**: `uploadBatchSize` (5),
   `pendingScanFetchLimit` (50), `mediaStagingMaxFilesPerRequest` (6),
@@ -768,16 +782,19 @@ triggering excessive SwiftUI view rebuilds.
   aborts rather than reading stale cloud state. After the push, fetches cloud
   scan and collection history with pagination
   (`MerianConfig.historicalSyncPageSize`,
-  `MerianConfig.collectionsSyncPageSize`), then delegates all reconciliation to
-  a single
-  `HistoricalDatabaseActor.reconcileAllHistoricalData(responses:collections:)`
-  call. The scan projection includes the existing nullable
-  `is_biological_subject` field: inserts use the cloud value when present and
-  retain the legacy `true` default only for older null rows, while updates apply
-  only a non-null remote value. Classification is never inferred from stored
-  reasoning. **Never reorder the push and pull** — reversing them causes
-  unsynced local collections to be treated as obsolete and deleted on the next
-  app launch.
+  `MerianConfig.collectionsSyncPageSize`). Each raw PostgREST scan page is split
+  into rows and decoded with the SDK's production decoder; malformed rows are
+  quarantined with a bounded coding path while valid neighbors reconcile
+  immediately through one reused `HistoricalDatabaseActor`. Pagination advances
+  by the raw remote row count, never the surviving decoded count, so quarantine
+  cannot repeat or skip a page. Collections remain accumulated until every scan
+  page has reconciled, then pass once to `syncCollectionsDown`. The scan
+  projection includes the existing nullable `is_biological_subject` field:
+  inserts use the cloud value when present and retain the legacy `true` default
+  only for older null rows, while updates apply only a non-null remote value.
+  Classification is never inferred from stored reasoning. **Never reorder the
+  push and pull** — reversing them causes unsynced local collections to be
+  treated as obsolete and deleted on the next app launch.
 - **`eradicateScan`**: Commits database changes (delete record, insert cloud
   deletion task) before touching disk. File deletion via
   `FileIOActor.shared.deleteImages(at:)` runs only after a successful

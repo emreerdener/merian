@@ -9,6 +9,7 @@ import {
   replayScanIngestion,
 } from "./worker.ts";
 import type { ReplayableScanIngestionRow, ReplayScanRow } from "./db.ts";
+import { normalizeOwnerObservationContexts } from "../identify-multimodal/capturedMedia.ts";
 
 const CURRENT_SECRET_KEY = [
   "sb",
@@ -40,7 +41,7 @@ function replayRow(
     payload_checksum: "payload",
     replay_attempt_count: 1,
     request_payload: {
-      schemaVersion: 2,
+      schemaVersion: 3,
       clientScanId: "scan-1",
       endpoint: "identify-multimodal",
       media: {
@@ -70,7 +71,7 @@ function replayRow(
         geoprivacy: "open",
       },
       observationContexts: [
-        { freeText: "On the porch", addedAt: "2026-07-05T02:59:00.000Z" },
+        { freeText: "On the porch" },
       ],
       preferredGoal: {
         userFieldTripId: "00000000-0000-4000-8000-000000000001",
@@ -131,6 +132,33 @@ Deno.test("buildReplayIdentifyPayload omits the owner timeline for legacy intent
 
   const payload = buildReplayIdentifyPayload(row);
   assertEquals("ownerMediaTimeline" in payload, false);
+});
+
+Deno.test("schema-v2 replay descriptions normalize away legacy addedAt", () => {
+  const row = replayRow({
+    request_payload: {
+      schemaVersion: 2,
+      clientScanId: "scan-1",
+      endpoint: "identify-multimodal",
+      media: {
+        audioR2ObjectKeys: ["staging/user-1/audio.wav"],
+        audioMediaItems: [{ kind: "audio", sourceIndex: 0 }],
+        ownerMediaTimeline: [{ kind: "description", contextIndex: 0 }],
+      },
+      observationContexts: [
+        { freeText: "  Legacy chronology  ", addedAt: 807_000_000 },
+      ],
+    },
+  });
+
+  const replayPayload = buildReplayIdentifyPayload(row);
+  assertEquals(replayPayload.observation_contexts, [
+    { freeText: "  Legacy chronology  ", addedAt: 807_000_000 },
+  ]);
+  assertEquals(
+    normalizeOwnerObservationContexts(replayPayload.observation_contexts),
+    [{ freeText: "Legacy chronology" }],
+  );
 });
 
 Deno.test("identify replay carries a deadline and bounds provider errors", async () => {
