@@ -184,7 +184,17 @@ instruction, tests, and this documentation together.
   project the same cached taxonomy, IUCN, hazard, habitat, GBIF key, group tags,
   and synonym fields back to iOS.
 - **`_shared/identify/media.ts`**: Safely handles chunked sequential R2/Base64
-  image resolution to protect Deno's V8 heap under multi-image payloads.
+  image and audio resolution to protect Deno's V8 heap under multi-item
+  payloads. `parseAudioTransport(...)` proves the audio fields are arrays of
+  nonempty strings and that inline bytes and staged keys are mutually exclusive
+  before any `.length`, decode, or object lookup. Resolved multimodal audio must
+  then pass the shared RIFF/WAVE probe and complete WAV parser; M4A is playback
+  restore media, not an ordinary inference transport. One invalid clip rejects
+  the complete request before the provider call.
+- **`_shared/audioProcessing.ts`**: Owns the cheap `isWavContainer(...)` gate
+  and the structural `processWAV(...)` decode/trim/resample/encode authority.
+  Signing metadata and a `.wav` suffix do not substitute for this byte-level
+  validation.
 - **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed,
   error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`,
   `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, the
@@ -472,7 +482,12 @@ field inside the description payload:
 enqueue time. `buildExtractedScanData` snapshots `capturedMediaItems`, and every
 downstream derivation — prompt text, `observation_contexts`, local image paths,
 audio paths, cleanup paths, and result hydration — is rebuilt from that one
-source.
+source. New audio rows require a structurally supported local WAV before
+admission. Historical local/HTTPS audio is materialized into a bounded canonical
+WAV sidecar before refinement, and pre-WAV M4A/MP4 queue rows cross a durable
+repair latch that clears old staging keys and atomically rewrites both timeline
+representations before upload or replay. See the
+[offline media contract](../backend-and-data/01-offline-sync-pipeline.md).
 
 ## Text-Only Describe Path
 

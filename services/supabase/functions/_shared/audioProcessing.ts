@@ -20,6 +20,14 @@ export interface ProcessedWavResult {
   encodedByteLength: number;
 }
 
+export function isWavContainer(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 12) return false;
+  const bytes = new Uint8Array(buffer, 0, 12);
+  return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 &&
+    bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x41 &&
+    bytes[10] === 0x56 && bytes[11] === 0x45;
+}
+
 export function processWavBuffer(
   rawWavBuffer: ArrayBuffer,
   targetSampleRate = TARGET_AUDIO_SAMPLE_RATE,

@@ -1,6 +1,10 @@
 import { assertEquals } from "@std/assert";
 
-import { stagedImageSourceKeys, validateImageR2ObjectKeys } from "./media.ts";
+import {
+  parseAudioTransport,
+  stagedImageSourceKeys,
+  validateImageR2ObjectKeys,
+} from "./media.ts";
 
 async function responseError(
   response: Response | null,
@@ -71,4 +75,45 @@ Deno.test("stagedImageSourceKeys preserves actual staged image sources", () => {
   const sourceKeys = ["staging/user-1/photo.webp"];
   assertEquals(stagedImageSourceKeys(sourceKeys, []), sourceKeys);
   assertEquals(stagedImageSourceKeys(sourceKeys, undefined), sourceKeys);
+});
+
+Deno.test("parseAudioTransport accepts one typed transport and normalizes absence", () => {
+  assertEquals(parseAudioTransport({}), {
+    value: { audioR2ObjectKeys: [], audioBase64s: [] },
+  });
+  assertEquals(
+    parseAudioTransport({
+      audioR2ObjectKeys: ["staging/user-1/call.wav"],
+    }),
+    {
+      value: {
+        audioR2ObjectKeys: ["staging/user-1/call.wav"],
+        audioBase64s: [],
+      },
+    },
+  );
+});
+
+Deno.test("parseAudioTransport rejects scalars, blank entries, and mixed transports", () => {
+  for (
+    const payload of [
+      { audioBase64s: "not-an-array" },
+      { audioBase64s: [42] },
+      { audioBase64s: ["   "] },
+      { audioR2ObjectKeys: [null] },
+    ]
+  ) {
+    assertEquals(
+      parseAudioTransport(payload).error?.code,
+      "invalid_audio_transport",
+    );
+  }
+
+  assertEquals(
+    parseAudioTransport({
+      audioR2ObjectKeys: ["staging/user-1/call.wav"],
+      audioBase64s: ["UklGRg=="],
+    }).error?.code,
+    "ambiguous_audio_transport",
+  );
 });

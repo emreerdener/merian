@@ -272,6 +272,22 @@ returns 400. `AVAudioFile` performs the Float32→Int16 conversion automatically
 per write. The shared non-visual queue path (`enqueueNonVisualCapture`) moves
 the file from `tmp/` to `URL.documentsDirectory` for persistence.
 
+**Historical reanalysis boundary**: A persisted audio reference is playback
+metadata, not an inference file path. `InferenceAudioPreparer` resolves local
+references or downloads credential-free HTTPS references with an ephemeral,
+cookie-free, no-cache session and the same 2.7 MB input/output budget. Remote
+bytes are written through a bounded stream; declared and actual length are
+checked and an unknown-length response is cancelled as soon as it crosses the
+ceiling. Any AVFoundation/Core Audio-readable historical recording, including
+durable M4A, is decoded through a bounded streaming converter into a new
+Documents-owned mono 44.1 kHz Int16 PCM WAV. The original local or remote
+playback reference is retained unchanged. Cancellation and failed validation
+remove only the uncommitted sidecar. Refinement stages the sidecar's local
+filename; it never places an `https://` string into `StagedAudio`. Candidate
+order is usable image, standalone audio, legacy extracted video-companion audio,
+then saved description; repeated audio references are deduplicated without
+discarding the companion compatibility fallback.
+
 ---
 
 ## 4. Submission Flow — `AudioAnalysis.swift`
@@ -339,11 +355,26 @@ syncPendingScans()
     ↓ commit immediately before Gemini audio dispatch
 ```
 
-Audio-only records upload their WAV/M4A via background
+Audio-bearing inference records upload PCM WAV via background
 `URLSession.uploadTask(with:fromFile:)` and persist the resulting staging key in
 `stagedR2Keys`. `dispatchInferenceDownloadTask` splits those keys into image
 `r2ObjectKeys` and audio `audioR2ObjectKeys`, so queued replay never builds a
-large inline audio request body.
+large inline audio request body. New queue admission rejects non-WAV and
+URL-scheme audio paths. M4A remains an accepted durable playback/legacy Explore
+restore format only; it is never signed as ordinary inference input.
+
+Installed queues can still contain local M4A references written by an older
+build. Before pending upload or staged replay, the queue serializes an upgrade
+claim, clears any stale staged keys, and persists a negative
+`queueSchemaRepairGeneration` latch while Core Audio creates Documents-owned WAV
+replacements outside the database transaction. One atomic commit rewrites both
+`capturedMediaJSON` and relationship entries, preserves timeline order and
+source indices, advances the repair generation, and returns the row to
+`.pending` for fresh signing. A crash leaves the original M4A and persisted
+latch, so the next pass safely repeats the conversion; a deterministic decode
+failure becomes `queued_audio_upgrade_failed` needs-attention work rather than a
+signing/inference retry loop. The original compressed source is retained because
+another historical playback row may still reference it.
 
 **Cleanup on delete**: Audio files stored in `Documents/` are cleaned up through
 the same canonical media snapshot walk used for images. Delete and purge paths
@@ -612,10 +643,15 @@ standalone `/audio-spec` endpoint. `/audio-spec` remains deployed only as a
 compatibility route and writes the same ingestion ledger before returning
 success. The multimodal handler:
 
-1. Accepts inline `audioBase64s` from live foreground requests and staged
-   `audioR2ObjectKeys` from queued replay.
-2. Runs `processWAV(...)` to normalise the clip to mono 16 kHz WAV before Gemini
-   ingestion.
+1. Accepts exactly one typed audio transport: inline `audioBase64s` from live
+   foreground requests or staged `audioR2ObjectKeys` from queued replay.
+   Scalars, blank/non-string elements, or both nonempty arrays return a stable
+   `400 invalid_audio_transport` / `ambiguous_audio_transport` response.
+2. Requires a RIFF/WAVE container before `processWAV(...)` normalises the clip
+   to mono 16 kHz WAV for Gemini ingestion. M4A or another container returns
+   `400 unsupported_audio_codec`; malformed WAV returns
+   `400 invalid_audio_content`. Neither case is silently discarded from a mixed
+   request or promoted under an `audio/wav` label.
 3. Chooses `BIOACOUSTIC_SYSTEM_INSTRUCTION` for audio-only requests or
    `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` when audio and images are combined.
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives
@@ -756,10 +792,13 @@ widget snapshot writer still filters out audio-only posts before applying its
 12-item cap.
 
 Legacy scans created before durable audio upload use an on-demand repair path.
-When the original local WAV/M4A still exists, iOS obtains an owner-scoped audio
-staging URL, uploads within the normal audio count/byte limits, and retries the
-share with `restored_audio_object_keys`. The backend promotes the object,
-updates `audio_storage_urls` and canonical `captured_media`, refreshes
+When the original local WAV/M4A still exists, iOS validates the container and
+rejects video-bearing or unsupported files before requesting an owner-scoped
+audio staging URL. Restore names and MIME types are canonical (`.wav` with
+`audio/wav`, `.m4a` with `audio/mp4`); M4A is accepted only with explicit
+`scan_share_restore`. iOS uploads within the normal audio count/byte limits and
+retries the share with `restored_audio_object_keys`. The backend promotes the
+object, updates `audio_storage_urls` and canonical `captured_media`, refreshes
 `scan_media_assets`, and only then runs publication moderation. Database-write
 failure rolls back the promoted object. A legacy scan with no surviving local
 recording cannot be reconstructed or shared as audio.
@@ -894,6 +933,9 @@ decision valid for that request.
 | iOS live audio request via inline `audioBase64s` | **Complete** — byte-preflighted in `MerianNetworkClient.buildMultiModalRequest`                                                   |
 | Offline replay audio dispatch path               | **Complete** — queued audio uploads to R2 and replays as `audioR2ObjectKeys`                                                      |
 | Two-phase R2 audio upload                        | **Complete for queued replay** — foreground live audio remains inline by design                                                   |
+| Historical refinement audio preparation          | **Complete** — bounded local/HTTPS references materialize as Documents-owned canonical WAV sidecars before reanalysis             |
+| Pre-WAV installed-queue repair                   | **Complete** — durable latch, stale-key reset, active-PUT interception, atomic timeline rewrite, and central claim refusal        |
+| Purpose-aware audio signing and byte validation  | **Complete** — ordinary inference is WAV-only; M4A is restore-only; Identify verifies RIFF and full WAV structure                 |
 | `deleteQueuedScan` / purge audio cleanup         | **Complete** — cleans Documents WAV on delete/purge                                                                               |
 | Durable standalone audio media                   | **Complete** — promoted into `audio_storage_urls`, `captured_media`, and ready normalized asset rows                              |
 | Explore audio publication moderation             | **Complete** — a content-addressed attestation or fresh Gemini speech/non-speech decision is a synchronous share precondition     |

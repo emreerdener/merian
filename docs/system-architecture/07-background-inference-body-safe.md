@@ -11,18 +11,19 @@ May 2026 zero-OOM hardening pass.
   `OfflineQueuedScan` records enter `.pending`; `MediaStagingContract` builds
   the sanitized filename/object-key manifest, includes `sizeBytes` in the
   `/generate-upload-urls` request, validates byte budgets and audio-file count
-  locally and on the Edge before signing, uploads the WAV/M4A file with the
+  locally and on the Edge before signing, uploads the PCM WAV file with the
   response-declared signed `Content-Type` and `Content-Length`, persists the
-  resulting staging key in
-  `stagedR2Keys`, and sends `audioR2ObjectKeys` to `/identify-multimodal`.
+  resulting staging key in `stagedR2Keys`, and sends `audioR2ObjectKeys` to
+  `/identify-multimodal`.
 - Live foreground audio remains inline as `audioBase64s`, but
   `MerianNetworkClient` preflights file byte size before reading or
-  base64-encoding the WAV. Oversized audio fails with
-  `MerianError.payloadTooLarge` before any large body is built.
-- `identify-multimodal` accepts both inline `audioBase64s` and staged
-  `audioR2ObjectKeys`. It validates clip count, base64 length, raw byte length,
-  IDOR ownership, and path traversal before decoding or fetching. Staged audio
-  is cleaned up after successful ingestion.
+  base64-encoding the WAV and validates its container/PCM shape. Oversized audio
+  fails with `MerianError.payloadTooLarge` before any large body is built.
+- `identify-multimodal` accepts exactly one nonempty typed audio transport:
+  inline `audioBase64s` or staged `audioR2ObjectKeys`. It validates shape, clip
+  count, base64 length, raw byte length, RIFF/WAVE container, IDOR ownership,
+  and path traversal before processing. Staged audio is cleaned up after
+  successful ingestion.
 - `audio-spec` remains as a compatibility route with matching inline/R2
   byte-budget checks before decode and before/after R2 download. It also writes
   the shared ingestion ledger so staged legacy audio rows can replay through
@@ -71,6 +72,11 @@ bounded.
 ## Guardrails
 
 - Do not reintroduce inline audio bodies for queued replay.
+- Treat durable/playback audio references as metadata, not local inference
+  paths. Historical HTTPS or M4A audio must pass through
+  `InferenceAudioPreparer` and become a validated local WAV before queue or
+  foreground inference admission. Ordinary staging signs WAV only; M4A is
+  limited to explicit scan-share restore.
 - Do not build inference JSON bodies by hand in new call sites. Route
   `/identify` and `/identify-multimodal` request assembly through
   `MerianNetworkClient`'s shared inference payload builder so body-size checks
@@ -104,8 +110,8 @@ bounded.
   restore, avatar, foreground, and background PUT applies the response map; a
   file-backed PUT re-stats immediately before task creation and re-signs when
   size changed. Scan uploads with `clientScanId`/`mediaRole` must create staged
-  `scan_media_assets` rows and return optional `mediaAssetId` /
-  `mediaSessionId` fields.
+  `scan_media_assets` rows and return optional `mediaAssetId` / `mediaSessionId`
+  fields.
 
 ## Regression Coverage
 

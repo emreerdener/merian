@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "endpoint": "/generate-upload-urls",
   "requestBodyMustBeObject": true,
   "legacyTopLevelArraysAccepted": false,
@@ -23,12 +23,28 @@
     "audio/wav",
     "audio/mp4"
   ],
+  "inferenceAudioContentTypes": [
+    "audio/wav"
+  ],
+  "scanShareRestoreAudioContentTypes": [
+    "audio/wav",
+    "audio/mp4"
+  ],
   "videoContentTypes": [
     "video/mp4"
   ],
   "canonicalQueuedImageContentType": "image/webp",
   "canonicalQueuedWavContentType": "audio/wav",
-  "canonicalQueuedM4AContentType": "audio/mp4",
+  "canonicalScanShareRestoreM4AContentType": "audio/mp4",
+  "canonicalInferenceAudioContentType": "audio/wav",
+  "audioFileExtensionsByContentType": {
+    "audio/wav": [
+      "wav"
+    ],
+    "audio/mp4": [
+      "m4a"
+    ]
+  },
   "canonicalQueuedVideoContentType": "video/mp4",
   "optionalRequestFields": [
     "clientScanId",

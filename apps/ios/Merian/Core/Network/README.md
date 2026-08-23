@@ -116,6 +116,14 @@ mount the Ready approval screen before refresh completes.
   surviving local media only after an unrestricted scan read confirms the active
   JWT-owned row or proves it absent for guarded reconstruction; tombstoned and
   foreign rows fail closed. Bulk status never mutates server state.
+- Enforces the inference/playback audio split before request creation. Ordinary
+  inline and staged inference accepts only a local, structurally supported WAV;
+  a URL-scheme path, compressed M4A, missing file, or extension-only spoof fails
+  locally. The upload signer receives `.wav`/`audio/wav` for ordinary audio and
+  may receive `.m4a`/`audio/mp4` only with `scan_share_restore`. Historical
+  remote references are first materialized as bounded local WAV sidecars rather
+  than passed through a file-path initializer. Edge repeats actual RIFF/WAVE and
+  structural validation after resolving the bytes.
 - Treats `failed_retryable` status as a two-step durable transition rather than
   permanent server ownership. The first observation schedules one
   generation-fenced retry. Its exact `server_retryable_failure` marker and

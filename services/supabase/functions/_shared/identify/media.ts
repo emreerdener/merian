@@ -33,6 +33,65 @@ interface ResolveAudioBuffersOptions {
   };
 }
 
+export interface ParsedAudioTransport {
+  audioR2ObjectKeys: string[];
+  audioBase64s: string[];
+}
+
+export interface AudioTransportParseError {
+  code: "invalid_audio_transport" | "ambiguous_audio_transport";
+  message: string;
+}
+
+function parseAudioStringArray(
+  value: unknown,
+  fieldName: "audioR2ObjectKeys" | "audioBase64s",
+): { values?: string[]; error?: AudioTransportParseError } {
+  if (value == null) return { values: [] };
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== "string" || item.trim().length === 0)
+  ) {
+    return {
+      error: {
+        code: "invalid_audio_transport",
+        message: `${fieldName} must be an array of non-empty strings.`,
+      },
+    };
+  }
+  return { values: value as string[] };
+}
+
+/** Validates untrusted audio transport fields before any `.length` or key use. */
+export function parseAudioTransport(
+  payload: Record<string, unknown>,
+): { value?: ParsedAudioTransport; error?: AudioTransportParseError } {
+  const keyResult = parseAudioStringArray(
+    payload.audioR2ObjectKeys,
+    "audioR2ObjectKeys",
+  );
+  if (keyResult.error) return { error: keyResult.error };
+
+  const inlineResult = parseAudioStringArray(
+    payload.audioBase64s,
+    "audioBase64s",
+  );
+  if (inlineResult.error) return { error: inlineResult.error };
+
+  const audioR2ObjectKeys = keyResult.values ?? [];
+  const audioBase64s = inlineResult.values ?? [];
+  if (audioR2ObjectKeys.length > 0 && audioBase64s.length > 0) {
+    return {
+      error: {
+        code: "ambiguous_audio_transport",
+        message: "Use exactly one audio transport per request.",
+      },
+    };
+  }
+
+  return { value: { audioR2ObjectKeys, audioBase64s } };
+}
+
 /**
  * Returns only image keys that represent uploaded staging objects.
  *

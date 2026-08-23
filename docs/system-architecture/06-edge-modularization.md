@@ -265,9 +265,11 @@ machine-parseable and can trigger alerting pipelines on the ops side.
   rows in `scan_media_assets`, proves the canonical representation, and writes
   ledger completion last. When the iOS client extracts audio from a video clip,
   that Int16 PCM WAV travels through the same audio path with `audioMediaItems`
-  metadata marking it as `video_audio`. Audio handling covers inline
-  `audioBase64s` decode guards and staged `audioR2ObjectKeys` R2 reads through
-  one shared `resolveAudioBuffers(...)` path. Shared by `identify`,
+  metadata marking it as `video_audio`. `parseAudioTransport(...)` first proves
+  that `audioBase64s` and `audioR2ObjectKeys` are arrays of nonempty strings and
+  are mutually exclusive; callers must not read `.length`, resolve keys, or
+  decode bytes before that boundary. Accepted inline and staged audio then share
+  one bounded `resolveAudioBuffers(...)` path. Shared by `identify`,
   `identify-multimodal`, and `audio-spec`.
 - **Audio payload rule**: `identify-multimodal` accepts queued audio as
   `audioR2ObjectKeys` and live audio as `audioBase64s`; `audio-spec` accepts one
@@ -276,8 +278,13 @@ machine-parseable and can trigger alerting pipelines on the ops side.
   `readRequestJsonWithinBudget` as the authoritative body cap for
   chunked/missing-length JSON. Clip count, base64 length, raw byte length, IDOR
   ownership, and path traversal stay delegated to `_shared/mediaBudgets.ts` /
-  `_shared/identify/media.ts` before decode/fetch. Staged audio is an inference
-  input and must be deleted after successful ingestion.
+  `_shared/identify/media.ts` before decode/fetch. Every multimodal clip must
+  then have a RIFF/WAVE container and pass the complete shared WAV parser before
+  provider dispatch; extension or signed MIME metadata is not byte evidence. M4A
+  is permitted only for the explicit `scan_share_restore` playback path, never
+  for ordinary inference. One invalid clip fails the complete mixed-media
+  request with a stable client error instead of silently dropping audio. Staged
+  audio is an inference input and must be deleted after successful ingestion.
 - **`_shared/identify/clientPayload.ts`**: Normalizes cache-hit response
   hydration so `identify` and `identify-multimodal` return the same cached
   taxonomy, hazard, habitat, IUCN, GBIF, and synonym fields.

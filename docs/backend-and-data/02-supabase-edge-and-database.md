@@ -329,27 +329,29 @@ combinations, over-budget audio, video, or image files, batches above six files,
 batches above five images, batches above one video, and batches above two audio
 files before calling `generatePresignedPutUrl()`. The six-file cap is
 specifically for video scans that need five sampled inference frames plus one
-playback clip. Legacy `fileNames` requests, structured entries without a
-declared size, top-level arrays/non-objects, and other old shapes fail with
-stable `400 size_bytes_required`; every supported request carries an exact
-positive `sizeBytes`. Each response item declares the exact `Content-Type` and
-`Content-Length` headers the client must send. Both are signed with `host`
-through `allHeaders: true` (`content-length;content-type;host`), so a different
-MIME type or body length fails signature verification at R2. Every iOS data,
-file, avatar, repair, restore, foreground, and background PUT applies that
-response map. File-backed work re-stats immediately before task creation and
-re-signs when its size changed. Deployed verification HEADs the exact uploaded
-object and checks its stored length; declaration alone is not evidence. The
-limit and signing contract is pinned in
-`docs/contracts/media-staging-upload-manifest.json` and loaded by both Swift and
-Deno tests. Registration is idempotent per owner/client-scan/object key, but
-signing calls for one scan may be composable subsets (for example live video and
-later queue recovery media). Existing unrequested rows are retained rather than
-treated as an immutable full manifest. Edge code bounds the combined active
-staged/processing key union at six; historical promoted capture rows do not
-consume a later explicit share-repair budget. An owner-serialized database
-trigger enforces the staged-row cap across concurrent disjoint-key
-registrations.
+playback clip. Ordinary inference audio is restricted to `.wav`/`audio/wav`;
+`.m4a`/`audio/mp4` is allowed only for exact `scan_share_restore`, and audio
+filename/MIME mismatches fail before signing. Legacy `fileNames` requests,
+structured entries without a declared size, top-level arrays/non-objects, and
+other old shapes fail with stable `400 size_bytes_required`; every supported
+request carries an exact positive `sizeBytes`. Each response item declares the
+exact `Content-Type` and `Content-Length` headers the client must send. Both are
+signed with `host` through `allHeaders: true`
+(`content-length;content-type;host`), so a different MIME type or body length
+fails signature verification at R2. Every iOS data, file, avatar, repair,
+restore, foreground, and background PUT applies that response map. File-backed
+work re-stats immediately before task creation and re-signs when its size
+changed. Deployed verification HEADs the exact uploaded object and checks its
+stored length; declaration alone is not evidence. The limit and signing contract
+is pinned in `docs/contracts/media-staging-upload-manifest.json` and loaded by
+both Swift and Deno tests. Registration is idempotent per
+owner/client-scan/object key, but signing calls for one scan may be composable
+subsets (for example live video and later queue recovery media). Existing
+unrequested rows are retained rather than treated as an immutable full manifest.
+Edge code bounds the combined active staged/processing key union at six;
+historical promoted capture rows do not consume a later explicit share-repair
+budget. An owner-serialized database trigger enforces the staged-row cap across
+concurrent disjoint-key registrations.
 
 Profile avatar uploads also use this signing path. The iOS client uploads a
 single prepared square WebP or JPEG to `staging/{userId}/...`, then calls

@@ -179,6 +179,307 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Pending Scan Fetching
 
+    /// Finds old local compressed-audio rows before either upload signing or
+    /// staged inference replay can consume them. The actual per-scan claim is a
+    /// second, serialized state check so this snapshot may safely become stale.
+    func legacyQueuedAudioRepairCandidateIds(
+        limit: Int = 50
+    ) -> [String] {
+        guard limit > 0 else { return [] }
+        let pendingRaw = ScanQueueState.pending.rawValue
+        let stagedRaw = ScanQueueState.staged.rawValue
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate {
+                ($0.scanStateRaw == pendingRaw || $0.scanStateRaw == stagedRaw)
+                    && !$0.queueNeedsAttention
+            },
+            sortBy: [
+                SortDescriptor(\OfflineQueuedScan.timestamp),
+                SortDescriptor(\OfflineQueuedScan.id)
+            ]
+        )
+        guard let scans = try? modelContext.fetch(descriptor) else {
+            return []
+        }
+        return Array(scans.lazy.compactMap { scan -> String? in
+            guard !scan.capturedMediaSnapshot
+                .legacyQueuedAudioReferences.isEmpty else {
+                return nil
+            }
+            let job = self.fetchOfflineJob(
+                id: OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
+            )
+            guard !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                scan.queueLastErrorCode
+            ), !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+                job?.lastErrorCode
+            ) else {
+                return nil
+            }
+            return scan.id
+        }.prefix(limit))
+    }
+
+    /// Claims one audio upgrade while the caller holds the per-scan inference
+    /// persistence lock. Staged rows retreat to pending and discard their old
+    /// object keys before transcoding, so a crash can only cause a fresh local
+    /// retry; it can never replay a compressed inference object.
+    func claimLegacyQueuedAudioRepair(
+        scanId: String
+    ) -> LegacyQueuedAudioRepairCandidate? {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(descriptor).first,
+              !scan.queueNeedsAttention,
+              scan.queueState == .pending || scan.queueState == .staged else {
+            return nil
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId)
+        guard !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            scan.queueLastErrorCode
+        ), !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            job?.lastErrorCode
+        ) else {
+            return nil
+        }
+
+        let references = scan.capturedMediaSnapshot
+            .legacyQueuedAudioReferences
+        guard !references.isEmpty else { return nil }
+
+        let now = Date()
+        scan.scanStateRaw = ScanQueueState.pending.rawValue
+        scan.stagedR2Keys = nil
+        scan.queueSchemaRepairGeneration =
+            LegacyQueuedAudioRepairState.inProgressGeneration
+        scan.queueNextRetryAt = nil
+        scan.queueNeedsAttention = false
+        scan.queueUpdatedAt = now
+        if let job {
+            job.status = .pending
+            job.updatedAt = now
+            job.nextRunAt = nil
+            var metadata = job.metadataJSON
+            if let generation = InferenceGenerationMetadataContract.generation(
+                in: metadata
+            ) {
+                metadata = InferenceGenerationMetadataContract.removing(
+                    generation,
+                    from: metadata
+                )
+            }
+            job.metadataJSON = OfflineScanJobMetadataContract
+                .clearingBackgroundAccountWork(in: metadata)
+        }
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .diagnostics,
+            message: "Upgrading legacy queued audio before upload."
+        ))
+
+        do {
+            try modelContext.save()
+            return LegacyQueuedAudioRepairCandidate(
+                scanId: scanId,
+                references: references,
+                retainedAudioFileNames: Set(
+                    scan.capturedMediaSnapshot.refinementAudioReferences.map {
+                        URL(fileURLWithPath: $0.path).lastPathComponent
+                    }
+                )
+            )
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "claimLegacyQueuedAudioRepair: save failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+            return nil
+        }
+    }
+
+    /// Atomically swaps every claimed compressed reference to its prepared WAV
+    /// and returns the scan to ordinary pending upload. Both scalar JSON and
+    /// relationship-backed media entries are updated by `replaceCapturedMedia`.
+    func commitLegacyQueuedAudioRepair(
+        scanId: String,
+        replacements: [LegacyQueuedAudioRepairReplacement]
+    ) -> Bool {
+        guard !replacements.isEmpty else { return false }
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(descriptor).first,
+              scan.scanStateRaw == ScanQueueState.pending.rawValue,
+              scan.queueSchemaRepairGeneration ==
+                LegacyQueuedAudioRepairState.inProgressGeneration,
+              !scan.queueNeedsAttention else {
+            return false
+        }
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId)
+        guard !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            scan.queueLastErrorCode
+        ), !OfflineQueueManager.isCompletedServerResultRecoveryCode(
+            job?.lastErrorCode
+        ) else {
+            return false
+        }
+
+        func replacement(
+            for reference: StoredMediaReference
+        ) -> StoredMediaReference? {
+            guard let match = replacements.first(where: {
+                $0.sourceStorage == reference.storage
+                    && $0.sourcePath == reference.path
+            }) else {
+                return nil
+            }
+            return .documents(
+                match.replacementFileName,
+                sourceIndex: reference.sourceIndex
+            )
+        }
+
+        let currentItems = scan.serializedCapturedMediaItems
+        let rewrittenItems = currentItems.map { item -> SerializedMediaItem in
+            switch item {
+            case .audio(let reference):
+                return .audio(replacement(for: reference) ?? reference)
+            case .video(let video):
+                guard let audio = video.audio,
+                      let replacement = replacement(for: audio) else {
+                    return item
+                }
+                return .video(StoredVideoMediaReference(
+                    video: video.video,
+                    thumbnail: video.thumbnail,
+                    audio: replacement
+                ))
+            case .image, .description:
+                return item
+            }
+        }
+        guard CapturedMediaSnapshot(items: rewrittenItems)
+            .legacyQueuedAudioReferences.isEmpty else {
+            return false
+        }
+
+        let now = Date()
+        scan.replaceCapturedMedia(with: rewrittenItems)
+        scan.scanStateRaw = ScanQueueState.pending.rawValue
+        scan.stagedR2Keys = nil
+        scan.queueSchemaRepairGeneration =
+            LegacyQueuedAudioRepairState.completedGeneration
+        scan.queueLastErrorCode = nil
+        scan.queueLastErrorMessage = nil
+        scan.queueLastHTTPStatus = nil
+        scan.queueLastServerStatus = nil
+        scan.queueLastServerStage = nil
+        scan.queueLastServerRetryAfter = nil
+        scan.queueNextRetryAt = nil
+        scan.queueNeedsAttention = false
+        scan.queueUpdatedAt = now
+        if let job {
+            job.status = .pending
+            job.updatedAt = now
+            job.nextRunAt = nil
+            job.lastErrorCode = nil
+            job.lastErrorMessage = nil
+            job.lastHTTPStatus = nil
+            job.serverStatus = nil
+            job.serverStage = nil
+            job.serverRetryAfter = nil
+        }
+        modelContext.insert(OfflineQueueEvent(
+            jobId: jobId,
+            scanId: scanId,
+            kind: .retryScheduled,
+            message: "Legacy queued audio upgraded; media will be signed again."
+        ))
+
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "commitLegacyQueuedAudioRepair: save failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+            return false
+        }
+    }
+
+    func finishLegacyQueuedAudioRepairFailure(
+        scanId: String,
+        cancelled: Bool
+    ) -> Bool {
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        guard let scan = try? modelContext.fetch(descriptor).first,
+              scan.scanStateRaw == ScanQueueState.pending.rawValue,
+              scan.queueSchemaRepairGeneration ==
+                LegacyQueuedAudioRepairState.inProgressGeneration else {
+            return false
+        }
+
+        let now = Date()
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        let job = fetchOfflineJob(id: jobId)
+        scan.queueSchemaRepairGeneration = 1
+        scan.stagedR2Keys = nil
+        scan.queueNextRetryAt = nil
+        scan.queueUpdatedAt = now
+        if cancelled {
+            scan.queueNeedsAttention = false
+            if let job {
+                job.status = .pending
+                job.updatedAt = now
+                job.nextRunAt = nil
+            }
+        } else {
+            scan.scanStateRaw = ScanQueueState.failed.rawValue
+            scan.queueLastErrorCode = "queued_audio_upgrade_failed"
+            scan.queueLastErrorMessage =
+                "The queued recording could not be converted for analysis."
+            scan.queueNeedsAttention = true
+            if let job {
+                job.status = .needsAttention
+                job.updatedAt = now
+                job.nextRunAt = nil
+                job.lastErrorCode = "queued_audio_upgrade_failed"
+                job.lastErrorMessage =
+                    "The queued recording could not be converted for analysis."
+            }
+            modelContext.insert(OfflineQueueEvent(
+                jobId: jobId,
+                scanId: scanId,
+                kind: .needsAttention,
+                message: "Legacy queued audio upgrade failed.",
+                errorCode: "queued_audio_upgrade_failed"
+            ))
+        }
+
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            MerianLog.data.error(
+                "finishLegacyQueuedAudioRepairFailure: save failed scanId=\(scanId, privacy: .private) error=\(error, privacy: .private)"
+            )
+            return false
+        }
+    }
+
     /// Returns up to `limit` runnable-media `.pending` (state 0)
     /// `OfflineQueuedScan` records sorted oldest-first, plus at most `limit`
     /// media-less candidates for state-bound quarantine.
@@ -253,6 +554,10 @@ actor BackgroundDatabaseActor {
 
             inspectedCount += page.count
             for scan in page {
+                guard scan.queueSchemaRepairGeneration !=
+                        LegacyQueuedAudioRepairState.inProgressGeneration else {
+                    continue
+                }
                 guard scan.queueNextRetryAt == nil
                         || (scan.queueNextRetryAt ?? now) <= now,
                       !excludingScanIds.contains(scan.id) else {
@@ -322,6 +627,8 @@ actor BackgroundDatabaseActor {
         guard !scanIds.isEmpty else { return [] }
         let pendingRaw = ScanQueueState.pending.rawValue
         let failedRaw = ScanQueueState.failed.rawValue
+        let inProgressRepairGeneration =
+            LegacyQueuedAudioRepairState.inProgressGeneration
         var quarantined = Set<String>()
 
         for index in stride(from: 0, to: scanIds.count, by: 50) {
@@ -332,6 +639,8 @@ actor BackgroundDatabaseActor {
                     chunk.contains($0.id)
                         && $0.scanStateRaw == pendingRaw
                         && !$0.queueNeedsAttention
+                        && $0.queueSchemaRepairGeneration !=
+                            inProgressRepairGeneration
                 }
             )
             let scans: [OfflineQueuedScan]
@@ -825,6 +1134,18 @@ actor BackgroundDatabaseActor {
               scan.queueNextRetryAt.map({ $0 <= now }) ?? true else {
             MerianLog.data.debug(
                 "tryClaimForInference: scan is paused scanId=\(scanId, privacy: .public)"
+            )
+            return false
+        }
+        guard scan.capturedMediaSnapshot
+            .legacyQueuedAudioReferences.isEmpty else {
+            // Defense in depth: every normal caller schedules the durable
+            // upgrade before reaching this transition, but the database claim
+            // remains the final authority. A future or resumed execution path
+            // must never promote compressed queue audio into ordinary
+            // inference, whose signed-audio contract is WAV-only.
+            MerianLog.data.error(
+                "tryClaimForInference: refused legacy queued audio scanId=\(scanId, privacy: .private)"
             )
             return false
         }
@@ -1662,6 +1983,8 @@ actor BackgroundDatabaseActor {
         guard !scanIds.isEmpty else { return [] }
         let pendingRaw   = ScanQueueState.pending.rawValue
         let uploadingRaw = ScanQueueState.uploading.rawValue
+        let inProgressRepairGeneration =
+            LegacyQueuedAudioRepairState.inProgressGeneration
         var claimedScanIds = Set<String>()
 
         // Process in chunks to prevent unbounded memory loads and SQL IN-clause overflow.
@@ -1676,6 +1999,8 @@ actor BackgroundDatabaseActor {
                     chunk.contains($0.id)
                         && $0.scanStateRaw == pendingRaw
                         && !$0.queueNeedsAttention
+                        && $0.queueSchemaRepairGeneration !=
+                            inProgressRepairGeneration
                 }
             )
 

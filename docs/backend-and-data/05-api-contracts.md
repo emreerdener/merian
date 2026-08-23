@@ -1326,6 +1326,14 @@ integration tests PUT the exact headers, reject wrong length/MIME, then HEAD the
 object to prove the stored size equals the declaration; a client-declared value
 alone is not storage evidence.
 
+Audio signing is purpose-aware. An ordinary scan-ingestion entry accepts only
+`audio/wav` with a `.wav` filename. `audio/mp4` is available only to an explicit
+`scan_share_restore` entry and requires the canonical `.m4a` extension; the same
+restore purpose may use `.wav`/`audio/wav`. MIME/extension mismatches and other
+audio extensions fail before registration or signing. The inference handler
+independently inspects the uploaded bytes, so a correctly named but non-WAV
+ordinary object still cannot reach Gemini or durable promotion.
+
 An already-persisted observation that is missing durable sharing media adds
 `"uploadPurpose": "scan_share_restore"` to each repair entry. That purpose is
 accepted only with `clientScanId`, the canonical media role, and an exact
@@ -4440,7 +4448,11 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   image-only historical row. Scan finalization now proves this same canonical
   projection, so a valid playback scan can reach the completed prerequisite
   consumed here without requiring inference frames to become separately
-  selectable media.
+  selectable media. The manifest branch always uses the executable Captured
+  Media Wire V1 compatibility parser and its strict canonical projection.
+  Malformed, insecure, credentialed, or arbitrary-key manifests fall back to
+  durable URL columns; device-local references and nested inference-only video
+  audio are removed before composer rows are built.
 - Video `has_audio` metadata is copied from verified ready playback metadata.
   Historical compatibility manifests may still provide a nested video-audio
   reference as read evidence, but strict Captured Media Wire V1 canonicalization
@@ -4448,7 +4460,10 @@ Replies stay one level deep. A reply cannot be the parent of another reply.
   default to false unless independent durable playback metadata proves audio.
 - `restored_audio_object_keys` accepts at most two owner-scoped
   `staging/{userId}/` WAV/M4A keys for legacy scans that still have local audio
-  but no durable cloud audio. Successful repair promotes the objects, writes
+  but no durable cloud audio. iOS admits only structurally valid WAV or
+  audio-only ISO base-media input and requests canonical `.wav`/`audio/wav` or
+  `.m4a`/`audio/mp4` restore signing; unsupported and video-bearing files are
+  skipped rather than mislabeled. Successful repair promotes the objects, writes
   `audio_storage_urls`, drops unusable device-local references from
   `captured_media`, appends the newly durable reference, preserves `sourceIndex`
   on already-durable audio items, refreshes normalized assets, and then enters
@@ -5585,8 +5600,16 @@ ordered compositions of images, audio, and descriptive context.
   with bounded structural diagnostics while valid rows on the same page continue
   reconciling. A targeted completed-result read classifies a malformed row as a
   contract mismatch rather than a transport failure.
-- Executes `processWAV` in Deno to enforce mono/16kHz processing before Gemini
-  ingestion.
+- Parses `audioBase64s` and `audioR2ObjectKeys` as mutually exclusive arrays of
+  nonempty strings before any `.length`, key, decode, or fetch operation. A
+  malformed shape returns `400 invalid_audio_transport`; two nonempty transports
+  return `400 ambiguous_audio_transport`.
+- Requires every resolved inference clip to have a RIFF/WAVE container before
+  executing `processWAV` in Deno to enforce mono/16kHz processing before Gemini
+  ingestion. A different container returns `400 unsupported_audio_codec`; a
+  malformed WAV returns `400 invalid_audio_content`. The request fails as a
+  unit, so mixed visual/audio inference cannot silently drop invalid audio or
+  persist it under an `audio/wav` label.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
   `videoR2ObjectKeys`; live foreground audio uses size-preflighted inline
   `audioBase64s`. The edge rejects oversized declared media JSON

@@ -123,6 +123,15 @@ struct PreparedStagedImageRequest: Sendable, Equatable {
 }
 
 typealias PreparedStagedImageLoader = @Sendable (PreparedStagedImageRequest) async throws -> PreparedStagedImage?
+typealias PreparedHistoricalAudioLoader = @Sendable (StoredMediaReference) async throws -> URL?
+
+private struct HistoricalRefinementMediaPlan: Sendable {
+    let imageReferences: [StoredMediaReference]
+    let fallbackAudioReferences: [StoredMediaReference]
+    let fallbackDescription: ObservationContext?
+    let scanId: String
+    let isPro: Bool
+}
 
 @Observable
 @MainActor
@@ -153,6 +162,7 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Dependencies
     @ObservationIgnored let diContainer: AppDIContainer
     @ObservationIgnored private let preparedImageLoader: PreparedStagedImageLoader
+    @ObservationIgnored private let preparedHistoricalAudioLoader: PreparedHistoricalAudioLoader
     @ObservationIgnored private let externalImageImportStore: ExternalImageImportStore
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
     @ObservationIgnored private var externalRouteSessionResetSuppressionDeadline: Date?
@@ -318,12 +328,17 @@ final class CaptureWorkspaceViewModel {
     init(
         diContainer: AppDIContainer,
         preparedImageLoader: @escaping PreparedStagedImageLoader,
+        preparedHistoricalAudioLoader: @escaping PreparedHistoricalAudioLoader = {
+            try await CaptureWorkspaceViewModel
+                .livePreparedHistoricalAudioLoader($0)
+        },
         prewarmHeadersOnInit: Bool = true,
         initialActiveSheet: ActiveSheet? = nil,
         externalImageImportStore: ExternalImageImportStore? = nil
     ) {
         self.diContainer = diContainer
         self.preparedImageLoader = preparedImageLoader
+        self.preparedHistoricalAudioLoader = preparedHistoricalAudioLoader
         self.externalImageImportStore = externalImageImportStore ?? diContainer.externalImageImportStore
         self.activePresentation = initialActiveSheet.map {
             PresentedRoute(id: UUID(), destination: $0, style: .sheet, routeRequestID: nil)
@@ -1259,34 +1274,162 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func stageHistoricalMediaForRefinement(from context: RefinementScanContext) {
-        for imageReference in context.capturedMediaSnapshot.imageReferences
-            where stageHistoricalImageForRefinement(imageReference) {
+        refinementStagingTask?.cancel()
+        isStagingRefinement = false
+
+        var imageReferences = context.capturedMediaSnapshot.imageReferences
+        if let fallbackImagePath = context.coverImagePath?.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ),
+           !fallbackImagePath.isEmpty {
+            imageReferences.append(
+                StoredMediaReference(legacyPath: fallbackImagePath)
+            )
+        }
+
+        let fallbackDescription = context.capturedMediaSnapshot
+            .observationContexts
+            .first(where: { !$0.isEmpty })
+        let fallbackAudioReferences = context.capturedMediaSnapshot
+            .refinementAudioReferences
+        if stageHistoricalImagesForRefinement(
+            imageReferences,
+            fallbackAudioReferences: fallbackAudioReferences,
+            fallbackDescription: fallbackDescription,
+            scanId: context.scanId
+        ) {
             return
         }
 
-        if let fallbackImagePath = context.coverImagePath?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !fallbackImagePath.isEmpty,
-           stageHistoricalImageForRefinement(StoredMediaReference(legacyPath: fallbackImagePath)) {
+        if stageHistoricalAudioForRefinement(
+            fallbackAudioReferences,
+            fallbackDescription: fallbackDescription,
+            scanId: context.scanId
+        ) {
             return
         }
 
-        for audioReference in context.capturedMediaSnapshot.audioReferences
-            where stageHistoricalAudioForRefinement(audioReference) {
-            return
-        }
-
-        if let descriptionContext = context.capturedMediaSnapshot.observationContexts.first(where: { !$0.isEmpty }),
+        if let descriptionContext = fallbackDescription,
            stageHistoricalDescriptionForRefinement(descriptionContext) {
+            isStagingRefinement = false
             return
         }
     }
 
     @discardableResult
-    private func stageHistoricalAudioForRefinement(_ audioReference: StoredMediaReference) -> Bool {
-        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
-        let audioPath = audioReference.resolvedLocalPath ?? audioReference.serializedPath
-        guard !audioPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
-        stagedCapture.audios.append(StagedAudio(filePath: audioPath))
+    private func stageHistoricalAudioForRefinement(
+        _ audioReferences: [StoredMediaReference],
+        fallbackDescription: ObservationContext?,
+        scanId: String
+    ) -> Bool {
+        guard !audioReferences.isEmpty,
+              stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else {
+            return false
+        }
+
+        isStagingRefinement = true
+        let loader = preparedHistoricalAudioLoader
+        refinementStagingTask = DetachedWork.fireAndForget(
+            priority: .userInitiated,
+            category: .audioPreparation
+        ) { [weak self, audioReferences, fallbackDescription, scanId, loader] in
+            var preparedURL: URL?
+            do {
+                for reference in audioReferences {
+                    try Task.checkCancellation()
+                    do {
+                        if let candidate = try await loader(reference) {
+                            guard Self.isOwnedPreparedHistoricalAudioSidecar(
+                                candidate
+                            ),
+                                InferenceAudioPreparer.isCanonicalPreparedWAV(
+                                    at: candidate
+                                ) else {
+                                Self.removePreparedHistoricalAudioSidecarIfOwned(
+                                    candidate
+                                )
+                                continue
+                            }
+                            preparedURL = candidate
+                            break
+                        }
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        continue
+                    }
+                }
+
+                try Task.checkCancellation()
+                guard let self else {
+                    if let preparedURL {
+                        Self.removePreparedHistoricalAudioSidecarIfOwned(
+                            preparedURL
+                        )
+                    }
+                    return
+                }
+
+                guard let preparedURL else {
+                    await MainActor.run {
+                        guard self.baseRefinementContext?.scanId == scanId else { return }
+                        if let fallbackDescription,
+                           self.stagedCapture.availableSlots(limit: self.stagedCaptureLimit) > 0 {
+                            self.stagedCapture.observationContexts.append(
+                                StagedObservationContext(context: fallbackDescription)
+                            )
+                        } else {
+                            self.offlineToastMessage = .error(
+                                "The original audio is unavailable for reanalysis."
+                            )
+                        }
+                        self.isStagingRefinement = false
+                    }
+                    return
+                }
+
+                let didStage = await MainActor.run { () -> Bool in
+                    guard self.baseRefinementContext?.scanId == scanId,
+                          self.stagedCapture.availableSlots(limit: self.stagedCaptureLimit) > 0 else {
+                        return false
+                    }
+                    self.stagedCapture.audios.append(
+                        StagedAudio(filePath: preparedURL.lastPathComponent)
+                    )
+                    self.isStagingRefinement = false
+                    return true
+                }
+                if !didStage {
+                    Self.removePreparedHistoricalAudioSidecarIfOwned(
+                        preparedURL
+                    )
+                    await MainActor.run {
+                        guard self.baseRefinementContext?.scanId == scanId else { return }
+                        self.isStagingRefinement = false
+                    }
+                }
+            } catch is CancellationError {
+                if let preparedURL {
+                    Self.removePreparedHistoricalAudioSidecarIfOwned(
+                        preparedURL
+                    )
+                }
+            } catch {
+                if let preparedURL {
+                    Self.removePreparedHistoricalAudioSidecarIfOwned(
+                        preparedURL
+                    )
+                }
+                guard let self else { return }
+                await MainActor.run {
+                    guard self.baseRefinementContext?.scanId == scanId else { return }
+                    self.isStagingRefinement = false
+                    self.offlineToastMessage = .error(
+                        "Unable to prepare the original audio. Please try again."
+                    )
+                }
+            }
+        }
         return true
     }
 
@@ -1298,63 +1441,126 @@ final class CaptureWorkspaceViewModel {
     }
 
     @discardableResult
-    private func stageHistoricalImageForRefinement(_ imageReference: StoredMediaReference) -> Bool {
-        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
-        guard let sourceURL = imageReference.resolvedURL else { return false }
+    private func stageHistoricalImagesForRefinement(
+        _ imageReferences: [StoredMediaReference],
+        fallbackAudioReferences: [StoredMediaReference],
+        fallbackDescription: ObservationContext?,
+        scanId: String
+    ) -> Bool {
+        guard !imageReferences.isEmpty,
+              stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else {
+            return false
+        }
 
-        self.isStagingRefinement = true
-        self.refinementStagingTask?.cancel()
+        isStagingRefinement = true
 
-        let isPro = self.diContainer.revenueCatManager.canStartProScan
+        let isPro = diContainer.revenueCatManager.canStartProScan
+        let loader = preparedImageLoader
+        let plan = HistoricalRefinementMediaPlan(
+            imageReferences: imageReferences,
+            fallbackAudioReferences: fallbackAudioReferences,
+            fallbackDescription: fallbackDescription,
+            scanId: scanId,
+            isPro: isPro
+        )
 
-        self.refinementStagingTask = DetachedWork.fireAndForget(
+        refinementStagingTask = DetachedWork.fireAndForget(
             priority: .userInitiated,
             category: .imagePreparation
-        ) { [weak self, isPro] in
-            guard let self = self else { return }
-            var temporaryDownloadURL: URL?
-            let fileURL: URL
-
-            do {
-                if imageReference.isRemote {
-                    guard let downloadedURL = try await Self.downloadRefinementImage(from: sourceURL) else {
-                        await MainActor.run { self.isStagingRefinement = false }
-                        return
+        ) { [weak self, plan, loader] in
+            for imageReference in plan.imageReferences {
+                do {
+                    try Task.checkCancellation()
+                    guard let sourceURL = imageReference.resolvedURL else {
+                        continue
                     }
-                    temporaryDownloadURL = downloadedURL
-                    fileURL = downloadedURL
-                } else if FileManager.default.fileExists(atPath: sourceURL.path) {
-                    fileURL = sourceURL
-                } else {
-                    await MainActor.run { self.isStagingRefinement = false }
+
+                    var temporaryDownloadURL: URL?
+                    defer {
+                        if let temporaryDownloadURL {
+                            try? FileManager.default.removeItem(
+                                at: temporaryDownloadURL
+                            )
+                        }
+                    }
+                    let fileURL: URL
+                    if imageReference.isRemote {
+                        guard let downloadedURL = try await Self
+                            .downloadRefinementImage(from: sourceURL) else {
+                            continue
+                        }
+                        temporaryDownloadURL = downloadedURL
+                        fileURL = downloadedURL
+                    } else if FileManager.default.fileExists(atPath: sourceURL.path) {
+                        fileURL = sourceURL
+                    } else {
+                        continue
+                    }
+
+                    try Task.checkCancellation()
+                    let preparedRefinement: PreparedStagedImage?
+                    do {
+                        preparedRefinement = try await loader(
+                            PreparedStagedImageRequest(
+                                fileURL: fileURL,
+                                isPro: plan.isPro,
+                                historicalContext: nil
+                            )
+                        )
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        preparedRefinement = nil
+                    }
+                    guard let preparedRefinement else { continue }
+
+                    try Task.checkCancellation()
+                    guard let self else { return }
+                    let didCommit = await MainActor.run { () -> Bool in
+                        guard self.baseRefinementContext?.scanId == plan.scanId,
+                              self.stagedCapture.availableSlots(
+                                limit: self.stagedCaptureLimit
+                              ) > 0 else {
+                            return false
+                        }
+                        self.commitPreparedStagedImages([preparedRefinement])
+                        self.isStagingRefinement = false
+                        return true
+                    }
+                    if didCommit { return }
+                    return
+                } catch is CancellationError {
+                    return
+                } catch {
+                    MerianLog.general.error(
+                        "Failed to prepare one historical refinement image: \(error.localizedDescription, privacy: .private)"
+                    )
+                }
+            }
+
+            guard !Task.isCancelled, let self else { return }
+            await MainActor.run {
+                guard self.baseRefinementContext?.scanId == plan.scanId else {
                     return
                 }
-
-                defer {
-                    if let temporaryDownloadURL {
-                        try? FileManager.default.removeItem(at: temporaryDownloadURL)
-                    }
-                }
-
-                let request = PreparedStagedImageRequest(
-                    fileURL: fileURL,
-                    isPro: isPro,
-                    historicalContext: nil
-                )
-                guard let preparedRefinement = try await self.preparedImageLoader(request) else {
-                    await MainActor.run { self.isStagingRefinement = false }
+                if self.stageHistoricalAudioForRefinement(
+                    plan.fallbackAudioReferences,
+                    fallbackDescription: plan.fallbackDescription,
+                    scanId: plan.scanId
+                ) {
                     return
                 }
-                
-                try Task.checkCancellation()
-                
-                await MainActor.run {
-                    self.commitPreparedStagedImages([preparedRefinement])
+                if let fallbackDescription = plan.fallbackDescription,
+                   self.stageHistoricalDescriptionForRefinement(
+                       fallbackDescription
+                   ) {
                     self.isStagingRefinement = false
+                    return
                 }
-            } catch {
-                MerianLog.general.error("Failed to load historical refinement image for UI staging: \(error.localizedDescription, privacy: .private)")
-                await MainActor.run { self.isStagingRefinement = false }
+                self.isStagingRefinement = false
+                self.offlineToastMessage = .error(
+                    "The original media is unavailable for reanalysis."
+                )
             }
         }
         return true
@@ -1364,7 +1570,7 @@ final class CaptureWorkspaceViewModel {
         guard SecureTransportPolicy.isSecureRemoteURL(remoteURL) else {
             throw URLError(.unsupportedURL)
         }
-        let config = URLSessionConfiguration.default
+        let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 120
         config.httpShouldSetCookies = false
@@ -1372,6 +1578,7 @@ final class CaptureWorkspaceViewModel {
         config.urlCache = nil
 
         let session = URLSession(configuration: config)
+        defer { session.finishTasksAndInvalidate() }
         let (downloadURL, response) = try await session.download(from: remoteURL)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
@@ -1388,6 +1595,31 @@ final class CaptureWorkspaceViewModel {
         }
         try FileManager.default.moveItem(at: downloadURL, to: destinationURL)
         return destinationURL
+    }
+
+    private nonisolated static func livePreparedHistoricalAudioLoader(
+        _ reference: StoredMediaReference
+    ) async throws -> URL? {
+        try await InferenceAudioPreparer.prepareHistoricalReference(reference)
+    }
+
+    private nonisolated static func isOwnedPreparedHistoricalAudioSidecar(
+        _ url: URL
+    ) -> Bool {
+        let standardizedURL = url.standardizedFileURL
+        return standardizedURL.deletingLastPathComponent() ==
+                URL.documentsDirectory.standardizedFileURL
+            && standardizedURL.lastPathComponent.hasPrefix(
+                "historical-refinement-"
+            )
+            && standardizedURL.pathExtension.lowercased() == "wav"
+    }
+
+    private nonisolated static func removePreparedHistoricalAudioSidecarIfOwned(
+        _ url: URL
+    ) {
+        guard isOwnedPreparedHistoricalAudioSidecar(url) else { return }
+        try? FileManager.default.removeItem(at: url)
     }
     
     func cancelRefinementStaging() {

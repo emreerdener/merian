@@ -152,7 +152,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   or `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
   streams before V8 can allocate past the Edge heap budget. The request JSON
   adapter delegates to `http.ts`; `mediaBudgets.ts` owns only the larger
-  reviewed ceiling and media-specific error copy.
+  reviewed ceiling and media-specific error copy. The shared storage allowlist
+  includes WAV and M4A because playback restore needs both, but
+  `/generate-upload-urls` narrows that set by purpose: ordinary inference audio
+  is exact `.wav`/`audio/wav`, while `.m4a`/`audio/mp4` requires explicit
+  `scan_share_restore`. Signing proves bounded metadata, extension, owner, and
+  purpose only; the inference consumer must still inspect the object bytes
+  before provider dispatch.
 - **`concurrency.ts`**: Ordered promise mapping with a fixed worker width. Use
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
@@ -293,8 +299,11 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   as chronological authority while that terminal job is unresolved.
   `check-scan-status` and `share-scan-to-explore` must reload by both scan and
   owner after calling it.
-- **`audioProcessing.ts`**: Shared WAV decode/trim/resample/encode pipeline used
-  by `audio-spec` and `identify-multimodal`.
+- **`audioProcessing.ts`**: Shared WAV container probe and complete
+  decode/trim/resample/encode pipeline used by `audio-spec` and
+  `identify-multimodal`. `isWavContainer(...)` is the cheap RIFF/WAVE gate;
+  `processWAV(...)` remains the structural parser and normalization authority,
+  so a matching extension or header prefix alone cannot establish valid audio.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
   enrichment, species refresh, and dictionary paths. All returned reference
   image URLs pass through `externalImagePolicy.ts` before the enrichment object
@@ -419,10 +428,12 @@ identical:
   Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this
   identify-specific subdomain.
 - **`media.ts`**: Image/audio media resolution from inline payloads and R2
-  staging keys. Inline bytes are authoritative: a legacy destination hint
-  accompanying inline image or audio bytes is validated for traversal but
-  excluded from the staged source manifest, ownership checks, promotion,
-  deletion, and strict finalization.
+  staging keys. `parseAudioTransport(...)` validates array shape, nonempty
+  members, and mutual exclusion of inline and staged audio before any `.length`
+  read, decode, or object-key lookup. Inline bytes are authoritative: a legacy
+  destination hint accompanying inline image or audio bytes is validated for
+  traversal but excluded from the staged source manifest, ownership checks,
+  promotion, deletion, and strict finalization.
 - **`moderation.ts`**: Gemini safety evaluation, abuse strikes, and safe media
   promotion. Copy/upload responses and subsequent staging deletion are checked
   explicitly; a non-2xx/non-404 deletion fails promotion and triggers strict

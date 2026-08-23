@@ -1120,6 +1120,17 @@ job/intent manifests, owner checks, promotion, capture-asset updates, and
 finalization. Real offline image/audio/video sources must retain their exact
 server-issued staging keys and upload sessions.
 
+Audio signing is purpose-aware. An ordinary inference upload must be named
+`.wav` with `audio/wav`; `.m4a` with `audio/mp4` is accepted only for exact
+`scan_share_restore` playback recovery. The signer validates declared size,
+kind, extension, MIME type, owner path, and purpose, but it does not claim to
+identify the file body. `identify-multimodal` separately validates the raw
+request transport, fetches or decodes every bounded clip, requires a RIFF/WAVE
+container, and runs the complete shared WAV parser before invoking the provider.
+Malformed WAV returns `invalid_audio_content`; a non-WAV container returns
+`unsupported_audio_codec`. Either error rejects the whole mixed-media request,
+so audio cannot be silently discarded or promoted under a misleading suffix.
+
 Historical inline completion recovery keeps its public service-only wrapper. Its
 ledger, durable-media, and staged-asset checks live in three bounded `internal`
 `SECURITY INVOKER` helpers with an empty search path and execution revoked from

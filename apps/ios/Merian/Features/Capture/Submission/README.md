@@ -72,6 +72,19 @@ gives the pinned context task 150 ms for the live request and late-merges a
 completed context locally and through `/update-scan-context`; weather or
 geocoding can never prevent the local capture from becoming durable.
 
+Audio queue admission is stricter than playback import. Every new standalone or
+video-companion inference reference must resolve to a local, nonempty,
+structurally supported WAV within the byte budget before submission claims
+funding or persists `OfflineQueuedScan`; queue upload preflight repeats the same
+check. Historical refinement is a separate asynchronous boundary: it may resolve
+a local or secure remote WAV/M4A reference, materialize a new canonical WAV
+sidecar, and then submit that local file. It must never forward an HTTPS string
+through a generic file-path API. Missing historical visual media can fall back
+to standalone audio, a video companion track, or description in timeline order.
+Pre-WAV rows already persisted by older builds are owned by the durable repair
+state machine documented in [Core Data](../../../Core/Data/README.md), not by
+this presentation layer.
+
 ## Entitlement and fallback
 
 Capture never shows the complimentary countdown. It uses

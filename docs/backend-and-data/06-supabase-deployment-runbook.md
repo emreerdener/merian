@@ -6260,6 +6260,55 @@ FROM (
 must be true only for select/insert/update and false for delete. Do not infer
 this matrix from an empty REST response.
 
+## WAV-Only Inference Audio Compatibility Rollout
+
+The purpose-aware audio signer and the byte-level multimodal WAV validator form
+one client/server compatibility change. Older installed iOS builds can retain a
+queued `.m4a`/`.mp4` inference reference; the current client repairs that row to
+a canonical WAV before signing or staged replay. Do not deploy the server
+restriction as an isolated hardening while the repair-capable client is
+unavailable.
+
+Use this order, with separate explicit authorization for every external release
+or production operation:
+
+1. Prove the exact iOS candidate with new-WAV admission, pending/staged legacy
+   repair, active pre-upgrade PUT interception, cloud-complete veto, and manual
+   retry tests. Make the repair-capable iOS build available before enforcing the
+   server restriction. Availability is not adoption; the release owner must
+   choose and record the supported-client threshold or mandatory-update policy.
+2. Keep ordinary audio capture on WAV while the older signer remains compatible.
+   Confirm that a repaired queue discards prior staging keys and obtains fresh
+   `.wav`/`audio/wav` URLs rather than replaying the old compressed object.
+3. Validate the exact Supabase candidate recursively. The reviewed Function unit
+   contains `_shared/audioProcessing.ts`, `_shared/identify/media.ts`,
+   `identify-multimodal`, and `generate-upload-urls`; do not deploy only the
+   signer or copy one shared module outside the normal dependency graph.
+4. In the authorized production rollout, preserve `deploy_function_batches.sh`
+   compatibility order: deploy `generate-upload-urls` first and
+   `identify-multimodal` immediately after it, before unrelated parallel
+   batches, then verify the pair on the same exact SHA. The signer-first
+   interval is deliberately fail-closed and is safe only after the
+   repair-capable client release gate above. The signer must accept ordinary
+   `.wav`/`audio/wav`, reject ordinary `.m4a`/`audio/mp4`, and accept the same
+   M4A pair only for exact `scan_share_restore`. A valid RIFF/WAVE request must
+   reach normal inference; an M4A or extension-spoofed body must stop with
+   `unsupported_audio_codec`, and a malformed RIFF/WAVE body must stop with
+   `invalid_audio_content`. A mixed request fails as a unit.
+5. Monitor bounded structured counts for `multimodal/unsupported_audio_codec`,
+   `multimodal/wav_parse_failed`, signing validation failures, and client
+   diagnostics for `queued_audio_upgrade_failed`. Never log filenames, object
+   keys, audio bytes, scan content, or user identifiers in rollout evidence.
+
+Rollback uses reviewed exact SHAs for both affected Functions. Relaxing only the
+signer is not a functional rollback because the inference endpoint will still
+reject compressed bytes after upload. Conversely, rolling back only the byte
+validator reopens mislabeled-audio risk. Preserve the iOS durable repair in
+either case; it is backward-compatible with the older server and prevents stale
+compressed staging keys from returning. Production deployment, App Store or
+TestFlight distribution, forced-update policy, and rollback each remain separate
+explicitly authorized operations.
+
 ## Manual Production Deploy
 
 First obtain non-production exact-SHA evidence:

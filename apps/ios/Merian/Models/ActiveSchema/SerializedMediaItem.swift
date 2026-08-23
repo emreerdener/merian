@@ -251,6 +251,35 @@ struct CapturedMediaSnapshot: Equatable, Sendable {
         videoMediaReferences.compactMap(\.audio)
     }
 
+    /// Audio candidates that can seed a historical refinement, in the same
+    /// precedence order as the original capture surface. Standalone recordings
+    /// win; legacy extracted video companions remain a compatibility fallback.
+    var refinementAudioReferences: [StoredMediaReference] {
+        var seenReferences = Set<String>()
+        return (audioReferences + videoAudioReferences).filter { reference in
+            let identity = "\(reference.storage.rawValue)\u{0}\(reference.path)"
+            return seenReferences.insert(identity).inserted
+        }
+    }
+
+    /// Local compressed-audio references written by builds that predate the
+    /// WAV-only inference contract. They must be materialized as queue-owned
+    /// WAV files before signing or replaying a staged inference manifest.
+    var legacyQueuedAudioReferences: [StoredMediaReference] {
+        var seenReferences = Set<String>()
+        return refinementAudioReferences.filter { reference in
+            guard !reference.isRemote else { return false }
+            let fileExtension = URL(fileURLWithPath: reference.path)
+                .pathExtension
+                .lowercased()
+            guard fileExtension == "m4a" || fileExtension == "mp4" else {
+                return false
+            }
+            let identity = "\(reference.storage.rawValue)\u{0}\(reference.path)"
+            return seenReferences.insert(identity).inserted
+        }
+    }
+
     var videoReferences: [StoredMediaReference] {
         items.compactMap { item in
             guard case .video(let reference) = item else { return nil }

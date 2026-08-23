@@ -169,6 +169,7 @@ extension View {
 enum DetachedWorkCategory: String {
     case thirdPartyBootstrap
     case imagePreparation
+    case audioPreparation
     case fileSystemCleanup
     case backgroundDatabaseMutation
 }

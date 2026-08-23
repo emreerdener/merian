@@ -61,6 +61,17 @@ value without decoding it. Owner chronology comes from the validated
 `ownerMediaTimeline` and final `captured_media` array order, never from a second
 timestamp inside the description payload.
 
+Audio transport is fail-closed before any array length, staging-key, or decode
+operation. `audioBase64s` and `audioR2ObjectKeys` must each be absent/null or an
+array of nonempty strings, and at most one may be nonempty. Invalid shapes
+return `400 invalid_audio_transport`; two populated transports return
+`400 ambiguous_audio_transport`. Every resolved clip must then begin with a
+RIFF/WAVE container. M4A and other containers return
+`400 unsupported_audio_codec`, while an invalid WAV returns
+`400 invalid_audio_content`. These failures abort the complete mixed-media
+request before provider dispatch or media promotion; audio is never silently
+dropped or persisted under a fabricated WAV label.
+
 Clients send the UUID `client_scan_id` as `Idempotency-Key` and preserve both
 values across transport, authentication, and queue retries. The database scopes
 that key by user and quota operation, so simultaneous duplicate requests cannot

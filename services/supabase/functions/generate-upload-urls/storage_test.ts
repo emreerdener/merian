@@ -5,6 +5,7 @@ import mediaStagingContract from "../../../../docs/contracts/media-staging-uploa
 
 import {
   generateStagingUrls,
+  INFERENCE_AUDIO_CONTENT_TYPES,
   MAX_STAGED_AUDIO_BYTES,
   MAX_STAGED_AUDIO_FILES,
   MAX_STAGED_IMAGE_BYTES,
@@ -13,6 +14,7 @@ import {
   MAX_STAGED_VIDEO_FILES,
   MAX_STAGING_FILES,
   parseStagingUploadFiles,
+  SCAN_SHARE_RESTORE_AUDIO_CONTENT_TYPES,
   STAGING_ALLOWED_CONTENT_TYPES,
 } from "./storage.ts";
 import type { R2Config } from "../_shared/aws.ts";
@@ -30,10 +32,14 @@ interface MediaStagingUploadManifestContract {
   maxVideoFiles: number;
   imageContentTypes: string[];
   audioContentTypes: string[];
+  inferenceAudioContentTypes: string[];
+  scanShareRestoreAudioContentTypes: string[];
   videoContentTypes: string[];
   canonicalQueuedImageContentType: string;
   canonicalQueuedWavContentType: string;
-  canonicalQueuedM4AContentType: string;
+  canonicalScanShareRestoreM4AContentType: string;
+  canonicalInferenceAudioContentType: string;
+  audioFileExtensionsByContentType: Record<string, string[]>;
   canonicalQueuedVideoContentType: string;
   optionalRequestFields: string[];
   requiredPerFileFields: string[];
@@ -52,7 +58,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
-  assertEquals(contract.schemaVersion, 5);
+  assertEquals(contract.schemaVersion, 6);
   assertEquals(contract.minFileBytes, 1);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
@@ -69,6 +75,23 @@ Deno.test("media staging constants match the documented cross-language contract"
     STAGING_ALLOWED_CONTENT_TYPES.audio,
     contract.audioContentTypes,
   );
+  assertEquals(
+    [...INFERENCE_AUDIO_CONTENT_TYPES],
+    contract.inferenceAudioContentTypes,
+  );
+  assertEquals(
+    [...SCAN_SHARE_RESTORE_AUDIO_CONTENT_TYPES],
+    contract.scanShareRestoreAudioContentTypes,
+  );
+  assertEquals(contract.canonicalInferenceAudioContentType, "audio/wav");
+  assertEquals(
+    contract.canonicalScanShareRestoreM4AContentType,
+    "audio/mp4",
+  );
+  assertEquals(contract.audioFileExtensionsByContentType, {
+    "audio/wav": ["wav"],
+    "audio/mp4": ["m4a"],
+  });
   assertEquals(
     STAGING_ALLOWED_CONTENT_TYPES.video,
     contract.videoContentTypes,
@@ -246,7 +269,7 @@ Deno.test("parseStagingUploadFiles accepts exact scan-share restore manifests", 
         upload_purpose: "scan_share_restore",
       },
       {
-        fileName: `${clientScanId}_explore_restore_audio_0.caf`,
+        fileName: `${clientScanId}_explore_restore_audio_0.wav`,
         mediaKind: "audio",
         contentType: "audio/wav",
         sizeBytes: 42_000,
@@ -266,6 +289,67 @@ Deno.test("parseStagingUploadFiles accepts exact scan-share restore manifests", 
       "scan_share_restore",
     ],
   );
+});
+
+Deno.test("parseStagingUploadFiles limits M4A to explicit scan-share restore", () => {
+  const clientScanId = "00000000-0000-4000-8000-000000000001";
+  const inference = parseStagingUploadFiles({
+    files: [{
+      fileName: `${clientScanId}_audio.m4a`,
+      mediaKind: "audio",
+      contentType: "audio/mp4",
+      sizeBytes: 42_000,
+      clientScanId,
+      mediaRole: "audio",
+    }],
+  });
+  assertEquals(inference.status, 400);
+  assertEquals(
+    inference.error,
+    "Bad Request: contentType is not valid for mediaKind.",
+  );
+
+  const restore = parseStagingUploadFiles({
+    files: [{
+      fileName: `${clientScanId}_explore_restore_audio_0.m4a`,
+      mediaKind: "audio",
+      contentType: "audio/mp4",
+      sizeBytes: 42_000,
+      clientScanId,
+      mediaRole: "audio",
+      uploadPurpose: "scan_share_restore",
+    }],
+  });
+  assertEquals(restore.error, undefined);
+  assertEquals(restore.files?.[0].contentType, "audio/mp4");
+});
+
+Deno.test("parseStagingUploadFiles binds audio MIME type to its canonical extension", () => {
+  const clientScanId = "00000000-0000-4000-8000-000000000001";
+  for (
+    const [fileExtension, contentType] of [
+      ["m4a", "audio/wav"],
+      ["wav", "audio/mp4"],
+      ["caf", "audio/wav"],
+    ]
+  ) {
+    const parsed = parseStagingUploadFiles({
+      files: [{
+        fileName: `${clientScanId}_explore_restore_audio_0.${fileExtension}`,
+        mediaKind: "audio",
+        contentType,
+        sizeBytes: 42_000,
+        clientScanId,
+        mediaRole: "audio",
+        uploadPurpose: "scan_share_restore",
+      }],
+    });
+    assertEquals(parsed.status, 400);
+    assertEquals(
+      parsed.error,
+      "Bad Request: audio file extension does not match contentType.",
+    );
+  }
 });
 
 Deno.test("parseStagingUploadFiles rejects spoofed scan-share restore manifests", () => {

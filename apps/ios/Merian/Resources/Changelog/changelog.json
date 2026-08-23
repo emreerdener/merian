@@ -2,6 +2,21 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-08-23-library-reanalysis-audio-recovery",
+      "date": "2026-08-23",
+      "title": "More reliable reanalysis and audio recovery",
+      "sections": [
+        {
+          "title": "Fixed",
+          "items": [
+            "Reanalyzing an older library scan now safely prepares saved local or cloud audio and can use standalone audio, video audio, or the saved description when an old image is unavailable.",
+            "A completed cloud scan with unreadable legacy media data now pauses for attention instead of repeating the same recovery, while keeping its completed result safe for retry after an update.",
+            "Queued recordings created by older builds are upgraded before upload or analysis, with stale uploads discarded and conversion failures paused visibly instead of retried forever."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-21-capture-mode-selector",
       "date": "2026-08-21",
       "title": "Clearer capture mode switching",

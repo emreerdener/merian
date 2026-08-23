@@ -200,7 +200,10 @@ remain image-only historical rows.
 
 `restored_audio_object_keys` is the equivalent owner-scoped repair input for
 legacy audio scans whose local WAV/M4A still exists but whose cloud scan
-predates durable `audio_storage_urls`. At most two staging keys are accepted.
+predates durable `audio_storage_urls`. iOS first admits only structurally valid
+WAV or audio-only ISO base-media input, then uses exact `.wav`/`audio/wav` or
+`.m4a`/`audio/mp4` `scan_share_restore` signing; unsupported and video-bearing
+files are skipped rather than mislabeled. At most two staging keys are accepted.
 The function promotes them, replaces legacy local audio references in
 `captured_media`, updates `audio_storage_urls`, refreshes normalized media
 assets, and then applies the normal fail-closed publication moderation. When an

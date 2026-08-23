@@ -736,10 +736,14 @@ struct OfflineQueueManagerTests {
         let maxVideoFiles: Int
         let imageContentTypes: [String]
         let audioContentTypes: [String]
+        let inferenceAudioContentTypes: [String]
+        let scanShareRestoreAudioContentTypes: [String]
         let videoContentTypes: [String]
         let canonicalQueuedImageContentType: String
         let canonicalQueuedWavContentType: String
-        let canonicalQueuedM4AContentType: String
+        let canonicalScanShareRestoreM4AContentType: String
+        let canonicalInferenceAudioContentType: String
+        let audioFileExtensionsByContentType: [String: [String]]
         let canonicalQueuedVideoContentType: String
         let optionalRequestFields: [String]
         let requiredPerFileFields: [String]
@@ -810,7 +814,7 @@ struct OfflineQueueManagerTests {
     private func makeTempAudioFilename(prefix: String = "queued_audio") throws -> String {
         let filename = "\(prefix)_\(UUID().uuidString).wav"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        try Data(repeating: 0x21, count: 64).write(to: url)
+        try makeInferenceTestPCM16WAVData().write(to: url)
         return filename
     }
 
@@ -1499,7 +1503,7 @@ struct OfflineQueueManagerTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
-        #expect(contract.schemaVersion == 5)
+        #expect(contract.schemaVersion == 6)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MerianConfig.mediaStagingMaxFilesPerRequest == contract.maxFilesPerRequest)
         #expect(contract.minFileBytes == 1)
@@ -1511,11 +1515,21 @@ struct OfflineQueueManagerTests {
         #expect(MerianConfig.videoPayloadMaxBytes == contract.maxVideoBytes)
         #expect(StagedMediaKind.image.contentType(for: "queued.webp") == contract.canonicalQueuedImageContentType)
         #expect(StagedMediaKind.audio.contentType(for: "queued.wav") == contract.canonicalQueuedWavContentType)
-        #expect(StagedMediaKind.audio.contentType(for: "queued.m4a") == contract.canonicalQueuedM4AContentType)
+        #expect(
+            StagedMediaKind.audio.contentType(for: "queued.m4a") ==
+                contract.canonicalScanShareRestoreM4AContentType
+        )
+        #expect(contract.canonicalInferenceAudioContentType == "audio/wav")
         #expect(StagedMediaKind.video.contentType(for: "queued.mp4") == contract.canonicalQueuedVideoContentType)
         #expect(contract.imageContentTypes.contains(StagedMediaKind.image.contentType(for: "queued.webp")))
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.wav")))
         #expect(contract.audioContentTypes.contains(StagedMediaKind.audio.contentType(for: "queued.m4a")))
+        #expect(contract.inferenceAudioContentTypes == ["audio/wav"])
+        #expect(contract.scanShareRestoreAudioContentTypes == ["audio/wav", "audio/mp4"])
+        #expect(contract.audioFileExtensionsByContentType == [
+            "audio/wav": ["wav"],
+            "audio/mp4": ["m4a"]
+        ])
         #expect(contract.videoContentTypes.contains(StagedMediaKind.video.contentType(for: "queued.mp4")))
         #expect(
             contract.optionalRequestFields ==
@@ -1540,6 +1554,159 @@ struct OfflineQueueManagerTests {
         #expect(!contract.legacyFileNamesAccepted)
     }
 
+    @Test func legacyStagedM4AIsUpgradedBeforeFreshUploadSigning() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        defer {
+            manager.modelContext = originalContext
+            if originalContext != nil {
+                manager.updateUnsyncedItemCount()
+            }
+        }
+        let context = try createIsolatedContext()
+        let container = context.container
+        let scanId = "legacy-staged-m4a-\(UUID().uuidString.lowercased())"
+        let sourceName = "queued-legacy-\(UUID().uuidString.lowercased()).m4a"
+        let sourceURL = URL.documentsDirectory.appendingPathComponent(sourceName)
+        let outputName = "queued-audio-upgrade-\(UUID().uuidString.lowercased()).wav"
+        let outputURL = URL.documentsDirectory.appendingPathComponent(outputName)
+        try Data(repeating: 0x41, count: 512).write(to: sourceURL)
+        defer {
+            try? FileManager.default.removeItem(at: sourceURL)
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: MediaJSONParser.jsonString(from: [
+                .audio(.documents(sourceName, sourceIndex: 0))
+            ]),
+            scanState: .staged,
+            stagedR2Keys: ["staging/owner/\(scanId)_\(sourceName)"]
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let result = await manager.repairLegacyQueuedAudio(
+            scanIds: [scanId],
+            dbActor: actor,
+            audioPreparer: { requestedURL, requestedScanId in
+                guard requestedURL.standardizedFileURL ==
+                        sourceURL.standardizedFileURL,
+                      requestedScanId == scanId else {
+                    throw InferenceAudioPreparationError.sourceUnavailable
+                }
+                try makeInferenceTestPCM16WAVData(
+                    sampleRate: 44_100,
+                    channels: 1
+                ).write(to: outputURL)
+                return outputURL
+            }
+        )
+
+        #expect(result.claimedScanIds == [scanId])
+        #expect(result.repairedScanIds == [scanId])
+        #expect(result.failedScanIds.isEmpty)
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .pending)
+        #expect(persisted.stagedR2Keys == nil)
+        #expect(persisted.capturedMediaSnapshot.audioPaths == [outputName])
+        #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: outputURL))
+        #expect(FileManager.default.fileExists(atPath: sourceURL.path))
+
+        let payload = PendingScanPayload(
+            id: scanId,
+            localImagePaths: [],
+            localAudioPaths: [outputName],
+            localVideoPaths: []
+        )
+        let uploadItems = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "owner",
+            documentsDirectory: .documentsDirectory
+        )
+        try MediaStagingContract.validateUploadBudget(uploadItems)
+        #expect(uploadItems.first?.contentType == "audio/wav")
+    }
+
+    @Test func survivingLegacyUploadCompletionRepairsBeforeInferenceClaim() throws {
+        let source = try loadRepositorySource(
+            at: "apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift"
+        )
+        let completionStart = try #require(source.range(
+            of: "func processUploadCompletion("
+        ))
+        let helperStart = try #require(source.range(
+            of: "// MARK: - Post-Upload Helpers",
+            range: completionStart.upperBound..<source.endIndex
+        ))
+        let completionBody = source[
+            completionStart.lowerBound..<helperStart.lowerBound
+        ]
+        let durableStaging = try #require(completionBody.range(
+            of: "let stagingOutcome = await queueActor.markScanAsStaged("
+        ))
+        let legacyAudioFence = try #require(completionBody.range(
+            of: ".legacyQueuedAudioReferences.isEmpty",
+            range: durableStaging.upperBound..<completionBody.endIndex
+        ))
+        let repair = try #require(completionBody.range(
+            of: "let repairResult = await repairLegacyQueuedAudio(",
+            range: legacyAudioFence.upperBound..<completionBody.endIndex
+        ))
+        let stopLegacyDispatch = try #require(completionBody.range(
+            of: "return",
+            range: repair.upperBound..<completionBody.endIndex
+        ))
+        let inferencePreparation = try #require(completionBody.range(
+            of: "self.beginInferencePreparation(scanId: scanId)",
+            range: stopLegacyDispatch.upperBound..<completionBody.endIndex
+        ))
+
+        #expect(durableStaging.lowerBound < legacyAudioFence.lowerBound)
+        #expect(legacyAudioFence.lowerBound < repair.lowerBound)
+        #expect(repair.lowerBound < stopLegacyDispatch.lowerBound)
+        #expect(stopLegacyDispatch.lowerBound < inferencePreparation.lowerBound)
+    }
+
+    @Test func ordinaryUploadValidationRejectsUnmigratedM4A() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileName = "legacy.m4a"
+        try Data(repeating: 0x41, count: 512).write(
+            to: directory.appendingPathComponent(fileName)
+        )
+        let payload = PendingScanPayload(
+            id: "unmigrated-m4a",
+            localImagePaths: [],
+            localAudioPaths: [fileName],
+            localVideoPaths: []
+        )
+        let uploadItems = MediaStagingContract.uploadItems(
+            for: payload,
+            userId: "owner",
+            documentsDirectory: directory
+        )
+
+        #expect(throws: MerianError.invalidResponse) {
+            try MediaStagingContract.validateUploadBudget(uploadItems)
+        }
+    }
+
     @Test func testMediaStagingContractBuildsSanitizedMixedMediaKeys() throws {
         let scanId = "00000000-0000-0000-0000-000000000042"
         let ownerId = "AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA"
@@ -1553,7 +1720,9 @@ struct OfflineQueueManagerTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent("image one.webp"))
-        try Data(repeating: 0x42, count: 64).write(to: audioDirectory.appendingPathComponent("audio one.wav"))
+        try makeInferenceTestPCM16WAVData().write(
+            to: audioDirectory.appendingPathComponent("audio one.wav")
+        )
         try Data(repeating: 0x63, count: 64).write(to: directory.appendingPathComponent("fallback video.mp4"))
 
         let payload = PendingScanPayload(
@@ -2338,7 +2507,9 @@ struct OfflineQueueManagerTests {
 
         let audioNames = (0...MerianConfig.mediaStagingMaxAudioFilesPerRequest).map { "queued-\($0).wav" }
         for audioName in audioNames {
-            try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent(audioName))
+            try makeInferenceTestPCM16WAVData().write(
+                to: directory.appendingPathComponent(audioName)
+            )
         }
 
         let payload = PendingScanPayload(
@@ -2732,6 +2903,30 @@ struct OfflineQueueManagerTests {
             #expect(audioSourceIndices == Array(0..<expectedAudioCount))
             cleanupSerializedItems(items)
         }
+    }
+
+    @Test func testEnqueueNonVisualCaptureRejectsExtensionSpoofedWAVBeforePersistence() throws {
+        let context = try createIsolatedContext()
+        let scanId = "invalid_audio_\(UUID().uuidString.lowercased())"
+        let fileName = "extension_spoof_\(UUID().uuidString).wav"
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(fileName)
+        try Data("not a WAV container".utf8).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let enqueued = OfflineQueueManager.shared.enqueueNonVisualCapture(
+            audioFileNames: [fileName],
+            observationContexts: [],
+            mediaTimeline: [.audio(fileName)],
+            telemetry: dummyTelemetry,
+            scanId: scanId
+        )
+
+        #expect(!enqueued)
+        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        #expect(try context.fetch(descriptor).isEmpty)
     }
 
     @Test func testSoftDeleteQueuedScan_TransitionsToFailedState() async throws {

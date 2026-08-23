@@ -936,6 +936,32 @@ extension OfflineQueueManager {
             return
         }
 
+        // A background PUT started by a pre-WAV build can survive the app
+        // upgrade. Its callback reaches this point as `.uploading`, so the
+        // pending/staged startup repair could not have claimed it earlier.
+        // Stage the exact completed manifest first, then synchronously retreat
+        // the row to `.pending`, clear those compressed-audio keys, and rewrite
+        // its durable media timeline before any inference claim is allowed.
+        // Even if the repair claim loses a state race or its actor fetch fails,
+        // never dispatch the known-incompatible M4A manifest; normal replay
+        // will reconcile the authoritative durable state.
+        if !extracted.capturedMediaSnapshot
+            .legacyQueuedAudioReferences.isEmpty {
+            let repairResult = await repairLegacyQueuedAudio(
+                scanIds: [scanId],
+                dbActor: queueActor
+            )
+            MerianLog.data.debug(
+                "processUploadCompletion: intercepted legacy queued audio before inference scanId=\(scanId, privacy: .public) claimed=\(repairResult.claimedScanIds.contains(scanId), privacy: .public) repaired=\(repairResult.repairedScanIds.contains(scanId), privacy: .public)"
+            )
+            if repairResult.didMutate {
+                syncPendingScans()
+            } else {
+                replayInferenceForUploadedScans()
+            }
+            return
+        }
+
         // The foreground request still owns identification for this
         // queue-backed live submission. Keep the durable row staged, but do not
         // dispatch a second Gemini call. Foreground failure/backgrounding

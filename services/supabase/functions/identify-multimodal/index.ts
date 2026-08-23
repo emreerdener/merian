@@ -76,7 +76,7 @@ import {
   canonicalizeStructuredHumanSubject,
   normalizeAudioOnlySubject,
 } from "../_shared/identify/audioSubjectPolicy.ts";
-import { processWAV } from "./audio.ts";
+import { isWavContainer, processWAV } from "./audio.ts";
 import {
   audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
@@ -90,6 +90,7 @@ import {
   type VisualMediaDescriptor,
 } from "./capturedMedia.ts";
 import {
+  parseAudioTransport,
   resolveAudioBuffers,
   resolveImagePayloads,
   stagedImageSourceKeys,
@@ -436,13 +437,19 @@ export async function handleIdentifyMultimodalRequest(
   const paramError = requireParams(rawBody, ["user_id"]);
   if (paramError) return paramError;
 
+  const audioTransport = parseAudioTransport(rawBody);
+  if (audioTransport.error || !audioTransport.value) {
+    return jsonResponse({
+      error: audioTransport.error?.message ?? "Invalid audio transport.",
+      code: audioTransport.error?.code ?? "invalid_audio_transport",
+    }, 400);
+  }
+
   const payload = rawBody as unknown as MultimodalPayload; // Trigger TS Language Server refresh
   const {
     client_scan_id,
     timestamp,
     imageBase64s = [],
-    audioBase64s = [],
-    audioR2ObjectKeys = [],
     videoR2ObjectKeys = [],
     videoFrameCount = 0,
     visualMediaItems,
@@ -455,13 +462,7 @@ export async function handleIdentifyMultimodalRequest(
     r2ObjectKeys = [],
     mimeType = "image/webp",
   } = payload;
-
-  if (audioBase64s.length > 0 && audioR2ObjectKeys.length > 0) {
-    return jsonResponse({
-      error: "Use exactly one audio transport per request.",
-      code: "ambiguous_audio_transport",
-    }, 400);
-  }
+  const { audioBase64s, audioR2ObjectKeys } = audioTransport.value;
 
   // The active Swift client sends camelCase telemetry while older queued payloads and
   // some server-side tooling still use snake_case. Accept both forms so the live path
@@ -706,22 +707,32 @@ export async function handleIdentifyMultimodalRequest(
   const processedAudios: string[] = [];
   const processedAudioInputIndexes: number[] = [];
   if (resolvedAudioBuffers.length > 0) {
-    const hasVisualEvidence = resolvedImageBase64s.length > 0;
     for (
       const [audioInputIndex, audioBuffer] of resolvedAudioBuffers.entries()
     ) {
+      if (!isWavContainer(audioBuffer)) {
+        logStructuredError("multimodal/unsupported_audio_codec", {
+          user_id: user.id,
+          audio_input_index: audioInputIndex,
+        });
+        return jsonResponse({
+          error: "Unsupported audio codec. Scan inference requires PCM WAV.",
+          code: "unsupported_audio_codec",
+        }, 400);
+      }
       try {
         processedAudios.push(await processWAV(audioBuffer));
         processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
         logStructuredError("multimodal/wav_parse_failed", {
           user_id: user.id,
+          audio_input_index: audioInputIndex,
           error: String(wavErr),
-          skipped: hasVisualEvidence,
         });
-        if (!hasVisualEvidence) {
-          return jsonResponse({ error: "Invalid audio file format." }, 400);
-        }
+        return jsonResponse({
+          error: "Invalid audio content.",
+          code: "invalid_audio_content",
+        }, 400);
       }
     }
   }

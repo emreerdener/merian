@@ -1981,6 +1981,44 @@ struct BackgroundDatabaseActorTests {
                 "state must remain .pending after a failed claim")
     }
 
+    @Test func testTryClaimForInferenceRejectsLegacyCompressedAudio() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scan = OfflineQueuedScan(
+            capturedMediaJSON: MediaJSONParser.jsonString(from: [
+                .audio(.documents("pre-upgrade-recording.m4a"))
+            ]),
+            scanState: .staged,
+            stagedR2Keys: [
+                "staging/owner/pre-upgrade-recording.m4a"
+            ]
+        )
+        context.insert(scan)
+        try context.save()
+        let scanId = scan.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let claimed = await actor.tryClaimForInference(scanId: scanId)
+
+        #expect(!claimed)
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .staged)
+        #expect(persisted.stagedR2Keys == [
+            "staging/owner/pre-upgrade-recording.m4a"
+        ])
+        #expect(
+            await actor.legacyQueuedAudioRepairCandidateIds()
+                .contains(scanId)
+        )
+    }
+
     @Test func testTryClaimForInferenceDoesNotResurrectTombstone() async throws {
         // A .failed tombstone must never enter the inference pipeline.
         let container = try createIsolatedContainer()
@@ -2208,6 +2246,174 @@ struct BackgroundDatabaseActorTests {
         let persisted = try verificationContext.fetch(descriptor).first
         #expect(persisted?.queueState == .pending)
         #expect(persisted?.stagedR2Keys == nil)
+    }
+
+    @Test func legacyQueuedAudioRepairAtomicallyRewritesTimelineAndClearsStaging() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "legacy-audio-repair-\(UUID().uuidString.lowercased())"
+        let generation = UUID()
+        let standalone = StoredMediaReference.documents(
+            "standalone-legacy.m4a",
+            sourceIndex: 3
+        )
+        let companion = StoredMediaReference.documents(
+            "video-companion-legacy.m4a"
+        )
+        let originalItems: [SerializedMediaItem] = [
+            .description(ObservationContext(freeText: "Heard after dusk.")),
+            .audio(standalone),
+            .video(StoredVideoMediaReference(
+                video: .documents("legacy-video.mp4"),
+                thumbnail: .documents("legacy-poster.webp"),
+                audio: companion
+            ))
+        ]
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: MediaJSONParser.jsonString(from: originalItems),
+            scanState: .staged,
+            stagedR2Keys: [
+                "staging/owner/\(scanId)_standalone-legacy.m4a",
+                "staging/owner/\(scanId)_video-companion-legacy.m4a"
+            ]
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .waiting,
+            metadataJSON: InferenceGenerationMetadataContract.json(
+                for: generation
+            )
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            await actor.legacyQueuedAudioRepairCandidateIds().contains(scanId)
+        )
+        let candidate = try #require(
+            await actor.claimLegacyQueuedAudioRepair(scanId: scanId)
+        )
+        #expect(candidate.references == [standalone, companion])
+
+        var verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        var persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .pending)
+        #expect(persisted.stagedR2Keys == nil)
+        #expect(
+            persisted.queueSchemaRepairGeneration ==
+                LegacyQueuedAudioRepairState.inProgressGeneration
+        )
+
+        #expect(await actor.commitLegacyQueuedAudioRepair(
+            scanId: scanId,
+            replacements: [
+                LegacyQueuedAudioRepairReplacement(
+                    sourceStorage: standalone.storage,
+                    sourcePath: standalone.path,
+                    replacementFileName: "standalone-upgraded.wav"
+                ),
+                LegacyQueuedAudioRepairReplacement(
+                    sourceStorage: companion.storage,
+                    sourcePath: companion.path,
+                    replacementFileName: "companion-upgraded.wav"
+                )
+            ]
+        ))
+
+        verificationContext = ModelContext(container)
+        persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .pending)
+        #expect(persisted.stagedR2Keys == nil)
+        #expect(
+            persisted.queueSchemaRepairGeneration ==
+                LegacyQueuedAudioRepairState.completedGeneration
+        )
+        #expect(persisted.serializedCapturedMediaItems.count == 3)
+        guard case .description(let contextItem) =
+                persisted.serializedCapturedMediaItems[0],
+              case .audio(let upgradedStandalone) =
+                persisted.serializedCapturedMediaItems[1],
+              case .video(let upgradedVideo) =
+                persisted.serializedCapturedMediaItems[2] else {
+            Issue.record("Legacy audio repair changed media timeline ordering.")
+            return
+        }
+        #expect(contextItem.freeText == "Heard after dusk.")
+        #expect(upgradedStandalone.path == "standalone-upgraded.wav")
+        #expect(upgradedStandalone.sourceIndex == 3)
+        #expect(upgradedVideo.audio?.path == "companion-upgraded.wav")
+        #expect(upgradedVideo.video.path == "legacy-video.mp4")
+        #expect(upgradedVideo.thumbnail?.path == "legacy-poster.webp")
+        #expect(persisted.capturedMediaEntries?.count == 3)
+
+        let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
+        var jobDescriptor = FetchDescriptor<OfflineJobRecord>(
+            predicate: #Predicate { $0.id == jobId }
+        )
+        jobDescriptor.fetchLimit = 1
+        let persistedJob = try #require(
+            verificationContext.fetch(jobDescriptor).first
+        )
+        #expect(persistedJob.status == .pending)
+        #expect(
+            InferenceGenerationMetadataContract.generation(
+                in: persistedJob.metadataJSON
+            ) == nil
+        )
+        #expect(
+            !(await actor.legacyQueuedAudioRepairCandidateIds().contains(scanId))
+        )
+    }
+
+    @Test func completedCloudResultVetoesLegacyQueuedAudioRepair() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "cloud-owned-legacy-audio-\(UUID().uuidString.lowercased())"
+        let staleKey = "staging/owner/\(scanId)_legacy.m4a"
+        let scan = OfflineQueuedScan(
+            id: scanId,
+            capturedMediaJSON: MediaJSONParser.jsonString(from: [
+                .audio(.documents("cloud-owned-legacy.m4a"))
+            ]),
+            scanState: .staged,
+            stagedR2Keys: [staleKey],
+            queueLastErrorCode:
+                OfflineQueueManager.completedServerResultRecoveryCode
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        #expect(
+            !(await actor.legacyQueuedAudioRepairCandidateIds().contains(scanId))
+        )
+        #expect(
+            await actor.claimLegacyQueuedAudioRepair(scanId: scanId) == nil
+        )
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(persisted.queueState == .staged)
+        #expect(persisted.stagedR2Keys == [staleKey])
     }
 
     @Test func testScheduleInferenceRetryUsesMonotonicMirroredAttempt() async throws {

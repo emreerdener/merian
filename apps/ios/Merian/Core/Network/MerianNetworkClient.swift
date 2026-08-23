@@ -2437,20 +2437,33 @@ final class MerianNetworkClient {
     private static func loadInlineAudioBase64s(from audioFilePaths: [String]) throws -> [String] {
         guard !audioFilePaths.isEmpty else { return [] }
 
-        let fileURLs = audioFilePaths.map { URL.documentsDirectory.appendingPathComponent($0) }
-        try validateInlineAudioFileBudget(fileURLs: fileURLs)
+        let fileURLs = audioFilePaths.map { path -> URL in
+            let normalized = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            return normalized.hasPrefix("/")
+                ? URL(fileURLWithPath: normalized)
+                : URL.documentsDirectory.appendingPathComponent(normalized)
+        }
+        try validateInlineAudioFilesForInference(fileURLs: fileURLs)
 
         var audioBase64s: [String] = []
         audioBase64s.reserveCapacity(audioFilePaths.count)
 
         for url in fileURLs {
-            guard FileManager.default.fileExists(atPath: url.path) else { continue }
-
             let wavData = try Data(contentsOf: url, options: [.mappedIfSafe])
             audioBase64s.append(wavData.base64EncodedString())
         }
 
         return audioBase64s
+    }
+
+    static func validateInlineAudioFilesForInference(fileURLs: [URL]) throws {
+        guard fileURLs.allSatisfy({ FileManager.default.fileExists(atPath: $0.path) }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        try validateInlineAudioFileBudget(fileURLs: fileURLs)
+        guard fileURLs.allSatisfy(InferenceAudioPreparer.isEdgeCompatibleWAV) else {
+            throw MerianError.invalidResponse
+        }
     }
 
     static func validateInlineAudioFileBudget(fileURLs: [URL]) throws {
@@ -6168,41 +6181,52 @@ final class MerianNetworkClient {
         localAudioPaths: [String]
     ) async throws -> [String] {
         guard !localAudioPaths.isEmpty else { return [] }
-        guard localAudioPaths.count <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
-              localAudioPaths.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
+
+        var sources: [(fileURL: URL, contentType: String)] = []
+        for path in localAudioPaths {
+            let fileURL = localExploreRestoreFileURL(for: path)
+            guard let contentType = await InferenceAudioPreparer
+                .durableStorageContentType(at: fileURL) else {
+                continue
+            }
+            sources.append((fileURL, contentType))
+        }
+        guard !sources.isEmpty else { return [] }
+        guard sources.count <= MerianConfig.mediaStagingMaxAudioFilesPerRequest,
+              sources.count <= MerianConfig.mediaStagingMaxFilesPerRequest else {
             throw MerianError.payloadTooLarge
         }
 
-        let uploadFiles = try localAudioPaths.enumerated().map { index, path in
-            let fileURL = localExploreRestoreFileURL(for: path)
-            let fileExtension = fileURL.pathExtension.isEmpty ? "wav" : fileURL.pathExtension
+        let uploadFiles = try sources.enumerated().map { index, source in
+            let fileExtension = source.contentType == "audio/mp4" ? "m4a" : "wav"
             let fileName = MediaStagingContract.sanitizedFileName(
                 "\(scan.scanId)_explore_restore_audio_\(index).\(fileExtension)"
             )
-            let sizeBytes = try MediaStagingContract.fileSizeBytes(at: fileURL)
+            let sizeBytes = try MediaStagingContract.fileSizeBytes(
+                at: source.fileURL
+            )
             guard sizeBytes <= MerianConfig.audioPayloadMaxBytes else {
                 throw MerianError.payloadTooLarge
             }
             return makeScanShareRestoreUploadFile(
                 fileName: fileName,
                 mediaKind: .audio,
-                contentType: StagedMediaKind.audio.contentType(for: fileURL.path),
+                contentType: source.contentType,
                 sizeBytes: sizeBytes,
                 scanId: scan.scanId
             )
         }
 
         let uploadUrls = try await generateUploadURLs(uploadFiles: uploadFiles)
-        guard uploadUrls.count == localAudioPaths.count else {
+        guard uploadUrls.count == sources.count else {
             throw MerianError.invalidResponse
         }
 
-        for (path, uploadUrl) in zip(localAudioPaths, uploadUrls) {
-            let fileURL = localExploreRestoreFileURL(for: path)
+        for (source, uploadUrl) in zip(sources, uploadUrls) {
             try await uploadToR2(
                 uploadURL: uploadUrl,
-                fileURL: fileURL,
-                contentType: StagedMediaKind.audio.contentType(for: fileURL.path)
+                fileURL: source.fileURL,
+                contentType: source.contentType
             )
         }
 
@@ -6242,6 +6266,10 @@ final class MerianNetworkClient {
         var resolved: [String] = []
         for path in scan.audioPaths where !path.starts(with: "http") {
             let fileURL = localExploreRestoreFileURL(for: path)
+            let fileExtension = fileURL.pathExtension.lowercased()
+            guard fileExtension == "wav" || fileExtension == "m4a" else {
+                continue
+            }
             if FileManager.default.fileExists(atPath: fileURL.path), !resolved.contains(path) {
                 resolved.append(path)
             }

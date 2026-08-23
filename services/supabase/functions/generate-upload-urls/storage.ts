@@ -11,6 +11,10 @@ export type { StagingMediaKind };
 export { STAGING_ALLOWED_CONTENT_TYPES };
 export type StagingUploadPurpose = "scan_share_restore";
 
+export const INFERENCE_AUDIO_CONTENT_TYPES = ["audio/wav"] as const;
+export const SCAN_SHARE_RESTORE_AUDIO_CONTENT_TYPES =
+  STAGING_ALLOWED_CONTENT_TYPES.audio;
+
 export const MAX_STAGING_FILES = MEDIA_BUDGETS.maxStagingFiles;
 export const MAX_STAGED_IMAGE_BYTES = MEDIA_BUDGETS.maxImageRawBytes;
 export const MAX_STAGED_IMAGE_FILES = MEDIA_BUDGETS.maxImageCount;
@@ -57,8 +61,18 @@ export function sanitizeStagingFileName(fileName: string): string {
   return safe.length > 0 ? safe : "upload";
 }
 
-function allowedContentTypesForKind(kind: StagingMediaKind): Set<string> {
-  return new Set(STAGING_ALLOWED_CONTENT_TYPES[kind]);
+function allowedContentTypesForKind(
+  kind: StagingMediaKind,
+  purpose?: StagingUploadPurpose,
+): Set<string> {
+  if (kind !== "audio") {
+    return new Set(STAGING_ALLOWED_CONTENT_TYPES[kind]);
+  }
+  return new Set(
+    purpose === "scan_share_restore"
+      ? SCAN_SHARE_RESTORE_AUDIO_CONTENT_TYPES
+      : INFERENCE_AUDIO_CONTENT_TYPES,
+  );
 }
 
 function defaultMediaRoleForKind(kind: StagingMediaKind): ScanMediaAssetRole {
@@ -230,11 +244,38 @@ function validateStructuredUploadFiles(
       );
     }
 
+    const uploadPurposeValue = aliasedRequestValue(
+      rawFile,
+      "uploadPurpose",
+      "upload_purpose",
+    );
+    if (uploadPurposeValue.error) {
+      return error(400, uploadPurposeValue.error);
+    }
+    const purposeResult = parseUploadPurpose(uploadPurposeValue.value);
+    if (purposeResult.error) {
+      return error(400, purposeResult.error);
+    }
+
     if (
       typeof contentType !== "string" ||
-      !allowedContentTypesForKind(mediaKind).has(contentType)
+      !allowedContentTypesForKind(mediaKind, purposeResult.purpose).has(
+        contentType,
+      )
     ) {
       return error(400, "Bad Request: contentType is not valid for mediaKind.");
+    }
+    if (mediaKind === "audio") {
+      const normalizedFileName = fileName.toLowerCase();
+      const extensionMatches = contentType === "audio/wav"
+        ? normalizedFileName.endsWith(".wav")
+        : normalizedFileName.endsWith(".m4a");
+      if (!extensionMatches) {
+        return error(
+          400,
+          "Bad Request: audio file extension does not match contentType.",
+        );
+      }
     }
 
     const clientScanIdValue = aliasedRequestValue(
@@ -266,18 +307,6 @@ function validateStructuredUploadFiles(
       return error(400, roleResult.error ?? "Bad Request: invalid mediaRole.");
     }
 
-    const uploadPurposeValue = aliasedRequestValue(
-      rawFile,
-      "uploadPurpose",
-      "upload_purpose",
-    );
-    if (uploadPurposeValue.error) {
-      return error(400, uploadPurposeValue.error);
-    }
-    const purposeResult = parseUploadPurpose(uploadPurposeValue.value);
-    if (purposeResult.error) {
-      return error(400, purposeResult.error);
-    }
     if (
       purposeResult.purpose &&
       (

@@ -534,7 +534,9 @@ Batch sizing is governed by `MerianConfig`:
 - **`mediaStagingMaxAudioFilesPerRequest`** (2): maximum audio files in one
   upload-signing request, matching the Edge parser and the documented
   cross-language contract in
-  `docs/contracts/media-staging-upload-manifest.json`.
+  `docs/contracts/media-staging-upload-manifest.json`. Ordinary inference audio
+  is `audio/wav` only. `audio/mp4` is reserved for a deterministic
+  `scan_share_restore` request whose filename ends in `.m4a`.
 - **`mediaStagingMaxImageFilesPerRequest`** (5): maximum images in one signing
   request. The sixth total slot is reserved for the canonical five-frame plus
   one-playback-video shape, not a sixth still.
@@ -554,6 +556,41 @@ must stay within the 2.7 MB raw audio budget, staged video must stay within the
 strict video byte budget, and a signing batch may include at most 2 audio files
 and 1 video file. Records that fail this preflight move to `queueNeedsAttention`
 instead of being marked `.uploading`.
+
+Audio admission has an additional local-source contract. New inference queue
+rows accept only existing, bounded local `.wav` files that decode structurally
+as supported PCM/Float WAV; URL-scheme, M4A, missing, and extension-spoofed
+sources fail before funding or persistence. Immediately before an inline
+foreground request, the network client repeats the existence, combined-budget,
+and structural checks. The Edge signer independently limits ordinary audio to
+`audio/wav` and binds audio MIME type to the canonical `.wav`/`.m4a` extension,
+so a declared MIME/extension mismatch cannot obtain a signed upload. Presigning
+cannot inspect the future object body; after upload, Identify fetches the
+bounded object and verifies its RIFF/WAVE structure before provider dispatch,
+rejecting an extension-only content spoof at that boundary.
+
+Pre-WAV installed queues are upgraded before either signing or staged replay.
+The database actor fences each pending/staged M4A row with the persisted
+negative `queueSchemaRepairGeneration`, retreats it to `.pending`, and clears
+stale `stagedR2Keys` before asynchronous Core Audio conversion begins. Upload
+claims ignore the latch. A successful exact-state commit rewrites the ordered
+scalar/relationship media timeline to Documents-owned WAV references and sends
+the row through fresh signing; cancellation keeps it pending, while a
+deterministic conversion failure becomes `queued_audio_upgrade_failed`
+needs-attention work. Holding the per-scan inference-persistence lock across
+conversion prevents a staged inference claim from racing the rewrite. Process
+death is safe because the source M4A is not deleted and the next serialized
+repair pass can reclaim the durable latch.
+
+A pre-upgrade background PUT may still finish after the new app launches. Its
+completion handler first commits the exact uploaded manifest as `.staged`, then
+checks the persisted media snapshot before any inference claim. If compressed
+audio remains, it runs the same serialized repair, clears the just-uploaded M4A
+keys, and returns the row to fresh WAV signing. A lost repair-state race or
+transient actor read also stops dispatch and hands the row to normal durable
+replay. As a final defense, the serialized `.staged` → `.inferencing` database
+claim itself refuses any timeline that still contains legacy compressed audio; a
+known M4A manifest is never forwarded to ordinary inference.
 
 The locally predicted owner segment is planning data, not server authority.
 `/generate-upload-urls` derives its owner from the authenticated request, which

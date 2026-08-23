@@ -25,7 +25,10 @@ receives durable lifecycle registration before any URL is returned.
   identify/share flows fail rather than silently accepting a partial video set.
   The sixth staging slot exists for the Pro video shape: five sampled
   `image/webp` inference frames plus one playback `.mp4`; image, audio, and
-  video sub-limits still prevent broader over-batching.
+  video sub-limits still prevent broader over-batching. Audio policy is
+  purpose-aware: ordinary inference signs `.wav`/`audio/wav` only, while an
+  exact `scan_share_restore` may additionally sign `.m4a`/`audio/mp4`.
+  Filename/MIME mismatches fail before lifecycle registration or signing.
 - **`assetRegistration.ts`**: Converts the validated signing response into
   owner-scoped `capture_upload` lifecycle rows. It proposes one upload session
   per client scan for newly registered items and assigns order indexes within
@@ -68,6 +71,14 @@ identical. Conflicting aliases are rejected rather than choosing one silently.
 
 The authenticated JWT—not a body owner field—selects the owner. The returned key
 is always directly under `staging/{authenticatedUserId}/`.
+
+Ordinary audio staging is an inference transport, not a general playback upload
+surface. It accepts only `audio/wav` with a `.wav` filename. Durable legacy
+playback repair may use `audio/mp4` only when the request declares
+`uploadPurpose: "scan_share_restore"`, binds the exact scan/role/filename
+contract, and uses `.m4a`; restore WAV remains valid. The downstream inference
+route also sniffs RIFF/WAVE bytes, so signer metadata alone never proves codec
+validity.
 
 `scan_share_restore` additionally requires `clientScanId`, the canonical role
 for its kind, and the exact deterministic

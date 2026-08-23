@@ -51,6 +51,15 @@ TestFlight, App Store, support, and QA.
   shared fix covers Insight, Explore, and Species Dictionary chats.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
+- Reanalyzing an older library scan now prepares saved local or cloud audio as a
+  safe local recording first, and can fall back to standalone audio, video
+  audio, or the saved description when an old visual reference is unavailable. A
+  cloud result with unreadable legacy media data now pauses for attention on the
+  first attempt instead of cycling through the same recovery repeatedly.
+- Queued recordings created by older builds are upgraded to the current audio
+  format before upload or analysis. The original recording remains available
+  until the repaired queue entry is saved, stale uploads are discarded, and a
+  recording that cannot be converted pauses visibly instead of retrying forever.
 - Foreground visual analysis now advances beyond canned category phrases to five
   image-specific color, tone, contrast, and surface observations derived
   privately on device while the final identification is still processing. Each

@@ -541,7 +541,7 @@ Deno.test("buildExplorePostMediaRows resolves selected manifest videos by source
   ]);
 });
 
-Deno.test("buildExplorePostMediaRows marks manifest video audio only when audio reference exists", () => {
+Deno.test("buildExplorePostMediaRows does not treat nested manifest audio as playback proof", () => {
   const scan = makeVideoScan([
     {
       video: {
@@ -570,7 +570,7 @@ Deno.test("buildExplorePostMediaRows marks manifest video audio only when audio 
       thumbnail_url: "https://media.merian.app/poster.webp",
       order_index: 0,
       duration_seconds: null,
-      has_audio: true,
+      has_audio: false,
     },
   ]);
 });

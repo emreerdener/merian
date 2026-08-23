@@ -1168,11 +1168,27 @@ MerianTests/
   - **Media staging contract drift**: Loads
     `docs/contracts/media-staging-upload-manifest.json` and asserts
     `MerianConfig` matches the documented file, audio, and video budgets and
-    locks the exact signed `Content-Length`/`Content-Type` response contract.
+    locks the exact signed `Content-Length`/`Content-Type` response contract,
+    including WAV-only inference audio and purpose-scoped M4A restore audio.
     File-mutation coverage proves a signing-time size mismatch is discarded for
-    re-signing before task creation. Also covers the canonical video scan upload
-    shape: five sampled inference frame files plus one playback video file must
-    fit in one signing batch.
+    re-signing before task creation. Persisted M4A fixtures prove pending/staged
+    rows are fenced, rewritten to valid WAV, stripped of stale R2 keys, and
+    admitted only after fresh validation; an unmigrated M4A still fails before
+    signing. Also covers the canonical video scan upload shape: five sampled
+    inference frame files plus one playback video file must fit in one signing
+    batch.
+  - **Historical audio preparation**: `InferenceAudioPreparerTests.swift`
+    transcodes a real stereo 48 kHz PCM input to the Documents-owned mono 44.1
+    kHz Int16 WAV contract, proves hardware-rate PCM WAV remains
+    Edge-compatible, and rejects extension-spoofed or URL-scheme inference
+    sources. A custom unknown-length HTTPS transport crosses the byte ceiling
+    and proves the bounded downloader rejects it while removing the partial
+    file. Refinement tests inject the preparation boundary to prove remote audio
+    stages only as a local WAV filename, unusable images fall through to audio,
+    legacy video-companion audio remains a deliberate fallback, and unavailable
+    audio falls back to the saved description. Edge contract tests separately
+    lock WAV-only inference signing and the explicit M4A scan-share restore
+    exception.
   - **Background task identity and single-flight ownership**: Verifies current
     `upload_v2` descriptions round-trip the Auth owner, underscored scan IDs,
     media indices, and batch UUID; verifies current

@@ -251,3 +251,94 @@ Deno.test("buildComposerMediaSources exposes durable standalone audio", () => {
     selection_order_index: null,
   }]);
 });
+
+Deno.test("buildComposerMediaSources drops local-only manifest audio and falls back to durable URLs", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000004",
+    audio_storage_urls: ["https://media.merian.app/durable-call.m4a"],
+    captured_media: [{
+      audio: {
+        _0: {
+          storage: "localFile",
+          path: "recording-from-another-device.wav",
+        },
+      },
+    }],
+  });
+
+  assertEquals(media.map(({ kind, url }) => ({ kind, url })), [{
+    kind: "audio",
+    url: "https://media.merian.app/durable-call.m4a",
+  }]);
+});
+
+Deno.test("buildComposerMediaSources rejects unsafe manifests and uses legacy durable columns", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000005",
+    image_storage_urls: ["https://media.merian.app/safe-photo.webp"],
+    captured_media: [{
+      image: {
+        _0: {
+          storage: "remoteURL",
+          path: "http://media.merian.app/unsafe-photo.webp",
+        },
+      },
+    }],
+  });
+
+  assertEquals(media.map(({ kind, url }) => ({ kind, url })), [{
+    kind: "image",
+    url: "https://media.merian.app/safe-photo.webp",
+  }]);
+});
+
+Deno.test("buildComposerMediaSources never trusts legacy nested video audio as playback proof", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000006",
+    captured_media: [{
+      video: {
+        _0: {
+          video: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/legacy-clip.mp4",
+          },
+          thumbnail: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/legacy-poster.webp",
+          },
+          audio: {
+            storage: "remoteURL",
+            path: "https://media.merian.app/inference-only-track.wav",
+          },
+        },
+      },
+    }],
+  });
+
+  assertEquals(media.length, 1);
+  assertEquals(media[0].kind, "video");
+  assertEquals(media[0].has_audio, false);
+});
+
+Deno.test("buildComposerMediaSources filters unsafe normalized and legacy URLs", () => {
+  const media = buildComposerMediaSources({
+    id: "00000000-0000-0000-0000-000000000007",
+    image_storage_urls: [
+      "http://media.merian.app/insecure.webp",
+      "https://user:secret@media.merian.app/credentialed.webp",
+      "https://media.merian.app/safe.webp",
+    ],
+    media_assets: [{
+      kind: "audio",
+      role: "audio",
+      status: "ready",
+      url: "https://user:secret@media.merian.app/unsafe.m4a",
+      order_index: 0,
+    }],
+  });
+
+  assertEquals(media.map(({ kind, url }) => ({ kind, url })), [{
+    kind: "image",
+    url: "https://media.merian.app/safe.webp",
+  }]);
+});

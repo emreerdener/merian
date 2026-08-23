@@ -467,69 +467,6 @@ extension CaptureWorkspaceViewModel {
         return (attributes[.size] as? NSNumber)?.intValue ?? 0
     }
 
-    nonisolated private static func isEdgeCompatibleWAV(at url: URL) -> Bool {
-        guard let data = try? Data(contentsOf: url, options: [.mappedIfSafe]),
-              data.count >= 44 else {
-            return false
-        }
-
-        let bytes = [UInt8](data)
-        func hasTag(_ tag: String, at offset: Int) -> Bool {
-            let tagBytes = Array(tag.utf8)
-            guard tagBytes.count == 4, offset + 4 <= bytes.count else {
-                return false
-            }
-            return bytes[offset] == tagBytes[0]
-                && bytes[offset + 1] == tagBytes[1]
-                && bytes[offset + 2] == tagBytes[2]
-                && bytes[offset + 3] == tagBytes[3]
-        }
-        func uint16LE(at offset: Int) -> UInt16 {
-            UInt16(bytes[offset]) | (UInt16(bytes[offset + 1]) << 8)
-        }
-        func uint32LE(at offset: Int) -> UInt32 {
-            UInt32(bytes[offset])
-                | (UInt32(bytes[offset + 1]) << 8)
-                | (UInt32(bytes[offset + 2]) << 16)
-                | (UInt32(bytes[offset + 3]) << 24)
-        }
-
-        guard hasTag("RIFF", at: 0), hasTag("WAVE", at: 8) else {
-            return false
-        }
-
-        var offset = 12
-        var audioFormat: UInt16 = 0
-        var channelCount: UInt16 = 0
-        var sampleRate: UInt32 = 0
-        var bitsPerSample: UInt16 = 0
-        var dataLength: UInt32 = 0
-
-        while offset + 8 <= bytes.count {
-            let chunkSize = Int(uint32LE(at: offset + 4))
-            guard chunkSize >= 0, offset + 8 + chunkSize <= bytes.count else {
-                return false
-            }
-            if hasTag("fmt ", at: offset), chunkSize >= 16 {
-                audioFormat = uint16LE(at: offset + 8)
-                channelCount = uint16LE(at: offset + 10)
-                sampleRate = uint32LE(at: offset + 12)
-                bitsPerSample = uint16LE(at: offset + 22)
-            } else if hasTag("data", at: offset) {
-                dataLength = UInt32(chunkSize)
-                break
-            }
-            offset += 8 + chunkSize + (chunkSize.isMultiple(of: 2) ? 0 : 1)
-        }
-
-        let supportedFormat = (audioFormat == 1 && bitsPerSample == 16)
-            || (audioFormat == 3 && bitsPerSample == 32)
-        return supportedFormat
-            && channelCount > 0
-            && sampleRate > 0
-            && dataLength > 0
-    }
-
     nonisolated private static func extractVideoAudioTrack(videoURL: URL) async -> String? {
         do {
             return try await DetachedWork.value(
@@ -642,7 +579,7 @@ extension CaptureWorkspaceViewModel {
                         try? FileManager.default.removeItem(at: outputURL)
                         return nil
                     }
-                    guard isEdgeCompatibleWAV(at: outputURL) else {
+                    guard InferenceAudioPreparer.isEdgeCompatibleWAV(at: outputURL) else {
                         try? FileManager.default.removeItem(at: outputURL)
                         MerianLog.hardware.warning(
                             "Video audio extraction produced a WAV variant the edge parser cannot use; continuing without video audio."

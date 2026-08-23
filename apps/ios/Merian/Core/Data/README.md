@@ -103,6 +103,31 @@ performing that re-stage also preserves the machine marker and increments from
 the maximum committed attempt; its precise failure remains in the queue event
 stream.
 
+Inference audio has an additional durable admission boundary. A newly enqueued
+audio reference must be a local, structurally valid PCM/Float WAV within the
+inference byte budget before funding is claimed or a queue row is persisted;
+upload preparation repeats the same validation before signing. Older installed
+queues may still contain local M4A/MP4 references. Before pending upload or
+staged replay can claim those rows, the queue writes
+`queueSchemaRepairGeneration = -1`, retreats the row to pending, clears every
+old staging key and background-work generation, and records a diagnostic event.
+Core Audio transcoding then runs outside the SwiftData transaction while the
+same per-scan persistence coordinator used by inference claims is held. One
+atomic commit rewrites both `capturedMediaJSON` and `capturedMediaEntries` to
+Documents-owned mono 44.1 kHz Int16 WAV sidecars, sets generation `2`, and
+returns the job to fresh signing. Cancellation removes only uncommitted sidecars
+and resets generation `1`; deterministic conversion failure records
+`queued_audio_upgrade_failed` and needs-attention instead of looping.
+
+A background PUT created by a pre-WAV app can outlive the upgrade. Its terminal
+callback first persists the completed manifest, then invokes the same repair and
+clears those now-stale compressed-audio keys before any inference dispatch.
+`tryClaimForInference` independently refuses every remaining legacy compressed
+reference as a final defense. Cloud-complete local-recovery markers veto the
+repair entirely, preserving server ownership and the no-redispatch fence. The
+repair reuses the V49 integer field and changes no SwiftData model shape or
+migration plan.
+
 Fetch, job-read, manifest-mismatch, or save failure returns a retry-required
 outcome before inference. Once the callback token releases, timestamp-fenced
 orphan reconciliation restarts signing for a still-uploading row; a staged row

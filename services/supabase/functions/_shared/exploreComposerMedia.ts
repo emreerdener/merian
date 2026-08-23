@@ -2,6 +2,10 @@ import {
   cleanScanMediaAssetRows,
   ScanMediaAssetRow,
 } from "./scanMediaAssets.ts";
+import {
+  canonicalizeCompatibleCapturedMediaWireV1,
+  type SerializedMediaItemDTO,
+} from "./capturedMediaContract.ts";
 
 export type ExploreComposerMediaKind = "image" | "video" | "audio";
 
@@ -31,10 +35,26 @@ export interface ExploreSourceMediaId {
   index: number;
 }
 
+function cleanCredentialFreeHTTPSURL(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (normalized.length === 0) return null;
+  try {
+    const url = new URL(normalized);
+    return url.protocol === "https:" && Boolean(url.hostname) &&
+        !url.username && !url.password
+      ? normalized
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function cleanMediaUrls(value: string[] | null | undefined): string[] {
-  return (value ?? [])
-    .map((url) => typeof url === "string" ? url.trim() : "")
-    .filter((url) => url.length > 0);
+  return (value ?? []).flatMap((url) => {
+    const cleaned = cleanCredentialFreeHTTPSURL(url);
+    return cleaned ? [cleaned] : [];
+  });
 }
 
 export function makeSourceMediaId(
@@ -161,8 +181,16 @@ function buildComposerMediaSourcesFromAssets(
       ? audioIndex
       : imageIndex;
     const sourceMediaId = makeSourceMediaId(scan.id, asset.kind, index);
-    const thumbnailUrl = asset.thumbnail_url?.trim() ||
-      (asset.kind === "image" ? asset.url : "");
+    const assetUrl = cleanCredentialFreeHTTPSURL(asset.url);
+    const thumbnailUrl = cleanCredentialFreeHTTPSURL(asset.thumbnail_url) ??
+      (asset.kind === "image" ? assetUrl ?? "" : "");
+
+    if (!assetUrl) {
+      if (asset.kind === "video") videoIndex += 1;
+      else if (asset.kind === "audio") audioIndex += 1;
+      else imageIndex += 1;
+      continue;
+    }
 
     if (asset.kind === "video" && thumbnailUrl.length === 0) {
       videoIndex += 1;
@@ -172,7 +200,7 @@ function buildComposerMediaSourcesFromAssets(
     rows.push({
       source_media_id: sourceMediaId,
       kind: asset.kind,
-      url: asset.url,
+      url: assetUrl,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
       has_audio: asset.kind === "audio" ||
@@ -201,16 +229,22 @@ function buildComposerMediaSourcesFromManifest(
     return [];
   }
 
+  let manifest: SerializedMediaItemDTO[];
+  try {
+    manifest = canonicalizeCompatibleCapturedMediaWireV1(scan.captured_media);
+  } catch {
+    return [];
+  }
+  if (manifest.length === 0) return [];
+
   const rows: ExploreComposerMediaSource[] = [];
   let imageIndex = 0;
   let videoIndex = 0;
   let audioIndex = 0;
 
-  for (const item of scan.captured_media) {
-    if (!item || typeof item !== "object") continue;
-    const record = item as Record<string, unknown>;
-    const audioUrl = serializedMediaPath(record.audio);
-    if (audioUrl) {
+  for (const item of manifest) {
+    if ("audio" in item) {
+      const audioUrl = item.audio._0.path;
       const sourceMediaId = makeSourceMediaId(scan.id, "audio", audioIndex);
       rows.push({
         source_media_id: sourceMediaId,
@@ -226,8 +260,8 @@ function buildComposerMediaSourcesFromManifest(
       audioIndex += 1;
       continue;
     }
-    const imageUrl = serializedMediaPath(record.image);
-    if (imageUrl) {
+    if ("image" in item) {
+      const imageUrl = item.image._0.path;
       const sourceMediaId = makeSourceMediaId(scan.id, "image", imageIndex);
       rows.push({
         source_media_id: sourceMediaId,
@@ -243,15 +277,10 @@ function buildComposerMediaSourcesFromManifest(
       imageIndex += 1;
       continue;
     }
-
-    const videoPayload = associatedPayload(record.video);
-    if (!videoPayload) continue;
-    const videoUrl = storedReferencePath(videoPayload.video);
-    if (!videoUrl) continue;
-
-    const thumbnailUrl = storedReferencePath(videoPayload.thumbnail) ??
-      videoUrl;
-    const hasAudio = storedReferencePath(videoPayload.audio) !== null;
+    if (!("video" in item)) continue;
+    const videoPayload = item.video._0;
+    const videoUrl = videoPayload.video.path;
+    const thumbnailUrl = videoPayload.thumbnail?.path ?? videoUrl;
     const sourceMediaId = makeSourceMediaId(scan.id, "video", videoIndex);
     rows.push({
       source_media_id: sourceMediaId,
@@ -259,7 +288,9 @@ function buildComposerMediaSourcesFromManifest(
       url: videoUrl,
       thumbnail_url: thumbnailUrl,
       order_index: rows.length,
-      has_audio: hasAudio,
+      // Captured Media Wire V1 intentionally omits inference-only companion
+      // audio. Only normalized ready asset metadata may prove playback audio.
+      has_audio: false,
       is_selected: selectedSourceMediaIds.has(sourceMediaId),
       selection_order_index: selectedSourceMediaIds.get(sourceMediaId) ?? null,
     });
@@ -267,30 +298,4 @@ function buildComposerMediaSourcesFromManifest(
   }
 
   return rows;
-}
-
-function serializedMediaPath(value: unknown): string | null {
-  const payload = associatedPayload(value);
-  return storedReferencePath(payload);
-}
-
-function associatedPayload(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object") return null;
-  const record = value as Record<string, unknown>;
-  const payload = record._0;
-  return payload && typeof payload === "object"
-    ? payload as Record<string, unknown>
-    : null;
-}
-
-function storedReferencePath(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (!value || typeof value !== "object") return null;
-  const path = (value as Record<string, unknown>).path;
-  if (typeof path !== "string") return null;
-  const trimmed = path.trim();
-  return trimmed.length > 0 ? trimmed : null;
 }

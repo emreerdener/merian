@@ -2625,6 +2625,114 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
 });
 
+Deno.test("WAV inference documentation preserves repair and rollout boundaries", async () => {
+  const [
+    schemaSource,
+    offlineSource,
+    coreDataSource,
+    aiSource,
+    networkSource,
+    submissionSource,
+    edgeArchitectureSource,
+    sharedReadmeSource,
+    supabaseReadmeSource,
+    deploymentRunbookSource,
+    deploymentScriptSource,
+    changelogSource,
+    inAppChangelogSource,
+  ] = await Promise.all([
+    read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/01-offline-sync-pipeline.md"),
+    read("apps/ios/Merian/Core/Data/README.md"),
+    read("apps/ios/Merian/Core/AI/README.md"),
+    read("apps/ios/Merian/Core/Network/README.md"),
+    read("apps/ios/Merian/Features/Capture/Submission/README.md"),
+    read("docs/system-architecture/06-edge-modularization.md"),
+    read("services/supabase/functions/_shared/README.md"),
+    read("services/supabase/README.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("services/supabase/scripts/deploy_function_batches.sh"),
+    read("CHANGELOG.md"),
+    read("apps/ios/Merian/Resources/Changelog/changelog.json"),
+  ]);
+
+  for (
+    const [source, fragment] of [
+      [
+        schemaSource,
+        "`-1` as the durable in-progress latch for upgrading pre-WAV queued audio and `2` after the media timeline has been atomically rewritten",
+      ],
+      [
+        schemaSource,
+        "Reusing this existing scalar changes no SwiftData entity, checksum, migration stage, or V50 schema shape.",
+      ],
+      [
+        offlineSource,
+        "A pre-upgrade background PUT may still finish after the new app launches.",
+      ],
+      [
+        coreDataSource,
+        "Cloud-complete local-recovery markers veto the repair entirely",
+      ],
+      [
+        aiSource,
+        "`InferenceEngine` must never reinterpret an HTTPS reference as a Documents path or pass M4A directly to ordinary inference.",
+      ],
+      [
+        networkSource,
+        "Edge repeats actual RIFF/WAVE and structural validation after resolving the bytes.",
+      ],
+      [
+        submissionSource,
+        "It must never forward an HTTPS string through a generic file-path API.",
+      ],
+      [
+        edgeArchitectureSource,
+        "`parseAudioTransport(...)` first proves that `audioBase64s` and `audioR2ObjectKeys` are arrays of nonempty strings and are mutually exclusive",
+      ],
+      [
+        sharedReadmeSource,
+        "Signing proves bounded metadata, extension, owner, and purpose only; the inference consumer must still inspect the object bytes before provider dispatch.",
+      ],
+      [
+        supabaseReadmeSource,
+        "Either error rejects the whole mixed-media request, so audio cannot be silently discarded or promoted under a misleading suffix.",
+      ],
+    ] as const
+  ) {
+    assertStringIncludes(compact(source), fragment);
+  }
+
+  const rollout = compact(deploymentRunbookSource);
+  assertStringIncludes(
+    rollout,
+    "Make the repair-capable iOS build available before enforcing the server restriction.",
+  );
+  assertStringIncludes(
+    rollout,
+    "deploy `generate-upload-urls` first and `identify-multimodal` immediately after it",
+  );
+  assertStringIncludes(
+    rollout,
+    "Production deployment, App Store or TestFlight distribution, forced-update policy, and rollback each remain separate explicitly authorized operations.",
+  );
+  assertStringIncludes(
+    compact(changelogSource),
+    "A cloud result with unreadable legacy media data now pauses for attention on the first attempt instead of cycling through the same recovery repeatedly.",
+  );
+  assertStringIncludes(
+    compact(inAppChangelogSource),
+    '"id": "2026-08-23-library-reanalysis-audio-recovery"',
+  );
+
+  const signerIndex = deploymentScriptSource.indexOf("generate-upload-urls");
+  const inferenceIndex = deploymentScriptSource.indexOf("identify-multimodal");
+  assert(
+    signerIndex >= 0 && inferenceIndex > signerIndex,
+    "The executable Function rollout order drifted from the documented signer-first boundary.",
+  );
+});
+
 Deno.test("joined scan reliability documentation preserves critical contracts", async () => {
   const [
     joinedSource,

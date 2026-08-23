@@ -1030,10 +1030,17 @@ A dedicated `PHPhotoLibrary` handler.
   are resolved from their stored reference, and the legacy cover image, audio,
   or observation description provide ordered fallbacks. Images pass through
   `MediaPreparationActor` to regenerate tier-correct inference data and a
-  bounded display payload before being committed on the main actor. Multi-image
-  records are supported by staging the first usable image rather than
-  suppressing reanalysis. `cancelRefinementStaging()` cancels pending
-  preparation and clears the refinement context.
+  bounded display payload before being committed on the main actor. If no image
+  survives, `InferenceAudioPreparer` resolves the first usable standalone-audio
+  reference, downloads credential-free HTTPS audio through a bounded ephemeral
+  session when necessary, and transcodes it into a new Documents-owned mono 44.1
+  kHz Int16 PCM WAV sidecar. The historical playback source is never moved or
+  deleted. An unavailable audio source falls back to the first saved
+  description; without either, the UI reports that the original audio is
+  unavailable. Multi-image records are supported by staging the first usable
+  image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels
+  pending image download or audio preparation, deletes an uncommitted audio
+  sidecar, and clears the refinement context.
 - **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceViewModel.init`)**: A
   background `Task` refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a

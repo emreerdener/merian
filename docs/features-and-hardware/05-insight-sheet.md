@@ -1395,9 +1395,14 @@ controls stacked vertically:
 threads through `BiologicalView` → `CandidatesCard` → the typed
 `CandidateSwipeDismissalRequest`. `ConfidenceExplanationSheet` independently
 fetches the same persisted record and stages an equivalent typed action.
-Availability follows the toolbar's persisted-record rule; cloud-backed and
-multi-image scans are supported because refinement staging resolves remote media
-and selects the first usable historical item.
+Availability follows the toolbar's persisted-record rule; cloud-backed,
+multi-image, and standalone-audio scans are supported because refinement staging
+resolves remote media and selects the first usable historical item. Historical
+audio is never passed through as a URL-like path. It is downloaded when
+necessary, preflighted with AVFoundation, decoded through the bounded Core Audio
+converter, and materialized as a new local Int16 PCM WAV before refinement can
+enter the capture/queue pipeline. If every audio reference fails, the first
+saved description is staged as the safe fallback.
 
 **Confirmed state**: After a stack or grid confirm, `session.confirmedCandidate`
 is set, showing a green `checkmark.circle.fill` success screen for 1.5 s before

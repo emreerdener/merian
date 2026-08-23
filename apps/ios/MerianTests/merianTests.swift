@@ -172,7 +172,7 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
     private func makeTempAudioFilename(prefix: String = "capture_vm_audio") throws -> String {
         let filename = "\(prefix)_\(UUID().uuidString).wav"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
-        try Data(repeating: 0x4D, count: 128).write(to: url)
+        try makeInferenceTestPCM16WAVData().write(to: url)
         return filename
     }
 
@@ -390,6 +390,164 @@ final class CaptureWorkspaceViewModelRefinementTests: XCTestCase {
         XCTAssertEqual(
             viewModel.stagedCapture.images.first?.compressedData,
             Data(firstFileName.utf8)
+        )
+    }
+
+    func testStartRefinementScanSkipsUnusableImageAndStagesNextCandidate() async throws {
+        let firstFileName = "historical-refinement-unusable-\(UUID().uuidString).png"
+        let secondFileName = "historical-refinement-usable-\(UUID().uuidString).png"
+        let firstFileURL = URL.documentsDirectory.appendingPathComponent(firstFileName)
+        let secondFileURL = URL.documentsDirectory.appendingPathComponent(secondFileName)
+        try makePNGData(color: .systemGreen).write(to: firstFileURL)
+        try makePNGData(color: .systemOrange).write(to: secondFileURL)
+        defer {
+            try? FileManager.default.removeItem(at: firstFileURL)
+            try? FileManager.default.removeItem(at: secondFileURL)
+        }
+        let previewImage = SendableCGImage(image: makePreviewCGImage())
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { request in
+                guard request.fileURL.lastPathComponent == secondFileName else {
+                    return nil
+                }
+                return PreparedStagedImage(
+                    compressedData: Data(secondFileName.utf8),
+                    displayData: Data(request.fileURL.path.utf8),
+                    historicalContext: request.historicalContext,
+                    previewCGImage: previewImage
+                )
+            },
+            prewarmHeadersOnInit: false
+        )
+        let media = CapturedMediaSnapshot(items: [
+            .image(.documents(firstFileName)),
+            .image(.documents(secondFileName))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "fallback-image-species",
+            scientificName: "Danaus plexippus",
+            commonName: "Monarch Butterfly",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+        XCTAssertEqual(
+            viewModel.stagedCapture.images.first?.compressedData,
+            Data(secondFileName.utf8)
+        )
+    }
+
+    func testStartRefinementScanMaterializesRemoteAudioBeforeStaging() async throws {
+        let preparedFileName = "historical-refinement-\(UUID().uuidString).wav"
+        let preparedURL = URL.documentsDirectory.appendingPathComponent(preparedFileName)
+        try makeInferenceTestPCM16WAVData(
+            sampleRate: 44_100,
+            channels: 1
+        ).write(to: preparedURL)
+        defer { try? FileManager.default.removeItem(at: preparedURL) }
+
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            preparedHistoricalAudioLoader: { reference in
+                guard reference.isRemote else { return nil }
+                return preparedURL
+            },
+            prewarmHeadersOnInit: false
+        )
+        let media = CapturedMediaSnapshot(items: [
+            .image(.documents("missing-historical-image-\(UUID().uuidString).png")),
+            .audio(.remoteURL("https://media.merian.app/historical-call.m4a"))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "audio-species",
+            scientificName: "Strix varia",
+            commonName: "Barred Owl",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertEqual(viewModel.stagedCapture.audios.count, 1)
+        XCTAssertEqual(viewModel.stagedCapture.audios.first?.filePath, preparedFileName)
+        XCTAssertFalse(viewModel.stagedCapture.audios.first?.filePath.hasPrefix("https://") == true)
+    }
+
+    func testStartRefinementScanUsesLegacyVideoCompanionAudioFallback() async throws {
+        let preparedFileName = "historical-refinement-\(UUID().uuidString).wav"
+        let preparedURL = URL.documentsDirectory.appendingPathComponent(preparedFileName)
+        try makeInferenceTestPCM16WAVData(
+            sampleRate: 44_100,
+            channels: 1
+        ).write(to: preparedURL)
+        defer { try? FileManager.default.removeItem(at: preparedURL) }
+
+        let companionReference = StoredMediaReference.remoteURL(
+            "https://media.merian.app/historical-video-companion.m4a"
+        )
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            preparedHistoricalAudioLoader: { reference in
+                guard reference == companionReference else { return nil }
+                return preparedURL
+            },
+            prewarmHeadersOnInit: false
+        )
+        let media = CapturedMediaSnapshot(items: [
+            .video(StoredVideoMediaReference(
+                video: .remoteURL("https://media.merian.app/historical-video.mp4"),
+                audio: companionReference
+            ))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "video-audio-species",
+            scientificName: "Strix varia",
+            commonName: "Barred Owl",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertEqual(viewModel.stagedCapture.audios.count, 1)
+        XCTAssertEqual(viewModel.stagedCapture.audios.first?.filePath, preparedFileName)
+    }
+
+    func testStartRefinementScanFallsBackToDescriptionWhenHistoricalAudioCannotBePrepared() async throws {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            preparedHistoricalAudioLoader: { _ in
+                throw InferenceAudioPreparationError.sourceUnavailable
+            },
+            prewarmHeadersOnInit: false
+        )
+        let fallbackText = "A clear two-note hoot repeated from the oak canopy."
+        let media = CapturedMediaSnapshot(items: [
+            .audio(.remoteURL("https://media.merian.app/missing-call.m4a")),
+            .description(ObservationContext(freeText: fallbackText))
+        ])
+        let record = LocalScanRecord(
+            speciesId: "audio-fallback-species",
+            scientificName: "Strix varia",
+            commonName: "Barred Owl",
+            capturedMediaJSON: media.jsonString
+        )
+
+        viewModel.startRefinementScan(from: record)
+        try await waitUntil { !viewModel.isStagingRefinement }
+
+        XCTAssertTrue(viewModel.stagedCapture.audios.isEmpty)
+        XCTAssertEqual(
+            viewModel.stagedCapture.observationContexts.first?.context.freeText,
+            fallbackText
         )
     }
 

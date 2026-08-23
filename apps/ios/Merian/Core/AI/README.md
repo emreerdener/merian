@@ -179,6 +179,18 @@ and live nonvisual paths must send the projection. Do not independently
 aggregate audio paths or descriptors: their raw input positions are the durable
 identity used by Edge validation and promotion.
 
+Audio evidence has a format and ownership invariant as well. Provider-bound
+audio must be a local, structurally valid WAV within `audioPayloadMaxBytes`;
+`InferenceEngine` must never reinterpret an HTTPS reference as a Documents path
+or pass M4A directly to ordinary inference. Historical refinement resolves a
+local or secure remote `StoredMediaReference` through `InferenceAudioPreparer`,
+streams remote bytes under the same bound, and creates a new Documents-owned
+mono 44.1 kHz Int16 PCM WAV sidecar. Offline replay uses the queue's freshly
+signed WAV staging keys. M4A remains a playback/restore format and is eligible
+for upload only under `scan_share_restore`. iOS validates new queue sources
+before persistence and Edge independently validates RIFF/WAVE bytes plus the
+complete WAV structure before the provider call.
+
 External-reference suppressions are also an invariant: they target an immutable
 media identity, never a species name, result index, or provider host. A denied
 first URL must promote the next permitted URL rather than removing the species

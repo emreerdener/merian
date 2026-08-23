@@ -1019,9 +1019,29 @@ extension OfflineQueueManager {
             MerianLog.data.debug("replayInferenceStagedScans: no staged scans")
             return
         }
+        let legacyAudioRepairScanIds = Set(fetched.compactMap { scan in
+            scan.capturedMediaSnapshot.legacyQueuedAudioReferences.isEmpty
+                ? nil
+                : scan.id
+        })
+        if !legacyAudioRepairScanIds.isEmpty {
+            let dbActor = resolvedQueueDbActor(container: container)
+            let orderedScanIds = legacyAudioRepairScanIds.sorted()
+            Task { [weak self] in
+                guard let self else { return }
+                let repairResult = await self.repairLegacyQueuedAudio(
+                    scanIds: orderedScanIds,
+                    dbActor: dbActor
+                )
+                if repairResult.didMutate {
+                    self.syncPendingScans()
+                }
+            }
+        }
         let now = Date()
         let staged = fetched.filter { scan in
-            !foregroundInferenceScanIds.contains(scan.id) &&
+            !legacyAudioRepairScanIds.contains(scan.id) &&
+                !foregroundInferenceScanIds.contains(scan.id) &&
                 activeInferenceGenerations[scan.id] == nil &&
                 inferencePreparationGenerations[scan.id] == nil &&
                 inferenceCompletionGenerations[scan.id] == nil &&
@@ -1181,6 +1201,15 @@ extension OfflineQueueManager {
         startSyncImmediately: Bool = true,
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
     ) {
+        guard audioFilePaths.allSatisfy(
+            InferenceAudioPreparer.isQueueEligibleInferenceAudioPath
+        ) else {
+            MerianLog.data.error(
+                "enqueueCapture: rejected an invalid local WAV inference source."
+            )
+            if let onQueued { onQueued(false) }
+            return
+        }
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
         let documentsDirectory = URL.documentsDirectory
         let resolvedDisplayImageDatas = displayImageDatas ?? imageDatas
@@ -1509,6 +1538,14 @@ extension OfflineQueueManager {
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
         let filteredVideoFilePaths = videoFilePaths.filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
+        guard filteredAudioFileNames.allSatisfy(
+            InferenceAudioPreparer.isQueueEligibleInferenceAudioPath
+        ) else {
+            MerianLog.data.error(
+                "enqueueNonVisualCapture: rejected an invalid local WAV inference source."
+            )
+            return false
+        }
         let timeline = mediaTimeline ?? CaptureSubmissionMediaItem.defaultTimeline(
             imageCount: 0,
             observationContexts: filteredObservationContexts,
