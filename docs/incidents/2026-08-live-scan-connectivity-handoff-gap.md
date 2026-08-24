@@ -254,9 +254,9 @@ The reviewed remediation addressed gates 1–8 in source and exact protected tes
 declarations. At that review point, the hosted workflow required the
 open-live-sheet queue transition and queued-completion smokes as one exact
 two-case result set. The current workflow retains both incident cases inside its
-later three-case set, alongside the progressive-analyzing smoke. The incident
-remains open because gate 9 has not run from a clean commit containing the
-remediation and gate 10 requires physical-device evidence.
+later four-case set, alongside the progressive-analyzing and queued-retry
+smokes. The incident remains open because gate 9 has not run from a clean commit
+containing the remediation and gate 10 requires physical-device evidence.
 
 The 2026-08-20 visual-continuity follow-up extends gate 9 so a technically
 correct queue takeover cannot still remount the analyzing carousel or toolbar.
@@ -310,8 +310,8 @@ Local construction evidence is deliberately split by source state:
   including exact durable scan-ID/generation pairing for both engine pipelines,
   automatic single-capture suppression of the manual **Identify** toolbar,
   pre-import paywall admission before picker/crop work, and the exact two-case
-  UI result requirement retained at that review point; the current three-case
-  set still contains both incident regressions; and
+  UI result requirement retained at that review point; the current four-case set
+  still contains both incident regressions; and
 - `git diff --check` passes.
 
 The full current app module cannot be reconstructed again inside this sandbox:

@@ -1,6 +1,6 @@
 # Xcode Organizer iOS Release Architecture
 
-Last updated: August 5, 2026
+Last updated: August 24, 2026
 
 ## Decision
 
@@ -27,21 +27,21 @@ project.yml ──XcodeGen──> Merian.xcodeproj
                          TestFlight groups / App Review
 ```
 
-CI's archive and Organizer's archive have different purposes. The CI archive
-is deliberately unsigned and validation-only. It cannot become a beta. The
+CI's archive and Organizer's archive have different purposes. The CI archive is
+deliberately unsigned and validation-only. It cannot become a beta. The
 Organizer archive is created after exact-SHA CI succeeds and is the only object
 eligible for distribution.
 
 ## Authority Boundaries
 
-| Component | Responsibility | Explicitly does not do |
-|---|---|---|
-| `project.yml` | Marketing version, positive build baseline, automatic-signing policy | Allocate every beta build |
-| XcodeGen | Generate synchronized target settings | Upload to Apple |
-| GitHub Actions | Compile, test, validate an unsigned Release archive | Sign, renumber, export, or upload |
-| Release preflight | Prove clean source, synchronized versions, automatic signing, team, and production client configuration | Store Apple credentials |
-| Xcode Organizer | Archive distribution UI, automatic signing, managed uploaded build number | Decide product readiness |
-| App Store Connect | Processing, tester groups, beta review, App Review | Rebuild binaries |
+| Component         | Responsibility                                                                                          | Explicitly does not do            |
+| ----------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `project.yml`     | Marketing version, positive build baseline, automatic-signing policy                                    | Allocate every beta build         |
+| XcodeGen          | Generate synchronized target settings                                                                   | Upload to Apple                   |
+| GitHub Actions    | Compile, test, validate an unsigned Release archive                                                     | Sign, renumber, export, or upload |
+| Release preflight | Prove clean source, synchronized versions, automatic signing, team, and production client configuration | Store Apple credentials           |
+| Xcode Organizer   | Archive distribution UI, automatic signing, managed uploaded build number                               | Decide product readiness          |
+| App Store Connect | Processing, tester groups, beta review, App Review                                                      | Rebuild binaries                  |
 
 ## Sequential Build Ownership
 
@@ -91,16 +91,15 @@ silently create a signed release.
 
 ## Privacy Manifest Contract
 
-The main application owns
-`apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy`. XcodeGen adds it exactly
-once to the Merian Resources phase, which places it at the root of the built
-application bundle. It declares app collection practices consistent with the
-published privacy policy, declares no tracking, and records `CA92.1` for
-app-only `UserDefaults` access plus `C617.1` for app-container and app-group file
-metadata access. It also records `E174.1` for the user-visible storage admission
-checks that prevent new offline media writes when free space is insufficient.
-Dependency manifests are additive and do not replace this application-owned
-declaration.
+The main application owns `apps/ios/Merian/Configuration/PrivacyInfo.xcprivacy`.
+XcodeGen adds it exactly once to the Merian Resources phase, which places it at
+the root of the built application bundle. It declares app collection practices
+consistent with the published privacy policy, declares no tracking, and records
+`CA92.1` for app-only `UserDefaults` access plus `C617.1` for app-container and
+app-group file metadata access. It also records `E174.1` for the user-visible
+storage admission checks that prevent new offline media writes when free space
+is insufficient. Dependency manifests are additive and do not replace this
+application-owned declaration.
 
 `scripts/validate-ios-privacy-manifest.sh` is the executable policy contract.
 Fast project guardrails validate the source manifest and generated target
@@ -122,17 +121,26 @@ boundary; ATS remains an independent operating-system backstop.
 `scripts/validate-ios-transport-security.sh` parses both the configured source
 plist and the final built `Info.plist`. Project guardrails, the exact-SHA
 Release archive, and the Organizer IPA verifier all fail closed on an exception,
-HTTP/credentialed Supabase origin, or unresolved archived build setting.
-Archive evidence records `transport_security: "ats-default"`. The full change
-and evidence contract is canonical in the
+HTTP/credentialed Supabase origin, or unresolved archived build setting. Archive
+evidence records `transport_security: "ats-default"`. The full change and
+evidence contract is canonical in the
 [`iOS App Transport Security Contract`](../development-guides/17-ios-transport-security.md).
 
 ## Promotion Model
 
 The processed App Store Connect build selected for QA is immutable. Internal
 TestFlight, external TestFlight, and App Review promote the same uploaded
-binary. Source or configuration changes create a new Organizer archive and a
-new Xcode-managed build number; stage changes do not.
+binary. Source or configuration changes create a new Organizer archive and a new
+Xcode-managed build number; stage changes do not.
+
+When a released SwiftData schema or its startup-plan selection changes, the
+processed binary may first enter only a bounded internal migration-QA group. A
+physical device carrying a genuine released predecessor store must install that
+same candidate without deleting application data, prove the source-isolated plan
+and data survival, and relaunch as a current store. External TestFlight and App
+Review remain blocked until that evidence is green. A simulator-created store,
+local development binary, rescue into a fresh store, or different upload cannot
+substitute for this acceptance gate.
 
 The operational procedure lives in
 [`14-ios-release-versioning.md`](../development-guides/14-ios-release-versioning.md).

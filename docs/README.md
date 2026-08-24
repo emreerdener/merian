@@ -32,10 +32,10 @@ as their permanent engineering identity.
   changes.
 - **Compiled iOS release assurance**: Build-relevant pull requests and pushes to
   `main`, plus every merge-queue commit and manual dispatch, use Xcode 26.6 to
-  execute the complete unit-test target and three deterministic UI smokes for
-  progressive analysis, live-to-queue, and queued completion, then independently
-  inspect an unsigned Release archive from the exact workflow SHA. The main
-  app's source and archived bundle must also carry the exact reviewed
+  execute the complete unit-test target and four deterministic UI smokes for
+  progressive analysis, live-to-queue, queued retry, and queued completion, then
+  independently inspect an unsigned Release archive from the exact workflow SHA.
+  The main app's source and archived bundle must also carry the exact reviewed
   `PrivacyInfo.xcprivacy`; archive evidence records
   `privacy_manifest_valid: true`. The final main-app plist must retain ATS
   defaults and credential-free HTTPS origins; archive evidence records
@@ -47,6 +47,9 @@ as their permanent engineering identity.
   [`iOS transport security contract`](./development-guides/17-ios-transport-security.md),
   and
   [`release runbook`](./development-guides/14-ios-release-versioning.md#routine-testflight-upload).
+  A released SwiftData predecessor additionally requires the
+  [physical-device install-over gate](./development-guides/14-ios-release-versioning.md#schema-upgrade-acceptance-gate)
+  before wider TestFlight or App Review promotion.
 - **Typed iOS event and presentation routing (2026-08-08)**: Cross-module reload
   hints now use a DI-owned, main-actor `AppEventPublisher`; root navigation uses
   a bounded `AppRouteCoordinator` with stable identity, priority/FIFO order,
@@ -169,8 +172,10 @@ as their permanent engineering identity.
   `typealias CurrentSchema = MerianSchemaV50` in
   `apps/ios/Merian/Models/Aliases.swift`. V50 preserves the released V49 queue
   entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion through a
-  lightweight migration. V49 remains the startup-repair target for older
-  source-specific recovery lanes before they advance to V50.
+  lightweight migration. A genuine V49 store uses a dedicated one-hop
+  source-isolated plan; older source-specific recovery lanes reach V49 before
+  advancing to V50. Migration creates no goal-hint rows because V49 stored no
+  selected-goal value to backfill.
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
   `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled
@@ -539,7 +544,7 @@ as their permanent engineering identity.
   — Launch-time SwiftData store recovery contract: exception bridge, store-aware
   migration selection, duplicate-checksum fallbacks, corruption-gated
   quarantine, legacy-store rescue, safe mode, auth isolation, manifest,
-  telemetry, and verification.
+  telemetry, verification, and genuine-store physical-device release acceptance.
 - **[`/backend-and-data/10-internal-admin.md`](./backend-and-data/10-internal-admin.md)**
   — Private admin architecture: Google/TOTP session boundary, RBAC, admin RPCs,
   grouped review and feedback workflows, audit trail, metrics, AI ledger,
@@ -766,9 +771,9 @@ as their permanent engineering identity.
   — Asset catalog grouping and naming rules for reusable 3D graphics, app
   assets, brand marks, and personas.
 - **[`/development-guides/14-ios-release-versioning.md`](./development-guides/14-ios-release-versioning.md)**
-  — Complete iOS operator runbook: repository and Apple setup, tracked release
-  trains, serialized global allocation, dispatch inputs, archive/IPA evidence,
-  retries, TestFlight promotion, triage, and emergency recovery.
+  — Complete iOS operator runbook: repository and Apple setup, Xcode
+  Organizer-only distribution, exact-SHA archive/IPA evidence, physical-device
+  schema-upgrade acceptance, TestFlight promotion, and release records.
 - **[`/development-guides/15-naturebook-rebrand-rollout.md`](./development-guides/15-naturebook-rebrand-rollout.md)**
   — Ordered domain, AASA, email, Supabase, App Store, update-continuity, link,
   verification, rollback, and completion checklist for the public rebrand.

@@ -1372,6 +1372,22 @@ struct MerianApp: App {
         }
 
         do {
+            let recovered = try makePersistentContainer(
+                migrationPlan: MerianRecentV49MigrationPlan.self,
+                named: "checksum-recent-v49",
+                diagnostic: &diagnostic
+            )
+            MerianLog.general.error(
+                "ModelContainer opened with the recent V49 checksum-safe migration plan."
+            )
+            return recovered
+        } catch let recentV49Error {
+            MerianLog.general.error(
+                "ModelContainer recent V49 checksum-safe retry failed: \(recentV49Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
             let recovered = try makePersistentContainerForV48Source(diagnostic: &diagnostic)
             MerianLog.general.error(
                 "ModelContainer opened with a recent V48 startup recovery plan."
@@ -1503,6 +1519,58 @@ struct MerianApp: App {
         )
     }
 
+    private static func makePersistentContainerForRecentSource(
+        _ source: ModelStoreRecoveryCoordinator.RecentSourceSchema,
+        diagnostic: inout StartupStoreDiagnostic
+    ) throws -> ModelContainer {
+        switch source {
+        case .v49:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV49MigrationPlan.self,
+                named: "recent-v49",
+                diagnostic: &diagnostic
+            )
+        case .v48:
+            return try makePersistentContainerForV48Source(diagnostic: &diagnostic)
+        case .v47:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV47MigrationPlan.self,
+                named: "recent-v47",
+                diagnostic: &diagnostic
+            )
+        case .v46:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV46MigrationPlan.self,
+                named: "recent-v46",
+                diagnostic: &diagnostic
+            )
+        case .v45:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV45MigrationPlan.self,
+                named: "recent-v45",
+                diagnostic: &diagnostic
+            )
+        case .v44:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV44MigrationPlan.self,
+                named: "recent-v44",
+                diagnostic: &diagnostic
+            )
+        case .v43:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV43MigrationPlan.self,
+                named: "recent-v43",
+                diagnostic: &diagnostic
+            )
+        case .v42:
+            return try makePersistentContainer(
+                migrationPlan: MerianRecentV42MigrationPlan.self,
+                named: "recent-v42",
+                diagnostic: &diagnostic
+            )
+        }
+    }
+
     private static func makePersistentContainer(
         forStoreMigrationHint hint: ModelStoreRecoveryCoordinator.StoreMigrationHint,
         diagnostic: inout StartupStoreDiagnostic
@@ -1513,48 +1581,9 @@ struct MerianApp: App {
                 named: "current-store",
                 diagnostic: &diagnostic
             )
-        case .recentSource(48):
-            return try makePersistentContainerForV48Source(diagnostic: &diagnostic)
-        case .recentSource(47):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV47MigrationPlan.self,
-                named: "recent-v47",
-                diagnostic: &diagnostic
-            )
-        case .recentSource(46):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV46MigrationPlan.self,
-                named: "recent-v46",
-                diagnostic: &diagnostic
-            )
-        case .recentSource(45):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV45MigrationPlan.self,
-                named: "recent-v45",
-                diagnostic: &diagnostic
-            )
-        case .recentSource(44):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV44MigrationPlan.self,
-                named: "recent-v44",
-                diagnostic: &diagnostic
-            )
-        case .recentSource(43):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV43MigrationPlan.self,
-                named: "recent-v43",
-                diagnostic: &diagnostic
-            )
-        case .recentSource(42):
-            return try makePersistentContainer(
-                migrationPlan: MerianRecentV42MigrationPlan.self,
-                named: "recent-v42",
-                diagnostic: &diagnostic
-            )
-        case .recentSource:
-            return try makePersistentContainer(
-                migrationPlan: MerianMigrationPlan.self,
-                named: "recent-fallback-full",
+        case let .recentSource(source):
+            return try makePersistentContainerForRecentSource(
+                source,
                 diagnostic: &diagnostic
             )
         case .fullHistorical:

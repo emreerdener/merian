@@ -29,13 +29,24 @@ use the actual source stamp as the only recent representative in the plan, then
 jump directly to V49. Startup reads the store metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
-source-isolated plan (V47, V46, V45, or V44); only unknown or older existing
-stores use the full historical plan. If SwiftData still throws
+source-isolated plan (V49 through V42); only unknown or older existing stores
+use the full historical plan. V49 has its own one-stage lightweight V49→V50
+plan, preventing a store on the immediate predecessor from validating any
+unrelated historical stage. If SwiftData still throws
 `Duplicate version checksums across stages detected`, startup falls back through
 the same source-isolated plans before legacy rescue or safe mode. These plans
 avoid forcing SwiftData to validate unrelated older retired schemas or adjacent
 checksum-equivalent representatives while a recent store only needs to advance
 to the current version.
+
+Do not encode recent sources as an integer range followed by a generic app
+fallback. Keep a finite recent-source enum, convert actual store metadata into
+that enum, and dispatch it exhaustively to dedicated plans. The supported cases
+must be consecutive and end at `CurrentSchema - 1`; checksum fallback must try
+current store first and then supported sources newest to oldest. A disk fixture
+must call this production metadata decision before opening with a plan.
+Otherwise a future schema bump can appear covered while silently sending the
+newly released predecessor through full historical validation.
 
 When another no-op schema is ever shipped, keep only one representative in a
 single plan and make any targeted alternate plan route through that checksum

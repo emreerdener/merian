@@ -260,8 +260,8 @@ customer journey. Before closing the incident:
    auth and service-RPC probes;
 2. require the stable hosted `iOS Build and Test / Production readiness` result
    for the same SHA, including the complete unit-test target, exact
-   live-Insight-to-queue and queued-scan-completion UI smokes, and independent
-   unsigned Release archive;
+   progressive-analyzing, live-Insight-to-queue, queued-retry, and
+   queued-scan-completion UI smokes, and independent unsigned Release archive;
 3. require the frozen public-web install, audit, test, type-check, and
    production build gate for the same SHA;
 4. perform one authenticated new-scan smoke covering owner status, Field Chat,

@@ -4911,14 +4911,16 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
   `ModelContainer`: fresh/current stores open without a migration plan, known
-  recent stores use the source-isolated V48/V47/V46/V45/V44/V43/V42 plans, and
-  only unknown older stores use the full historical plan. The V42 and V43 recent
-  plans jump directly to V49 to avoid validating older full-historical custom
-  stages and to keep V42 off the older V42→V43 bridge that still failed on real
-  TestFlight stores, while V45 and V46 deliberately use one matching source
-  representative each before the V49 repair target. Stores that still hit
-  SwiftData's duplicate-checksum validator during plan construction retry with
-  the same source-isolated recent plans before legacy rescue or safe mode.
+  recent stores use the source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans,
+  and only unknown older stores use the full historical plan. The V49 plan
+  contains only the lightweight V49→V50 hop, so the immediate predecessor never
+  validates unrelated history. The V42 and V43 recent plans jump directly to V49
+  to avoid validating older full-historical custom stages and to keep V42 off
+  the older V42→V43 bridge that still failed on real TestFlight stores, while
+  V45 and V46 deliberately use one matching source representative each before
+  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before legacy rescue or safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -4938,8 +4940,12 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   media URLs.
 - V50 adds the scan-keyed `OfflineQueuedScanGoalHint` companion through a
   lightweight V49→V50 migration. The released V49 `OfflineQueuedScan` model is
-  reused unchanged. Every source-isolated recent recovery plan reaches V49 first
-  and then applies the same lightweight V50 stage.
+  reused unchanged. A dedicated `MerianRecentV49MigrationPlan` isolates that
+  single hop for stores already stamped V49; older source-isolated recovery
+  plans reach V49 first and then apply the same lightweight V50 stage. The
+  migration creates the companion entity but does not synthesize hint rows: V49
+  never persisted a selected goal, so only an eligible capture running on V50 or
+  later may insert one.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5186,14 +5192,17 @@ scan submitted from an eligible live Capture goal selection.
 
 Foreground and background completion fetch this row by scan ID and send it both
 with scan ingestion and the post-persistence Field trip acknowledgement call.
-Successful queue finalization deliberately preserves the companion: after the
-queue row is gone it becomes a small durable progress outbox. Online scheduler
-runs replay those orphaned hints after relaunch, and only a successful/terminal
-server progress resolution removes the row. Explicit user cancellation and
-orphan repair for scans that will never exist may still delete it. It is not
-related to `OfflineQueuedScan` through a SwiftData relationship, does not
-contain media or inference input, and is not a cache for Insight contribution
-cards.
+The V49→V50 migration intentionally leaves existing queue rows without a
+companion because there is no durable V49 source value from which to reconstruct
+the user's selection. A migration must never infer a goal from current outing
+state or another mutable cache. Successful queue finalization deliberately
+preserves the companion: after the queue row is gone it becomes a small durable
+progress outbox. Online scheduler runs replay those orphaned hints after
+relaunch, and only a successful/terminal server progress resolution removes the
+row. Explicit user cancellation and orphan repair for scans that will never
+exist may still delete it. It is not related to `OfflineQueuedScan` through a
+SwiftData relationship, does not contain media or inference input, and is not a
+cache for Insight contribution cards.
 
 ### `OfflineJobRecord`
 

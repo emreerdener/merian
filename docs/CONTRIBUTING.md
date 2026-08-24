@@ -192,13 +192,13 @@ work.
   requiring that macOS dependency. Relevant iOS, watch, Xcode project,
   configuration, and build-tooling changes then enter
   `.github/workflows/ios-build-and-test.yml`. Its macOS jobs compile both shared
-  test bundles, execute the complete `merianTests` target, run the three
-  deterministic progressive-analyzing, live-to-queue, and queued-completion UI
-  smokes, and create an unsigned Release archive from the exact workflow SHA
-  using only `Package.resolved` versions. Repository rules must require
-  `iOS Build and Test / Production readiness`; do not require the conditional
-  macOS jobs or replace the pull-request trigger with workflow-level path
-  filters. The remainder of the UI suite, signed distribution, and physical
+  test bundles, execute the complete `merianTests` target, run the four
+  deterministic progressive-analyzing, live-to-queue, queued-retry, and
+  queued-completion UI smokes, and create an unsigned Release archive from the
+  exact workflow SHA using only `Package.resolved` versions. Repository rules
+  must require `iOS Build and Test / Production readiness`; do not require the
+  conditional macOS jobs or replace the pull-request trigger with workflow-level
+  path filters. The remainder of the UI suite, signed distribution, and physical
   hardware checks remain separate gates.
 - **Supabase Functions and Tooling**: You must write and validate code natively
   using Deno testing frameworks. Before opening a PR targeting

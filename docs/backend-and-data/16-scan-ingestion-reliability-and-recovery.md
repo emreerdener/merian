@@ -1302,11 +1302,11 @@ contains only backend, fixture, or documentation changes and the ordinary iOS
 scope job skips macOS work, manually dispatch `iOS Build and Test` on that final
 SHA. Require both the complete unit-test target and current-SHA Release archive
 to pass, and require the deterministic progressive-analyzing,
-live-Insight-to-queue, and queued-scan-completion UI smokes to report their
-exact three-case passed set; a scope-only success is not release evidence, and
-neither is UI-bundle compilation without execution. Old clients are compatible
-with the new backend; the new client must not be used to compensate for an old
-false-success function.
+live-Insight-to-queue, queued-retry, and queued-scan-completion UI smokes to
+report their exact four-case passed set; a scope-only success is not release
+evidence, and neither is UI-bundle compilation without execution. Old clients
+are compatible with the new backend; the new client must not be used to
+compensate for an old false-success function.
 
 Before production promotion, execute the full staging smoke matrix and rollback
 criteria in
@@ -1417,8 +1417,9 @@ The focused regression inventory includes:
 - `InsightSheetViewModelTests`, including exact-ID queued binding and **Analysis
   delayed** placeholder routing;
 - `InsightChatTests`; and
-- the deterministic progressive-analyzing, live-Insight-to-queue, and
-  queued-scan-completion UI smokes, followed by the exact-SHA Release archive.
+- the deterministic progressive-analyzing, live-Insight-to-queue, queued-retry,
+  and queued-scan-completion UI smokes, followed by the exact-SHA Release
+  archive.
 
 ## Verification Evidence at Review
 
@@ -1787,10 +1788,10 @@ only because the sandbox denies CoreSimulator user-cache/device access, so this
 is source/link evidence rather than local XCUI runtime acceptance. The complete
 Edge test task on the same SHA passed 1,430/1,430 with zero failures. A hosted
 run on the current remediation SHA or a committed descendant must pass the
-complete unit target, the exact three-case progressive-analyzing,
-live-to-queued, and completion UI smoke set, and the current-SHA archive
-together. PostgreSQL catalogs, deployment, TestFlight, and joined staging proof
-remain hosted gates.
+complete unit target, the exact four-case progressive-analyzing, live-to-queued,
+queued-retry, and completion UI smoke set, and the current-SHA archive together.
+PostgreSQL catalogs, deployment, TestFlight, and joined staging proof remain
+hosted gates.
 
 Physical beta testing already supplies two narrow behavioral observations: one
 new scan published successfully to Explore, and one scan submitted with WiFi and
@@ -1824,6 +1825,11 @@ and reports SHA-256
 `b7be23f4e211b75c00a3df5fcd1f96f3905983c74ff3189bfc69ad5b0f7132c4`, but the
 desktop sandbox is denied access to Docker's Unix socket. These results
 therefore do not substitute for the fresh disposable PostgreSQL catalog replay.
+
+The table below is retained historical evidence. Its three-case focused-UI row
+describes the validator at that recorded review point; the current release gate
+is the four-case analyzing, live-to-queue, queued-retry, and queued-completion
+set required above and in the iOS testing strategy.
 
 | Layer                                      | Retained result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Status and meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

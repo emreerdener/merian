@@ -5194,9 +5194,9 @@ backend-only push. If the final scan remediation SHA has no iOS build input,
 manually dispatch `iOS Build and Test` against that exact revision after the
 backend gate is green. Verify the scope reason identifies manual dispatch, the
 full unit-test target passes, the exact progressive-analyzing,
-live-Insight-to-queue, and queued-scan-completion UI smokes report three passed
-and zero skipped cases, and the validation-only Release archive succeeds from
-the same SHA with `privacy_manifest_valid: true` and
+live-Insight-to-queue, queued-retry, and queued-scan-completion UI smokes report
+four passed and zero skipped cases, and the validation-only Release archive
+succeeds from the same SHA with `privacy_manifest_valid: true` and
 `transport_security: "ats-default"`. A green scope job with skipped macOS jobs
 proves only that changed-file classification worked; it does not satisfy the
 release gate.
@@ -6842,12 +6842,13 @@ After deployment:
   `14-dwca-and-public-web-release-hold-2026-07-27.md`. Green unit/static suites
   or hidden iOS UI alone are not sign-off. Require the stable hosted
   `iOS Build and Test / Production readiness` result, including the full
-  unit-test target, exact live-Insight-to-queue and queued-scan-completion UI
-  smokes, and independent unsigned Release archive with
-  `privacy_manifest_valid: true` and `transport_security: "ats-default"`, plus
-  the frozen public-web install/audit/test/type-check/build gate for the same
-  release SHA. Do not require active-export maximum-shape/provider proof for
-  this default-off launch; require it before the later DwC-A feature enable.
+  unit-test target, exact progressive-analyzing, live-Insight-to-queue,
+  queued-retry, and queued-scan-completion UI smokes, and independent unsigned
+  Release archive with `privacy_manifest_valid: true` and
+  `transport_security: "ats-default"`, plus the frozen public-web
+  install/audit/test/type-check/build gate for the same release SHA. Do not
+  require active-export maximum-shape/provider proof for this default-off
+  launch; require it before the later DwC-A feature enable.
 - For an Explore media-health release, complete the structural checks and
   staging smoke matrix in **Explore media-health and reversible-quarantine
   release gate**. Require public-surface agreement, preserved author/engagement

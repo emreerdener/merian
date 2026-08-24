@@ -2,6 +2,7 @@
 set -euo pipefail
 
 schema_file="apps/ios/Merian/Models/SchemaVersions.swift"
+alias_file="apps/ios/Merian/Models/Aliases.swift"
 active_queue_file="apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
 recovery_file="apps/ios/Merian/Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift"
@@ -10,6 +11,11 @@ app_file="apps/ios/Merian/App/MerianApp.swift"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$alias_file" ]; then
+  echo "Missing $alias_file" >&2
   exit 1
 fi
 
@@ -93,6 +99,8 @@ printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV48.self" \
   || fail "MerianMigrationPlan.schemas must include MerianSchemaV48.self."
 printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV49.self" \
   || fail "MerianMigrationPlan.schemas must include MerianSchemaV49.self."
+printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV50.self" \
+  || fail "MerianMigrationPlan.schemas must include the current MerianSchemaV50.self."
 
 for retired_recent_schema in MerianSchemaV44.self MerianSchemaV45.self MerianSchemaV46.self; do
   if printf '%s\n' "$migration_plan_schemas" | grep -Fq "$retired_recent_schema"; then
@@ -106,6 +114,8 @@ printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV42toV49" \
   || fail "MerianMigrationPlan.stages must jump from V42 to V49."
 printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV48toV49" \
   || fail "MerianMigrationPlan.stages must advance V48 to the V49 startup repair schema."
+printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV49toV50" \
+  || fail "MerianMigrationPlan.stages must advance V49 to the current V50 schema."
 if printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV47toV49"; then
   fail "MerianMigrationPlan.stages must not route historical stores through V47."
 fi
@@ -150,6 +160,10 @@ contains "$schema_file" "enum MerianSchemaV48OptionalQueue: VersionedSchema" \
   || fail "Missing accidental optional-queue V48 source schema."
 contains "$schema_file" "enum MerianSchemaV49: VersionedSchema" \
   || fail "Missing V49 startup repair schema."
+contains "$schema_file" "enum MerianSchemaV50: VersionedSchema" \
+  || fail "Missing current V50 schema."
+contains "$alias_file" "typealias CurrentSchema = MerianSchemaV50" \
+  || fail "CurrentSchema must remain aligned with the V49 to V50 migration target."
 contains "$schema_file" "static let migrateV48toV49 = MigrationStage.custom" \
   || fail "Missing known-good V48 to V49 migration."
 contains "$schema_file" "private static func snapshotV48QueuedScansForV49(in context: ModelContext) throws" \
@@ -178,6 +192,8 @@ contains "$schema_file" "enum MerianRecentV42MigrationPlan" \
   || fail "Missing source-isolated V42 recovery plan."
 contains "$schema_file" "enum MerianRecentV43MigrationPlan" \
   || fail "Missing source-isolated V43 recovery plan."
+contains "$schema_file" "enum MerianRecentV49MigrationPlan" \
+  || fail "Missing source-isolated V49 to V50 migration plan."
 not_contains "$schema_file" "static let migrateV43toV47"
 not_contains "$schema_file" "static let migrateV44toV47"
 not_contains "$schema_file" "static let migrateV45toV47"
@@ -203,7 +219,28 @@ recent_v45_plan="$(extract_block "enum MerianRecentV45MigrationPlan" "enum Meria
 recent_v46_plan="$(extract_block "enum MerianRecentV46MigrationPlan" "enum MerianRecentV47MigrationPlan")"
 recent_v47_plan="$(extract_block "enum MerianRecentV47MigrationPlan" "enum MerianRecentV48MigrationPlan")"
 recent_v48_plan="$(extract_block "enum MerianRecentV48MigrationPlan" "enum MerianOptionalQueueV48RecoveryPlan")"
-optional_v48_plan="$(extract_block "enum MerianOptionalQueueV48RecoveryPlan" "__MERIAN_STOP__")"
+optional_v48_plan="$(extract_block "enum MerianOptionalQueueV48RecoveryPlan" "enum MerianRecentV49MigrationPlan")"
+recent_v49_plan="$(extract_block "enum MerianRecentV49MigrationPlan" "__MERIAN_STOP__")"
+
+require_v50_tail() {
+  local plan_text="$1"
+  local plan_name="$2"
+
+  printf '%s\n' "$plan_text" | grep -Fq "MerianSchemaV50.self" \
+    || fail "$plan_name must include the current V50 target."
+  printf '%s\n' "$plan_text" | grep -Fq "MerianMigrationPlan.migrateV49toV50" \
+    || fail "$plan_name must finish with the shared V49 to V50 stage."
+}
+
+require_v50_tail "$recent_v42_plan" "Recent V42 plan"
+require_v50_tail "$recent_v43_plan" "Recent V43 plan"
+require_v50_tail "$recent_v44_plan" "Recent V44 plan"
+require_v50_tail "$recent_v45_plan" "Recent V45 plan"
+require_v50_tail "$recent_v46_plan" "Recent V46 plan"
+require_v50_tail "$recent_v47_plan" "Recent V47 plan"
+require_v50_tail "$recent_v48_plan" "Recent V48 plan"
+require_v50_tail "$optional_v48_plan" "Optional-queue V48 plan"
+require_v50_tail "$recent_v49_plan" "Recent V49 plan"
 
 printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianSchemaV42.self" \
   || fail "Recent V42 plan must include MerianSchemaV42."
@@ -282,6 +319,15 @@ printf '%s\n' "$optional_v48_plan" | grep -Fq "MerianSchemaV49.self" \
 printf '%s\n' "$optional_v48_plan" | grep -Fq "MerianMigrationPlan.migrateOptionalQueueV48toV49" \
   || fail "Optional-queue V48 plan must run migrateOptionalQueueV48toV49."
 
+printf '%s\n' "$recent_v49_plan" | grep -Fq "MerianSchemaV49.self" \
+  || fail "Recent V49 plan must include the released V49 source."
+if printf '%s\n' "$recent_v49_plan" | grep -Eq "MerianSchemaV(4[2-8]|48OptionalQueue)[.]self"; then
+  fail "Recent V49 plan must not validate an earlier source schema."
+fi
+if [ "$(printf '%s\n' "$recent_v49_plan" | grep -Fc "MerianMigrationPlan.migrateV49toV50")" -ne 1 ]; then
+  fail "Recent V49 plan must contain exactly one V49 to V50 stage reference."
+fi
+
 not_contains "$test_file" "removeSQLiteStore"
 not_contains "$test_file" "URL.cachesDirectory"
 not_contains "$test_file" "FileManager.default.removeItem(at: url)"
@@ -296,6 +342,83 @@ contains "$test_file" "optionalQueueV48RequiredValueFailureUsesLegacyRescue" \
   || fail "MigrationPlanTests must cover the accidental optional-queue V48 legacy rescue fixture."
 contains "$test_file" "migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan" \
   || fail "MigrationPlanTests must cover the V42 source-isolated recovery fixture from startup diagnostics."
+contains "$test_file" "recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop" \
+  || fail "MigrationPlanTests must lock the source-isolated V49 plan shape."
+contains "$test_file" "migrationFromV49UsesDiskMetadataSelectionAndPreservesQueueData" \
+  || fail "MigrationPlanTests must exercise a disk-backed V49 to V50 migration."
+contains "$test_file" "let decision = ModelStoreRecoveryCoordinator.migrationDecision(" \
+  || fail "The V49 disk fixture must exercise production metadata-based plan selection."
+contains "$test_file" "#expect(decision.storedSchemaMajorVersion == 49)" \
+  || fail "The V49 disk fixture must verify the emitted on-disk schema major."
+contains "$test_file" "#expect(decision.hint == .recentSource(.v49))" \
+  || fail "The V49 disk fixture must select the source-isolated V49 startup path."
+contains "$test_file" "migrationPlan: MerianRecentV49MigrationPlan.self" \
+  || fail "The V49 disk fixture must open with the production V49 migration plan."
+contains "$recovery_file" "enum RecentSourceSchema: Int, CaseIterable, Equatable" \
+  || fail "Store recovery must model recent source schemas as an exhaustive enum."
+for recent_major in $(seq 42 49); do
+  contains "$recovery_file" "case v${recent_major} = ${recent_major}" \
+    || fail "RecentSourceSchema must include V${recent_major}."
+done
+contains "$recovery_file" "RecentSourceSchema(rawValue: storedSchemaMajorVersion)" \
+  || fail "Store recovery must classify metadata through the exhaustive recent-source enum."
+contains "$recovery_test_file" "testSourceIsolatedSchemasAreConsecutiveAndEndAtCurrentPredecessor" \
+  || fail "Store recovery tests must fail when a future schema bump omits its immediate-predecessor plan."
+contains "$recovery_test_file" "testStoreMigrationHintUsesRecentV49PlanForV50Upgrade" \
+  || fail "Store recovery tests must route V49 to the source-isolated V49 plan."
+contains "$app_file" "private static func makePersistentContainerForRecentSource(" \
+  || fail "MerianApp must dispatch recent sources through an exhaustive plan selector."
+recent_source_dispatch="$(
+  awk '
+    /private static func makePersistentContainerForRecentSource\(/ { printing = 1 }
+    printing { print }
+    printing && /forStoreMigrationHint hint:/ { exit }
+  ' "$app_file"
+)"
+for recent_major in $(seq 42 49); do
+  printf '%s\n' "$recent_source_dispatch" | grep -Fq "case .v${recent_major}:" \
+    || fail "MerianApp recent-source dispatch must handle V${recent_major} explicitly."
+done
+if printf '%s\n' "$recent_source_dispatch" | grep -Eq '^[[:space:]]*(@unknown[[:space:]]+)?default:'; then
+  fail "MerianApp recent-source dispatch must remain compiler-exhaustive without a default branch."
+fi
+not_contains "$app_file" "recent-fallback-full"
+contains "$app_file" "named: \"recent-v49\"" \
+  || fail "MerianApp must record the selected recent-v49 startup attempt."
+contains "$app_file" "named: \"checksum-recent-v49\"" \
+  || fail "The checksum retry ladder must try the V49 plan before older sources."
+checksum_retry_dispatch="$(
+  awk '
+    /private static func makePersistentContainerRetryingChecksumRepresentative\(/ { printing = 1 }
+    printing { print }
+    printing && /private static func makePersistentContainerForV48Source\(/ { exit }
+  ' "$app_file"
+)"
+checksum_retry_markers=(
+  'named: "checksum-current-store"'
+  'named: "checksum-recent-v49"'
+  'let recovered = try makePersistentContainerForV48Source'
+  'named: "checksum-recent-v47"'
+  'named: "checksum-recent-v46"'
+  'named: "checksum-recent-v45"'
+  'named: "checksum-recent-v44"'
+  'named: "checksum-recent-v43"'
+  'named: "checksum-recent-v42"'
+)
+previous_retry_line=0
+for marker in "${checksum_retry_markers[@]}"; do
+  retry_line="$(
+    awk -v marker="$marker" 'index($0, marker) { print NR; exit }' \
+      <<< "$checksum_retry_dispatch"
+  )"
+  if [ -z "$retry_line" ]; then
+    fail "The checksum retry ladder is missing ordered marker: $marker"
+  fi
+  if [ "$retry_line" -le "$previous_retry_line" ]; then
+    fail "The checksum retry ladder must stay ordered current, then V49 through V42."
+  fi
+  previous_retry_line="$retry_line"
+done
 contains "$recovery_file" "shouldRescueStoreAfterMigrationFailure" \
   || fail "Store recovery must keep the legacy migration rescue decision."
 contains "$recovery_file" "store-rescue" \

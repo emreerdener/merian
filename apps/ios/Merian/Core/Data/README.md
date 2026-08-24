@@ -13,9 +13,11 @@ durable even when inference fails or network connectivity is absent.
 The active V50 schema adds `OfflineQueuedScanGoalHint`, a scan-keyed companion
 that stores the optional standard-outing and checklist-item IDs selected in a
 qualifying live Capture. Keeping this separate preserves the released V49 queue
-entity. Foreground/background completion read the same hint, and every queued-
-scan deletion or orphan repair removes it. Persistent Insight contribution cards
-are server-backed and are intentionally not cached in SwiftData.
+entity. Foreground/background completion read the same hint. Successful queue
+finalization preserves it as a durable progress outbox until acknowledgement;
+explicit cancellation and terminal orphan repair remove it. Persistent Insight
+contribution cards are server-backed and are intentionally not cached in
+SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -275,6 +277,13 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
   failure is a verified SQLite/Core Data corruption case.
+- It reads actual store metadata before container creation. Fresh and V50 stores
+  open as current; known V42...V49 sources use finite, source-isolated plans;
+  only unknown older stores use the full historical plan.
+- A released V49 store must select `MerianRecentV49MigrationPlan`, whose
+  complete contract is the single lightweight V49→V50 hop. The
+  duplicate-checksum retry ladder is ordered current store, then V49 down
+  through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same
@@ -285,3 +294,7 @@ persistence.
   error reason for support.
 - Store recovery must never reference `KeychainManager`, `SupabaseManager`,
   sign-out flows, device identity resets, or profile state.
+
+The canonical diagnostics, tests, recovery behavior, and physical-device
+install-over release gate are documented in
+[`docs/backend-and-data/08-startup-store-recovery.md`](../../../../../docs/backend-and-data/08-startup-store-recovery.md).

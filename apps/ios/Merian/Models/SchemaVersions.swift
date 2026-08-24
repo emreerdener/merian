@@ -4066,3 +4066,21 @@ enum MerianOptionalQueueV48RecoveryPlan: SchemaMigrationPlan {
         ]
     }
 }
+
+/// Short migration plan for stores already stamped with the released V49
+/// repair schema. Keeping this plan to one lightweight hop prevents a V49 store
+/// from validating unrelated historical stages on its way to V50.
+enum MerianRecentV49MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV49.self,
+            MerianSchemaV50.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV49toV50
+        ]
+    }
+}

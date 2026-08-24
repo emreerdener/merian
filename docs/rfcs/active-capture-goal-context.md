@@ -384,8 +384,12 @@ retains the complete hint in the private atomic receipt, then copies it into
 `field_trip_scan_goal_preferences` only after the identification qualifies and
 the goal passes owner/current-level/match validation. These rows are
 owner-scoped control data; none contains media, coordinates, notes,
-identification evidence, or a public route. Queue success/deletion removes the
-local companion row.
+identification evidence, or a public route. Queue success preserves the local
+companion as a durable progress outbox until successful or terminal
+acknowledgement; explicit cancellation and terminal orphan cleanup remove it.
+The V49→V50 migration does not synthesize a companion for an existing queue row:
+V49 stored no selected-goal value, and neither this cache nor current outing
+state is valid backfill authority.
 
 The locally cached prompt, outing title, and aggregate progress are
 account-related but deliberately low-sensitivity. If a future source needs

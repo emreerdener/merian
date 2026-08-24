@@ -180,7 +180,11 @@ struct MigrationPlanTests {
             Issue.record("SchemaVersions.swift must declare MerianOptionalQueueV48RecoveryPlan")
             return ""
         }
-        return String(source[migrationStart...])
+        let remainder = source[migrationStart...]
+        if let nextStart = remainder.range(of: "\nenum MerianRecentV49MigrationPlan")?.lowerBound {
+            return String(remainder[..<nextStart])
+        }
+        return String(remainder)
     }
 
     private func sourceLineViolations(
@@ -372,12 +376,15 @@ struct MigrationPlanTests {
         }
     }
 
-    private func openCurrentMigrationStore(at url: URL) throws -> CurrentMigrationStore {
+    private func openCurrentMigrationStore<MigrationPlan: SchemaMigrationPlan>(
+        at url: URL,
+        migrationPlan: MigrationPlan.Type
+    ) throws -> CurrentMigrationStore {
         let currentSchema = Schema(versionedSchema: CurrentSchema.self)
         let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
         let currentContainer = try makeModelContainer(
             for: currentSchema,
-            migrationPlan: MerianRecentV47MigrationPlan.self,
+            migrationPlan: migrationPlan,
             configurations: [currentConfig]
         )
         return CurrentMigrationStore(
@@ -1351,6 +1358,25 @@ struct MigrationPlanTests {
         )
     }
 
+    @Test func recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop() throws {
+        let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
+            $0.versionIdentifier.major
+        }
+        #expect(schemaMajors == [49, 50])
+
+        let stage = try #require(MerianRecentV49MigrationPlan.stages.first)
+        #expect(MerianRecentV49MigrationPlan.stages.count == 1)
+        switch stage {
+        case let .lightweight(fromVersion, toVersion):
+            #expect(fromVersion.versionIdentifier.major == 49)
+            #expect(toVersion.versionIdentifier.major == 50)
+        case .custom:
+            Issue.record("The source-isolated V49→V50 plan must remain lightweight.")
+        @unknown default:
+            Issue.record("The source-isolated V49→V50 plan contains an unknown stage kind.")
+        }
+    }
+
     @Test func migrationFromV44ToCurrentSchemaDoesNotSafeMode() throws {
         let url = migrationStoreURL(named: "v44migration_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -1573,7 +1599,10 @@ struct MigrationPlanTests {
         }
 
         do {
-            let store = try openCurrentMigrationStore(at: url)
+            let store = try openCurrentMigrationStore(
+                at: url,
+                migrationPlan: MerianRecentV47MigrationPlan.self
+            )
             let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: store.context)
             #expect(migratedQueuedScan.capturedMediaJSON == capturedMediaJSON)
             #expect(migratedQueuedScan.coverImagePath == "queued-v47-thumbnail.webp")
@@ -1586,7 +1615,7 @@ struct MigrationPlanTests {
         }
     }
 
-    @Test func migrationFromV49AddsOptionalPreferredGoalFieldsWithoutLosingQueueData() throws {
+    @Test func migrationFromV49UsesDiskMetadataSelectionAndPreservesQueueData() throws {
         let url = migrationStoreURL(named: "v49_preferred_goal_migration_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
@@ -1604,7 +1633,18 @@ struct MigrationPlanTests {
             try context49.save()
         }
 
-        let store = try openCurrentMigrationStore(at: url)
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        #expect(decision.hasStoreArtifacts)
+        #expect(decision.storedSchemaMajorVersion == 49)
+        #expect(decision.hint == .recentSource(.v49))
+
+        let store = try openCurrentMigrationStore(
+            at: url,
+            migrationPlan: MerianRecentV49MigrationPlan.self
+        )
         let migratedQueuedScan = try fetchCurrentQueuedScan(id: queuedId, context: store.context)
 
         #expect(migratedQueuedScan.coverImagePath == "v49-cover.webp")
@@ -1612,6 +1652,22 @@ struct MigrationPlanTests {
         #expect(migratedQueuedScan.fieldNotes == "queued before goal preferences")
         let migratedHints = try store.context.fetch(FetchDescriptor<ActiveOfflineQueuedScanGoalHint>())
         #expect(migratedHints.isEmpty)
+
+        store.context.insert(ActiveOfflineQueuedScanGoalHint(
+            scanId: queuedId,
+            userFieldTripId: "field-trip-after-v49-migration",
+            itemId: "goal-after-v49-migration"
+        ))
+        try store.context.save()
+
+        let reloadContext = ModelContext(store.container)
+        var hintDescriptor = FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+            predicate: #Predicate { $0.scanId == queuedId }
+        )
+        hintDescriptor.fetchLimit = 1
+        let persistedHint = try #require(reloadContext.fetch(hintDescriptor).first)
+        #expect(persistedHint.userFieldTripId == "field-trip-after-v49-migration")
+        #expect(persistedHint.itemId == "goal-after-v49-migration")
     }
 
     @Test func migrationFromV47PreservesAllQueuedMediaKinds() throws {
@@ -1687,7 +1743,10 @@ struct MigrationPlanTests {
             try context47.save()
         }
 
-        let store = try openCurrentMigrationStore(at: url)
+        let store = try openCurrentMigrationStore(
+            at: url,
+            migrationPlan: MerianRecentV47MigrationPlan.self
+        )
         for fixture in fixtures {
             let migratedQueuedScan = try fetchCurrentQueuedScan(id: fixture.id, context: store.context)
             #expect(migratedQueuedScan.serializedCapturedMediaItems == fixture.items)
@@ -1712,7 +1771,7 @@ struct MigrationPlanTests {
             error,
             storeURL: url,
             storedSchemaMajorVersion: 48,
-            hint: .recentSource(48)
+            hint: .recentSource(.v48)
         )
     }
 
@@ -1732,7 +1791,7 @@ struct MigrationPlanTests {
             error,
             storeURL: url,
             storedSchemaMajorVersion: 48,
-            hint: .recentSource(48)
+            hint: .recentSource(.v48)
         )
     }
 

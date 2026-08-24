@@ -1,29 +1,29 @@
 # iOS Release Versioning and Xcode Organizer Runbook
 
-Last updated: August 7, 2026
+Last updated: August 24, 2026
 
 ## Active Consent Release Hold
 
 `CONSENT-001` through `CONSENT-012` are closed in source. Internal development
-and the causal-consent replacement may be archived/uploaded for processing
-under the ordinary gates below, but that build must not be distributed before
-the RPC/ACL migration is deployed in the approved maintenance window and every
-direct-writing build is expired or suspended. Do not nominate the current consent candidate for public
-production or run strict server cutover until the clean hosted exact-SHA iOS
-evidence and validation-only **Supabase Candidate Validation** result are green
-on the same immutable SHA, as defined by the
+and the causal-consent replacement may be archived/uploaded for processing under
+the ordinary gates below, but that build must not be distributed before the
+RPC/ACL migration is deployed in the approved maintenance window and every
+direct-writing build is expired or suspended. Do not nominate the current
+consent candidate for public production or run strict server cutover until the
+clean hosted exact-SHA iOS evidence and validation-only **Supabase Candidate
+Validation** result are green on the same immutable SHA, as defined by the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 Only the current-version replacement build may enter the bounded TestFlight
 rollout. That build must retain the clean-install first-scan and forced
 `ai_consent_required` recovery evidence in the
 [first-scan consent-policy incident](../incidents/2026-08-first-scan-consent-policy-retry-loop.md);
 source compilation alone is not release proof. Public production also remains
-blocked on archived App Store 18+ and paid
-Gemini billing/DPA evidence. The app-owned privacy manifest is implemented in
-source, but the signed archive's aggregate privacy report and reconciled App
-Store answers remain release evidence under the
-[iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md). This hold adds
-prerequisites; it does not change the Organizer-only distribution authority
+blocked on archived App Store 18+ and paid Gemini billing/DPA evidence. The
+app-owned privacy manifest is implemented in source, but the signed archive's
+aggregate privacy report and reconciled App Store answers remain release
+evidence under the
+[iOS App Privacy Manifest Contract](./16-ios-privacy-manifest.md). This hold
+adds prerequisites; it does not change the Organizer-only distribution authority
 below.
 
 The global ATS exception is also removed. Source and signed archives must retain
@@ -32,8 +32,8 @@ ATS defaults and credential-free HTTPS origins under the
 
 ## Policy
 
-Xcode Organizer is the sole distribution authority for Naturebook iOS builds.
-It owns automatic distribution signing, uploaded build-number management, and
+Xcode Organizer is the sole distribution authority for Naturebook iOS builds. It
+owns automatic distribution signing, uploaded build-number management, and
 delivery to App Store Connect. Apple credentials and private signing material
 stay in Xcode and the macOS Keychain; they are not duplicated in GitHub.
 
@@ -58,10 +58,10 @@ build failures this policy prevents.
 `project.yml` is the repository source of truth:
 
 - `MARKETING_VERSION` is the customer-visible version, such as `1.0.3`.
-- `CURRENT_PROJECT_VERSION` is a positive tracked archive baseline, not the
-  next TestFlight build that an operator must increment for every beta.
-- Every embedded target inherits both values. The app, Explore widget,
-  Messages extension, and watch app must agree.
+- `CURRENT_PROJECT_VERSION` is a positive tracked archive baseline, not the next
+  TestFlight build that an operator must increment for every beta.
+- Every embedded target inherits both values. The app, Explore widget, Messages
+  extension, and watch app must agree.
 - The generated `Merian.xcodeproj` must remain synchronized with `project.yml`.
 
 Keep one marketing version for the entire beta train. In Organizer, use
@@ -82,15 +82,15 @@ Change `MARKETING_VERSION` only when starting the next release train:
 ## One-Time Xcode Setup
 
 1. Sign in to the Apple account in **Xcode → Settings → Accounts**.
-2. Copy `Signing.local.example.xcconfig` to
-   `Signing.local.xcconfig` if the local file does not exist.
+2. Copy `Signing.local.example.xcconfig` to `Signing.local.xcconfig` if the
+   local file does not exist.
 3. Set `MERIAN_DEVELOPMENT_TEAM` in that ignored local file to the Apple
    Developer team used by the existing App Store Connect app.
 4. In **Signing & Capabilities**, keep **Automatically manage signing** enabled
    for Merian, MerianExploreWidget, MerianMessagesExtension, and MerianWatch.
 5. Do not set `CODE_SIGN_IDENTITY` to Apple Distribution in project build
-   settings. Xcode chooses the correct identity for development and
-   distribution while automatic signing is enabled.
+   settings. Xcode chooses the correct identity for development and distribution
+   while automatic signing is enabled.
 6. Confirm the permanent bundle identifiers and capabilities already exist in
    the Apple Developer account.
 
@@ -126,8 +126,8 @@ compiles; it is not the archive uploaded to Apple.
    destination, not a simulator.
 4. Choose **Product → Archive**.
 5. Let the Release Versioning Preflight finish. It blocks dirty source,
-   mismatched tracked versions, manual signing, a missing team, and non-production
-   RevenueCat configuration.
+   mismatched tracked versions, manual signing, a missing team, and
+   non-production RevenueCat configuration.
 
 The archive embeds:
 
@@ -176,8 +176,8 @@ In the Organizer archive window:
 8. Record the marketing version, uploaded build number, source SHA, and archive
    date in the release record.
 
-Do not manually rewrite the build number shown by Organizer. The value that
-App Store Connect reports after processing is the authoritative uploaded build.
+Do not manually rewrite the build number shown by Organizer. The value that App
+Store Connect reports after processing is the authoritative uploaded build.
 
 ### 5. Promote without rebuilding
 
@@ -185,13 +185,79 @@ After processing completes in App Store Connect:
 
 1. Confirm the version and build number match the Organizer upload.
 2. Complete export-compliance and beta-review fields when requested.
-3. Assign that processed build to internal or external TestFlight groups.
-4. Collect QA results against that exact build number.
-5. Submit the same uploaded binary to App Review when it becomes the release
+3. If `CurrentSchema` or startup store-plan selection changed, assign the build
+   only to the bounded internal migration-QA group and complete the
+   [schema-upgrade acceptance gate](#schema-upgrade-acceptance-gate).
+4. After every applicable release gate is green, assign that processed build to
+   the intended internal or external TestFlight groups.
+5. Collect QA results against that exact build number.
+6. Submit the same uploaded binary to App Review when it becomes the release
    candidate.
 
 Internal TestFlight, external TestFlight, and App Review promote the same
 uploaded binary. Never rebuild merely to move a tested build to the next stage.
+
+## Schema Upgrade Acceptance Gate
+
+This gate applies whenever `CurrentSchema` advances or startup migration-plan
+selection changes for a schema that has shipped. Simulator and CI fixtures are
+mandatory implementation proof, but they do not replace installing the exact
+processed candidate over a store created by the released application on a
+physical device.
+
+For the current migration, the released source is V49 and the target is V50:
+
+1. Reserve a dedicated non-production iPhone and account. Keep a genuine V49 App
+   Store/TestFlight installation on the device; do not replace it with a locally
+   modified V49 build or inject a test-created SQLite store.
+2. On V49, create and persist representative offline work: an image queue row, a
+   video queue row, and a mixed-media or description-bearing row with their
+   media and scheduler records. Terminate and relaunch V49 once to prove the
+   source state is durable.
+3. Record sanitized source evidence: V49 app/build, device and iOS version,
+   source identity when available, current schema, and presence of store
+   artifacts. Never copy the raw store or record account identifiers, scan IDs,
+   text, coordinates, local paths, or media.
+4. Through the bounded internal TestFlight group, install the exact processed
+   V50 candidate over V49 without uninstalling or clearing app data.
+5. Launch V50 while collecting public device-console output. Require
+   `ModelContainer bootstrap diagnostics` to show `currentSchema=V50` and the
+   candidate source identity, and require
+   `ModelContainer store-aware migration selection` to show
+   `hasStoreArtifacts=true`, `storedSchema=V49`, and
+   `strategy=recent-source-v49`. Reaching the normal UI with no recovery notice
+   or safe mode is the required successful-open evidence. A full-historical
+   selection is a failure.
+6. If approved internal tooling can retrieve the persisted
+   `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 50`,
+   `store.storedSchemaMajorVersion: 49`, `selectedStrategy: recent-source-v49`,
+   and an `attempts` entry with `name: recent-v49` and `outcome: success`. Do
+   not require snake-case recovery telemetry; the normal-success path does not
+   emit that event.
+7. Confirm all representative queue rows, media references, retry fields, and
+   scheduler records survive. Migrated V49 rows must not gain
+   `OfflineQueuedScanGoalHint` rows because V49 stored no selected-goal source
+   value.
+8. Force-quit and relaunch. The second launch must select `current-store`, keep
+   the migrated data, and show no recovery notice.
+9. Create separate fresh V50 queue rows and verify the new goal-hint companion
+   in distinct foreground- and background-completion paths, plus relaunch,
+   successful progress acknowledgement, and cancellation/orphan cleanup.
+10. Add the sanitized source/target builds, device/OS, diagnostic outcomes,
+    queue survival result, relaunch result, V50-only persistence result, tester,
+    date, and pass/fail decision to the restricted release record.
+
+Any failure blocks wider TestFlight assignment and App Review nomination.
+Preserve the device in its failed state for diagnosis; do not uninstall, delete
+the store, or count recovery into a fresh library as migration success. Fix the
+forward migration, upload a new candidate, and rerun the complete gate. The
+diagnostic meanings and exact V49→V50 expectations are canonical in
+[`08-startup-store-recovery.md`](../backend-and-data/08-startup-store-recovery.md#v49v50-release-acceptance).
+
+For future schema bumps, replace the source/target versions and expected recent
+plan with the actual released predecessor and candidate, while retaining the
+same genuine-store, exact-binary, relaunch, data-survival, privacy, and evidence
+requirements.
 
 ## Archive and Upload Rules
 
@@ -201,8 +267,8 @@ uploaded binary. Never rebuild merely to move a tested build to the next stage.
 - A failed local archive consumes no App Store Connect build number.
 - If Xcode reports upload success, treat the build as uploaded even while it is
   processing.
-- If an upload result is ambiguous, check App Store Connect before retrying.
-  Do not create parallel uploads from different tools.
+- If an upload result is ambiguous, check App Store Connect before retrying. Do
+  not create parallel uploads from different tools.
 - If App Store Connect rejects a build, fix the cause, create a fresh archive,
   and let Xcode manage the next build number.
 - Keep Organizer archives until the beta or release train is complete.
@@ -276,8 +342,8 @@ will be overwritten by XcodeGen.
 
 Verify that **Manage version and build number** was enabled and that Organizer
 used **TestFlight & App Store**. Check whether another upload is still
-processing. Once its state is known, create a new archive and upload through
-the same Organizer path; do not introduce a manual counter.
+processing. Once its state is known, create a new archive and upload through the
+same Organizer path; do not introduce a manual counter.
 
 ### Upload succeeds but the build is missing
 
@@ -297,6 +363,12 @@ For every external beta or App Review submission, record:
 - aggregate privacy-report evidence identifier and reconciliation decision;
 - App Store privacy-answer and ATT owner/counsel approval status;
 - upload/processing result;
+- SwiftData source/target schema and genuine-store install-over result when the
+  schema or startup plan changed;
+- migration device/OS, sanitized selected strategy and normal-open evidence,
+  structured attempt when approved diagnostic retrieval was available,
+  queue-survival and relaunch results, and new-schema persistence result when
+  that gate applied;
 - assigned tester groups;
 - QA decision; and
 - App Review submission result when applicable.
@@ -306,15 +378,15 @@ private API credentials in the release record.
 
 ## Ownership Summary
 
-| Concern | Authority |
-|---|---|
-| Marketing version and archive baseline | `project.yml` |
-| Generated target settings | XcodeGen / `Merian.xcodeproj` |
-| Compile and unit-test assurance | GitHub Actions |
-| Validation Release archive | GitHub Actions, unsigned only |
-| Distribution signing | Xcode automatic signing |
-| Uploaded build number | Xcode Organizer / App Store Connect |
-| TestFlight groups and App Review promotion | App Store Connect |
+| Concern                                    | Authority                           |
+| ------------------------------------------ | ----------------------------------- |
+| Marketing version and archive baseline     | `project.yml`                       |
+| Generated target settings                  | XcodeGen / `Merian.xcodeproj`       |
+| Compile and unit-test assurance            | GitHub Actions                      |
+| Validation Release archive                 | GitHub Actions, unsigned only       |
+| Distribution signing                       | Xcode automatic signing             |
+| Uploaded build number                      | Xcode Organizer / App Store Connect |
+| TestFlight groups and App Review promotion | App Store Connect                   |
 
 This separation keeps the high-frequency Xcode workflow familiar while making
 sequential build ownership unambiguous.

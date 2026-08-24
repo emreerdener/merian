@@ -775,8 +775,9 @@ test requires an invisible identifier-scoped queued-presentation marker, keeps
 the visible pill on the same user-facing AI-analysis copy, rejects the removed
 saved/continuing explanation and any **Network timeout** card, dismisses the
 sheet, and verifies that the same scan ID remains queued in Scans. The hosted
-gate accepts only the exact three-case set containing the progressive analyzing
-smoke, this transition, and the queued-audio completion smoke.
+gate accepts only the exact four-case set containing the progressive analyzing
+smoke, this transition, the queued-retry safe-copy smoke, and the queued-audio
+completion smoke.
 
 The handoff single-flight is subject-aware rather than one global busy Boolean.
 A request for a different queued scan advances its generation and replaces the

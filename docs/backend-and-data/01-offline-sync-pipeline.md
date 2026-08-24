@@ -167,6 +167,11 @@ inference input and never changes upload eligibility. Camera-only still evidence
 may retain the hint; gallery, audio, video, Describe, Record, refinement, and
 mixed camera/gallery evidence must discard it before queue insertion.
 
+The lightweight V49→V50 migration adds the companion entity but does not
+backfill rows for queues created by V49. That release stored no selected-goal
+value, so migration cannot safely infer one from current Field trip state,
+cached capture context, scan content, or another mutable source.
+
 The goal hint is a ranking preference, never an evidence override. If the saved
 identification is below the applicable Possible-match boundary (75% Flash / 65%
 Pro) and is not confirmed, the atomic progress receipt retains the complete hint
@@ -224,9 +229,10 @@ After handoff, either path can finish first:
   `LiveInferencePersistenceFence`, then calls `deleteQueuedScan` with the exact
   `ForegroundInferenceGenerationExpectation`. The generation is validated before
   and after URLSession task enumeration; only its current owner may cancel
-  tasks, clear retry slots, remove the SwiftData row and goal hint, delete
-  queue-only inference frames, or preserve media adopted by the final
-  `LocalScanRecord`.
+  tasks, clear retry slots, remove the SwiftData queue row, preserve the goal
+  hint as a durable progress outbox, delete queue-only inference frames, or
+  preserve media adopted by the final `LocalScanRecord`. Explicit cancellation
+  removes the hint instead of preserving it.
 - **Background wins** (user backgrounded or dismissed): the upload completes via
   the OS-managed background URLSession, `dispatchInferenceDownloadTask` issues a
   background URLSession download task for inference, and the OS delivers the

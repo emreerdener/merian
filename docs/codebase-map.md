@@ -1,6 +1,6 @@
 # Current Codebase Map
 
-Last reviewed: 2026-08-10.
+Last reviewed: 2026-08-24.
 
 This map is the short-form inventory for the repo as it exists now. Use it when
 checking whether a feature, endpoint, schema note, or test reference in another
@@ -172,22 +172,29 @@ Recent schema milestones:
   recovery tests.
 - V50 adds `OfflineQueuedScanGoalHint`, a scan-keyed companion containing the
   optional standard-outing and checklist-item preference for a queued scan. The
-  lightweight V49→V50 stage leaves `OfflineQueuedScan` unchanged. All recent
+  lightweight V49→V50 stage leaves `OfflineQueuedScan` unchanged. Stores already
+  stamped V49 use a dedicated `[V49, V50]` source-isolated plan; older recent
   source-specific plans reach V49 first, then advance through the same V50
-  stage.
+  stage. The supported recent-source enum is required to remain consecutive and
+  end at the schema immediately before `CurrentSchema`; app dispatch is
+  exhaustive and has no full-history fallback for an unhandled recent source.
+  The disk migration fixture runs the production metadata decision before
+  opening the store, and the source guardrail locks checksum retry order to
+  current store followed by V49 down through V42.
 
 Compiled iOS assurance lives in `.github/workflows/ios-build-and-test.yml`. Its
 fail-closed detector (`scripts/ci-detect-ios-build-source-changes.sh`) sends
 every iOS/watch/project build input, merge-queue commit, and manual request to
-pinned Xcode 26.6 jobs that execute the complete unit-test target, then the
-three deterministic progressive-analyzing, live-to-queue, and queued-completion
-UI smokes, and independently create an unsigned current-SHA Release archive
-without allocating a release build. Distribution is owned solely by Xcode
-Organizer after the exact SHA passes the full iOS workflow. Operators archive a
-clean `main` checkout with the Merian scheme, choose **TestFlight & App Store**,
-and leave automatic signing plus **Manage version and build number** enabled.
-Xcode and App Store Connect own the unique uploaded build number; GitHub has no
-Apple signing or upload credentials. `scripts/check-ios-release-prep.sh`,
+pinned Xcode 26.6 jobs that execute the complete unit-test target, then the four
+deterministic progressive-analyzing, live-to-queue, queued-retry, and
+queued-completion UI smokes, and independently create an unsigned current-SHA
+Release archive without allocating a release build. Distribution is owned solely
+by Xcode Organizer after the exact SHA passes the full iOS workflow. Operators
+archive a clean `main` checkout with the Merian scheme, choose **TestFlight &
+App Store**, and leave automatic signing plus **Manage version and build
+number** enabled. Xcode and App Store Connect own the unique uploaded build
+number; GitHub has no Apple signing or upload credentials.
+`scripts/check-ios-release-prep.sh`,
 `scripts/ios-release-source-fingerprint.sh`, and
 `scripts/embed-ios-build-provenance.sh` require a clean exact revision and bind
 its fingerprint/state into the app. The tracked `CURRENT_PROJECT_VERSION`
@@ -882,9 +889,10 @@ shared status badge to request the exact app-private Debug fixture handoff. The
 fixture saves through the open Insight sheet's exact environment `ModelContext`
 and directly calls the existing production queue-promotion method with that same
 context; the library event remains only for parent-list refresh. Release retains
-no-op coordinators. The exact-SHA hosted iOS gate executes all three
-deterministic regressions after the complete unit target; the remaining UI tests
-are compiled but retain their feature-specific runtime gates.
+no-op coordinators. The exact-SHA hosted iOS gate executes all four
+deterministic analyzing, live-to-queue, queued-retry, and queued-completion
+regressions after the complete unit target; the remaining UI tests are compiled
+but retain their feature-specific runtime gates.
 
 Deno tests live under `services/supabase/functions/_tests/` plus function-local
 `*.test.ts` files. Run from `services/supabase/functions` with:

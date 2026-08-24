@@ -253,7 +253,7 @@ or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
 dispatch and both macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
-replace the complete unit target, all three critical scan UI smokes, and
+replace the complete unit target, all four critical scan UI smokes, and
 Release-archive gate.
 
 Do not replace that design with workflow-level pull-request path filters. GitHub
@@ -510,15 +510,16 @@ HTTP request is dispatched. See the
    hosted job summary.
 
    After the complete unit target passes, the same checkout, simulator
-   destination, locked packages, and `build-for-testing` output execute three
+   destination, locked packages, and `build-for-testing` output execute four
    deterministic runtime UI smokes:
    `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
-   `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and
+   `testLiveInsightConnectivityFailureTransitionsToDurableQueue`,
+   `testQueuedRetryPresentationUsesSafeActionableCopy`, and
    `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
    `merianUITests/merianUITests`. This is deliberately narrower than the
    complete UI suite, whose camera/Photos/hardware cases remain separate. The
-   focused result must report exactly those three passed cases and zero failed
-   or skipped cases. Its structured tree must contain that exact named set under
+   focused result must report exactly those four passed cases and zero failed or
+   skipped cases. Its structured tree must contain that exact named set under
    `merianUITests`; missing, wrong, duplicated, malformed, empty, or
    contradictory evidence fails the job.
    `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
@@ -680,7 +681,7 @@ failure:
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact three protected cases.               |
+| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact four protected cases.                |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
@@ -875,8 +876,17 @@ MerianTests/
     regressions.
   - V49→V50 coverage verifies the lightweight migration preserves existing
     queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
-    the same scan ID. Queue tests must cover hint persistence through foreground
-    and background completion plus deletion/orphan cleanup.
+    the same scan ID. Before opening the fixture, the test must call the
+    production metadata decision path and prove the real disk store reports
+    major `49` and selects `.recentSource(.v49)`. It then opens with
+    `MerianRecentV49MigrationPlan`, whose only schemas are V49/V50 and whose
+    only stage is the lightweight V49→V50 hop. Store-recovery tests keep the
+    exhaustive recent-source enum consecutive and ending at `CurrentSchema - 1`;
+    app dispatch has no default branch, so a future source case cannot silently
+    use the full historical plan. Queue tests must cover hint persistence
+    through foreground and background completion plus deletion/orphan cleanup.
+    The real-device install-over gate remains separate release evidence; a
+    simulator-created V49 store cannot satisfy it.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
   quarantine, legacy migration rescue for generic SwiftData migration failures,
@@ -914,13 +924,16 @@ MerianTests/
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared lightweight V49→V50 stage. Disk-backed SwiftData migration tests
-    should use unique temporary store URLs and must not unlink the `.sqlite`,
-    `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
-    keep those file descriptors alive after the visible `ModelContainer` scope
-    ends; deleting them in-process can surface as sqlite
-    `vnode unlinked while in use` traps in later tests. The workflow's Swift
-    package cache key depends on the checked-in
+    the shared lightweight V49→V50 stage. V49 itself must select a dedicated
+    `[V49, V50]` plan in both normal startup and the checksum retry ladder. The
+    source guardrail must preserve retry order as current store, V49, V48, then
+    V47 through V42; checking only that every label exists is insufficient.
+    Disk-backed SwiftData migration tests should use unique temporary store URLs
+    and must not unlink the `.sqlite`, `.sqlite-shm`, or `.sqlite-wal` files
+    during the test process. Core Data may keep those file descriptors alive
+    after the visible `ModelContainer` scope ends; deleting them in-process can
+    surface as sqlite `vnode unlinked while in use` traps in later tests. The
+    workflow's Swift package cache key depends on the checked-in
     `Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
     failures are not hidden behind cold dependency resolution or silent package
@@ -3294,7 +3307,7 @@ frame. Hosted Run 105 passed all 1,243 units and its exact-SHA Release archive
 but proved that synthetic recomposition also prevents the caller's
 `ScanningStatusBadge` identifier from being found as a Button. The portable
 contract therefore rejects both animation patterns and that accessibility
-modifier. All three critical scan smokes share one
+modifier. The three badge-based critical scan smokes share one
 `scanningStatusBadgeElement(in:)` helper containing the repository's single
 `app.buttons["ScanningStatusBadge"]` query, so neither test can retain dead
 native-query text while silently falling back to weaker element-class semantics.
