@@ -2,6 +2,44 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+enum UserProfilePresentation: Identifiable {
+    case usernameEditor
+    case displayNameEditor
+    case avatarCrop(IdentifiableImage)
+
+    var id: String {
+        switch self {
+        case .usernameEditor:
+            "username-editor"
+        case .displayNameEditor:
+            "display-name-editor"
+        case .avatarCrop(let image):
+            "avatar-crop-\(image.id.uuidString)"
+        }
+    }
+
+    var usesFullscreenCover: Bool {
+        if case .avatarCrop = self { return true }
+        return false
+    }
+}
+
+enum UserProfileAvatarPresentationPolicy {
+    static func canAcceptPreparedAvatar(
+        requestID: UUID,
+        currentRequestID: UUID?,
+        hasActivePresentation: Bool,
+        isCancelled: Bool
+    ) -> Bool {
+        !isCancelled && !hasActivePresentation && currentRequestID == requestID
+    }
+}
+
+private struct PreparedAvatarCropRequest {
+    let requestID: UUID
+    let image: IdentifiableImage
+}
+
 /// Profile identity component for anonymous and linked account states.
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
@@ -9,9 +47,14 @@ struct UserProfile: View {
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
     @Binding var isShowingUsernameEditor: Bool
-    @State private var avatarImageToCrop: IdentifiableImage?
+    @State private var activePresentation: UserProfilePresentation?
     @State private var selectedAvatarItem: PhotosPickerItem?
-    @State private var isShowingAvatarError = false
+    @State private var avatarSelectionRequestID: UUID?
+    @State private var avatarSelectionTask: Task<Void, Never>?
+    @State private var preparedAvatarCropRequest: PreparedAvatarCropRequest?
+    @State private var avatarUploadRequestID: UUID?
+    @State private var avatarUploadTask: Task<Void, Never>?
+    @State private var pendingAvatarErrorMessage: String?
     @State private var isRetryingPurchaseContinuity = false
     @State private var purchaseContinuityRetryFailed = false
     var totalScans: Int = 0
@@ -36,32 +79,50 @@ struct UserProfile: View {
             await profileViewModel.fetchPublicIdentity()
             await profileViewModel.fetchSocialStats()
         }
-        .sheet(isPresented: $isShowingUsernameEditor) {
-            PublicUsernameEditSheet(viewModel: profileViewModel)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color(UIColor.systemGroupedBackground))
+        .sheet(item: sheetPresentationBinding) { presentation in
+            sheetContent(presentation)
         }
-        .sheet(isPresented: $isShowingDisplayNameEditor) {
-            PublicDisplayNameEditSheet(viewModel: profileViewModel)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color(UIColor.systemGroupedBackground))
-        }
-        .fullScreenCover(item: $avatarImageToCrop) { item in
-            ImageCropperView(
-                image: item.image,
-                onCrop: { croppedData, _, _, _ in
-                    avatarImageToCrop = nil
-                    uploadConfirmedAvatarCrop(croppedData)
-                },
-                onCancel: {
-                    avatarImageToCrop = nil
-                }
-            )
+        .fullScreenCover(item: fullscreenPresentationBinding) { presentation in
+            fullscreenContent(presentation)
         }
         .onChange(of: selectedAvatarItem) { _, newItem in
             handleAvatarSelection(newItem)
+        }
+        .onChange(of: isShowingUsernameEditor, initial: true) { _, isRequested in
+            synchronizeEditorRequest(
+                .usernameEditor,
+                isRequested: isRequested,
+                source: $isShowingUsernameEditor
+            )
+        }
+        .onChange(of: isShowingDisplayNameEditor, initial: true) { _, isRequested in
+            synchronizeEditorRequest(
+                .displayNameEditor,
+                isRequested: isRequested,
+                source: $isShowingDisplayNameEditor
+            )
+        }
+        .onChange(of: isShowingAvatarPicker) { _, isRequested in
+            guard isRequested else {
+                commitPreparedAvatarCropIfPossible()
+                return
+            }
+            if activePresentation != nil || avatarUploadTask != nil {
+                isShowingAvatarPicker = false
+                return
+            }
+            cancelAvatarSelectionTask()
+        }
+        .onChange(of: profileViewModel.currentUserId) { _, _ in
+            cancelAvatarTasks()
+            selectedAvatarItem = nil
+            isShowingAvatarPicker = false
+            pendingAvatarErrorMessage = nil
+            profileViewModel.avatarUpdateErrorMessage = nil
+            dismissActivePresentation()
+        }
+        .onDisappear {
+            cancelAvatarTasks()
         }
         .photosPicker(
             isPresented: $isShowingAvatarPicker,
@@ -69,10 +130,154 @@ struct UserProfile: View {
             matching: .images,
             photoLibrary: .shared()
         )
-        .alert("Profile picture update failed", isPresented: $isShowingAvatarError) {
-            Button("OK", role: .cancel) {}
+        .alert("Profile picture update failed", isPresented: avatarErrorBinding) {
+            Button("OK", role: .cancel) {
+                pendingAvatarErrorMessage = nil
+            }
         } message: {
-            Text(profileViewModel.avatarUpdateErrorMessage ?? "Naturebook could not update your profile picture.")
+            Text(
+                pendingAvatarErrorMessage
+                    ?? profileViewModel.avatarUpdateErrorMessage
+                    ?? "Naturebook could not update your profile picture."
+            )
+        }
+    }
+
+    private var sheetPresentationBinding: Binding<UserProfilePresentation?> {
+        Binding(
+            get: {
+                guard activePresentation?.usesFullscreenCover == false else {
+                    return nil
+                }
+                return activePresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      activePresentation?.usesFullscreenCover == false else {
+                    return
+                }
+                dismissActivePresentation()
+            }
+        )
+    }
+
+    private var fullscreenPresentationBinding:
+        Binding<UserProfilePresentation?> {
+        Binding(
+            get: {
+                guard activePresentation?.usesFullscreenCover == true else {
+                    return nil
+                }
+                return activePresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      activePresentation?.usesFullscreenCover == true else {
+                    return
+                }
+                dismissActivePresentation()
+            }
+        )
+    }
+
+    private var avatarErrorBinding: Binding<Bool> {
+        Binding(
+            get: {
+                activePresentation == nil &&
+                    !isShowingAvatarPicker &&
+                    pendingAvatarErrorMessage != nil
+            },
+            set: { isPresented in
+                if !isPresented {
+                    pendingAvatarErrorMessage = nil
+                }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ presentation: UserProfilePresentation) -> some View {
+        switch presentation {
+        case .usernameEditor:
+            PublicUsernameEditSheet(viewModel: profileViewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(UIColor.systemGroupedBackground))
+
+        case .displayNameEditor:
+            PublicDisplayNameEditSheet(viewModel: profileViewModel)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(Color(UIColor.systemGroupedBackground))
+
+        case .avatarCrop:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func fullscreenContent(
+        _ presentation: UserProfilePresentation
+    ) -> some View {
+        switch presentation {
+        case .avatarCrop(let item):
+            ImageCropperView(
+                image: item.image,
+                onCrop: { croppedData, _, _, _ in
+                    dismissPresentation(ifMatching: presentation.id)
+                    uploadConfirmedAvatarCrop(croppedData)
+                },
+                onCancel: {
+                    dismissPresentation(ifMatching: presentation.id)
+                }
+            )
+
+        case .usernameEditor, .displayNameEditor:
+            EmptyView()
+        }
+    }
+
+    private func synchronizeEditorRequest(
+        _ presentation: UserProfilePresentation,
+        isRequested: Bool,
+        source: Binding<Bool>
+    ) {
+        if isRequested {
+            cancelAvatarSelectionTask()
+            guard beginPresentation(presentation) else {
+                source.wrappedValue = false
+                return
+            }
+        } else if activePresentation?.id == presentation.id {
+            dismissActivePresentation()
+        }
+    }
+
+    @discardableResult
+    private func beginPresentation(
+        _ presentation: UserProfilePresentation
+    ) -> Bool {
+        guard activePresentation == nil,
+              !isShowingAvatarPicker else { return false }
+        activePresentation = presentation
+        return true
+    }
+
+    private func dismissPresentation(ifMatching presentationID: String) {
+        guard activePresentation?.id == presentationID else { return }
+        dismissActivePresentation()
+    }
+
+    private func dismissActivePresentation() {
+        guard let presentation = activePresentation else { return }
+        activePresentation = nil
+        switch presentation {
+        case .usernameEditor:
+            isShowingUsernameEditor = false
+        case .displayNameEditor:
+            isShowingDisplayNameEditor = false
+        case .avatarCrop:
+            break
         }
     }
 
@@ -312,12 +517,30 @@ struct UserProfile: View {
     private func handleAvatarSelection(_ item: PhotosPickerItem?) {
         guard let item else { return }
         selectedAvatarItem = nil
+        guard activePresentation == nil,
+              avatarUploadTask == nil else { return }
 
-        Task {
+        cancelAvatarSelectionTask()
+        let requestID = UUID()
+        avatarSelectionRequestID = requestID
+        avatarSelectionTask = Task { @MainActor in
+            defer {
+                if avatarSelectionRequestID == requestID {
+                    avatarSelectionTask = nil
+                    if preparedAvatarCropRequest?.requestID != requestID {
+                        avatarSelectionRequestID = nil
+                    }
+                }
+            }
             do {
                 guard let wrapper = try await item.loadTransferable(type: ImageFileWrapper.self) else {
-                    profileViewModel.avatarUpdateErrorMessage = "Naturebook could not load that image."
-                    isShowingAvatarError = true
+                    guard UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
+                        requestID: requestID,
+                        currentRequestID: avatarSelectionRequestID,
+                        hasActivePresentation: activePresentation != nil,
+                        isCancelled: Task.isCancelled
+                    ) else { return }
+                    queueAvatarError("Naturebook could not load that image.")
                     return
                 }
 
@@ -328,37 +551,125 @@ struct UserProfile: View {
                     fileURL: fileURL,
                     maxSize: MerianConfig.displayImageMaxSize
                 )
+                guard UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
+                    requestID: requestID,
+                    currentRequestID: avatarSelectionRequestID,
+                    hasActivePresentation: activePresentation != nil,
+                    isCancelled: Task.isCancelled
+                ) else { return }
 
-                avatarImageToCrop = IdentifiableImage(image: UIImage(cgImage: preview.cgImage))
+                let preparedRequest = PreparedAvatarCropRequest(
+                    requestID: requestID,
+                    image: IdentifiableImage(
+                        image: UIImage(cgImage: preview.cgImage)
+                    )
+                )
+                if isShowingAvatarPicker {
+                    preparedAvatarCropRequest = preparedRequest
+                } else {
+                    _ = beginPresentation(.avatarCrop(preparedRequest.image))
+                }
+            } catch is CancellationError {
+                return
             } catch {
-                profileViewModel.avatarUpdateErrorMessage = error.localizedDescription
-                isShowingAvatarError = true
+                guard UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
+                    requestID: requestID,
+                    currentRequestID: avatarSelectionRequestID,
+                    hasActivePresentation: activePresentation != nil,
+                    isCancelled: Task.isCancelled
+                ) else { return }
+                queueAvatarError(error.localizedDescription)
             }
         }
     }
 
+    private func commitPreparedAvatarCropIfPossible() {
+        guard !isShowingAvatarPicker,
+              activePresentation == nil,
+              let preparedAvatarCropRequest,
+              avatarSelectionRequestID == preparedAvatarCropRequest.requestID else {
+            return
+        }
+        self.preparedAvatarCropRequest = nil
+        avatarSelectionRequestID = nil
+        _ = beginPresentation(.avatarCrop(preparedAvatarCropRequest.image))
+    }
+
     private func uploadConfirmedAvatarCrop(_ croppedData: Data) {
         guard !croppedData.isEmpty else {
-            profileViewModel.avatarUpdateErrorMessage = "Naturebook could not crop that image."
-            isShowingAvatarError = true
+            queueAvatarError("Naturebook could not crop that image.")
             return
         }
 
-        Task {
+        cancelAvatarUploadTask()
+        let requestID = UUID()
+        let expectedUserID = profileViewModel.currentUserId
+        avatarUploadRequestID = requestID
+        avatarUploadTask = Task { @MainActor in
+            defer {
+                if avatarUploadRequestID == requestID {
+                    avatarUploadRequestID = nil
+                    avatarUploadTask = nil
+                }
+            }
             do {
-                let avatar = try await Task.detached(priority: .userInitiated) {
+                let avatar = try await DetachedWork.value(
+                    priority: .userInitiated,
+                    category: .imagePreparation
+                ) {
                     try ProfileAvatarImagePreparer.prepare(croppedData: croppedData)
-                }.value
+                }
+                guard avatarUploadRequestID == requestID,
+                      !Task.isCancelled,
+                      profileViewModel.currentUserId == expectedUserID else {
+                    return
+                }
 
                 let didUpdate = await profileViewModel.updatePublicAvatar(avatar)
-                if !didUpdate {
-                    isShowingAvatarError = true
+                guard avatarUploadRequestID == requestID,
+                      !Task.isCancelled,
+                      profileViewModel.currentUserId == expectedUserID else {
+                    return
                 }
+                guard !didUpdate else { return }
+                queueAvatarError(
+                    profileViewModel.avatarUpdateErrorMessage
+                        ?? "Naturebook could not update your profile picture."
+                )
+            } catch is CancellationError {
+                return
             } catch {
-                profileViewModel.avatarUpdateErrorMessage = error.localizedDescription
-                isShowingAvatarError = true
+                guard avatarUploadRequestID == requestID,
+                      !Task.isCancelled,
+                      profileViewModel.currentUserId == expectedUserID else {
+                    return
+                }
+                queueAvatarError(error.localizedDescription)
             }
         }
+    }
+
+    private func queueAvatarError(_ message: String) {
+        profileViewModel.avatarUpdateErrorMessage = message
+        pendingAvatarErrorMessage = message
+    }
+
+    private func cancelAvatarSelectionTask() {
+        avatarSelectionRequestID = nil
+        avatarSelectionTask?.cancel()
+        avatarSelectionTask = nil
+        preparedAvatarCropRequest = nil
+    }
+
+    private func cancelAvatarUploadTask() {
+        avatarUploadRequestID = nil
+        avatarUploadTask?.cancel()
+        avatarUploadTask = nil
+    }
+
+    private func cancelAvatarTasks() {
+        cancelAvatarSelectionTask()
+        cancelAvatarUploadTask()
     }
 
     private var summaryCountsRow: some View {

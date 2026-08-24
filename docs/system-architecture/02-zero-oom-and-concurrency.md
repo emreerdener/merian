@@ -311,7 +311,14 @@ bound intact even when producers refill the queue while a sheet is occupied.
 Reference-type Combine consumers store their cancellables and capture themselves
 weakly; SwiftUI `.onReceive` remains view-lifecycle-owned. Framework publishers
 cross through `sinkOnMainActor`; the app bus is already main-actor isolated and
-remains synchronous. Full contracts and matrices live in
+remains synchronous. Its erased `AnyPublisher` is constructed once instead of
+being reallocated on every consumer access. The feature-local Insight carousel
+pause coordinator follows the same allocation rule and is injected into every
+production video page; builder-only callers share one inactive fallback,
+avoiding both repeated erasure and recomposition-time publisher allocation. The
+event-routing guard rejects raw `.sink` use outside the reviewed lifetime
+owners, making capture strength, cancellable storage/cancellation, ordering, and
+actor delivery an explicit review boundary. Full contracts and matrices live in
 [Event and Presentation Routing](10-event-and-presentation-routing.md).
 
 Transient UI feedback follows the same typed boundary. Feature state stores a
@@ -319,21 +326,22 @@ small `ToastPayload`—presentation UUID, title/body, `ToastSeverity`, and an
 optional typed action descriptor—instead of a `String?` whose wording must be
 parsed to recover severity or behavior. `MerianSystemFeedbackModifier` owns one
 identity-keyed structured dismissal task. Passive banners disable hit testing,
-omit interactive controls, and action banners occupy only their intrinsic card
-bounds. Toast and milestone animation transactions are scoped inside their
-overlay builders rather than around the feature root; neither path introduces a
-full-screen invalidation, animation transaction, or gesture layer. Producers
-assign the payload and view-owned action without `withAnimation`; the modifier
-alone owns insertion and removal animation. Ordinary toast animation identity
-also includes milestone suppression, allowing the same payload to transition out
-and back in during serialized feedback ownership. The DI-owned milestone
-presenter holds at most 32 lightweight items and its host registry at most eight
-UUIDs. `ScanMilestoneCoordinator` holds at most 16 sleeping automatic-retry
-tasks across all scans (in addition to the three-attempt per-scan budget);
-oldest overflow is cancelled and its process-local captures are released because
-the SwiftData goal hint remains the durable recovery outbox. Account/session
-transitions cancel every retained retry task and clear its
-preferred-goal/model-container captures.
+omit interactive controls, and action banners claim their intrinsic card bounds
+only when both the typed descriptor and view-owned handler exist. An incomplete
+pairing is pass-through. Toast and milestone animation transactions are scoped
+inside their overlay builders rather than around the feature root; neither path
+introduces a full-screen invalidation, animation transaction, or gesture layer.
+Producers assign the payload and view-owned action without `withAnimation`; the
+modifier alone owns insertion and removal animation. Ordinary toast animation
+identity also includes milestone suppression, allowing the same payload to
+transition out and back in during serialized feedback ownership. The DI-owned
+milestone presenter holds at most 32 lightweight items and its host registry at
+most eight UUIDs. `ScanMilestoneCoordinator` holds at most 16 sleeping
+automatic-retry tasks across all scans (in addition to the three-attempt
+per-scan budget); oldest overflow is cancelled and its process-local captures
+are released because the SwiftData goal hint remains the durable recovery
+outbox. Account/session transitions cancel every retained retry task and clear
+its preferred-goal/model-container captures.
 
 ### SwiftUI 17 Environment Macros (`HapticManager`)
 
@@ -373,6 +381,23 @@ late async preparation after a newer tap or manual dismissal. For an owned post
 inside Insight-hosted Explore, the leaf reports a scan ID, the Explore shell
 owns its dismissal, and Insight applies the staged scan only from the shell's
 real `onDismiss`.
+
+Explore post detail, Insight content, the outer Insight shell, Profile,
+achievement detail, candidate cards, and Species Dictionary detail also
+serialize their feature-local destinations through typed presentation values.
+Explore's remote composer preparation is a stored, replaceable task cancelled on
+unmount or a competing presentation, and completion must match both request and
+post identity before mounting. Insight resolves eight content destinations
+through one value, with one sheet host and the gallery's full-screen binding
+mutually exclusive with that same resolved value; its outer shell separately
+serializes paywall, author, Field Chat, onboarding, and Explore and admits only
+one teardown-queued follow-up. Profile avatar preparation is stored,
+account/request fenced, and cannot mount a cropper while an editor or Photos
+picker owns the local slot. One bounded prepared preview may wait for the Photos
+picker binding to dismiss; replacement and account/view teardown clear it.
+Species Dictionary uses one value for gallery, author, Field Chat, and paywall.
+This prevents duplicate UIKit presentation requests and avoids briefly retaining
+two heavy modal view graphs.
 
 Transient visual delays are lifecycle-owned as well. Zoom labels, viewfinder and
 SNR prompts, focus indicators, back-swipe rearming, Field Chat preparation, and

@@ -74,6 +74,16 @@ When a parent supplies the owned-Insight callback, post detail reports the scan
 ID only. The Explore shell decides whether and when its own presentation should
 dismiss; the leaf never tears down a parent-owned sheet.
 
+Post detail owns one typed `ExplorePostDetailPresentation` sheet slot for
+Insight, author/reply routes, Field Notes, post editing, Field Chat, and
+paywall. Composer-media preparation is one stored, replaceable task. Leaving
+detail or claiming another presentation cancels it; a completion can mount only
+while its request UUID and post ID are still current and the slot is empty.
+Field Chat preflight applies the same post, cancellation, and occupancy checks.
+When a parent Explore shell supplies an author-route callback, that parent keeps
+the author profile in its navigation stack; the local author case is the
+standalone fallback. Do not add a sibling sheet modifier to this host.
+
 ## Video Playback
 
 `ExplorePublicMediaView` is the shared media host for feed cards, post detail,

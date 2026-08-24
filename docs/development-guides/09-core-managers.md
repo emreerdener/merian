@@ -1474,10 +1474,12 @@ consults that Keychain entry.
   isolated instances; neither type exposes a second static singleton.
 - `AppEventPublisher` is a synchronous `@MainActor` bus for loss-tolerant
   invalidations and lifecycle commands. Its `PassthroughSubject` is private and
-  exposed as an `AnyPublisher`. Reference-type consumers own their
-  `AnyCancellable` and capture themselves weakly; SwiftUI `.onReceive` is owned
-  by the mounted view. Every consumer reloads authoritative state from
-  SwiftData, UserDefaults, Supabase, or the owning service.
+  exposed through one `AnyPublisher` constructed during initialization; repeated
+  subscriber access does not allocate another type-erasure wrapper.
+  Reference-type consumers own their `AnyCancellable` and capture themselves
+  weakly; SwiftUI `.onReceive` is owned by the mounted view. Every consumer
+  reloads authoritative state from SwiftData, UserDefaults, Supabase, or the
+  owning service.
 - `AppRouteCoordinator` is a bounded `@MainActor @Observable` state machine for
   navigation. It prioritizes and coalesces typed `AppRoute` envelopes, preserves
   FIFO ordering for equal timestamps, fences account/session changes, and keeps
@@ -1495,6 +1497,11 @@ consults that Keychain entry.
   dismiss the source and execute from its exact `onDismiss` after revalidating
   scan/presentation identity; elapsed animation delays are not a routing
   primitive.
+- Explore post detail, Insight content and shell, Profile, achievement detail,
+  candidate cards, and Species Dictionary detail each serialize sibling local
+  destinations through one typed presentation value. Sheet and cover bindings
+  filter that value, and async commits require current identity, no
+  cancellation, and an available slot.
 - `SupabaseManager` distinguishes the SDK's explicit `initialSession` restore
   from runtime sign-in. Only the former may adopt a cold-launch private route;
   runtime account transitions advance the account generation and reject it.
@@ -1504,6 +1511,11 @@ consults that Keychain entry.
   AppEvent cases. Framework publishers with unknown originating executors use
   `sinkOnMainActor`; lifecycle-owned SwiftUI `.onReceive` subscriptions apply
   explicit main-queue delivery before mutating view state.
+- Raw `.sink` is separately fail-closed to five exact lifetime owners. Those
+  subscriptions store or return their cancellable, avoid strong owner cycles,
+  and preserve the bus/framework actor contract. Any new owner requires a
+  capture, cancellation, ordering, and actor-isolation review; the exact matrix
+  is canonical rather than duplicated here.
 - The complete event/route matrices, delivery guarantees, source priorities,
   expiry policy, and presentation contract are in
   [Event and Presentation Routing](../system-architecture/10-event-and-presentation-routing.md).
@@ -1703,7 +1715,10 @@ consults that Keychain entry.
   `AppDIContainer` constructs the one production presenter,
   `MilestoneToastHostRegistry`, injectable `MilestoneToastClock`, and
   `ScanMilestoneCoordinator`; previews/tests receive isolated graphs, and none
-  of these types exposes a production `.shared`.
+  of these types exposes a production `.shared`. The container also injects its
+  producer-only `AppEventSending` capability into the scan coordinator; the
+  coordinator never reaches through `AppDIContainer.shared` to publish progress
+  invalidations.
 - Supports `.achievement(AwardPayload)` for achievement unlocks and
   `.dictionary(.newToMerian)` for species-dictionary contribution milestones,
   plus `.fieldTrip(FieldTripMilestonePayload)` for standard outing and Seasonal
@@ -1778,11 +1793,13 @@ consults that Keychain entry.
   a separately view-owned action closure with the matching payload. Replacing a
   payload cancels the prior task, so an old timer cannot remove a newer message.
 - Passive banners render no controls, and passive banners plus visual backing
-  layers disable hit testing. Action toasts receive input only inside the
-  compact banner. Feedback animations are scoped to the overlay rather than the
-  host screen. Ordinary feedback waits while the milestone stack owns the same
-  alignment, preventing Z-index overlap; different top/bottom alignments remain
-  independently visible and interactive.
+  layers disable hit testing. An action toast receives input only when its typed
+  descriptor and view-owned handler are both present, and only inside the
+  compact banner; an incomplete pairing remains pass-through. Feedback
+  animations are scoped to the overlay rather than the host screen. Ordinary
+  feedback waits while the milestone stack owns the same alignment, preventing
+  Z-index overlap; different top/bottom alignments remain independently visible
+  and interactive.
 - Message text is display copy, not an event or action protocol. Never infer
   severity, navigation, or retry behavior from substrings; add a typed case or
   descriptor instead.

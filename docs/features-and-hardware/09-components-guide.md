@@ -428,7 +428,10 @@ feature-local `CandidateSwipeSession` model:
 - **`SwipeableCandidateCard`**: The core structural view for the individual
   species cards. Integrates `SimilarSpeciesImageFetcher` to asynchronously load
   up to 5 progressively loaded Wikipedia/GBIF visuals under a 3-stop vertical
-  gradient that defaults to the `.images.first` thumb.
+  gradient that defaults to the `.images.first` thumb. Original capture,
+  candidate gallery, and distinguishing feature are cases of one
+  `CandidateCardPresentation` value and share one `.sheet(item:)`; the card must
+  not add independent Boolean presenters for those destinations.
 - **`CandidateImageExpandedView`**: Natively loads the `imageFetcher.images`
   array iteratively into a `.page` TabView carousel embedding the custom
   `ZoomableScrollView`.
@@ -568,6 +571,13 @@ camera pipeline and the offline queued-scan path:
   false-to-true analysis after completion does. Reduce Motion fixes the sweep at
   its midpoint. A Debug-only continuity value combines the session token and
   selected page ID for the seeded UI regression.
+- **Video pause publisher allocation**:
+  `InsightCarouselVideoPlaybackCoordinator` constructs its private subject and
+  erased fullscreen-pause publisher once, and the production carousel keeps the
+  coordinator in stable `@State`. Builder-only video pages without a coordinator
+  share one cached inactive `Empty` publisher. Do not compute
+  `eraseToAnyPublisher()` or allocate an `Empty` fallback from a recomposing
+  view property.
 - **`LiveCapturePageView`**: Asynchronously downsamples live capture `Data` in
   `DetachedWork.value(category: .imagePreparation)` and commits only the final
   `UIImage` to `@State`. It remains backed by `NSCache<NSNumber, UIImage>` keyed
@@ -716,14 +726,16 @@ are fixed and proven; this guide does not override that status.
 Ordinary feedback uses a typed, lightweight `ToastPayload`; executable actions
 remain view-owned. Callers mount it through an alignment-scoped overlay, so no
 transparent full-screen hit region covers the underlying UI. Passive payloads
-render no controls and disable hit testing. Action payloads intercept only the
-intrinsic card. Auto-dismiss tasks are cancellable and compare message identity
-before clearing state; a timer from an old message cannot remove its
-replacement. Manual close and action callbacks perform the same UUID check, and
-replacement cards receive a new SwiftUI identity so their transition and timer
-restart together. Entry and exit animation transactions are scoped to the
-overlay, not the surrounding feature root. Feature producers assign
-payload/action state directly and must not wrap those assignments in
+render no controls and disable hit testing. A payload claims interaction only
+when both its typed action descriptor and a matching view-owned handler exist;
+an incompletely wired action remains pass-through. Interactive payloads
+intercept only the intrinsic card. Auto-dismiss tasks are cancellable and
+compare message identity before clearing state; a timer from an old message
+cannot remove its replacement. Manual close and action callbacks perform the
+same UUID check, and replacement cards receive a new SwiftUI identity so their
+transition and timer restart together. Entry and exit animation transactions are
+scoped to the overlay, not the surrounding feature root. Feature producers
+assign payload/action state directly and must not wrap those assignments in
 `withAnimation`; the shared modifier is the sole owner of toast insertion and
 removal motion.
 

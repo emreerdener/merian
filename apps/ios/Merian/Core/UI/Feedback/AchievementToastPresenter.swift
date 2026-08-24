@@ -444,6 +444,7 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
     private let progressResolver: ProgressResolver
     private let achievementResolver: AchievementResolver
     private let fieldTripsAvailabilityResolver: FieldTripsAvailabilityResolver
+    private let eventSender: any AppEventSending
     private let presenter: MilestoneToastPresenter
     private var inFlightScanIds: Set<SessionScanKey> = []
     private var completedScanIds: Set<String> = []
@@ -469,7 +470,7 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
         }
     }
 
-    init(
+    convenience init(
         progressResolver: @escaping ProgressResolver = ScanMilestoneCoordinator.resolveProgress,
         achievementResolver: @escaping AchievementResolver = ScanMilestoneCoordinator.resolveAchievements,
         fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
@@ -479,11 +480,34 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
         maximumRetryTaskCount: Int = 16,
         presenter: MilestoneToastPresenter
     ) {
+        self.init(
+            progressResolver: progressResolver,
+            achievementResolver: achievementResolver,
+            fieldTripsAvailabilityResolver: fieldTripsAvailabilityResolver,
+            retryDelays: retryDelays,
+            maximumRetryTaskCount: maximumRetryTaskCount,
+            eventSender: AppEventPublisher(),
+            presenter: presenter
+        )
+    }
+
+    init(
+        progressResolver: @escaping ProgressResolver = ScanMilestoneCoordinator.resolveProgress,
+        achievementResolver: @escaping AchievementResolver = ScanMilestoneCoordinator.resolveAchievements,
+        fieldTripsAvailabilityResolver: @escaping FieldTripsAvailabilityResolver = {
+            FeatureFlags.isEnabled(.fieldTrips)
+        },
+        retryDelays: [Duration] = [.seconds(2), .seconds(5), .seconds(15)],
+        maximumRetryTaskCount: Int = 16,
+        eventSender: any AppEventSending,
+        presenter: MilestoneToastPresenter
+    ) {
         self.progressResolver = progressResolver
         self.achievementResolver = achievementResolver
         self.fieldTripsAvailabilityResolver = fieldTripsAvailabilityResolver
         self.retryDelays = retryDelays
         self.maximumRetryTaskCount = max(1, maximumRetryTaskCount)
+        self.eventSender = eventSender
         self.presenter = presenter
     }
 
@@ -570,7 +594,7 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
                 finalizesFieldTripResolution = true
                 cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
                 publishProgressEvents(progress)
-                AppDIContainer.shared.appEventPublisher.send(
+                eventSender.send(
                     .fieldTripScanContributionsInvalidated(scanId: scanId)
                 )
             case .retryableFailure:
@@ -637,7 +661,7 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
         let progress = resolvedProgress
         cacheFirstFieldTripAchievement(from: progress, accountId: accountId)
         publishProgressEvents(progress)
-        AppDIContainer.shared.appEventPublisher.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
+        eventSender.send(.fieldTripScanContributionsInvalidated(scanId: scanId))
 
         for milestone in Self.milestones(from: progress) {
             presenter.enqueueFieldTripProgress(
@@ -695,14 +719,14 @@ final class ScanMilestoneCoordinator: MilestoneToastSessionControlling {
         guard let result else { return }
 
         if !result.fieldTripUpdates.isEmpty {
-            AppDIContainer.shared.appEventPublisher.send(
+            eventSender.send(
                 .fieldTripProgressInvalidated(
                     templateIds: Set(result.fieldTripUpdates.map(\.templateId))
                 )
             )
         }
         if !result.challengeUpdates.isEmpty {
-            AppDIContainer.shared.appEventPublisher.send(
+            eventSender.send(
                 .fieldTripChallengeProgressInvalidated(
                     challengeIds: Set(result.challengeUpdates.map(\.challengeId))
                 )

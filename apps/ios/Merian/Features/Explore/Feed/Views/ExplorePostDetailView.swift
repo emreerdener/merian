@@ -1,6 +1,49 @@
 import SwiftData
 import SwiftUI
 
+enum ExplorePostDetailPresentation: Identifiable, Equatable {
+    case insight(ScanInsightRoute)
+    case author(ExploreAuthorProfileRoute)
+    case notificationReply(ExploreNotificationReplyThreadRoute)
+    case fieldNotes(postId: String)
+    case postComposer(postId: String)
+    case fieldChat(postId: String)
+    case paywall
+
+    var id: String {
+        switch self {
+        case .insight(let route):
+            "insight-\(route.id)"
+        case .author(let route):
+            "author-\(route.id)"
+        case .notificationReply(let route):
+            "notification-reply-\(route.id)"
+        case .fieldNotes(let postId):
+            "field-notes-\(postId)"
+        case .postComposer(let postId):
+            "post-composer-\(postId)"
+        case .fieldChat(let postId):
+            "field-chat-\(postId)"
+        case .paywall:
+            "paywall"
+        }
+    }
+}
+
+enum ExplorePostDetailPresentationPolicy {
+    static func canCommitAsyncPresentation(
+        requestedPostId: String,
+        currentPostId: String?,
+        hasPresentationConflict: Bool,
+        isCancelled: Bool
+    ) -> Bool {
+        guard !isCancelled, !hasPresentationConflict, let currentPostId else {
+            return false
+        }
+        return currentPostId.caseInsensitiveCompare(requestedPostId) == .orderedSame
+    }
+}
+
 struct ExplorePostDetailView: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let postId: String
@@ -28,16 +71,13 @@ struct ExplorePostDetailView: View {
     @State private var detailErrorMessage: String?
     @State private var detailRequestGeneration: UInt64 = 0
     @State private var isUpdatingFieldNotesVisibility = false
-    @State private var showFieldNotesEditor = false
-    @State private var showPostComposer = false
     @State private var isSavingPostContent = false
     @State private var postComposerMediaItems: [ExplorePostComposerMediaDraft] = []
     @State private var localFieldNotes: String?
     @State private var fieldNotesEditorInitialText = ""
-    @State private var selectedInsightRoute: ScanInsightRoute?
+    @State private var presentedSheet: ExplorePostDetailPresentation?
+    @State private var insightDismissalRoute: ScanInsightRoute?
     @State private var pendingInsightCommunityRequestId: String?
-    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
-    @State private var selectedNotificationReplyThreadRoute: ExploreNotificationReplyThreadRoute?
     @State private var isRefreshingAfterInsightDismiss = false
     @State private var didAutoOpenInsight = false
     @State private var didPresentNotificationReplyThread = false
@@ -50,9 +90,9 @@ struct ExplorePostDetailView: View {
     @State private var isAudioBoostEnabled = false
     @State private var audioBoostActionToken: UUID?
     @State private var exploreChatViewModel = InsightChatViewModel(source: .explorePost)
-    @State private var isExploreChatPresented = false
-    @State private var isExploreChatPaywallPresented = false
     @State private var pendingExploreChatPreparationPostID: String?
+    @State private var postComposerPreparationID: UUID?
+    @State private var postComposerPreparationTask: Task<Void, Never>?
     @State private var composerFocusTask: Task<Void, Never>?
     @State private var composerScrollTask: Task<Void, Never>?
 
@@ -114,6 +154,10 @@ struct ExplorePostDetailView: View {
 
     private var canOpenOwnedPostInsight: Bool {
         allowsInsightPresentation || onOpenOwnedPostInsight != nil
+    }
+
+    private var hasPresentationConflict: Bool {
+        presentedSheet != nil || postToUnpublish != nil
     }
 
     private func finishAudioBoostAction(_ token: UUID) {
@@ -309,7 +353,7 @@ struct ExplorePostDetailView: View {
                                 allowsInsightPresentation: canOpenOwnedPostInsight,
                                 onOpenInsight: { openInsight(for: post) },
                                 onEditPost: { openPostComposer(for: post) },
-                                onUnpublish: { postToUnpublish = post },
+                                onUnpublish: { openUnpublishConfirmation(for: post) },
                                 showsFieldChatAction: ExplorePostFieldChatPresentationPolicy.showsMenuAction(
                                     isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                                     isCommentComposerSticky: presentedComposerIsSticky,
@@ -390,6 +434,7 @@ struct ExplorePostDetailView: View {
                         isAudioBoostEnabled = enabled
                     }
                     .onDisappear {
+                        cancelPendingAsyncPresentations()
                         composerFocusTask?.cancel()
                         composerFocusTask = nil
                         composerScrollTask?.cancel()
@@ -441,13 +486,22 @@ struct ExplorePostDetailView: View {
         .task(id: pendingExploreChatPreparationPostID) {
             guard let postID = pendingExploreChatPreparationPostID else { return }
             let canPresent = await exploreChatViewModel.prepareForPresentation(scanId: postID)
-            guard !Task.isCancelled,
-                  pendingExploreChatPreparationPostID == postID,
-                  currentPost?.id == postID else { return }
+            guard pendingExploreChatPreparationPostID == postID else { return }
+            defer {
+                if pendingExploreChatPreparationPostID == postID {
+                    pendingExploreChatPreparationPostID = nil
+                }
+            }
+            guard ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+                requestedPostId: postID,
+                currentPostId: currentPost?.id,
+                hasPresentationConflict: hasPresentationConflict,
+                isCancelled: Task.isCancelled
+            ) else { return }
 
             if canPresent {
                 HapticManager.shared.triggerSheetSpring()
-                isExploreChatPresented = true
+                presentedSheet = .fieldChat(postId: postID)
             } else {
                 HapticManager.shared.triggerErrorThump()
                 viewModel.toastMessage = .error(
@@ -455,128 +509,12 @@ struct ExplorePostDetailView: View {
                         ?? "Field chat isn't available for this post."
                 )
             }
-            pendingExploreChatPreparationPostID = nil
         }
-        .sheet(item: $selectedInsightRoute, onDismiss: {
-            if let requestId = pendingInsightCommunityRequestId {
-                pendingInsightCommunityRequestId = nil
-                onOpenCommunityIdentificationRequest?(requestId)
-                return
-            }
-            isRefreshingAfterInsightDismiss = true
-            Task {
-                if let post = currentPost {
-                    await reconcileFieldNotesAfterInsightDismiss(for: post)
-                } else {
-                    await loadPostDetail()
-                }
-                isRefreshingAfterInsightDismiss = false
-            }
-        }) { route in
-            LocalScanInsightLoader(scanId: route.scanId) {
-                InsightSheetView(
-                    isPresented: Binding(
-                        get: { selectedInsightRoute != nil },
-                        set: { if !$0 { selectedInsightRoute = nil } }
-                    ),
-                    initialScanId: route.scanId,
-                    inferenceEngine: inferenceEngine,
-                    allowsExplorePresentation: false,
-                    onOpenCommunityIdentificationRequest: { requestId in
-                        pendingInsightCommunityRequestId = requestId
-                        selectedInsightRoute = nil
-                    }
-                )
-            }
-            .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-insight-sheet")
-        }
-        .sheet(item: $selectedAuthorProfileRoute) { route in
-            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
-                .exploreVideoPresentedOverlayLifecycle(
-                    reason: "explore-post-detail-author-profile-sheet"
-                )
-        }
-        .sheet(item: $selectedNotificationReplyThreadRoute) { route in
-            ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
-                .exploreVideoPresentedOverlayLifecycle(
-                    reason: "explore-post-detail-reply-thread-sheet"
-                )
-        }
-        .sheet(isPresented: $showFieldNotesEditor) {
-            Group {
-                if let post = currentPost {
-                    FieldNotesSheet(
-                        text: Binding(
-                            get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
-                            set: { updateLocalFieldNotes($0) }
-                        ),
-                        promptContext: .resolved(subjectId: nil),
-                        visibilityConfiguration: FieldNotesVisibilityConfiguration(
-                            initialIsPublic: fieldNotesArePublicOnExplore,
-                            onSave: { text, isPublic in
-                                await saveFieldNotesDraft(text, isPublic: isPublic, for: post)
-                            }
-                        )
-                    )
-                }
-            }
-            .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-field-notes-sheet")
-        }
-        .sheet(isPresented: $showPostComposer) {
-            Group {
-                if let post = currentPost {
-                    ExplorePostComposerView(
-                        mode: .edit,
-                        speciesName: postSnapshotCommonName(for: post),
-                        scientificName: post.speciesScientificName,
-                        heroImageUrl: post.heroImageUrl,
-                        publicLocationLabel: post.publicDisplayLocationLabel,
-                        commonNameOptions: commonNameOptions(for: post),
-                        initialSelectedCommonName: postSnapshotCommonName(for: post),
-                        initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
-                        initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
-                        initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
-                        initialLocationSharing: detail?.locationSharing ?? post.locationSharing ?? .obscured,
-                        mediaItems: postComposerMediaItems,
-                        isSaving: isSavingPostContent,
-                        onSubmit: { draft in
-                            Task { await savePostContent(draft, for: post) }
-                        }
-                    )
-                }
-            }
-            .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-edit-post-sheet")
-        }
-        .sheet(isPresented: $isExploreChatPresented) {
-            Group {
-                if let post = currentPost {
-                    InsightChatSheet(
-                        viewModel: exploreChatViewModel,
-                        scanId: post.id,
-                        speciesData: nil,
-                        displayName: viewModel.resolvedSpeciesCommonName(for: post),
-                        timestamp: post.sharedAtDate,
-                        publicScientificName: post.speciesScientificName,
-                        publicAlternativeNames: detail?.similarSpecies?.map(\.scientificName) ?? [],
-                        allowsOwnerActions: false,
-                        prepareForInitialLoad: nil,
-                        onToast: { message in
-                            viewModel.toastMessage = message
-                        },
-                        onAppendToFieldNotes: { _, _ in },
-                        onReviewAlternatives: nil,
-                        onReanalyzeSpecies: nil,
-                        onClose: { isExploreChatPresented = false }
-                    )
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.hidden)
-                }
-            }
-            .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-field-chat-sheet")
-        }
-        .sheet(isPresented: $isExploreChatPaywallPresented) {
-            PaywallView()
-                .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-paywall-sheet")
+        .sheet(
+            item: $presentedSheet,
+            onDismiss: handlePresentedSheetDismissed
+        ) { presentation in
+            presentedSheetContent(presentation)
         }
         .alert(
             "Unpublish Post?",
@@ -604,6 +542,194 @@ struct ExplorePostDetailView: View {
                     }
             }
         )
+    }
+
+    @ViewBuilder
+    private func presentedSheetContent(
+        _ presentation: ExplorePostDetailPresentation
+    ) -> some View {
+        switch presentation {
+        case .insight(let route):
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: presentedSheetBinding(for: presentation),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false,
+                    onOpenCommunityIdentificationRequest: { requestId in
+                        pendingInsightCommunityRequestId = requestId
+                        dismissPresentedSheet(ifMatching: presentation.id)
+                    }
+                )
+            }
+            .exploreVideoPresentedOverlayLifecycle(
+                reason: "explore-post-detail-insight-sheet"
+            )
+
+        case .author(let route):
+            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
+                .exploreVideoPresentedOverlayLifecycle(
+                    reason: "explore-post-detail-author-profile-sheet"
+                )
+
+        case .notificationReply(let route):
+            ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
+                .exploreVideoPresentedOverlayLifecycle(
+                    reason: "explore-post-detail-reply-thread-sheet"
+                )
+
+        case .fieldNotes(let presentedPostId):
+            Group {
+                if let post = currentPost(matching: presentedPostId) {
+                    FieldNotesSheet(
+                        text: Binding(
+                            get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
+                            set: { updateLocalFieldNotes($0) }
+                        ),
+                        promptContext: .resolved(subjectId: nil),
+                        visibilityConfiguration: FieldNotesVisibilityConfiguration(
+                            initialIsPublic: fieldNotesArePublicOnExplore,
+                            onSave: { text, isPublic in
+                                await saveFieldNotesDraft(text, isPublic: isPublic, for: post)
+                            }
+                        )
+                    )
+                }
+            }
+            .exploreVideoPresentedOverlayLifecycle(
+                reason: "explore-post-detail-field-notes-sheet"
+            )
+
+        case .postComposer(let presentedPostId):
+            Group {
+                if let post = currentPost(matching: presentedPostId) {
+                    ExplorePostComposerView(
+                        mode: .edit,
+                        speciesName: postSnapshotCommonName(for: post),
+                        scientificName: post.speciesScientificName,
+                        heroImageUrl: post.heroImageUrl,
+                        publicLocationLabel: post.publicDisplayLocationLabel,
+                        commonNameOptions: commonNameOptions(for: post),
+                        initialSelectedCommonName: postSnapshotCommonName(for: post),
+                        initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
+                        initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
+                        initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
+                        initialLocationSharing: detail?.locationSharing ?? post.locationSharing ?? .obscured,
+                        mediaItems: postComposerMediaItems,
+                        isSaving: isSavingPostContent,
+                        onSubmit: { draft in
+                            Task { await savePostContent(draft, for: post) }
+                        }
+                    )
+                }
+            }
+            .exploreVideoPresentedOverlayLifecycle(
+                reason: "explore-post-detail-edit-post-sheet"
+            )
+
+        case .fieldChat(let presentedPostId):
+            Group {
+                if let post = currentPost(matching: presentedPostId) {
+                    InsightChatSheet(
+                        viewModel: exploreChatViewModel,
+                        scanId: post.id,
+                        speciesData: nil,
+                        displayName: viewModel.resolvedSpeciesCommonName(for: post),
+                        timestamp: post.sharedAtDate,
+                        publicScientificName: post.speciesScientificName,
+                        publicAlternativeNames: detail?.similarSpecies?.map(\.scientificName) ?? [],
+                        allowsOwnerActions: false,
+                        prepareForInitialLoad: nil,
+                        onToast: { message in
+                            viewModel.toastMessage = message
+                        },
+                        onAppendToFieldNotes: { _, _ in },
+                        onReviewAlternatives: nil,
+                        onReanalyzeSpecies: nil,
+                        onClose: {
+                            dismissPresentedSheet(ifMatching: presentation.id)
+                        }
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+                }
+            }
+            .exploreVideoPresentedOverlayLifecycle(
+                reason: "explore-post-detail-field-chat-sheet"
+            )
+
+        case .paywall:
+            PaywallView()
+                .exploreVideoPresentedOverlayLifecycle(
+                    reason: "explore-post-detail-paywall-sheet"
+                )
+        }
+    }
+
+    private func presentedSheetBinding(
+        for presentation: ExplorePostDetailPresentation
+    ) -> Binding<Bool> {
+        Binding(
+            get: { presentedSheet?.id == presentation.id },
+            set: { isPresented in
+                guard !isPresented else { return }
+                dismissPresentedSheet(ifMatching: presentation.id)
+            }
+        )
+    }
+
+    private func handlePresentedSheetDismissed() {
+        guard insightDismissalRoute != nil else { return }
+        insightDismissalRoute = nil
+
+        if let requestId = pendingInsightCommunityRequestId {
+            pendingInsightCommunityRequestId = nil
+            onOpenCommunityIdentificationRequest?(requestId)
+            return
+        }
+
+        isRefreshingAfterInsightDismiss = true
+        Task {
+            if let post = currentPost {
+                await reconcileFieldNotesAfterInsightDismiss(for: post)
+            } else {
+                await loadPostDetail()
+            }
+            isRefreshingAfterInsightDismiss = false
+        }
+    }
+
+    private func currentPost(matching expectedPostId: String) -> ExplorePost? {
+        guard let currentPost,
+              currentPost.id.caseInsensitiveCompare(expectedPostId) == .orderedSame else {
+            return nil
+        }
+        return currentPost
+    }
+
+    @discardableResult
+    private func beginPresentation(
+        _ presentation: ExplorePostDetailPresentation
+    ) -> Bool {
+        guard !hasPresentationConflict else { return false }
+        cancelPendingAsyncPresentations()
+        if case .insight(let route) = presentation {
+            insightDismissalRoute = route
+        }
+        presentedSheet = presentation
+        return true
+    }
+
+    private func dismissPresentedSheet(ifMatching presentationID: String) {
+        guard presentedSheet?.id == presentationID else { return }
+        presentedSheet = nil
+    }
+
+    private func cancelPendingAsyncPresentations() {
+        pendingExploreChatPreparationPostID = nil
+        postComposerPreparationTask?.cancel()
+        postComposerPreparationTask = nil
+        postComposerPreparationID = nil
     }
 
     private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
@@ -669,12 +795,13 @@ struct ExplorePostDetailView: View {
     }
 
     private func openAuthorProfile(_ route: ExploreAuthorProfileRoute) {
-        guard canOpenAuthorProfileRoutes else { return }
-        HapticManager.shared.triggerSelectionPulse()
+        guard canOpenAuthorProfileRoutes, !hasPresentationConflict else { return }
         if let onOpenAuthorProfile {
+            cancelPendingAsyncPresentations()
+            HapticManager.shared.triggerSelectionPulse()
             onOpenAuthorProfile(route)
-        } else {
-            selectedAuthorProfileRoute = route
+        } else if beginPresentation(.author(route)) {
+            HapticManager.shared.triggerSelectionPulse()
         }
     }
 
@@ -728,13 +855,14 @@ struct ExplorePostDetailView: View {
         guard !didPresentNotificationReplyThread,
               let notificationReplyThreadTarget else { return }
 
-        didPresentNotificationReplyThread = true
-        selectedNotificationReplyThreadRoute = ExploreNotificationReplyThreadRoute(
+        let route = ExploreNotificationReplyThreadRoute(
             post: post,
             parentCommentId: notificationReplyThreadTarget.parentCommentId,
             targetReplyId: notificationReplyThreadTarget.targetReplyId,
             fallbackReply: notificationReplyThreadTarget.fallbackReply
         )
+        guard beginPresentation(.notificationReply(route)) else { return }
+        didPresentNotificationReplyThread = true
     }
 
     private func focusTargetCommentIfNeeded(using scrollProxy: ScrollViewProxy) async {
@@ -909,7 +1037,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func openFieldNotesEditor(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post) else { return }
+        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
 
         syncLocalFieldNotes(for: post)
         if localFieldNotes == nil, let publicNotes = detail?.trimmedFieldNotes {
@@ -917,24 +1045,57 @@ struct ExplorePostDetailView: View {
         }
         fieldNotesEditorInitialText = localFieldNotes ?? detail?.trimmedFieldNotes ?? ""
 
-        HapticManager.shared.triggerSelectionPulse()
-        showFieldNotesEditor = true
+        if beginPresentation(.fieldNotes(postId: post.id)) {
+            HapticManager.shared.triggerSelectionPulse()
+        }
     }
 
     private func openPostComposer(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post) else { return }
+        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
+        cancelPendingAsyncPresentations()
         syncLocalFieldNotes(for: post)
         postComposerMediaItems = ExplorePostComposerMediaDraft.existingPostItems(from: post.mediaItems ?? [])
-        Task {
+        let requestID = UUID()
+        let requestedPostID = post.id
+        postComposerPreparationID = requestID
+        postComposerPreparationTask = Task { @MainActor in
+            var resolvedMediaItems: [ExplorePostComposerMediaDraft]?
+            var preparationError: Error?
             do {
-                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(postId: post.id)
-                postComposerMediaItems = ExplorePostComposerMediaDraft.sourceItems(from: payload.mediaItems)
+                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(
+                    postId: requestedPostID
+                )
+                resolvedMediaItems = ExplorePostComposerMediaDraft.sourceItems(
+                    from: payload.mediaItems
+                )
             } catch {
-                viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
+                preparationError = error
             }
 
+            guard postComposerPreparationID == requestID else { return }
+            defer {
+                if postComposerPreparationID == requestID {
+                    postComposerPreparationID = nil
+                    postComposerPreparationTask = nil
+                }
+            }
+            guard ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+                    requestedPostId: requestedPostID,
+                    currentPostId: currentPost?.id,
+                    hasPresentationConflict: hasPresentationConflict,
+                    isCancelled: Task.isCancelled
+                  ) else { return }
+
+            if let resolvedMediaItems {
+                postComposerMediaItems = resolvedMediaItems
+            }
+            if let preparationError {
+                viewModel.toastMessage = .error(
+                    ExploreErrorFormatter.message(for: preparationError)
+                )
+            }
             HapticManager.shared.triggerSelectionPulse()
-            showPostComposer = true
+            presentedSheet = .postComposer(postId: requestedPostID)
         }
     }
 
@@ -958,7 +1119,11 @@ struct ExplorePostDetailView: View {
             detail?.fieldNotes = response.fieldNotes
             detail?.locationSharing = response.locationSharing ?? draft.locationSharing
             updateLocalFieldNotes(draft.fieldNotes ?? "")
-            showPostComposer = false
+            dismissPresentedSheet(
+                ifMatching: ExplorePostDetailPresentation
+                    .postComposer(postId: post.id)
+                    .id
+            )
             await viewModel.refreshPost(postId: post.id)
             viewModel.refreshPreferredSpeciesNames(for: [post.speciesScientificName], modelContext: modelContext)
             await loadPostDetail(force: true)
@@ -1051,7 +1216,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func openInsight(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post) else { return }
+        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
 
         let scanId = post.scanId
         if let fieldNotes = detail?.trimmedFieldNotes {
@@ -1064,6 +1229,7 @@ struct ExplorePostDetailView: View {
 
         if let onOpenOwnedPostInsight {
             if onOpenOwnedPostInsight(scanId) {
+                cancelPendingAsyncPresentations()
                 HapticManager.shared.triggerSelectionPulse()
             } else {
                 HapticManager.shared.triggerErrorThump()
@@ -1085,11 +1251,14 @@ struct ExplorePostDetailView: View {
             return
         }
 
-        HapticManager.shared.triggerSelectionPulse()
-        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
+        let route = ScanInsightRoute(scanId: record.id)
+        if beginPresentation(.insight(route)) {
+            HapticManager.shared.triggerSelectionPulse()
+        }
     }
 
     private func openExploreFieldChat(for post: ExplorePost) {
+        guard !hasPresentationConflict else { return }
         HapticManager.shared.triggerSelectionPulse()
         PostHogManager.shared.capture("ExplorePostFieldChatTapped", properties: [
             "post_id": post.id,
@@ -1098,11 +1267,18 @@ struct ExplorePostDetailView: View {
         ])
 
         guard RevenueCatManager.shared.isProActive else {
-            isExploreChatPaywallPresented = true
+            _ = beginPresentation(.paywall)
             return
         }
 
+        cancelPendingAsyncPresentations()
         pendingExploreChatPreparationPostID = post.id
+    }
+
+    private func openUnpublishConfirmation(for post: ExplorePost) {
+        guard !hasPresentationConflict else { return }
+        cancelPendingAsyncPresentations()
+        postToUnpublish = post
     }
 
     private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {

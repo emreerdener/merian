@@ -49,6 +49,9 @@ tap routing. The shared feedback host must never reach back into
 `AppDIContainer.shared`, because doing so would leak preview/test interaction
 into the production route queue. Producer-only and consumer-only protocols
 prevent domain services from reaching the underlying Combine subject.
+`AppEventPublisher` constructs its erased subscriber stream once with its
+private subject; reading `publisher` does not allocate a new type-erasure
+wrapper.
 
 Both services are `@MainActor`. `AppEventPublisher.send` is synchronous and
 reentrant. This is intentional: event ordering is deterministic, but consumers
@@ -76,9 +79,12 @@ also clear recent-scan history; a same-account session advance retains completed
 deduplication so a late callback cannot replay a prior milestone. In-flight
 ownership includes the captured account/session generation, so a stale suspended
 resolver cannot block the same canonical scan key in the current session.
-Results revalidate their captured token immediately after every suspension, so a
-late resolver cannot schedule replacement work or enqueue visual feedback for
-another session.
+`ScanMilestoneCoordinator` receives its producer-only `AppEventSending`
+capability from that same container. It never reaches through
+`AppDIContainer.shared`, so an isolated preview/test coordinator cannot leak
+progress invalidations into the production event graph. Results revalidate their
+captured token immediately after every suspension, so a late resolver cannot
+schedule replacement work or enqueue visual feedback for another session.
 
 ## AppEvent Matrix
 
@@ -260,6 +266,27 @@ Explore sheet's `onDismiss`. The leaf must never dismiss a parent-owned sheet.
 The Profile patch gallery likewise stages its Field-trip template ID and waits
 for the full-screen artwork cover's `onDismiss` before pushing detail.
 
+Feature-local hosts that expose several UIKit-backed destinations still own one
+typed presentation slot:
+
+| Owner                       | Typed slot                      | Serialized destinations                                                                        | Admission and teardown contract                                                                                                          |
+| --------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `ExplorePostDetailView`     | `ExplorePostDetailPresentation` | Insight, author/reply, Field Notes, post composer, Field Chat, paywall                         | Composer work is one stored replaceable task; composer/chat commits require the current request/post, no cancellation, and an empty slot |
+| `InsightContentView`        | `InsightContentPresentation`    | Gallery, Safari, report, Community, Explore composer, candidates, Field Notes, description     | One item-based sheet plus a gallery cover filtered from the same value; every case retains its scan/generation fence                     |
+| `InsightSheetView`          | `InsightShellPresentation`      | Paywall, Field-trip author, Field Chat, Explore onboarding, Explore                            | At most one validated follow-up waits for the active sheet's real `onDismiss`; scan and presentation generation must still match         |
+| `ProfileTabView`            | `ProfileTabPresentation`        | Paywall, Insight, Field-trip author                                                            | A request is rejected while another local sheet owns the slot                                                                            |
+| `AchievementDetailSheet`    | `AchievementDetailPresentation` | Insight, Field-trip author                                                                     | Background detail reload begins only after the exact Insight case clears                                                                 |
+| `SwipeableCandidateCard`    | `CandidateCardPresentation`     | Original capture, candidate gallery, distinguishing feature                                    | All three lightweight destinations share one item-based sheet                                                                            |
+| `UserProfile`               | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | Selection/upload tasks are stored, cancellable, request/account fenced, and cannot mount over the picker or another case                 |
+| `SpeciesDictionaryPageView` | `SpeciesDictionaryPresentation` | Gallery, author, Field Chat, paywall                                                           | Chat commit requires the current canonical species UUID, no cancellation, and an empty slot                                              |
+
+The `UserProfile` selection path may retain one bounded prepared crop preview if
+image preparation completes before the Photos picker binding dismisses. It
+commits only after that binding is false and the typed slot is empty;
+replacement, editor launch, account change, and view teardown cancel or clear
+the staged request. These owners may retain destination-specific state, but they
+must not attach sibling `.sheet` modifiers to the same host.
+
 Explore video interruption uses view-lifetime ownership for presented overlays.
 Each sheet content acquires a scoped `ExploreVideoPlaybackCoordinator` token at
 mount and releases it only on disappearance. Source bindings are not teardown
@@ -291,20 +318,21 @@ tokens keep playback paused until the final covering view is actually gone.
   callbacks apply the same UUID check, so an interaction from an outgoing card
   cannot clear a replacement payload.
 - Passive toasts render no controls and explicitly disable hit testing; backing
-  layers are pass-through as well. An action toast receives input only inside
-  its intrinsic banner bounds. Entry/exit animation transactions live inside the
-  feedback overlays instead of wrapping the host screen. Producers assign
-  `ToastPayload` and any view-owned action directly—never inside
-  `withAnimation`—so queue changes cannot animate unrelated feature content. The
-  milestone stack renders at most three layers even when its bounded queue is
-  full. Only the active payload subtree mounts; queued entries contribute at
-  most two decorative backplates, and only the active front item receives taps
-  or drag gestures. Animation ownership is non-overlapping: the outer feedback
-  overlay responds only when milestone visibility changes, the stack responds
-  only when the active item UUID changes, and the toast surface responds only
-  when its clamped backing-layer count changes. Queue mutation never builds an
-  animation key from the full queued-ID array or applies a second transition to
-  the active card.
+  layers are pass-through as well. A toast receives input only when both its
+  typed action descriptor and matching view-owned handler exist, and only inside
+  its intrinsic banner bounds; incomplete action wiring remains pass-through.
+  Entry/exit animation transactions live inside the feedback overlays instead of
+  wrapping the host screen. Producers assign `ToastPayload` and any view-owned
+  action directly—never inside `withAnimation`—so queue changes cannot animate
+  unrelated feature content. The milestone stack renders at most three layers
+  even when its bounded queue is full. Only the active payload subtree mounts;
+  queued entries contribute at most two decorative backplates, and only the
+  active front item receives taps or drag gestures. Animation ownership is
+  non-overlapping: the outer feedback overlay responds only when milestone
+  visibility changes, the stack responds only when the active item UUID changes,
+  and the toast surface responds only when its clamped backing-layer count
+  changes. Queue mutation never builds an animation key from the full queued-ID
+  array or applies a second transition to the active card.
 - Achievement taps request `AppRoute.achievement` through the same
   environment-injected coordinator as their host; achievement detail never
   mounts as a second root sheet and isolated preview containers never mutate the
@@ -367,6 +395,24 @@ Explore public media, video carousel pages, and fullscreen video use this object
 instead of ad hoc observer arrays. A view must not register player observers
 without an equally explicit owner and teardown path.
 
+## Reviewed Raw Combine Sink Owners
+
+Raw `.sink` is a retention and executor boundary. Production source is
+fail-closed to these five reviewed owners:
+
+| Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks |
+| `Core/Utilities/Publisher+MainActor.swift`                          | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
+| `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+| `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+| `Features/Scans/Map/Services/PrivateScanMapIndexStore.swift`        | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+
+SwiftUI `.onReceive` remains mounted-view-owned and framework producers use
+`sinkOnMainActor`. A new raw sink requires an explicit review of capture
+strength, cancellable ownership, cancellation/teardown, delivery ordering, and
+actor isolation before its exact file can join the source guard.
+
 ## Allowed NotificationCenter Boundaries
 
 The reviewed allowlist is
@@ -386,7 +432,8 @@ files, not directories:
 The allowlist does not permit application-defined names or posts. The checker
 also rejects multiline spelling, `NotificationCenter.default` aliases outside
 the boundary, `AppEventPublisher.shared`, duplicate AppEvent subjects, and any
-unreviewed case added to the exact loss-tolerant `AppEvent` contract.
+unreviewed case added to the exact loss-tolerant `AppEvent` contract. The raw
+sink owner set above is enforced by the same fail-closed scan.
 
 ## Verification
 
@@ -397,8 +444,13 @@ unreviewed case added to the exact loss-tolerant `AppEvent` contract.
   feature-local cover deferral.
 - `EventDeliveryTests` covers synchronous/reentrant event delivery, cancellable
   main-actor framework delivery, and detached-player callback suppression.
+- `AchievementToastPresenterTests` proves a milestone coordinator publishes
+  progress and scan-contribution invalidations only through its injected bus.
+  Explore, Profile, and Species Dictionary policy tests reject cancelled,
+  stale-identity, or occupied-slot async presentation commits.
 - `ToastPayloadTests` locks typed title/body/severity/action parsing, unique
-  replacement identity, and same-alignment-only milestone suppression.
+  replacement identity, same-alignment-only milestone suppression, and
+  pass-through behavior for passive or incompletely wired action feedback.
   `AchievementToastPresenterTests` is serialized because its legacy gamification
   assertions touch process-global user defaults; it additionally locks queue
   bounds, duplicate coalescing, account/session stale rejection, single
@@ -431,8 +483,10 @@ simulator observation or a subjective “looks smooth” check is not acceptance
 The typed-toast migration, DI-owned milestone presenter and host stack,
 deterministic milestone clock seam, account/session fencing, single-effect
 claims, and lifecycle-backed Candidate/Confidence/Insight Chat/Explore activity
-handoffs are complete. Their former delay- and singleton-based patterns are
-deprecated and must not appear in new code.
+handoffs, DI-injected milestone invalidations, and single-slot local modal hosts
+are complete. Their former delay-, sibling-sheet-, singleton-, and
+recomposition-time publisher-allocation patterns are deprecated and must not
+appear in new code.
 
 Future feedback or routing changes must preserve all of these invariants:
 
@@ -447,3 +501,9 @@ Future feedback or routing changes must preserve all of these invariants:
 4. Keep passive overlays pass-through, cap visual queues and rendered layers,
    and revalidate account/session/scan generations after every asynchronous
    boundary.
+5. Construct subjects and their erased publishers once in the owning service;
+   retain view-scoped coordinators in stable state and cache any inactive
+   fallback. A computed publisher in a recomposing view is a memory regression.
+6. Prefer view-owned `.onReceive` or the reviewed `sinkOnMainActor` bridge. A
+   new raw `.sink` must satisfy the lifetime/actor review and update the
+   executable guard plus this document in the same change.

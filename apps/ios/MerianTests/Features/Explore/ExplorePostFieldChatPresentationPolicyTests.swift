@@ -48,4 +48,42 @@ struct ExplorePostFieldChatPolicyTests {
             ))
         }
     }
+
+    @Test func asynchronousPresentationRequiresCurrentPostAndAnEmptySlot() {
+        #expect(ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+            requestedPostId: "POST-1",
+            currentPostId: "post-1",
+            hasPresentationConflict: false,
+            isCancelled: false
+        ))
+        #expect(!ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+            requestedPostId: "post-1",
+            currentPostId: "post-2",
+            hasPresentationConflict: false,
+            isCancelled: false
+        ))
+        #expect(!ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+            requestedPostId: "post-1",
+            currentPostId: "post-1",
+            hasPresentationConflict: true,
+            isCancelled: false
+        ))
+        #expect(!ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+            requestedPostId: "post-1",
+            currentPostId: "post-1",
+            hasPresentationConflict: false,
+            isCancelled: true
+        ))
+    }
+
+    @Test func localSheetKindsHaveDisjointStableIdentities() {
+        let identities = [
+            ExplorePostDetailPresentation.fieldNotes(postId: "post-1").id,
+            ExplorePostDetailPresentation.postComposer(postId: "post-1").id,
+            ExplorePostDetailPresentation.fieldChat(postId: "post-1").id,
+            ExplorePostDetailPresentation.paywall.id
+        ]
+
+        #expect(Set(identities).count == identities.count)
+    }
 }

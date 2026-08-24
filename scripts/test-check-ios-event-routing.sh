@@ -149,6 +149,22 @@ assert_fails_with \
   "$subject_fixture" \
   "$tmp_dir/duplicate-subject/allowlist.txt"
 
+raw_sink_fixture="$(make_fixture unreviewed-raw-sink)"
+mkdir -p "$raw_sink_fixture/Feature"
+printf '%s\n' \
+  'import Combine' \
+  'final class LeakyOwner {' \
+  '  let subject = PassthroughSubject<Void, Never>()' \
+  '  func bind() {' \
+  '    subject.sink { self.refresh() }' \
+  '  }' \
+  '  func refresh() {}' \
+  '}' > "$raw_sink_fixture/Feature/LeakyOwner.swift"
+assert_fails_with \
+  'Raw Combine .sink is allowed only in a reviewed lifetime owner' \
+  "$raw_sink_fixture" \
+  "$tmp_dir/unreviewed-raw-sink/allowlist.txt"
+
 route_fixture="$(make_fixture route-in-event)"
 printf '%s\n' \
   'import Combine' \

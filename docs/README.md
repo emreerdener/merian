@@ -57,15 +57,19 @@ as their permanent engineering identity.
   routed destinations through one item-based sheet host and defers behind
   feature-local covers until their real dismissal callback. Apple framework
   notifications remain in seven exact allowlisted files, and AVPlayer observer
-  ownership is generation-fenced. Ordinary feedback now uses typed
+  ownership is generation-fenced. Raw Combine sinks are fail-closed to five
+  exact reviewed lifetime owners. Ordinary feedback now uses typed
   `ToastPayload` values; the DI-owned milestone queue is bounded,
   payload-deduplicated, host-serialized, clock-injected, and account/session
   fenced. Candidate, Confidence, Insight Chat, Explore activity,
   Insight-to-Community, and patch-gallery handoffs resume from exact `onDismiss`
-  callbacks rather than delay guesses. Explore sheets hold video-overlay tokens
-  through presented-content disappearance, not merely binding changes. CI
-  rejects the deprecated application-defined NotificationCenter and
-  bus-singleton patterns. See the
+  callbacks rather than delay guesses. Explore post detail, Insight content and
+  shell, Profile, achievement detail, candidate cards, and Species Dictionary
+  now serialize sibling local modal destinations through typed single slots.
+  Explore sheets hold video-overlay tokens through presented-content
+  disappearance, not merely binding changes. CI rejects deprecated
+  application-defined NotificationCenter, bus-singleton, and unreviewed raw-sink
+  patterns. See the
   [canonical event and presentation contract](./system-architecture/10-event-and-presentation-routing.md).
 - **Supabase candidate assurance**: **Supabase Candidate Validation** verifies
   the exact clean SHA for relevant pull requests, manual candidate refs, and the

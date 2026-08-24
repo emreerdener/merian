@@ -76,15 +76,19 @@ orphaned object does not reconstruct its relational context.
   animation delay.
 - Framework notifications are allowed only at the seven reviewed Apple boundary
   files. Application-defined notification names and posts are forbidden and
-  enforced by the iOS event-routing guard. AVPlayer KVO, notifications, and
-  periodic time callbacks are owned by `MediaPlaybackObservation`, which removes
-  exact old-player tokens and rejects late callbacks with a generation fence.
+  enforced by the iOS event-routing guard. Raw Combine sinks are likewise
+  fail-closed to five exact lifetime-owner files. AVPlayer KVO, notifications,
+  and periodic time callbacks are owned by `MediaPlaybackObservation`, which
+  removes exact old-player tokens and rejects late callbacks with a generation
+  fence.
 - Ordinary visual feedback is a typed, lightweight `ToastPayload` rendered by an
-  alignment-scoped pass-through modifier. Milestone feedback is a DI-owned,
-  bounded and deduplicated queue with one foreground host, an injectable clock,
-  one-time haptic/accessibility claims, and account/session fences. Nested
-  Candidate, Confidence, Insight Chat, and Explore activity transitions stage
-  typed actions and resume them from exact `onDismiss` callbacks.
+  alignment-scoped modifier; it accepts input only when a typed action and its
+  view-owned handler both exist. Milestone feedback is a DI-owned, bounded and
+  deduplicated queue with one foreground host, an injectable clock, one-time
+  haptic/accessibility claims, and account/session fences. Nested Candidate,
+  Confidence, Insight Chat, and Explore activity transitions stage typed actions
+  and resume them from exact `onDismiss` callbacks. Feature-local hosts with
+  sibling sheet/cover destinations serialize them through one typed slot.
 - See [Event and Presentation Routing](./10-event-and-presentation-routing.md)
   for the exhaustive event/route matrices, priority and expiry rules,
   presentation state machine, framework-boundary inventory, visual-feedback

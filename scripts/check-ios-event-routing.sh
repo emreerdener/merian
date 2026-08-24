@@ -35,6 +35,21 @@ is_allowlisted_boundary() {
   grep -Fqx -- "$relative_path" "$allowlist"
 }
 
+is_reviewed_raw_sink_owner() {
+  case "$1" in
+    Core/Media/MediaPlaybackObservation.swift | \
+      Core/Utilities/Publisher+MainActor.swift | \
+      Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift | \
+      Features/Scans/Library/ViewModels/ScansManager.swift | \
+      Features/Scans/Map/Services/PrivateScanMapIndexStore.swift)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 assert_tree_has_no_match() {
   local pattern="$1"
   local message="$2"
@@ -82,6 +97,21 @@ while IFS= read -r -d '' swift_file; do
   if [[ "$swift_file" != "$canonical_bus" ]] \
     && file_matches 'PassthroughSubject\s*<\s*AppEvent\s*,' "$swift_file"; then
     fail "Only AppEventPublisher.swift may own a PassthroughSubject<AppEvent, ...> (${swift_file#"$source_root"/})"
+  fi
+done < <(find "$source_root" -type f -name '*.swift' -print0)
+
+# Raw Combine sinks are lifetime boundaries. Keep the reviewed set exact so a
+# new owner cannot silently introduce a strong capture, discard its
+# AnyCancellable, or mutate UI without an actor hop. SwiftUI `onReceive` and the
+# typed `sinkOnMainActor` framework bridge remain outside this boundary.
+while IFS= read -r -d '' swift_file; do
+  if ! file_matches '\.\s*sink\s*(?:\(|\{)' "$swift_file"; then
+    continue
+  fi
+
+  relative_path="${swift_file#"$source_root"/}"
+  if ! is_reviewed_raw_sink_owner "$relative_path"; then
+    fail "Raw Combine .sink is allowed only in a reviewed lifetime owner ($relative_path)"
   fi
 done < <(find "$source_root" -type f -name '*.swift' -print0)
 

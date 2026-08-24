@@ -1,5 +1,32 @@
 import SwiftUI
 
+enum SpeciesDictionaryPresentation: Identifiable, Equatable {
+    case gallery(InsightImageGalleryPresentation)
+    case author(ExploreAuthorProfileRoute)
+    case fieldChat(SpeciesDictionaryChatPresentation)
+    case paywall
+
+    var id: String {
+        switch self {
+        case .gallery(let presentation):
+            "gallery-\(presentation.id)"
+        case .author(let route):
+            "author-\(route.id)"
+        case .fieldChat(let presentation):
+            "field-chat-\(presentation.id)"
+        case .paywall:
+            "paywall"
+        }
+    }
+
+    var usesFullscreenCover: Bool {
+        if case .gallery = self {
+            return true
+        }
+        return false
+    }
+}
+
 struct SpeciesDictionaryPageView: View {
     let scientificName: String
     let speciesId: String?
@@ -56,14 +83,11 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var fallbackExploreViewModel = ExploreFeedViewModel()
     @State private var isCommonNameScrolledPast = false
     @State private var isTopScrollEdgeEffectHidden = true
-    @State private var fullscreenGalleryPresentation: InsightImageGalleryPresentation?
-    @State private var selectedAuthorProfileRoute: ExploreAuthorProfileRoute?
+    @State private var activePresentation: SpeciesDictionaryPresentation?
     @State private var dictionaryChatViewModel = InsightChatViewModel(
         source: .speciesDictionary
     )
     @State private var pendingDictionaryChatSpeciesID: String?
-    @State private var dictionaryChatPresentation: SpeciesDictionaryChatPresentation?
-    @State private var isDictionaryChatPaywallPresented = false
     @State private var dictionaryChatToast: ToastPayload?
 
     init(
@@ -166,36 +190,110 @@ struct SpeciesDictionaryPageContentView: View {
             .task(id: pendingDictionaryChatSpeciesID) {
                 await prepareDictionaryFieldChatIfNeeded()
             }
-            .fullScreenCover(item: $fullscreenGalleryPresentation) { presentation in
-                InsightFullscreenImageCarousel(presentation: presentation)
+            .fullScreenCover(item: fullscreenPresentationBinding) { presentation in
+                fullscreenPresentationContent(presentation)
             }
-            .sheet(item: $selectedAuthorProfileRoute) { route in
-                ExploreAuthorProfileSheet(viewModel: effectiveExploreViewModel, route: route)
-            }
-            .sheet(item: $dictionaryChatPresentation) { presentation in
-                InsightChatSheet(
-                    viewModel: dictionaryChatViewModel,
-                    scanId: presentation.id,
-                    speciesData: nil,
-                    displayName: presentation.displayName,
-                    timestamp: nil,
-                    publicScientificName: presentation.scientificName,
-                    publicAlternativeNames: presentation.alternativeScientificNames,
-                    allowsOwnerActions: false,
-                    prepareForInitialLoad: nil,
-                    onToast: { dictionaryChatToast = $0 },
-                    onAppendToFieldNotes: { _, _ in },
-                    onReviewAlternatives: nil,
-                    onReanalyzeSpecies: nil,
-                    onClose: { dictionaryChatPresentation = nil }
-                )
-                .presentationDetents([.large])
-                .presentationDragIndicator(.hidden)
-            }
-            .sheet(isPresented: $isDictionaryChatPaywallPresented) {
-                PaywallView()
+            .sheet(item: sheetPresentationBinding) { presentation in
+                sheetPresentationContent(presentation)
             }
             .merianSystemFeedback(toast: $dictionaryChatToast)
+    }
+
+    private var sheetPresentationBinding: Binding<SpeciesDictionaryPresentation?> {
+        Binding(
+            get: {
+                guard activePresentation?.usesFullscreenCover == false else {
+                    return nil
+                }
+                return activePresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      activePresentation?.usesFullscreenCover == false else {
+                    return
+                }
+                activePresentation = nil
+            }
+        )
+    }
+
+    private var fullscreenPresentationBinding: Binding<SpeciesDictionaryPresentation?> {
+        Binding(
+            get: {
+                guard activePresentation?.usesFullscreenCover == true else {
+                    return nil
+                }
+                return activePresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      activePresentation?.usesFullscreenCover == true else {
+                    return
+                }
+                activePresentation = nil
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func sheetPresentationContent(
+        _ presentation: SpeciesDictionaryPresentation
+    ) -> some View {
+        switch presentation {
+        case .author(let route):
+            ExploreAuthorProfileSheet(
+                viewModel: effectiveExploreViewModel,
+                route: route
+            )
+        case .fieldChat(let chat):
+            InsightChatSheet(
+                viewModel: dictionaryChatViewModel,
+                scanId: chat.id,
+                speciesData: nil,
+                displayName: chat.displayName,
+                timestamp: nil,
+                publicScientificName: chat.scientificName,
+                publicAlternativeNames: chat.alternativeScientificNames,
+                allowsOwnerActions: false,
+                prepareForInitialLoad: nil,
+                onToast: { dictionaryChatToast = $0 },
+                onAppendToFieldNotes: { _, _ in },
+                onReviewAlternatives: nil,
+                onReanalyzeSpecies: nil,
+                onClose: {
+                    dismissPresentation(ifMatching: presentation.id)
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+        case .paywall:
+            PaywallView()
+        case .gallery:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func fullscreenPresentationContent(
+        _ presentation: SpeciesDictionaryPresentation
+    ) -> some View {
+        switch presentation {
+        case .gallery(let gallery):
+            InsightFullscreenImageCarousel(presentation: gallery)
+        case .author, .fieldChat, .paywall:
+            EmptyView()
+        }
+    }
+
+    private func beginPresentation(_ presentation: SpeciesDictionaryPresentation) {
+        guard activePresentation == nil else { return }
+        pendingDictionaryChatSpeciesID = nil
+        activePresentation = presentation
+    }
+
+    private func dismissPresentation(ifMatching presentationID: String) {
+        guard activePresentation?.id == presentationID else { return }
+        activePresentation = nil
     }
 
     @ViewBuilder
@@ -242,7 +340,7 @@ struct SpeciesDictionaryPageContentView: View {
                     },
                     onHeroBottomChange: evaluateHeroScrollOffset,
                     onImageTap: { presentation in
-                        fullscreenGalleryPresentation = presentation
+                        beginPresentation(.gallery(presentation))
                     },
                     onAuthorTap: { image in
                         presentAuthorProfile(for: image)
@@ -320,12 +418,12 @@ struct SpeciesDictionaryPageContentView: View {
                 .trimmedNonEmpty,
               let authorUsername = image.naturebookAuthorUsername else { return }
 
-        selectedAuthorProfileRoute = ExploreAuthorProfileRoute(
+        beginPresentation(.author(ExploreAuthorProfileRoute(
             authorUserId: authorUserId,
             authorName: authorUsername,
             authorUsername: authorUsername,
             authorAvatarUrl: nil
-        )
+        )))
     }
 
     private func header(for species: SpeciesDictionaryEntry) -> some View {
@@ -432,7 +530,9 @@ struct SpeciesDictionaryPageContentView: View {
     private func openDictionaryFieldChat() {
         guard let species = viewModel.loadedSpecies,
               let canonicalSpeciesID = SpeciesDictionaryChatPresentationPolicy
-                .canonicalSpeciesID(species.id) else {
+                .canonicalSpeciesID(species.id),
+              activePresentation == nil,
+              pendingDictionaryChatSpeciesID == nil else {
             return
         }
 
@@ -447,7 +547,7 @@ struct SpeciesDictionaryPageContentView: View {
         guard SpeciesDictionaryChatPresentationPolicy.destination(
             isProActive: isProActive
         ) == .fieldChat else {
-            isDictionaryChatPaywallPresented = true
+            beginPresentation(.paywall)
             return
         }
 
@@ -460,21 +560,27 @@ struct SpeciesDictionaryPageContentView: View {
         let canPresent = await dictionaryChatViewModel.prepareForPresentation(
             scanId: speciesID
         )
-        guard !Task.isCancelled,
-              pendingDictionaryChatSpeciesID == speciesID,
-              fieldChatSpeciesID == speciesID,
-              let species = viewModel.loadedSpecies else {
-            return
+        guard pendingDictionaryChatSpeciesID == speciesID else { return }
+        defer {
+            if pendingDictionaryChatSpeciesID == speciesID {
+                pendingDictionaryChatSpeciesID = nil
+            }
         }
+        guard SpeciesDictionaryChatPresentationPolicy.canCommitAsyncPresentation(
+            requestedSpeciesID: speciesID,
+            currentSpeciesID: fieldChatSpeciesID,
+            hasActivePresentation: activePresentation != nil,
+            isCancelled: Task.isCancelled
+        ), let species = viewModel.loadedSpecies else { return }
 
         if canPresent {
             HapticManager.shared.triggerSheetSpring()
-            dictionaryChatPresentation = SpeciesDictionaryChatPresentation(
+            activePresentation = .fieldChat(SpeciesDictionaryChatPresentation(
                 id: speciesID,
                 displayName: species.commonName,
                 scientificName: species.scientificName,
                 alternativeScientificNames: species.similarSpecies.map(\.scientificName)
-            )
+            ))
         } else {
             HapticManager.shared.triggerErrorThump()
             dictionaryChatToast = .error(
@@ -482,11 +588,10 @@ struct SpeciesDictionaryPageContentView: View {
                     ?? FieldChatSource.speciesDictionary.unavailableMessage
             )
         }
-        pendingDictionaryChatSpeciesID = nil
     }
 }
 
-private struct SpeciesDictionaryChatPresentation: Identifiable {
+struct SpeciesDictionaryChatPresentation: Identifiable, Equatable {
     let id: String
     let displayName: String
     let scientificName: String
@@ -511,6 +616,18 @@ enum SpeciesDictionaryChatPresentationPolicy {
 
     static func destination(isProActive: Bool) -> Destination {
         isProActive ? .fieldChat : .paywall
+    }
+
+    static func canCommitAsyncPresentation(
+        requestedSpeciesID: String,
+        currentSpeciesID: String?,
+        hasActivePresentation: Bool,
+        isCancelled: Bool
+    ) -> Bool {
+        guard !isCancelled, !hasActivePresentation, let currentSpeciesID else {
+            return false
+        }
+        return currentSpeciesID.caseInsensitiveCompare(requestedSpeciesID) == .orderedSame
     }
 }
 

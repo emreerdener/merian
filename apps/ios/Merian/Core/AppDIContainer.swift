@@ -30,7 +30,7 @@ import SwiftUI
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
-    let appEventPublisher = AppEventPublisher()
+    let appEventPublisher: AppEventPublisher
     let appRouteCoordinator = AppRouteCoordinator()
     let milestoneToastClock: any MilestoneToastClock
     let milestoneToastPresenter: MilestoneToastPresenter
@@ -71,6 +71,7 @@ import SwiftUI
         let foundationVisualCueProvider = UnavailableFoundationVisualCueProvider()
         let foundationVisualCueEligibilityChecker =
             SystemFoundationCueEligibility()
+        let appEventPublisher = AppEventPublisher()
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
         self.visionSubjectClassifier = visionSubjectClassifier
@@ -78,6 +79,7 @@ import SwiftUI
         self.foundationVisualCueProvider = foundationVisualCueProvider
         self.foundationVisualCueEligibilityChecker =
             foundationVisualCueEligibilityChecker
+        self.appEventPublisher = appEventPublisher
         self.inferenceEngine = InferenceEngine(
             visionSubjectClassifier: visionSubjectClassifier,
             localVisualTraitExtractor: localVisualTraitExtractor,
@@ -89,6 +91,7 @@ import SwiftUI
         self.milestoneToastPresenter = milestoneToastPresenter
         self.milestoneToastHostRegistry = MilestoneToastHostRegistry()
         self.scanMilestoneCoordinator = ScanMilestoneCoordinator(
+            eventSender: appEventPublisher,
             presenter: milestoneToastPresenter
         )
 

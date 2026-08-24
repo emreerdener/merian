@@ -94,7 +94,7 @@ clamping, track/progress drawing, and the centered count text. Keep it
 domain-neutral so future goal providers can reuse it without importing Field
 trip models.
 
-## Milestone feedback
+## System and milestone feedback
 
 `ToastBanner` and the compact Scans snackbar share an adaptive inverse-glass
 surface. Light mode uses strongly tinted dark glass with light semantic content;
@@ -102,6 +102,15 @@ dark mode uses strongly tinted light glass with dark semantic content. When
 Reduce Transparency is enabled, the surface becomes opaque. Toast callers own
 their content and placement, but should use the shared surface instead of
 introducing feature-local material, borders, or color-scheme overrides.
+
+`MerianSystemFeedbackModifier` mounts ordinary feedback in an alignment-scoped
+overlay. Hit testing is enabled only when a `ToastPayload` action descriptor and
+the matching view-owned handler are both present; passive or incompletely wired
+feedback is entirely pass-through. The identity-keyed three-second task returns
+on cancellation and verifies the current payload UUID before teardown, so an old
+timer, close action, or outgoing transition cannot dismiss its replacement.
+Animation remains inside the overlay and never wraps the underlying feature
+tree.
 
 Queued milestone notifications render as a collapsed FIFO stack. The active
 toast remains the only interactive and accessible surface; up to two scaled,
@@ -112,10 +121,13 @@ count without exposing the decorative layers as separate elements.
 `Feedback/AchievementToastPresenter.swift` retains its legacy filename for
 project continuity but defines the generic `MilestoneToastPresenter`,
 `FieldTripMilestonePayload`, and `ScanMilestoneCoordinator`. The coordinator is
-the per-scan business boundary; the presenter is only a FIFO visual queue.
-Foreground and background completion both key coordination by final saved scan
-ID and enqueue standard outings, Seasonal Challenges, achievements, then
-`New to Naturebook` after the progress attempt finishes.
+the per-scan business boundary; the presenter is only a FIFO visual queue. The
+coordinator receives `AppEventSending` from `AppDIContainer` and never publishes
+by resolving a bus through `AppDIContainer.shared`, preserving isolated preview
+and test event graphs. Foreground and background completion both key
+coordination by final saved scan ID and enqueue standard outings, Seasonal
+Challenges, achievements, then `New to Naturebook` after the progress attempt
+finishes.
 
 `MilestoneToastBanner` preserves the shared 3.5-second timeout, haptics,
 swipe/close dismissal, queue transition, and VoiceOver announcement. Field trip

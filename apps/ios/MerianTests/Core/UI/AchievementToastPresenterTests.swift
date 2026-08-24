@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 @testable import Merian
@@ -514,6 +515,45 @@ struct AchievementToastPresenterTests {
             return
         }
         #expect(milestone == .newToMerian)
+    }
+
+    @Test func scanMilestoneCoordinatorPublishesOnlyThroughInjectedEventBus() async {
+        let presenter = MilestoneToastPresenter()
+        let eventBus = AppEventPublisher()
+        var receivedEvents: [String] = []
+        let cancellable = eventBus.publisher.sink { event in
+            switch event {
+            case .fieldTripProgressInvalidated(let templateIds):
+                receivedEvents.append("field-trip:\(templateIds.sorted().joined(separator: ","))")
+            case .fieldTripChallengeProgressInvalidated(let challengeIds):
+                receivedEvents.append("challenge:\(challengeIds.sorted().joined(separator: ","))")
+            case .fieldTripScanContributionsInvalidated(let scanId):
+                receivedEvents.append("scan:\(scanId)")
+            default:
+                break
+            }
+        }
+        let coordinator = ScanMilestoneCoordinator(
+            progressResolver: { _, _ in .success(progressResult()) },
+            achievementResolver: { _ in [] },
+            fieldTripsAvailabilityResolver: { true },
+            retryDelays: [],
+            eventSender: eventBus,
+            presenter: presenter
+        )
+
+        await coordinator.processCompletedScan(
+            scanId: "injected-event-scan",
+            speciesData: nil,
+            modelContainer: nil
+        )
+
+        #expect(receivedEvents == [
+            "field-trip:template-1",
+            "challenge:challenge-1",
+            "scan:injected-event-scan"
+        ])
+        withExtendedLifetime(cancellable) {}
     }
 
     @Test func transientProgressFailureRetriesWithoutDuplicatingOtherMilestones() async {

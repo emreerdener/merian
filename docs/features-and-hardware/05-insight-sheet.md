@@ -451,6 +451,23 @@ mutations also retain the exact post/request UUID across their await. The
 advisory post-detail projection preserves the last confirmed or optimistic Field
 Notes visibility when that read is unavailable.
 
+`InsightContentView` maps its independently-owned destination state into one
+typed `InsightContentPresentation`. Safari, report, Community request, Explore
+composer, candidate review, Field Notes, and observation description share one
+item-based sheet host; the media gallery uses a full-screen binding filtered
+from that same mutually exclusive value. Destination callbacks keep their
+existing scan and generation fences, but no destination may add a sibling sheet
+modifier to the Insight content root.
+
+The outer `InsightSheetView` has a separate single typed slot for paywall,
+Field-trip author, Field Chat, Explore onboarding, and Explore. It retains at
+most one validated follow-up while UIKit tears down the active sheet and mounts
+that value only from the active sheet's real `onDismiss`. Field Chat and Explore
+retain their captured scan ID and presentation generation through dismissal;
+stale, replaced, or disallowed requests are cleared instead of creating a second
+presenter. `SwipeableCandidateCard` follows the same local rule for its original
+capture, candidate gallery, and distinguishing-feature sheets.
+
 The delete alert captures its target when opened. `ReportInsightViewModel`
 rejects issue submission unless its supplied scan still matches the engine
 result, before either the remote report or local flag can mutate. Its completion

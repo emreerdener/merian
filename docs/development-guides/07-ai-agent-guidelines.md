@@ -408,7 +408,11 @@ dependency audit, tests, type-check, and production build; preserve the required
   while `.inactive` only pauses hardware so system overlays do not close the
   Insight sheet. Routed sheets and Capture-local editors/covers resume delivery
   only from exact `onDismiss` callbacks; do not introduce a teardown
-  `Task.sleep`. Follow the
+  `Task.sleep`. A feature host with several local modal destinations uses one
+  typed optional presentation value, with sheet and cover bindings filtered from
+  that value. Raw Combine `.sink` is fail-closed to the reviewed owner files; do
+  not add one without explicit weak/strong capture, cancellable lifetime,
+  cancellation, ordering, and actor-isolation review. Follow the
   [canonical routing contract](../system-architecture/10-event-and-presentation-routing.md).
 - **Do not call private methods via `@testable import`.** Swift allows calling
   internal-level methods from test targets, but `private` members are

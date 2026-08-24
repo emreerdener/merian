@@ -50,4 +50,23 @@ struct ToastPayloadTests {
             hasPresentedMilestone: false
         ))
     }
+
+    @Test func passiveOrIncompleteToastsNeverClaimHitTesting() {
+        #expect(!SystemFeedbackOverlayPolicy.allowsHitTesting(
+            hasActionDescriptor: false,
+            hasActionHandler: false
+        ))
+        #expect(!SystemFeedbackOverlayPolicy.allowsHitTesting(
+            hasActionDescriptor: true,
+            hasActionHandler: false
+        ))
+        #expect(!SystemFeedbackOverlayPolicy.allowsHitTesting(
+            hasActionDescriptor: false,
+            hasActionHandler: true
+        ))
+        #expect(SystemFeedbackOverlayPolicy.allowsHitTesting(
+            hasActionDescriptor: true,
+            hasActionHandler: true
+        ))
+    }
 }

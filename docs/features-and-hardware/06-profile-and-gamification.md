@@ -35,6 +35,26 @@ owns cross-area profile state.
 
 ---
 
+## Presentation Ownership
+
+Profile keeps navigation pushes separate from UIKit-backed modal ownership.
+`ProfileTabView` uses one `ProfileTabPresentation` item for paywall, Insight,
+and Field-trip author sheets. `AchievementDetailSheet` uses one
+`AchievementDetailPresentation` item for Insight and Field-trip author detail;
+its background contribution reload starts only after the exact Insight case has
+cleared. A new Profile sheet destination must join the enum owned by its host,
+not add a sibling `.sheet` modifier.
+
+`UserProfile` owns a separate `UserProfilePresentation` value for username,
+display-name, and avatar-crop destinations. Its item-based sheet and filtered
+full-screen cover read the same mutually exclusive value. The system
+`PhotosPicker` is not an enum case, but it is treated as occupying the same
+local presentation slot: editors and the cropper cannot mount over it, and a
+picker request is rejected while an editor, cropper, or upload is active. No
+Profile handoff uses a fixed sleep to guess UIKit teardown.
+
+---
+
 ## Personas and Terrarium
 
 The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces
@@ -144,6 +164,22 @@ for downsample, square-crop, and WebP/JPEG encoding. `ProfileViewModel` uploads
 the prepared bytes to R2 staging through the same `/generate-upload-urls`
 manifest used by scan media, then calls
 `MerianNetworkClient.updatePublicAvatar(...)`.
+
+Selection preparation is one stored, replaceable task keyed by a request UUID.
+Opening another picker or editor, changing accounts, or leaving the view cancels
+that task and clears its staged value. Completion may update UI only if the
+request is still current, uncancelled, and the typed presentation slot is empty.
+If the bounded crop preview is ready before the Photos picker binding dismisses,
+exactly one prepared request waits locally and mounts only after the binding is
+false. The preview never enters a global event or feedback payload.
+
+Confirmed-crop preparation/upload is stored and serialized. It captures the
+current account ID and checks both account and request identity after image
+preparation and again after the network update. Account changes and view
+teardown cancel it. Failures remain pending while a picker, editor, or cropper
+is visible and present only after the slot is clear; an account transition
+clears both the pending error and the view model's avatar error so a stale
+failure cannot leak into the replacement profile.
 
 The profile screen renders `public_avatar_url` from `public.users` first. If the
 user has not uploaded a custom avatar, it falls back to OAuth metadata
@@ -383,7 +419,10 @@ qualifying scans still notify normally.
 `ScanMilestoneCoordinator`, injectable clock, and foreground-host registry used
 by Field trip progress, achievement unlocks, and the `New to Naturebook`
 dictionary-contribution banner. There is no separate presenter or coordinator
-singleton. The process-local visual queue is capped at 32 lightweight items;
+singleton. The container injects its producer-only `AppEventSending` capability
+into the scan coordinator; the coordinator never reaches back through
+`AppDIContainer.shared`, so previews and tests retain isolated invalidation
+graphs. The process-local visual queue is capped at 32 lightweight items;
 overflow may omit ephemeral feedback but cannot lose already-durable progress or
 achievement state, while equivalent typed payloads coalesce onto a stable item
 ID. `ScanMilestoneCoordinator` owns the per-scan business ordering: standard
@@ -402,10 +441,11 @@ once by the presenter, so moving the same active item between hosts preserves
 its remaining 3.5-second lifetime without repeating effects. Banner taps request
 typed `AppRoute.achievement` or `AppRoute.captureGoal` values; achievement
 detail then uses the single root sheet host. The milestone overlay and ordinary
-typed `ToastPayload` do not mount concurrently, and only the visible front
-banner receives hit testing. The presenter does not mutate achievement progress,
-Field trip progress, analytics, scan data, dictionary state, or native iOS
-notification authorization.
+typed `ToastPayload` do not mount concurrently when they target the same
+alignment; independent top/bottom feedback may coexist. Only the visible front
+milestone banner receives hit testing. The presenter does not mutate achievement
+progress, Field trip progress, analytics, scan data, dictionary state, or native
+iOS notification authorization.
 
 `ProfileTabView` keys its statistics task by both the ordinary refresh token and
 the current authentication/account identity. On cold launch it can render local

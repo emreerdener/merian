@@ -995,7 +995,17 @@ MerianTests/
   success/not-found/error states, and the `MerianNetworkClient` 10-minute
   in-memory memoization path for recently opened species pages. Test setup
   resets the singleton cache whenever a mocked `URLSession` is injected so
-  serialized network tests do not share stale dictionary entries.
+  serialized network tests do not share stale dictionary entries. Presentation
+  policy coverage also rejects a cancelled Field Chat preflight or one that
+  completes while another Dictionary destination owns the slot, while accepting
+  case-insensitive identity for the same canonical UUID.
+- **`ExplorePostFieldChatPresentationPolicyTests.swift`**: Locks the post-detail
+  async commit gate: the post identity must remain current, cancellation must be
+  false, and the typed modal slot must be empty. It also proves Field Notes,
+  composer, Field Chat, and paywall cases have disjoint stable identities.
+- **`ProfileViewModelTests.swift`**: In addition to public-identity behavior,
+  locks avatar-crop admission to the current request with no cancellation and an
+  empty local presentation slot.
 - **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis logic,
   ensuring frames are evaluated correctly before inference is triggered.
 - **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`,
@@ -1133,31 +1143,36 @@ MerianTests/
   action identity, plus a fresh presentation UUID when equivalent copy replaces
   an existing toast. It also proves milestone suppression applies only when the
   ordinary and milestone surfaces share an alignment, leaving independent
-  top/bottom feedback visible.
+  top/bottom feedback visible, and that passive or incompletely wired action
+  toasts never claim hit testing.
 - **`AchievementToastPresenterTests.swift`**: Runs serialized because legacy
   gamification notification assertions share process UserDefaults. In addition
-  to scan ordering, it locks the 32-item architecture through injectable bounds,
-  stable duplicate coalescing, case-insensitive foreground/background scan-ID
-  race deduplication without rewriting the resolver's caller-supplied ID,
-  account/session stale-callback rejection, one-time haptic/accessibility claims
-  with remaining lifetime across remounts, nested-host restoration, bounded
-  stale-host retention, and stack projection that mounts the first payload only
-  while forwarding the remaining queue depth to the two-layer
-  decorative-backplate clamp. It also covers the race where an account
-  transition occurs while a retryable progress resolver is suspended. That race
-  must not create a replacement retry after session cleanup. A paired test
-  proves the new session can immediately process the same canonical scan key
-  while the stale resolver remains suspended. Another locks completed-scan
-  deduplication across a same-account session advance. Retry tests also inject a
-  two-task global bound, schedule three scan keys, and require overflow plus
-  session cleanup to retain no more than the configured number of sleepers.
+  to proving the scan coordinator publishes progress and contribution
+  invalidations only through its injected event bus, it locks the 32-item
+  architecture through injectable bounds, stable duplicate coalescing,
+  case-insensitive foreground/background scan-ID race deduplication without
+  rewriting the resolver's caller-supplied ID, account/session stale-callback
+  rejection, one-time haptic/accessibility claims with remaining lifetime across
+  remounts, nested-host restoration, bounded stale-host retention, and stack
+  projection that mounts the first payload only while forwarding the remaining
+  queue depth to the two-layer decorative-backplate clamp. It also covers the
+  race where an account transition occurs while a retryable progress resolver is
+  suspended. That race must not create a replacement retry after session
+  cleanup. A paired test proves the new session can immediately process the same
+  canonical scan key while the stale resolver remains suspended. Another locks
+  completed-scan deduplication across a same-account session advance. Retry
+  tests also inject a two-task global bound, schedule three scan keys, and
+  require overflow plus session cleanup to retain no more than the configured
+  number of sleepers.
 - **Source guardrails**: `make validate-ios-event-routing` scans production
   sources; `make test-ios-event-routing` exercises multiline, alias,
   application-name/post, duplicate-subject, singleton, allowlist, and
-  test-target-exclusion fixtures. These fixtures are part of
-  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
-  compiled iOS workflow both validate the live repository, and both are
-  path-sensitive to the checker, its exact allowlist, and its fixture script.
+  test-target-exclusion fixtures. An adversarial leaky-owner fixture also proves
+  a raw Combine `.sink` outside the five exact reviewed lifetime owners is
+  rejected. These fixtures are part of `make test-ios-ci-tooling`. The fast
+  `ios-project-guardrails.yml` lane and the compiled iOS workflow both validate
+  the live repository, and both are path-sensitive to the checker, its exact
+  allowlist, and its fixture script.
 - **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
   errors quickly. A direct iOS module/test-target type-check can add useful
   compile evidence when CoreSimulator is unavailable, but neither runs XCTest,

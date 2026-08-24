@@ -426,6 +426,31 @@ struct SpeciesDictionaryTests {
                 isProActive: true
             ) == .fieldChat
         )
+
+        #expect(
+            SpeciesDictionaryChatPresentationPolicy.canCommitAsyncPresentation(
+                requestedSpeciesID: "019fb71a-94de-7998-a4ce-f163b531d3e0",
+                currentSpeciesID: "019FB71A-94DE-7998-A4CE-F163B531D3E0",
+                hasActivePresentation: false,
+                isCancelled: false
+            )
+        )
+        #expect(
+            !SpeciesDictionaryChatPresentationPolicy.canCommitAsyncPresentation(
+                requestedSpeciesID: "019fb71a-94de-7998-a4ce-f163b531d3e0",
+                currentSpeciesID: "019fb71a-94de-7998-a4ce-f163b531d3e0",
+                hasActivePresentation: true,
+                isCancelled: false
+            )
+        )
+        #expect(
+            !SpeciesDictionaryChatPresentationPolicy.canCommitAsyncPresentation(
+                requestedSpeciesID: "019fb71a-94de-7998-a4ce-f163b531d3e0",
+                currentSpeciesID: "019fb71a-94de-7998-a4ce-f163b531d3e0",
+                hasActivePresentation: false,
+                isCancelled: true
+            )
+        )
     }
 
     @Test func testSpeciesDictionaryDeepLinkSelectsIdentifyIndex() {

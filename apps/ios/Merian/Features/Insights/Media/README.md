@@ -109,5 +109,10 @@ Inline and fullscreen video each retain a `MediaPlaybackObservation` for the
 mounted playback surface. Replacing or dismissing a player removes KVO,
 AVPlayerItem notification, and periodic-time tokens from that exact player;
 callbacks carry a generation fence so late events from a prior carousel page
-cannot update the current page. Do not register ad hoc AVPlayer observers in a
-carousel view.
+cannot update the current page. The main-actor
+`InsightCarouselVideoPlaybackCoordinator` also constructs its type-erased pause
+publisher once. Production video pages receive that coordinator directly, while
+the carousel retains it in stable `@State`. Builder-only callers without one
+share a cached inactive publisher; carousel recomposition must not allocate
+another erased publisher or `Empty` fallback. Do not register ad hoc AVPlayer
+observers in a carousel view.

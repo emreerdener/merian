@@ -64,13 +64,14 @@ protocol AppEventStreaming: AnyObject {
 /// The subject is deliberately private so callers cannot bypass actor isolation.
 @MainActor
 final class AppEventPublisher: AppEventSending, AppEventStreaming {
-    private let subject = PassthroughSubject<AppEvent, Never>()
+    private let subject: PassthroughSubject<AppEvent, Never>
+    let publisher: AnyPublisher<AppEvent, Never>
 
-    var publisher: AnyPublisher<AppEvent, Never> {
-        subject.eraseToAnyPublisher()
+    init() {
+        let subject = PassthroughSubject<AppEvent, Never>()
+        self.subject = subject
+        publisher = subject.eraseToAnyPublisher()
     }
-
-    init() {}
 
     func send(_ event: AppEvent) {
         subject.send(event)

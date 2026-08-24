@@ -415,10 +415,14 @@ enum InsightCarouselMediaInteractionPolicy {
 
 @MainActor
 final class InsightCarouselVideoPlaybackCoordinator {
-    private let pauseForFullscreenPresentationSubject = PassthroughSubject<Void, Never>()
+    private let pauseForFullscreenPresentationSubject:
+        PassthroughSubject<Void, Never>
+    let pauseForFullscreenPresentationPublisher: AnyPublisher<Void, Never>
 
-    var pauseForFullscreenPresentationPublisher: AnyPublisher<Void, Never> {
-        pauseForFullscreenPresentationSubject.eraseToAnyPublisher()
+    init() {
+        let subject = PassthroughSubject<Void, Never>()
+        pauseForFullscreenPresentationSubject = subject
+        pauseForFullscreenPresentationPublisher = subject.eraseToAnyPublisher()
     }
 
     func pauseForFullscreenPresentation() {
@@ -460,6 +464,11 @@ struct InsightCenterVideoPlaybackControl: View {
 }
 
 private struct VideoPlaybackCarouselPage: View {
+    @MainActor
+    private static let inactivePausePublisher = Empty<Void, Never>(
+        completeImmediately: false
+    ).eraseToAnyPublisher()
+
     let path: String
     let pageIndex: Int
     @Binding var selectedIndex: Int
@@ -539,9 +548,10 @@ private struct VideoPlaybackCarouselPage: View {
         }
     }
 
+    @MainActor
     private var fullscreenPresentationPausePublisher: AnyPublisher<Void, Never> {
         playbackCoordinator?.pauseForFullscreenPresentationPublisher
-            ?? Empty().eraseToAnyPublisher()
+            ?? Self.inactivePausePublisher
     }
 
     private func configurePlayer() {

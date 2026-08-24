@@ -11,6 +11,13 @@ enum SystemFeedbackOverlayPolicy {
             && toastAlignment == milestoneAlignment
             && hasPresentedMilestone
     }
+
+    static func allowsHitTesting(
+        hasActionDescriptor: Bool,
+        hasActionHandler: Bool
+    ) -> Bool {
+        hasActionDescriptor && hasActionHandler
+    }
 }
 
 struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
@@ -74,7 +81,10 @@ struct MerianSystemFeedbackModifier: SwiftUI.ViewModifier {
     }
 
     private func toastBanner(for toast: ToastPayload) -> some View {
-        let hasInteractiveControls = toast.action != nil && toastAction != nil
+        let hasInteractiveControls = SystemFeedbackOverlayPolicy.allowsHitTesting(
+            hasActionDescriptor: toast.action != nil,
+            hasActionHandler: toastAction != nil
+        )
         let onDismiss: (() -> Void)?
         let onAction: (() -> Void)?
 

@@ -6,6 +6,45 @@ private struct InsightCandidateSwipeDismissalRequest: Equatable {
     let localPresentationGeneration: UInt64
 }
 
+private enum InsightContentPresentation: Identifiable, Equatable {
+    case gallery(InsightImageGalleryPresentation, scanId: String, generation: UInt64)
+    case candidate(scanId: String, generation: UInt64, engineGeneration: UInt64)
+    case community(scanId: String, generation: UInt64, requestId: String?)
+    case composer(scanId: String, generation: UInt64, postId: String)
+    case fieldNotes(scanId: String, generation: UInt64)
+    case safari(scanId: String, generation: UInt64, url: URL)
+    case report(scanId: String, engineGeneration: UInt64)
+    case observation(scanId: String, generation: UInt64)
+
+    var id: String {
+        switch self {
+        case .gallery(let presentation, let scanId, let generation):
+            "gallery-\(scanId)-\(generation)-\(presentation.id)"
+        case .candidate(let scanId, let generation, let engineGeneration):
+            "candidate-\(scanId)-\(generation)-\(engineGeneration)"
+        case .community(let scanId, let generation, let requestId):
+            "community-\(scanId)-\(generation)-\(requestId ?? "new")"
+        case .composer(let scanId, let generation, let postId):
+            "composer-\(scanId)-\(generation)-\(postId)"
+        case .fieldNotes(let scanId, let generation):
+            "field-notes-\(scanId)-\(generation)"
+        case .safari(let scanId, let generation, let url):
+            "safari-\(scanId)-\(generation)-\(url.absoluteString)"
+        case .report(let scanId, let engineGeneration):
+            "report-\(scanId)-\(engineGeneration)"
+        case .observation(let scanId, let generation):
+            "observation-\(scanId)-\(generation)"
+        }
+    }
+
+    var usesFullscreenCover: Bool {
+        if case .gallery = self {
+            return true
+        }
+        return false
+    }
+}
+
 struct InsightContentView: View {
     // MARK: - Dependencies
     @Environment(InferenceEngine.self) var inferenceEngine
@@ -141,43 +180,152 @@ struct InsightContentView: View {
             viewModel.inferenceEngine = inferenceEngine
         }
 
-        // Modal Routings
-        .sheet(isPresented: safariPresentedBinding) {
-            if let scanId = viewModel.state.safariPresentationScanId,
-               let generation =
-                viewModel.state.safariPresentationGeneration,
-               viewModel.isPresentingLocalRecord(
-                   scanId: scanId,
-                   generation: generation
-               ),
-               let safeUrl = viewModel.state.selectedWikiURL {
-                SafariView(url: safeUrl)
+        // One typed modal owner prevents sibling SwiftUI sheet hosts from
+        // racing when independent feature state changes in the same render.
+        .sheet(
+            item: consolidatedSheetPresentationBinding,
+            onDismiss: resumePendingCandidateSwipeDismissalRequest
+        ) { presentation in
+            consolidatedSheetContent(presentation)
+        }
+        .fullScreenCover(item: consolidatedFullscreenPresentationBinding) { presentation in
+            consolidatedFullscreenContent(presentation)
+        }
+    }
+}
+
+// MARK: - Subcomponents
+private extension InsightContentView {
+    var resolvedPresentation: InsightContentPresentation? {
+        if let gallery = fullscreenGalleryPresentedBinding.wrappedValue,
+           let scanId = fullscreenGalleryPresentationScanId,
+           let generation = fullscreenGalleryPresentationGeneration {
+            return .gallery(gallery, scanId: scanId, generation: generation)
+        }
+        if candidateSwipePresentedBinding.wrappedValue,
+           let scanId = viewModel.state.candidateSwipePresentationScanId,
+           let generation = viewModel.state.candidateSwipePresentationGeneration,
+           let engineGeneration =
+            viewModel.state.candidateSwipeEnginePresentationGeneration {
+            return .candidate(
+                scanId: scanId,
+                generation: generation,
+                engineGeneration: engineGeneration
+            )
+        }
+        if communityRequestPresentedBinding.wrappedValue,
+           let scanId = viewModel.state.communityRequestPresentationScanId,
+           let generation = viewModel.state.communityRequestPresentationGeneration {
+            return .community(
+                scanId: scanId,
+                generation: generation,
+                requestId: viewModel.state.communityRequestPresentationRequestId
+            )
+        }
+        if explorePostComposerPresentedBinding.wrappedValue,
+           let scanId = viewModel.state.explorePostComposerPresentationScanId,
+           let generation = viewModel.state.explorePostComposerPresentationGeneration,
+           let postId = viewModel.state.explorePostComposerPresentationPostId {
+            return .composer(
+                scanId: scanId,
+                generation: generation,
+                postId: postId
+            )
+        }
+        if fieldNotesPresentedBinding.wrappedValue,
+           let scanId = viewModel.state.fieldNotesPresentationScanId,
+           let generation = viewModel.state.fieldNotesPresentationGeneration {
+            return .fieldNotes(scanId: scanId, generation: generation)
+        }
+        if safariPresentedBinding.wrappedValue,
+           let scanId = viewModel.state.safariPresentationScanId,
+           let generation = viewModel.state.safariPresentationGeneration,
+           let url = viewModel.state.selectedWikiURL {
+            return .safari(scanId: scanId, generation: generation, url: url)
+        }
+        if viewModel.state.isFlagIssuePresented,
+           let scanId = inferenceEngine.speciesData?.scanId {
+            return .report(
+                scanId: scanId,
+                engineGeneration: inferenceEngine.scanPresentationGeneration
+            )
+        }
+        if observationPresentedBinding.wrappedValue,
+           let scanId = observationPresentationScanId,
+           let generation = observationPresentationGeneration {
+            return .observation(scanId: scanId, generation: generation)
+        }
+        return nil
+    }
+
+    var consolidatedSheetPresentationBinding: Binding<InsightContentPresentation?> {
+        Binding(
+            get: {
+                guard resolvedPresentation?.usesFullscreenCover == false else {
+                    return nil
+                }
+                return resolvedPresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      let active = resolvedPresentation,
+                      !active.usesFullscreenCover else { return }
+                dismissConsolidatedPresentation(active)
+            }
+        )
+    }
+
+    var consolidatedFullscreenPresentationBinding: Binding<InsightContentPresentation?> {
+        Binding(
+            get: {
+                guard resolvedPresentation?.usesFullscreenCover == true else {
+                    return nil
+                }
+                return resolvedPresentation
+            },
+            set: { presentation in
+                guard presentation == nil,
+                      let active = resolvedPresentation,
+                      active.usesFullscreenCover else { return }
+                dismissConsolidatedPresentation(active)
+            }
+        )
+    }
+
+    @ViewBuilder
+    func consolidatedSheetContent(
+        _ presentation: InsightContentPresentation
+    ) -> some View {
+        switch presentation {
+        case .safari(let scanId, let generation, let url):
+            if viewModel.isPresentingLocalRecord(
+                scanId: scanId,
+                generation: generation
+            ), viewModel.state.selectedWikiURL == url {
+                SafariView(url: url)
                     .ignoresSafeArea()
             }
-        }
-        .sheet(isPresented: $viewModel.state.isFlagIssuePresented) {
-            if let scanId = inferenceEngine.speciesData?.scanId {
+
+        case .report(let scanId, let engineGeneration):
+            if inferenceEngine.scanPresentationGeneration == engineGeneration,
+               inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(scanId) == .orderedSame {
                 ReportInsightView(scanId: scanId) {
                     viewModel.state.toastMessage = .success("Report submitted. Thanks!")
                 }
             }
-        }
-        .sheet(isPresented: communityRequestPresentedBinding) {
-            let requestId =
-                viewModel.state.communityRequestPresentationRequestId
-            if let scanId = viewModel.state.communityRequestPresentationScanId,
-               let communityGeneration =
-                viewModel.state.communityRequestPresentationGeneration,
-               viewModel.isPresentingLocalRecord(
-                   scanId: scanId,
-                   generation: communityGeneration
-               ),
-               optionalIdentifiersMatch(
-                   requestId,
-                   viewModel.state.sharedCommunityIdentificationRequestId
-               ),
-               let speciesData = inferenceEngine.speciesData,
-               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
+
+        case .community(let scanId, let communityGeneration, let requestId):
+            if viewModel.isPresentingLocalRecord(
+                scanId: scanId,
+                generation: communityGeneration
+            ),
+            optionalIdentifiersMatch(
+                requestId,
+                viewModel.state.sharedCommunityIdentificationRequestId
+            ),
+            let speciesData = inferenceEngine.speciesData,
+            speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame {
                 CommunityIdentificationRequestSheet(
                     speciesName: viewModel.resolvedHeaderTitle,
                     scientificName: speciesData.scientificName,
@@ -190,9 +338,7 @@ struct InsightContentView: View {
                         guard viewModel.isPresentingLocalRecord(
                             scanId: scanId,
                             generation: communityGeneration
-                        ) else {
-                            return
-                        }
+                        ) else { return }
                         viewModel.state.toastMessage = .error(message)
                     },
                     onSubmit: { note, locationSharing in
@@ -200,9 +346,7 @@ struct InsightContentView: View {
                             scanId: scanId,
                             generation: communityGeneration,
                             requestId: requestId
-                        ) else {
-                            return
-                        }
+                        ) else { return }
                         Task {
                             if requestId != nil {
                                 await viewModel.updateCommunityIdentificationRequest(
@@ -224,33 +368,24 @@ struct InsightContentView: View {
                     }
                 )
             }
-        }
-        .sheet(isPresented: explorePostComposerPresentedBinding) {
+
+        case .composer:
             explorePostComposerSheet
-        }
-        .sheet(
-            isPresented: candidateSwipePresentedBinding,
-            onDismiss: resumePendingCandidateSwipeDismissalRequest
-        ) {
+
+        case .candidate(let scanId, let candidateGeneration, let engineGeneration):
             let candidates = viewModel.candidateSwipeCandidates
-            if let scanId = viewModel.state.candidateSwipePresentationScanId,
-               let candidateGeneration =
-                viewModel.state.candidateSwipePresentationGeneration,
-               let candidateEngineGeneration =
-                viewModel.state.candidateSwipeEnginePresentationGeneration,
-               viewModel.isPresentingLocalRecord(
-                   scanId: scanId,
-                   generation: candidateGeneration
-               ),
-               candidateEngineGeneration ==
-                inferenceEngine.scanPresentationGeneration,
-               let speciesData = inferenceEngine.speciesData,
-               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
-               !candidates.isEmpty {
+            if viewModel.isPresentingLocalRecord(
+                scanId: scanId,
+                generation: candidateGeneration
+            ),
+            engineGeneration == inferenceEngine.scanPresentationGeneration,
+            let speciesData = inferenceEngine.speciesData,
+            speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
+            !candidates.isEmpty {
                 CandidateSwipeModal(
                     isPresented: candidateSwipePresentedBinding,
                     scanId: scanId,
-                    presentationGeneration: candidateEngineGeneration,
+                    presentationGeneration: engineGeneration,
                     candidates: candidates,
                     confirmButtonTitle: "Confirm \(viewModel.resolvedHeaderTitle)",
                     allowsAskCommunity: viewModel.canRequestCommunityIdentification,
@@ -264,29 +399,26 @@ struct InsightContentView: View {
                     }
                 )
             }
-        }
-        .sheet(isPresented: fieldNotesPresentedBinding) {
-            if let fieldNotesScanId = viewModel.state.fieldNotesPresentationScanId,
-               let fieldNotesGeneration =
-                viewModel.state.fieldNotesPresentationGeneration,
-               fieldNotesGeneration == viewModel.scanBoundActionGeneration,
+
+        case .fieldNotes(let scanId, let generation):
+            if generation == viewModel.scanBoundActionGeneration,
                viewModel.currentFieldNotesScanId?
-                .caseInsensitiveCompare(fieldNotesScanId) == .orderedSame {
+                .caseInsensitiveCompare(scanId) == .orderedSame {
                 FieldNotesSheet(
                     text: Binding(
                         get: { viewModel.fieldNotesText },
                         set: {
                             viewModel.updateFieldNotes(
                                 $0,
-                                expectedScanId: fieldNotesScanId,
-                                expectedGeneration: fieldNotesGeneration,
+                                expectedScanId: scanId,
+                                expectedGeneration: generation,
                                 modelContext: modelContext
                             )
                         }
                     ),
                     promptContext: viewModel.fieldNotesPromptContext,
                     visibilityConfiguration: viewModel.isPresentingLocalRecord(
-                        scanId: fieldNotesScanId
+                        scanId: scanId
                     ) && viewModel.state.sharedExplorePostId != nil
                         ? FieldNotesVisibilityConfiguration(
                             initialIsPublic: viewModel.state.exploreFieldNotesArePublic,
@@ -294,8 +426,8 @@ struct InsightContentView: View {
                                 await viewModel.saveFieldNotesAndExploreVisibility(
                                     text,
                                     isPublic: isPublic,
-                                    expectedScanId: fieldNotesScanId,
-                                    expectedGeneration: fieldNotesGeneration,
+                                    expectedScanId: scanId,
+                                    expectedGeneration: generation,
                                     modelContext: modelContext
                                 )
                             }
@@ -303,26 +435,62 @@ struct InsightContentView: View {
                         : nil
                 )
             }
-        }
-        .sheet(isPresented: observationPresentedBinding) {
-            if let scanId = observationPresentationScanId,
-               let generation = observationPresentationGeneration,
-               viewModel.isPresentingMedia(
-                   scanId: scanId,
-                   generation: generation
-               ),
-               let context = viewModel.observationContext {
+
+        case .observation(let scanId, let generation):
+            if viewModel.isPresentingMedia(
+                scanId: scanId,
+                generation: generation
+            ), let context = viewModel.observationContext {
                 InsightDescriptionSheet(text: context.freeText)
             }
-        }
-        .fullScreenCover(item: fullscreenGalleryPresentedBinding) { presentation in
-            InsightFullscreenImageCarousel(presentation: presentation)
+
+        case .gallery:
+            EmptyView()
         }
     }
-}
 
-// MARK: - Subcomponents
-private extension InsightContentView {
+    @ViewBuilder
+    func consolidatedFullscreenContent(
+        _ presentation: InsightContentPresentation
+    ) -> some View {
+        switch presentation {
+        case .gallery(let gallery, let scanId, let generation):
+            if viewModel.isPresentingMedia(
+                scanId: scanId,
+                generation: generation
+            ) {
+                InsightFullscreenImageCarousel(presentation: gallery)
+            }
+        case .candidate, .community, .composer, .fieldNotes,
+             .safari, .report, .observation:
+            EmptyView()
+        }
+    }
+
+    func dismissConsolidatedPresentation(
+        _ presentation: InsightContentPresentation
+    ) {
+        guard resolvedPresentation?.id == presentation.id else { return }
+        switch presentation {
+        case .gallery:
+            fullscreenGalleryPresentedBinding.wrappedValue = nil
+        case .candidate:
+            candidateSwipePresentedBinding.wrappedValue = false
+        case .community:
+            communityRequestPresentedBinding.wrappedValue = false
+        case .composer:
+            explorePostComposerPresentedBinding.wrappedValue = false
+        case .fieldNotes:
+            fieldNotesPresentedBinding.wrappedValue = false
+        case .safari:
+            safariPresentedBinding.wrappedValue = false
+        case .report:
+            viewModel.state.isFlagIssuePresented = false
+        case .observation:
+            observationPresentedBinding.wrappedValue = false
+        }
+    }
+
     func carouselAudioBoostBinding(
         scanId: String?,
         generation: UInt64

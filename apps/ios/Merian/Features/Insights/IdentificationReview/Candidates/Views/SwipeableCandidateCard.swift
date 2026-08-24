@@ -1,5 +1,13 @@
 import SwiftUI
 
+enum CandidateCardPresentation: String, Identifiable {
+    case originalImage
+    case candidateImages
+    case distinguishingFeature
+
+    var id: String { rawValue }
+}
+
 // MARK: - Swipeable Candidate Card
 struct SwipeableCandidateCard: View {
     let candidate: IdentificationCandidate
@@ -11,10 +19,8 @@ struct SwipeableCandidateCard: View {
     // NOTE: Uses SimilarSpeciesImageFetcher — dual-source Wikipedia/GBIF async image loading
     // with in-memory NSCache. See Features/Insights/SpeciesReference/Utilities/SimilarSpeciesImageFetcher.swift
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
-    @State private var isOriginalImageExpanded = false
-    @State private var isCandidateImageExpanded = false
+    @State private var activePresentation: CandidateCardPresentation?
     @State private var candidateSelectedImage: UIImage?
-    @State private var isFeatureExpanded = false
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     private var hasAdditionalCandidateImages: Bool {
@@ -38,7 +44,7 @@ struct SwipeableCandidateCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        isCandidateImageExpanded = true
+                        beginPresentation(.candidateImages)
                     }
             } else if imageFetcher.isLoading {
                 ProgressView()
@@ -172,7 +178,9 @@ struct SwipeableCandidateCard: View {
                         .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(2)
                         .padding(.top, 1)
-                        .onTapGesture { isFeatureExpanded = true }
+                        .onTapGesture {
+                            beginPresentation(.distinguishingFeature)
+                        }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -186,7 +194,7 @@ struct SwipeableCandidateCard: View {
                 HStack {
                     Spacer()
                     Button {
-                        isOriginalImageExpanded = true
+                        beginPresentation(.originalImage)
                     } label: {
                         OriginalCapturePiPView()
                             .frame(width: 58, height: 76)
@@ -213,29 +221,44 @@ struct SwipeableCandidateCard: View {
         )
         .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
         .task { _ = await imageFetcher.fetchImage(for: candidate.scientificName) }
-        .sheet(isPresented: $isOriginalImageExpanded) {
-            OriginalCaptureExpandedView()
-                .environment(inferenceEngine)
-                .presentationDragIndicator(.visible)
-                .presentationDetents([.fraction(0.85), .large])
-                .presentationCornerRadius(32)
-        }
-        .sheet(isPresented: $isCandidateImageExpanded) {
-            if !imageFetcher.images.isEmpty {
-                CandidateImageExpandedView(images: imageFetcher.images, selectedImage: $candidateSelectedImage)
+        .sheet(item: $activePresentation) { presentation in
+            switch presentation {
+            case .originalImage:
+                OriginalCaptureExpandedView()
+                    .environment(inferenceEngine)
                     .presentationDragIndicator(.visible)
                     .presentationDetents([.fraction(0.85), .large])
                     .presentationCornerRadius(32)
-            }
-        }
-        .sheet(isPresented: $isFeatureExpanded) {
-            if let feature = candidate.distinguishingFeature, !feature.isEmpty {
-                let sentenceCased = feature.prefix(1).uppercased() + feature.dropFirst()
-                DistinguishingFeatureSheetView(feature: String(sentenceCased))
+
+            case .candidateImages:
+                if !imageFetcher.images.isEmpty {
+                    CandidateImageExpandedView(
+                        images: imageFetcher.images,
+                        selectedImage: $candidateSelectedImage
+                    )
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.fraction(0.85), .large])
+                    .presentationCornerRadius(32)
+                }
+
+            case .distinguishingFeature:
+                if let feature = candidate.distinguishingFeature,
+                   !feature.isEmpty {
+                    let sentenceCased = feature.prefix(1).uppercased()
+                        + feature.dropFirst()
+                    DistinguishingFeatureSheetView(
+                        feature: String(sentenceCased)
+                    )
                     .presentationDragIndicator(.visible)
                     .presentationDetents([.fraction(0.35)])
                     .presentationCornerRadius(32)
+                }
             }
         }
+    }
+
+    private func beginPresentation(_ presentation: CandidateCardPresentation) {
+        guard activePresentation == nil else { return }
+        activePresentation = presentation
     }
 }

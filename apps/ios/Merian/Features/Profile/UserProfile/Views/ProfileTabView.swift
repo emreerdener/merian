@@ -7,6 +7,23 @@ struct ProfileStatsRefreshKey: Equatable {
     let accountId: String?
 }
 
+enum ProfileTabPresentation: Identifiable, Equatable {
+    case paywall
+    case insight(ScanInsightRoute)
+    case fieldTripAuthor(ExploreAuthorProfileRoute)
+
+    var id: String {
+        switch self {
+        case .paywall:
+            "paywall"
+        case .insight(let route):
+            "insight-\(route.id)"
+        case .fieldTripAuthor(let route):
+            "field-trip-author-\(route.id)"
+        }
+    }
+}
+
 /// The standalone layout hierarchy for the primary "Profile" tab.
 /// This acts purely as a declarative composition module that groups all massive
 /// visual data visualizations (Terrarium, Heatmap) and abstracts intense offline SQLite
@@ -31,8 +48,7 @@ struct ProfileTabView: View {
     @State private var selectedPostRoute: ExplorePostRoute?
     @State private var selectedFieldTripTemplateRoute: FieldTripTemplateRoute?
     @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
-    @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
-    @State private var selectedInsightRoute: ScanInsightRoute?
+    @State private var activePresentation: ProfileTabPresentation?
     @State private var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
     @State private var isLoadingEarnedFieldTripPatches = FeatureFlags.isEnabled(.fieldTrips)
     @State private var profileRefreshToken = UUID()
@@ -127,10 +143,6 @@ struct ProfileTabView: View {
             .padding(.horizontal, 16)
             .padding(.top, 16)
             .padding(.bottom, 32)
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-                    .environment(RevenueCatManager.shared)
-            }
             .navigationDestination(
                 isPresented: Binding(
                     get: { selectedPostRoute != nil },
@@ -180,21 +192,8 @@ struct ProfileTabView: View {
                     FieldTripPublicationDetailView(publicationId: selectedFieldTripPublicationRoute.publicationId)
                 }
             }
-            .sheet(item: $selectedInsightRoute) { route in
-                LocalScanInsightLoader(scanId: route.scanId) {
-                    InsightSheetView(
-                        isPresented: Binding(
-                            get: { selectedInsightRoute != nil },
-                            set: { if !$0 { selectedInsightRoute = nil } }
-                        ),
-                        initialScanId: route.scanId,
-                        inferenceEngine: inferenceEngine,
-                        allowsExplorePresentation: false
-                    )
-                }
-            }
-            .sheet(item: $selectedFieldTripAuthorRoute) { route in
-                ExploreAuthorProfileSheet(viewModel: exploreViewModel, route: route)
+            .sheet(item: activePresentationBinding) { presentation in
+                profileSheetContent(presentation)
             }
             .navigationDestination(for: SpeciesDictionaryRoute.self) { route in
                 SpeciesDictionaryPageContentView(
@@ -223,11 +222,80 @@ struct ProfileTabView: View {
                     break
                 }
             }
+            .onChange(of: showPaywall, initial: true) { _, isRequested in
+                if isRequested {
+                    guard beginPresentation(.paywall) else {
+                        showPaywall = false
+                        return
+                    }
+                } else if activePresentation == .paywall {
+                    activePresentation = nil
+                }
+            }
         }
         .background(Color(uiColor: .systemGroupedBackground))
         // Explicitly binds this list to exactly 100% of the screen width securely, 
         // creating a perfect 1-to-1 swipeable "Page" geometry identical to SettingsTabView!
         .containerRelativeFrame(.horizontal)
+    }
+
+    private var activePresentationBinding: Binding<ProfileTabPresentation?> {
+        Binding(
+            get: { activePresentation },
+            set: { presentation in
+                guard presentation == nil else { return }
+                if activePresentation == .paywall {
+                    showPaywall = false
+                }
+                activePresentation = nil
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func profileSheetContent(
+        _ presentation: ProfileTabPresentation
+    ) -> some View {
+        switch presentation {
+        case .paywall:
+            PaywallView()
+                .environment(RevenueCatManager.shared)
+
+        case .insight(let route):
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: presentationBinding(for: presentation),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false
+                )
+            }
+
+        case .fieldTripAuthor(let route):
+            ExploreAuthorProfileSheet(viewModel: exploreViewModel, route: route)
+        }
+    }
+
+    private func presentationBinding(
+        for presentation: ProfileTabPresentation
+    ) -> Binding<Bool> {
+        Binding(
+            get: { activePresentation?.id == presentation.id },
+            set: { isPresented in
+                guard !isPresented,
+                      activePresentation?.id == presentation.id else { return }
+                activePresentation = nil
+            }
+        )
+    }
+
+    @discardableResult
+    private func beginPresentation(
+        _ presentation: ProfileTabPresentation
+    ) -> Bool {
+        guard activePresentation == nil else { return false }
+        activePresentation = presentation
+        return true
     }
 
     @MainActor
@@ -311,8 +379,7 @@ struct ProfileTabView: View {
             return false
         }
 
-        selectedInsightRoute = ScanInsightRoute(scanId: record.id)
-        return true
+        return beginPresentation(.insight(ScanInsightRoute(scanId: record.id)))
     }
 
     private func openFieldTripCompletedScan(_ scanId: String) {
@@ -324,13 +391,16 @@ struct ProfileTabView: View {
     }
 
     private func openFieldTripAuthorProfile(_ publication: FieldTripRecentPublication) {
-        HapticManager.shared.triggerSelectionPulse()
-        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
-            authorUserId: publication.authorUserId,
-            authorName: publication.authorName,
-            authorUsername: publication.authorUsername,
-            authorAvatarUrl: publication.authorAvatarUrl
+        let presentation = ProfileTabPresentation.fieldTripAuthor(
+            ExploreAuthorProfileRoute(
+                authorUserId: publication.authorUserId,
+                authorName: publication.authorName,
+                authorUsername: publication.authorUsername,
+                authorAvatarUrl: publication.authorAvatarUrl
+            )
         )
+        guard beginPresentation(presentation) else { return }
+        HapticManager.shared.triggerSelectionPulse()
     }
 }
 

@@ -18,6 +18,25 @@ enum AchievementDetailNavigationPolicy {
     }
 }
 
+enum AchievementDetailPresentation: Identifiable, Equatable {
+    case insight(ScanInsightRoute)
+    case fieldTripAuthor(ExploreAuthorProfileRoute)
+
+    var id: String {
+        switch self {
+        case .insight(let route):
+            "insight-\(route.id)"
+        case .fieldTripAuthor(let route):
+            "field-trip-author-\(route.id)"
+        }
+    }
+
+    var isInsight: Bool {
+        if case .insight = self { return true }
+        return false
+    }
+}
+
 private struct AchievementFieldTripsRoute: Hashable {}
 
 // MARK: - Primary View
@@ -198,8 +217,7 @@ struct AchievementDetailSheet: View {
     @State private var navigationPath = NavigationPath()
     @State private var detail: AchievementDetailPayload?
     @State private var isLoading = true
-    @State private var selectedScanForInsight: ScanInsightRoute?
-    @State private var selectedFieldTripAuthorRoute: ExploreAuthorProfileRoute?
+    @State private var activePresentation: AchievementDetailPresentation?
     @State private var fieldTripsExploreViewModel = ExploreFeedViewModel()
 
     private var resolvedAward: AwardPayload {
@@ -287,34 +305,63 @@ struct AchievementDetailSheet: View {
             }
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
-        .sheet(item: $selectedScanForInsight) { route in
-            LocalScanInsightLoader(scanId: route.scanId) {
-                InsightSheetView(
-                    isPresented: Binding(
-                        get: { selectedScanForInsight != nil },
-                        set: { if !$0 { selectedScanForInsight = nil } }
-                    ),
-                    initialScanId: route.scanId,
-                    inferenceEngine: inferenceEngine
-                )
-            }
-        }
-        .sheet(item: $selectedFieldTripAuthorRoute) { route in
-            ExploreAuthorProfileSheet(
-                viewModel: fieldTripsExploreViewModel,
-                route: route
-            )
+        .sheet(item: $activePresentation) { presentation in
+            achievementSheetContent(presentation)
         }
         .task(id: award.id) {
             await loadDetail()
         }
-        .onChange(of: selectedScanForInsight) { oldValue, newValue in
-            if oldValue != nil && newValue == nil {
+        .onChange(of: activePresentation) { oldValue, newValue in
+            if oldValue?.isInsight == true && newValue == nil {
                 Task {
                     await loadDetail(backgroundReload: true)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func achievementSheetContent(
+        _ presentation: AchievementDetailPresentation
+    ) -> some View {
+        switch presentation {
+        case .insight(let route):
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: presentationBinding(for: presentation),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine
+                )
+            }
+
+        case .fieldTripAuthor(let route):
+            ExploreAuthorProfileSheet(
+                viewModel: fieldTripsExploreViewModel,
+                route: route
+            )
+        }
+    }
+
+    private func presentationBinding(
+        for presentation: AchievementDetailPresentation
+    ) -> Binding<Bool> {
+        Binding(
+            get: { activePresentation?.id == presentation.id },
+            set: { isPresented in
+                guard !isPresented,
+                      activePresentation?.id == presentation.id else { return }
+                activePresentation = nil
+            }
+        )
+    }
+
+    @discardableResult
+    private func beginPresentation(
+        _ presentation: AchievementDetailPresentation
+    ) -> Bool {
+        guard activePresentation == nil else { return false }
+        activePresentation = presentation
+        return true
     }
 
     private var loadingState: some View {
@@ -414,7 +461,7 @@ struct AchievementDetailSheet: View {
         guard let record = fetchScan(withID: contribution.scanID) else { return }
 
         AppTelemetry.trackAchievementContributionOpened(type: resolvedAward.type.rawValue)
-        selectedScanForInsight = ScanInsightRoute(scanId: record.id)
+        beginPresentation(.insight(ScanInsightRoute(scanId: record.id)))
     }
 
     @MainActor
@@ -424,30 +471,38 @@ struct AchievementDetailSheet: View {
             return
         }
 
+        guard beginPresentation(.insight(ScanInsightRoute(scanId: record.id))) else {
+            return
+        }
         HapticManager.shared.triggerSelectionPulse()
-        selectedScanForInsight = ScanInsightRoute(scanId: record.id)
     }
 
     @MainActor
     private func openFieldTripAuthorProfile(_ publication: FieldTripRecentPublication) {
-        HapticManager.shared.triggerSelectionPulse()
-        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
-            authorUserId: publication.authorUserId,
-            authorName: publication.authorName,
-            authorUsername: publication.authorUsername,
-            authorAvatarUrl: publication.authorAvatarUrl
+        let presentation = AchievementDetailPresentation.fieldTripAuthor(
+            ExploreAuthorProfileRoute(
+                authorUserId: publication.authorUserId,
+                authorName: publication.authorName,
+                authorUsername: publication.authorUsername,
+                authorAvatarUrl: publication.authorAvatarUrl
+            )
         )
+        guard beginPresentation(presentation) else { return }
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     @MainActor
     private func openFieldTripChallengeAuthorProfile(_ entry: FieldTripChallengeEntry) {
-        HapticManager.shared.triggerSelectionPulse()
-        selectedFieldTripAuthorRoute = ExploreAuthorProfileRoute(
-            authorUserId: entry.authorUserId,
-            authorName: entry.authorName,
-            authorUsername: entry.authorUsername,
-            authorAvatarUrl: entry.authorAvatarUrl
+        let presentation = AchievementDetailPresentation.fieldTripAuthor(
+            ExploreAuthorProfileRoute(
+                authorUserId: entry.authorUserId,
+                authorName: entry.authorName,
+                authorUsername: entry.authorUsername,
+                authorAvatarUrl: entry.authorAvatarUrl
+            )
         )
+        guard beginPresentation(presentation) else { return }
+        HapticManager.shared.triggerSelectionPulse()
     }
 
     @MainActor

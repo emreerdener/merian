@@ -22,21 +22,26 @@ accepting only its inspected prefix.
 - `AppEventPublisher` is a DI-owned, synchronous `@MainActor` bus for
   loss-tolerant invalidations and lifecycle hints. Producers receive
   `AppEventSending`; consumers receive `AppEventStreaming`. The subject is
-  private, there is no `AppEventPublisher.shared`, and an event never replaces
-  a read from the authoritative SwiftData, UserDefaults, Supabase, or service
-  state.
+  private, there is no `AppEventPublisher.shared`, and an event never replaces a
+  read from the authoritative SwiftData, UserDefaults, Supabase, or service
+  state. The erased subscriber stream is constructed once with the private
+  subject, so repeated `publisher` access does not allocate another wrapper.
 - `AppRouteCoordinator` is the bounded delivery state machine for root
   navigation and presentation actions. Typed envelopes carry stable identity,
-  source priority, expiry, semantic coalescing, and account/session generations. Route envelopes are
-  process-local; durable imports and other recoverable work stay in their
-  owning stores.
+  source priority, expiry, semantic coalescing, and account/session generations.
+  Route envelopes are process-local; durable imports and other recoverable work
+  stay in their owning stores.
 - `CaptureWorkspaceViewModel` is the sole root route consumer, and
   `CameraSheetRouter` is the sole app-level sheet host. A feature must not add a
   second global bus or sibling root sheet.
 
 Reference-type event subscribers retain and cancel their `AnyCancellable` and
 capture themselves weakly. SwiftUI `.onReceive` subscriptions are owned by the
-mounted view lifecycle.
+mounted view lifecycle. The event-routing guard rejects raw `.sink` use outside
+the reviewed lifetime-owner files; a new sink requires an explicit capture,
+storage, cancellation, ordering, and actor-delivery review. The exact owner
+matrix lives in the canonical routing contract; the allowlist is file-specific,
+not a general permission for a directory or feature.
 
 ## Framework publisher bridge
 

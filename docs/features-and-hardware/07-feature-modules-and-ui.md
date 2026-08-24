@@ -433,6 +433,12 @@ The Scans tab is the user's primary offline biological journal.
 - **Sheet-Based Public Feed**: `ExploreView` renders as a top-level sheet routed
   from `MainTabBar` through `CameraSheetRouter` and
   `CaptureWorkspaceViewModel.ActiveSheet.explore`.
+- **Post-Detail Modal Ownership**: `ExplorePostDetailView` has one item-based
+  sheet for Insight, author/reply detail, Field Notes, post editing, Field Chat,
+  and paywall. Remote composer preparation is stored and replaceable; leaving
+  the detail or selecting another modal cancels it, and a late completion must
+  still match the request token, current post, and empty presentation slot.
+  Field Chat preflight uses the same identity and occupancy checks.
 - **Explore Media Layout**: Feed media and detail media both resolve through the
   shared square media host so image aspect ratios fill a stable square.
   Feed/detail are the public video playback surfaces: feed video autoplay resets
@@ -770,6 +776,11 @@ an Edge API response or opened offline via the Scans library.
     preserves value-type toolbar data across SwiftData deletion/dismissal
     boundaries, and share feedback/candidate-review state is kept out of SwiftUI
     view bodies.
+  - `InsightContentView` resolves Safari, report, Community request, Explore
+    composer, candidate review, Field Notes, observation description, and media
+    gallery through one typed presentation value. One item-based sheet owns the
+    modal cases; a mutually exclusive full-screen binding owns the gallery. No
+    destination adds a sibling sheet host to the same Insight content root.
   - `InsightSheetViewModel` keeps its root state in
     `Features/Insights/Shell/ViewModels/`, while behavior extensions live beside
     their owning product areas: field-note behavior in `FieldNotes/ViewModels/`,
@@ -945,14 +956,16 @@ an Edge API response or opened offline via the Scans library.
   `InsightChatViewModel(source: .speciesDictionary)` from every loaded canonical
   Dictionary detail: Field Chat stays bottom-right, Share stays in the top bar,
   and loading/error/invalid-ID states hide the bottom bar. Direct, deep-linked,
-  and similar-species routes all share that presentation owner. The Explore
-  button hides as soon as the comment composer becomes sticky (and remains
-  hidden while focused), so private chat never competes with the public comment
-  action at the bottom of the post. While hidden, Field chat moves into the post
-  overflow menu. Non-Pro users open the existing paywall. Insight threads
-  preflight ownership through `/check-scan-status` and call `/insight-chat`;
-  Explore threads call `/explore-post-chat` and are private to the requesting
-  viewer, never another viewer. The Explore empty state says
+  and similar-species routes all share that presentation owner. Gallery, author,
+  Field Chat, and paywall are mutually exclusive cases of one typed Dictionary
+  presentation value, and async preflight cannot replace an active case. The
+  Explore button hides as soon as the comment composer becomes sticky (and
+  remains hidden while focused), so private chat never competes with the public
+  comment action at the bottom of the post. While hidden, Field chat moves into
+  the post overflow menu. Non-Pro users open the existing paywall. Insight
+  threads preflight ownership through `/check-scan-status` and call
+  `/insight-chat`; Explore threads call `/explore-post-chat` and are private to
+  the requesting viewer, never another viewer. The Explore empty state says
   `This Field chat is private and visible only to you.` without the former
   technical context/media disclaimer. Loaded messages remain readable offline,
   failed sends stay in-thread with retry/edit recovery, and prompt chips refresh
@@ -1084,6 +1097,15 @@ on gesture-driven layout abstractions.
   `.background(...)` shape modifiers, avoiding intrinsic OS table cell clipping
   masks. Statistics are loaded from SwiftData `@Query` property wrappers,
   preventing network errors and UI lag.
+- **Single profile presentation slots**: `ProfileTabView` serializes paywall,
+  Insight, and Field-trip author sheets through `ProfileTabPresentation`.
+  `UserProfile` serializes username, display-name, and avatar-crop destinations
+  and treats the system Photos picker as occupied presentation state. Avatar
+  selection preparation is replaceable; upload preparation is serialized while
+  it runs. Both tasks are stored, cancelled at account or view-lifecycle
+  boundaries, and fenced by request and account identity before they update UI.
+  At most one bounded prepared preview may wait for the Photos picker binding to
+  dismiss before the crop cover mounts.
 
 ### Achievements UI
 
@@ -1094,6 +1116,10 @@ on gesture-driven layout abstractions.
   `ProfileTabView` replaced the legacy `List` UIKit wrappers (which broke
   Apple's iOS 17 horizontal `.paging` layout with double top-safe-area padding)
   with a pure `.grouped` background `ScrollView`.
+- **Achievement detail presentation ownership**: Insight and Field-trip author
+  destinations share one `AchievementDetailPresentation` sheet host. Insight
+  dismissal triggers the existing background detail refresh only after that
+  exact typed destination clears.
 - **Dynamic Sorting Control & Temporal Heuristics**: The master header
   incorporates a native iOS `Menu` bound to an `@State` enum
   (`AwardSortOption`), allowing users to reorder the layout via a spring
@@ -1401,12 +1427,16 @@ on gesture-driven layout abstractions.
   constrained to the banner itself so users can scroll and tap underlying UI
   outside the notification bounds. Ordinary feature feedback uses `ToastPayload`
   through `MerianSystemFeedbackModifier`; passive toasts are fully pass-through,
-  action toasts intercept only their compact banner, and the modifier serializes
+  and a toast intercepts its compact banner only when its typed action
+  descriptor and view-owned handler are both present. The modifier serializes
   ordinary and milestone layers only when they target the same alignment, so
   they cannot collide in one Z-plane while independent top/bottom feedback can
   coexist. Candidate/confidence review, Insight Chat follow-ups, and Explore
   activity routing store typed pending actions and resume them from the source
   sheet's exact `onDismiss`, never from an elapsed teardown delay.
+  `InsightSheetView`, `ProfileTabView`, achievement detail, and candidate cards
+  each expose one typed feature-local sheet slot, preventing sibling UIKit
+  presenters and duplicate heavy modal graphs.
 - **Shared Circular Control Chrome**: Compact circular `.ultraThinMaterial` icon
   controls now route through `Core/UI/Modifiers/IconButtonModifiers.swift` via
   `.circularMaterialControl(...)` when their visual contract is identical. This

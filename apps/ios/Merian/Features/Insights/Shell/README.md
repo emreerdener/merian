@@ -104,6 +104,21 @@ route rechecks the stable scan ID plus the applicable engine/local presentation
 generation. The shell must not mount a sibling sheet or use a fixed teardown
 sleep to bridge these workflows.
 
+`InsightContentView` enforces that rule with one resolved
+`InsightContentPresentation` value. Safari, report, Community, Explore composer,
+candidate review, Field Notes, and description share one item-based sheet host;
+the gallery's full-screen binding is mutually exclusive with the same value.
+Destination-specific state remains scan/generation fenced, but it never creates
+another sibling modal host.
+
+The outer `InsightSheetView` independently owns one `InsightShellPresentation`
+host for paywall, Field-trip author, Field Chat, Explore onboarding, and
+Explore. At most one follow-up waits while the current sheet tears down, and it
+mounts only after the source sheet's real `onDismiss`. The queued value retains
+scan ID and presentation generation, so a late or replaced request is rejected
+before mounting. Source Boolean flags are adapters at this boundary, not
+additional presentation owners.
+
 Closing an analyzing Insight also calls
 `InferenceEngine.dismissAnalyzingPresentation()`. That lifecycle boundary stops
 and fences Vision, deterministic trait extraction, future Foundation work, and

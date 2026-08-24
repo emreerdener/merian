@@ -34,6 +34,12 @@ delete, feedback, and prompt suggestions. A transcript already loaded in memory
 remains readable offline; sending and other mutations remain disabled until the
 network returns.
 
+Gallery, author profile, Field Chat, and paywall share one typed
+`SpeciesDictionaryPresentation` value. Sheet and full-screen bindings filter
+that same slot, so they cannot mount together. A late Field Chat preflight must
+still match the loaded canonical species, remain uncancelled, and find the slot
+empty before it presents.
+
 The server owns authorization, persistence, limits, and context. The client
 requires `subject_id` and every compatibility `messages[].scan_id` to equal the
 canonical species UUID before applying success. Dictionary telemetry includes

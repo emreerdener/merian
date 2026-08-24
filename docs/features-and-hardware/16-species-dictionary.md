@@ -209,6 +209,13 @@ disabled. Answer feedback, delete, retry/edit, and deterministic prompt chips
 remain available. A thread already loaded in memory stays readable offline;
 network mutations remain unavailable.
 
+The detail host serializes gallery, author profile, Field Chat, and paywall as
+cases of one `SpeciesDictionaryPresentation` value. Its sheet and full-screen
+bindings filter that same slot and therefore cannot mount together. A late chat
+preflight must still match the canonical loaded UUID, remain uncancelled, and
+find the slot empty; choosing another destination clears the pending chat ID and
+cancels the view-owned preparation task.
+
 Each network success is untrusted until the shared strict decoder verifies that
 top-level `subject_id` and every compatibility `messages[].scan_id` equal the
 captured species UUID, message/conversation identities agree, and a send
