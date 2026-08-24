@@ -393,32 +393,23 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: onOpenTemplate) {
-                HStack(alignment: .center, spacing: 12) {
-                    FieldTripActiveProfilePatch(imageName: patchImageName)
-                        .frame(width: 52, height: 52)
-                        .accessibilityHidden(true)
-
+                HStack(alignment: .top, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(FieldTripTemplatePresentation.title(item.template.title, slug: item.template.slug))
-                            .font(.subheadline.weight(.bold))
+                            .font(.title2)
+                            .fontWeight(.bold)
                             .foregroundStyle(.primary)
                             .lineLimit(1)
 
                         Text("Level \(item.currentLevelNumber)")
-                            .font(.caption.weight(.semibold))
+                            .font(.footnote.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                    GoalProgressRing(
-                        completedCount: item.completedCount,
-                        targetCount: item.targetCount,
-                        lineWidth: 4.5,
-                        labelFontSize: 11,
-                        tint: .accentColor
-                    )
-                    .frame(width: 52, height: 52)
-                    .accessibilityHidden(true)
+                    FieldTripActiveProfilePatch(imageName: patchImageName)
+                        .frame(width: 64, height: 64)
+                        .accessibilityHidden(true)
                 }
                 .frame(maxWidth: .infinity)
                 .contentShape(Rectangle())
@@ -442,7 +433,8 @@ private struct CurrentUserActiveFieldTripProfileCard: View {
                 items: item.currentLevelItems,
                 localScansById: localScansById,
                 onOpenTemplate: onOpenTemplate,
-                onOpenCompletedScan: onOpenCompletedScan
+                onOpenCompletedScan: onOpenCompletedScan,
+                presentationMode: .responsiveCatalog
             )
             .padding(.bottom, 16)
         }
@@ -459,11 +451,55 @@ private struct ActiveFieldTripsProfileSkeleton: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach(0..<ActiveFieldTripProfilePresentation.previewLimit, id: \.self) { _ in
-                GlowPulsingSkeletonView(cornerRadius: 24)
-                    .frame(height: 190)
+                ActiveFieldTripProfileCardSkeleton()
             }
         }
-        .accessibilityLabel("Loading active Field trips")
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct ActiveFieldTripProfileCardSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.secondary.opacity(0.16))
+                        .frame(maxWidth: 176)
+                        .frame(height: 24)
+
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Color.secondary.opacity(0.1))
+                        .frame(width: 64, height: 13)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Circle()
+                    .fill(Color.secondary.opacity(0.14))
+                    .frame(width: 64, height: 64)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+
+            HStack(spacing: 10) {
+                ForEach(0..<2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+        }
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemGroupedBackground))
+        )
+        .redacted(reason: .placeholder)
     }
 }
 
@@ -664,7 +700,7 @@ private struct FieldTripActiveProfileRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
-                    .font(.subheadline.weight(.bold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
@@ -678,7 +714,7 @@ private struct FieldTripActiveProfileRow: View {
                 completedCount: trip.completedCount,
                 targetCount: trip.targetCount,
                 lineWidth: 4.5,
-                labelFontSize: 11,
+                labelFontSize: 14,
                 tint: .accentColor
             )
             .frame(width: 52, height: 52)
@@ -738,7 +774,7 @@ private struct FieldTripPublishedProfileRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(FieldTripTemplatePresentation.title(trip.title, slug: trip.slug))
-                    .font(.subheadline.weight(.bold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 

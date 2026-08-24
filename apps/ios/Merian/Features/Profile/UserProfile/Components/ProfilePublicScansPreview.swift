@@ -424,15 +424,17 @@ private struct ProfilePublishedScansLibraryView: View {
             }
         }
         .sheet(item: $selectedInsightRoute) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedInsightRoute != nil },
-                    set: { if !$0 { selectedInsightRoute = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                allowsExplorePresentation: false
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedInsightRoute != nil },
+                        set: { if !$0 { selectedInsightRoute = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false
+                )
+            }
         }
     }
 
@@ -651,7 +653,6 @@ private struct ProfilePublishedScansLibraryView: View {
             return false
         }
 
-        inferenceEngine.load(from: record)
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
         return true
     }

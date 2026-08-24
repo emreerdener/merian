@@ -32,6 +32,16 @@ shown to other viewers. Technical context limitations remain enforced by the
 backend and documented in the API contract instead of being presented as
 additional empty-state disclaimers.
 
+## Connectivity Ownership
+
+`InsightChatViewModel` consumes connectivity state; it does not create or own an
+`NWPathMonitor`. Insight, Explore-post, and Species Dictionary hosts project the
+existing app-scoped `OfflineQueueManager.isOnline` value into their chat view
+model and apply its initial value when the host mounts. This keeps one
+reachability authority for the process and prevents transient SwiftUI view
+construction from repeatedly starting and canceling path monitors. Offline state
+disables new sends without clearing an already-loaded private thread.
+
 ## Owned Insight Readiness
 
 Insight Field Chat depends on the exact authenticated-owner `public.scans` row;

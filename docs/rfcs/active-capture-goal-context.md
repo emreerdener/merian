@@ -298,10 +298,10 @@ separate server preference setting.
 
 Compact form shows artwork only. Tapping it moves the surface beneath the picker
 and expands `Goal: {target}` and the outing title between symmetric 56-point
-artwork and progress slots. The curated prompt is preserved exactly instead of
-adding grammar-aware articles. The trailing circular progress ring shows
-`completed/target`. Tapping artwork again collapses the surface onto the picker
-row; tapping the remaining expanded region opens the owning outing.
+artwork and up-chevron slots. The curated prompt is preserved exactly instead of
+adding grammar-aware articles. Tapping the artwork or trailing chevron collapses
+the surface onto the picker row; tapping the centered expanded region opens the
+owning outing.
 
 Swipe left selects the next target and swipe right selects the previous target
 from either size; both directions wrap. A drag commits only after 36 points and
@@ -315,20 +315,21 @@ Opening provides a light sheet haptic, while expansion, collapse, and target
 changes provide selection feedback through the shared app haptics policy. Reduce
 Motion makes the size transition immediate and removes target-selection
 animation. Compact VoiceOver announces the goal, outing, progress, Expand, and
-adjustable previous/next actions. Expanded artwork exposes Collapse, while the
-remaining region exposes Open and the adjustable actions. Dynamic Type QA must
-confirm the expanded prompt and outing context remain intelligible without
-covering camera controls.
+adjustable previous/next actions. Expanded artwork and the trailing chevron
+expose Collapse, while the centered region exposes Open and the adjustable
+actions. Dynamic Type QA must confirm the expanded prompt and outing context
+remain intelligible without covering camera controls.
 
 The post-Reset Field trip introduction uses the same compact/expanded treatment.
 Its exact Bird and Dog artwork continues three-second cross-fades in either
 size, while Reduce Motion keeps the first image static. Expanded content renders
-**Start an outing**, **Backyard Safari · 2 goals**, and the shared `0/2` ring.
-The introduction is not a selectable goal and therefore has no goal swipe or
-VoiceOver adjustable action. Artwork toggles size; the remaining expanded region
-opens outing detail without starting it. New and migrated accounts instead
-receive active Backyard Safari Level 1 goals automatically; started, completed,
-inaccessible, missing, and empty templates produce no introduction.
+**Start an outing**, **Backyard Safari · 2 goals**, and the trailing collapse
+chevron. The introduction is not a selectable goal and therefore has no goal
+swipe or VoiceOver adjustable action. Artwork and the chevron collapse the
+surface; the centered expanded region opens outing detail without starting it.
+New and migrated accounts instead receive active Backyard Safari Level 1 goals
+automatically; started, completed, inaccessible, missing, and empty templates
+produce no introduction.
 
 ## Navigation
 

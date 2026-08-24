@@ -151,10 +151,9 @@ shows exact bundled objective artwork when mapped, otherwise a neutral
 binoculars symbol. Tapping the artwork moves and expands the same glass surface
 to the full goal row beneath the selector; its leading control returns to 56 pt
 with 36 pt artwork. The centered `Goal: {target}` label and outing title then
-sit between equal 56 pt artwork and progress slots, and the trailing circular
-ring shows `completed/target`. Tapping the expanded artwork collapses the
-surface back onto the selector row, while tapping the remaining text or progress
-region opens the outing.
+sit between equal 56 pt artwork and up-chevron slots. Tapping the expanded
+artwork or trailing chevron collapses the surface back onto the selector row,
+while tapping the centered text region opens the outing.
 
 Expansion is local to the current visual-Scan visit. It survives goal changes,
 root sheets, foreground transitions, and temporary staging, refinement, or
@@ -166,15 +165,16 @@ directions. Opening uses the shared light sheet haptic; expansion, collapse, and
 selection use selection feedback. All respect the global haptics and Expedition
 mode settings. Reduced Motion makes the size change immediate. In compact form,
 VoiceOver still announces the goal, outing, progress, expansion action, and
-adjustable previous/next actions; in expanded form, artwork exposes Collapse
-while the remaining region exposes Open and the adjustable actions.
+adjustable previous/next actions; in expanded form, the artwork and trailing
+chevron expose Collapse while the centered region exposes Open and the
+adjustable actions.
 
 New and migrated accounts normally receive active Backyard Safari Level 1 goals
 from the server. After a complete successful empty context, such as after Reset,
 the provider looks up the accessible unstarted `backyard_safari` template by
 slug. It then supplies the non-selectable **Start an outing** / **Backyard
 Safari · 2 goals** introduction through the same collapsed artwork and expanded
-title/progress treatment. Its artwork cross-fades between Bird and Dog every
+title-and-chevron treatment. Its artwork cross-fades between Bird and Dog every
 three seconds in either size and stays static under Reduce Motion. The rotation
 keeps only its currently visible asset mounted between transitions, resets when
 refreshed artwork changes, and uses the neutral binoculars fallback if a named

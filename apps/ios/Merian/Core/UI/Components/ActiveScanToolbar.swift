@@ -231,7 +231,7 @@ extension ActiveScanToolbar {
         
         return Button(action: onSubmit) {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles.2")
+                Image(systemName: "sparkles")
                     .font(.system(size: 18, weight: .semibold))
                 Text(isRefining ? "Analyze" : "Identify")
                     .font(.headline.weight(.semibold))

@@ -1,5 +1,4 @@
 import Foundation
-import Network
 import Observation
 
 struct PendingInsightChatMessage: Identifiable, Equatable {
@@ -74,7 +73,7 @@ final class InsightChatViewModel {
     var isSummarizingNotes = false
     var isLoadingPrompts = false
     var isCheckingAvailability = false
-    var isOffline = false
+    private(set) var isOffline = false
     var conversationId: String?
     var unavailableScanId: String?
     private(set) var persistedMessageCount = 0
@@ -83,8 +82,6 @@ final class InsightChatViewModel {
     var notesSummaryDraft: String?
     var limits = InsightChatViewModel.initialLimits
 
-    @ObservationIgnored private let monitor = NWPathMonitor()
-    @ObservationIgnored private let monitorQueue = DispatchQueue(label: "com.merian.insight-chat.network")
     @ObservationIgnored private var loadedScanId: String?
     @ObservationIgnored private var didLoadCurrentSubject = false
     @ObservationIgnored private var subjectGeneration: UInt64 = 0
@@ -97,16 +94,10 @@ final class InsightChatViewModel {
 
     init(source: FieldChatSource = .insightScan) {
         self.source = source
-        monitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                self?.isOffline = path.status != .satisfied
-            }
-        }
-        monitor.start(queue: monitorQueue)
     }
 
-    deinit {
-        monitor.cancel()
+    func updateConnectivity(isOnline: Bool) {
+        isOffline = !isOnline
     }
 
     var trimmedDraft: String {

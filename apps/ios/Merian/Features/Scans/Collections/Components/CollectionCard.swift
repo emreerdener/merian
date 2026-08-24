@@ -122,6 +122,7 @@ struct SmartCollectionCard: View {
 struct FeaturedCollectionCard: View {
     let snapshot: SmartCollectionSnapshot
 
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @State private var featuredIndex = 0
 
     private let rotationTimer = Timer.publish(every: 5.0, on: .main, in: .common).autoconnect()
@@ -182,6 +183,7 @@ struct FeaturedCollectionCard: View {
             GeometryReader { geo in
                 ScanThumbnail(
                     record: featuredScan,
+                    isOnline: offlineQueueManager.isOnline,
                     prefersReferenceForAudio: true
                 )
                     .id(featuredScan.id)
@@ -208,6 +210,8 @@ private struct CollectionCardChrome: View {
     let count: Int
     let coverScan: LocalScanRecord?
     let emptyIconName: String
+
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
 
     var body: some View {
         ZStack {
@@ -242,6 +246,7 @@ private struct CollectionCardChrome: View {
             GeometryReader { geo in
                 ScanThumbnail(
                     record: coverScan,
+                    isOnline: offlineQueueManager.isOnline,
                     prefersReferenceForAudio: true
                 )
                     .frame(width: geo.size.width, height: geo.size.width)

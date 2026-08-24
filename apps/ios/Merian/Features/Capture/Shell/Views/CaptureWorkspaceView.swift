@@ -1162,14 +1162,14 @@ enum ActiveCaptureGoalIndicatorCopy {
 
 enum CaptureGoalIndicatorAccessibilityCopy {
     static let goalCollapseLabel = "Collapse outing goal details"
-    static let goalCollapseHint = "Hides the goal name and progress."
+    static let goalCollapseHint = "Hides the goal and outing details."
     static let goalExpandHint =
         "Expands goal details. Swipe up or down to change target."
     static let goalOpenHint =
         "Opens outing details for this target. Swipe up or down to change target."
     static let introductionCollapseLabel = "Collapse outing invitation"
-    static let introductionCollapseHint = "Hides the outing name and progress."
-    static let introductionExpandHint = "Expands the outing name and progress."
+    static let introductionCollapseHint = "Hides the outing details."
+    static let introductionExpandHint = "Expands the outing details."
 
     static func progressValue(
         sourceTitle: String,
@@ -1177,6 +1177,29 @@ enum CaptureGoalIndicatorAccessibilityCopy {
         targetCount: Int
     ) -> String {
         "\(sourceTitle), \(completedCount) of \(targetCount) complete"
+    }
+}
+
+private struct CaptureGoalIndicatorCollapseButton: View {
+    let accessibilityLabel: String
+    let accessibilityHint: String
+    let accessibilityIdentifier: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.up")
+                .font(.body.weight(.semibold))
+                .frame(
+                    width: CaptureGoalIndicatorLayoutPolicy.expandedSize,
+                    height: CaptureGoalIndicatorLayoutPolicy.expandedSize
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
@@ -1288,8 +1311,12 @@ private struct CaptureGoalIntroductionIndicator: View {
             artworkButton
 
             if expansionState.isExpanded {
-                openButton
-                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                HStack(spacing: 0) {
+                    openButton
+                    collapseButton
+                }
+                .frame(maxWidth: .infinity)
+                .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
         .foregroundStyle(.primary)
@@ -1359,32 +1386,21 @@ private struct CaptureGoalIntroductionIndicator: View {
             )
             onOpen()
         } label: {
-            HStack(spacing: 0) {
-                VStack(alignment: .center, spacing: 2) {
-                    Text(introduction.headline)
-                        .font(.subheadline.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .allowsTightening(true)
+            VStack(alignment: .center, spacing: 2) {
+                Text(introduction.headline)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
 
-                    Text(introduction.subheadline)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 4)
-
-                GoalProgressRing(
-                    completedCount: introduction.progress.completedCount,
-                    targetCount: introduction.progress.targetCount
-                )
-                    .frame(width: 40, height: 40)
-                    .frame(width: 56, height: 56)
-                    .accessibilityHidden(true)
+                Text(introduction.subheadline)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
         }
@@ -1394,6 +1410,17 @@ private struct CaptureGoalIntroductionIndicator: View {
         .accessibilityValue(introduction.accessibilityValue)
         .accessibilityHint(introduction.accessibilityHint)
         .accessibilityIdentifier("captureGoalIntroductionOpenButton")
+    }
+
+    private var collapseButton: some View {
+        CaptureGoalIndicatorCollapseButton(
+            accessibilityLabel: CaptureGoalIndicatorAccessibilityCopy
+                .introductionCollapseLabel,
+            accessibilityHint: CaptureGoalIndicatorAccessibilityCopy
+                .introductionCollapseHint,
+            accessibilityIdentifier: "captureGoalIntroductionCollapseButton",
+            action: toggleExpansion
+        )
     }
 
     private func toggleExpansion() {
@@ -1440,8 +1467,12 @@ private struct ActiveCaptureGoalIndicator: View {
             artworkButton
 
             if expansionState.isExpanded {
-                openButton
-                    .transition(.opacity.combined(with: .move(edge: .leading)))
+                HStack(spacing: 0) {
+                    openButton
+                    collapseButton
+                }
+                .frame(maxWidth: .infinity)
+                .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
         .foregroundStyle(.primary)
@@ -1510,34 +1541,23 @@ private struct ActiveCaptureGoalIndicator: View {
             AppTelemetry.trackCaptureGoalIndicator(action: .opened, source: goal.source.kind)
             onOpen()
         } label: {
-            HStack(spacing: 0) {
-                VStack(alignment: .center, spacing: 2) {
-                    Text(
-                        ActiveCaptureGoalIndicatorCopy.instruction(for: goal.prompt)
-                    )
-                        .font(.subheadline.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        .allowsTightening(true)
-
-                    Text(goal.source.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.horizontal, 4)
-
-                GoalProgressRing(
-                    completedCount: goal.progress.completedCount,
-                    targetCount: goal.progress.targetCount
+            VStack(alignment: .center, spacing: 2) {
+                Text(
+                    ActiveCaptureGoalIndicatorCopy.instruction(for: goal.prompt)
                 )
-                    .frame(width: 40, height: 40)
-                    .frame(width: 56, height: 56)
-                    .accessibilityHidden(true)
+                    .font(.subheadline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
+
+                Text(goal.source.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: 56)
             .contentShape(Rectangle())
         }
@@ -1552,6 +1572,15 @@ private struct ActiveCaptureGoalIndicator: View {
         )
         .accessibilityIdentifier("activeCaptureGoalOpenButton")
         .accessibilityAdjustableAction(handleAccessibilityAdjustment)
+    }
+
+    private var collapseButton: some View {
+        CaptureGoalIndicatorCollapseButton(
+            accessibilityLabel: CaptureGoalIndicatorAccessibilityCopy.goalCollapseLabel,
+            accessibilityHint: CaptureGoalIndicatorAccessibilityCopy.goalCollapseHint,
+            accessibilityIdentifier: "activeCaptureGoalCollapseButton",
+            action: toggleExpansion
+        )
     }
 
     private var accessibilityValue: String {

@@ -25,35 +25,26 @@ final class PrivateScanMapViewModel {
     private(set) var visibleRegion: MKCoordinateRegion?
     private(set) var viewportSize: CGSize = .zero
     private(set) var points: [PrivateScanMapPoint] = []
+    private(set) var filteredPoints: [PrivateScanMapPoint] = []
+    private(set) var visiblePoints: [PrivateScanMapPoint] = []
+    private(set) var annotations: [PrivateScanMapAnnotation] = []
+    private(set) var isProjectingViewport = false
     private(set) var didSetInitialCamera = false
     var selectedPointID: String?
     var selectedCategories: Set<SearchCategoryBucket> = []
     var selectedMediaFilters: Set<ScanMediaFilter> = []
 
-    var filteredPoints: [PrivateScanMapPoint] {
-        points.filter { point in
-            let matchesCategory = selectedCategories.isEmpty
-                || selectedCategories.contains(point.category)
-            let matchesMedia = selectedMediaFilters.isEmpty
-                || !selectedMediaFilters.isDisjoint(with: point.mediaFilters)
-            return matchesCategory && matchesMedia
-        }
-    }
+    @ObservationIgnored private let viewportProjector: PrivateScanMapViewportProjector
+    @ObservationIgnored private var viewportProjectionTask: Task<Void, Never>?
+    @ObservationIgnored private var datasetGeneration: UInt64 = 0
+    @ObservationIgnored private var viewportRequestGeneration: UInt64 = 0
+    @ObservationIgnored private var isViewportProjectionSuspended = false
 
-    var visiblePoints: [PrivateScanMapPoint] {
-        guard let visibleRegion else { return [] }
-        return filteredPoints.filter {
-            PrivateScanMapRegion.contains($0.coordinate, in: visibleRegion)
-        }
-    }
-
-    var annotations: [PrivateScanMapAnnotation] {
-        guard let visibleRegion else { return [] }
-        return PrivateScanMapClusterer.annotations(
-            points: filteredPoints,
-            region: visibleRegion,
-            viewportSize: viewportSize
-        )
+    init(
+        viewportProjector: PrivateScanMapViewportProjector =
+            PrivateScanMapViewportProjector()
+    ) {
+        self.viewportProjector = viewportProjector
     }
 
     var selectedPoint: PrivateScanMapPoint? {
@@ -113,6 +104,18 @@ final class PrivateScanMapViewModel {
         if points.isEmpty {
             selectedPointID = nil
         }
+        rebuildFilteredPoints()
+
+        if didSetInitialCamera,
+           visibleRegion == nil,
+           let newestPoint = points.first {
+            setCamera(
+                region: PrivateScanMapRegion.centered(
+                    on: newestPoint.coordinate,
+                    span: 0.2
+                )
+            )
+        }
     }
 
     func setInitialCamera(currentLocation: CLLocation?) {
@@ -166,6 +169,7 @@ final class PrivateScanMapViewModel {
            !PrivateScanMapRegion.contains(selectedPoint.coordinate, in: region) {
             selectedPointID = nil
         }
+        scheduleViewportProjection()
     }
 
     func updateViewportSize(_ size: CGSize) {
@@ -173,9 +177,12 @@ final class PrivateScanMapViewModel {
               size.height.isFinite,
               size.width > 0,
               size.height > 0 else {
+            viewportSize = .zero
+            scheduleViewportProjection()
             return
         }
         viewportSize = size
+        scheduleViewportProjection()
     }
 
     func selectPoint(_ id: String?) {
@@ -189,6 +196,7 @@ final class PrivateScanMapViewModel {
             selectedCategories.insert(category)
         }
         selectedPointID = nil
+        rebuildFilteredPoints()
     }
 
     func toggleMediaFilter(_ filter: ScanMediaFilter) {
@@ -198,22 +206,26 @@ final class PrivateScanMapViewModel {
             selectedMediaFilters.insert(filter)
         }
         selectedPointID = nil
+        rebuildFilteredPoints()
     }
 
     func clearFilters() {
         selectedCategories.removeAll()
         selectedMediaFilters.removeAll()
         selectedPointID = nil
+        rebuildFilteredPoints()
     }
 
     func clearCategories() {
         selectedCategories.removeAll()
         selectedPointID = nil
+        rebuildFilteredPoints()
     }
 
     func clearMediaFilters() {
         selectedMediaFilters.removeAll()
         selectedPointID = nil
+        rebuildFilteredPoints()
     }
 
     func focusRegion(for cluster: PrivateScanMapCluster) -> MKCoordinateRegion? {
@@ -230,9 +242,75 @@ final class PrivateScanMapViewModel {
         setCamera(region: region)
     }
 
+    func waitForViewportProjection() async {
+        let task = viewportProjectionTask
+        await task?.value
+    }
+
+    func setViewportProjectionSuspended(_ isSuspended: Bool) {
+        guard isViewportProjectionSuspended != isSuspended else { return }
+        isViewportProjectionSuspended = isSuspended
+
+        if isSuspended {
+            viewportProjectionTask?.cancel()
+            viewportProjectionTask = nil
+            isProjectingViewport = false
+        } else {
+            scheduleViewportProjection()
+        }
+    }
+
     private func setCamera(region: MKCoordinateRegion) {
         visibleRegion = region
         cameraPosition = .region(region)
+        scheduleViewportProjection()
+    }
+
+    private func rebuildFilteredPoints() {
+        filteredPoints = points.filter { point in
+            let matchesCategory = selectedCategories.isEmpty
+                || selectedCategories.contains(point.category)
+            let matchesMedia = selectedMediaFilters.isEmpty
+                || !selectedMediaFilters.isDisjoint(with: point.mediaFilters)
+            return matchesCategory && matchesMedia
+        }
+        datasetGeneration &+= 1
+        scheduleViewportProjection()
+    }
+
+    private func scheduleViewportProjection() {
+        viewportProjectionTask?.cancel()
+        guard !isViewportProjectionSuspended else {
+            viewportProjectionTask = nil
+            isProjectingViewport = false
+            return
+        }
+        viewportRequestGeneration &+= 1
+        let requestGeneration = viewportRequestGeneration
+        let datasetGeneration = datasetGeneration
+        let points = filteredPoints
+        let region = visibleRegion
+        let viewportSize = viewportSize
+        let viewportProjector = viewportProjector
+        isProjectingViewport = region != nil
+
+        viewportProjectionTask = Task { [weak self] in
+            let projection = await viewportProjector.project(
+                datasetGeneration: datasetGeneration,
+                points: points,
+                region: region,
+                viewportSize: viewportSize
+            )
+            guard !Task.isCancelled,
+                  let self,
+                  requestGeneration == self.viewportRequestGeneration else {
+                return
+            }
+            visiblePoints = projection.visiblePoints
+            annotations = projection.annotations
+            isProjectingViewport = false
+            viewportProjectionTask = nil
+        }
     }
 
     private static func isValidCurrentCoordinate(

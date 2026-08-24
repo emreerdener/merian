@@ -29,7 +29,6 @@ struct SmartCollectionDetailView: View {
                     ScansGrid(
                         scans: liveSnapshot.scans,
                         onSelect: { scan in
-                            inferenceEngine.load(from: scan)
                             selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
                         }
                     )
@@ -53,15 +52,17 @@ struct SmartCollectionDetailView: View {
             }
         }
         .navigationDestination(item: $selectedScanForInsight) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedScanForInsight != nil },
-                    set: { if !$0 { selectedScanForInsight = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                presentationStyle: .embeddedInScansLibrary
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedScanForInsight != nil },
+                        set: { if !$0 { selectedScanForInsight = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    presentationStyle: .embeddedInScansLibrary
+                )
+            }
         }
     }
 

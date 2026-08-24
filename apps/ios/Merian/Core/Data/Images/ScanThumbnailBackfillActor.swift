@@ -74,7 +74,11 @@ actor ScanThumbnailBackfillActor {
     private let missCooldown: TimeInterval = 15 * 60
     private let perPassLimit = 12
 
-    func backfill(records: [ScanThumbnailBackfillCandidate], modelContainer: ModelContainer) async {
+    @discardableResult
+    func backfill(
+        records: [ScanThumbnailBackfillCandidate],
+        modelContainer: ModelContainer
+    ) async -> Set<String> {
         pruneExpiredMisses()
 
         let candidates = Array(
@@ -86,7 +90,7 @@ actor ScanThumbnailBackfillActor {
                 .prefix(perPassLimit)
         )
 
-        guard !candidates.isEmpty else { return }
+        guard !candidates.isEmpty else { return [] }
 
         for candidate in candidates {
             inFlightScanIds.insert(candidate.scanId)
@@ -98,6 +102,7 @@ actor ScanThumbnailBackfillActor {
             scientificNames: candidates.map(\.scientificName)
         )
 
+        var updatedScanIds: Set<String> = []
         await withTaskGroup(of: (ScanThumbnailBackfillCandidate, ThumbnailBackfillPayload?).self) { group in
             for candidate in candidates {
                 let cachedSpecies = cachedSpeciesByName[candidate.scientificName.lowercased()]
@@ -117,19 +122,29 @@ actor ScanThumbnailBackfillActor {
                     recentSpeciesMisses[candidate.scientificName.lowercased()] = now
                     continue
                 }
+                guard let referenceImageUrl = ExternalReferenceImagePolicy
+                    .sanitizedURLList(payload.referenceImageUrl) else {
+                    recentSpeciesMisses[candidate.scientificName.lowercased()] = now
+                    continue
+                }
 
-                await dbActor.updateScanWithWikipedia(
+                let didUpdate = await dbActor.updateScanWithWikipedia(
                     scanId: candidate.scanId,
                     extract: payload.wikipediaOverview,
                     url: payload.wikipediaUrl,
-                    imageUrl: payload.referenceImageUrl
+                    imageUrl: referenceImageUrl,
+                    expectedScientificName: candidate.scientificName
                 )
+                guard didUpdate else { continue }
+
+                updatedScanIds.insert(candidate.scanId)
                 LocalImageLoader.shared.prefetch(
-                    records: [(imagePath: nil, fallbackUrl: payload.referenceImageUrl)],
+                    records: [(imagePath: nil, fallbackUrl: referenceImageUrl)],
                     maxDimension: 600
                 )
             }
         }
+        return updatedScanIds
     }
 
     private func resolveBackfill(

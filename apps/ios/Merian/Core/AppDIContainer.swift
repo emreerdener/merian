@@ -45,6 +45,7 @@ import SwiftUI
     var archiveManager = ArchiveManager.shared
     var photoLibraryManager = PhotoLibraryManager.shared
     var externalImageImportStore = ExternalImageImportStore.shared
+    let privateScanMapStore = PrivateScanMapStore()
     var activeCaptureGoalStore = ActiveCaptureGoalStore(
         provider: FieldTripCaptureGoalProvider()
     )
@@ -140,6 +141,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.speechManager)
             .environment(container.audioCaptureManager)
             .environment(container.activeCaptureGoalStore)
+            .environment(container.privateScanMapStore)
             .environment(container.appRouteCoordinator)
             .environment(container.milestoneToastPresenter)
             .environment(container.milestoneToastHostRegistry)

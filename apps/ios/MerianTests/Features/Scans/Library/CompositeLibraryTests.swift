@@ -302,10 +302,10 @@ struct CompositeLibraryTests {
             isLocallyArchived: false
         )
 
-        #expect(!ScanThumbnail(record: record).isArchivedVisual)
+        #expect(!ScanThumbnail(record: record, isOnline: true).isArchivedVisual)
 
         record.isLocallyArchived = true
 
-        #expect(ScanThumbnail(record: record).isArchivedVisual)
+        #expect(ScanThumbnail(record: record, isOnline: true).isArchivedVisual)
     }
 }

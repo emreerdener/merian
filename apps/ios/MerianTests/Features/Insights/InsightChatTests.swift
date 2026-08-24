@@ -542,7 +542,20 @@ struct InsightChatTests {
         }
         #expect(!viewModel.canSend)
         viewModel.messages.removeLast()
-        viewModel.isOffline = false
+        viewModel.updateConnectivity(isOnline: true)
+        #expect(viewModel.canSend)
+    }
+
+    @Test func connectivityProjectionControlsSending() {
+        let viewModel = InsightChatViewModel()
+        viewModel.draftText = "What did I find?"
+
+        viewModel.updateConnectivity(isOnline: false)
+        #expect(viewModel.isOffline)
+        #expect(!viewModel.canSend)
+
+        viewModel.updateConnectivity(isOnline: true)
+        #expect(!viewModel.isOffline)
         #expect(viewModel.canSend)
     }
 

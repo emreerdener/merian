@@ -62,7 +62,9 @@ visibility decisions:
   valid GPS at its exact saved coordinate, independent of scan geoprivacy,
   Explore publication, or post-level location sharing. Its passive Collections
   preview does not request live location; only the interactive page does. The
-  exact exception, prohibited data paths, and acceptance matrix are defined in
+  preview is rendered asynchronously into a bounded process-memory cache and is
+  never persisted, logged, or sent through Explore. The exact exception,
+  prohibited data paths, and acceptance matrix are defined in
   [Private Scan Map](./28-private-scan-map.md).
 - `InsightBottomToolbar` seeds the Explore composer location option from
   `defaultGeoprivacy`. The composer can override that one post to `open`,
@@ -84,6 +86,14 @@ Local SwiftData still stores exact telemetry owned by the user. Do not treat
 `LocalScanRecord.locationName`, `gpsLatitude`, or `gpsLongitude` as display-safe
 without checking the current geoprivacy mode at the UI boundary, except inside
 an explicitly reviewed owner-only surface such as the dedicated Scan map.
+
+Process-memory retention does not make exact coordinates non-sensitive.
+Destructive account cleanup or a local destructive library purge must
+synchronously empty the private-map snapshots, invalidate its index, cancel
+pending projection and rendering, and clear rendered preview variants before the
+affected UI can render again. Stale work must not repopulate those values, and
+an eventual library-change notification is not an erasure guarantee. The current
+source candidate does not yet implement this reset and is not release-complete.
 
 ## Public Boundaries
 

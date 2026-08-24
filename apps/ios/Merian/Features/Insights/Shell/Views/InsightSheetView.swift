@@ -293,6 +293,9 @@ struct InsightSheetView: View {
     var body: some View {
         presentationRoot
         .accessibilityIdentifier("InsightSheetView")
+        .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
+            chatViewModel.updateConnectivity(isOnline: isOnline)
+        }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else { return }
             presentedScanId = initialScanId

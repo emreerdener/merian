@@ -87,12 +87,12 @@ Keep the `CaptureModeToggle` automation identifier and never restore an app-wide
 ## Shared Goal Progress
 
 `Components/GoalProgressRing.swift` renders the compact circular
-`completedCount/targetCount` treatment shared by the visual Scan target capsule
-the active Field-trip level header, and each persistent Insight contribution
-row. Feature callers own their accessibility label/value and frame; the
-primitive owns clamping, track/progress drawing, and the centered count text.
-Keep it domain-neutral so future goal providers can reuse it without importing
-Capture or Field-trip models.
+`completedCount/targetCount` treatment shared by active Field-trip profile
+cards, outing level headers, and persistent Insight contribution rows. Feature
+callers own their accessibility label/value and frame; the primitive owns
+clamping, track/progress drawing, and the centered count text. Keep it
+domain-neutral so future goal providers can reuse it without importing Field
+trip models.
 
 ## Milestone feedback
 

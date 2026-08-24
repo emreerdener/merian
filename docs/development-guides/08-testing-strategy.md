@@ -1500,12 +1500,17 @@ import, and permission-denial UI require the physical-device checklist in
 - **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
   incremental and coalesced reindexing, sort behavior, and selection limits for
   the Scans library, including the batch-media export selection-mutation fence.
-- **`PrivateScanMapTests.swift`**: Locks mapped-record inclusion and coordinate
-  validation, exact owner-coordinate preservation, antimeridian extent fitting,
-  current-location fallback, local category/media filters, true viewport counts,
-  deletion refresh, the thumbnail zoom threshold, **Show scans** recovery, and
-  deterministic 56-point clustering for coincident points and 5,000-record
-  libraries.
+- **`PrivateScanMapTests.swift`**: Locks coordinate-only Collections preview
+  projection and presentation-field isolation, mapped-record inclusion and
+  coordinate validation, exact owner-coordinate preservation, antimeridian
+  extent fitting, current-location fallback, local category/media filters, true
+  viewport counts, deletion refresh, the thumbnail zoom threshold, and **Show
+  scans** recovery. Actor-index coverage distinguishes unchanged,
+  presentation-only, coordinate, and deletion revisions; spatial-index coverage
+  locks wrapped antimeridian lookup. Deterministic clustering remains bounded
+  for coincident points and 5,000-record preview and interactive libraries,
+  including deferral while a MapKit viewport is transiently zero-sized before or
+  after completed layout.
 - **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
   and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
   returns only the non-Favorites collection's direct, deterministically sorted
@@ -1539,10 +1544,34 @@ import, and permission-denial UI require the physical-device checklist in
 The focused UI case
 `merianUITests.testPrivateScanMapCollectionNavigationFiltersAndInsight` uses the
 Debug-only `-seedPrivateScanMapFlow` fixture. It verifies card visibility and
-placement, native **Collections** back navigation, absence of Scans-root and
-Explore chrome, bottom-safe-area controls, local filtering, the true viewport
-count, the **Your scans / Private** sheet, sheet dismissal before embedded
-Insight, and Back returning to Collections.
+placement with 305 synthetic mapped records, card responsiveness, native
+**Collections** back navigation, absence of Scans-root and Explore chrome,
+bottom-safe-area controls, local filtering, the true viewport count, the **Your
+scans / Private** sheet, zooming across the dot/thumbnail threshold while the
+gesture surface and count control remain responsive, point-to-preview-to-Insight
+navigation, sheet dismissal before embedded Insight, and Back returning to
+Collections.
+
+The fixture is also the minimum regression floor for the Collections freeze: the
+card must remain hittable while its asynchronous static snapshot is absent,
+loading, or degraded, and a populated Map must complete preview-to-Insight and
+sheet-to-Insight transitions without an event-loop idle timeout. Zooming into
+thumbnail waypoints must not require `OfflineQueueManager` from MapKit's hosted
+annotation environment; connectivity is resolved by the map owner and passed as
+a value. The Scans root must own both typed route values; the Map view may emit
+a selected scan ID but must not install or mutate its own Insight destination.
+The unit target compiles the short-lived SwiftData actor, revisioned index,
+bounded in-memory snapshot renderer, and cancellable viewport projector;
+simulator/device execution remains required to validate actual MapKit tile and
+gesture behavior.
+
+Unit coverage must also prove that the rich map projection carries a saved
+reference URL behind the captured path; a missing or unreadable owner image can
+form a bounded fallback candidate; a corrected identification fences the durable
+write and does not reuse the former GBIF key; repeat writes report a no-op; and
+unresolved, human, domestic-cat, and domestic-dog records cannot request
+third-party imagery. The reference lookup is not a location test: no coordinate
+may enter its candidate, request, log, or fixture.
 
 The shared UI launcher also supplies `-seedLocationPermissionPromptSuppressed`,
 so this test exercises the saved-scan fallback and cannot serve as evidence for
@@ -1550,6 +1579,20 @@ a real permission prompt, current location, or MapKit user annotation. The
 focused private-map case is not one of the hosted critical UI smokes; run it
 explicitly and retain its result alongside the complete `merianTests` result. A
 permission-path test must launch without the suppression argument.
+
+The existing focused suite is not evidence for four open lifecycle and geometry
+contracts. Before candidate acceptance, add deterministic regressions that:
+
+- start refresh A, request refresh B while A is running, make A throw, and prove
+  B remains pending and publishes the later durable generation;
+- invoke destructive account/local-library reset while snapshots, spatial work,
+  and preview rendering exist, then prove observable values and caches are empty
+  and stale completions cannot repopulate them;
+- cancel the destination during a delayed initial refresh and prove no location
+  request begins afterward; and
+- compare clustering in wrapped MapKit/Web-Mercator projected space at ordinary
+  and high latitudes, including an antimeridian viewport, so each cell is truly
+  56 screen points rather than a raw coordinate fraction.
 
 After `make xcodegen` and build-for-testing, the minimum focused selectors are:
 
@@ -1570,7 +1613,8 @@ xcodebuild test-without-building \
 Focused passes do not replace `make validate-ios-project`,
 `make validate-ios-privacy-manifest`, the complete `merianTests` target, or
 candidate-build manual QA. The authoritative privacy, accessibility, deletion,
-location, appearance, large-library, offline, and release-readiness matrix is in
+destructive-purge, location, appearance, large-library, offline, and
+release-readiness matrix is in
 [Private Scan Map](../features-and-hardware/28-private-scan-map.md#verification-contract).
 
 ## Testing Identify Requests and Activity

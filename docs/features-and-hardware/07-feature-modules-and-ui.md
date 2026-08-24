@@ -119,10 +119,12 @@ The Scans tab is the user's primary offline biological journal.
   unrelated navigation, and durable `scanLibraryChanged` recovery refreshes
   every mounted library projection after commit.
 - **Private map push**: Collections pushes **Scan map** inside this same
-  `NavigationStack`. The destination receives a native **Collections** back item
-  and edge-swipe navigation while omitting the root X, segmented picker, add
-  action, bottom search field, and app bottom navigation. It opens private
-  Insight in the existing stack rather than presenting another root sheet.
+  `NavigationStack` with a typed `ScansNavigationRoute.privateScanMap` value.
+  `ScansSheetView` remains the sole path owner: the Map view emits a selected
+  scan ID and the root appends `ScanInsightRoute`, rather than letting the
+  Map-owning subtree install or mutate a destination. The map receives a native
+  **Collections** back item and edge-swipe navigation while omitting the root X,
+  segmented picker, add action, bottom search field, and app bottom navigation.
 
 ### Search & Filtering
 
@@ -266,9 +268,14 @@ The Scans tab is the user's primary offline biological journal.
   above Featured scans. It shows the total mapped count plus **Private**, fits
   the complete scan extent without requesting current location, and joins
   search/result-count/empty-state behavior through map, private, locations, and
-  "your scans" aliases. It is not a `ScanCollection` and never enters collection
-  synchronization or mutation flows. The normative behavior and privacy contract
-  are in [Private Scan Map](./28-private-scan-map.md).
+  "your scans" aliases. Collections observes an actor-backed coordinate
+  projection and displays an asynchronous static MapKit snapshot, so it does not
+  host a live map or project, hash, decode, and cluster the mapped library on
+  the main actor. Content and spatial revisions prevent presentation-only
+  changes from regenerating the card image. It is not a `ScanCollection` and
+  never enters collection synchronization or mutation flows. The normative
+  behavior and privacy contract are in
+  [Private Scan Map](./28-private-scan-map.md).
 - Uses SwiftData `@Relationship` mapping inside a nested 3-column `LazyVGrid`,
   providing an "Explore Library" modal inside `CollectionDetailView` to link IDs
   safely without duplicating local images.

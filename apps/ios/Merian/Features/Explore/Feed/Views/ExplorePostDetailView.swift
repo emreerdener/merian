@@ -18,6 +18,7 @@ struct ExplorePostDetailView: View {
     let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
 
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -407,6 +408,9 @@ struct ExplorePostDetailView: View {
                 }
             }
         }
+        .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
+            exploreChatViewModel.updateConnectivity(isOnline: isOnline)
+        }
         .onChange(of: viewModel.commentDraft) { _, newValue in
             if newValue.count > 500 {
                 viewModel.commentDraft = String(newValue.prefix(500))
@@ -469,19 +473,21 @@ struct ExplorePostDetailView: View {
                 isRefreshingAfterInsightDismiss = false
             }
         }) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedInsightRoute != nil },
-                    set: { if !$0 { selectedInsightRoute = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                allowsExplorePresentation: false,
-                onOpenCommunityIdentificationRequest: { requestId in
-                    pendingInsightCommunityRequestId = requestId
-                    selectedInsightRoute = nil
-                }
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedInsightRoute != nil },
+                        set: { if !$0 { selectedInsightRoute = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false,
+                    onOpenCommunityIdentificationRequest: { requestId in
+                        pendingInsightCommunityRequestId = requestId
+                        selectedInsightRoute = nil
+                    }
+                )
+            }
             .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-detail-insight-sheet")
         }
         .sheet(item: $selectedAuthorProfileRoute) { route in
@@ -1079,7 +1085,6 @@ struct ExplorePostDetailView: View {
             return
         }
 
-        inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }

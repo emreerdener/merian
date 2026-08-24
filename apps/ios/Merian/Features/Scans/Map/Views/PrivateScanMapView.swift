@@ -1,29 +1,24 @@
 import CoreLocation
 import MapKit
-import SwiftData
 import SwiftUI
 
 struct PrivateScanMapView: View {
-    @Query(sort: \LocalScanRecord.timestamp, order: .reverse)
-    private var allScans: [LocalScanRecord]
+    let onOpenInsight: (String) -> Void
 
     @Environment(EnvironmentContextManager.self)
     private var environmentContextManager
-    @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
+    @Environment(PrivateScanMapStore.self) private var privateScanMapStore
     @Environment(\.openURL) private var openURL
 
     @State private var viewModel = PrivateScanMapViewModel()
     @State private var isShowingFilterSheet = false
     @State private var isShowingScanList = false
     @State private var sheetPointIDs: [String]?
-    @State private var selectedInsightRoute: ScanInsightRoute?
     @State private var pendingInsightScanID: String?
-    @State private var ignoresNextBackgroundTap = false
-    @State private var continuousZoomLevel: Double?
     @State private var isResolvingLocation = false
     @State private var isLocationSettingsAlertPresented = false
     @State private var isLocationUnavailableAlertPresented = false
-    @State private var isScanUnavailableAlertPresented = false
 
     var body: some View {
         ZStack {
@@ -46,18 +41,26 @@ struct PrivateScanMapView: View {
         .navigationTitle("Scan map")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .bottomBar)
+        .onAppear {
+            viewModel.setViewportProjectionSuspended(false)
+        }
+        .onDisappear {
+            viewModel.setViewportProjectionSuspended(true)
+        }
         .task {
-            refreshSnapshot()
+            await privateScanMapStore.refresh()
+            viewModel.update(
+                snapshot: privateScanMapStore.snapshot.interactiveSnapshot
+            )
+            guard !viewModel.didSetInitialCamera else { return }
             let currentLocation = await environmentContextManager.requestCurrentLocation()
             guard !Task.isCancelled else { return }
             viewModel.setInitialCamera(currentLocation: currentLocation)
         }
-        .task(id: sourceIdentity) {
-            refreshSnapshot()
-        }
-        .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
-            guard case .scanLibraryChanged = event else { return }
-            refreshSnapshot()
+        .onChange(of: privateScanMapStore.snapshot.revision) {
+            viewModel.update(
+                snapshot: privateScanMapStore.snapshot.interactiveSnapshot
+            )
         }
         .sheet(isPresented: $isShowingFilterSheet) {
             filterSheet
@@ -67,17 +70,6 @@ struct PrivateScanMapView: View {
             onDismiss: handleScanListDismissal
         ) {
             scanListSheet
-        }
-        .navigationDestination(item: $selectedInsightRoute) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedInsightRoute != nil },
-                    set: { if !$0 { selectedInsightRoute = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                presentationStyle: .embeddedInScansLibrary
-            )
         }
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
@@ -95,11 +87,6 @@ struct PrivateScanMapView: View {
         } message: {
             Text("We couldn’t determine your location right now. Your saved scan locations are still available.")
         }
-        .alert("Scan Unavailable", isPresented: $isScanUnavailableAlertPresented) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("This scan is no longer in your library.")
-        }
     }
 
     private var cameraPositionBinding: Binding<MapCameraPosition> {
@@ -109,12 +96,10 @@ struct PrivateScanMapView: View {
         )
     }
 
-    private var effectiveZoomLevel: Double {
-        continuousZoomLevel ?? viewModel.effectiveZoomLevel
-    }
-
     private var mapLayer: some View {
-        GeometryReader { geometry in
+        let isOnline = offlineQueueManager.isOnline
+
+        return GeometryReader { geometry in
             Map(position: cameraPositionBinding) {
                 if environmentContextManager.isAuthorized {
                     UserAnnotation()
@@ -123,12 +108,12 @@ struct PrivateScanMapView: View {
                 ForEach(viewModel.annotations) { annotation in
                     switch annotation {
                     case .point(let point):
-                        waypointAnnotation(for: point)
+                        waypointAnnotation(for: point, isOnline: isOnline)
                     case .cluster(let cluster):
                         Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                             Button {
-                                registerAnnotationTap()
                                 HapticManager.shared.triggerSelectionPulse()
+                                viewModel.selectPoint(nil)
                                 if viewModel.focusRegion(for: cluster) != nil {
                                     withAnimation(.easeInOut(duration: 0.25)) {
                                         viewModel.focus(on: cluster)
@@ -146,6 +131,7 @@ struct PrivateScanMapView: View {
                 }
             }
             .mapStyle(.standard)
+            .accessibilityIdentifier("PrivateScanMapCanvas")
             .ignoresSafeArea(edges: .bottom)
             .onAppear {
                 viewModel.updateViewportSize(geometry.size)
@@ -153,26 +139,18 @@ struct PrivateScanMapView: View {
             .onChange(of: geometry.size) { _, size in
                 viewModel.updateViewportSize(size)
             }
-            .onTapGesture {
-                dismissSelectedPointIfNeeded()
-            }
-            .onMapCameraChange(frequency: .continuous) { context in
-                let longitudeDelta = max(context.region.span.longitudeDelta, 0.000_01)
-                continuousZoomLevel = max(0, min(log2(360 / longitudeDelta), 20))
-            }
             .onMapCameraChange(frequency: .onEnd) { context in
                 viewModel.updateVisibleRegion(context.region)
-                continuousZoomLevel = nil
             }
         }
     }
 
     private func waypointAnnotation(
-        for point: PrivateScanMapPoint
+        for point: PrivateScanMapPoint,
+        isOnline: Bool
     ) -> some MapContent {
         Annotation("", coordinate: point.coordinate, anchor: .bottom) {
             Button {
-                registerAnnotationTap()
                 HapticManager.shared.triggerSelectionPulse()
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                     viewModel.selectPoint(point.id)
@@ -181,7 +159,11 @@ struct PrivateScanMapView: View {
                 PrivateScanMapWaypoint(
                     point: point,
                     isSelected: viewModel.selectedPointID == point.id,
-                    showsThumbnail: effectiveZoomLevel >= 11.5
+                    showsThumbnail: viewModel.showsThumbnailWaypoints,
+                    isOnline: isOnline,
+                    onReferenceImageNeeded: {
+                        requestReferenceImageFallback(for: point.id)
+                    }
                 )
             }
             .buttonStyle(.plain)
@@ -210,6 +192,7 @@ struct PrivateScanMapView: View {
                 )
             } else if viewModel.didSetInitialCamera,
                       !viewModel.filteredPoints.isEmpty,
+                      !viewModel.isProjectingViewport,
                       viewModel.visiblePoints.isEmpty {
                 mapStateBanner(
                     icon: "map",
@@ -338,7 +321,11 @@ struct PrivateScanMapView: View {
             if let selectedPoint = viewModel.selectedPoint {
                 PrivateScanMapPreviewCard(
                     point: selectedPoint,
-                    onOpen: { openInsight(scanID: selectedPoint.id) }
+                    isOnline: offlineQueueManager.isOnline,
+                    onOpen: { openInsight(scanID: selectedPoint.id) },
+                    onReferenceImageNeeded: {
+                        requestReferenceImageFallback(for: selectedPoint.id)
+                    }
                 )
                 .padding(.horizontal, 16)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -512,7 +499,13 @@ struct PrivateScanMapView: View {
                                     pendingInsightScanID = point.id
                                     isShowingScanList = false
                                 } label: {
-                                    PrivateScanMapSheetRow(point: point)
+                                    PrivateScanMapSheetRow(
+                                        point: point,
+                                        isOnline: offlineQueueManager.isOnline,
+                                        onReferenceImageNeeded: {
+                                            requestReferenceImageFallback(for: point.id)
+                                        }
+                                    )
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("PrivateScanMapSheetRow-\(point.id)")
@@ -528,7 +521,7 @@ struct PrivateScanMapView: View {
                     VStack(spacing: 1) {
                         Text("Your scans")
                             .font(.headline)
-                        Label("Private", systemImage: "lock.fill")
+                        Text("Private")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -555,14 +548,6 @@ struct PrivateScanMapView: View {
         return viewModel.filteredPoints.filter { ids.contains($0.id) }
     }
 
-    private var sourceIdentity: String {
-        PrivateScanMapSnapshot.sourceIdentity(for: allScans)
-    }
-
-    private func refreshSnapshot() {
-        viewModel.update(snapshot: PrivateScanMapSnapshot(records: allScans))
-    }
-
     private func showScanList(pointIDs: [String]?) {
         sheetPointIDs = pointIDs
         isShowingScanList = true
@@ -580,29 +565,11 @@ struct PrivateScanMapView: View {
     }
 
     private func openInsight(scanID: String) {
-        guard let record = allScans.first(where: { $0.id == scanID }) else {
-            isScanUnavailableAlertPresented = true
-            return
-        }
-        inferenceEngine.load(from: record)
-        selectedInsightRoute = ScanInsightRoute(scanId: scanID)
+        onOpenInsight(scanID)
     }
 
-    private func registerAnnotationTap() {
-        ignoresNextBackgroundTap = true
-        Task { @MainActor in
-            await Task.yield()
-            ignoresNextBackgroundTap = false
-        }
-    }
-
-    private func dismissSelectedPointIfNeeded() {
-        guard !ignoresNextBackgroundTap, viewModel.selectedPointID != nil else {
-            return
-        }
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
-            viewModel.selectPoint(nil)
-        }
+    private func requestReferenceImageFallback(for scanID: String) {
+        privateScanMapStore.requestReferenceImageFallback(for: scanID)
     }
 
     private func recenterOnCurrentLocation() async {
@@ -648,62 +615,80 @@ struct PrivateScanMapView: View {
 
 private struct PrivateScanMapPreviewCard: View {
     let point: PrivateScanMapPoint
+    let isOnline: Bool
     let onOpen: () -> Void
+    let onReferenceImageNeeded: @MainActor () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            ScanThumbnail(
-                imagePath: point.thumbnail.imagePath,
-                fallbackImageUrl: point.thumbnail.fallbackImageUrl,
-                audioPath: point.thumbnail.audioPath,
-                hasVideo: point.thumbnail.hasVideo,
-                hasAudio: point.thumbnail.hasAudio,
-                prefersReferenceForAudio: true,
-                maxDimension: 180,
-                placeholderStyle: point.thumbnail.placeholderStyle
-            )
-            .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Button(action: onOpen) {
+            HStack(spacing: 12) {
+                ScanThumbnail(
+                    isOnline: isOnline,
+                    imagePath: point.thumbnail.imagePath,
+                    fallbackImageUrl: point.thumbnail.fallbackImageUrl,
+                    audioPath: point.thumbnail.audioPath,
+                    hasVideo: point.thumbnail.hasVideo,
+                    hasAudio: point.thumbnail.hasAudio,
+                    prefersReferenceForAudio: true,
+                    maxDimension: 180,
+                    placeholderStyle: point.thumbnail.placeholderStyle,
+                    onReferenceImageNeeded: onReferenceImageNeeded
+                )
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(point.privateMapDisplayName)
-                    .font(.subheadline)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(point.privateMapDisplayName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+
+                    Text(point.scientificName)
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Text(point.privateMapMetadata)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Text("View scan")
+                    .font(.footnote)
                     .fontWeight(.semibold)
-                    .lineLimit(1)
-
-                Text(point.scientificName)
-                    .font(.caption)
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Text(point.privateMapMetadata)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color.accentColor)
+                    .clipShape(Capsule(style: .continuous))
             }
-
-            Spacer(minLength: 8)
-
-            Button("View scan", action: onOpen)
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .buttonStyle(.borderedProminent)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .padding(12)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .accessibilityElement(children: .contain)
+        .accessibilityLabel(
+            "\(point.privateMapDisplayName), \(point.scientificName), View scan"
+        )
+        .accessibilityHint("Opens your private scan")
         .accessibilityIdentifier("PrivateScanMapPreview")
     }
 }
 
 private struct PrivateScanMapSheetRow: View {
     let point: PrivateScanMapPoint
+    let isOnline: Bool
+    let onReferenceImageNeeded: @MainActor () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
             ScanThumbnail(
+                isOnline: isOnline,
                 imagePath: point.thumbnail.imagePath,
                 fallbackImageUrl: point.thumbnail.fallbackImageUrl,
                 audioPath: point.thumbnail.audioPath,
@@ -711,7 +696,8 @@ private struct PrivateScanMapSheetRow: View {
                 hasAudio: point.thumbnail.hasAudio,
                 prefersReferenceForAudio: true,
                 maxDimension: 180,
-                placeholderStyle: point.thumbnail.placeholderStyle
+                placeholderStyle: point.thumbnail.placeholderStyle,
+                onReferenceImageNeeded: onReferenceImageNeeded
             )
             .frame(width: 64, height: 64)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

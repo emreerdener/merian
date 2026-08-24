@@ -24,83 +24,176 @@ struct ScanThumbnailBackfillCandidate: Sendable, Equatable {
     init?(record: LocalScanRecord) {
         guard record.canResolveReferenceThumbnail,
               !record.hasStoredVisualThumbnail,
-              record.referenceImageUrl?.trimmedNonEmpty == nil else {
+              record.referenceImageUrl?.trimmedNonEmpty == nil,
+              let identity = Self.referenceIdentity(for: record) else {
             return nil
         }
 
         self.scanId = record.id
-        self.scientificName = record.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.gbifTaxonKey = record.gbifTaxonKey
+        self.scientificName = identity.scientificName
+        self.gbifTaxonKey = identity.gbifTaxonKey
+    }
+
+    /// Builds a reference-image request for a map thumbnail whose stored owner
+    /// media is absent or unreadable. Unlike the library-wide non-visual
+    /// backfill, this path may recover archived or stale visual records because
+    /// the caller has already established that no captured bitmap can render.
+    init?(missingVisualFallbackFor record: LocalScanRecord) {
+        guard record.isBiological,
+              record.referenceImageUrl?.trimmedNonEmpty == nil,
+              let identity = Self.referenceIdentity(for: record) else {
+            return nil
+        }
+
+        self.scanId = record.id
+        self.scientificName = identity.scientificName
+        self.gbifTaxonKey = identity.gbifTaxonKey
+    }
+
+    private static func referenceIdentity(
+        for record: LocalScanRecord
+    ) -> (scientificName: String, gbifTaxonKey: Int?)? {
+        guard record.hasResolvedBiologicalIdentification else { return nil }
+
+        let override = record.userIdentificationOverride?.trimmedNonEmpty
+        guard let scientificName = override
+            ?? record.scientificName.trimmedNonEmpty,
+            !ReferenceImageVisibilityPolicy.shouldSuppress(
+                isHumanSubject: record.isHumanSubject,
+                scientificName: scientificName
+            ) else {
+            return nil
+        }
+
+        return (
+            scientificName: scientificName,
+            gbifTaxonKey: override == nil ? record.gbifTaxonKey : nil
+        )
     }
 }
 
-extension LocalScanRecord {
-    var scanThumbnailPresentation: ScanThumbnailPresentation {
+enum ScanThumbnailProjection {
+    static func presentation(
+        isBiological: Bool,
+        isLocallyArchived: Bool,
+        scientificName: String,
+        coverImagePath: String?,
+        referenceImageUrl: String?,
+        mediaSnapshot: CapturedMediaSnapshot,
+        canResolveReferenceImage: Bool? = nil
+    ) -> ScanThumbnailPresentation {
         let fallbackUrl = referenceImageUrl?.trimmedNonEmpty
+        let mediaSummary = mediaSnapshot.summary
+        let preferredVisualPath = coverImagePath?.trimmedNonEmpty
+            ?? mediaSnapshot.primaryImagePath?.trimmedNonEmpty
+        let hasStoredVisual = preferredVisualPath != nil || mediaSummary.hasImage
+        let normalizedScientificName = scientificName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let inferredReferenceEligibility = isBiological
+            && !isLocallyArchived
+            && !normalizedScientificName.isEmpty
+            && normalizedScientificName != "taxonomy unavailable"
+            && normalizedScientificName != "unknown subject"
+            && !hasStoredVisual
+        let canResolveReference = canResolveReferenceImage
+            ?? inferredReferenceEligibility
+        let mediaKind = mediaSummary.preferredThumbnailKind ?? .other
 
-        if hasStoredVisualThumbnail {
+        if hasStoredVisual {
             return ScanThumbnailPresentation(
-                imagePath: preferredVisualThumbnailPath,
+                imagePath: preferredVisualPath,
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
-                hasVideo: capturedMediaSummary.hasVideo,
-                hasAudio: capturedMediaSummary.hasAudio,
+                hasVideo: mediaSummary.hasVideo,
+                hasAudio: mediaSummary.hasAudio,
                 placeholderStyle: .archived
             )
         }
 
-        if let audioPath = preferredAudioSpectrogramPath {
+        let preferredAudioPath: String? = if mediaSummary.hasAudio,
+                                             !mediaSummary.hasImage,
+                                             !mediaSummary.hasDescription {
+            mediaSnapshot.audioPaths.first?.trimmedNonEmpty
+        } else {
+            nil
+        }
+        if let preferredAudioPath {
             return ScanThumbnailPresentation(
                 imagePath: nil,
                 fallbackImageUrl: fallbackUrl,
-                audioPath: audioPath,
+                audioPath: preferredAudioPath,
                 hasVideo: false,
                 hasAudio: true,
-                placeholderStyle: nonVisualPlaceholderStyle(fallbackUrl: fallbackUrl)
+                placeholderStyle: fallbackUrl != nil || canResolveReference
+                    ? .pendingReference(mediaKind)
+                    : .unavailableReference(mediaKind)
             )
         }
 
-        let mediaKind = capturedMediaKindForThumbnail
         if fallbackUrl != nil {
             return ScanThumbnailPresentation(
                 imagePath: nil,
                 fallbackImageUrl: fallbackUrl,
                 audioPath: nil,
-                hasVideo: capturedMediaSummary.hasVideo,
-                hasAudio: capturedMediaSummary.hasAudio,
+                hasVideo: mediaSummary.hasVideo,
+                hasAudio: mediaSummary.hasAudio,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
 
-        if canResolveReferenceThumbnail {
+        if canResolveReference {
             return ScanThumbnailPresentation(
                 imagePath: nil,
                 fallbackImageUrl: nil,
                 audioPath: nil,
-                hasVideo: capturedMediaSummary.hasVideo,
-                hasAudio: capturedMediaSummary.hasAudio,
+                hasVideo: mediaSummary.hasVideo,
+                hasAudio: mediaSummary.hasAudio,
                 placeholderStyle: .pendingReference(mediaKind)
             )
         }
 
+        let hasNonVisualOnlyMedia = !hasStoredVisual
+            && (mediaSummary.hasNonVisualMedia || coverImagePath?.trimmedNonEmpty == nil)
         if hasNonVisualOnlyMedia || coverImagePath?.trimmedNonEmpty == nil {
             return ScanThumbnailPresentation(
                 imagePath: nil,
                 fallbackImageUrl: nil,
                 audioPath: nil,
-                hasVideo: capturedMediaSummary.hasVideo,
-                hasAudio: capturedMediaSummary.hasAudio,
+                hasVideo: mediaSummary.hasVideo,
+                hasAudio: mediaSummary.hasAudio,
                 placeholderStyle: .unavailableReference(mediaKind)
             )
         }
 
         return ScanThumbnailPresentation(
-            imagePath: preferredVisualThumbnailPath,
+            imagePath: preferredVisualPath,
             fallbackImageUrl: fallbackUrl,
             audioPath: nil,
-            hasVideo: capturedMediaSummary.hasVideo,
-            hasAudio: capturedMediaSummary.hasAudio,
+            hasVideo: mediaSummary.hasVideo,
+            hasAudio: mediaSummary.hasAudio,
             placeholderStyle: .archived
+        )
+    }
+}
+
+extension LocalScanRecord {
+    var scanThumbnailPresentation: ScanThumbnailPresentation {
+        scanThumbnailPresentation(capturedMediaSnapshot: capturedMediaSnapshot)
+    }
+
+    func scanThumbnailPresentation(
+        capturedMediaSnapshot mediaSnapshot: CapturedMediaSnapshot
+    ) -> ScanThumbnailPresentation {
+        ScanThumbnailProjection.presentation(
+            isBiological: isBiological,
+            isLocallyArchived: isLocallyArchived,
+            scientificName: userIdentificationOverride?.trimmedNonEmpty
+                ?? scientificName,
+            coverImagePath: coverImagePath,
+            referenceImageUrl: referenceImageUrl,
+            mediaSnapshot: mediaSnapshot,
+            canResolveReferenceImage: canResolveReferenceThumbnail
         )
     }
 
@@ -108,19 +201,20 @@ extension LocalScanRecord {
         preferredVisualThumbnailPath != nil || capturedMediaSummary.hasImage
     }
 
-    var hasNonVisualOnlyMedia: Bool {
-        !hasStoredVisualThumbnail && (capturedMediaSummary.hasNonVisualMedia || coverImagePath?.trimmedNonEmpty == nil)
-    }
-
     var canResolveReferenceThumbnail: Bool {
-        guard isBiological, !isLocallyArchived else { return false }
-        let normalizedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !normalizedName.isEmpty,
-              normalizedName != "taxonomy unavailable",
-              normalizedName != "unknown subject" else {
+        guard isBiological,
+              !isLocallyArchived,
+              !hasStoredVisualThumbnail,
+              hasResolvedBiologicalIdentification else {
             return false
         }
-        return !hasStoredVisualThumbnail
+
+        let effectiveScientificName = userIdentificationOverride?.trimmedNonEmpty
+            ?? scientificName
+        return !ReferenceImageVisibilityPolicy.shouldSuppress(
+            isHumanSubject: isHumanSubject,
+            scientificName: effectiveScientificName
+        )
     }
 
     private var capturedMediaSummary: CapturedMediaSummary {
@@ -135,33 +229,11 @@ extension LocalScanRecord {
         return capturedMediaSnapshot.primaryImagePath?.trimmedNonEmpty
     }
 
-    private var preferredAudioSpectrogramPath: String? {
-        guard capturedMediaSummary.hasAudio,
-              !capturedMediaSummary.hasImage,
-              !capturedMediaSummary.hasDescription else {
-            return nil
-        }
-
-        return capturedMediaSnapshot.audioPaths.first?.trimmedNonEmpty
-    }
-
-    private var capturedMediaKindForThumbnail: CapturedMediaKind {
-        capturedMediaSummary.preferredThumbnailKind ?? .other
-    }
-
-    private func nonVisualPlaceholderStyle(fallbackUrl: String?) -> ScanThumbnailPlaceholderStyle {
-        let mediaKind = capturedMediaKindForThumbnail
-        if fallbackUrl != nil || canResolveReferenceThumbnail {
-            return .pendingReference(mediaKind)
-        }
-        return .unavailableReference(mediaKind)
-    }
 }
 
 struct ScanThumbnail: View {
-    @Environment(OfflineQueueManager.self) private var offlineQueueManager
-
     // MARK: - Asset Dependencies
+    let isOnline: Bool
     let imagePath: String?
     let fallbackImageUrl: String?
     let audioPath: String?
@@ -173,12 +245,14 @@ struct ScanThumbnail: View {
     let maxDimension: Int
     let placeholderStyle: ScanThumbnailPlaceholderStyle
     let isArchivedVisual: Bool
+    let onReferenceImageNeeded: (@MainActor () -> Void)?
 
     // MARK: - Rendering State
     @State private var thumbnail: UIImage?
     @State private var hasFailedToLoad: Bool = false
 
     init(
+        isOnline: Bool,
         imagePath: String?,
         fallbackImageUrl: String? = nil,
         audioPath: String? = nil,
@@ -189,8 +263,10 @@ struct ScanThumbnail: View {
         mediaBadgeAlignment: Alignment = .bottomTrailing,
         maxDimension: Int = 600,
         placeholderStyle: ScanThumbnailPlaceholderStyle = .archived,
-        isArchivedVisual: Bool = false
+        isArchivedVisual: Bool = false,
+        onReferenceImageNeeded: (@MainActor () -> Void)? = nil
     ) {
+        self.isOnline = isOnline
         self.imagePath = imagePath
         self.fallbackImageUrl = fallbackImageUrl
         self.audioPath = audioPath
@@ -202,17 +278,21 @@ struct ScanThumbnail: View {
         self.maxDimension = maxDimension
         self.placeholderStyle = placeholderStyle
         self.isArchivedVisual = isArchivedVisual
+        self.onReferenceImageNeeded = onReferenceImageNeeded
     }
 
     init(
         record: LocalScanRecord,
+        isOnline: Bool,
         maxDimension: Int = 600,
         prefersReferenceForAudio: Bool = false,
         showsAudioBadge: Bool = false,
-        mediaBadgeAlignment: Alignment = .bottomTrailing
+        mediaBadgeAlignment: Alignment = .bottomTrailing,
+        onReferenceImageNeeded: (@MainActor () -> Void)? = nil
     ) {
         let presentation = record.scanThumbnailPresentation
         self.init(
+            isOnline: isOnline,
             imagePath: presentation.imagePath,
             fallbackImageUrl: presentation.fallbackImageUrl,
             audioPath: presentation.audioPath,
@@ -223,7 +303,8 @@ struct ScanThumbnail: View {
             mediaBadgeAlignment: mediaBadgeAlignment,
             maxDimension: maxDimension,
             placeholderStyle: presentation.placeholderStyle,
-            isArchivedVisual: record.isLocallyArchived
+            isArchivedVisual: record.isLocallyArchived,
+            onReferenceImageNeeded: onReferenceImageNeeded
         )
     }
 
@@ -271,14 +352,25 @@ struct ScanThumbnail: View {
     }
 
     private var remoteRetryTaskKey: String {
-        guard hasRemoteVisualSource else { return "local_media" }
-        return offlineQueueManager.isOnline ? "remote_online" : "remote_offline"
+        guard hasRemoteVisualSource || supportsReferenceImageRecovery else {
+            return "local_media"
+        }
+        return isOnline ? "remote_online" : "remote_offline"
     }
 
     private var hasRemoteVisualSource: Bool {
         [imagePath, fallbackImageUrl]
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .contains { $0.hasPrefix("http://") || $0.hasPrefix("https://") }
+    }
+
+    private var supportsReferenceImageRecovery: Bool {
+        guard onReferenceImageNeeded != nil,
+              fallbackImageUrl?.trimmedNonEmpty == nil else {
+            return false
+        }
+        if case .unavailableReference = placeholderStyle { return false }
+        return true
     }
 
     @ViewBuilder
@@ -335,7 +427,7 @@ struct ScanThumbnail: View {
             if isArchivedVisual {
                 ArchivedVisualsView()
             } else {
-                UnavailableVisualsView(isOffline: !offlineQueueManager.isOnline)
+                UnavailableVisualsView(isOffline: !isOnline)
             }
         }
     }
@@ -359,6 +451,7 @@ struct ScanThumbnail: View {
             await MainActor.run {
                 hasFailedToLoad = false
             }
+            await requestReferenceImageIfNeeded()
             return
         }
 
@@ -376,6 +469,21 @@ struct ScanThumbnail: View {
             } else {
                 hasFailedToLoad = true
             }
+        }
+        if loadedImage == nil {
+            await requestReferenceImageIfNeeded()
+        }
+    }
+
+    private func requestReferenceImageIfNeeded() async {
+        guard !Task.isCancelled,
+              supportsReferenceImageRecovery,
+              isOnline,
+              let onReferenceImageNeeded else {
+            return
+        }
+        await MainActor.run {
+            onReferenceImageNeeded()
         }
     }
 }

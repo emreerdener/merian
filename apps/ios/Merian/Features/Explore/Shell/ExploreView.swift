@@ -347,21 +347,23 @@ struct ExploreView: View {
                 .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: ScanInsightRoute.self) { route in
-                InsightSheetView(
-                    isPresented: Binding(
-                        get: { true },
-                        set: { isPresented in
-                            if !isPresented, !navigationPath.isEmpty {
-                                navigationPath.removeLast()
+                LocalScanInsightLoader(scanId: route.scanId) {
+                    InsightSheetView(
+                        isPresented: Binding(
+                            get: { true },
+                            set: { isPresented in
+                                if !isPresented, !navigationPath.isEmpty {
+                                    navigationPath.removeLast()
+                                }
                             }
-                        }
-                    ),
-                    initialScanId: route.scanId,
-                    inferenceEngine: inferenceEngine,
-                    allowsExplorePresentation: false,
-                    presentationStyle: .embeddedInScansLibrary,
-                    onOpenFieldTripOverview: openFieldTripOverviewDestination
-                )
+                        ),
+                        initialScanId: route.scanId,
+                        inferenceEngine: inferenceEngine,
+                        allowsExplorePresentation: false,
+                        presentationStyle: .embeddedInScansLibrary,
+                        onOpenFieldTripOverview: openFieldTripOverviewDestination
+                    )
+                }
                 .toolbar(.hidden, for: .tabBar)
             }
             .navigationDestination(for: FieldTripChallengeRoute.self) { route in
@@ -470,19 +472,21 @@ struct ExploreView: View {
                 resumePendingInsightCommunityRequest()
             }
         ) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedInsightRoute != nil },
-                    set: { if !$0 { selectedInsightRoute = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                allowsExplorePresentation: false,
-                onOpenCommunityIdentificationRequest: { requestId in
-                    pendingInsightCommunityRequestId = requestId
-                    selectedInsightRoute = nil
-                }
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedInsightRoute != nil },
+                        set: { if !$0 { selectedInsightRoute = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    allowsExplorePresentation: false,
+                    onOpenCommunityIdentificationRequest: { requestId in
+                        pendingInsightCommunityRequestId = requestId
+                        selectedInsightRoute = nil
+                    }
+                )
+            }
             .exploreVideoPresentedOverlayLifecycle(reason: "explore-root-insight-sheet")
         }
         .onChange(of: scenePhase) { _, phase in
@@ -771,7 +775,6 @@ struct ExploreView: View {
             return
         }
 
-        inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
     }
@@ -787,7 +790,6 @@ struct ExploreView: View {
             return
         }
 
-        inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         navigationPath.append(ScanInsightRoute(scanId: record.id))
     }

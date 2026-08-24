@@ -2,6 +2,73 @@ import CoreLocation
 import Foundation
 import MapKit
 
+struct PrivateScanMapPreviewPoint: Identifiable, Equatable, Sendable {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+struct PrivateScanMapPreviewSnapshot: Equatable, Sendable {
+    static let empty = PrivateScanMapPreviewSnapshot(points: [])
+
+    let points: [PrivateScanMapPreviewPoint]
+
+    @MainActor
+    init(records: [LocalScanRecord]) {
+        points = records
+            .compactMap(Self.point(for:))
+            .sorted { $0.id < $1.id }
+    }
+
+    init(points: [PrivateScanMapPreviewPoint]) {
+        self.points = points.sorted { $0.id < $1.id }
+    }
+
+    var fullExtentRegion: MKCoordinateRegion? {
+        PrivateScanMapRegion.fitted(
+            to: points.map(\.coordinate),
+            padding: 1.25,
+            minimumSpan: 0.2
+        )
+    }
+
+    var identity: String {
+        points.map { point in
+            [
+                point.id,
+                String(point.latitude),
+                String(point.longitude)
+            ].joined(separator: "\u{1f}")
+        }
+        .joined(separator: "\u{1e}")
+    }
+
+    @MainActor
+    private static func point(
+        for record: LocalScanRecord
+    ) -> PrivateScanMapPreviewPoint? {
+        guard record.isBiological,
+              let latitude = record.gpsLatitude,
+              let longitude = record.gpsLongitude,
+              PrivateScanMapRegion.isValidCoordinate(
+                  latitude: latitude,
+                  longitude: longitude
+              ) else {
+            return nil
+        }
+
+        return PrivateScanMapPreviewPoint(
+            id: record.id,
+            latitude: latitude,
+            longitude: longitude
+        )
+    }
+}
+
 struct PrivateScanMapPoint: Identifiable, Equatable, Sendable {
     let id: String
     let latitude: Double
@@ -17,14 +84,80 @@ struct PrivateScanMapPoint: Identifiable, Equatable, Sendable {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+
+    static func projected(
+        id: String,
+        latitude: Double,
+        longitude: Double,
+        commonName: String,
+        scientificName: String,
+        userIdentificationOverride: String?,
+        timestamp: Date,
+        locationName: String?,
+        taxonomyKingdom: String?,
+        taxonomyClass: String?,
+        coverImagePath: String?,
+        referenceImageUrl: String?,
+        isLocallyArchived: Bool,
+        canResolveReferenceImage: Bool,
+        mediaSnapshot: CapturedMediaSnapshot
+    ) -> PrivateScanMapPoint? {
+        guard PrivateScanMapRegion.isValidCoordinate(
+            latitude: latitude,
+            longitude: longitude
+        ) else {
+            return nil
+        }
+
+        let mediaSummary = mediaSnapshot.summary
+        var mediaFilters = Set<ScanMediaFilter>()
+        if mediaSummary.hasVideo {
+            mediaFilters.insert(.video)
+        }
+        if mediaSummary.hasImage || coverImagePath?.trimmedNonEmpty != nil {
+            mediaFilters.insert(.image)
+        }
+        if mediaSummary.hasAudio {
+            mediaFilters.insert(.audio)
+        }
+
+        let effectiveScientificName = userIdentificationOverride?.trimmedNonEmpty
+            ?? scientificName
+        return PrivateScanMapPoint(
+            id: id,
+            latitude: latitude,
+            longitude: longitude,
+            commonName: commonName,
+            scientificName: effectiveScientificName,
+            timestamp: timestamp,
+            locationName: locationName?.trimmedNonEmpty,
+            category: SearchCategoryBucket(
+                kingdom: taxonomyKingdom?.lowercased() ?? "",
+                className: taxonomyClass?.lowercased() ?? ""
+            ),
+            mediaFilters: mediaFilters,
+            thumbnail: ScanThumbnailProjection.presentation(
+                isBiological: true,
+                isLocallyArchived: isLocallyArchived,
+                scientificName: effectiveScientificName,
+                coverImagePath: coverImagePath,
+                referenceImageUrl: referenceImageUrl,
+                mediaSnapshot: mediaSnapshot,
+                canResolveReferenceImage: canResolveReferenceImage
+            )
+        )
+    }
 }
 
 struct PrivateScanMapSnapshot: Equatable, Sendable {
     static let empty = PrivateScanMapSnapshot(points: [])
 
+    let revision: UInt64
     let points: [PrivateScanMapPoint]
 
-    init(records: [LocalScanRecord]) {
+    @MainActor
+    init(records: [LocalScanRecord], revision: UInt64 = 0) {
+        self.revision = revision
         points = records
             .compactMap(Self.point(for:))
             .sorted { lhs, rhs in
@@ -35,7 +168,8 @@ struct PrivateScanMapSnapshot: Equatable, Sendable {
             }
     }
 
-    init(points: [PrivateScanMapPoint]) {
+    init(points: [PrivateScanMapPoint], revision: UInt64 = 0) {
+        self.revision = revision
         self.points = points.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp {
                 return lhs.timestamp > rhs.timestamp
@@ -80,29 +214,6 @@ struct PrivateScanMapSnapshot: Equatable, Sendable {
     }
 
     @MainActor
-    static func sourceIdentity(for records: [LocalScanRecord]) -> String {
-        records.map { record in
-            [
-                record.id,
-                record.isBiological ? "1" : "0",
-                String(record.timestamp.timeIntervalSince1970),
-                record.commonName,
-                record.scientificName,
-                record.userIdentificationOverride ?? "",
-                record.locationName ?? "",
-                record.taxonomyKingdom ?? "",
-                record.taxonomyClass ?? "",
-                String(record.gpsLatitude ?? .nan),
-                String(record.gpsLongitude ?? .nan),
-                record.coverImagePath ?? "",
-                record.referenceImageUrl ?? "",
-                String(record.capturedMediaJSON?.hashValue ?? 0),
-                record.isLocallyArchived ? "1" : "0"
-            ].joined(separator: "\u{1f}")
-        }
-        .joined(separator: "\u{1e}")
-    }
-
     private static func point(for record: LocalScanRecord) -> PrivateScanMapPoint? {
         guard record.isBiological,
               let latitude = record.gpsLatitude,
@@ -114,32 +225,24 @@ struct PrivateScanMapSnapshot: Equatable, Sendable {
             return nil
         }
 
-        let mediaSummary = record.capturedMediaSnapshot.summary
-        var mediaFilters = Set<ScanMediaFilter>()
-        if mediaSummary.hasVideo {
-            mediaFilters.insert(.video)
-        }
-        if mediaSummary.hasImage || record.coverImagePath?.trimmedNonEmpty != nil {
-            mediaFilters.insert(.image)
-        }
-        if mediaSummary.hasAudio {
-            mediaFilters.insert(.audio)
-        }
-
-        return PrivateScanMapPoint(
+        return PrivateScanMapPoint.projected(
             id: record.id,
             latitude: latitude,
             longitude: longitude,
             commonName: record.commonName,
-            scientificName: record.userIdentificationOverride ?? record.scientificName,
+            scientificName: record.scientificName,
+            userIdentificationOverride: record.userIdentificationOverride,
             timestamp: record.timestamp,
-            locationName: record.locationName?.trimmedNonEmpty,
-            category: SearchCategoryBucket(
-                kingdom: record.taxonomyKingdom?.lowercased() ?? "",
-                className: record.taxonomyClass?.lowercased() ?? ""
-            ),
-            mediaFilters: mediaFilters,
-            thumbnail: record.scanThumbnailPresentation
+            locationName: record.locationName,
+            taxonomyKingdom: record.taxonomyKingdom,
+            taxonomyClass: record.taxonomyClass,
+            coverImagePath: record.coverImagePath,
+            referenceImageUrl: record.referenceImageUrl,
+            isLocallyArchived: record.isLocallyArchived,
+            canResolveReferenceImage: ScanThumbnailBackfillCandidate(
+                missingVisualFallbackFor: record
+            ) != nil,
+            mediaSnapshot: record.capturedMediaSnapshot
         )
     }
 }
@@ -336,6 +439,31 @@ enum PrivateScanMapAnnotation: Identifiable, Equatable, Sendable {
     }
 }
 
+struct PrivateScanMapPreviewCluster: Identifiable, Equatable, Sendable {
+    let id: String
+    let latitude: Double
+    let longitude: Double
+    let count: Int
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+}
+
+enum PrivateScanMapPreviewAnnotation: Identifiable, Equatable, Sendable {
+    case point(PrivateScanMapPreviewPoint)
+    case cluster(PrivateScanMapPreviewCluster)
+
+    var id: String {
+        switch self {
+        case .point(let point):
+            return "point:\(point.id)"
+        case .cluster(let cluster):
+            return "cluster:\(cluster.id)"
+        }
+    }
+}
+
 enum PrivateScanMapClusterer {
     static let interactiveCellSize: CGFloat = 56
     static let previewCellSize: CGFloat = 44
@@ -345,43 +473,115 @@ enum PrivateScanMapClusterer {
         let row: Int
     }
 
+    private struct ClusterGroup<Point> {
+        let sortIdentity: String
+        let clusterIdentity: String?
+        let latitude: Double
+        let longitude: Double
+        let points: [Point]
+    }
+
     static func annotations(
         points: [PrivateScanMapPoint],
         region: MKCoordinateRegion,
         viewportSize: CGSize,
         cellSize: CGFloat = interactiveCellSize
     ) -> [PrivateScanMapAnnotation] {
+        clusterGroups(
+            points: points,
+            region: region,
+            viewportSize: viewportSize,
+            cellSize: cellSize,
+            identifier: \.id,
+            coordinate: \.coordinate
+        ) { lhs, rhs in
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp > rhs.timestamp
+            }
+            return lhs.id < rhs.id
+        }
+        .map { group in
+            guard let clusterIdentity = group.clusterIdentity else {
+                return .point(group.points[0])
+            }
+            return .cluster(PrivateScanMapCluster(
+                id: clusterIdentity,
+                latitude: group.latitude,
+                longitude: group.longitude,
+                points: group.points
+            ))
+        }
+    }
+
+    static func previewAnnotations(
+        points: [PrivateScanMapPreviewPoint],
+        region: MKCoordinateRegion,
+        viewportSize: CGSize,
+        cellSize: CGFloat = previewCellSize
+    ) -> [PrivateScanMapPreviewAnnotation] {
+        clusterGroups(
+            points: points,
+            region: region,
+            viewportSize: viewportSize,
+            cellSize: cellSize,
+            identifier: \.id,
+            coordinate: \.coordinate,
+            areInIncreasingOrder: { $0.id < $1.id }
+        )
+        .map { group in
+            guard let clusterIdentity = group.clusterIdentity else {
+                return .point(group.points[0])
+            }
+            return .cluster(PrivateScanMapPreviewCluster(
+                id: clusterIdentity,
+                latitude: group.latitude,
+                longitude: group.longitude,
+                count: group.points.count
+            ))
+        }
+    }
+
+    private static func clusterGroups<Point>(
+        points: [Point],
+        region: MKCoordinateRegion,
+        viewportSize: CGSize,
+        cellSize: CGFloat,
+        identifier: KeyPath<Point, String>,
+        coordinate: KeyPath<Point, CLLocationCoordinate2D>,
+        areInIncreasingOrder: (Point, Point) -> Bool
+    ) -> [ClusterGroup<Point>] {
         guard viewportSize.width > 0,
               viewportSize.height > 0,
               cellSize > 0 else {
-            return points.map(PrivateScanMapAnnotation.point)
+            return []
         }
 
         let visiblePoints = points.filter {
-            PrivateScanMapRegion.contains($0.coordinate, in: region)
+            PrivateScanMapRegion.contains($0[keyPath: coordinate], in: region)
         }
         let columnCount = max(Int(ceil(viewportSize.width / cellSize)), 1)
         let rowCount = max(Int(ceil(viewportSize.height / cellSize)), 1)
         let westLongitude = region.center.longitude - (region.span.longitudeDelta / 2)
         let southLatitude = region.center.latitude - (region.span.latitudeDelta / 2)
 
-        var grouped: [Bucket: [PrivateScanMapPoint]] = [:]
+        var grouped: [Bucket: [Point]] = [:]
         grouped.reserveCapacity(min(visiblePoints.count, columnCount * rowCount))
 
         for point in visiblePoints {
+            let pointCoordinate = point[keyPath: coordinate]
             let longitudeFraction: Double
             if region.span.longitudeDelta >= 360 {
                 longitudeFraction = PrivateScanMapRegion.positiveLongitudeDistance(
                     from: westLongitude,
-                    to: point.longitude
+                    to: pointCoordinate.longitude
                 ) / 360
             } else {
                 longitudeFraction = PrivateScanMapRegion.positiveLongitudeDistance(
                     from: westLongitude,
-                    to: point.longitude
+                    to: pointCoordinate.longitude
                 ) / max(region.span.longitudeDelta, 0.000_000_1)
             }
-            let latitudeFraction = (point.latitude - southLatitude)
+            let latitudeFraction = (pointCoordinate.latitude - southLatitude)
                 / max(region.span.latitudeDelta, 0.000_000_1)
 
             let column = min(
@@ -396,42 +596,55 @@ enum PrivateScanMapClusterer {
         }
 
         return grouped
-            .map { bucket, bucketPoints -> PrivateScanMapAnnotation in
-                let sortedPoints = bucketPoints.sorted { lhs, rhs in
-                    if lhs.timestamp != rhs.timestamp {
-                        return lhs.timestamp > rhs.timestamp
-                    }
-                    return lhs.id < rhs.id
-                }
+            .map { bucket, bucketPoints in
+                let sortedPoints = bucketPoints.sorted(by: areInIncreasingOrder)
+                let pointIdentity = sortedPoints[0][keyPath: identifier]
+                let coordinate = averageCoordinate(
+                    of: sortedPoints,
+                    coordinate: coordinate
+                )
                 guard sortedPoints.count > 1 else {
-                    return .point(sortedPoints[0])
+                    return ClusterGroup(
+                        sortIdentity: "point:\(pointIdentity)",
+                        clusterIdentity: nil,
+                        latitude: coordinate.latitude,
+                        longitude: coordinate.longitude,
+                        points: sortedPoints
+                    )
                 }
 
-                let coordinate = averageCoordinate(of: sortedPoints)
-                let memberIdentity = sortedPoints.map(\.id).joined(separator: ",")
-                return .cluster(PrivateScanMapCluster(
-                    id: "\(bucket.column):\(bucket.row):\(memberIdentity)",
+                let memberIdentity = sortedPoints
+                    .map { $0[keyPath: identifier] }
+                    .joined(separator: ",")
+                let clusterIdentity =
+                    "\(bucket.column):\(bucket.row):\(memberIdentity)"
+                return ClusterGroup(
+                    sortIdentity: "cluster:\(clusterIdentity)",
+                    clusterIdentity: clusterIdentity,
                     latitude: coordinate.latitude,
                     longitude: coordinate.longitude,
                     points: sortedPoints
-                ))
+                )
             }
-            .sorted { lhs, rhs in lhs.id < rhs.id }
+            .sorted { $0.sortIdentity < $1.sortIdentity }
     }
 
-    private static func averageCoordinate(
-        of points: [PrivateScanMapPoint]
+    private static func averageCoordinate<Point>(
+        of points: [Point],
+        coordinate: KeyPath<Point, CLLocationCoordinate2D>
     ) -> CLLocationCoordinate2D {
-        let latitude = points.reduce(0) { $0 + $1.latitude } / Double(points.count)
+        let latitude = points.reduce(0) {
+            $0 + $1[keyPath: coordinate].latitude
+        } / Double(points.count)
         let longitudeVectors = points.reduce(into: (x: 0.0, y: 0.0)) { result, point in
-            let radians = point.longitude * .pi / 180
+            let radians = point[keyPath: coordinate].longitude * .pi / 180
             result.x += cos(radians)
             result.y += sin(radians)
         }
         let longitude: Double
         if abs(longitudeVectors.x) < 0.000_000_1,
            abs(longitudeVectors.y) < 0.000_000_1 {
-            longitude = points[0].longitude
+            longitude = points[0][keyPath: coordinate].longitude
         } else {
             longitude = atan2(longitudeVectors.y, longitudeVectors.x) * 180 / .pi
         }

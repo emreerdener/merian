@@ -1,8 +1,22 @@
-import MapKit
 import SwiftUI
+import UIKit
 
 struct PrivateScanMapCollectionCard: View {
-    let snapshot: PrivateScanMapSnapshot
+    let snapshot: PrivateScanMapPreviewSnapshot
+
+    @Environment(PrivateScanMapStore.self) private var privateScanMapStore
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
+
+    @State private var previewImage: UIImage?
+    @State private var renderedRequestID: PreviewRequestID?
+
+    private struct PreviewRequestID: Hashable {
+        let revision: UInt64
+        let widthPixels: Int
+        let heightPixels: Int
+        let userInterfaceStyle: Int
+    }
 
     var body: some View {
         ZStack {
@@ -64,61 +78,70 @@ struct PrivateScanMapCollectionCard: View {
         return "\(snapshot.points.count.formatted()) \(noun)"
     }
 
-    @ViewBuilder
     private var mapPreview: some View {
-        if let region = snapshot.fullExtentRegion {
-            GeometryReader { geometry in
-                Map(
-                    initialPosition: .region(region),
-                    interactionModes: []
-                ) {
-                    ForEach(PrivateScanMapClusterer.annotations(
-                        points: snapshot.points,
-                        region: region,
-                        viewportSize: geometry.size,
-                        cellSize: PrivateScanMapClusterer.previewCellSize
-                    )) { annotation in
-                        switch annotation {
-                        case .point(let point):
-                            Annotation("", coordinate: point.coordinate) {
-                                Circle()
-                                    .fill(Color.accentColor)
-                                    .frame(width: 10, height: 10)
-                                    .overlay {
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 2)
-                                    }
-                                    .shadow(color: .black.opacity(0.24), radius: 2, y: 1)
-                            }
-                            .annotationTitles(.hidden)
-                        case .cluster(let cluster):
-                            Annotation("", coordinate: cluster.coordinate) {
-                                Text(cluster.count.formatted())
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                                    .frame(minWidth: 24, minHeight: 24)
-                                    .padding(2)
-                                    .background(Color.accentColor)
-                                    .clipShape(Circle())
-                                    .overlay {
-                                        Circle()
-                                            .stroke(Color.white, lineWidth: 2)
-                                    }
-                                    .shadow(color: .black.opacity(0.24), radius: 2, y: 1)
-                            }
-                            .annotationTitles(.hidden)
-                        }
-                    }
+        GeometryReader { geometry in
+            let requestID = previewRequestID(size: geometry.size)
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(uiColor: .tertiarySystemGroupedBackground),
+                        Color(uiColor: .secondarySystemGroupedBackground)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                if let previewImage {
+                    Image(uiImage: previewImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "map")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
-                .mapStyle(.standard)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                .id(snapshot.identity)
             }
-        } else {
-            Rectangle()
-                .fill(Color.secondary.opacity(0.15))
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .task(id: requestID) {
+                await loadPreview(
+                    requestID: requestID,
+                    size: geometry.size
+                )
+            }
         }
+    }
+
+    private func previewRequestID(size: CGSize) -> PreviewRequestID {
+        PreviewRequestID(
+            revision: privateScanMapStore.snapshot.spatialRevision,
+            widthPixels: Int((size.width * displayScale).rounded()),
+            heightPixels: Int((size.height * displayScale).rounded()),
+            userInterfaceStyle: userInterfaceStyle.rawValue
+        )
+    }
+
+    @MainActor
+    private func loadPreview(
+        requestID: PreviewRequestID,
+        size: CGSize
+    ) async {
+        guard size.width > 0, size.height > 0 else { return }
+        if renderedRequestID != requestID {
+            previewImage = nil
+        }
+        let image = await privateScanMapStore.previewImage(
+            size: size,
+            displayScale: displayScale,
+            userInterfaceStyle: userInterfaceStyle
+        )
+        guard !Task.isCancelled else { return }
+        previewImage = image
+        renderedRequestID = requestID
+    }
+
+    private var userInterfaceStyle: UIUserInterfaceStyle {
+        colorScheme == .dark ? .dark : .light
     }
 }

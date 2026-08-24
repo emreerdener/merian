@@ -51,6 +51,7 @@ struct SpeciesDictionaryPageContentView: View {
     let onClose: () -> Void
     private let suppliedExploreViewModel: ExploreFeedViewModel?
 
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @State private var viewModel: SpeciesDictionaryPageViewModel
     @State private var fallbackExploreViewModel = ExploreFeedViewModel()
     @State private var isCommonNameScrolledPast = false
@@ -159,6 +160,9 @@ struct SpeciesDictionaryPageContentView: View {
                 fieldChatSpeciesID == nil ? .hidden : .visible,
                 for: .bottomBar
             )
+            .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
+                dictionaryChatViewModel.updateConnectivity(isOnline: isOnline)
+            }
             .task(id: pendingDictionaryChatSpeciesID) {
                 await prepareDictionaryFieldChatIfNeeded()
             }

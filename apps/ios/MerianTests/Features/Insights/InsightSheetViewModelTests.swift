@@ -92,6 +92,72 @@ struct InsightSheetViewModelTests {
         #expect(viewModel.state.isCommonNameScrolledPast == false)
     }
 
+    @Test func testBindPresentedScanDoesNotRestartMatchingRouteHydration() throws {
+        let ctx = try createIsolatedContext()
+        let record = LocalScanRecord(
+            id: "route-owned-record",
+            speciesId: "route-owned-species",
+            scientificName: "Synthetic non-biological subject",
+            commonName: "Synthetic subject",
+            isBiological: false
+        )
+        ctx.insert(record)
+        try ctx.save()
+
+        let engine = InferenceEngine()
+        engine.load(from: record)
+        engine.isProcessing = true
+        defer { engine.historicHydrationTask?.cancel() }
+
+        let viewModel = InsightSheetViewModel()
+        let didBind = viewModel.bindPresentedScan(
+            scanId: record.id,
+            modelContext: ctx,
+            inferenceEngine: engine
+        )
+
+        #expect(didBind)
+        #expect(engine.isProcessing)
+        #expect(engine.speciesData?.scanId == record.id)
+    }
+
+    @Test func testBindPresentedScanLoadsWhenEngineOwnsDifferentRecord() throws {
+        let ctx = try createIsolatedContext()
+        let firstRecord = LocalScanRecord(
+            id: "first-route-record",
+            speciesId: "first-route-species",
+            scientificName: "First synthetic subject",
+            commonName: "First subject",
+            isBiological: false
+        )
+        let secondRecord = LocalScanRecord(
+            id: "second-route-record",
+            speciesId: "second-route-species",
+            scientificName: "Second synthetic subject",
+            commonName: "Second subject",
+            isBiological: false
+        )
+        ctx.insert(firstRecord)
+        ctx.insert(secondRecord)
+        try ctx.save()
+
+        let engine = InferenceEngine()
+        engine.load(from: firstRecord)
+        engine.isProcessing = true
+        defer { engine.historicHydrationTask?.cancel() }
+
+        let viewModel = InsightSheetViewModel()
+        let didBind = viewModel.bindPresentedScan(
+            scanId: secondRecord.id,
+            modelContext: ctx,
+            inferenceEngine: engine
+        )
+
+        #expect(didBind)
+        #expect(!engine.isProcessing)
+        #expect(engine.speciesData?.scanId == secondRecord.id)
+    }
+
     @Test func testEvaluateHeroScrollOffsetUsesClearanceHysteresis() {
         let viewModel = InsightSheetViewModel()
         #expect(viewModel.state.isTopScrollEdgeEffectHidden == true)

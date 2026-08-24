@@ -447,17 +447,34 @@ and when" rather than expose backend taxonomy mechanics.
 
 Collections includes a full-width **Scan map** when at least one completed
 biological observation has valid saved GPS. Its passive preview fits every
-mapped observation without requesting current location. Opening it pushes an
-owner-only map that starts around a one-shot current location, falls back to the
-newest mapped scan, filters species and media locally, clusters dense points,
-and opens the existing private Insight. Shared and unshared observations both
-appear at the owner's exact saved coordinates; **Private** describes the
-owner-only surface rather than a publication filter.
+mapped observation without requesting current location. The card uses a
+coordinate-only projection from a background, revisioned library index and an
+asynchronous static MapKit image, so media-rich or large libraries do not block
+Collections rendering or keep a live map renderer inside the scrolling card.
+Opening it pushes an owner-only map that starts around a one-shot current
+location, falls back to the newest mapped scan, filters species and media
+locally, clusters dense points through a cancellable spatial index, and opens
+the existing private Insight. The Scans root owns typed map and Insight route
+values; the Map-owning view emits only the selected scan ID and owns no
+destination state. Shared and unshared observations both appear at the owner's
+exact saved coordinates; **Private** describes the owner-only surface rather
+than a publication filter. The 56-point cluster contract is measured in
+projected screen space rather than raw latitude/longitude fractions, and
+destructive account or local-library cleanup must synchronously erase the
+process-local coordinate index and rendered-preview state.
+
+Map waypoints, selected previews, and private scan-list rows prefer the owner's
+captured image. If it is missing or unreadable, they use the saved species
+reference image or request the existing bounded reference fallback for an
+eligible identification. That lookup receives no location data and continues to
+suppress unresolved, human, and domestic-pet reference imagery.
 
 The product contract is ungated, but the current source candidate is not yet
-release-complete. Actor isolation at the SwiftData projection boundary,
-full-preview tap behavior, and the outstanding manual location/accessibility/
-offline matrix are tracked in
+release-complete. Open source blockers cover destructive sensitive-state reset,
+lossless refresh retry after failure, startup cancellation before location, and
+true projected screen-space clustering. The manual
+location/accessibility/large-library/offline matrix also remains open; all
+acceptance status is tracked in
 [Private Scan Map](../features-and-hardware/28-private-scan-map.md#candidate-release-status).
 
 Insight offers **Download scan**, and Scan Library selection offers batch
@@ -860,7 +877,9 @@ The dedicated Scan map is an owner-only use of the exact local record. It may
 show every mapped observation regardless of whether its backing scan or Explore
 post is open, obscured, private, shared, or unshared. It does not change any
 sharing choice. Explore Map and Nearby remain public projections and must never
-reuse the private map's exact-coordinate snapshot.
+reuse the private map's exact-coordinate snapshot. Destructive cleanup must also
+invalidate every process-local private-map projection and rendered preview
+synchronously; memory-only retention is not an exception to erasure.
 
 The complete private-map data boundary and release verification live in
 [Private Scan Map](../features-and-hardware/28-private-scan-map.md).

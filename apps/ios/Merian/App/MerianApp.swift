@@ -508,7 +508,7 @@ enum UITestSeedCoordinator {
 
     private static func privateScanMapRecords() -> [LocalScanRecord] {
         let baseTimestamp = Date(timeIntervalSince1970: 1_787_501_200)
-        let fixtures = [
+        let primaryFixtures = [
             PrivateScanMapFixture(
                 id: "private_map_bird",
                 commonName: "Map Meadowlark",
@@ -540,17 +540,35 @@ enum UITestSeedCoordinator {
                 timestamp: baseTimestamp.addingTimeInterval(-120)
             )
         ]
+        let stressFixtures = (0..<302).map { index in
+            let row = index / 23
+            let column = index % 23
+            return PrivateScanMapFixture(
+                id: "private_map_stress_\(index)",
+                commonName: "Map Mammal \(index)",
+                scientificName: "Syntheticus fixture \(index)",
+                kingdom: "Animalia",
+                className: "Mammalia",
+                latitude: 11.90 + (Double(row) * 0.015),
+                longitude: 44.88 + (Double(column) * 0.015),
+                timestamp: baseTimestamp.addingTimeInterval(-Double(index + 3) * 60)
+            )
+        }
+        let fixtures = primaryFixtures + stressFixtures
 
         return fixtures.map { fixture in
-            LocalScanRecord(
+            let mediaItems: [SerializedMediaItem] = fixture.id.hasPrefix(
+                "private_map_stress_"
+            ) ? [] : [
+                .image(.documents("\(fixture.id).webp"))
+            ]
+            return LocalScanRecord(
                 id: fixture.id,
                 speciesId: fixture.id,
                 scientificName: fixture.scientificName,
                 commonName: fixture.commonName,
                 timestamp: fixture.timestamp,
-                capturedMediaJSON: CapturedMediaSnapshot(items: [
-                    .image(.documents("\(fixture.id).webp"))
-                ]).jsonString,
+                capturedMediaJSON: CapturedMediaSnapshot(items: mediaItems).jsonString,
                 hazardType: "none",
                 isBiological: true,
                 isLiveCapture: true,
@@ -1177,6 +1195,10 @@ struct MerianApp: App {
             SpeciesPreferredNameRepository.migrateLegacyPreferences(modelContext: mainContext)
 
             UITestSeedCoordinator.prepareIfNeeded(container: container)
+            dependencies.privateScanMapStore.configure(
+                modelContainer: container,
+                eventStream: dependencies.appEventPublisher
+            )
 
             if LocalScanMediaRecoveryResolver.hasLegacyRecoveryIndex {
                 let descriptor = FetchDescriptor<LocalScanRecord>()

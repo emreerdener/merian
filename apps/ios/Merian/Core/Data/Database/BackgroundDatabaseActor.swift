@@ -2819,13 +2819,14 @@ actor BackgroundDatabaseActor {
     // MARK: - Wikipedia Enrichment
 
     /// Retroactively hydrates a scan record with Wikipedia data post-inference.
+    @discardableResult
     func updateScanWithWikipedia(
         scanId: String,
         extract: String?,
         url: String?,
         imageUrl: String?,
         expectedScientificName: String? = nil
-    ) {
+    ) -> Bool {
         var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
         descriptor.fetchLimit = 1
         let record: LocalScanRecord?
@@ -2833,28 +2834,53 @@ actor BackgroundDatabaseActor {
             record = try modelContext.fetch(descriptor).first
         } catch {
             MerianLog.data.debug("updateScanWithWikipedia: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-            return
+            return false
         }
-        guard let record,
-              expectedScientificName.map({
-                  record.scientificName.caseInsensitiveCompare($0)
-                      == .orderedSame
-              }) ?? true else {
-            return
-        }
+        guard let record else { return false }
 
-        if let extract { record.wikipediaOverview = extract }
-        if let url { record.wikipediaUrl = url }
-        if let imageUrl, !imageUrl.isEmpty {
-            record.referenceImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
-                imageUrl
+        let trimmedOverride = record.userIdentificationOverride?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveScientificName = if let trimmedOverride,
+                                         !trimmedOverride.isEmpty {
+            trimmedOverride
+        } else {
+            record.scientificName.trimmingCharacters(
+                in: .whitespacesAndNewlines
             )
         }
+        guard expectedScientificName.map({
+            effectiveScientificName.caseInsensitiveCompare($0) == .orderedSame
+        }) ?? true else {
+            return false
+        }
+
+        var didChange = false
+        if let extract, record.wikipediaOverview != extract {
+            record.wikipediaOverview = extract
+            didChange = true
+        }
+        if let url, record.wikipediaUrl != url {
+            record.wikipediaUrl = url
+            didChange = true
+        }
+        if let imageUrl, !imageUrl.isEmpty {
+            let sanitizedImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+                imageUrl
+            )
+            if record.referenceImageUrl != sanitizedImageUrl {
+                record.referenceImageUrl = sanitizedImageUrl
+                didChange = true
+            }
+        }
+        guard didChange else { return false }
+
         do {
             try modelContext.save()
+            return true
         } catch {
             modelContext.rollback()
             MerianLog.data.error("updateScanWithWikipedia: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+            return false
         }
     }
 

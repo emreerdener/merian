@@ -141,6 +141,7 @@ struct ScansGrid<MenuContent: View>: View {
                     onQueuedScanTapped?(queued)
                 }) {
                     ScanThumbnail(
+                        isOnline: offlineQueueManager.isOnline,
                         imagePath: queued.imagePath,
                         fallbackImageUrl: nil,
                         maxDimension: thumbnailSize
@@ -193,6 +194,7 @@ struct ScansGrid<MenuContent: View>: View {
                 }) {
                     ScanThumbnail(
                         record: scan,
+                        isOnline: offlineQueueManager.isOnline,
                         maxDimension: thumbnailSize,
                         prefersReferenceForAudio: true,
                         showsAudioBadge: true

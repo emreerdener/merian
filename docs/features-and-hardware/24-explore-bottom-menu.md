@@ -14,34 +14,34 @@ Explore on foreground returns and never selects a particular post.
 
 Explicit intent supersedes this generic presentation. Photos/Files image
 handoffs dismiss Explore and continue to capture staging/crop. Deep links and
-tapped notifications replace the generic feed with their requested Explore
-post, community request, scan Insight, or Scans library route. Any Explore
-appearance, including automatic launch presentation, marks the one-time **New**
-chip as seen.
+tapped notifications replace the generic feed with their requested Explore post,
+community request, scan Insight, or Scans library route. Any Explore appearance,
+including automatic launch presentation, marks the one-time **New** chip as
+seen.
 
 ## Sections
 
 - **Observations** shows either the public Explore feed or the Explore map. A
   root-only header toggle keeps Feed first and Map second.
 - **Field trips** shows curated regional checklist quests backed by the
-  `/field-trips` Edge Function. The tab defaults to `Outings` for standard outings
-  for every user. The `Events` segment is also public and lists live and
-  upcoming Seasonal Challenges. Challenges require explicit Join,
-  count only in-window scans after `joined_at`, award profile badges, and
-  publish challenge entries through Field trips-specific pages. Active outing
-  progress can appear on public profiles as checklist status only;
-  published Field trips open `FieldTripPublicationDetailView`, challenge
-  entries open `FieldTripChallengeEntryDetailView`, and all of these remain
-  separate from Explore posts, feed filters, maps, APNs, widgets, prizes, and
-  leaderboards. Challenge hashtags are optional composer suggestions only.
-  Field trip comment/reply/followed-publication activity may appear in the
-  Explore activity sheet and unread badge, but it is in-app only. Completed
-  standard goals replace their artwork with the device-local completing scan
-  thumbnail when available; tapping the thumbnail pushes the existing Insight
-  view in this same Explore navigation stack.
+  `/field-trips` Edge Function. The tab defaults to `Outings` for standard
+  outings for every user. The `Events` segment is also public and lists live and
+  upcoming Seasonal Challenges. Challenges require explicit Join, count only
+  in-window scans after `joined_at`, award profile badges, and publish challenge
+  entries through Field trips-specific pages. Active outing progress can appear
+  on public profiles as checklist status only; published Field trips open
+  `FieldTripPublicationDetailView`, challenge entries open
+  `FieldTripChallengeEntryDetailView`, and all of these remain separate from
+  Explore posts, feed filters, maps, APNs, widgets, prizes, and leaderboards.
+  Challenge hashtags are optional composer suggestions only. Field trip
+  comment/reply/followed-publication activity may appear in the Explore activity
+  sheet and unread badge, but it is in-app only. Completed standard goals
+  replace their artwork with the device-local completing scan thumbnail when
+  available; tapping the thumbnail pushes the existing Insight view in this same
+  Explore navigation stack.
 - **Identify** owns a root-only `Requests` / `Index` segmented control.
-  `Requests` renders `ExploreCommunityIdentificationView`, while `Index`
-  renders the existing `SpeciesDictionaryOverviewView` directly.
+  `Requests` renders `ExploreCommunityIdentificationView`, while `Index` renders
+  the existing `SpeciesDictionaryOverviewView` directly.
 - **Requests** is a dashboard rather than the complete request feed. A shared
   filter row keeps `All` and `Yours` first, followed by Plants, Birds, Insects,
   Fungi, Mammals, and Herps. `Yours` means requests owned by the viewer.
@@ -49,12 +49,12 @@ chip as seen.
   headed **Identify requests** with **See all requests** opposite it, followed
   immediately by the dismissible **Ask the community** banner and up to 12
   unresolved request cards. Cards show the request image and submitted-ID count
-  without exposing the AI-derived name. The second section is headed
-  **Recent activity**, has additional visual separation from the request grid,
-  and renders up to 10 grouped Activity rows.
+  without exposing the AI-derived name. The second section is headed **Recent
+  activity**, has additional visual separation from the request grid, and
+  renders up to 10 grouped Activity rows.
 - **Recent activity** rows show the request thumbnail, visible actor/count
-  summary, latest consensus or resolved taxon when available, relative time,
-  and a chevron. Tapping a row opens the existing request detail. Requests and
+  summary, latest consensus or resolved taxon when available, relative time, and
+  a chevron. Tapping a row opens the existing request detail. Requests and
   Activity load concurrently and retain independent loading, empty, and error
   states; an Activity outage therefore does not remove the request preview.
   Pull-to-refresh and filter changes reload both sections.
@@ -65,11 +65,11 @@ chip as seen.
   the existing two-column paginated grid; Activity uses a paginated compact-row
   feed. Native Back returns to the filtered dashboard.
 - **Observations Feed** keeps `Recent`, `Following`, `Trending`, and `Nearby` as
-  dedicated server-backed modes. Its leading Filters pill opens a sheet for
-  feed mode, species groups, image/audio/video media, shared-date range, and a
+  dedicated server-backed modes. Its leading Filters pill opens a sheet for feed
+  mode, species groups, image/audio/video media, shared-date range, and a
   Nearby-only 10/25/50/100-mile distance. Species and media are multi-select;
-  selections are OR-ed within a section and AND-ed across sections before
-  cursor pagination. Reset clears advanced filters without changing feed mode.
+  selections are OR-ed within a section and AND-ed across sections before cursor
+  pagination. Reset clears advanced filters without changing feed mode.
 - **Map** lives inside Observations and shows open-location public discoveries.
   Its horizontal quick-filter row remains species-focused. The filter button
   opens a sheet with separate Species and Media type sections, where image,
@@ -78,12 +78,12 @@ chip as seen.
   out of the horizontal pills. Active filters apply before clusters or
   individual waypoints render.
 - **Index** opens `SpeciesDictionaryOverviewView`, a browse overview with
-  Recently Added, local region, organism-group, and region entry points.
-  The featured Recently Added card opens that species' detail page, while a
-  separate Recently Added row opens the full newest-species list. Pushed
-  category and group pages use `SpeciesDictionaryCatalogView`, a searchable and
-  paginated catalog powered by the public `species_dictionary` table through
-  the existing `/species-dictionary` Edge Function.
+  Recently Added, local region, organism-group, and region entry points. The
+  featured Recently Added card opens that species' detail page, while a separate
+  Recently Added row opens the full newest-species list. Pushed category and
+  group pages use `SpeciesDictionaryCatalogView`, a searchable and paginated
+  catalog powered by the public `species_dictionary` table through the existing
+  `/species-dictionary` Edge Function.
 - **Tree/galaxy map** is deferred beyond MVP. Its code, `mode: "tree"` API
   support, and default-off `.speciesDictionaryTree` feature flag remain intact
   for future work, but no production or simulator Explore navigation entry
@@ -117,10 +117,11 @@ falls back to the Goals tile when no guide exists. Ordinary route callers omit
 the optional focus ID and keep their prior behavior.
 
 Completed-goal navigation uses `ScanInsightRoute`. `ExploreView` resolves the
-private completion scan ID to a local record and loads `InferenceEngine` before
-pushing `InsightSheetView` in `.embeddedInScansLibrary` mode. A missing local
-record surfaces an unavailable message instead of presenting another sheet or
-an empty destination.
+private completion scan ID to a local record before appending the value route.
+The mounted `LocalScanInsightLoader` performs the one-time engine hydration and
+then constructs `InsightSheetView` in `.embeddedInScansLibrary` mode. A missing
+local record surfaces an unavailable message instead of presenting another sheet
+or stale content.
 
 ## iOS File Ownership
 
@@ -131,19 +132,19 @@ for the surface they are changing:
   toolbar, root mode picker, navigation routes, stack-based author-profile
   presentation, the profile-to-scan nesting cap, and cross-area presentation.
 - `apps/ios/Merian/Features/Explore/Feed/` owns the Observations feed, post
-  cards, post detail, comments, hashtags, feed formatting, and feed
-  view-model extensions.
-- `apps/ios/Merian/Features/Explore/Map/` owns the Observations map surface,
-  map filters, waypoints, clusters, preview cards, and map view model.
+  cards, post detail, comments, hashtags, feed formatting, and feed view-model
+  extensions.
+- `apps/ios/Merian/Features/Explore/Map/` owns the Observations map surface, map
+  filters, waypoints, clusters, preview cards, and map view model.
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns public Field trip Outings
-  and Events, Seasonal Challenges cards/detail, guided template
-  detail, progress cards, publication and challenge
-  entry detail pages, profile modules, challenge badges, pin controls, and Field
-  Trip comment presentation. `FieldTripsViewModel.swift` also contains the
-  app-injected, account-cached active-target store consumed by Capture.
+  and Events, Seasonal Challenges cards/detail, guided template detail, progress
+  cards, publication and challenge entry detail pages, profile modules,
+  challenge badges, pin controls, and Field Trip comment presentation.
+  `FieldTripsViewModel.swift` also contains the app-injected, account-cached
+  active-target store consumed by Capture.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author
@@ -157,47 +158,46 @@ for the surface they are changing:
 The bottom menu and root segmented control are intentionally root-scoped. They
 are hidden on the complete Identify Requests and Activity feeds, pushed post
 details, Identify request details, catalog detail pages, hashtag lists, author
-profile routes, comments, notification sheets, and the Insight sheet. Index
-rows push `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
+profile routes, comments, notification sheets, and the Insight sheet. Index rows
+push `SpeciesDictionaryRoute` into the sheet's existing `NavigationPath`.
 
 Community request details use `ExploreCommunityIdentificationDetailView`, which
 loads `/get-community-identification-detail`, frames the starting name as
-Naturebook's AI identification in a compact card backed by the scan's stored model
-tier, optional confidence, and collapsed AI reasoning row, renders the
+Naturebook's AI identification in a compact card backed by the scan's stored
+model tier, optional confidence, and collapsed AI reasoning row, renders the
 community identification timeline with its ID count, and pins a **Suggest ID**
-action at the bottom. The
-taxonomy search sheet calls `/search-community-taxa` with the request's pinned
-taxonomy version. Exact or descendant species IDs submit immediately, genus IDs
-can ask whether genus is as specific as it can get, ancestor IDs ask whether the
-user is only less specific or explicitly disagreeing, and sibling/unrelated IDs
-ask for confirmation plus optional reasoning.
-Submitting, withdrawing, or restoring an ID from the detail screen notifies the
-Identify request grid to refresh the visible page so each compact card badge
-stays aligned with the current active ID count shown in detail.
-When an Insight already has an active community request, the Insight share flow
-opens the same request sheet in edit mode, prefills the current note and
-location sharing from request detail, and saves through
+action at the bottom. The taxonomy search sheet calls `/search-community-taxa`
+with the request's pinned taxonomy version. Exact or descendant species IDs
+submit immediately, genus IDs can ask whether genus is as specific as it can
+get, ancestor IDs ask whether the user is only less specific or explicitly
+disagreeing, and sibling/unrelated IDs ask for confirmation plus optional
+reasoning. Submitting, withdrawing, or restoring an ID from the detail screen
+notifies the Identify request grid to refresh the visible page so each compact
+card badge stays aligned with the current active ID count shown in detail. When
+an Insight already has an active community request, the Insight share flow opens
+the same request sheet in edit mode, prefills the current note and location
+sharing from request detail, and saves through
 `/update-community-identification-request`. Opening **Edit request** from the
-community request detail menu uses that same `CommunityIdentificationRequestSheet`
-component, so Insight-originated edits and request-detail edits share the same
-toolbar Save action and form layout. Pending requests render horizontal **Edit**
-and **View** actions first, followed by a separate **Publish to Explore** action
-with a visible disclaimer that the community is still reviewing the ID. New
-scans continue to use the sheet in create mode and call
-`/request-community-identification`.
+community request detail menu uses that same
+`CommunityIdentificationRequestSheet` component, so Insight-originated edits and
+request-detail edits share the same toolbar Save action and form layout. Pending
+requests render horizontal **Edit** and **View** actions first, followed by a
+separate **Publish to Explore** action with a visible disclaimer that the
+community is still reviewing the ID. New scans continue to use the sheet in
+create mode and call `/request-community-identification`.
 
 The detail sheet intentionally leaves the image toolbar title empty. The image
 is the visual context, while the first body card names Naturebook's AI
-identification and lets explorers expand the scan-derived reasoning when
-needed. Community IDs then live below in the timeline so the AI starting point
-and human identification evidence stay visually distinct.
+identification and lets explorers expand the scan-derived reasoning when needed.
+Community IDs then live below in the timeline so the AI starting point and human
+identification evidence stay visually distinct.
 
 ## Data Boundaries
 
 Feed, Map, author, hashtag, and detail Explore RPCs read
 `explore_observation_projection` and exclude posts while their projection state
-is `community_needs_id`. Once the community consensus resolves at species, or
-at genus when users mark that as the best practical ID, the projection becomes
+is `community_needs_id`. Once the community consensus resolves at species, or at
+genus when users mark that as the best practical ID, the projection becomes
 `community_resolved`, but normal Explore surfaces continue to exclude it until
 the owner explicitly publishes the resolved request to Explore. After that
 publish action, the resolved community taxon drives the public
@@ -205,17 +205,17 @@ common/scientific-name display, and species-level resolutions set
 `scans.confirmed_species_id` after materializing any new GBIF-backed species
 into Merian's Dictionary. The original AI `scans.species_id` is preserved.
 
-Map species and media-type filters are backed by `/get-explore-map-points`.
-The endpoint derives faceted counts from privacy-safe posts, applies selected
+Map species and media-type filters are backed by `/get-explore-map-points`. The
+endpoint derives faceted counts from privacy-safe posts, applies selected
 species and media groups before clustering, and treats attached media kinds as
 an OR match. The horizontal pill row remains species-focused; image, video, and
 audio choices live in the full Map filters sheet.
 
-Index uses species-level public data only. The Dictionary overview
-returns featured, group, and region summaries, while pushed catalog pages return
-compact species rows with taxonomy, content quality, tags, status fields, and a
-single reference image URL. Promoted Naturebook community photos rank before
-external reference images when available.
+Index uses species-level public data only. The Dictionary overview returns
+featured, group, and region summaries, while pushed catalog pages return compact
+species rows with taxonomy, content quality, tags, status fields, and a single
+reference image URL. Promoted Naturebook community photos rank before external
+reference images when available.
 
 Identify Activity is a separate service-only projection, not the Explore bell
 feed. It is updated from identification inserts and consensus events, applies

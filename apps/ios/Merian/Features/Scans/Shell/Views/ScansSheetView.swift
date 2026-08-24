@@ -8,6 +8,7 @@ enum ScansTab {
 
 enum ScansNavigationRoute: Hashable {
     case nonBiologicalScans
+    case privateScanMap
 }
 
 struct ScansSheetInitialNavigation: Equatable {
@@ -193,6 +194,12 @@ struct ScansSheetView: View {
                 switch route {
                 case .nonBiologicalScans:
                     NonBiologicalScansView()
+                case .privateScanMap:
+                    PrivateScanMapView { scanId in
+                        navigationPath.append(
+                            ScanInsightRoute(scanId: scanId)
+                        )
+                    }
                 }
             }
         }
@@ -260,21 +267,23 @@ struct ScansSheetView: View {
     }
 
     private func localInsightDestination(for route: ScanInsightRoute) -> some View {
-        InsightSheetView(
-            isPresented: Binding(
-                get: { true },
-                set: { isPresented in
-                    if !isPresented {
-                        if !navigationPath.isEmpty {
-                            navigationPath.removeLast()
+        LocalScanInsightLoader(scanId: route.scanId) {
+            InsightSheetView(
+                isPresented: Binding(
+                    get: { true },
+                    set: { isPresented in
+                        if !isPresented {
+                            if !navigationPath.isEmpty {
+                                navigationPath.removeLast()
+                            }
                         }
                     }
-                }
-            ),
-            initialScanId: route.scanId,
-            inferenceEngine: inferenceEngine,
-            presentationStyle: .embeddedInScansLibrary
-        )
+                ),
+                initialScanId: route.scanId,
+                inferenceEngine: inferenceEngine,
+                presentationStyle: .embeddedInScansLibrary
+            )
+        }
     }
 
     private func queuedInsightDestination(for route: QueuedScanInsightRoute) -> some View {
@@ -415,7 +424,14 @@ struct ScansSheetView: View {
 
         let container = modelContext.container
         Task(priority: .utility) {
-            await ScanThumbnailBackfillActor.shared.backfill(records: backfillCandidates, modelContainer: container)
+            let updatedScanIds = await ScanThumbnailBackfillActor.shared.backfill(
+                records: backfillCandidates,
+                modelContainer: container
+            )
+            guard !updatedScanIds.isEmpty else { return }
+            await MainActor.run {
+                AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            }
         }
     }
 
@@ -859,7 +875,6 @@ private struct LibraryTabContent: View {
                         showSelectionLimitAlert = true
                     }
                 } else {
-                    inferenceEngine.load(from: scan)
                     isSearchFocused = false
                     onScanSelected(scan)
                 }

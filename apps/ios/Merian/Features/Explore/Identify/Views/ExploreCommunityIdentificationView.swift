@@ -354,7 +354,7 @@ struct ExploreCommunityIdentificationView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
     }
 
     private var requestLoadingState: some View {
@@ -363,7 +363,7 @@ struct ExploreCommunityIdentificationView: View {
                 CommunityIdentificationGridCardSkeleton()
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .accessibilityLabel("Loading community requests")
     }
 
@@ -649,7 +649,7 @@ struct ExploreCommunityRequestsFeedView: View {
                     .padding(.vertical, 18)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
     }
 
     private var loadingState: some View {
@@ -658,7 +658,7 @@ struct ExploreCommunityRequestsFeedView: View {
                 CommunityIdentificationGridCardSkeleton()
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .accessibilityLabel("Loading community requests")
     }
 

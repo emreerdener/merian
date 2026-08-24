@@ -288,14 +288,16 @@ struct AchievementDetailSheet: View {
         }
         .accessibilityIdentifier("AchievementDetailSheet_\(award.type.rawValue)")
         .sheet(item: $selectedScanForInsight) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedScanForInsight != nil },
-                    set: { if !$0 { selectedScanForInsight = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedScanForInsight != nil },
+                        set: { if !$0 { selectedScanForInsight = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine
+                )
+            }
         }
         .sheet(item: $selectedFieldTripAuthorRoute) { route in
             ExploreAuthorProfileSheet(
@@ -412,7 +414,6 @@ struct AchievementDetailSheet: View {
         guard let record = fetchScan(withID: contribution.scanID) else { return }
 
         AppTelemetry.trackAchievementContributionOpened(type: resolvedAward.type.rawValue)
-        inferenceEngine.load(from: record)
         selectedScanForInsight = ScanInsightRoute(scanId: record.id)
     }
 
@@ -423,7 +424,6 @@ struct AchievementDetailSheet: View {
             return
         }
 
-        inferenceEngine.load(from: record)
         HapticManager.shared.triggerSelectionPulse()
         selectedScanForInsight = ScanInsightRoute(scanId: record.id)
     }
@@ -562,6 +562,7 @@ private struct AchievementDetailHeader: View {
 
 private struct AchievementContributionRow: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
+    @Environment(OfflineQueueManager.self) private var offlineQueueManager
 
     let contribution: AchievementContribution
     let onTap: () -> Void
@@ -570,6 +571,7 @@ private struct AchievementContributionRow: View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: 12) {
                 ScanThumbnail(
+                    isOnline: offlineQueueManager.isOnline,
                     imagePath: contribution.imagePath,
                     fallbackImageUrl: contribution.fallbackImageUrl,
                     audioPath: contribution.audioPath,

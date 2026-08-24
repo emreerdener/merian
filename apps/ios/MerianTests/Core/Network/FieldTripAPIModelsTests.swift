@@ -1082,6 +1082,25 @@ struct FieldTripAPIModelsTests {
         )
     }
 
+    @Test func fieldTripCatalogActionInvitesOnlyNotStartedOutingsToGetStarted() {
+        let notStarted = FieldTripTemplateStatusPresentation(
+            kind: .notStarted,
+            title: "Not started"
+        )
+        #expect(notStarted.catalogActionTitle == "Get started")
+
+        let viewingKinds: [FieldTripTemplateStatusPresentation.Kind] = [
+            .active,
+            .stopped,
+            .completed,
+            .locked
+        ]
+        for kind in viewingKinds {
+            let status = FieldTripTemplateStatusPresentation(kind: kind, title: "Status")
+            #expect(status.catalogActionTitle == "View field trip")
+        }
+    }
+
     @Test func fieldTripCatalogPreviewUsesTwoUpLayoutOnlyForTwoTargets() {
         #expect(
             FieldTripScanPreviewPresentationMode.compactScrollable
@@ -2326,6 +2345,42 @@ struct ActiveCaptureGoalStoreTests {
         ) == "bird")
     }
 
+    @Test func fieldTripGoalTipsDefaultToFirstIncompleteGuidedItem() {
+        func item(
+            id: String,
+            hasGuide: Bool,
+            isCompleted: Bool
+        ) -> FieldTripChecklistItem {
+            FieldTripChecklistItem(
+                itemId: id,
+                prompt: id.capitalized,
+                matchType: "taxonomy",
+                guideTip: hasGuide ? "Look nearby." : nil,
+                guide: nil,
+                referenceSpecies: nil,
+                isCompleted: isCompleted,
+                completedAt: isCompleted ? "2026-08-23T12:00:00Z" : nil,
+                completedCommonName: nil,
+                completedScientificName: nil,
+                completedScanId: nil
+            )
+        }
+
+        let items = [
+            item(id: "completed", hasGuide: true, isCompleted: true),
+            item(id: "unguided", hasGuide: false, isCompleted: false),
+            item(id: "bird", hasGuide: true, isCompleted: false),
+            item(id: "dog", hasGuide: true, isCompleted: false)
+        ]
+
+        #expect(FieldTripGoalTipSelection.defaultItemId(in: items) == "bird")
+        #expect(
+            FieldTripGoalTipSelection.defaultItemId(
+                in: Array(items.prefix(2))
+            ) == nil
+        )
+    }
+
     @Test func captureIndicatorPolicyRequiresIdleVisualScanningAndRealData() {
         let visible = ActiveCaptureGoalPresentationPolicy.shouldShow(
             goalsEnabled: true,
@@ -2678,7 +2733,7 @@ struct ActiveCaptureGoalStoreTests {
         )
         #expect(
             CaptureGoalIndicatorAccessibilityCopy.introductionExpandHint ==
-                "Expands the outing name and progress."
+                "Expands the outing details."
         )
     }
 

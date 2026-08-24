@@ -16,8 +16,14 @@ domain logic.
 `InsightPresentationStyle.sheet` is the ordinary modal presentation.
 `embeddedInScansLibrary` hosts the same Insight content as a pushed destination
 inside an existing navigation stack and owns its back arrow/back-swipe behavior.
-`ScanInsightRoute` carries only the stable scan ID; the presenting shell must
-resolve and load the caller's local scan before pushing it.
+`ScanInsightRoute` carries only the stable scan ID. Route tap handlers must not
+load `InferenceEngine` before mounting a sheet or navigation destination.
+`LocalScanInsightLoader` commits that presentation first, performs one
+fetch-limited local-record lookup, and then hydrates the engine before it
+constructs `InsightSheetView`. A record deleted during the handoff renders
+**Scan unavailable** instead of stale Insight content. The sheet's normal record
+binding recognizes that exact already-loaded scan and does not cancel and
+restart its hydration.
 
 The Scans library also uses the embedded mode for queued and staged scans. Their
 private navigation route retains `QueuedScanContext`, a value snapshot that

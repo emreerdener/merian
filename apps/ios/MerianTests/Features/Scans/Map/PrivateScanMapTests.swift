@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import MapKit
 @testable import Merian
+import SwiftData
 import Testing
 
 @Suite("Private Scan Map")
@@ -47,6 +48,44 @@ struct PrivateScanMapTests {
         #expect(!PrivateScanMapRegion.isValidCoordinate(latitude: 0, longitude: 0))
     }
 
+    @Test("Collections preview projects only spatial values")
+    func previewProjectionIsSpatialOnly() throws {
+        let mapped = makeRecord(
+            id: "mapped",
+            latitude: 12.345_678_901,
+            longitude: 45.678_901_234
+        )
+        let invalid = makeRecord(id: "invalid", latitude: 0, longitude: 0)
+        let nonBiological = makeRecord(
+            id: "non-biological",
+            latitude: 12,
+            longitude: 45,
+            isBiological: false
+        )
+
+        let original = PrivateScanMapPreviewSnapshot(records: [
+            mapped,
+            invalid,
+            nonBiological
+        ])
+        let point = try #require(original.points.first)
+        #expect(original.points.count == 1)
+        #expect(point.id == "mapped")
+        #expect(point.latitude == 12.345_678_901)
+        #expect(point.longitude == 45.678_901_234)
+
+        mapped.commonName = "Changed presentation"
+        mapped.scientificName = "Changed species"
+        mapped.capturedMediaJSON = "not-json"
+        mapped.referenceImageUrl = "https://invalid.example/ignored.webp"
+        let presentationOnlyChange = PrivateScanMapPreviewSnapshot(records: [mapped])
+        #expect(presentationOnlyChange == original)
+
+        mapped.gpsLongitude = 46
+        let coordinateChange = PrivateScanMapPreviewSnapshot(records: [mapped])
+        #expect(coordinateChange != original)
+    }
+
     @Test("Projection preserves owner GPS regardless of publication state")
     func exactCoordinatePreservation() {
         let sharedScan = makeRecord(
@@ -90,6 +129,96 @@ struct PrivateScanMapTests {
         #expect(point?.category == .birds)
         #expect(point?.mediaFilters == [.image, .video, .audio])
         #expect(point?.scientificName == "Corvus brachyrhynchos")
+    }
+
+    @Test("Projection keeps the saved reference image behind captured media")
+    func projectionPreservesReferenceFallback() throws {
+        let record = makeRecord(
+            id: "fallback",
+            latitude: 12,
+            longitude: 45,
+            media: [.image(.documents("missing-owner-image.webp"))]
+        )
+        record.referenceImageUrl = "https://images.example.org/reference.webp"
+
+        let point = try #require(
+            PrivateScanMapSnapshot(records: [record]).points.first
+        )
+
+        #expect(point.thumbnail.imagePath == "missing-owner-image.webp")
+        #expect(
+            point.thumbnail.fallbackImageUrl
+                == "https://images.example.org/reference.webp"
+        )
+    }
+
+    @Test("Missing map media can request a safe reference image")
+    func missingVisualReferenceCandidate() throws {
+        let record = makeRecord(
+            id: "missing-visual",
+            latitude: 12,
+            longitude: 45,
+            media: [.image(.documents("missing-owner-image.webp"))]
+        )
+        record.isLocallyArchived = true
+        record.gbifTaxonKey = 123
+        record.scientificName = "Taxonomy Unavailable"
+        record.commonName = "Unknown Subject"
+        record.userIdentificationOverride = "Lagerstroemia indica"
+
+        let candidate = try #require(
+            ScanThumbnailBackfillCandidate(missingVisualFallbackFor: record)
+        )
+        #expect(candidate.scanId == record.id)
+        #expect(candidate.scientificName == "Lagerstroemia indica")
+        #expect(candidate.gbifTaxonKey == nil)
+
+        record.referenceImageUrl = "https://images.example.org/reference.webp"
+        #expect(
+            ScanThumbnailBackfillCandidate(
+                missingVisualFallbackFor: record
+            ) == nil
+        )
+    }
+
+    @Test("Reference recovery rejects unresolved people and domestic pets")
+    func referenceCandidatePrivacyPolicy() {
+        let unresolved = makeRecord(
+            id: "unresolved",
+            latitude: 12,
+            longitude: 45
+        )
+        unresolved.scientificName = "Taxonomy Unavailable"
+        unresolved.commonName = "Unknown Subject"
+
+        let human = makeRecord(id: "human", latitude: 12, longitude: 45)
+        human.scientificName = "Homo sapiens"
+        human.commonName = "Human"
+
+        let cat = makeRecord(id: "cat", latitude: 12, longitude: 45)
+        cat.scientificName = "Felis catus"
+        cat.commonName = "Domestic cat"
+
+        let dogOverride = makeRecord(
+            id: "dog-override",
+            latitude: 12,
+            longitude: 45
+        )
+        dogOverride.userIdentificationOverride = "Canis lupus familiaris"
+
+        for record in [unresolved, human, cat, dogOverride] {
+            #expect(
+                ScanThumbnailBackfillCandidate(
+                    missingVisualFallbackFor: record
+                ) == nil
+            )
+            #expect(ScanThumbnailBackfillCandidate(record: record) == nil)
+        }
+
+        #expect(
+            dogOverride.scanThumbnailPresentation.placeholderStyle
+                == .unavailableReference(.other)
+        )
     }
 
     @Test("Full extent follows the short arc across the antimeridian")
@@ -143,6 +272,13 @@ struct PrivateScanMapTests {
         invalidLocationModel.update(snapshot: PrivateScanMapSnapshot(points: points))
         invalidLocationModel.setInitialCamera(currentLocation: CLLocation(latitude: 0, longitude: 0))
         #expect(invalidLocationModel.visibleRegion?.center.latitude == 12.25)
+
+        let deferredFallbackModel = PrivateScanMapViewModel()
+        deferredFallbackModel.setInitialCamera(currentLocation: nil)
+        #expect(deferredFallbackModel.visibleRegion == nil)
+        deferredFallbackModel.update(snapshot: PrivateScanMapSnapshot(points: points))
+        #expect(deferredFallbackModel.visibleRegion?.center.latitude == 12.25)
+        #expect(deferredFallbackModel.visibleRegion?.center.longitude == 45.25)
     }
 
     @Test("Species and media filters compose while media selections use OR")
@@ -168,7 +304,7 @@ struct PrivateScanMapTests {
     }
 
     @Test("Viewport count uses every filtered point rather than annotation count")
-    func viewportCount() {
+    func viewportCount() async {
         let model = PrivateScanMapViewModel()
         model.update(snapshot: PrivateScanMapSnapshot(points: [
             makePoint(id: "a", latitude: 12, longitude: 45),
@@ -180,6 +316,7 @@ struct PrivateScanMapTests {
             center: CLLocationCoordinate2D(latitude: 12, longitude: 45),
             span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
         ))
+        await model.waitForViewportProjection()
 
         #expect(model.visiblePoints.count == 2)
         #expect(model.annotations.count == 1)
@@ -190,8 +327,33 @@ struct PrivateScanMapTests {
         #expect(cluster.count == 2)
     }
 
+    @Test("Navigation suspension retains state and resumes the latest projection")
+    func navigationProjectionSuspension() async {
+        let model = PrivateScanMapViewModel()
+        model.updateViewportSize(CGSize(width: 390, height: 700))
+        model.setViewportProjectionSuspended(true)
+        model.update(snapshot: PrivateScanMapSnapshot(points: [
+            makePoint(id: "retained", latitude: 12, longitude: 45)
+        ]))
+        model.updateVisibleRegion(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 12, longitude: 45),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        ))
+        await model.waitForViewportProjection()
+
+        #expect(model.visiblePoints.isEmpty)
+        #expect(model.annotations.isEmpty)
+        #expect(!model.isProjectingViewport)
+
+        model.setViewportProjectionSuspended(false)
+        await model.waitForViewportProjection()
+
+        #expect(model.visiblePoints.map(\.id) == ["retained"])
+        #expect(model.annotations.count == 1)
+    }
+
     @Test("Show scans recovers an empty current-location viewport")
-    func showScansRecovery() {
+    func showScansRecovery() async {
         let model = PrivateScanMapViewModel()
         model.update(snapshot: PrivateScanMapSnapshot(points: [
             makePoint(id: "mapped-a", latitude: 12, longitude: 45),
@@ -201,9 +363,11 @@ struct PrivateScanMapTests {
             center: CLLocationCoordinate2D(latitude: -30, longitude: 120),
             span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
         ))
+        await model.waitForViewportProjection()
         #expect(model.visiblePoints.isEmpty)
 
         model.showAllFilteredScans()
+        await model.waitForViewportProjection()
 
         #expect(model.visiblePoints.count == 2)
     }
@@ -294,8 +458,95 @@ struct PrivateScanMapTests {
         #expect(representedPointCount == points.count)
     }
 
+    @Test("Collections preview clustering stays deterministic for large libraries")
+    func deterministicPreviewClustering() throws {
+        let points = (0..<5_000).map { index in
+            let row = index / 100
+            let column = index % 100
+            return PrivateScanMapPreviewPoint(
+                id: "preview-large-\(index)",
+                latitude: 10.1 + (Double(row) * 0.075),
+                longitude: 43.1 + (Double(column) * 0.038)
+            )
+        }
+        let snapshot = PrivateScanMapPreviewSnapshot(points: points)
+        let region = try #require(snapshot.fullExtentRegion)
+        let viewport = CGSize(width: 390, height: 292.5)
+
+        let first = PrivateScanMapClusterer.previewAnnotations(
+            points: snapshot.points,
+            region: region,
+            viewportSize: viewport
+        )
+        let second = PrivateScanMapClusterer.previewAnnotations(
+            points: Array(snapshot.points.reversed()),
+            region: region,
+            viewportSize: viewport
+        )
+
+        #expect(first == second)
+        #expect(first.count <= 63)
+        let representedPointCount = first.reduce(0) { count, annotation in
+            switch annotation {
+            case .point:
+                return count + 1
+            case .cluster(let cluster):
+                return count + cluster.count
+            }
+        }
+        #expect(representedPointCount == points.count)
+    }
+
+    @Test("Clustering defers annotations until map layout has a viewport")
+    func zeroSizedViewportDefersAnnotations() {
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 12, longitude: 45),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        let interactive = PrivateScanMapClusterer.annotations(
+            points: [makePoint(id: "interactive", latitude: 12, longitude: 45)],
+            region: region,
+            viewportSize: .zero
+        )
+        let preview = PrivateScanMapClusterer.previewAnnotations(
+            points: [
+                PrivateScanMapPreviewPoint(
+                    id: "preview",
+                    latitude: 12,
+                    longitude: 45
+                )
+            ],
+            region: region,
+            viewportSize: .zero
+        )
+
+        #expect(interactive.isEmpty)
+        #expect(preview.isEmpty)
+    }
+
+    @Test("View model clears annotations when a laid-out viewport collapses")
+    func viewportCollapseDefersAnnotations() async {
+        let model = PrivateScanMapViewModel()
+        model.update(snapshot: PrivateScanMapSnapshot(points: [
+            makePoint(id: "interactive", latitude: 12, longitude: 45)
+        ]))
+        model.updateViewportSize(CGSize(width: 390, height: 844))
+        model.updateVisibleRegion(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 12, longitude: 45),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        ))
+        await model.waitForViewportProjection()
+        #expect(!model.annotations.isEmpty)
+
+        model.updateViewportSize(.zero)
+        await model.waitForViewportProjection()
+
+        #expect(model.viewportSize == .zero)
+        #expect(model.annotations.isEmpty)
+    }
+
     @Test("Coincident clusters stay available for list recovery at maximum zoom")
-    func coincidentClusterRecovery() throws {
+    func coincidentClusterRecovery() async throws {
         let model = PrivateScanMapViewModel()
         let points = [
             makePoint(id: "same-a", latitude: 12, longitude: 45),
@@ -307,6 +558,7 @@ struct PrivateScanMapTests {
             center: CLLocationCoordinate2D(latitude: 12, longitude: 45),
             span: MKCoordinateSpan(latitudeDelta: 0.000_1, longitudeDelta: 0.000_1)
         ))
+        await model.waitForViewportProjection()
 
         let annotation = try #require(model.annotations.first)
         guard case .cluster(let cluster) = annotation else {
@@ -315,6 +567,92 @@ struct PrivateScanMapTests {
         }
         #expect(model.focusRegion(for: cluster) == nil)
         #expect(cluster.count == 2)
+    }
+
+    @Test("Background index revisions separate content from spatial changes")
+    func backgroundIndexRevisions() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: Schema([LocalScanRecord.self]),
+            configurations: [configuration]
+        )
+        let mapped = makeRecord(
+            id: "mapped",
+            latitude: 12.345_678_901,
+            longitude: 45.678_901_234
+        )
+        let invalid = makeRecord(id: "invalid", latitude: 0, longitude: 0)
+        let nonBiological = makeRecord(
+            id: "non-biological",
+            latitude: 10,
+            longitude: 20,
+            isBiological: false
+        )
+        container.mainContext.insert(mapped)
+        container.mainContext.insert(invalid)
+        container.mainContext.insert(nonBiological)
+        try container.mainContext.save()
+
+        let service = PrivateScanMapIndexService(modelContainer: container)
+        let initial = try await service.refresh()
+        let initialPoint = try #require(initial.interactiveSnapshot.points.first)
+
+        #expect(initial.revision == 1)
+        #expect(initial.spatialRevision == 1)
+        #expect(initial.interactiveSnapshot.points.count == 1)
+        #expect(initialPoint.id == mapped.id)
+        #expect(initialPoint.latitude == 12.345_678_901)
+        #expect(initialPoint.longitude == 45.678_901_234)
+
+        let unchanged = try await service.refresh()
+        #expect(unchanged.revision == initial.revision)
+        #expect(unchanged.spatialRevision == initial.spatialRevision)
+
+        mapped.commonName = "Updated presentation"
+        try container.mainContext.save()
+        let presentationChange = try await service.refresh()
+        #expect(presentationChange.revision == initial.revision + 1)
+        #expect(presentationChange.spatialRevision == initial.spatialRevision)
+        #expect(
+            presentationChange.interactiveSnapshot.points.first?.commonName
+                == "Updated presentation"
+        )
+
+        mapped.gpsLongitude = 46.25
+        try container.mainContext.save()
+        let coordinateChange = try await service.refresh()
+        #expect(coordinateChange.revision == presentationChange.revision + 1)
+        #expect(
+            coordinateChange.spatialRevision
+                == presentationChange.spatialRevision + 1
+        )
+        #expect(
+            coordinateChange.interactiveSnapshot.points.first?.longitude
+                == 46.25
+        )
+
+        container.mainContext.delete(mapped)
+        try container.mainContext.save()
+        let deletion = try await service.refresh()
+        #expect(deletion.interactiveSnapshot.points.isEmpty)
+        #expect(deletion.previewSnapshot.points.isEmpty)
+        #expect(deletion.revision == coordinateChange.revision + 1)
+        #expect(deletion.spatialRevision == coordinateChange.spatialRevision + 1)
+    }
+
+    @Test("Spatial index keeps antimeridian candidates without false positives")
+    func spatialIndexAntimeridianCandidates() {
+        let index = PrivateScanMapSpatialIndex(points: [
+            makePoint(id: "east", latitude: 10, longitude: 179.5),
+            makePoint(id: "west", latitude: 10, longitude: -179.5),
+            makePoint(id: "far", latitude: 10, longitude: 120)
+        ])
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 10, longitude: 180),
+            span: MKCoordinateSpan(latitudeDelta: 4, longitudeDelta: 4)
+        )
+
+        #expect(Set(index.candidates(in: region).map(\.id)) == ["east", "west"])
     }
 
     private func makeRecord(

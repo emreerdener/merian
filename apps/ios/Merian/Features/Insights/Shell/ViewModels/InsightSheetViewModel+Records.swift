@@ -142,7 +142,17 @@ extension InsightSheetViewModel {
             return false
         }
 
-        inferenceEngine.load(from: record)
+        // Value-only routes are resolved by LocalScanInsightLoader before this
+        // view mounts. Keep this fallback for legacy/direct callers, but do not
+        // cancel and restart the exact hydration that the loader just began.
+        let engineAlreadyPresentsRecord =
+            inferenceEngine.activeScanId?
+                .caseInsensitiveCompare(record.id) == .orderedSame &&
+            inferenceEngine.speciesData?.scanId?
+                .caseInsensitiveCompare(record.id) == .orderedSame
+        if !engineAlreadyPresentsRecord {
+            inferenceEngine.load(from: record)
+        }
         bindPresentedRecord(record, modelContext: modelContext)
         return true
     }

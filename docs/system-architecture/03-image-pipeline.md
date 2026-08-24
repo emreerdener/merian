@@ -657,6 +657,26 @@ persists any recovered URL back to `LocalScanRecord.referenceImageUrl`, and
 prewarms `LocalImageLoader` so the grid tile flips from placeholder to image
 without requiring a full sheet reopen.
 
+The owner-only Scan Map opts into the same pipeline only when a rendered map
+thumbnail has no usable captured bitmap and no saved reference URL. Its shared
+map store deduplicates scan IDs, revalidates each current record in a private
+SwiftData actor, and submits bounded batches to `ScanThumbnailBackfillActor`.
+After an actual durable URL change, the store refreshes the interactive map
+snapshot so waypoints, the selected preview, and **Your scans** rows all receive
+the fallback. Corrected identifications fence stale writes and discard the old
+GBIF key; unresolved, human, domestic-cat, and domestic-dog scans remain
+ineligible. The lookup never receives a scan coordinate, and an offline
+thumbnail waits for connectivity instead of starting a public reference request.
+
+`ScanThumbnail` takes online availability as an explicit input instead of
+resolving `OfflineQueueManager` internally. Ordinary owners pass the observed
+queue value directly. The private map resolves it before its MapKit annotation
+builder and passes the scalar into each waypoint, because hosted annotation
+content is not guaranteed to retain required observable-environment objects
+while zoom changes swap dots for thumbnails. Reconnection changes the input and
+therefore the thumbnail retry identity without coupling image rendering to the
+queue manager.
+
 The shared `ScanThumbnail` keeps spectrogram rendering as its default for
 non-library consumers. `ScansGrid` opts into `prefersReferenceForAudio` and
 `showsAudioBadge`, so only the primary Scans library replaces an audio-only

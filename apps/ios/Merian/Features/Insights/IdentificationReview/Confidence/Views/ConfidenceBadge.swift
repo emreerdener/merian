@@ -56,11 +56,11 @@ struct ConfidenceBadge: View {
         let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
         switch score {
         case bands.strong...:
-            return BadgePayload(label: "Strong match", color: .green, icon: "sparkles.2")
+            return BadgePayload(label: "Strong match", color: .green, icon: "sparkles")
         case bands.possible..<bands.strong:
-            return BadgePayload(label: "Possible match", color: .orange, icon: "sparkles.2")
+            return BadgePayload(label: "Possible match", color: .orange, icon: "sparkles")
         default:
-            return BadgePayload(label: "Weak match", color: .gray, icon: "sparkles.2")
+            return BadgePayload(label: "Weak match", color: .gray, icon: "sparkles")
         }
     }
     

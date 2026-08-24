@@ -646,13 +646,14 @@ struct BackgroundDatabaseActorTests {
         try context.save()
 
         let actor = BackgroundDatabaseActor(modelContainer: container)
-        await actor.updateScanWithWikipedia(
+        let didApplyStaleWikipedia = await actor.updateScanWithWikipedia(
             scanId: scanId,
             extract: "Stale metadata",
             url: "https://example.invalid/stale",
             imageUrl: nil,
             expectedScientificName: "Papilio glaucus"
         )
+        #expect(!didApplyStaleWikipedia)
         await actor.updateScanWithEnrichment(
             scanId: scanId,
             habitatDescription: "Stale habitat",
@@ -674,6 +675,64 @@ struct BackgroundDatabaseActorTests {
         #expect(persisted.wikipediaUrl == nil)
         #expect(persisted.habitatDescription == nil)
         #expect(persisted.gbifTaxonKey == nil)
+    }
+
+    @Test func wikipediaUpdateUsesEffectiveIdentificationAndReportsChanges() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "reference_fallback_\(UUID().uuidString.lowercased())"
+        let record = LocalScanRecord(
+            id: scanId,
+            speciesId: "original-species",
+            scientificName: "Lagerstroemia speciosa",
+            commonName: "Queen's crape myrtle",
+            isBiological: true,
+            isLiveCapture: false
+        )
+        record.userIdentificationOverride = "Lagerstroemia indica"
+        context.insert(record)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let rejectedOriginal = await actor.updateScanWithWikipedia(
+            scanId: scanId,
+            extract: nil,
+            url: nil,
+            imageUrl: "https://images.example.org/stale.webp",
+            expectedScientificName: "Lagerstroemia speciosa"
+        )
+        #expect(!rejectedOriginal)
+
+        let appliedOverride = await actor.updateScanWithWikipedia(
+            scanId: scanId,
+            extract: nil,
+            url: nil,
+            imageUrl: "https://images.example.org/reference.webp",
+            expectedScientificName: "Lagerstroemia indica"
+        )
+        #expect(appliedOverride)
+
+        let repeatedNoOp = await actor.updateScanWithWikipedia(
+            scanId: scanId,
+            extract: nil,
+            url: nil,
+            imageUrl: "https://images.example.org/reference.webp",
+            expectedScientificName: "Lagerstroemia indica"
+        )
+        #expect(!repeatedNoOp)
+
+        let verificationContext = ModelContext(container)
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        descriptor.fetchLimit = 1
+        let persisted = try #require(
+            verificationContext.fetch(descriptor).first
+        )
+        #expect(
+            persisted.referenceImageUrl
+                == "https://images.example.org/reference.webp"
+        )
     }
 
     @Test func testClearAllLocalLookalikesCacheClearsBiologicalRecordsAcrossBatchesOnly() async throws {

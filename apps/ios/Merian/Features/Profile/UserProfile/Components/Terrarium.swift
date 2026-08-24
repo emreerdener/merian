@@ -12,6 +12,6 @@ struct Terrarium: View {
         Image(persona.imageName)
             .resizable()
             .scaledToFit()
-            .frame(width: 300, height: 260)
+            .frame(maxWidth: 360)
     }
 }

@@ -117,7 +117,7 @@ final class merianUITests: XCTestCase {
             "Collections did not show the mapped-scan card"
         )
         XCTAssertTrue(mapCard.isHittable)
-        XCTAssertTrue(mapCard.label.contains("3 mapped scans"))
+        XCTAssertTrue(mapCard.label.contains("305 mapped scans"))
         XCTAssertTrue(mapCard.label.contains("Private"))
 
         let featuredTitle = app.staticTexts["Featured scans"]
@@ -188,6 +188,72 @@ final class merianUITests: XCTestCase {
             "Filtering did not preserve the true viewport scan count"
         )
 
+        let mapCanvas = app.descendants(matching: .any)[
+            "PrivateScanMapCanvas"
+        ]
+        XCTAssertTrue(
+            mapCanvas.waitForExistence(timeout: 4.0),
+            "Scan map did not expose its gesture surface"
+        )
+        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
+        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
+
+        let birdPoint = app.buttons["PrivateScanMapPoint-private_map_bird"]
+        XCTAssertTrue(
+            birdPoint.waitForExistence(timeout: 5.0),
+            "Zooming across the thumbnail threshold removed the filtered point"
+        )
+        let firstThumbnailExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                birdPoint.exists && birdPoint.frame.width >= 40
+            },
+            object: birdPoint
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [firstThumbnailExpectation], timeout: 5.0),
+            .completed,
+            "Zooming in did not cross from a dot to a thumbnail waypoint"
+        )
+
+        mapCanvas.pinch(withScale: 0.5, velocity: -1.0)
+        mapCanvas.pinch(withScale: 0.5, velocity: -1.0)
+        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
+        mapCanvas.pinch(withScale: 2.0, velocity: 1.0)
+
+        let secondThumbnailExpectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                birdPoint.exists && birdPoint.frame.width >= 40
+            },
+            object: birdPoint
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [secondThumbnailExpectation], timeout: 5.0),
+            .completed,
+            "Repeated zooming did not restore the thumbnail waypoint"
+        )
+        XCTAssertTrue(
+            visibleCount.isHittable,
+            "Zooming across the thumbnail threshold made the map unresponsive"
+        )
+        birdPoint.tap()
+
+        let preview = app.buttons["PrivateScanMapPreview"]
+        XCTAssertTrue(
+            preview.waitForExistence(timeout: 4.0),
+            "Selecting a point did not show the owner-only preview"
+        )
+        preview.tap()
+
+        let insight = app.otherElements["InsightSheetView"]
+        XCTAssertTrue(
+            insight.waitForExistence(timeout: 8.0),
+            "Tapping the scan preview did not push private Insight"
+        )
+        let insightBackButton = app.buttons["InsightSheetBackButton"]
+        XCTAssertTrue(insightBackButton.waitForExistence(timeout: 4.0))
+        insightBackButton.tap()
+        XCTAssertTrue(mapNavigationBar.waitForExistence(timeout: 5.0))
+
         visibleCount.tap()
         let sheetHeader = app.descendants(matching: .any)[
             "PrivateScanMapSheetHeader"
@@ -201,7 +267,7 @@ final class merianUITests: XCTestCase {
         birdRow.tap()
 
         XCTAssertTrue(
-            app.otherElements["InsightSheetView"].waitForExistence(timeout: 8.0),
+            insight.waitForExistence(timeout: 8.0),
             "Selecting a sheet row did not dismiss before pushing private Insight"
         )
     }
@@ -362,6 +428,7 @@ final class merianUITests: XCTestCase {
 
         let artworkButton = app.buttons["activeCaptureGoalArtworkToggle"]
         let openButton = app.buttons["activeCaptureGoalOpenButton"]
+        let collapseButton = app.buttons["activeCaptureGoalCollapseButton"]
         let modeToggle = app.segmentedControls["CaptureModeToggle"]
         XCTAssertTrue(
             artworkButton.waitForExistence(timeout: 8.0),
@@ -378,6 +445,7 @@ final class merianUITests: XCTestCase {
             in: app
         )
         XCTAssertFalse(openButton.exists, "Goal details should begin collapsed")
+        XCTAssertFalse(collapseButton.exists, "Goal collapse chevron should begin hidden")
 
         artworkButton.swipeLeft()
         XCTAssertTrue(
@@ -401,11 +469,14 @@ final class merianUITests: XCTestCase {
             waitForCaptureGoalExpanded(
                 artworkButton: artworkButton,
                 openButton: openButton,
+                collapseButton: collapseButton,
                 in: app
             ),
             "Expanded goal indicator did not fill the workspace margins"
         )
-        let expandedFrame = artworkButton.frame.union(openButton.frame)
+        let expandedFrame = artworkButton.frame
+            .union(openButton.frame)
+            .union(collapseButton.frame)
         XCTAssertEqual(expandedFrame.minX, app.frame.minX + 32, accuracy: 3)
         XCTAssertEqual(expandedFrame.maxX, app.frame.maxX - 32, accuracy: 3)
         XCTAssertGreaterThanOrEqual(
@@ -425,6 +496,16 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(
             waitForDisappearance(openButton),
             "Tapping expanded artwork did not collapse goal details"
+        )
+        XCTAssertFalse(collapseButton.exists)
+
+        tapCenter(of: artworkButton)
+        XCTAssertTrue(openButton.waitForExistence(timeout: 4.0))
+        XCTAssertTrue(collapseButton.waitForExistence(timeout: 4.0))
+        tapCenter(of: collapseButton)
+        XCTAssertTrue(
+            waitForDisappearance(openButton),
+            "Tapping the up chevron did not collapse goal details"
         )
 
         tapCenter(of: artworkButton)
@@ -466,6 +547,7 @@ final class merianUITests: XCTestCase {
 
         let artworkButton = app.buttons["captureGoalIntroductionArtworkToggle"]
         let openButton = app.buttons["captureGoalIntroductionOpenButton"]
+        let collapseButton = app.buttons["captureGoalIntroductionCollapseButton"]
         let modeToggle = app.segmentedControls["CaptureModeToggle"]
         XCTAssertTrue(
             artworkButton.waitForExistence(timeout: 8.0),
@@ -486,13 +568,16 @@ final class merianUITests: XCTestCase {
         tapCenter(of: artworkButton)
         XCTAssertTrue(
             openButton.waitForExistence(timeout: 4.0),
-            "Tapping introduction artwork did not reveal its title and progress"
+            "Tapping introduction artwork did not reveal its details"
         )
+        XCTAssertTrue(collapseButton.waitForExistence(timeout: 4.0))
         XCTAssertTrue(
             waitForLabelContaining("Start an outing", on: openButton)
         )
         XCTAssertEqual(openButton.value as? String, "0 of 2 goals complete.")
-        let expandedFrame = artworkButton.frame.union(openButton.frame)
+        let expandedFrame = artworkButton.frame
+            .union(openButton.frame)
+            .union(collapseButton.frame)
         XCTAssertEqual(expandedFrame.minX, app.frame.minX + 32, accuracy: 3)
         XCTAssertEqual(expandedFrame.maxX, app.frame.maxX - 32, accuracy: 3)
         XCTAssertGreaterThanOrEqual(
@@ -511,10 +596,10 @@ final class merianUITests: XCTestCase {
             "The introduction incorrectly changed goals after a swipe"
         )
 
-        tapCenter(of: artworkButton)
+        tapCenter(of: collapseButton)
         XCTAssertTrue(
             waitForDisappearance(openButton),
-            "Tapping introduction artwork did not restore the compact state"
+            "Tapping the introduction up chevron did not restore the compact state"
         )
     }
 
@@ -657,13 +742,18 @@ final class merianUITests: XCTestCase {
     private func waitForCaptureGoalExpanded(
         artworkButton: XCUIElement,
         openButton: XCUIElement,
+        collapseButton: XCUIElement,
         in app: XCUIApplication,
         timeout: TimeInterval = 4.0
     ) -> Bool {
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate { _, _ in
-                guard artworkButton.exists, openButton.exists else { return false }
-                let expandedFrame = artworkButton.frame.union(openButton.frame)
+                guard artworkButton.exists,
+                      openButton.exists,
+                      collapseButton.exists else { return false }
+                let expandedFrame = artworkButton.frame
+                    .union(openButton.frame)
+                    .union(collapseButton.frame)
                 return expandedFrame.width >= app.frame.width - 70
             },
             object: openButton

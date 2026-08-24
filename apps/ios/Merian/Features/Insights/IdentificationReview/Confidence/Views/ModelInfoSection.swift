@@ -8,7 +8,7 @@ struct ModelInfoSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkles.2")
+                Image(systemName: "sparkles")
                     .foregroundColor(.secondary)
                 Text("Confidence score")
                     .font(.system(.headline))

@@ -31,7 +31,6 @@ struct CollectionDetailView: View {
                 if !memberScans.isEmpty {
 
                     ScansGrid(scans: memberScans, onSelect: { scan in
-                        inferenceEngine.load(from: scan)
                         selectedScanForInsight = ScanInsightRoute(scanId: scan.id)
                     }, onDelete: { scan in
                         scanToDelete = scan.id
@@ -71,15 +70,17 @@ struct CollectionDetailView: View {
         .navigationTitle(collection.name)
         .toolbar { trailingToolbar }
         .navigationDestination(item: $selectedScanForInsight) { route in
-            InsightSheetView(
-                isPresented: Binding(
-                    get: { selectedScanForInsight != nil },
-                    set: { if !$0 { selectedScanForInsight = nil } }
-                ),
-                initialScanId: route.scanId,
-                inferenceEngine: inferenceEngine,
-                presentationStyle: .embeddedInScansLibrary
-            )
+            LocalScanInsightLoader(scanId: route.scanId) {
+                InsightSheetView(
+                    isPresented: Binding(
+                        get: { selectedScanForInsight != nil },
+                        set: { if !$0 { selectedScanForInsight = nil } }
+                    ),
+                    initialScanId: route.scanId,
+                    inferenceEngine: inferenceEngine,
+                    presentationStyle: .embeddedInScansLibrary
+                )
+            }
         }
         .sheet(isPresented: $showScanSelection) {
             SelectMultipleScansView(collection: collection)

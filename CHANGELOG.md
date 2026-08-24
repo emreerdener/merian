@@ -39,14 +39,49 @@ TestFlight, App Store, support, and QA.
   complete scan extent and clearly labels the surface **Private**.
 - The owner-only map starts around current location, falls back to the newest
   mapped scan, supports local species and media filters, clusters dense scans,
-  and opens private Insights through the preview's **View scan** action or the
-  **Your scans** sheet. Shared and unshared scans remain together at their exact
+  and opens private Insights by tapping the complete scan preview or a **Your
+  scans** sheet row. Shared and unshared scans remain together at their exact
   owner coordinates; Explore publication and public location settings are
   unchanged.
-- This source candidate is not yet release-complete. The snapshot's main-actor
-  boundary, full-preview tap contract, and the manual location, accessibility,
-  appearance, deletion, large-library, and offline evidence matrix remain open.
-  The canonical status is in the
+- Large mapped libraries no longer project SwiftData records, decode media,
+  cluster the full library, or keep a live map renderer on the main thread as
+  the Collections card appears. A background revisioned index now feeds an
+  asynchronous static preview; presentation-only changes reuse that image, and
+  rendered variants remain memory-only.
+- Interactive panning and filtering now use cancellable spatial-index work away
+  from the main thread. The map installs the current actor-backed snapshot
+  before its one-shot location lookup, so denied location reliably falls back to
+  the newest scan, while stale viewport generations and deleted selections
+  cannot race into the UI.
+- When a map marker, selected preview, or **Your scans** row cannot load the
+  owner's captured image, it now shows the saved species reference image or
+  requests the existing bounded fallback. Corrected identifications are fenced,
+  unresolved people and domestic pets remain suppressed, offline requests wait
+  for connectivity, and no scan location is sent to the image lookup.
+- Fixed the crash that could look like a frozen map after zooming from dots into
+  thumbnail markers. Map annotations now receive connectivity as a plain value
+  instead of depending on an observable object that MapKit may not carry into
+  its hosted annotation subtree.
+- The **Your scans** sheet now shows its **Private** subtitle without a lock
+  icon.
+- Opening a mapped scan now uses the Scans root's single typed navigation path:
+  the Map view emits only the selected scan ID and owns no destination state.
+  MapKit stays retained lower in the stack while Merian suspends only its
+  cancellable viewport projection. One shared local-Insight loader mounts the
+  destination before its fetch-limited lookup and engine hydration, avoids
+  restarting that work when Insight mounts, and shows **Scan unavailable** if
+  deletion wins the handoff. The populated Map subtree is no longer responsible
+  for committing its own Insight transition.
+- Follow-up audit found four source blockers: destructive account cleanup does
+  not yet synchronously purge map snapshots, index state, pending work, and
+  rendered previews; a failed refresh can drop a newer pending invalidation;
+  canceled map startup can continue into the location request; and the current
+  56-point cluster grid uses raw coordinate fractions rather than true projected
+  screen space.
+- This source candidate is not yet release-complete. The manual location,
+  accessibility, appearance, deletion and destructive-purge, physical-device
+  large-library, and offline evidence matrix also remains open. The canonical
+  status is in the
   [Private Scan Map documentation](docs/features-and-hardware/28-private-scan-map.md#candidate-release-status).
 
 ### More Reliable Links, Notifications, and Sheets
@@ -68,6 +103,9 @@ TestFlight, App Store, support, and QA.
 - Copying a Field Chat answer now keeps the transient **Copied** confirmation
   inside the chat sheet and no longer shows a duplicate toast behind it. The
   shared fix covers Insight, Explore, and Species Dictionary chats.
+- Field Chat now consumes the app's existing reachability state instead of
+  starting a path monitor from each transient SwiftUI view model, avoiding
+  repeated monitor setup and cancellation during Insight presentation.
 - Queued-scan retry details and controls now stay above the rotating fun-fact
   card, keeping recovery actions ahead of educational content.
 - Reanalyzing an older library scan now prepares saved local or cloud audio as a

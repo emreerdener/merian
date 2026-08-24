@@ -129,8 +129,10 @@ instead of allowing an unverified request to reach Insight.
 Completed standard-outing goals reuse the existing Insight surface instead of
 presenting a second sheet. The authenticated Field trips catalog/detail payload
 supplies an optional private `completed_scan_id`; `ExploreView` resolves that ID
-to a device-local `LocalScanRecord`, calls `InferenceEngine.load(from:)`, and
-appends `ScanInsightRoute` to its current `NavigationPath`.
+to a device-local `LocalScanRecord` and appends `ScanInsightRoute` to its
+current `NavigationPath`. The destination mounts first; `LocalScanInsightLoader`
+then performs the exact record lookup and engine hydration before constructing
+the Insight content.
 
 The destination constructs `InsightSheetView` with
 `InsightPresentationStyle.embeddedInScansLibrary`, disables another Explore

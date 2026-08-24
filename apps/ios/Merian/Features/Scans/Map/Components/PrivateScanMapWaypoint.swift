@@ -4,11 +4,14 @@ struct PrivateScanMapWaypoint: View {
     let point: PrivateScanMapPoint
     let isSelected: Bool
     let showsThumbnail: Bool
+    let isOnline: Bool
+    let onReferenceImageNeeded: @MainActor () -> Void
 
     var body: some View {
         Group {
             if showsThumbnail {
                 ScanThumbnail(
+                    isOnline: isOnline,
                     imagePath: point.thumbnail.imagePath,
                     fallbackImageUrl: point.thumbnail.fallbackImageUrl,
                     audioPath: point.thumbnail.audioPath,
@@ -16,7 +19,8 @@ struct PrivateScanMapWaypoint: View {
                     hasAudio: point.thumbnail.hasAudio,
                     prefersReferenceForAudio: true,
                     maxDimension: 120,
-                    placeholderStyle: point.thumbnail.placeholderStyle
+                    placeholderStyle: point.thumbnail.placeholderStyle,
+                    onReferenceImageNeeded: onReferenceImageNeeded
                 )
                 .frame(width: isSelected ? 50 : 42, height: isSelected ? 50 : 42)
                 .clipShape(Circle())

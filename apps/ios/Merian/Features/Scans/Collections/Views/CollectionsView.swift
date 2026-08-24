@@ -11,10 +11,10 @@ struct CollectionsView: View {
 
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var allScans: [LocalScanRecord]
     @Environment(\.modelContext) private var modelContext
+    @Environment(PrivateScanMapStore.self) private var privateScanMapStore
 
     @State private var nonBioCount: Int = 0
     @State private var collectionSnapshot = CollectionMembershipSnapshot.empty
-    @State private var privateMapSnapshot = PrivateScanMapSnapshot.empty
     @State private var smartCollections: [SmartCollectionSnapshot] = []
     @State private var collectionToEdit: ScanCollection?
     @State private var showRenameAlert = false
@@ -106,9 +106,9 @@ struct CollectionsView: View {
                     )
                 } else {
                     if showPrivateMap {
-                        NavigationLink {
-                            PrivateScanMapView()
-                        } label: {
+                        NavigationLink(
+                            value: ScansNavigationRoute.privateScanMap
+                        ) {
                             PrivateScanMapCollectionCard(snapshot: privateMapSnapshot)
                         }
                         .buttonStyle(.plain)
@@ -254,19 +254,12 @@ struct CollectionsView: View {
         }
         .containerRelativeFrame(.horizontal)
         .id(ScansTab.collections)
+        .task(id: collectionRefreshSignature) {
+            refreshCollectionSnapshot()
+            refreshNonBioCount()
+        }
         .task {
-            refreshCollectionSnapshot()
-            refreshNonBioCount()
-        }
-        .task(id: scanSmartCollectionSignature) {
-            refreshCollectionSnapshot()
-            refreshNonBioCount()
-        }
-        .task(id: collectionsSignature) {
-            refreshCollectionSnapshot()
-        }
-        .task(id: hiddenSmartCollectionSignature) {
-            refreshCollectionSnapshot()
+            await privateScanMapStore.refresh()
         }
         .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
             guard case .scanLibraryChanged = event else { return }
@@ -286,6 +279,10 @@ struct CollectionsView: View {
     private var isSearchHeaderVisible: Bool {
         isSearchFocused ||
             !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var privateMapSnapshot: PrivateScanMapPreviewSnapshot {
+        privateScanMapStore.snapshot.previewSnapshot
     }
 
     private func shouldShowHeader(isSearching: Bool) -> Bool {
@@ -330,12 +327,18 @@ struct CollectionsView: View {
         hiddenSmartCollectionIDs.sorted().joined(separator: "|")
     }
 
+    private var collectionRefreshSignature: String {
+        [
+            scanSmartCollectionSignature,
+            collectionsSignature,
+            hiddenSmartCollectionSignature
+        ].joined(separator: "#")
+    }
+
     private var scanSmartCollectionSignature: String {
-        let smartCollectionIdentity = allScans
+        allScans
             .map { scanSmartCollectionSignatureComponent(for: $0) }
             .joined(separator: "|")
-        let mapIdentity = PrivateScanMapSnapshot.sourceIdentity(for: allScans)
-        return "\(smartCollectionIdentity)#map:\(mapIdentity)"
     }
 
     private func scanSmartCollectionSignatureComponent(for scan: LocalScanRecord) -> String {
@@ -357,7 +360,6 @@ struct CollectionsView: View {
 
     private func refreshCollectionSnapshot() {
         collectionSnapshot = CollectionMembershipSnapshot(scans: allScans)
-        privateMapSnapshot = PrivateScanMapSnapshot(records: allScans)
         smartCollections = SmartCollectionSuggester.suggestions(
             from: allScans,
             existingCollections: collections,

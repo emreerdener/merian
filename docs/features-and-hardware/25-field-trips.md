@@ -18,18 +18,26 @@ only a camera/performance setting.
   lists live and upcoming curated challenges.
 - Standard Field trip and Seasonal Challenge details use one continuous page
   without a `Goals`/`Tips` toolbar picker or separate guide page. Standard
-  outing tips are hidden by default. Tapping one incomplete guided goal selects
-  its tile and reveals only that goal's tips below the goal collection; tapping
-  it again hides the tips, and tapping another guided goal switches the single
-  selection. Completed media continues to open Insight, while completed and
+  outing detail selects the current level's first incomplete guided goal by
+  default. Its tile hides the inline goal name so the artwork can aspect-fit
+  across the full square, while the expanded tips begin with that goal name as a
+  heading. Tapping the selected goal hides its tips, and tapping another guided
+  goal switches the single selection. A refresh does not reopen a goal the user
+  collapsed. Completed media continues to open Insight, while completed and
   locked level cards never expose tips. Seasonal Challenge level presentation
-  remains unchanged. **About this outing** follows the level and
-  Community/Event-entry content at the bottom of the page.
+  remains unchanged. The unheaded outing-guidance cards follow the level and
+  Community/Event-entry content at the bottom of the page. Each keeps its outer
+  card surface and places a bare icon at the top-leading edge beside its copy,
+  using the same compact icon sizing as goal tips and no separate icon
+  container.
 - Standard outing detail centers a wrapping metadata row beneath its centered
   serif title and description. The row contains publication visibility when
   enabled, locked Pro access, difficulty, current level, and an optional
-  privacy-filtered authorized city/state. Lifecycle status remains on the
-  private catalog card rather than being repeated in detail.
+  privacy-filtered authorized city/state. Lifecycle status drives catalog CTA
+  copy and appears once as a centered, borderless capsule in the detail sheet's
+  navigation bar rather than being repeated in metadata or level cards. Its dot
+  is green for **Active** and **Completed**, orange for **Stopped**, and neutral
+  for **Not started**.
 - Seasonal challenges are curated/admin-created only, live inside Field trips,
   and require an explicit Join.
 - Challenges link to existing Field trip templates but keep separate
@@ -70,35 +78,45 @@ only a camera/performance setting.
   catalog card and outing detail. They keep the standard neutral tile border;
   blue/accent borders are reserved for an incomplete focused goal.
 - The standard outing detail places a square, edge-to-edge featured media
-  carousel above its status and title whenever at least one curated goal
-  reference or completed user visual is loadable. Only the current active level
-  contributes pages, in checklist order, capped at six. Each slot begins with
-  one illustrative species image, trying Naturebook, Wikipedia, then GBIF; the
-  exact goal's device-local photo or video poster replaces that reference after
-  completion. Tapping opens the shared full-screen zoomable photo/playable-video
-  viewer. Events and public publication pages do not show this carousel.
+  carousel above its overview content whenever at least one curated goal
+  reference or completed user visual is loadable. The scrolling overview stack
+  orders the centered lifecycle status, title, description, metadata pills, and
+  primary action before the levels; the action is not anchored to the bottom
+  safe area. Navigation chrome contains only back and eligible options controls.
+  Only the current active level contributes pages, in checklist order, capped at
+  six. Each slot begins with one illustrative species image, trying Naturebook,
+  Wikipedia, then GBIF; the exact goal's device-local photo or video poster
+  replaces that reference after completion. Tapping opens the shared full-screen
+  zoomable photo/playable-video viewer. Events and public publication pages do
+  not show this carousel.
 - Every standard outing level leads with a balanced row containing its bundled
-  collectible patch, a centered status capsule, and a numeric progress ring or
-  matching locked ring. Current levels inherit **Not started**, **Active**, or
-  **Stopped** from the outing; earlier levels show **Completed**, and future
-  levels show **Locked**. The status dot is redundant with text. Zero progress
-  uses a neutral ring, positive progress uses green, and completed rings remain
-  numeric rather than replacing the count with a checkmark. Tapping a patch
-  opens its full-screen viewer with pinch and double-tap zoom.
-- The larger centered level title and description follow that identity row. One
-  or two goals use a two-column, equal-width square layout; levels with more
-  than two goals use fixed square slots in a horizontal scroller. Curated 3D
-  artwork remains uncarded until its guided goal is selected, when a neutral
-  surface and border provide a non-color-only active state.
+  collectible patch, a centered bold title-style level name, and a numeric
+  progress ring or matching locked ring. Lifecycle status is not repeated in
+  level cards. Zero progress uses a neutral ring, positive progress uses green,
+  and completed rings remain numeric rather than replacing the count with a
+  checkmark. Tapping a patch opens its full-screen viewer with pinch and
+  double-tap zoom.
+- Goals follow the identity row without a level-description sentence. One or two
+  goals use a two-column, equal-width square layout; levels with more than two
+  goals use fixed square slots in a horizontal scroller. Curated 3D artwork
+  remains uncarded and current-level goal tiles omit inline titles. Selecting a
+  guided goal adds a neutral surface and border for a non-color-only active
+  state, keeps the artwork at the full square, and moves that goal's name above
+  its revealed tips.
 - The authenticated user's profile summary card lists earned standard-outing
   patches beneath the stats and a divider. Tapping any patch opens the same
   zoomable full-screen viewer at that selection; when more patches are earned,
   the viewer supports horizontal paging and shows page dots.
-- The authenticated user's active Field trip Profile card shows the
-  current-level patch, Field trip name and level, and a trailing
-  `GoalProgressRing` above the existing device-local goal thumbnail strip. It
-  does not use the former horizontal progress bar or change the public Explore
-  author-profile row.
+- The authenticated user's active Field trip Profile card shows a leading title
+  matching the profile stat-value style, a footnote-sized current-level label,
+  and a larger trailing collectible patch in one top-aligned row above the
+  existing device-local goal thumbnail strip. It does not show lifecycle status,
+  a progress ring, or the former horizontal progress bar, and it does not change
+  the public Explore author-profile row.
+- Public Explore profiles render active, pinned, and published Field trip row
+  titles with the bold headline text style. Active rows use an enlarged numeric
+  label in their compact progress rings. Challenge badge titles retain their
+  compact presentation.
 - A saved scan that completes at least one current-level goal queues one
   progress toast for every credited standard outing and joined live Seasonal
   Challenge. Each toast shows **Field trip progress**, contextual species/trip
@@ -165,17 +183,20 @@ migration filenames may still use `objective` or `challenge`:
 - Standard-outing actions are **Start outing**, **Start scanning**, **Resume
   outing**, and **Publish outing**. Never use **Start challenge** or **Publish
   challenge** for a standard outing.
+- A Not started catalog card uses **Get started**; every other lifecycle state
+  uses **View field trip**. Both actions open detail and never start an outing
+  directly.
 - The active Scan capsule uses **Goal: {target}**. The post-Reset empty
   introduction uses **Start an outing** with **Backyard Safari · 2 goals**.
-- Standard catalog cards lead with the current-level patch, a centered lifecycle
-  capsule, and the current level's numeric accent progress ring. The capsule
-  always names **Not started**, **Active**, **Stopped**, or **Completed** and
-  pairs that text with its semantic status indicator. Goal previews follow:
-  exactly two goals share the available width as equal square slots, while any
-  other count retains the 96-point horizontal strip. The larger title and
-  current-level subtitle follow the previews, then **View field trip**. Access,
-  difficulty, current level, location, and future publication metadata appear
-  only in the centered detail row.
+- Standard catalog cards omit the collectible patch, lifecycle badge, and
+  progress ring. Each uses a rounded card surface with 16-point vertical
+  separation and the standard 16-point outer horizontal inset. Goal previews
+  lead: exactly two goals share the available width as equal square slots, while
+  any other count retains the 96-point horizontal strip. The centered bold serif
+  large-title name and centered current-level subtitle follow the previews, and
+  the status-aware detail action remains last. Access, difficulty, current
+  level, location, and future publication metadata appear only in the centered
+  detail row.
 
 ## Difficulty
 
@@ -209,7 +230,7 @@ difficulty.
 3. Opening a catalog card loads `action: "template_detail"` and shows one
    continuous detail page: overview, levels with goal-selected curated tips in
    the current incomplete level, the current start/continue/publish state,
-   Community content, and **About this outing** at the bottom.
+   Community content, and unheaded outing-guidance cards at the bottom.
 4. Backyard Safari Level 1 is already active from account enrollment. For other
    unstarted outings, tapping **Start outing** calls `action: "start"`. Matching
    scans never auto-start an outing. Standard outings never use Start/Publish
@@ -325,14 +346,13 @@ Presentation contract:
   supported versions use a neutral material fallback. Foreground styles remain
   semantic.
 - In expanded form, center the `Goal: {target}` prompt and outing title between
-  equal 56-point artwork and progress slots. Preserve the curated target text
+  equal 56-point artwork and up-chevron slots. Preserve the curated target text
   exactly; the colon avoids article and plurality errors for composite or
-  mass-noun prompts. The trailing circular ring shows `completed/target`.
-  Compact form contains artwork only, without a progress rim, count badge, or
-  disclosure glyph.
+  mass-noun prompts. Compact form contains artwork only, without a progress rim,
+  count badge, or disclosure glyph.
 - Tapping compact artwork expands beneath the selector; tapping expanded artwork
-  collapses it back onto the selector row. The rest of the expanded surface,
-  including the progress slot, opens the outing. The expansion choice lasts
+  or the trailing up-chevron collapses it back onto the selector row. Tapping
+  the centered expanded region opens the outing. The expansion choice lasts
   through goal changes, root sheets, foregrounding, and temporary Capture
   suppression. Leaving visual Scan, changing or signing out of an account, or
   disabling the setting resets it to compact.
@@ -345,8 +365,8 @@ Presentation contract:
   selection haptics. All respect the global haptics and Expedition mode gates.
   Reduced Motion makes the size transition immediate. Compact VoiceOver exposes
   goal, outing, progress, Expand, and adjustable previous/next actions. Expanded
-  artwork exposes Collapse; the remaining region exposes Open and the adjustable
-  actions.
+  artwork and the trailing chevron expose Collapse; the centered region exposes
+  Open and the adjustable actions.
 - Settings > Workspace exposes an on-by-default **Field trip goals** toggle with
   the `binoculars.fill` symbol. Turning it off removes the entire target capsule
   from Scan without changing outing progress, cached goal context, or server
@@ -355,8 +375,9 @@ Presentation contract:
   same compact/expanded treatment. Rotate Bird and Dog artwork by cross-fade
   every three seconds in either size; Reduce Motion keeps the first static.
   Expanded content shows **Start an outing**, **Backyard Safari · 2 goals**, and
-  `0/2`, then opens outing detail. The introduction never changes goals by swipe
-  or VoiceOver adjustment; artwork only toggles its presentation size.
+  the trailing collapse chevron. The introduction never changes goals by swipe
+  or VoiceOver adjustment; artwork and the chevron collapse it, while its
+  centered content opens outing detail.
 
 Capture uses a source-agnostic domain boundary. `FieldTripCaptureGoalProvider`
 flattens the server-ordered outing response into `CaptureGoal` values containing
@@ -394,14 +415,14 @@ Refresh behavior:
 
 Tapping the indicator passes its typed `CaptureGoalDestination` into Explore.
 Explore presents the Field trips tab, opens the owning standard outing, selects
-the matching goal tile, reveals and scrolls to its tips, and briefly highlights
-them. A future goal without guide content falls back to its highlighted goal
-tile. The destination is converted at the Explore boundary into
-`FieldTripTemplateRoute`, whose focused checklist-item identifier remains
-optional for ordinary outing navigation. Guide, objective, and Event highlight
-timers are stored per detail view, cancelled when replaced, and released on
-disappearance. Their delayed fade cannot retain a dismissed scroll proxy or
-clear a newer highlight.
+the matching goal tile, and reveals and scrolls to its tips without adding
+separate tip-container highlight chrome. A future goal without guide content
+falls back to its highlighted goal tile. The destination is converted at the
+Explore boundary into `FieldTripTemplateRoute`, whose focused checklist-item
+identifier remains optional for ordinary outing navigation. Guide, objective,
+and Event highlight timers are stored per detail view, cancelled when replaced,
+and released on disappearance. Their delayed fade cannot retain a dismissed
+scroll proxy or clear a newer highlight.
 
 ## Challenge Flow
 
@@ -1008,14 +1029,14 @@ so a completed third slot replaces only the third slot rather than the first
 `completed_count` slots.
 
 The shared catalog and authenticated active-profile goal preview renderer has
-two explicit layouts. Active-profile cards and catalog counts other than two
-retain the 96-point square layout and tap frame. A catalog level with exactly
-two goals instead removes scrolling and divides the width after 16-point side
-insets and the existing 10-point gap into two equal square slots. Bundled 3D
-goal artwork in either layout and in the current or locked outing-detail levels
-aspect-fits directly on the containing surface without a tile fill, neutral
-border, clipping, or inner padding. A locally available completion photo or
-video poster participates in either layout while retaining its full-bleed
+two explicit layouts. A current level with exactly two goals removes scrolling
+and divides the width after 16-point side insets and the existing 10-point gap
+into two equal square slots on either surface. Every other count retains the
+96-point square layout and tap frame used by multi-goal catalog cards. Bundled
+3D goal artwork in either layout and in the current or locked outing-detail
+levels aspect-fits directly on the containing surface without a tile fill,
+neutral border, clipping, or inner padding. A locally available completion photo
+or video poster participates in either layout while retaining its full-bleed
 rounded tile, media badge, neutral border, and Insight route. Completed items
 without local media fall back to the uncarded curated artwork.
 
@@ -1026,9 +1047,10 @@ video poster stays full bleed with its media badge and opens Insight. Incomplete
 guided art toggles the level's single selected goal with a selection haptic:
 select, repeat-tap collapse, and cross-goal replacement all respect the global
 haptics and Expedition mode gates. The selected tile gains a neutral surface and
-border, and its tip rows render directly below the collection without the former
-per-goal accordion card. Ordinary detail entry starts with no selected goal;
-typed Capture routing may preselect and highlight its exact guided goal.
+border, and its name plus tip rows render directly below the collection without
+the former per-goal accordion card. Current-level tiles otherwise remain
+image-only. Ordinary detail entry starts with no selected goal; typed Capture
+routing may preselect and highlight its exact guided goal.
 
 `FieldTripChecklistItem.referenceSpecies` is also optional so an older Edge
 deployment remains decodable. Template detail supplies a reviewed illustrative
@@ -1069,19 +1091,27 @@ and its provider from the user's own photo or video.
 
 While standard outing detail is loading, its skeleton preserves the same visual
 hierarchy: a square edge-to-edge media placeholder under transparent toolbar
-chrome, pagination treatment, then inset title, description, centered metadata
-pills, and level cards whose patch/status/accessory row precedes centered level
-copy and square goals. Catalog skeletons mirror the patch/status/progress,
-square goals, title/description, and action order. Square placeholders remain
-square and are hidden from assistive technologies. Event loading states retain
-their normal inset presentation without the featured-media hero.
+chrome, pagination treatment, then an inset centered status placeholder, title,
+description, metadata pills, primary action, and level cards whose
+patch/level-name/accessory row precedes square goals. The current-level skeleton
+shows the first goal selected without an inline label, followed by the goal
+heading and four tip rows; later levels retain compact square strips. The
+borderless About-outing guide rows also receive matching placeholders. Catalog
+skeletons mirror the centered title/description, common two-up square goals, and
+action order without patch, lifecycle, or progress placeholders. Active-profile
+and published-entry loading cards expose their real header, goal-grid,
+item-grid, and comment hierarchy instead of undifferentiated blocks. All
+placeholders are inert and hidden from assistive technologies. Event loading
+states retain their normal inset presentation without the featured-media hero or
+selected-goal tips.
 
-`GoalProgressRing` is a Core UI primitive shared by the Scan target capsule, the
-standard-outing level headers, and persistent Insight contribution rows. The
-current level passes the outing's current counts, completed levels resolve to
-their numeric target counts, and unstarted levels resolve to `0/N`. Locked
-levels substitute the matching lock ring. Ephemeral milestone banners use
-compact objective artwork instead of another progress ring.
+`GoalProgressRing` is a Core UI primitive shared by active Field-trip profile
+cards, standard-outing level headers, and persistent Insight contribution rows.
+The current level passes the outing's current counts, completed levels resolve
+to their numeric target counts, and unstarted levels resolve to `0/N`. Locked
+levels substitute the matching lock ring. Ephemeral milestone banners and the
+Scan target capsule use their own compact treatments instead of another progress
+ring.
 
 `ScanMilestoneCoordinator` is the single scan-completion notification boundary
 for both `InferenceEngine` foreground completion and `OfflineQueueManager`
@@ -1152,8 +1182,8 @@ only from a non-null publication ID; completion alone and Community results are
 not publication-state signals. Its green **Published** or neutral **Private**
 pill joins the centered wrapping metadata row beneath the description and
 exposes an explicit VoiceOver label. The active-level progress ring uses a
-larger 52-point treatment in outing detail while the camera component retains
-its compact size.
+larger 64-point treatment in outing detail while other ring-owning cards retain
+their compact sizes.
 
 ## Community Ranking
 
@@ -1381,20 +1411,23 @@ poster/play badge and open muted playable video; and photos open the swipe/zoom
 viewer. Failed user media must fall back to the goal reference, a
 source-exhausted goal must refill from a reserve, and exhausting every
 user/reference source must collapse the hero without affecting the title layout.
-Confirm there is no segmented detail picker and tips begin hidden. Selecting an
-incomplete guided goal must show its active tile and only its tips; repeat-tap
-must collapse it, selecting another goal must replace it, and every transition
-must respect the haptics setting. Completed local media must still open Insight,
-completed and locked cards must expose no tips, and **About this outing** must
-follow all levels and Community/Event-entry content at the bottom. Exercise
-compact and large iPhones, light/dark appearance, Dynamic Type, VoiceOver,
-Reduce Motion, offline-to-online retry, progress refresh, and Reset/removal
-while preserving a still-valid selected goal page. At the database boundary,
-confirm catalog/detail return the completion row's exact `scan_id`, only
-`service_role` can execute their RPCs, and no public or capture-context payload
-contains `completed_scan_id`. Confirm `reference_species` appears only on
-authenticated template/lifecycle detail and contains no private scan, owner,
-note, or location provenance.
+Confirm there is no segmented detail picker and the first incomplete guided goal
+begins selected with a full-square image, no inline name, and its name above the
+visible tips. Repeat-tap must collapse it without an automatic reopen, selecting
+another goal must replace it, and every transition must respect the haptics
+setting. Verify the borderless centered navigation badge tracks **Not started**,
+green **Active**, orange **Stopped**, and green **Completed** while remaining
+between the back and options controls. Completed local media must still open
+Insight, completed and locked cards must expose no tips, and the outing-guidance
+cards must follow all levels and Community/Event-entry content at the bottom
+without a separate section heading. Exercise compact and large iPhones,
+light/dark appearance, Dynamic Type, VoiceOver, Reduce Motion, offline-to-online
+retry, progress refresh, and Reset/removal while preserving a still-valid
+selected goal page. At the database boundary, confirm catalog/detail return the
+completion row's exact `scan_id`, only `service_role` can execute their RPCs,
+and no public or capture-context payload contains `completed_scan_id`. Confirm
+`reference_species` appears only on authenticated template/lifecycle detail and
+contains no private scan, owner, note, or location provenance.
 
 For publication-state QA, verify an unstarted, active,
 completed-but-unpublished, and deleted-publication outing all show **Private**.

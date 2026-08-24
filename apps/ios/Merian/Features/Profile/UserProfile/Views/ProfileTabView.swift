@@ -181,15 +181,17 @@ struct ProfileTabView: View {
                 }
             }
             .sheet(item: $selectedInsightRoute) { route in
-                InsightSheetView(
-                    isPresented: Binding(
-                        get: { selectedInsightRoute != nil },
-                        set: { if !$0 { selectedInsightRoute = nil } }
-                    ),
-                    initialScanId: route.scanId,
-                    inferenceEngine: inferenceEngine,
-                    allowsExplorePresentation: false
-                )
+                LocalScanInsightLoader(scanId: route.scanId) {
+                    InsightSheetView(
+                        isPresented: Binding(
+                            get: { selectedInsightRoute != nil },
+                            set: { if !$0 { selectedInsightRoute = nil } }
+                        ),
+                        initialScanId: route.scanId,
+                        inferenceEngine: inferenceEngine,
+                        allowsExplorePresentation: false
+                    )
+                }
             }
             .sheet(item: $selectedFieldTripAuthorRoute) { route in
                 ExploreAuthorProfileSheet(viewModel: exploreViewModel, route: route)
@@ -309,7 +311,6 @@ struct ProfileTabView: View {
             return false
         }
 
-        inferenceEngine.load(from: record)
         selectedInsightRoute = ScanInsightRoute(scanId: record.id)
         return true
     }
