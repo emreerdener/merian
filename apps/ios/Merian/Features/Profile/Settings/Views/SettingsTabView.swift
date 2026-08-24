@@ -59,14 +59,7 @@ struct SettingsTabView: View {
 
                 DangerZone(
                     supabase: supabase,
-                    showDeleteConfirmation: $showDeleteConfirmation,
-                    onCacheCleared: { success in
-                        if success {
-                            toastMessage = .success("Local cache cleared")
-                        } else {
-                            toastMessage = .error("Error clearing some files")
-                        }
-                    }
+                    showDeleteConfirmation: $showDeleteConfirmation
                 )
             }
             .navigationDestination(isPresented: $notificationSettingsActive) {

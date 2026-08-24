@@ -25,6 +25,11 @@ lifecycle (signing in/out and deletion). It operates in conjunction with the
 `ProfileViewModel` and updates the app's global state and preferences through
 the injected `AppSettings` boundary.
 
+Temporary image caching is automatic and is not exposed as a Settings action.
+The bounded in-memory thumbnail cache evicts under pressure, while durable scan
+media and pending uploads remain under their existing data owners. Settings must
+not offer a broad cache-clearing action alongside account lifecycle controls.
+
 ## Privacy and processing permissions
 
 Google Gemini processing is required for Naturebook's core identification

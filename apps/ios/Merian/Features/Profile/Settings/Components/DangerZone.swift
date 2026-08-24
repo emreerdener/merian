@@ -3,7 +3,6 @@ import SwiftUI
 struct DangerZone: View {
     let supabase: SupabaseManager
     @Binding var showDeleteConfirmation: Bool
-    var onCacheCleared: ((Bool) -> Void)?
 
     @State private var showSignOutConfirmation = false
     @State private var showSignOutError = false
@@ -16,13 +15,6 @@ struct DangerZone: View {
 
     var body: some View {
         Section {
-            Button {
-                clearLocalCache()
-            } label: {
-                Label("Clear local cache", systemImage: "arrow.counterclockwise.circle")
-            }
-            .foregroundColor(.red)
-
             if !supabase.isGuestUser {
                 Button {
                     showSignOutConfirmation = true
@@ -72,40 +64,6 @@ struct DangerZone: View {
     }
 
     // MARK: - Actions
-
-    private func clearLocalCache() {
-        DetachedWork.fireAndForget(
-            priority: .utility,
-            category: .fileSystemCleanup
-        ) {
-            ImageCache.shared.clearCache()
-            let cachesDir = URL.cachesDirectory
-            var hasError = false
-            if let enumerator = FileManager.default.enumerator(at: cachesDir, includingPropertiesForKeys: nil) {
-                while let fileURL = enumerator.nextObject() as? URL {
-                    // Preserve pending offline upload binaries backed by SwiftData records.
-                    if fileURL.pathExtension == "jpg" && !fileURL.lastPathComponent.contains("_temp_upload") {
-                        do {
-                            try FileManager.default.removeItem(at: fileURL)
-                        } catch {
-                            hasError = true
-                        }
-                    }
-                }
-            }
-            let finalHasError = hasError
-            await MainActor.run {
-                if !finalHasError {
-                    HapticManager.shared.triggerSuccessPulse()
-                } else {
-                    HapticManager.shared.triggerErrorThump()
-                }
-                withAnimation {
-                    onCacheCleared?(!finalHasError)
-                }
-            }
-        }
-    }
 
     private func performSignOut() async {
         if !(await supabase.transitionToGhostSession()) {
