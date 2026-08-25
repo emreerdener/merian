@@ -139,7 +139,7 @@ jobs:
       - name: Test production workflow security
         run: |
           deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno \
+            --allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno,../.github/CODEOWNERS \
             supabase/functions/_tests/workflowSecurity.test.ts
 
       - name: Validate Supabase migration contracts

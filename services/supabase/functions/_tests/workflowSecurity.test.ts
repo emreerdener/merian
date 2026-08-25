@@ -246,6 +246,10 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assertStringIncludes(candidateWorkflow, "supabase db lint --local");
   assertStringIncludes(candidateWorkflow, "supabase db advisors --local");
   assertStringIncludes(candidateWorkflow, "supabase stop --no-backup");
+  const focusedWorkflowSecurityReadScope =
+    "--allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno,../.github/CODEOWNERS";
+  assertStringIncludes(candidateWorkflow, focusedWorkflowSecurityReadScope);
+  assertStringIncludes(deployWorkflow, focusedWorkflowSecurityReadScope);
   assert(
     !candidateWorkflow.includes("environment: Production") &&
       !candidateWorkflow.includes("secrets.") &&
