@@ -39,6 +39,15 @@ struct MigrationPlanTests {
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
+    private func schemaV49SnapshotsSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("Schema")
+            .appendingPathComponent("SchemaV49Snapshots.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     private func migrationPlanSource() throws -> String {
         let source = try schemaVersionsSource()
         guard let migrationStart = source.range(of: "enum MerianMigrationPlan")?.lowerBound else {
@@ -939,6 +948,40 @@ struct MigrationPlanTests {
             violations.isEmpty,
             "Recent retired schemas must reference schema-scoped frozen models, not active globals:\n\(violations.joined(separator: "\n"))"
         )
+
+        let v49Models = [
+            "LocalScanRecord",
+            "OfflineQueuedScan",
+            "CapturedMediaEntry",
+            "ScanCollection",
+            "PendingCloudDeletionTask",
+            "UserSpeciesPreference",
+            "OfflineJobRecord",
+            "OfflineQueueEvent"
+        ]
+        let v49SchemaStart = try #require(
+            source.range(of: "enum MerianSchemaV49: VersionedSchema")
+        ).lowerBound
+        let v49Remainder = source[v49SchemaStart...]
+        let v49SchemaEnd = try #require(
+            v49Remainder.range(of: "\nenum MerianSchemaV50: VersionedSchema")
+        ).lowerBound
+        let v49Schema = String(v49Remainder[..<v49SchemaEnd])
+        for model in v49Models {
+            #expect(v49Schema.contains("MerianSchemaV49.\(model).self"))
+        }
+
+        let snapshotSource = try schemaV49SnapshotsSource()
+        #expect(!snapshotSource.contains("typealias"))
+        #expect(snapshotSource.contains(
+            "[MerianSchemaV49.CapturedMediaEntry]?"
+        ))
+        #expect(snapshotSource.contains(
+            "[MerianSchemaV49.ScanCollection]?"
+        ))
+        #expect(snapshotSource.contains(
+            "inverse: \\MerianSchemaV49.LocalScanRecord.collections"
+        ))
     }
 
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
@@ -978,7 +1021,7 @@ struct MigrationPlanTests {
             "if let existingScan = existingScansById[snapshot.id]",
             "apply(snapshot: snapshot, to: scan)",
             "upsertQueuedScan(from: snapshot)",
-            "let entries = CapturedMediaEntry.makeEntries(from: items)",
+            "let entries = MerianSchemaV49.CapturedMediaEntry.makeEntries(",
             "scan.capturedMediaEntries = entries",
             "context.insert(scan)",
             "context.delete(scan)",
@@ -1625,7 +1668,7 @@ struct MigrationPlanTests {
             let config49 = ModelConfiguration(schema: schema49, url: url)
             let container49 = try makeModelContainer(for: schema49, configurations: [config49])
             let context49 = ModelContext(container49)
-            let queuedScan = OfflineQueuedScan(id: queuedId)
+            let queuedScan = MerianSchemaV49.OfflineQueuedScan(id: queuedId)
             queuedScan.coverImagePath = "v49-cover.webp"
             queuedScan.stagedR2Keys = ["queued/v49/image.webp"]
             queuedScan.fieldNotes = "queued before goal preferences"
@@ -1668,6 +1711,126 @@ struct MigrationPlanTests {
         let persistedHint = try #require(reloadContext.fetch(hintDescriptor).first)
         #expect(persistedHint.userFieldTripId == "field-trip-after-v49-migration")
         #expect(persistedHint.itemId == "goal-after-v49-migration")
+    }
+
+    @Test func migrationFromFrozenV49PreservesEveryModelAndRelationship() throws {
+        let url = migrationStoreURL(named: "v49_frozen_complete_model_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let localID = "v49-frozen-local-scan"
+        let queueID = "v49-frozen-queued-scan"
+        let localMediaID = "v49-frozen-local-media"
+        let queueMediaID = "v49-frozen-queue-media"
+        let collectionID = "v49-frozen-collection"
+        let deletionID = "v49-frozen-cloud-deletion"
+        let preferenceName = "Danaus plexippus v49 frozen"
+        let jobID = "scan-ingestion:\(queueID)"
+        let eventID = "v49-frozen-queue-event"
+
+        do {
+            let schema49 = Schema(versionedSchema: MerianSchemaV49.self)
+            let config49 = ModelConfiguration(schema: schema49, url: url)
+            let container49 = try makeModelContainer(
+                for: schema49,
+                configurations: [config49]
+            )
+            let context49 = ModelContext(container49)
+
+            let localMedia = MerianSchemaV49.CapturedMediaEntry(
+                id: localMediaID,
+                orderIndex: 0,
+                item: .image(.documents("v49-local.webp"))
+            )
+            let queueMedia = MerianSchemaV49.CapturedMediaEntry(
+                id: queueMediaID,
+                orderIndex: 0,
+                item: .audio(.documents("v49-queued.wav"))
+            )
+            let localScan = MerianSchemaV49.LocalScanRecord(
+                id: localID,
+                speciesId: "v49-species",
+                scientificName: "Danaus plexippus",
+                commonName: "Monarch",
+                fieldNotes: "Frozen V49 local note"
+            )
+            localScan.capturedMediaEntries = [localMedia]
+            let collection = MerianSchemaV49.ScanCollection(
+                id: collectionID,
+                name: "Frozen V49 collection",
+                scans: [localScan]
+            )
+            localScan.collections = [collection]
+
+            let queuedScan = MerianSchemaV49.OfflineQueuedScan(id: queueID)
+            queuedScan.capturedMediaEntries = [queueMedia]
+            queuedScan.fieldNotes = "Frozen V49 queue note"
+
+            context49.insert(localScan)
+            context49.insert(queuedScan)
+            context49.insert(collection)
+            context49.insert(MerianSchemaV49.PendingCloudDeletionTask(
+                scanId: deletionID
+            ))
+            context49.insert(MerianSchemaV49.UserSpeciesPreference(
+                scientificName: preferenceName,
+                preferredCommonName: "Monarch butterfly"
+            ))
+            context49.insert(MerianSchemaV49.OfflineJobRecord(
+                id: jobID,
+                kind: .scanIngestion,
+                subjectId: queueID,
+                priority: 100
+            ))
+            context49.insert(MerianSchemaV49.OfflineQueueEvent(
+                id: eventID,
+                jobId: jobID,
+                scanId: queueID,
+                kind: .queued,
+                message: "Frozen V49 event"
+            ))
+            try context49.save()
+        }
+
+        let store = try openCurrentMigrationStore(
+            at: url,
+            migrationPlan: MerianRecentV49MigrationPlan.self
+        )
+
+        func assertCurrentRows(in context: ModelContext) throws {
+            let local = try #require(context.fetch(FetchDescriptor<LocalScanRecord>(
+                predicate: #Predicate { $0.id == localID }
+            )).first)
+            #expect(local.fieldNotes == "Frozen V49 local note")
+            #expect(local.capturedMediaEntries?.map(\.id) == [localMediaID])
+            #expect(local.collections?.map(\.id) == [collectionID])
+
+            let queued = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>(
+                predicate: #Predicate { $0.id == queueID }
+            )).first)
+            #expect(queued.fieldNotes == "Frozen V49 queue note")
+            #expect(queued.capturedMediaEntries?.map(\.id) == [queueMediaID])
+
+            let collection = try #require(context.fetch(FetchDescriptor<ScanCollection>(
+                predicate: #Predicate { $0.id == collectionID }
+            )).first)
+            #expect(collection.scans?.map(\.id) == [localID])
+
+            #expect(try context.fetch(FetchDescriptor<PendingCloudDeletionTask>(
+                predicate: #Predicate { $0.scanId == deletionID }
+            )).count == 1)
+            #expect(try context.fetch(FetchDescriptor<UserSpeciesPreference>(
+                predicate: #Predicate { $0.scientificName == preferenceName }
+            )).first?.preferredCommonName == "Monarch butterfly")
+            #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>(
+                predicate: #Predicate { $0.id == jobID }
+            )).first?.subjectId == queueID)
+            #expect(try context.fetch(FetchDescriptor<OfflineQueueEvent>(
+                predicate: #Predicate { $0.id == eventID }
+            )).first?.message == "Frozen V49 event")
+        }
+
+        try assertCurrentRows(in: store.context)
+        try assertCurrentRows(in: ModelContext(store.container))
     }
 
     @Test func migrationFromV47PreservesAllQueuedMediaKinds() throws {

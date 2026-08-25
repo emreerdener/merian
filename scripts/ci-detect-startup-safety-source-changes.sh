@@ -48,6 +48,7 @@ is_startup_runtime_file() {
     apps/ios/Merian/Configuration/Merian-Bridging-Header.h | \
     apps/ios/Merian/Core/Data/StoreRecovery/* | \
     apps/ios/Merian/Models/Aliases.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/App/ModelStoreRecoveryCoordinatorTests.swift | \
     apps/ios/MerianTests/Models/MigrationPlanTests.swift)

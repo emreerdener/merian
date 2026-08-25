@@ -87,6 +87,18 @@ mode rather than archive user data.
 
 ## V49→V50 Release Acceptance
 
+The candidate source now freezes all eight V49 models in
+`SchemaV49Snapshots.swift`, uses V49-qualified relationship endpoints, and keeps
+V50 on active global models. Source guardrails reject an active-type alias and
+pin the complete frozen snapshot file SHA-256, so persisted-property,
+annotation, default, relationship, initializer, or helper drift cannot pass
+accidentally. The disk suite creates a source store from the new snapshots,
+seeds every V49 entity plus both relationship directions, and opens V50 through
+the production source-isolated plan. That proves candidate-self consistency. It
+does not measure or reproduce the model identity emitted by the processed
+released V49 binary, and it does not turn a test-created store into release
+evidence.
+
 The disk-backed simulator fixture proves the migration implementation, emitted
 store metadata, and production plan selection. It does not prove that an
 installed store created by the released V49 binary survives an application

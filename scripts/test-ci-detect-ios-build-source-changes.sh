@@ -65,6 +65,7 @@ bash -n "$detector"
 
 assert_scope false pull_request "docs/README.md"
 assert_scope false pull_request "services/supabase/functions/identify/index.ts"
+assert_scope true pull_request "docs/contracts/species-dictionary-prompt-label-policy.json"
 assert_scope true pull_request "apps/ios/Merian/Core/AI/InferenceEngine.swift"
 assert_scope true pull_request "apps/watch/MerianWatch/MerianWatchApp.swift"
 assert_scope true pull_request "Merian.xcodeproj/project.pbxproj"

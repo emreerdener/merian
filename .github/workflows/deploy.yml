@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".github/workflows/deploy.yml"
+      - ".github/workflows/release-evidence.yml"
       - ".github/actions/setup-deno/**"
       - "scripts/ci-run-summary.sh"
       - "scripts/test-ci-run-summary.sh"
@@ -28,8 +29,58 @@ jobs:
     name: Validate candidate without production access
     uses: ./.github/workflows/supabase-candidate-validation.yml
 
-  deploy:
+  production-hold:
+    name: Enforce checked-in production release holds
     needs: candidate-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact clean hold candidate
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          main_sha="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Production deployment must originate from refs/heads/main." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$GITHUB_SHA" ]; then
+            echo "Production hold checkout does not match GITHUB_SHA." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$main_sha" ]; then
+            echo "Production hold candidate is not the current origin/main head." >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Production hold checkout is not clean." >&2
+            exit 1
+          fi
+
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Verify production release holds
+        run: |
+          deno run --frozen \
+            --allow-read=services/supabase/release-holds.json \
+            --allow-write="$GITHUB_STEP_SUMMARY" \
+            services/supabase/scripts/verify_production_release_holds.ts \
+            --mode source-gate \
+            --manifest services/supabase/release-holds.json \
+            --candidate-sha "$GITHUB_SHA" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: [candidate-validation, production-hold]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: Production
@@ -49,10 +100,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           # Deployment plans compare against the last successful production
           # run, which may be more than one commit behind after a failed run.
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify exact clean production candidate
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          main_sha="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Production deployment must originate from refs/heads/main." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$GITHUB_SHA" ]; then
+            echo "Production checkout does not match GITHUB_SHA." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$main_sha" ]; then
+            echo "Production candidate is not the current origin/main head." >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Production checkout is not clean." >&2
+            exit 1
+          fi
 
       - name: Summarize workflow context
         env:
@@ -67,6 +140,22 @@ jobs:
         uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
+
+      - name: Verify protected Production release clearance
+        env:
+          MERIAN_GITHUB_RELEASE_AUDIT_TOKEN: ${{ secrets.MERIAN_GITHUB_RELEASE_AUDIT_TOKEN }}
+          MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON: ${{ secrets.MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON }}
+        run: |
+          deno run --frozen \
+            --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN,MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON \
+            --allow-net \
+            --allow-read=supabase/release-holds.json \
+            --allow-write="$GITHUB_STEP_SUMMARY" \
+            supabase/scripts/verify_production_release_holds.ts \
+            --mode production-clearance \
+            --manifest supabase/release-holds.json \
+            --candidate-sha "$GITHUB_SHA" \
+            --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
@@ -339,6 +428,7 @@ jobs:
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
             supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
+            supabase/functions/_shared/fieldChatDailyUsage_test.ts \
             supabase/functions/_shared/fieldChatReservation_test.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
@@ -363,8 +453,10 @@ jobs:
             supabase/functions/_tests/scanMediaIngestionContract.test.ts \
             supabase/functions/explore-post-chat/prompt_test.ts \
             supabase/functions/species-dictionary-chat/eligibility_test.ts \
+            supabase/functions/species-dictionary-chat/handler_test.ts \
             supabase/functions/species-dictionary-chat/prompt_test.ts \
             supabase/functions/species-dictionary-chat/promptSuggestions_test.ts \
+            supabase/functions/species-dictionary-chat/refusal_test.ts \
             supabase/functions/insight-chat/guards_test.ts \
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
@@ -509,10 +601,12 @@ jobs:
           plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
           recovery_predeploy_required=false
           ghost_merge_predeploy_required=false
+          field_chat_cutover_required=false
 
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             recovery_predeploy_required=true
             ghost_merge_predeploy_required=true
+            field_chat_cutover_required=true
             deno run --frozen --config supabase/functions/deno.json \
               --allow-read=supabase \
               supabase/scripts/plan_function_deploy.ts \
@@ -551,6 +645,10 @@ jobs:
                 ":(top)services/supabase/functions/reconcile-ghost-profile-merges"; then
                 ghost_merge_predeploy_required=true
               fi
+              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+                ":(top)services/supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql"; then
+                field_chat_cutover_required=true
+              fi
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 --allow-run=git \
@@ -561,6 +659,7 @@ jobs:
               echo "Unable to resolve a safe successful deploy baseline; planning a full deployment."
               recovery_predeploy_required=true
               ghost_merge_predeploy_required=true
+              field_chat_cutover_required=true
               deno run --frozen --config supabase/functions/deno.json \
                 --allow-read=supabase \
                 supabase/scripts/plan_function_deploy.ts \
@@ -568,11 +667,20 @@ jobs:
             fi
           fi
 
+          if [ "$field_chat_cutover_required" = true ]; then
+            printf '%s\n' \
+              insight-chat \
+              explore-post-chat \
+              species-dictionary-chat >> "$plan_file"
+            sort -u -o "$plan_file" "$plan_file"
+          fi
+
           function_count="$(grep -cve '^[[:space:]]*$' "$plan_file" || true)"
           echo "plan_file=$plan_file" >> "$GITHUB_OUTPUT"
           echo "count=$function_count" >> "$GITHUB_OUTPUT"
           echo "recovery_predeploy_required=$recovery_predeploy_required" >> "$GITHUB_OUTPUT"
           echo "ghost_merge_predeploy_required=$ghost_merge_predeploy_required" >> "$GITHUB_OUTPUT"
+          echo "field_chat_cutover_required=$field_chat_cutover_required" >> "$GITHUB_OUTPUT"
 
           {
             echo "### Edge Function deployment plan"
@@ -580,6 +688,7 @@ jobs:
             echo "Functions selected: $function_count"
             echo "Fail-closed recovery consumer predeploy: $recovery_predeploy_required"
             echo "Ghost merge compatibility predeploy: $ghost_merge_predeploy_required"
+            echo "Field Chat cutover bundle: $field_chat_cutover_required"
             if [ "$function_count" -gt 0 ]; then
               sed 's/^/- /' "$plan_file"
             fi
@@ -680,6 +789,52 @@ jobs:
               --allow-net \
               supabase/scripts/audit_field_trip_capture_context_acl.ts \
               --enforce
+
+      - name: Verify Field Chat admission cutover from database time
+        id: field-chat-cutover
+        env:
+          MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
+        run: |
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-env=MERIAN_DATABASE_URL,GITHUB_SHA \
+            --allow-net \
+            --allow-read=supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql \
+            --allow-write="$GITHUB_OUTPUT,$GITHUB_STEP_SUMMARY" \
+            supabase/scripts/verify_field_chat_cutover.ts \
+            --migration supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql \
+            --output "$GITHUB_OUTPUT" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Finalize Edge Function plan from Field Chat database state
+        id: final-function-plan
+        env:
+          FIELD_CHAT_CUTOVER_STATUS: ${{ steps.field-chat-cutover.outputs.status }}
+          INITIAL_FUNCTION_PLAN: ${{ steps.function-plan.outputs.plan_file }}
+        run: |
+          final_plan="$RUNNER_TEMP/merian-functions-final.txt"
+          result="$(
+            deno run --frozen --config supabase/functions/deno.json \
+              --allow-read="$INITIAL_FUNCTION_PLAN" \
+              --allow-write="$final_plan" \
+              supabase/scripts/finalize_field_chat_function_plan.ts \
+              --input "$INITIAL_FUNCTION_PLAN" \
+              --output "$final_plan" \
+              --status "$FIELD_CHAT_CUTOVER_STATUS"
+          )"
+          function_count="$(grep -cve '^[[:space:]]*$' "$final_plan" || true)"
+          echo "plan_file=$final_plan" >> "$GITHUB_OUTPUT"
+          echo "count=$function_count" >> "$GITHUB_OUTPUT"
+          echo "field_chat_ready_forced=$([ "$result" = forced ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Final Edge Function deployment plan"
+            echo
+            echo "Database Field Chat state: $FIELD_CHAT_CUTOVER_STATUS"
+            echo "Ready-state Field Chat fleet forced: $([ "$result" = forced ] && echo true || echo false)"
+            echo "Functions selected: $function_count"
+            if [ "$function_count" -gt 0 ]; then
+              sed 's/^/- /' "$final_plan"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Synchronize optional AI quota hashing override
         env:
@@ -827,17 +982,105 @@ jobs:
               --secret-name MERIAN_SUPABASE_SERVER_API_KEY
 
       - name: Deploy affected Edge Functions
-        if: steps.function-plan.outputs.count != '0'
+        if: steps.final-function-plan.outputs.count != '0'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: |
           bash supabase/scripts/deploy_function_batches.sh \
-            "${{ steps.function-plan.outputs.plan_file }}" \
+            "${{ steps.final-function-plan.outputs.plan_file }}" \
             "$PROJECT_ID"
 
+      - name: Verify corrected Field Chat bundles are serving
+        if: steps.field-chat-cutover.outputs.status == 'ready'
+        run: |
+          supabase_url="https://${PROJECT_ID}.supabase.co"
+          expected_contract="atomic-admission-v1"
+          max_attempts=18
+
+          for function_name in \
+            insight-chat \
+            explore-post-chat \
+            species-dictionary-chat; do
+            expected_bundle_sha="$(
+              deno run --quiet --frozen \
+                --config supabase/functions/deno.json \
+                --allow-read=supabase \
+                supabase/scripts/generate_field_chat_deployment_identity.ts \
+                --print "$function_name"
+            )"
+            header_file="$RUNNER_TEMP/${function_name}-field-chat-contract-headers.txt"
+            status="network_error"
+            for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+              : > "$header_file"
+              if status="$(
+                curl -sS \
+                  --connect-timeout 10 \
+                  --max-time 30 \
+                  --max-filesize 1024 \
+                  --dump-header "$header_file" \
+                  -o /dev/null \
+                  -w "%{http_code}" \
+                  -X POST "${supabase_url}/functions/v1/${function_name}" \
+                  -H "Content-Type: application/json" \
+                  --data '{}'
+              )" &&
+                [ "$status" = "401" ] &&
+                grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$' "$header_file" &&
+                grep -Eqi "^x-merian-field-chat-contract:[[:space:]]*${expected_contract}[[:space:]]*$" "$header_file" &&
+                grep -Eqi "^x-merian-field-chat-bundle-sha256:[[:space:]]*${expected_bundle_sha}[[:space:]]*$" "$header_file"; then
+                echo "Confirmed ${function_name} serves ${expected_contract} at ${expected_bundle_sha}."
+                break
+              fi
+
+              if [ "$attempt" -eq "$max_attempts" ]; then
+                echo "${function_name} did not serve the corrected Field Chat contract after ${attempt} attempts (HTTP ${status})." >&2
+                echo "The database cutover remains closed; inspect Function deployment propagation before retrying." >&2
+                exit 1
+              fi
+              delay=$((attempt * 2))
+              if [ "$delay" -gt 10 ]; then
+                delay=10
+              fi
+              echo "${function_name} has not reached ${expected_contract} at ${expected_bundle_sha}; retrying in ${delay}s (attempt ${attempt}/${max_attempts})." >&2
+              sleep "$delay"
+            done
+          done
+
+          {
+            echo "### Field Chat bundle contract observed"
+            echo
+            echo "All three live routes returned \`X-Merian-Field-Chat-Contract: ${expected_contract}\` plus their exact candidate-derived \`X-Merian-Field-Chat-Bundle-SHA256\` values after the reviewed deployment completed. The database may now persist those three identities in its separately guarded one-way activation."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Activate Field Chat admission after all bundles deploy
+        if: steps.field-chat-cutover.outputs.status == 'ready'
+        env:
+          MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
+        run: |
+          deno run --frozen --config supabase/functions/deno.json \
+            --allow-env=MERIAN_DATABASE_URL,GITHUB_SHA \
+            --allow-net \
+            --allow-read=supabase,"${{ steps.final-function-plan.outputs.plan_file }}" \
+            --allow-write="$GITHUB_STEP_SUMMARY" \
+            supabase/scripts/activate_field_chat_cutover.ts \
+            --migration supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql \
+            --plan "${{ steps.final-function-plan.outputs.plan_file }}" \
+            --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Record staged Field Chat cutover
+        if: steps.field-chat-cutover.outputs.status == 'pending'
+        run: |
+          {
+            echo "### Field Chat send maintenance is active"
+            echo
+            echo "Novel sends remain database-blocked through the recorded PostgreSQL UTC boundary and until a later exact-SHA workflow explicitly activates the cutover; reads, deletes, feedback, and exact replays remain available. The initial migration run force-selects all three bundles; a later database-ready run force-selects them again even when the migration is already the successful baseline."
+            echo
+            echo "Run a fresh exact-SHA production workflow after the boundary. It must redeploy all three bundles successfully before the database accepts the one-way activation."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Confirm no Edge Function deploy is required
-        if: steps.function-plan.outputs.count == '0'
+        if: steps.final-function-plan.outputs.count == '0'
         run: echo "No Edge Function runtime or dependency changes were detected."
 
       - name: Smoke test production backend endpoints
@@ -1198,9 +1441,52 @@ jobs:
             '{"p_user_id":null,"p_scan_ids":null}' \
             "invalid_media_abandoned_recovery_proof_request"
           probe_server_rpc_validation_boundary \
+            "get_field_chat_daily_usage" \
+            '{"p_user_id":null}' \
+            "field_chat_invalid_usage_request"
+          field_chat_cutover_response="$(
+            post_server_json \
+              "/rest/v1/rpc/get_field_chat_admission_cutover_status" \
+              '{}'
+          )"
+          if ! jq -e \
+            --arg migration_id \
+              "20260824210544_preserve_field_chat_daily_usage" '
+              length == 1
+              and .[0].migration_id == $migration_id
+              and (.[0].status == "pending" or .[0].status == "active")
+              and (.[0].database_now | type) == "string"
+              and (.[0].seeded_at | type) == "string"
+              and (.[0].not_before_utc | type) == "string"
+              and (
+                if .[0].status == "active" then
+                  (.[0].activated_at | type) == "string"
+                  and (.[0].activated_candidate_sha | test("^[0-9a-f]{40}$"))
+                  and (.[0].activated_migration_sha256 | test("^[0-9a-f]{64}$"))
+                  and (.[0].activated_explore_bundle_sha256 | test("^[0-9a-f]{64}$"))
+                  and (.[0].activated_insight_bundle_sha256 | test("^[0-9a-f]{64}$"))
+                  and (.[0].activated_species_dictionary_bundle_sha256 | test("^[0-9a-f]{64}$"))
+                else
+                  .[0].activated_at == null
+                  and .[0].activated_candidate_sha == null
+                  and .[0].activated_migration_sha256 == null
+                  and .[0].activated_explore_bundle_sha256 == null
+                  and .[0].activated_insight_bundle_sha256 == null
+                  and .[0].activated_species_dictionary_bundle_sha256 == null
+                end
+              )
+            ' <<< "$field_chat_cutover_response" > /dev/null; then
+            echo "Field Chat cutover status did not match its bounded production contract." >&2
+            exit 1
+          fi
+          probe_server_rpc_validation_boundary \
             "reserve_field_chat_send" \
             '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}' \
             "field_chat_invalid_request"
+          probe_server_rpc_validation_boundary \
+            "activate_field_chat_admission_cutover" \
+            '{"p_candidate_sha":null,"p_migration_sha256":null,"p_explore_bundle_sha256":null,"p_insight_bundle_sha256":null,"p_species_dictionary_bundle_sha256":null}' \
+            "field_chat_admission_cutover_invalid_activation"
           probe_server_rpc_validation_boundary \
             "recover_stale_field_chat_quota" \
             '{"p_user_id":null,"p_operation":null,"p_request_id":null,"p_conversation_id":null,"p_subject_id":null}' \
@@ -1408,6 +1694,9 @@ jobs:
             request_community_identification_atomically
             recover_missing_owned_scan
             get_media_abandoned_scan_recovery_proofs
+            get_field_chat_daily_usage
+            get_field_chat_admission_cutover_status
+            activate_field_chat_admission_cutover
             reserve_field_chat_send
             recover_stale_field_chat_quota
             issue_signout_purchase_handoff
@@ -1445,6 +1734,9 @@ jobs:
             '{"p_scan_id":null,"p_user_id":null,"p_note":null,"p_location_sharing":null,"p_species_common_name":null,"p_media_rows":[],"p_initial_taxon_node_id":null,"p_taxonomy_version_id":null}'
             '{"p_scan_id":null,"p_user_id":null,"p_recovery_scan":null}'
             '{"p_user_id":null,"p_scan_ids":null}'
+            '{"p_user_id":null}'
+            '{}'
+            '{"p_candidate_sha":null,"p_migration_sha256":null}'
             '{"p_user_id":null,"p_conversation_id":null,"p_subject_type":null,"p_subject_id":null,"p_message_text":null,"p_client_message_id":null}'
             '{"p_user_id":null,"p_operation":null,"p_request_id":null,"p_conversation_id":null,"p_subject_id":null}'
             '{"p_source_user_id":null,"p_secret_hash":null,"p_source_snapshot_at_ms":null,"p_expected_store_tier":null,"p_expected_store_expires_at":null}'

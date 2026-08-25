@@ -6543,38 +6543,98 @@ All three families share the authoritative 20-send UTC-day limit. Dictionary
 conversations also participate in anonymous-account merge handling.
 
 The 20-send limit is defined over admitted sends, regardless of whether a user
-later deletes conversation content. The current candidate derives that total
-from live user-message rows, while conversation deletion cascades to those rows;
-it therefore does not yet preserve the limit after deletion. Release remains
-blocked until durable accounting and a three-family delete-then-send regression
-prove that deletion cannot restore allowance.
+later deletes conversation content. Migration
+`20260824210544_preserve_field_chat_daily_usage.sql` stores the authoritative
+content-free count in `internal.field_chat_daily_admissions`, keyed by user and
+UTC day. `reserve_field_chat_send(...)` increments it atomically only for a new
+admission; same-key replay does not consume it. The same transaction finds or
+creates the subject-bound conversation and inserts the user row, returning the
+authoritative `conversation_id`. A quota, cap, or cutover denial therefore
+creates neither a conversation nor a message. Conversation cascades never delete
+the aggregate, and the service-only `get_field_chat_daily_usage(...)` read fails
+closed rather than counting live messages.
 
-iOS already sends the send UUID as both `client_message_id` and
-`Idempotency-Key`, and manual retry preserves it. However,
-`species-dictionary-chat` is not yet in the network client's audited
-idempotency-aware Function allowlist, so automatic replay after an ambiguous
-transport/`5xx` failure does not currently run for this route. That allowlist
-entry and its lost-response regression are required before client release.
+The retained-row seed is necessarily a lower bound because messages deleted
+earlier that day cannot be reconstructed. While short-locking all six
+conversation/message tables, the migration removes historical message-less
+threads and then creates `internal.field_chat_admission_cutover` with a
+PostgreSQL-derived next-UTC-day `not_before_utc`, guards direct conversation
+inserts for already-deployed bundles, permanently revokes conversation `INSERT`
+from API roles, and checks `internal.assert_field_chat_admission_open()` after
+exact replay but before every novel ledger write. Only the `SECURITY DEFINER`
+reservation routine can create a thread. Corrected bundles map a reservation
+rejection to retryable `503 field_chat_admission_cutover_pending`; an older
+create-before-admission bundle can instead surface an unnormalized permission or
+trigger failure, but it cannot leave an empty thread even after activation.
+Load, delete, feedback, and exact replay remain available. The bounded
+service-only `get_field_chat_admission_cutover_status()` response contains only
+migration ID, database time, seed time, not-before time, nullable activation
+timestamp, nullable activation candidate SHA, nullable activation migration
+SHA-256, nullable Explore/Insight/Species Dictionary bundle SHA-256 values, and
+`pending`/`ready`/`active` state. Crossing the UTC boundary changes `pending` to
+`ready` but does not open admission. Database `ready` force-selects all three
+routes in the final plan even when the migration is already the last successful
+baseline. Each live route must then return both
+`X-Merian-Field-Chat-Contract: atomic-admission-v1` and its exact
+`X-Merian-Field-Chat-Bundle-SHA256`, derived from the candidate's transitive
+runtime graph, Deno configuration, and dependency lock. The service-only
+`activate_field_chat_admission_cutover(candidate_sha, migration_sha256,
+explore_bundle_sha256, insight_bundle_sha256,
+species_dictionary_bundle_sha256)`
+RPC performs the one-way transition and persists all five identities. A failed
+deployment, rollover, old marker-only route, or digest mismatch therefore leaves
+admission closed.
 
-The current route-contract test validates source structure rather than executing
-the handler, and the deploy workflow's focused Function test list does not
-include it. Candidate acceptance additionally requires authenticated runtime
-tests for all actions and errors, plus source-specific refusal copy and the same
-safe, bounded dictionary-name normalization in iOS fallback chips that the
-server uses. These are release blockers, not compatibility promises.
+The Ghost policy handler is added to the effective hardcoded allowlist with
+source-drift guards, followed by the full coverage assertion. Disposable SQL
+fixtures define real reserve-delete-fresh-reserve cases for all three families,
+no-write quota denial, and a current-UTC-day
+public-reservation/full-orchestrator merge race. Those source fixtures are not
+production evidence until the complete Docker-backed candidate database gate
+executes on the exact release SHA.
 
-| Status | Body                                             | Meaning                                                |
-| ------ | ------------------------------------------------ | ------------------------------------------------------ |
-| `400`  | `{ "code": "unsupported_action", ... }`          | Action is not one of the five supported values         |
-| `400`  | `{ "code": "invalid_request", ... }`             | Required input is missing, malformed, or out of bounds |
-| `402`  | `{ "code": "pro_required", ... }`                | Effective tier is not functional Pro                   |
-| `404`  | `{ "code": "species_not_available", ... }`       | Canonical biological dictionary subject unavailable    |
-| `404`  | `{ "code": "message_not_found", ... }`           | Feedback target is not the viewer's assistant row      |
-| `409`  | `{ "code": "field_chat_idempotency_conflict" }`  | UUID was reused with different normalized text         |
-| `429`  | `{ "code": "daily_limit_reached", ... }`         | Shared three-family daily send cap reached             |
-| `503`  | `{ "code": "field_chat_send_in_progress", ... }` | Bound request has no answer yet                        |
-| `503`  | `{ "code": "field_chat_admission_unavailable" }` | Atomic admission could not be verified                 |
-| `503`  | `{ "code": "field_chat_recovery_unavailable" }`  | Stale recovery could not be verified                   |
+iOS sends the send UUID as both `client_message_id` and `Idempotency-Key`,
+preserves it for manual retry, and now includes `species-dictionary-chat` in the
+audited idempotency-aware Function allowlist. The network regression loses the
+first retryable response, replays automatically with the same lowercase UUID,
+and accepts only one persisted pair.
+
+The route-contract test proves source registration with `withEdgeHandler`.
+`handler_test.ts` directly invokes the post-authenticated handler core with a
+synthetic user and covers the five actions, ownership, exact replay/conflict,
+refusal, provider ordering, stale-quota recovery, and denial before provider or
+admission. It also executes `withEdgeHandler` with deterministic accepted and
+refused authenticators, proving auth-before-route ordering and refusal
+short-circuiting. Send handlers use an existing conversation ID or a fresh UUID
+candidate without inserting a row; the database returns the converged ID only
+after admission succeeds. A hosted real-token HTTP authentication smoke remains
+a separate release-evidence requirement.
+
+Deno and Swift execute the versioned
+`docs/contracts/species-dictionary-prompt-label-policy.json` fixture. Both count
+the normalized label in Unicode scalars, cap it at 64, accept Unicode letters,
+marks, decimal digits, and the enumerated punctuation (including ASCII hyphen
+and U+2013 EN DASH), collapse only the enumerated whitespace scalars (including
+U+0085), and reject U+FEFF. Identical vectors cover combining marks, exact
+scalar boundaries, non-BMP input, punctuation, U+FEFF, and U+0085. Production
+remains blocked by the checked-in `species_dictionary_chat_production_hold`
+until database evidence, same-SHA hosted gates, the released-binary migration
+gate, and external approvals are complete. The hold is an operational gate, not
+an API compatibility promise.
+
+| Status | Body                                                 | Meaning                                                 |
+| ------ | ---------------------------------------------------- | ------------------------------------------------------- |
+| `400`  | `{ "code": "unsupported_action", ... }`              | Action is not one of the five supported values          |
+| `400`  | `{ "code": "invalid_request", ... }`                 | Required input is missing, malformed, or out of bounds  |
+| `402`  | `{ "code": "pro_required", ... }`                    | Effective tier is not functional Pro                    |
+| `404`  | `{ "code": "species_not_available", ... }`           | Canonical biological dictionary subject unavailable     |
+| `404`  | `{ "code": "message_not_found", ... }`               | Feedback target is not the viewer's assistant row       |
+| `409`  | `{ "code": "field_chat_idempotency_conflict" }`      | UUID was reused with different normalized text          |
+| `429`  | `{ "code": "daily_limit_reached", ... }`             | Shared three-family daily send cap reached              |
+| `503`  | `{ "code": "field_chat_send_in_progress", ... }`     | Bound request has no answer yet                         |
+| `503`  | `{ "code": "field_chat_admission_cutover_pending" }` | Novel sends await UTC eligibility and bundle activation |
+| `503`  | `{ "code": "field_chat_admission_unavailable" }`     | Atomic admission could not be verified                  |
+| `503`  | `{ "code": "field_chat_recovery_unavailable" }`      | Stale recovery could not be verified                    |
 
 The client marks only exact `404 species_not_available` as permanent for that
 loaded dictionary subject. Feedback `message_not_found`, daily/AI quotas,

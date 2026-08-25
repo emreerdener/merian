@@ -674,10 +674,20 @@ in-app Species Dictionary Field Chat, after authoritative RevenueCat state is
 projected to Supabase. Public web dictionary pages remain reference-only.
 
 Species Dictionary Field Chat is currently a release-held source candidate, not
-a capability that product or paywall copy may promise. Release requires
-delete-resistant shared daily admission, automatic idempotent Dictionary replay
-after ambiguous network failure, executable authenticated route coverage in the
-deploy gate, and source-specific safe refusal/fallback prompt copy. The
+a capability that product or paywall copy may promise. Release requires the
+checked-in Ghost merge registry, real three-family daily-admission evidence,
+explicit post-deploy cutover activation, no-write quota denial, automatic
+idempotent Dictionary replay, authenticated-wrapper evidence, exact Swift/Deno
+Unicode-scalar and whitespace parity, independently reviewed hold clearance,
+immutable live-bundle provenance, a tested ready-state rerun, and every
+same-SHA, released-V49, and external approval gate. The source now implements
+the Ghost/no-orphan controls, closed-until-explicit-activation database state,
+executable label parity, candidate-derived route identities, automatic
+ready-rerun fleet selection, and artifact-downloading clearance verification
+with live GitHub control checks. Non-skipped database/runtime execution, hosted
+same-SHA results, the released-V49 install-over, acceptance of the actual
+repository/environment settings, retained reviewed artifacts, and external
+approvals remain open. The
 [canonical candidate checklist](../features-and-hardware/16-species-dictionary.md#candidate-release-status)
 owns the current status.
 

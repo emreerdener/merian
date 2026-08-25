@@ -44,7 +44,7 @@ deno check --frozen \
   "${tooling_sources[@]}"
 deno test --frozen \
   --config services/supabase/functions/deno.json \
-  --allow-read=services/supabase,.github/workflows,.github/actions/setup-deno,.github/dependabot.yml,AGENTS.md,Makefile,README.md,CHANGELOG.md,docs,apps,skills,scripts/check-ios-release-prep.sh,scripts/validate-ios-archive.sh \
+  --allow-read=services/supabase,.github/workflows,.github/actions/setup-deno,.github/CODEOWNERS,.github/dependabot.yml,.agents,AGENTS.md,Makefile,README.md,CHANGELOG.md,docs,apps,skills,scripts/check-ios-release-prep.sh,scripts/validate-ios-archive.sh \
   --allow-run=bash \
   "${tooling_tests[@]}"
 

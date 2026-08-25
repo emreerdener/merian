@@ -1,0 +1,74 @@
+{
+  "schema_version": 3,
+  "holds": [
+    {
+      "id": "species_dictionary_chat_production_hold",
+      "active": true,
+      "scope": "supabase_production",
+      "owner": "Merian release owner",
+      "reason": "The source controls are implemented, but production remains blocked until every criterion below has retained evidence for the exact candidate, live immutable Function provenance and the ready-state rerun path are enforced, and independent Production reviewers validate the evidence before issuing a protected clearance bound to this manifest.",
+      "exit_criteria": [
+        {
+          "id": "field_chat_database_and_ghost_merge",
+          "description": "Ghost merge registers the durable-admission handler in the effective policy allowlist, and disposable-database coverage exercises the public reservation RPCs and full merge orchestrator under a corrected same-UTC-day race.",
+          "evidence_type": "disposable_database_run",
+          "required_workflows": [
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "field_chat_delete_quota_and_provider",
+          "description": "Insight, Explore, and Species Dictionary each pass real reserve-delete-fresh-reserve coverage, historical message-less threads are removed under the cutover locks, API roles cannot insert conversations outside the atomic RPC, and a quota denial creates no conversation, message, or provider dispatch.",
+          "evidence_type": "disposable_database_run",
+          "required_workflows": [
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "field_chat_post_bundle_cutover_activation",
+          "description": "Workflow contracts and a non-skipped disposable rehearsal prove the database remains closed after the UTC boundary, a ready-state rerun force-selects all three corrected bundles after the migration is already the deployment baseline, every live route exposes its candidate-derived bundle digest in addition to the atomic-admission compatibility marker, and one-way activation records the verified candidate, migration, and all three bundle digests.",
+          "evidence_type": "cutover_rehearsal",
+          "required_workflows": [
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "field_chat_client_wrapper_and_prompt_parity",
+          "description": "The iOS exact-key ambiguous retry, executable Swift-Deno Unicode prompt-label contract, post-authenticated handler-core and deterministic wrapper suites, and hosted real-token authenticated HTTP-wrapper boundary pass on the same immutable candidate SHA.",
+          "evidence_type": "hosted_test_run",
+          "required_workflows": [
+            ".github/workflows/ios-build-and-test.yml",
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "release_control_exact_sha_and_clearance",
+          "description": "The required hold ID and exact clean mutation SHA are enforced; live GitHub checks require two author-independent current reviews, protected branches without bypass, and self-review-resistant Release Evidence and Production environments; every clearance artifact is downloaded, digest-recomputed, exact-SHA and successful-workflow checked, and its structured evidence payload is validated before mutation.",
+          "evidence_type": "release_control_audit",
+          "required_workflows": []
+        },
+        {
+          "id": "swiftdata_v49_v50_install_over",
+          "description": "The V49-to-V50 real released-binary install-over gate passes without safe mode, store replacement, or data loss.",
+          "evidence_type": "device_install_over",
+          "required_workflows": []
+        },
+        {
+          "id": "hosted_same_sha_candidate_gates",
+          "description": "Hosted iOS Build and Test and Supabase Candidate Validation pass on the same immutable SHA.",
+          "evidence_type": "hosted_test_run",
+          "required_workflows": [
+            ".github/workflows/ios-build-and-test.yml",
+            ".github/workflows/supabase-candidate-validation.yml"
+          ]
+        },
+        {
+          "id": "external_consent_store_billing_dpa_approvals",
+          "description": "The production consent, App Store privacy and age-rating, paid Gemini billing, and DPA evidence is approved in the canonical readiness record.",
+          "evidence_type": "external_approval_record",
+          "required_workflows": []
+        }
+      ]
+    }
+  ]
+}

@@ -71,37 +71,6 @@ export async function fetchConversation(
   return (data as ExplorePostChatConversationRow | null) ?? null;
 }
 
-export async function getOrCreateConversation(
-  userId: string,
-  postId: string,
-  speciesDictionaryId: string | null,
-  supabaseAdmin: SupabaseClient,
-): Promise<ExplorePostChatConversationRow> {
-  const existing = await fetchConversation(userId, postId, supabaseAdmin);
-  if (existing?.species_dictionary_id === speciesDictionaryId) return existing;
-  if (existing) {
-    await deleteConversation(userId, postId, supabaseAdmin);
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("explore_post_chat_conversations")
-    .insert({
-      user_id: userId,
-      post_id: postId,
-      species_dictionary_id: speciesDictionaryId,
-    })
-    .select(CONVERSATION_SELECT)
-    .single();
-  if (error) {
-    if (error.code === "23505") {
-      const raced = await fetchConversation(userId, postId, supabaseAdmin);
-      if (raced?.species_dictionary_id === speciesDictionaryId) return raced;
-    }
-    throw new Error(`Failed to create Explore chat: ${error.message}`);
-  }
-  return data as ExplorePostChatConversationRow;
-}
-
 export async function fetchMessages(
   conversationId: string,
   supabaseAdmin: SupabaseClient,

@@ -17,7 +17,10 @@ import {
   isFieldChatRequestComplete,
   waitForFieldChatRequestCompletion,
 } from "../_shared/fieldChatResponse.ts";
-import { recoverStaleFieldChatQuota } from "../_shared/fieldChatReservation.ts";
+import {
+  fieldChatDeploymentContractHeaders,
+  recoverStaleFieldChatQuota,
+} from "../_shared/fieldChatReservation.ts";
 import {
   countUserSendsToday,
   deleteConversation,
@@ -26,7 +29,6 @@ import {
   fetchOwnedAssistantMessage,
   fetchOwnedScan,
   formatMessage,
-  getOrCreateConversation,
   insertAssistantMessage,
   insertFeatureFeedback,
   insertUserMessage,
@@ -59,6 +61,10 @@ import {
   InsightChatResponsePayload,
   ModelChatResult,
 } from "./types.ts";
+
+const FIELD_CHAT_RESPONSE_HEADERS = fieldChatDeploymentContractHeaders(
+  "insight-chat",
+);
 
 function responsePayload(
   subjectId: string,
@@ -462,7 +468,10 @@ Deno.serve((req: Request) =>
         sentiment,
         has_note: note != null,
       }).catch((e) =>
-        console.error("PostHog InsightChatFeatureFeedbackSubmitted failed:", e)
+        console.error(
+          "PostHog InsightChatFeatureFeedbackSubmitted failed:",
+          e,
+        )
       );
       return jsonResponse({
         data: fieldChatFeatureFeedbackPayload(
@@ -552,15 +561,10 @@ Deno.serve((req: Request) =>
       "client_message_id",
     ).toLowerCase();
 
-    const resolvedConversation = await getOrCreateConversation(
-      user.id,
-      scanId,
-      supabaseAdmin,
-    );
-    let beforeMessages = await fetchMessages(
-      resolvedConversation.id,
-      supabaseAdmin,
-    );
+    let conversationId = existingConversation?.id ?? crypto.randomUUID();
+    let beforeMessages = existingConversation
+      ? await fetchMessages(conversationId, supabaseAdmin)
+      : [];
     const existingRequestMessage = fieldChatUserMessageForRequest(
       beforeMessages,
       clientMessageId,
@@ -586,7 +590,7 @@ Deno.serve((req: Request) =>
         {
           data: responsePayload(
             scanId,
-            resolvedConversation.id,
+            conversationId,
             beforeMessages,
             sendsToday,
           ),
@@ -631,14 +635,14 @@ Deno.serve((req: Request) =>
       const completion = await waitForFieldChatRequestCompletion(
         beforeMessages,
         clientMessageId,
-        () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+        () => fetchMessages(conversationId, supabaseAdmin),
       );
       if (completion) {
         return jsonResponse(
           {
             data: responsePayload(
               scanId,
-              resolvedConversation.id,
+              conversationId,
               completion,
               sendsToday,
             ),
@@ -650,7 +654,7 @@ Deno.serve((req: Request) =>
         );
       }
       beforeMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
     }
@@ -675,7 +679,7 @@ Deno.serve((req: Request) =>
           const completion = await waitForFieldChatRequestCompletion(
             beforeMessages,
             clientMessageId,
-            () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+            () => fetchMessages(conversationId, supabaseAdmin),
           );
           if (completion) {
             const completedRequestMessage = fieldChatUserMessageForRequest(
@@ -694,7 +698,7 @@ Deno.serve((req: Request) =>
               {
                 data: responsePayload(
                   scanId,
-                  resolvedConversation.id,
+                  conversationId,
                   completion,
                   sendsTodayAfterRequest,
                 ),
@@ -711,12 +715,12 @@ Deno.serve((req: Request) =>
               userId: user.id,
               operation: "insight_chat_reply",
               requestId: clientMessageId,
-              conversationId: resolvedConversation.id,
+              conversationId: conversationId,
               subjectId: scanId,
             })
           ) {
             beforeMessages = await fetchMessages(
-              resolvedConversation.id,
+              conversationId,
               supabaseAdmin,
             );
             quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
@@ -742,7 +746,7 @@ Deno.serve((req: Request) =>
     }
     if (isExistingRequest) {
       beforeMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
       if (isFieldChatRequestComplete(beforeMessages, clientMessageId)) {
@@ -751,7 +755,7 @@ Deno.serve((req: Request) =>
           {
             data: responsePayload(
               scanId,
-              resolvedConversation.id,
+              conversationId,
               beforeMessages,
               sendsToday,
             ),
@@ -774,17 +778,18 @@ Deno.serve((req: Request) =>
     >["message"];
     try {
       const admission = await insertUserMessage(
-        resolvedConversation.id,
+        conversationId,
         user.id,
         scanId,
         messageText,
         clientMessageId,
         supabaseAdmin,
       );
+      conversationId = admission.conversationId;
       userMessage = admission.message;
       sendsTodayAfterRequest = admission.sendsToday;
       const admittedMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
       if (admission.isReplay) {
@@ -794,7 +799,7 @@ Deno.serve((req: Request) =>
             {
               data: responsePayload(
                 scanId,
-                resolvedConversation.id,
+                conversationId,
                 admittedMessages,
                 admission.sendsToday,
               ),
@@ -854,11 +859,11 @@ Deno.serve((req: Request) =>
           outcome: "error",
           userId: user.id,
           scanId,
-          conversationId: resolvedConversation.id,
+          conversationId: conversationId,
         });
         trackPostHogEvent(user, "InsightChatModelError", {
           scan_id: scanId,
-          conversation_id: resolvedConversation.id,
+          conversation_id: conversationId,
           error: error instanceof Error ? error.message : String(error),
         }).catch((e) =>
           console.error("PostHog InsightChatModelError failed:", e)
@@ -869,7 +874,7 @@ Deno.serve((req: Request) =>
 
     try {
       await insertAssistantMessage(
-        resolvedConversation.id,
+        conversationId,
         user.id,
         scanId,
         clientMessageId,
@@ -880,7 +885,7 @@ Deno.serve((req: Request) =>
     } catch (error) {
       try {
         const recoveredMessages = await fetchMessages(
-          resolvedConversation.id,
+          conversationId,
           supabaseAdmin,
         );
         if (
@@ -890,7 +895,7 @@ Deno.serve((req: Request) =>
             {
               data: responsePayload(
                 scanId,
-                resolvedConversation.id,
+                conversationId,
                 recoveredMessages,
                 sendsTodayAfterRequest,
               ),
@@ -910,13 +915,13 @@ Deno.serve((req: Request) =>
     }
 
     const messages = await fetchMessages(
-      resolvedConversation.id,
+      conversationId,
       supabaseAdmin,
     );
     const usage = assistantResult.usage;
     const telemetry = {
       scan_id: scanId,
-      conversation_id: resolvedConversation.id,
+      conversation_id: conversationId,
       user_message_id: userMessage.id,
       answer_category: messageCategory(messageText),
       llm_model: assistantResult.usage
@@ -936,7 +941,7 @@ Deno.serve((req: Request) =>
 
     trackPostHogEvent(user, "InsightChatSent", {
       scan_id: scanId,
-      conversation_id: resolvedConversation.id,
+      conversation_id: conversationId,
       message_length: messageText.length,
       answer_category: messageCategory(messageText),
       plan: tier.plan,
@@ -952,10 +957,10 @@ Deno.serve((req: Request) =>
     return jsonResponse({
       data: responsePayload(
         scanId,
-        resolvedConversation.id,
+        conversationId,
         messages,
         sendsTodayAfterRequest,
       ),
     }, 200);
-  })
+  }, { responseHeaders: FIELD_CHAT_RESPONSE_HEADERS })
 );

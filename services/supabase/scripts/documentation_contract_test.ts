@@ -1521,6 +1521,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "Offline retry documentation must preserve cloud-completion precedence.",
     );
   }
+
   for (
     const source of [
       rootSource,
@@ -1856,7 +1857,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(insightSheetImplementationSource),
-    "exploreOnboardingPresentedBinding",
+    "synchronizeExploreOnboardingPresentation",
+  );
+  assertStringIncludes(
+    compact(insightSheetImplementationSource),
+    "shellPresentationBinding",
   );
   assertStringIncludes(
     compact(inferenceEngineImplementationSource),
@@ -2265,11 +2270,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "execute three deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
+    "execute four deterministic runtime UI smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, `testQueuedRetryPresentationUsesSafeActionableCopy`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under `merianUITests/merianUITests`",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "exactly those three passed cases and zero failed or skipped cases",
+    "exactly those four passed cases and zero failed or skipped cases",
   );
   assert(
     !compact(testingStrategySource).includes(
@@ -2894,7 +2899,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "manually dispatch `iOS Build and Test` on that final SHA",
       "a scope-only success is not release evidence",
       "neither is UI-bundle compilation without execution",
-      "the deterministic progressive-analyzing, live-Insight-to-queue, and queued-scan-completion UI smokes",
+      "the deterministic progressive-analyzing, live-Insight-to-queue, queued-retry, and queued-scan-completion UI smokes",
       "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
@@ -3051,7 +3056,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "Rebinding an already-presented exact completion is an idempotent no-op",
       "`scanBoundActionGeneration`",
       "Two new exact protected unit regressions cover completed-record precedence",
-      "the exact three-case progressive-analyzing, live-to-queued, and completion UI smoke set",
+      "the exact four-case progressive-analyzing, live-to-queued, queued-retry, and completion UI smoke set",
       "Run 105 supplies current cross-file compilation, complete-unit runtime, and Release evidence through `6ed0f557b3`",
       "2026-07-queued-insight-same-id-handoff-regression.md",
       "The 2026-07-30 verification rerun against runtime baseline `c7eac9c8f3124437712ee72eeff49d09e6ea55b1` passed the complete Supabase tooling gate",
@@ -3608,6 +3613,75 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
       "`20260821030027_add_species_dictionary_field_chat.sql`",
     );
   }
+  for (
+    const source of [
+      schemaSource,
+      apiSource,
+      backendSource,
+      sharedSource,
+      insightSource,
+      exploreSource,
+      speciesSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      networkSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "`20260824210544_preserve_field_chat_daily_usage.sql`",
+    );
+  }
+  for (const source of [schemaSource, apiSource, backendSource, sharedSource]) {
+    assertStringIncludes(
+      compact(source),
+      "`get_field_chat_daily_usage",
+    );
+  }
+  for (
+    const source of [
+      schemaSource,
+      apiSource,
+      backendSource,
+      speciesSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "Ghost");
+    assertStringIncludes(compact(source), "allowlist");
+  }
+  for (
+    const source of [
+      apiSource,
+      speciesSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "quota denial");
+    assertStringIncludes(compact(source), "empty");
+    assertStringIncludes(compact(source), "conversation");
+  }
+  for (
+    const source of [
+      apiSource,
+      speciesSource,
+      testingSource,
+      aiSource,
+      codebaseSource,
+      clientSource,
+      runbookSource,
+    ]
+  ) {
+    assertStringIncludes(compact(source), "U+2013 EN DASH");
+  }
   assertStringIncludes(
     compact(speciesSource),
     "`species_not_available`",
@@ -3653,6 +3727,406 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     assertStringIncludes(
       compact(source),
       "`field_chat_recovery_unavailable`",
+    );
+  }
+});
+
+Deno.test("Species Dictionary production hold is machine enforced and documented", async () => {
+  const [
+    manifestSource,
+    deploySource,
+    candidateSource,
+    functionSource,
+    featureSource,
+    apiSource,
+    runbookSource,
+    legalSource,
+    releaseSource,
+    clearanceTemplateSource,
+    evidenceStatementTemplateSource,
+    evidenceGuideSource,
+    documentationIndexSource,
+    releaseEvidenceWorkflowSource,
+    promptPolicySource,
+    codeownersSource,
+  ] = await Promise.all([
+    read("services/supabase/release-holds.json"),
+    read(".github/workflows/deploy.yml"),
+    read(".github/workflows/supabase-candidate-validation.yml"),
+    read("services/supabase/functions/species-dictionary-chat/README.md"),
+    read("docs/features-and-hardware/16-species-dictionary.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
+    read("docs/legal/production-consent-readiness-2026-08-03.md"),
+    read("docs/development-guides/14-ios-release-versioning.md"),
+    read(
+      "docs/release-evidence/species-dictionary-field-chat-clearance-template.json",
+    ),
+    read("docs/release-evidence/release-evidence-statement-template.json"),
+    read("docs/release-evidence/README.md"),
+    read("docs/README.md"),
+    read(".github/workflows/release-evidence.yml"),
+    read("docs/contracts/species-dictionary-prompt-label-policy.json"),
+    read(".github/CODEOWNERS"),
+  ]);
+  const manifest = JSON.parse(manifestSource) as {
+    schema_version: number;
+    holds: Array<{
+      id: string;
+      active: boolean;
+      scope: string;
+      owner: string;
+      exit_criteria: Array<{
+        id: string;
+        description: string;
+        evidence_type: string;
+        required_workflows: string[];
+      }>;
+    }>;
+  };
+  const hold = manifest.holds.find((candidate) =>
+    candidate.id === "species_dictionary_chat_production_hold"
+  );
+  assert(hold, "Missing Species Dictionary production hold.");
+  assertEquals(manifest.schema_version, 3);
+  assertEquals(hold.active, true);
+  assertEquals(hold.scope, "supabase_production");
+  assertEquals(hold.owner, "Merian release owner");
+  assertEquals(
+    hold.exit_criteria.map((criterion) => [
+      criterion.id,
+      criterion.evidence_type,
+      criterion.required_workflows,
+    ]),
+    [
+      [
+        "field_chat_database_and_ghost_merge",
+        "disposable_database_run",
+        [".github/workflows/supabase-candidate-validation.yml"],
+      ],
+      [
+        "field_chat_delete_quota_and_provider",
+        "disposable_database_run",
+        [".github/workflows/supabase-candidate-validation.yml"],
+      ],
+      [
+        "field_chat_post_bundle_cutover_activation",
+        "cutover_rehearsal",
+        [".github/workflows/supabase-candidate-validation.yml"],
+      ],
+      [
+        "field_chat_client_wrapper_and_prompt_parity",
+        "hosted_test_run",
+        [
+          ".github/workflows/ios-build-and-test.yml",
+          ".github/workflows/supabase-candidate-validation.yml",
+        ],
+      ],
+      [
+        "release_control_exact_sha_and_clearance",
+        "release_control_audit",
+        [],
+      ],
+      ["swiftdata_v49_v50_install_over", "device_install_over", []],
+      [
+        "hosted_same_sha_candidate_gates",
+        "hosted_test_run",
+        [
+          ".github/workflows/ios-build-and-test.yml",
+          ".github/workflows/supabase-candidate-validation.yml",
+        ],
+      ],
+      [
+        "external_consent_store_billing_dpa_approvals",
+        "external_approval_record",
+        [],
+      ],
+    ],
+  );
+
+  for (const criterion of hold.exit_criteria) {
+    assertStringIncludes(
+      compact(runbookSource),
+      compact(criterion.description),
+      `Canonical runbook is missing hold criterion: ${criterion.id}`,
+    );
+    assertStringIncludes(runbookSource, `\`${criterion.id}\``);
+    assertStringIncludes(runbookSource, `\`${criterion.evidence_type}\``);
+  }
+
+  const clearanceTemplate = JSON.parse(clearanceTemplateSource) as {
+    schema_version: number;
+    candidate_sha: string;
+    manifest_sha256: string;
+    holds: Array<{
+      hold_id: string;
+      criteria: Array<{
+        id: string;
+        evidence_type: string;
+        artifact_id: number;
+        artifact_sha256: string;
+      }>;
+    }>;
+  };
+  assertEquals(clearanceTemplate.schema_version, 2);
+  assertEquals(clearanceTemplate.holds[0].hold_id, hold.id);
+  assertEquals(
+    clearanceTemplate.holds[0].criteria.map((criterion) => [
+      criterion.id,
+      criterion.evidence_type,
+    ]),
+    hold.exit_criteria.map((criterion) => [
+      criterion.id,
+      criterion.evidence_type,
+    ]),
+  );
+  assertEquals(clearanceTemplate.candidate_sha, "0".repeat(40));
+  assertEquals(clearanceTemplate.manifest_sha256, "0".repeat(64));
+  for (const criterion of clearanceTemplate.holds[0].criteria) {
+    assertEquals(criterion.artifact_id, 0);
+    assertEquals(criterion.artifact_sha256, "0".repeat(64));
+  }
+
+  const evidenceStatementTemplate = JSON.parse(
+    evidenceStatementTemplateSource,
+  ) as {
+    schema_version: number;
+    hold_id: string;
+    candidate_sha: string;
+    supporting_runs: Array<{ run_id: number; workflow_path: string }>;
+    embedded_evidence: Array<{
+      media_type: string;
+      content_base64: string;
+      sha256: string;
+    }>;
+  };
+  assertEquals(evidenceStatementTemplate.schema_version, 2);
+  assertEquals(evidenceStatementTemplate.hold_id, hold.id);
+  assertEquals(evidenceStatementTemplate.candidate_sha, "0".repeat(40));
+  assertEquals(
+    evidenceStatementTemplate.embedded_evidence[0].media_type,
+    "application/json",
+  );
+  assertEquals(
+    evidenceStatementTemplate.embedded_evidence[0].sha256,
+    "0".repeat(64),
+  );
+
+  const promptPolicy = JSON.parse(promptPolicySource) as {
+    normalization: string;
+    max_unicode_scalars: number;
+    allowed_general_categories: string[];
+    whitespace_scalars: string[];
+    punctuation_scalars: string[];
+    cases: Array<{ name: string; expected: string }>;
+  };
+  assertEquals(promptPolicy.normalization, "none");
+  assertEquals(promptPolicy.max_unicode_scalars, 64);
+  assertEquals(promptPolicy.allowed_general_categories, [
+    "Lu",
+    "Ll",
+    "Lt",
+    "Lm",
+    "Lo",
+    "Mn",
+    "Mc",
+    "Me",
+    "Nd",
+  ]);
+  assert(promptPolicy.whitespace_scalars.includes("U+0085"));
+  assert(!promptPolicy.whitespace_scalars.includes("U+FEFF"));
+  assert(promptPolicy.punctuation_scalars.includes("U+2013"));
+  assertEquals(
+    promptPolicy.cases.find((fixture) =>
+      fixture.name === "byte order mark is rejected"
+    )?.expected,
+    "this species",
+  );
+
+  for (
+    const source of [
+      functionSource,
+      featureSource,
+      apiSource,
+      runbookSource,
+      legalSource,
+      releaseSource,
+    ]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "`species_dictionary_chat_production_hold`",
+    );
+  }
+
+  for (
+    const requiredEvidence of [
+      "`field_chat_daily_admissions`",
+      "`internal.perform_ghost_profile_merge(...)`",
+      "same-UTC-day race",
+      "reserve-delete-fresh-reserve",
+      "quota denial creates no conversation, message, or provider dispatch",
+      "one-way activation",
+      "`X-Merian-Field-Chat-Contract: atomic-admission-v1`",
+      "U+2013 EN DASH",
+      "U+FEFF",
+      "post-authenticated handler-core",
+      "authenticated HTTP-wrapper boundary",
+      "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",
+      "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
+      "CODEOWNERS",
+      "manifest digest",
+      "ready-state rerun force-selects all three corrected bundles",
+      "candidate-derived bundle digest",
+      "`X-Merian-Field-Chat-Bundle-SHA256: <digest>`",
+      "downloads each uniquely assigned artifact",
+      "recomputes the archive digest",
+      "current protected `main` head",
+      "Code Owner review",
+      "no more than 30 days old",
+      "two current author-independent approvals",
+      "digest proves retained bytes, not the issuing authority",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(runbookSource),
+      requiredEvidence,
+      `Canonical runbook is missing reviewed blocker evidence: ${requiredEvidence}`,
+    );
+  }
+
+  for (
+    const source of [functionSource, featureSource, apiSource, runbookSource]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "docs/contracts/species-dictionary-prompt-label-policy.json",
+    );
+  }
+
+  for (
+    const source of [functionSource, featureSource, apiSource, runbookSource]
+  ) {
+    assertStringIncludes(
+      compact(source),
+      "X-Merian-Field-Chat-Bundle-SHA256",
+    );
+  }
+  for (
+    const source of [functionSource, legalSource, releaseSource, runbookSource]
+  ) {
+    assertStringIncludes(compact(source), "artifact");
+    assertStringIncludes(compact(source), "recomput");
+  }
+
+  const holdJobIndex = deploySource.indexOf("  production-hold:");
+  const deployJobIndex = deploySource.indexOf("  deploy:");
+  assert(holdJobIndex > 0, "Missing non-Production release-hold job.");
+  assert(
+    deployJobIndex > holdJobIndex,
+    "Production deploy must remain downstream of release-hold verification.",
+  );
+  assertStringIncludes(
+    deploySource,
+    "needs: [candidate-validation, production-hold]",
+  );
+  assertStringIncludes(
+    deploySource,
+    "services/supabase/scripts/verify_production_release_holds.ts",
+  );
+  for (
+    const releaseControl of [
+      "--mode source-gate",
+      "--mode production-clearance",
+      "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
+      "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",
+      "Verify exact clean production candidate",
+      "ref: ${{ github.sha }}",
+      "finalize_field_chat_function_plan.ts",
+      "generate_field_chat_deployment_identity.ts",
+      "activate_field_chat_cutover.ts",
+      "Verify corrected Field Chat bundles are serving",
+      "atomic-admission-v1",
+      "X-Merian-Field-Chat-Bundle-SHA256",
+    ]
+  ) {
+    assertStringIncludes(deploySource, releaseControl);
+  }
+  for (
+    const ownedControl of [
+      "/.github/workflows/deploy.yml @emreerdener",
+      "/.github/workflows/release-evidence.yml @emreerdener",
+      "/services/supabase/release-holds.json @emreerdener",
+      "/services/supabase/migrations/ @emreerdener",
+      "/services/supabase/scripts/github_release_evidence.ts @emreerdener",
+      "/services/supabase/scripts/prepare_release_evidence.ts @emreerdener",
+    ]
+  ) {
+    assertStringIncludes(codeownersSource, ownedControl);
+  }
+  assert(
+    !candidateSource.includes("verify_production_release_holds"),
+    "Disposable Candidate Validation must remain independent of production holds.",
+  );
+  assert(
+    !candidateSource.includes("environment: Production"),
+    "Disposable Candidate Validation must remain production-isolated.",
+  );
+  assert(
+    !candidateSource.includes("MERIAN_GITHUB_RELEASE_AUDIT_TOKEN"),
+    "Disposable Candidate Validation must not receive the release audit token.",
+  );
+  for (
+    const evidenceControl of [
+      "environment: Release Evidence",
+      "actions: read",
+      "Verify exact clean evidence candidate",
+      "services/supabase/scripts/prepare_release_evidence.ts",
+      "release-evidence.json",
+      "retention-days: 90",
+      "compression-level: 0",
+      "${{ github.run_id }}-attempt-${{ github.run_attempt }}",
+    ]
+  ) {
+    assertStringIncludes(releaseEvidenceWorkflowSource, evidenceControl);
+  }
+
+  assertStringIncludes(
+    documentationIndexSource,
+    "[`/release-evidence/README.md`](./release-evidence/README.md)",
+  );
+  for (
+    const evidenceGuideControl of [
+      "`species_dictionary_chat_production_hold`",
+      "`GITHUB_REF=refs/heads/main`",
+      "every supporting workflow run `updated_at` no more than 30 days old",
+      "Never interpolate `${{ inputs.* }}` directly into a `run` script",
+      "One positive artifact ID may satisfy exactly one criterion; never reuse an artifact across criteria",
+      "approval window must be current and no longer than seven days",
+      "A digest proves which bytes were retained, not who issued or approved an off-platform statement",
+      "`.github/CODEOWNERS` currently routes all critical controls to one account",
+      "must not contain credentials, personal data, raw coordinates, auth or session state, production response bodies, raw SwiftData stores, user media, or stable user identifiers",
+      "Do not dispatch a production deployment merely to test a hold",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(evidenceGuideSource),
+      evidenceGuideControl,
+      `Release-evidence guide is missing: ${evidenceGuideControl}`,
+    );
+  }
+  for (
+    const runbookEvidenceControl of [
+      "Every supporting workflow run's GitHub `updated_at` must also be within that 30-day window",
+      "never interpolate `${{ inputs.* }}` directly into a `run` script",
+      "never reuse an artifact across criteria",
+      "[release-evidence operations guide](../release-evidence/README.md)",
+    ]
+  ) {
+    assertStringIncludes(
+      compact(runbookSource),
+      runbookEvidenceControl,
+      `Canonical runbook is missing evidence-operation control: ${runbookEvidenceControl}`,
     );
   }
 });

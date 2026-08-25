@@ -155,9 +155,23 @@ Deno.test("all Field Chat routes use atomic admission and stale quota rescue", a
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
-    assertStringIncludes(source, "recoverStaleFieldChatQuota(");
+    if (path.includes("species-dictionary-chat")) {
+      assertStringIncludes(
+        source,
+        "dependencies.recoverStaleFieldChatQuota ??",
+      );
+      assertStringIncludes(source, "recoverProviderQuota(supabaseAdmin");
+    } else {
+      assertStringIncludes(source, "recoverStaleFieldChatQuota(");
+    }
     assertStringIncludes(source, "admission.sendsToday");
     assertStringIncludes(source, "admission.isReplay");
+    assertStringIncludes(source, "admission.conversationId");
+    assertStringIncludes(source, "crypto.randomUUID()");
+    assert(
+      !source.includes("getOrCreateConversation"),
+      `${path} must not create a conversation before atomic admission`,
+    );
   }
 });
 

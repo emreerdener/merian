@@ -15,7 +15,10 @@ import {
   isFieldChatRequestComplete,
   waitForFieldChatRequestCompletion,
 } from "../_shared/fieldChatResponse.ts";
-import { recoverStaleFieldChatQuota } from "../_shared/fieldChatReservation.ts";
+import {
+  fieldChatDeploymentContractHeaders,
+  recoverStaleFieldChatQuota,
+} from "../_shared/fieldChatReservation.ts";
 import {
   assertConversationHasRoom,
   isSafetyCriticalQuestion,
@@ -35,7 +38,6 @@ import {
   fetchMessages,
   fetchPublicContext,
   formatMessage,
-  getOrCreateConversation,
   insertAssistantMessage,
   insertUserMessage,
   upsertFeedback,
@@ -44,6 +46,10 @@ import { isExplorePostChatContextAvailable } from "./eligibility.ts";
 import { buildSystemInstruction, buildUserPrompt } from "./prompt.ts";
 import { buildExplorePostChatPromptSuggestions } from "./promptSuggestions.ts";
 import type { ExplorePostChatMessageRow, ModelChatResult } from "./types.ts";
+
+const FIELD_CHAT_RESPONSE_HEADERS = fieldChatDeploymentContractHeaders(
+  "explore-post-chat",
+);
 
 const ALLOWED_ACTIONS = new Set([
   "load",
@@ -144,7 +150,11 @@ Deno.serve((req: Request) =>
       supabaseAdmin,
     );
     const speciesId = context.detail.species_dictionary_id ?? null;
-    let conversation = await fetchConversation(user.id, postId, supabaseAdmin);
+    let conversation = await fetchConversation(
+      user.id,
+      postId,
+      supabaseAdmin,
+    );
     if (conversation?.species_dictionary_id !== speciesId) {
       if (conversation) {
         await deleteConversation(user.id, postId, supabaseAdmin);
@@ -225,16 +235,10 @@ Deno.serve((req: Request) =>
       body.client_message_id,
       "client_message_id",
     ).toLowerCase();
-    const resolvedConversation = await getOrCreateConversation(
-      user.id,
-      postId,
-      speciesId,
-      supabaseAdmin,
-    );
-    let beforeMessages = await fetchMessages(
-      resolvedConversation.id,
-      supabaseAdmin,
-    );
+    let conversationId = conversation?.id ?? crypto.randomUUID();
+    let beforeMessages = conversation
+      ? await fetchMessages(conversationId, supabaseAdmin)
+      : [];
     const existingRequestMessage = fieldChatUserMessageForRequest(
       beforeMessages,
       clientMessageId,
@@ -260,7 +264,7 @@ Deno.serve((req: Request) =>
         {
           data: responsePayload(
             postId,
-            resolvedConversation.id,
+            conversationId,
             beforeMessages,
             sendsToday,
           ),
@@ -297,14 +301,14 @@ Deno.serve((req: Request) =>
       const completion = await waitForFieldChatRequestCompletion(
         beforeMessages,
         clientMessageId,
-        () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+        () => fetchMessages(conversationId, supabaseAdmin),
       );
       if (completion) {
         return jsonResponse(
           {
             data: responsePayload(
               postId,
-              resolvedConversation.id,
+              conversationId,
               completion,
               sendsToday,
             ),
@@ -316,7 +320,7 @@ Deno.serve((req: Request) =>
         );
       }
       beforeMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
     }
@@ -341,7 +345,7 @@ Deno.serve((req: Request) =>
           const completion = await waitForFieldChatRequestCompletion(
             beforeMessages,
             clientMessageId,
-            () => fetchMessages(resolvedConversation.id, supabaseAdmin),
+            () => fetchMessages(conversationId, supabaseAdmin),
           );
           if (completion) {
             const completedRequestMessage = fieldChatUserMessageForRequest(
@@ -360,7 +364,7 @@ Deno.serve((req: Request) =>
               {
                 data: responsePayload(
                   postId,
-                  resolvedConversation.id,
+                  conversationId,
                   completion,
                   sendsTodayAfterRequest,
                 ),
@@ -377,12 +381,12 @@ Deno.serve((req: Request) =>
               userId: user.id,
               operation: "explore_post_chat_reply",
               requestId: clientMessageId,
-              conversationId: resolvedConversation.id,
+              conversationId: conversationId,
               subjectId: postId,
             })
           ) {
             beforeMessages = await fetchMessages(
-              resolvedConversation.id,
+              conversationId,
               supabaseAdmin,
             );
             quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
@@ -408,7 +412,7 @@ Deno.serve((req: Request) =>
     }
     if (isExistingRequest) {
       beforeMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
       if (isFieldChatRequestComplete(beforeMessages, clientMessageId)) {
@@ -417,7 +421,7 @@ Deno.serve((req: Request) =>
           {
             data: responsePayload(
               postId,
-              resolvedConversation.id,
+              conversationId,
               beforeMessages,
               sendsToday,
             ),
@@ -440,17 +444,18 @@ Deno.serve((req: Request) =>
     >["message"];
     try {
       const admission = await insertUserMessage(
-        resolvedConversation.id,
+        conversationId,
         user.id,
         postId,
         messageText,
         clientMessageId,
         supabaseAdmin,
       );
+      conversationId = admission.conversationId;
       userMessage = admission.message;
       sendsTodayAfterRequest = admission.sendsToday;
       const admittedMessages = await fetchMessages(
-        resolvedConversation.id,
+        conversationId,
         supabaseAdmin,
       );
       if (admission.isReplay) {
@@ -460,7 +465,7 @@ Deno.serve((req: Request) =>
             {
               data: responsePayload(
                 postId,
-                resolvedConversation.id,
+                conversationId,
                 admittedMessages,
                 admission.sendsToday,
               ),
@@ -523,7 +528,7 @@ Deno.serve((req: Request) =>
           inputModality: "text",
           outcome: "error",
           userId: user.id,
-          conversationId: resolvedConversation.id,
+          conversationId: conversationId,
           sourceType: "explore_post",
           sourceId: postId,
         });
@@ -533,7 +538,7 @@ Deno.serve((req: Request) =>
 
     try {
       await insertAssistantMessage(
-        resolvedConversation.id,
+        conversationId,
         user.id,
         postId,
         clientMessageId,
@@ -544,7 +549,7 @@ Deno.serve((req: Request) =>
     } catch (error) {
       try {
         const recoveredMessages = await fetchMessages(
-          resolvedConversation.id,
+          conversationId,
           supabaseAdmin,
         );
         if (
@@ -554,7 +559,7 @@ Deno.serve((req: Request) =>
             {
               data: responsePayload(
                 postId,
-                resolvedConversation.id,
+                conversationId,
                 recoveredMessages,
                 sendsTodayAfterRequest,
               ),
@@ -573,7 +578,7 @@ Deno.serve((req: Request) =>
       throw error;
     }
     const messages = await fetchMessages(
-      resolvedConversation.id,
+      conversationId,
       supabaseAdmin,
     );
     recordAIUsageBestEffort(supabaseAdmin, {
@@ -584,14 +589,14 @@ Deno.serve((req: Request) =>
       inputModality: "text",
       outcome: assistant.isRefusal ? "refusal" : "success",
       userId: user.id,
-      conversationId: resolvedConversation.id,
+      conversationId: conversationId,
       messageId: userMessage.id,
       sourceType: "explore_post",
       sourceId: postId,
     });
     trackPostHogEvent(user, "ExplorePostChatSent", {
       post_id: postId,
-      conversation_id: resolvedConversation.id,
+      conversation_id: conversationId,
       message_length: messageText.length,
       is_refusal: assistant.isRefusal,
       latency_ms: Date.now() - startedAt,
@@ -603,10 +608,10 @@ Deno.serve((req: Request) =>
     return jsonResponse({
       data: responsePayload(
         postId,
-        resolvedConversation.id,
+        conversationId,
         messages,
         sendsTodayAfterRequest,
       ),
     }, 200);
-  })
+  }, { responseHeaders: FIELD_CHAT_RESPONSE_HEADERS })
 );

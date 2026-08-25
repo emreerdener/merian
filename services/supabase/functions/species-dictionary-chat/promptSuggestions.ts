@@ -1,15 +1,10 @@
+import { speciesDictionaryPromptLabel } from "./promptLabelPolicy.ts";
+
 export function buildSpeciesDictionaryChatPromptSuggestions(
   rawCommonName: string,
   hasLookalikes: boolean,
 ) {
-  const normalizedCommonName = rawCommonName.trim().replace(/\s+/g, " ");
-  const isSafeLabel = /^[\p{L}\p{M}\p{N} .()'’\-]+$/u.test(
-    normalizedCommonName,
-  );
-  const commonName = normalizedCommonName &&
-      normalizedCommonName.length <= 64 && isSafeLabel
-    ? normalizedCommonName
-    : "this species";
+  const commonName = speciesDictionaryPromptLabel(rawCommonName);
 
   return [
     {

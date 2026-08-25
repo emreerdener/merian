@@ -187,13 +187,33 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   those transaction boundaries.
 - **`fieldChatDailyUsage.ts`**: Read-side counter for user messages admitted
   across Insight, Explore, and Species Dictionary chat. PostgreSQL admission is
-  still authoritative; this helper only shapes current limit responses. Daily
-  usage is contractually independent of content retention, so deleting a
-  conversation must not restore same-day allowance. The current candidate counts
-  live rows here and in the reservation RPC, while conversation cascades can
-  erase them. Do not release the three-family bundle until durable
-  delete-resistant accounting replaces that dependency and executable
-  delete-then-send coverage passes.
+  authoritative; this helper only shapes current limit responses through the
+  service-only `get_field_chat_daily_usage(...)` RPC. Migration
+  `20260824210544_preserve_field_chat_daily_usage.sql` stores a content-free
+  user/day aggregate, increments it atomically with admission, preserves it
+  across conversation cascades, and conservatively combines it during Ghost
+  merge. Timeout, database error, or malformed output fails closed with
+  retryable `503 field_chat_admission_unavailable`; there is no live-message
+  fallback. The same migration registers its merge handler in the effective
+  policy allowlist, asserts the complete registry, short-locks all three
+  conversation/message families to remove historical message-less threads,
+  creates a database-clock UTC cutover guard, and moves conversation creation
+  into the reservation transaction. Corrected reservation callers return
+  retryable `503 field_chat_admission_cutover_pending` while the cutover is
+  `pending` or `ready`; an older create-before-admission bundle can hit the
+  direct-insert boundary first and surface an unnormalized failure. Conversation
+  `INSERT` is permanently revoked from API roles, so it cannot write before or
+  after activation. Exact persisted replays remain available. The service-only
+  one-way activation opens admission only after all three selected bundles
+  deploy and every live route returns both
+  `X-Merian-Field-Chat-Contract: atomic-admission-v1` and its exact
+  `X-Merian-Field-Chat-Bundle-SHA256`. The generated digest covers the route's
+  transitive runtime graph, Deno configuration, and frozen lock. A `ready`
+  database state force-selects all three routes, and the activation row persists
+  candidate, migration, and all three live bundle digests. Source fixtures
+  exercise every real reserve-delete-fresh-reserve branch and the full merge
+  orchestrator, but only a non-skipped disposable database run on the reviewed
+  SHA is release evidence.
 - **`scanMediaAssets.ts`**: Normalized scan-media lifecycle helpers. Upload
   signing creates staged scan-media asset rows with `scan_id` null until the
   final scan exists, identify finalization marks them promoted/deleted/failed,

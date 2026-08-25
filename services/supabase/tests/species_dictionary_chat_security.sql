@@ -2,7 +2,21 @@
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(12);
+SELECT extensions.plan(14);
+
+-- This catalog exercises post-rollover behavior. The dedicated reservation
+-- catalog proves the fresh-migration pending state and exact-replay exception.
+UPDATE internal.field_chat_admission_cutover
+SET not_before_utc = seeded_at + INTERVAL '1 microsecond'
+WHERE singleton;
+
+SELECT public.activate_field_chat_admission_cutover(
+    'cccccccccccccccccccccccccccccccccccccccc',
+    'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+);
 
 SELECT extensions.ok(
     (
@@ -438,6 +452,21 @@ VALUES (
     '00000000-0000-4000-8000-00000000fd13'
 );
 
+INSERT INTO internal.field_chat_daily_admissions (
+    user_id,
+    admission_day,
+    admitted_count,
+    first_admitted_at,
+    last_admitted_at
+)
+VALUES (
+    '00000000-0000-4000-8000-00000000fd09',
+    (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::DATE,
+    4,
+    pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 hour',
+    pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '30 minutes'
+);
+
 SELECT internal.merge_ghost_chat_conversations(
     '00000000-0000-4000-8000-00000000fd01',
     '00000000-0000-4000-8000-00000000fd09'
@@ -466,6 +495,14 @@ SELECT extensions.ok(
     'account-merge helper preserves a private dictionary thread on the target viewer'
 );
 
+SELECT extensions.is(
+    public.get_field_chat_daily_usage(
+        '00000000-0000-4000-8000-00000000fd09'
+    ),
+    5,
+    'account merge conservatively sums both daily admission histories'
+);
+
 DELETE FROM public.species_dictionary
 WHERE id = '00000000-0000-4000-8000-00000000fd02';
 
@@ -489,6 +526,14 @@ SELECT extensions.ok(
               '00000000-0000-4000-8000-00000000fd02'
     ),
     'species deletion cascades through the private dictionary thread'
+);
+
+SELECT extensions.is(
+    public.get_field_chat_daily_usage(
+        '00000000-0000-4000-8000-00000000fd09'
+    ),
+    5,
+    'dictionary content deletion does not restore daily admission capacity'
 );
 
 SELECT extensions.ok(
@@ -517,6 +562,15 @@ SELECT extensions.ok(
               'species_dictionary_chat_message_feedback'
           AND policy.source_column = 'user_id'
           AND policy.strategy = 'reparent'
+    )
+    AND EXISTS (
+        SELECT 1
+        FROM internal.ghost_profile_merge_reference_policies AS policy
+        WHERE policy.source_schema = 'internal'
+          AND policy.source_table = 'field_chat_daily_admissions'
+          AND policy.source_column = 'user_id'
+          AND policy.strategy = 'handler_then_reparent'
+          AND policy.handler_key = 'field_chat_daily_admissions'
     ),
     'schema-aware account merge manifest covers every dictionary chat row'
 );

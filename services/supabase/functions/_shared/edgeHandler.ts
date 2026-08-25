@@ -153,14 +153,21 @@ export async function withEdgeHandler(
     supabaseAdmin: SupabaseClient,
     context: { authDurationMs: number },
   ) => Promise<Response>,
-  options: { authenticate?: EdgeAuthenticator } = {},
+  options: {
+    authenticate?: EdgeAuthenticator;
+    responseHeaders?: HeadersInit;
+  } = {},
 ): Promise<Response> {
   const requestId = requestIdFor(req);
+  const applyConfiguredHeaders = (response: Response): Response =>
+    withConfiguredResponseHeaders(response, options.responseHeaders);
 
   if (req.method === "OPTIONS") {
-    return withRequestMetadata(
-      new Response("ok", { headers: corsHeaders }),
-      requestId,
+    return applyConfiguredHeaders(
+      withRequestMetadata(
+        new Response("ok", { headers: corsHeaders }),
+        requestId,
+      ),
     );
   }
 
@@ -176,20 +183,24 @@ export async function withEdgeHandler(
     const authDuration = performance.now() - authStart;
 
     if (response || !user) {
-      return await finalizeEdgeResponse(
-        req,
-        response || jsonResponse({ error: "Unauthorized" }, 401),
-        authDuration,
+      return applyConfiguredHeaders(
+        await finalizeEdgeResponse(
+          req,
+          response || jsonResponse({ error: "Unauthorized" }, 401),
+          authDuration,
+        ),
       );
     }
 
-    return await finalizeEdgeResponse(
-      req,
-      await handler(user, supabaseAdmin, { authDurationMs: authDuration }),
-      authDuration,
+    return applyConfiguredHeaders(
+      await finalizeEdgeResponse(
+        req,
+        await handler(user, supabaseAdmin, { authDurationMs: authDuration }),
+        authDuration,
+      ),
     );
   } catch (error: unknown) {
-    return boundaryFailureResponse(req, error);
+    return applyConfiguredHeaders(boundaryFailureResponse(req, error));
   }
 }
 
@@ -370,6 +381,29 @@ function withRequestMetadata(response: Response, requestId: string): Response {
     "X-Merian-Handler",
     MERIAN_HANDLER_RESPONSE_HEADER["X-Merian-Handler"],
   );
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function withConfiguredResponseHeaders(
+  response: Response,
+  configuredHeaders: HeadersInit | undefined,
+): Response {
+  if (configuredHeaders === undefined) return response;
+  const headers = new Headers(response.headers);
+  for (const [name, value] of new Headers(configuredHeaders)) {
+    if (
+      ["x-merian-handler", "x-request-id", "server-timing"].includes(
+        name.toLowerCase(),
+      )
+    ) {
+      continue;
+    }
+    headers.set(name, value);
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

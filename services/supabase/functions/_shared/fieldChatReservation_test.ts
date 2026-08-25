@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertEquals, assertRejects } from "@std/assert";
 import { PublicHttpError } from "./http.ts";
 import {
+  FIELD_CHAT_BUNDLE_SHA256_HEADER,
+  FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER,
+  FIELD_CHAT_DEPLOYMENT_CONTRACT_VERSION,
+  fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
   reserveFieldChatSend,
 } from "./fieldChatReservation.ts";
@@ -33,6 +37,18 @@ function mockRpcClient(
   } as unknown as SupabaseClient;
 }
 
+Deno.test("Field Chat deployment headers bind compatibility and bundle identity", () => {
+  const headers = fieldChatDeploymentContractHeaders("insight-chat");
+  assertEquals(
+    headers[FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER],
+    FIELD_CHAT_DEPLOYMENT_CONTRACT_VERSION,
+  );
+  assertEquals(
+    /^[0-9a-f]{64}$/.test(headers[FIELD_CHAT_BUNDLE_SHA256_HEADER]),
+    true,
+  );
+});
+
 Deno.test("atomic Field Chat admission validates and returns its exact bound row", async () => {
   const observed: {
     name?: string;
@@ -48,7 +64,12 @@ Deno.test("atomic Field Chat admission validates and returns its exact bound row
     client_message_id: REQUEST_ID,
   };
   const client = mockRpcClient({
-    data: [{ message, is_replay: false, sends_today: 4 }],
+    data: [{
+      conversation_id: CONVERSATION_ID,
+      message,
+      is_replay: false,
+      sends_today: 4,
+    }],
     error: null,
   }, observed);
 
@@ -62,6 +83,7 @@ Deno.test("atomic Field Chat admission validates and returns its exact bound row
       clientMessageId: REQUEST_ID,
     }),
     {
+      conversationId: CONVERSATION_ID,
       message,
       isReplay: false,
       sendsToday: 4,
@@ -106,7 +128,12 @@ Deno.test("atomic Field Chat admission rejects malformed or contradictory rows",
       () =>
         reserveFieldChatSend(
           mockRpcClient({
-            data: [{ message, is_replay: false, sends_today: 1 }],
+            data: [{
+              conversation_id: CONVERSATION_ID,
+              message,
+              is_replay: false,
+              sends_today: 1,
+            }],
             error: null,
           }),
           {
@@ -141,7 +168,12 @@ Deno.test("atomic Field Chat admission validates a dictionary subject row", asyn
   assertEquals(
     await reserveFieldChatSend<typeof message>(
       mockRpcClient({
-        data: [{ message, is_replay: true, sends_today: 7 }],
+        data: [{
+          conversation_id: CONVERSATION_ID,
+          message,
+          is_replay: true,
+          sends_today: 7,
+        }],
         error: null,
       }, observed),
       {
@@ -153,7 +185,12 @@ Deno.test("atomic Field Chat admission validates a dictionary subject row", asyn
         clientMessageId: REQUEST_ID,
       },
     ),
-    { message, isReplay: true, sendsToday: 7 },
+    {
+      conversationId: CONVERSATION_ID,
+      message,
+      isReplay: true,
+      sendsToday: 7,
+    },
   );
   assertEquals(observed.arguments?.p_subject_type, "species_dictionary");
 });
@@ -162,6 +199,7 @@ Deno.test("atomic Field Chat admission maps stable database failures", async () 
   const cases = [
     ["field_chat_idempotency_conflict", 409],
     ["field_chat_send_in_progress", 503],
+    ["field_chat_admission_cutover_pending", 503],
     ["field_chat_daily_limit_reached", 429],
     ["field_chat_conversation_limit_reached", 429],
     ["field_chat_conversation_not_found", 404],

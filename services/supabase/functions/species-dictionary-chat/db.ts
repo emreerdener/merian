@@ -194,29 +194,6 @@ export async function fetchConversation(
   return (data as SpeciesDictionaryChatConversationRow | null) ?? null;
 }
 
-export async function getOrCreateConversation(
-  userId: string,
-  speciesId: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<SpeciesDictionaryChatConversationRow> {
-  const existing = await fetchConversation(userId, speciesId, supabaseAdmin);
-  if (existing) return existing;
-
-  const { data, error } = await supabaseAdmin
-    .from("species_dictionary_chat_conversations")
-    .insert({ user_id: userId, species_dictionary_id: speciesId })
-    .select(CONVERSATION_SELECT)
-    .single();
-  if (error) {
-    if (error.code === "23505") {
-      const raced = await fetchConversation(userId, speciesId, supabaseAdmin);
-      if (raced) return raced;
-    }
-    throw new Error(`Failed to create dictionary chat: ${error.message}`);
-  }
-  return data as SpeciesDictionaryChatConversationRow;
-}
-
 export async function fetchMessages(
   conversationId: string,
   supabaseAdmin: SupabaseClient,

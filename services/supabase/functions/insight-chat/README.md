@@ -85,11 +85,24 @@ public post metadata, or Darwin Core export payloads to the prompt.
   routes.
 - The current three-family bundle also requires
   `20260821030027_add_species_dictionary_field_chat.sql` before deploying this
-  updated `insight-chat`, even if `species-dictionary-chat` remains held. The
-  shared daily-usage helper queries the new Dictionary message table. Keep the
-  complete candidate release-held until daily admission survives cascading
-  conversation deletion; live message-row counting does not yet meet that
-  invariant.
+  updated `insight-chat`, even if `species-dictionary-chat` remains held. Apply
+  `20260824210544_preserve_field_chat_daily_usage.sql` next. It makes the
+  content-free user/day aggregate authoritative for response shaping and atomic
+  admission, so cascading conversation deletion cannot restore allowance. The
+  shared helper fails closed through the service-only aggregate RPC and never
+  falls back to live message rows. The migration registers and asserts its Ghost
+  handler, short-locks all three conversation/message families to remove
+  historical message-less threads, moves conversation creation into atomic
+  admission, and blocks novel sends through the next database-observed UTC
+  boundary while permanently reserving conversation insertion for the atomic
+  RPC. Crossing the boundary yields a closed `ready` state; a one-way
+  service-only transition records the exact clean candidate and migration digest
+  plus all three candidate-derived bundle digests only after every route returns
+  both `X-Merian-Field-Chat-Contract: atomic-admission-v1` and its exact
+  `X-Merian-Field-Chat-Bundle-SHA256`. A database `ready` state force-selects
+  the entire Field Chat fleet even when the migration is already the deployment
+  baseline. Keep the release hold active until non-skipped three-family,
+  full-merge, cutover, live-provenance, and no-orphan evidence is retained.
 - Requires durable effective Pro entitlement. Active store subscriptions,
   receipt-backed free trials, and explicitly approved finite RevenueCat beta
   promotions unlock Field Chat only after the provider entitlement is projected

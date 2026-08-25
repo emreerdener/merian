@@ -122,30 +122,6 @@ export async function fetchConversation(
   return (data as InsightChatConversationRow | null) ?? null;
 }
 
-export async function getOrCreateConversation(
-  userId: string,
-  scanId: string,
-  supabaseAdmin: SupabaseClient,
-): Promise<InsightChatConversationRow> {
-  const existing = await fetchConversation(userId, scanId, supabaseAdmin);
-  if (existing) return existing;
-
-  const { data, error } = await supabaseAdmin
-    .from("insight_chat_conversations")
-    .insert({ user_id: userId, scan_id: scanId })
-    .select(CONVERSATION_SELECT)
-    .single();
-
-  if (error) {
-    if (error.code === "23505") {
-      const raced = await fetchConversation(userId, scanId, supabaseAdmin);
-      if (raced) return raced;
-    }
-    throw new Error(`Failed to create chat conversation: ${error.message}`);
-  }
-  return data as InsightChatConversationRow;
-}
-
 export async function fetchMessages(
   conversationId: string,
   supabaseAdmin: SupabaseClient,

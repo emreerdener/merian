@@ -612,16 +612,37 @@ daily admission and stale recovery; and anonymous-account merge support. Each
 Dictionary send reloads only the bounded public reference projection and treats
 its text as untrusted data. Community sightings, observation charts, scans,
 notes, people, locations, media, URLs, and attribution identities never enter
-that prompt.
+that prompt. `20260824210544_preserve_field_chat_daily_usage.sql` adds the
+content-free user/day admission aggregate, service-only read RPC, atomic
+counter-backed reservation/conversation creation, and conservative Ghost-merge
+coalescing. It registers the effective handler, asserts registry coverage, and
+short-locks all three conversation/message families to remove historical
+message-less threads. It blocks novel sends through the next database-observed
+UTC boundary and until explicit activation, permanently reserves conversation
+insertion for the atomic RPC, and keeps exact persisted replays available. Any
+unverifiable usage or cutover read fails closed. Source fixtures exercise all
+three production reservation/delete paths and the full current-day merge race;
+they require non-skipped disposable-database execution before release.
 
-The candidate has two explicit cross-layer release gaps. Shared daily usage is
-currently derived from live rows in the three message tables, so cascading
-conversation deletion can erase admission evidence and restore same-day
-allowance. The iOS sender includes a Dictionary `Idempotency-Key`, but
-`MerianNetworkClient.idempotencyAwareFunctionNames` does not yet include
-`species-dictionary-chat`, so ambiguous transport/`5xx` automatic replay is not
-active for that route. The release checklist also requires executable handler
-coverage and fully Dictionary-specific refusal/fallback prompt text.
+iOS now allowlists `species-dictionary-chat` for exact-key ambiguous replay, and
+runtime handler-core tests exercise action/ownership/recovery. The database
+boundary prevents quota denial from creating an empty conversation. After all
+three selected bundles deploy, a one-way service-only activation records the
+candidate, migration, and all three content-addressed route digests after the
+live marker/digest probes match. Database `ready` force-selects the full fleet
+after the migration becomes the deployment baseline. Swift and Deno execute
+`docs/contracts/species-dictionary-prompt-label-policy.json`, including U+2013
+EN DASH, U+0085 normalization, and U+FEFF rejection. The handler suite executes
+the actual wrapper with deterministic accepted/refused authenticators; hosted
+real-token authentication remains an evidence gap. The checked-in
+`species_dictionary_chat_production_hold` blocks Supabase production until
+controls execute without database skips, same-SHA hosted gates, the real
+released-binary V49→V50 install-over, and canonical external evidence pass. Its
+source verifier requires the named ID; after a reviewed inactive change, the
+exact-SHA-checked mutation job also requires a protected clearance structurally
+bound to the manifest and criterion artifacts. The verifier downloads and
+recomputes those artifacts, validates exact-SHA runs and payloads, and checks
+live branch/environment protections.
 
 Data lifecycle, identity, and exports:
 

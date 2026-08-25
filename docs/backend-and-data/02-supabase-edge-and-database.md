@@ -1227,11 +1227,36 @@ only and cannot authorize a send. An exact committed request whose assistant is
 still absent after ten minutes may use the narrow
 `recover_stale_field_chat_quota(...)` proof before a newly metered retry.
 
-The 20/day contract must survive conversation deletion. The current candidate
-still counts live user-message rows, so cascading deletion can remove admission
-evidence and restore allowance. Dictionary Field Chat remains release-held until
-that accounting is delete-resistant and covered by executable three-family
-database tests.
+Migration `20260824210544_preserve_field_chat_daily_usage.sql` makes the 20/day
+contract survive conversation deletion. It stores a content-free user/UTC-day
+aggregate, increments it inside the admission transaction, exposes it only
+through a service-role read RPC, and conservatively sums it during Ghost merge.
+The Ghost handler is part of the effective allowlist and the migration asserts
+the full policy registry before commit. Conversation creation and the first user
+row are now one admission transaction, so a rejected send creates no thread.
+
+The retained-row seed cannot recover earlier same-day deletions. Under short
+locks on all six conversation/message tables, PostgreSQL first removes
+historical message-less threads, then records the next UTC boundary, blocks
+every novel reservation through that boundary and until explicit activation, and
+permanently reserves conversation insertion for the atomic RPC. It exposes only
+bounded service-only cutover evidence. Exact persisted replays remain available.
+Source fixtures exercise all three real reserve-delete-fresh-reserve paths and
+the complete current-day public-reservation/full-merge race. Database time
+advances the cutover only from `pending` to closed `ready`; a one-way
+service-only transition records the exact clean candidate and migration digest
+plus three candidate-derived bundle digests after all routes deploy and every
+live route exposes both the `atomic-admission-v1` compatibility marker and its
+`X-Merian-Field-Chat-Bundle-SHA256`. A database `ready` state force-selects the
+three routes even after the migration becomes the deployment baseline. Swift and
+Deno execute the same versioned prompt-label scalar fixture, including U+2013 EN
+DASH, U+FEFF rejection, and U+0085 normalization. Dictionary Field Chat remains
+production-held until those database cases execute without a skip, the hosted
+real-token wrapper and same-SHA hosted gates pass, physical V49→V50 install-over
+succeeds, immutable live-route provenance and ready-rerun selection have
+retained exact-SHA evidence, and the canonical external approvals are complete.
+The local handler suite already executes deterministic accepted/refused outcomes
+through the actual wrapper.
 
 The in-app notifications feed is backed by server tables, not by local client
 state. Explore post activity lives in `public.explore_post_notifications`. Field

@@ -118,6 +118,49 @@ async function hasForwardHardening(
   return installed;
 }
 
+async function hasFieldChatDailyHardening(
+  client: Client,
+  label: string,
+): Promise<boolean> {
+  const result = await client.queryObject<{
+    admission_table: string | null;
+    merge_definition: string | null;
+  }>(`
+    SELECT
+      pg_catalog.TO_REGCLASS(
+        'internal.field_chat_daily_admissions'
+      )::TEXT AS admission_table,
+      pg_catalog.PG_GET_FUNCTIONDEF(
+        pg_catalog.TO_REGPROCEDURE(
+          'internal.merge_ghost_chat_conversations(uuid,uuid)'
+        )
+      ) AS merge_definition
+  `);
+  const definition = result.rows[0]?.merge_definition
+    ?.replace(/\s+/g, " ")
+    .toLowerCase() ?? "";
+  const installed = result.rows[0]?.admission_table ===
+      "internal.field_chat_daily_admissions" &&
+    definition.includes(
+      "least(p_ghost_user_id, p_target_user_id)::text",
+    ) &&
+    definition.includes(
+      "greatest(p_ghost_user_id, p_target_user_id)::text",
+    ) &&
+    definition.includes("merian:field-chat:user:");
+  if (!installed && CONFIGURED_DB_URL != null) {
+    throw new Error(
+      `[${label}] The configured database has not applied durable Field Chat admission hardening`,
+    );
+  }
+  if (!installed) {
+    console.warn(
+      `[${label}] Skipping DB integration test because the local database has not applied durable Field Chat admission hardening`,
+    );
+  }
+  return installed;
+}
+
 async function setApplicationName(
   client: Client,
   applicationName: string,
@@ -561,6 +604,205 @@ Deno.test("Ghost merge concurrency DB - Community handler takes no group lock af
   } finally {
     await rollback(mergeClient);
     await rollback(writerClient);
+    await cleanupUsers(observer, sourceUserId, targetUserId).catch(() => {});
+    await Promise.all(clients.map((client) => client.end().catch(() => {})));
+  }
+});
+
+Deno.test("Ghost merge concurrency DB - Field Chat admission cannot land behind ledger transfer", async () => {
+  const clients = await connectClients(
+    "ghostProfileMergeConcurrencyDb.fieldChatDailyAdmission",
+    3,
+  );
+  if (clients == null) return;
+
+  const [observer, writerClient, mergeClient] = clients;
+  if (
+    !(await hasFieldChatDailyHardening(
+      observer,
+      "ghostProfileMergeConcurrencyDb.fieldChatDailyAdmission",
+    ))
+  ) {
+    await Promise.all(clients.map((client) => client.end()));
+    return;
+  }
+
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const sourceUserId = crypto.randomUUID();
+  const targetUserId = crypto.randomUUID();
+  const scanId = crypto.randomUUID();
+  const conversationId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
+  const mergeApplicationName = `ghost-field-chat-merge-${suffix}`;
+  let mergeResult: Settled | null = null;
+
+  try {
+    await insertUser(observer, sourceUserId, `Chat Source ${suffix}`);
+    await insertUser(observer, targetUserId, `Chat Target ${suffix}`);
+    const dayResult = await observer.queryObject<{ admission_day: string }>(
+      `
+        SELECT (
+          pg_catalog.CLOCK_TIMESTAMP() AT TIME ZONE 'UTC'
+        )::DATE::TEXT AS admission_day
+      `,
+    );
+    const admissionDay = dayResult.rows[0].admission_day;
+
+    // This disposable catalog explicitly exercises the post-rollover state.
+    // Production can reach it only through the database-derived boundary.
+    await observer.queryArray(`
+      UPDATE internal.field_chat_admission_cutover
+      SET not_before_utc = seeded_at + INTERVAL '1 microsecond'
+      WHERE singleton
+    `);
+    await observer.queryArray(`
+      SELECT public.activate_field_chat_admission_cutover(
+        'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+        'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+      )
+    `);
+
+    await observer.queryArray(
+      `
+        INSERT INTO public.scans (
+          id,
+          user_id,
+          ai_confidence_score,
+          timestamp,
+          is_biological_subject
+        )
+        VALUES (
+          $1::UUID,
+          $2::UUID,
+          0.95,
+          pg_catalog.CLOCK_TIMESTAMP(),
+          TRUE
+        )
+      `,
+      [scanId, sourceUserId],
+    );
+    await observer.queryArray(
+      `
+        INSERT INTO internal.field_chat_daily_admissions (
+          user_id,
+          admission_day,
+          admitted_count,
+          first_admitted_at,
+          last_admitted_at
+        )
+        VALUES
+          (
+            $1::UUID,
+            $3::DATE,
+            2,
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '2 minutes',
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 minute'
+          ),
+          (
+            $2::UUID,
+            $3::DATE,
+            3,
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '3 minutes',
+            pg_catalog.CLOCK_TIMESTAMP() - INTERVAL '1 minute'
+          )
+      `,
+      [sourceUserId, targetUserId, admissionDay],
+    );
+
+    await setApplicationName(mergeClient, mergeApplicationName);
+    await configureTransaction(writerClient);
+    await configureTransaction(mergeClient);
+    const writerPid = await backendPid(writerClient);
+
+    // Exercise the real public admission boundary. It acquires the parent key
+    // lock and Field Chat advisory lock, increments today's durable ledger,
+    // creates the first conversation, and inserts the user row atomically.
+    await writerClient.queryArray(
+      `
+        SELECT *
+        FROM public.reserve_field_chat_send(
+          $1::UUID,
+          $2::UUID,
+          'insight',
+          $3::UUID,
+          'Concurrent Ghost merge admission',
+          $4::UUID
+        )
+      `,
+      [sourceUserId, conversationId, scanId, requestId],
+    );
+
+    const mergePromise = settle(
+      mergeClient.queryArray(
+        `
+          SELECT internal.perform_ghost_profile_merge(
+            $1::UUID,
+            $2::UUID
+          )
+        `,
+        [sourceUserId, targetUserId],
+      ),
+    );
+    await waitUntilBlocked(observer, mergeApplicationName, writerPid);
+    await writerClient.queryArray("COMMIT");
+
+    mergeResult = await mergePromise;
+    if (mergeResult.ok) {
+      await mergeClient.queryArray("COMMIT");
+    } else {
+      await rollback(mergeClient);
+    }
+
+    assert(
+      mergeResult.ok,
+      `Field Chat ledger merge failed: ${describeSettled(mergeResult)}`,
+    );
+    const admissions = await observer.queryObject<{
+      user_id: string;
+      admitted_count: number;
+    }>(
+      `
+        SELECT admission.user_id::TEXT, admission.admitted_count
+        FROM internal.field_chat_daily_admissions AS admission
+        WHERE admission.user_id IN ($1::UUID, $2::UUID)
+          AND admission.admission_day = $3::DATE
+        ORDER BY admission.user_id
+      `,
+      [sourceUserId, targetUserId, admissionDay],
+    );
+    assertEquals(admissions.rows, [{
+      user_id: targetUserId,
+      admitted_count: 6,
+    }]);
+    const mergedConversation = await observer.queryObject<{
+      user_id: string;
+      scan_id: string;
+      message_count: number;
+    }>(
+      `
+        SELECT
+          conversation.user_id::TEXT,
+          conversation.scan_id::TEXT,
+          pg_catalog.COUNT(message.id)::INTEGER AS message_count
+        FROM public.insight_chat_conversations AS conversation
+        LEFT JOIN public.insight_chat_messages AS message
+          ON message.conversation_id = conversation.id
+        WHERE conversation.id = $1::UUID
+        GROUP BY conversation.user_id, conversation.scan_id
+      `,
+      [conversationId],
+    );
+    assertEquals(mergedConversation.rows, [{
+      user_id: targetUserId,
+      scan_id: scanId,
+      message_count: 1,
+    }]);
+  } finally {
+    await rollback(writerClient);
+    await rollback(mergeClient);
     await cleanupUsers(observer, sourceUserId, targetUserId).catch(() => {});
     await Promise.all(clients.map((client) => client.end().catch(() => {})));
   }

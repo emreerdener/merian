@@ -1156,9 +1156,14 @@ enum MerianSchemaV49: VersionedSchema {
     static var versionIdentifier = Schema.Version(49, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
-         ScanCollection.self, PendingCloudDeletionTask.self,
-         UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self]
+        [MerianSchemaV49.LocalScanRecord.self,
+         MerianSchemaV49.OfflineQueuedScan.self,
+         MerianSchemaV49.CapturedMediaEntry.self,
+         MerianSchemaV49.ScanCollection.self,
+         MerianSchemaV49.PendingCloudDeletionTask.self,
+         MerianSchemaV49.UserSpeciesPreference.self,
+         MerianSchemaV49.OfflineJobRecord.self,
+         MerianSchemaV49.OfflineQueueEvent.self]
     }
 }
 
@@ -1166,16 +1171,15 @@ enum MerianSchemaV50: VersionedSchema {
     static var versionIdentifier = Schema.Version(50, 0, 0)
 
     static var models: [any PersistentModel.Type] {
-        [LocalScanRecord.self, MerianSchemaV49OfflineQueuedScan.self, CapturedMediaEntry.self,
+        [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self,
          MerianSchemaV50.OfflineQueuedScanGoalHint.self]
     }
 }
 
-private typealias MerianSchemaV49OfflineQueuedScan = OfflineQueuedScan
-private typealias MerianSchemaV49OfflineJobRecord = OfflineJobRecord
-private typealias MerianSchemaV49OfflineQueueEvent = OfflineQueueEvent
+private typealias MerianSchemaV48OfflineJobRecord = OfflineJobRecord
+private typealias MerianSchemaV48OfflineQueueEvent = OfflineQueueEvent
 
 extension MerianSchemaV50 {
     /// Durable preference captured from the live Capture UI for a queued scan.
@@ -1202,8 +1206,8 @@ extension MerianSchemaV50 {
 }
 
 extension MerianSchemaV48 {
-    fileprivate typealias OfflineJobRecord = MerianSchemaV49OfflineJobRecord
-    fileprivate typealias OfflineQueueEvent = MerianSchemaV49OfflineQueueEvent
+    fileprivate typealias OfflineJobRecord = MerianSchemaV48OfflineJobRecord
+    fileprivate typealias OfflineQueueEvent = MerianSchemaV48OfflineQueueEvent
 
     @Model
     final class OfflineQueuedScan {
@@ -1430,12 +1434,6 @@ extension MerianSchemaV48OptionalQueue {
             self.queueNeedsAttention = queueNeedsAttention
         }
     }
-}
-
-extension MerianSchemaV49 {
-    fileprivate typealias OfflineQueuedScan = MerianSchemaV49OfflineQueuedScan
-    fileprivate typealias OfflineJobRecord = MerianSchemaV49OfflineJobRecord
-    fileprivate typealias OfflineQueueEvent = MerianSchemaV49OfflineQueueEvent
 }
 
 extension MerianSchemaV47 {
@@ -3147,7 +3145,9 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
                 return
             }
 
-            let entries = CapturedMediaEntry.makeEntries(from: items)
+            let entries = MerianSchemaV49.CapturedMediaEntry.makeEntries(
+                from: items
+            )
             entries.forEach { context.insert($0) }
             scan.capturedMediaEntries = entries
         }

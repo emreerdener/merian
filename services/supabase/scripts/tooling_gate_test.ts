@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertMatch } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertStringIncludes,
+} from "@std/assert";
 
 const scriptsDirectory = new URL("./", import.meta.url);
 const toolingGatePath = new URL(
@@ -111,6 +116,11 @@ Deno.test("Supabase tooling gate discovers every standard TypeScript test", asyn
     gate,
     /for test_file in services\/supabase\/scripts\/\*_test\.ts/,
   );
+  assertStringIncludes(
+    gate,
+    ",.agents,",
+    "Documentation link validation must be able to resolve checked-in agent skill targets.",
+  );
   assert(
     !gate.includes("audit_ghost_users_test.ts") &&
       !gate.includes("cleanup_ghost_users_test.ts"),
@@ -162,7 +172,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
   );
   assertMatch(
     gate,
-    /--allow-read=services\/supabase,\.github\/workflows,\.github\/actions\/setup-deno,\.github\/dependabot\.yml,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh/,
+    /--allow-read=services\/supabase,\.github\/workflows,\.github\/actions\/setup-deno,\.github\/CODEOWNERS,\.github\/dependabot\.yml,\.agents,AGENTS\.md,Makefile,README\.md,CHANGELOG\.md,docs,apps,skills,scripts\/check-ios-release-prep\.sh,scripts\/validate-ios-archive\.sh/,
   );
   assertMatch(gate, /--allow-run=bash/);
 });
@@ -621,6 +631,96 @@ Deno.test("production deploy predeploys the Ghost mapper before Ghost migrations
   );
 });
 
+Deno.test("production deploy activates Field Chat only after every bundle", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  for (
+    const requiredFragment of [
+      "field_chat_cutover_required=false",
+      "20260824210544_preserve_field_chat_daily_usage.sql",
+      'echo "field_chat_cutover_required=$field_chat_cutover_required" >> "$GITHUB_OUTPUT"',
+      "verify_field_chat_cutover.ts",
+      "activate_field_chat_cutover.ts",
+      "get_field_chat_admission_cutover_status",
+      "X-Merian-Field-Chat-Contract",
+      "X-Merian-Field-Chat-Bundle-SHA256",
+      "atomic-admission-v1",
+      "generate_field_chat_deployment_identity.ts",
+      "finalize_field_chat_function_plan.ts",
+      "steps.final-function-plan.outputs.plan_file",
+      "field_chat_ready_forced",
+      "steps.field-chat-cutover.outputs.status == 'pending'",
+      "steps.field-chat-cutover.outputs.status == 'ready'",
+      "field_chat_admission_cutover_invalid_activation",
+      "insight-chat",
+      "explore-post-chat",
+      "species-dictionary-chat",
+    ]
+  ) {
+    assert(
+      workflow.includes(requiredFragment),
+      `Field Chat cutover workflow contract is missing: ${requiredFragment}`,
+    );
+  }
+
+  const push = workflow.indexOf("- name: Push Database Migrations");
+  const status = workflow.indexOf(
+    "- name: Verify Field Chat admission cutover from database time",
+  );
+  const finalPlan = workflow.indexOf(
+    "- name: Finalize Edge Function plan from Field Chat database state",
+  );
+  const firstSecretMutation = workflow.indexOf(
+    "- name: Synchronize optional AI quota hashing override",
+  );
+  const deploy = workflow.indexOf("- name: Deploy affected Edge Functions");
+  const liveBundleProof = workflow.indexOf(
+    "- name: Verify corrected Field Chat bundles are serving",
+  );
+  const activation = workflow.indexOf(
+    "- name: Activate Field Chat admission after all bundles deploy",
+  );
+  assert(
+    push >= 0 && status > push && finalPlan > status &&
+      firstSecretMutation > finalPlan &&
+      deploy > firstSecretMutation && liveBundleProof > deploy &&
+      activation > liveBundleProof,
+    "Database eligibility must be verified after migration, while one-way activation must follow deployment and live contract proof for all three bundles.",
+  );
+  const activationBlockEnd = workflow.indexOf(
+    "\n      - name:",
+    activation + 1,
+  );
+  const activationBlock = workflow.slice(activation, activationBlockEnd);
+  for (
+    const functionName of [
+      "insight-chat",
+      "explore-post-chat",
+      "species-dictionary-chat",
+    ]
+  ) {
+    assert(
+      workflow.slice(
+        workflow.indexOf("field_chat_cutover_required=false"),
+        status,
+      )
+        .includes(functionName),
+      `The cutover planner must force-select ${functionName}.`,
+    );
+  }
+  assertStringIncludes(activationBlock, "--plan");
+  assertStringIncludes(activationBlock, "GITHUB_SHA");
+  assertStringIncludes(
+    activationBlock,
+    "steps.final-function-plan.outputs.plan_file",
+  );
+
+  const finalPlanEnd = workflow.indexOf("\n      - name:", finalPlan + 1);
+  const finalPlanBlock = workflow.slice(finalPlan, finalPlanEnd);
+  assertStringIncludes(finalPlanBlock, "FIELD_CHAT_CUTOVER_STATUS");
+  assertStringIncludes(finalPlanBlock, "finalize_field_chat_function_plan.ts");
+  assertStringIncludes(finalPlanBlock, "field_chat_ready_forced");
+});
+
 Deno.test("production deploy records disposable-CI Ghost proof without hosted staging", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
 
@@ -744,6 +844,10 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
       '"invalid_scan_recovery"',
       '"get_media_abandoned_scan_recovery_proofs"',
       '"invalid_media_abandoned_recovery_proof_request"',
+      '"get_field_chat_daily_usage"',
+      '"field_chat_invalid_usage_request"',
+      '"activate_field_chat_admission_cutover"',
+      '"field_chat_admission_cutover_invalid_activation"',
       '"reserve_field_chat_send"',
       '"field_chat_invalid_request"',
       '"recover_stale_field_chat_quota"',

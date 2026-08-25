@@ -460,6 +460,9 @@ as their permanent engineering identity.
 
 ### Legal & Release Readiness
 
+- **[`/release-evidence/README.md`](./release-evidence/README.md)** — Canonical
+  evidence-authoring, redaction, freshness, artifact, protected-clearance, and
+  independent-approval procedure for machine-held releases.
 - **[`/legal/production-consent-readiness-2026-08-03.md`](./legal/production-consent-readiness-2026-08-03.md)**
   — Canonical release hold, source status, same-SHA hosted evidence table,
   rollout order, and external App Store/Gemini/counsel exit evidence.

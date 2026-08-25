@@ -455,6 +455,7 @@ Deno.test("production smoke tests deny real public project API keys before privi
   const functionFailureDiagnosticIndex = workflow.indexOf("/functions/v1/*)");
   const handlerMarkerDiagnosticIndex = workflow.indexOf(
     "grep -Eqi '^x-merian-handler:[[:space:]]*1[[:space:]]*$'",
+    functionFailureDiagnosticIndex,
   );
   const dataApiFailureDiagnosticIndex = workflow.indexOf("/rest/v1/*)");
 

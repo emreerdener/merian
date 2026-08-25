@@ -25,11 +25,19 @@ TestFlight, App Store, support, and QA.
   with retry/edit, feedback, deletion, prompt chips, and already-loaded offline
   reading. Public web species pages remain unchanged.
 - Do not publish this as a completed TestFlight, App Store, or paywall
-  capability yet. Release requires shared daily sends to remain charged after
-  conversation deletion, automatic idempotent replay after an ambiguous
-  Dictionary chat response, executable authenticated route coverage in the
-  deploy gate, and fully Dictionary-specific refusal and fallback-prompt copy.
-  The canonical status is in the
+  capability yet. Durable daily admission, no-orphan quota denial, automatic
+  idempotent replay, authenticated handler coverage, Dictionary-specific copy,
+  and Swift/server prompt-label parity are implemented in source. The release
+  workflow now force-selects all three chat bundles from database `ready`,
+  verifies each route's candidate-derived content digest in addition to the
+  shared compatibility header, stores all three digests during activation, and
+  downloads/recomputes clearance artifacts while checking live GitHub review and
+  environment protections. Evidence publication is restricted to the current
+  `main` head, passes manual values through step environment variables before
+  Bash consumes them, rejects evidence/supporting runs older than 30 days, and
+  forbids artifact reuse across criteria. Release still requires non-skipped
+  database and hosted gates, the released-binary V49→V50 install-over, and the
+  external production approvals. The canonical status is in the
   [Species Dictionary documentation](docs/features-and-hardware/16-species-dictionary.md#candidate-release-status).
 
 ### Private Scan Map — Source Candidate

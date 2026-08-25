@@ -17,7 +17,29 @@ now requires a freshly fetched account proof before inference, durably routes an
 exact server rejection back to Ready, preserves queued media, and stops
 automatic redispatch. Hosted exact-SHA execution and the external operator
 controls below must still close before this candidate is nominated for
-production.
+production. The checked-in `species_dictionary_chat_production_hold` enforces
+that outcome for Supabase: Candidate Validation may run, but a separate
+fail-closed job blocks entry to the GitHub `Production` environment while this
+record, the same-SHA hosted gates, and the real V49→V50 install-over evidence
+remain incomplete.
+
+The 2026-08-24 full-candidate review also reopened adjacent source and evidence
+readiness outside the consent lifecycle. The source candidate now registers and
+asserts the durable Field Chat Ghost handler, uses real three-family reservation
+and full-orchestrator fixtures, short-locks the six Field Chat tables to remove
+historical message-less threads, permanently reserves conversation insertion for
+the atomic RPC, and creates conversations only inside successful admission. The
+second-review data and client gaps are closed: UTC eligibility leaves the
+database in closed `ready`, Swift and Deno execute one Unicode-scalar fixture,
+and the exact-SHA mutation job requires a protected clearance after the source
+hold is reviewed inactive. The release-control source gaps are now closed: each
+route exposes a candidate-derived bundle digest, database `ready` force-selects
+all three routes, activation stores the three observed identities, and the
+clearance verifier downloads/recomputes artifact evidence while checking live
+GitHub protections. Non-skipped disposable database, hosted real-token wrapper,
+same-SHA hosted gates, genuine V49→V50 install-over, live external control
+configuration, and external approvals remain pending. Green source or
+consent-focused tests do not override those blockers.
 
 For internal test builds, the App Store, billing/DPA, and counsel approvals are
 explicitly deferred. That deferral permits continued engineering and internal
@@ -208,17 +230,38 @@ earlier hosted iOS run whose queued-audio smoke failed and the earlier Supabase
 run whose database concurrency fixture failed are superseded. The subsequent
 source fixes must be proven together on one new, unchanged candidate SHA.
 
+## Latest Local Diagnostic Audit (2026-08-24)
+
+These results are developer diagnostics, not hold-exit artifacts and not hosted
+exact-SHA evidence:
+
+| Surface                  | Local result                                                   | Release interpretation                                                                                                                                                                                         |
+| ------------------------ | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recursive Edge/Deno task | 1,884 passed, 0 failed, 1 ignored                              | Source/runtime diagnostics passed. Database-backed cases could not reach a disposable PostgreSQL service and explicitly self-skipped; they do not satisfy either disposable-database criterion.                |
+| Migration contracts      | 321 passed                                                     | Static migration/source contracts passed. This does not prove a fresh-catalog replay, pgTAP execution, or the Field Chat/Ghost concurrency schedules.                                                          |
+| Supabase tooling gate    | 248 passed, with its nested DTO/contract selections also green | Workflow, release-evidence, documentation, graph, and tooling contracts passed locally. GitHub-hosted controls and production state were not exercised.                                                        |
+| iOS source guardrails    | Project, DTO, and migration guardrails passed                  | The V49 snapshot source and SHA-256 pin are internally consistent; they do not prove compatibility with a store created by the released V49 binary.                                                            |
+| Focused Swift tests      | An earlier unchanged-source run passed 191 tests               | A final rerun was unavailable because the review sandbox could not access required CoreSimulator/SwiftPM cache paths. No Swift source changed afterward, but the earlier local result remains diagnostic only. |
+
+No production database, Edge Function, GitHub environment, App Store,
+RevenueCat, or external approval state was mutated. The active source hold and
+the hosted evidence table below remain unchanged. Evidence authors must follow
+the [release-evidence operations guide](../release-evidence/README.md),
+including current-main provenance, 30-day statement/embedded/supporting-run
+freshness, one artifact per criterion, and the external
+issuer/secret-administration trust boundary.
+
 ## Current Exact-SHA Evidence
 
 No green hosted evidence for the post-fence candidate is recorded yet. Do not
 copy counts from older or local runs into this table; populate it only from the
 two workflow summaries for the same immutable candidate SHA.
 
-| Gate                              | Required result                                                                                                                                                                                                                                                                            | Current result                                                                |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`. | Pending a new hosted run.                                                     |
-| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                              | Pending a new hosted validation-only run.                                     |
-| Production Supabase deployment    | Separate operator action after release authorization; it must require the reusable candidate gate first.                                                                                                                                                                                   | Not part of candidate validation and not authorized by a validation-only run. |
+| Gate                              | Required result                                                                                                                                                                                                                                                                                                       | Current result                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **iOS Build and Test**            | Complete unit target, all four progressive-analyzing, live-to-queue, queued-retry, and queued-audio-completion UI smokes, and validation Release archive all green on one clean SHA; archive evidence must include `privacy_manifest_valid: true` and `transport_security: "ats-default"`.                            | Pending a new hosted run.                                        |
+| **Supabase Candidate Validation** | Fail-closed PR scope and stable Candidate readiness check, clean-SHA check, pinned tools, formatting/lint, migration replay, every discovered pgTAP catalog, complete Edge/database-concurrency suite, database lint, and advisors all green.                                                                         | Pending a new hosted validation-only run on the reviewed SHA.    |
+| Production Supabase deployment    | Separate operator action after release authorization; it must require the reusable candidate gate, source hold gate, exact clean mutation SHA, candidate-matched live Function provenance, a tested ready-state rerun, independently reviewed artifacts, and structurally bound protected Production clearance first. | Blocked by the active `species_dictionary_chat_production_hold`. |
 
 The candidate workflow has no Production environment, production secrets,
 migration push, Function deployment, or production smoke. Its disposable
@@ -228,7 +271,27 @@ result become canonical only after both hosted gates pass on the same SHA.
 
 ## Required Remediation and Rollout Order
 
-1. Run the complete hosted **iOS Build and Test** workflow on the exact
+Before step 1, close the source/local criteria in the
+[Species Dictionary Field Chat hold](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria)
+and freeze the candidate SHA: execute the checked-in Ghost registry/preflight,
+real three-family reservation, full-orchestrator merge, post-bundle cutover
+activation rehearsal, no-write denial, executable Swift/Deno label-policy
+parity, and release-control tests without skips. The cutover rehearsal must also
+prove an ordinary ready-state rerun selects all three bundles after the
+migration becomes the successful baseline and must compare an immutable live
+revision or bundle digest for every route with the candidate; the shared
+compatibility header is insufficient. The local suite already executes the
+wrapper with deterministic accepted/refused authenticators. Steps 1 and 2 below
+produce the same-SHA hosted gate evidence; the hosted real-token wrapper,
+physical install-over from the genuine released V49 binary, and external
+approvals are separate retained artifacts. Keep the hold active until all eight
+criterion artifacts exist. Publish each redacted statement through the protected
+`Release Evidence` workflow, review the inactive manifest change, and populate
+the protected clearance with the artifact IDs/digests. Before mutation, the
+verifier retrieves the bytes, recomputes all digests, validates exact-SHA runs,
+and checks live branch/Release Evidence/Production protections.
+
+1. Run the complete hosted **iOS Build and Test** workflow on the exact repaired
    candidate SHA. Require a compiled and executed complete `merianTests` target,
    the exact progressive-analyzing, live-to-queue, queued-retry, and
    queued-audio-completion UI smokes, and the unsigned Release validation
@@ -244,12 +307,14 @@ result become canonical only after both hosted gates pass on the same SHA.
    Suspend consent-changing app access and expire every older TestFlight build
    that writes Gemini or analytics events directly.
 5. Use **Deploy Merian to Supabase**. Its production job must first require the
-   reusable candidate gate, then apply the causal consent and provider-head
-   authorization migrations and deploy consent-gated Edge code. Verify
-   authenticated callers cannot insert directly, both compare-and-append RPCs
-   return a monotonic revision and accepted parent, stale grants are rejected,
-   stale revocations are rebased, and the inverse AI/analytics fixtures pass,
-   including prior-disclosure revocations after current-version grants. Keep
+   reusable candidate gate, exact clean mutation SHA, and protected structurally
+   bound clearance backed by independently validated artifacts, then apply the
+   causal consent and provider-head authorization migrations and deploy
+   consent-gated Edge code. Verify authenticated callers cannot insert directly,
+   both compare-and-append RPCs return a monotonic revision and accepted parent,
+   stale grants are rejected, stale revocations are rebased, and the inverse
+   AI/analytics fixtures pass, including prior-disclosure revocations after
+   current-version grants. Keep
    `internal.ai_consent_rollout_config.enforcement_mode` at `legacy_compatible`.
 6. Distribute the processed replacement TestFlight build. Verify all switch
    combinations, inline Terms navigation, VoiceOver, Dynamic Type, smallest

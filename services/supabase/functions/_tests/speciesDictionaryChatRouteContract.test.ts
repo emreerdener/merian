@@ -15,7 +15,27 @@ async function routeSource(name: string): Promise<string> {
 Deno.test("dictionary chat is authenticated, Pro-only, and action bounded", async () => {
   const index = await routeSource("index.ts");
 
-  assertMatch(index, /Deno\.serve\([\s\S]*withEdgeHandler\(req,/);
+  assertStringIncludes(
+    index,
+    "Deno.serve((req: Request) =>",
+  );
+  assertStringIncludes(
+    index,
+    "export function createSpeciesDictionaryChatHttpHandler(",
+  );
+  assertStringIncludes(index, "options: { authenticate?: EdgeAuthenticator }");
+  assertStringIncludes(index, "withEdgeHandler(");
+  assertStringIncludes(index, "fieldChatDeploymentContractHeaders");
+  assertStringIncludes(index, '"species-dictionary-chat"');
+  assertMatch(
+    index,
+    /Deno\.serve\(\(req: Request\) =>\s*withEdgeHandler\(\s*req,/,
+  );
+  assertMatch(
+    index,
+    /\.\.\.options,[\s\S]*?responseHeaders: FIELD_CHAT_RESPONSE_HEADERS/,
+  );
+  assertStringIncludes(index, "handleSpeciesDictionaryChat(");
   assertStringIncludes(index, '"load"');
   assertStringIncludes(index, '"send"');
   assertStringIncludes(index, '"delete"');
@@ -87,10 +107,10 @@ Deno.test("dictionary chat preserves strict echoes and identity-free product tel
   assertFalse(index.includes("sourceId: speciesId"));
   assertMatch(
     index,
-    /trackPostHogEvent\(user, "SpeciesDictionaryChatSent", \{\s*message_length:[\s\S]*?plan: tier\.plan,\s*\}\)/,
+    /trackEvent\(user, "SpeciesDictionaryChatSent", \{\s*message_length:[\s\S]*?plan: tier\.plan,\s*\}\)/,
   );
   assertMatch(
     index,
-    /trackPostHogEvent\(user, "SpeciesDictionaryChatFeedbackSubmitted", \{\s*rating,\s*\}\)/,
+    /trackEvent\(user, "SpeciesDictionaryChatFeedbackSubmitted", \{\s*rating,\s*\}\)/,
   );
 });

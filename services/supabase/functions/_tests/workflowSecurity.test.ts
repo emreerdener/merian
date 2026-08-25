@@ -179,20 +179,22 @@ Deno.test("production Supabase CLI telemetry is disabled at job scope", async ()
   const telemetryOptOut = deployWorkflow.indexOf(
     '      SUPABASE_TELEMETRY_DISABLED: "1"',
   );
-  const steps = deployWorkflow.indexOf("    steps:");
+  const deployJob = deployWorkflow.indexOf("  deploy:");
+  const steps = deployWorkflow.indexOf("    steps:", deployJob);
 
   assert(
-    telemetryOptOut >= 0 && telemetryOptOut < steps,
+    deployJob >= 0 && telemetryOptOut > deployJob && telemetryOptOut < steps,
     "The production job must disable Supabase telemetry before any CLI step runs.",
   );
 });
 
 Deno.test("Supabase candidate validation is reusable and production-isolated", async () => {
-  const [candidateWorkflow, deployWorkflow] = await Promise.all([
+  const [candidateWorkflow, deployWorkflow, codeowners] = await Promise.all([
     Deno.readTextFile(
       new URL("supabase-candidate-validation.yml", workflowsDirectory),
     ),
     Deno.readTextFile(new URL("deploy.yml", workflowsDirectory)),
+    Deno.readTextFile(new URL("../CODEOWNERS", workflowsDirectory)),
   ]);
 
   assertStringIncludes(candidateWorkflow, "  pull_request:");
@@ -248,7 +250,8 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     !candidateWorkflow.includes("environment: Production") &&
       !candidateWorkflow.includes("secrets.") &&
       !candidateWorkflow.includes("supabase db push") &&
-      !candidateWorkflow.includes("deploy_function_batches.sh"),
+      !candidateWorkflow.includes("deploy_function_batches.sh") &&
+      !candidateWorkflow.includes("verify_production_release_holds.ts"),
     "Candidate validation must not receive production access or perform production mutations.",
   );
 
@@ -259,17 +262,204 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     "uses: ./.github/workflows/supabase-candidate-validation.yml",
     prerequisite,
   );
-  const deployJob = deployWorkflow.indexOf("  deploy:", reusableCall);
-  const dependency = deployWorkflow.indexOf(
+  const holdJob = deployWorkflow.indexOf("  production-hold:", reusableCall);
+  const holdDependency = deployWorkflow.indexOf(
     "needs: candidate-validation",
+    holdJob,
+  );
+  const holdVerifier = deployWorkflow.indexOf(
+    "verify_production_release_holds.ts",
+    holdDependency,
+  );
+  const deployJob = deployWorkflow.indexOf("  deploy:", holdVerifier);
+  const deployDependencies = deployWorkflow.indexOf(
+    "needs: [candidate-validation, production-hold]",
     deployJob,
   );
   assert(
     prerequisite >= 0 && reusableCall > prerequisite &&
-      deployJob > reusableCall &&
-      dependency > deployJob,
-    "Production deployment must require the reusable candidate validation job first.",
+      holdJob > reusableCall &&
+      holdDependency > holdJob &&
+      holdVerifier > holdDependency &&
+      deployJob > holdVerifier &&
+      deployDependencies > deployJob,
+    "Production deployment must require reusable candidate validation and the non-Production release-hold job first.",
   );
+
+  const holdBlock = deployWorkflow.slice(holdJob, deployJob);
+  assert(
+    !holdBlock.includes("environment: Production") &&
+      !holdBlock.includes("secrets.") &&
+      holdBlock.includes("services/supabase/release-holds.json"),
+    "The hold must fail before Production environment approval or secret access.",
+  );
+  for (
+    const exactEvidence of [
+      "ref: ${{ github.sha }}",
+      "fetch-depth: 0",
+      "git rev-parse HEAD",
+      "refs/remotes/origin/main",
+      '"$GITHUB_REF" != "refs/heads/main"',
+      '"$GITHUB_SHA"',
+      "--candidate-sha",
+      "--mode source-gate",
+    ]
+  ) {
+    assertStringIncludes(holdBlock, exactEvidence);
+  }
+
+  const productionEnvironmentJobs = deployWorkflow.match(
+    /^ {4}environment: Production$/gm,
+  ) ?? [];
+  assertEquals(
+    productionEnvironmentJobs.length,
+    1,
+    "Only the downstream deploy job may own the Production environment.",
+  );
+
+  const jobsSource = deployWorkflow.slice(deployWorkflow.indexOf("\njobs:\n"));
+  const jobHeaders = [...jobsSource.matchAll(/^ {2}([a-z0-9-]+):$/gm)];
+  for (const [index, match] of jobHeaders.entries()) {
+    const jobName = match[1];
+    const start = match.index ?? 0;
+    const end = jobHeaders[index + 1]?.index ?? jobsSource.length;
+    const jobBlock = jobsSource.slice(start, end);
+    if (jobName === "deploy") continue;
+    for (
+      const productionCapability of [
+        "environment: Production",
+        "secrets.",
+        "supabase db push",
+        "supabase secrets set",
+        "deploy_function_batches.sh",
+        "SUPABASE_DB_URL",
+      ]
+    ) {
+      assert(
+        !jobBlock.includes(productionCapability),
+        `Non-Production job ${jobName} contains production capability ${productionCapability}.`,
+      );
+    }
+  }
+
+  const deployBlock = deployWorkflow.slice(deployJob);
+  const exactCheckout = deployBlock.indexOf("ref: ${{ github.sha }}");
+  const exactHead = deployBlock.indexOf(
+    "Verify exact clean production candidate",
+  );
+  const clearance = deployBlock.indexOf(
+    "Verify protected Production release clearance",
+  );
+  const productionSecret = deployBlock.indexOf("SUPABASE_ACCESS_TOKEN:");
+  const databasePush = deployBlock.indexOf("supabase db push");
+  const functionDeploy = deployBlock.indexOf("deploy_function_batches.sh");
+  assert(
+    exactCheckout >= 0 && exactHead > exactCheckout &&
+      clearance > exactHead && productionSecret > clearance &&
+      databasePush > clearance && functionDeploy > clearance,
+    "The mutation job must pin and clean-check GITHUB_SHA, then verify protected clearance before production credentials or mutations.",
+  );
+  assertStringIncludes(deployBlock, "refs/remotes/origin/main");
+  assertStringIncludes(
+    deployBlock,
+    '"$GITHUB_REF" != "refs/heads/main"',
+  );
+  for (
+    const clearanceEvidence of [
+      "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",
+      "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
+      "--mode production-clearance",
+      "supabase/release-holds.json",
+      'candidate-sha "$GITHUB_SHA"',
+      "--allow-net",
+      "GITHUB_REPOSITORY",
+    ]
+  ) {
+    assertStringIncludes(deployBlock, clearanceEvidence);
+  }
+
+  for (
+    const ownedPath of [
+      "/.github/CODEOWNERS @emreerdener",
+      "/.github/workflows/deploy.yml @emreerdener",
+      "/.github/workflows/release-evidence.yml @emreerdener",
+      "/services/supabase/release-holds.json @emreerdener",
+      "/services/supabase/migrations/ @emreerdener",
+      "/services/supabase/scripts/verify_production_release_holds.ts @emreerdener",
+      "/services/supabase/scripts/github_release_evidence.ts @emreerdener",
+    ]
+  ) {
+    assertStringIncludes(codeowners, ownedPath);
+  }
+
+  const firstProductionBoundary = Math.min(
+    ...[
+      deployWorkflow.indexOf("environment: Production", deployJob),
+      deployWorkflow.indexOf("secrets.", deployJob),
+      deployWorkflow.indexOf("supabase db push", deployJob),
+      deployWorkflow.indexOf("deploy_function_batches.sh", deployJob),
+    ].filter((index) => index >= 0),
+  );
+  assert(
+    firstProductionBoundary > holdVerifier,
+    "The checked-in release hold must execute before every production-capable boundary.",
+  );
+});
+
+Deno.test("release evidence publishing is exact-SHA, reviewed, and production-isolated", async () => {
+  const workflow = await Deno.readTextFile(
+    new URL("release-evidence.yml", workflowsDirectory),
+  );
+  for (
+    const requiredControl of [
+      "workflow_dispatch:",
+      "environment: Release Evidence",
+      "ref: ${{ inputs.candidate_sha }}",
+      "fetch-depth: 0",
+      'if [ "$GITHUB_REF" != "refs/heads/main" ]',
+      "refs/remotes/origin/main",
+      'if [ "$GITHUB_SHA" != "$EXPECTED_CANDIDATE_SHA" ]',
+      "git status --porcelain",
+      "prepare_release_evidence.ts",
+      "MERIAN_RELEASE_EVIDENCE_BASE64",
+      '--candidate-sha "$EXPECTED_CANDIDATE_SHA"',
+      '--hold-id "$HOLD_ID"',
+      '--criterion-id "$CRITERION_ID"',
+      "--allow-net=api.github.com",
+      "merian-release-evidence-${{ inputs.criterion_id }}-${{ inputs.candidate_sha }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}",
+      "compression-level: 0",
+      "retention-days: 90",
+    ]
+  ) {
+    assertStringIncludes(workflow, requiredControl);
+  }
+  for (
+    const unsafeInterpolation of [
+      '--candidate-sha "${{ inputs.',
+      '--hold-id "${{ inputs.',
+      '--criterion-id "${{ inputs.',
+    ]
+  ) {
+    assert(
+      !workflow.includes(unsafeInterpolation),
+      `Release evidence dispatch input is interpolated into shell: ${unsafeInterpolation}`,
+    );
+  }
+  for (
+    const forbiddenCapability of [
+      "environment: Production",
+      "SUPABASE_ACCESS_TOKEN",
+      "SUPABASE_DB_URL",
+      "supabase db push",
+      "supabase secrets set",
+      "deploy_function_batches.sh",
+    ]
+  ) {
+    assert(
+      !workflow.includes(forbiddenCapability),
+      `Release evidence workflow contains production capability ${forbiddenCapability}.`,
+    );
+  }
 });
 
 Deno.test("every runner job has an explicit bounded timeout", async () => {

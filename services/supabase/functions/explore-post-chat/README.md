@@ -81,10 +81,25 @@ Migration `20260821030027_add_species_dictionary_field_chat.sql` subsequently
 extends the same atomic count and stale recovery to Dictionary chat without
 changing this route's request or response fields. Apply it before deploying this
 updated `explore-post-chat`, not only before the new Dictionary route, because
-the shared daily-usage helper now reads all three message tables. Keep the
-three-family candidate release-held until deletion of any conversation can no
-longer restore same-day allowance; the current live-row count does not satisfy
-that invariant.
+the shared bundle understands all three subject families. Apply
+`20260824210544_preserve_field_chat_daily_usage.sql` next; its content-free
+user/day aggregate and service-only read RPC replace live-message counting.
+Conversation deletion continues to erase private content without restoring
+same-day allowance, and any unverifiable aggregate read fails closed. The
+migration registers and asserts its Ghost handler, short-locks all three
+conversation/message families to remove historical message-less threads, moves
+conversation creation into atomic admission, and blocks novel sends through the
+next database-observed UTC boundary while permanently reserving conversation
+insertion for the atomic RPC. After the boundary it reports `ready` but remains
+closed; only the service-only one-way activation, called after all three
+corrected bundles deploy successfully and each live route returns
+`X-Merian-Field-Chat-Contract: atomic-admission-v1` plus its candidate-derived
+`X-Merian-Field-Chat-Bundle-SHA256`, records the candidate SHA, migration
+digest, and all three route digests, then transitions to `active`. Database
+`ready` force-selects the entire Field Chat fleet even after the migration is
+the deployment baseline. Keep the release hold active until non-skipped
+three-family, full-merge, cutover, live-provenance, and no-orphan evidence is
+retained.
 
 ## Verification
 

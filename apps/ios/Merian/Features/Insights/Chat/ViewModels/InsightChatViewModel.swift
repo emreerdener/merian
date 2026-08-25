@@ -769,8 +769,10 @@ final class InsightChatViewModel {
     }
 
     func publicPostSuggestionChips(displayName: String) -> [String] {
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? "this species"
+        let name = source == .speciesDictionary
+            ? Self.speciesDictionaryPromptLabel(displayName)
+            : displayName.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? "this species"
         let fallback = [
             "What traits are characteristic of \(name)?",
             "What habitat does \(name) prefer?",
@@ -782,6 +784,76 @@ final class InsightChatViewModel {
             let key = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return !key.isEmpty && !sentTexts.contains(key) && seen.insert(key).inserted
         }.prefix(3).map { $0 }
+    }
+
+    static let speciesDictionaryPromptLabelMaxUnicodeScalars = 64
+
+    static let speciesDictionaryPromptLabelGeneralCategories: Set<String> = [
+        "Lu", "Ll", "Lt", "Lm", "Lo", "Mn", "Mc", "Me", "Nd"
+    ]
+
+    static let speciesDictionaryPromptLabelWhitespaceScalarValues: Set<UInt32> = [
+        0x0009, 0x000A, 0x000B, 0x000C, 0x000D, 0x0020, 0x0085, 0x00A0,
+        0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,
+        0x2007, 0x2008, 0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F,
+        0x3000
+    ]
+
+    static let speciesDictionaryPromptLabelPunctuationScalarValues: Set<UInt32> = [
+        0x0027, 0x0028, 0x0029, 0x002D, 0x002E, 0x2013, 0x2019
+    ]
+
+    static func speciesDictionaryPromptLabel(_ value: String) -> String {
+        var normalizedScalars: [Unicode.Scalar] = []
+        var pendingSpace = false
+
+        for scalar in value.unicodeScalars {
+            if speciesDictionaryPromptLabelWhitespaceScalarValues.contains(scalar.value) {
+                if !normalizedScalars.isEmpty {
+                    pendingSpace = true
+                }
+                continue
+            }
+
+            guard speciesDictionaryPromptLabelAllows(scalar) else {
+                return "this species"
+            }
+            if pendingSpace {
+                normalizedScalars.append(" ")
+                pendingSpace = false
+            }
+            normalizedScalars.append(scalar)
+            if normalizedScalars.count > speciesDictionaryPromptLabelMaxUnicodeScalars {
+                return "this species"
+            }
+        }
+
+        guard !normalizedScalars.isEmpty else {
+            return "this species"
+        }
+        return String(String.UnicodeScalarView(normalizedScalars))
+    }
+
+    private static func speciesDictionaryPromptLabelAllows(_ scalar: Unicode.Scalar) -> Bool {
+        let category: String?
+        switch scalar.properties.generalCategory {
+        case .uppercaseLetter: category = "Lu"
+        case .lowercaseLetter: category = "Ll"
+        case .titlecaseLetter: category = "Lt"
+        case .modifierLetter: category = "Lm"
+        case .otherLetter: category = "Lo"
+        case .nonspacingMark: category = "Mn"
+        case .spacingMark: category = "Mc"
+        case .enclosingMark: category = "Me"
+        case .decimalNumber: category = "Nd"
+        default:
+            category = nil
+        }
+        if let category,
+           speciesDictionaryPromptLabelGeneralCategories.contains(category) {
+            return true
+        }
+        return speciesDictionaryPromptLabelPunctuationScalarValues.contains(scalar.value)
     }
 
     var sentAndPendingPromptTexts: [String] {

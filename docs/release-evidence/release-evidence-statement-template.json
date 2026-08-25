@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "hold_id": "species_dictionary_chat_production_hold",
+  "criterion_id": "replace_with_manifest_criterion_id",
+  "evidence_type": "replace_with_manifest_evidence_type",
+  "candidate_sha": "0000000000000000000000000000000000000000",
+  "outcome": "passed",
+  "observed_at": "1970-01-01T00:00:00.000Z",
+  "summary": "Redacted result summary with no credentials, personal data, raw coordinates, session state, or production response bodies.",
+  "supporting_runs": [
+    {
+      "run_id": 1,
+      "workflow_path": ".github/workflows/replace.yml"
+    }
+  ],
+  "embedded_evidence": [
+    {
+      "label": "redacted-structured-result",
+      "media_type": "application/json",
+      "content_base64": "e30=",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

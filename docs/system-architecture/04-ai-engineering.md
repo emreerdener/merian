@@ -737,30 +737,39 @@ provider dispatch:
   messages are capped at 600 characters, each conversation at 30 messages, and
   all three routes share 20 sends per Pro user per day. That allowance is an
   admission-history limit: deleting private chat content must not restore sends
-  from the same UTC day. The current candidate counts live message rows, so its
-  cascading delete violates this invariant and blocks release until durable
-  accounting plus delete-then-send database coverage exists. Token usage and
-  bounded telemetry retain route-specific events without prompt/chat text or
-  dictionary identity. All routes use `_shared/fieldChatResponse.ts` so every
-  empty/populated thread and action success echoes the exact requested
-  scan/post/species as `subject_id`; iOS treats `200` as candidate evidence and
-  validates that echo plus populated message/conversation identity before
-  applying it. Every send requires a UUID request identity; the assistant stores
-  its canonical lowercase form in private metadata and projects it as
-  `client_message_id`, allowing duplicate, transport, and quota replays to
-  coalesce into one saved user/assistant pair. A new send reserves its two rows
-  within the 30-row cap; UUID reuse with different text fails explicitly.
-  `_shared/fieldChatReservation.ts` calls the service-only atomic admission RPC,
-  which locks per user before conversation, inserts the user row in the same
-  transaction as cross-table 20/day accounting and 30-row capacity checks, and
-  blocks a second unanswered UUID in the same conversation. Browser roles have
-  no direct chat-table or feedback privileges, so they cannot bypass admission
-  or forge a copied rating target. Deferred composite foreign keys bind every
-  retained Insight conversation to its exact scan owner, each retained message
-  to its exact conversation/scan-or-post-or-species/viewer, and each rating to
-  the exact copied message identity. Conversation-optional feature feedback has
-  its own exact scan-owner binding; impossible historical cross-bound private
-  rows are removed before those constraints validate
+  from the same UTC day. Migration
+  `20260824210544_preserve_field_chat_daily_usage.sql` introduces the
+  content-free user/UTC-day aggregate, atomic admission increment, cascade
+  independence, and conservative Ghost coalescing. The service-only read fails
+  closed without a live-message fallback. The handler is registered in the
+  effective Ghost policy allowlist and the migration asserts registry coverage.
+  Because a lower-bound seed cannot recover already-deleted current-day rows,
+  PostgreSQL short-locks all three conversation/message families, removes
+  historical message-less threads, blocks every novel reservation through its
+  recorded next UTC boundary and until explicit post-bundle activation, and
+  permanently reserves conversation insertion for the atomic RPC; exact
+  persisted replays remain available. Token usage and bounded telemetry retain
+  route-specific events without prompt/chat text or dictionary identity. All
+  routes use `_shared/fieldChatResponse.ts` so every empty/populated thread and
+  action success echoes the exact requested scan/post/species as `subject_id`;
+  iOS treats `200` as candidate evidence and validates that echo plus populated
+  message/conversation identity before applying it. Every send requires a UUID
+  request identity; the assistant stores its canonical lowercase form in private
+  metadata and projects it as `client_message_id`, allowing duplicate,
+  transport, and quota replays to coalesce into one saved user/assistant pair. A
+  new send reserves its two rows within the 30-row cap; UUID reuse with
+  different text fails explicitly. `_shared/fieldChatReservation.ts` calls the
+  service-only atomic admission RPC, which locks per user before a deterministic
+  subject resource, secures the shared 20/day slot, creates or reuses the exact
+  conversation, inserts the user row, and applies 30-row/unanswered-request
+  checks in one transaction. Browser roles have no direct chat-table or feedback
+  privileges, so they cannot bypass admission or forge a copied rating target.
+  Deferred composite foreign keys bind every retained Insight conversation to
+  its exact scan owner, each retained message to its exact
+  conversation/scan-or-post-or-species/viewer, and each rating to the exact
+  copied message identity. Conversation-optional feature feedback has its own
+  exact scan-owner binding; impossible historical cross-bound private rows are
+  removed before those constraints validate
   (`20260730180000_bind_field_chat_rows_to_subjects.sql`). Dictionary tables,
   three-family admission/recovery, and account merge are added by
   `20260821030027_add_species_dictionary_field_chat.sql`. Deterministic
@@ -778,13 +787,32 @@ provider dispatch:
   fall back to bounded non-sensitive text if scrubbing empties the draft. An
   exact-row-bound service routine may reopen a committed request only after a
   ten-minute crash-safety window and proof that its assistant is absent; the
-  retry is newly metered. Apply the dictionary migration before any updated
-  version of the three chat functions, then deploy them from one reviewed SHA
-  and smoke same-UUID replay, different-key concurrency, both limits, stale
-  recovery, and empty/action subject echoes before shipping the fail-closed iOS
-  validator. Dictionary client release additionally requires automatic ambiguous
-  replay to be allowlisted and tested, executable handler coverage in the deploy
-  gate, and source-specific refusal/fallback prompt copy.
+  retry is newly metered. After every production-hold criterion passes, apply
+  the dictionary migration and then the durable daily-usage migration before any
+  updated version of the three chat functions, then deploy them from one
+  reviewed SHA and smoke same-UUID replay, different-key concurrency, both
+  limits, stale recovery, and empty/action subject echoes before shipping the
+  fail-closed iOS validator. Source fixtures use the real reservation RPCs and
+  full Ghost merge orchestrator, enforce the pending/ready/active database
+  cutover, and prove quota denial creates no empty conversation. One-way
+  activation follows successful deployment of all three selected bundles and
+  live observation of their `atomic-admission-v1` compatibility marker and
+  candidate-derived `X-Merian-Field-Chat-Bundle-SHA256`, then records candidate,
+  migration, and all three route digests. Database `ready` force-selects the
+  fleet after the migration becomes the deployment baseline. Swift and Deno
+  execute one versioned scalar fixture for U+2013 EN DASH, U+0085 normalization,
+  U+FEFF rejection, punctuation, combining marks, and length boundaries. The
+  handler tests cover the post-authenticated core and execute the actual wrapper
+  with deterministic accepted/refused authenticators. The checked-in
+  `species_dictionary_chat_production_hold` blocks production until controls
+  execute without a database skip, hosted real-token wrapper evidence, same-SHA
+  hosted gates, the real released-binary V49→V50 install-over, and external
+  approvals pass. Its verifier requires the named hold ID before Production. If
+  reviewed inactive, the independently exact-SHA-checked mutation job requires a
+  protected clearance bound to the manifest, complete criterion set, GitHub
+  artifacts, and current approval. It downloads and recomputes the evidence,
+  verifies exact-SHA runs, and checks live branch/environment protections before
+  mutation.
 - **Dynamic Diagnostic Thresholds**: The dynamic presentation of diagnostic data
   (e.g., lookalikes, confidence hooks, and identification candidates) is gated
   by the tier-specific `diagnosticTrigger`. **Canonical source of truth**:

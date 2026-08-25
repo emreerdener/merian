@@ -1,0 +1,26 @@
+# Production release-control ownership. This single owner routes review but is
+# not separation of duties. These rules become enforcement only when the
+# main-branch ruleset requires an independent Code Owner review, prevents
+# self-approval, and the Production environment uses a separate required
+# approver and restricted secret administrator. The deployment runbook requires
+# operators to verify those external settings before clearance. This file still
+# has one owner, so a second independently controlled owner or team must be added
+# before that owner can author a releasable control change; the release verifier
+# intentionally requires the live Code Owner-review rule and otherwise blocks.
+/.github/CODEOWNERS @emreerdener
+/.github/workflows/deploy.yml @emreerdener
+/.github/workflows/release-evidence.yml @emreerdener
+/.github/workflows/supabase-candidate-validation.yml @emreerdener
+/services/supabase/release-holds.json @emreerdener
+/services/supabase/migrations/ @emreerdener
+/services/supabase/scripts/verify_production_release_holds.ts @emreerdener
+/services/supabase/scripts/github_release_evidence.ts @emreerdener
+/services/supabase/scripts/prepare_release_evidence.ts @emreerdener
+/services/supabase/scripts/verify_field_chat_cutover.ts @emreerdener
+/services/supabase/scripts/activate_field_chat_cutover.ts @emreerdener
+/services/supabase/functions/_shared/fieldChat* @emreerdener
+/services/supabase/functions/insight-chat/ @emreerdener
+/services/supabase/functions/explore-post-chat/ @emreerdener
+/services/supabase/functions/species-dictionary-chat/ @emreerdener
+/docs/release-evidence/species-dictionary-field-chat-clearance-template.json @emreerdener
+/docs/release-evidence/release-evidence-statement-template.json @emreerdener

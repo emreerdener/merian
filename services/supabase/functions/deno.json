@@ -5,7 +5,7 @@
   },
   "minimumDependencyAge": "P1D",
   "tasks": {
-    "test": "deno test --frozen --allow-env --allow-net --allow-read=.,../migrations,../scripts,../tests,../config.toml,../../../.github/workflows,../../../.github/actions/setup-deno,../../../apps/ios,../../../apps/web/app/api/waitlist/route.ts ../scripts/control_purchase_identity_rollout_test.ts ."
+    "test": "deno test --frozen --allow-env --allow-net --allow-read=.,../migrations,../scripts,../tests,../config.toml,../../../.github/workflows,../../../.github/actions/setup-deno,../../../.github/CODEOWNERS,../../../apps/ios,../../../apps/web/app/api/waitlist/route.ts ../scripts/control_purchase_identity_rollout_test.ts ."
   },
   "imports": {
     "@std/encoding-base64": "jsr:@std/encoding@1/base64",

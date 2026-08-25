@@ -7,7 +7,7 @@ export const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, idempotency-key, x-merian-constrained-network, x-merian-entitlement-protocol",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
   "Access-Control-Expose-Headers":
-    "Retry-After, Server-Timing, X-Merian-Edge-Region, X-Merian-Handler, X-Request-ID",
+    "Retry-After, Server-Timing, X-Merian-Edge-Region, X-Merian-Field-Chat-Bundle-SHA256, X-Merian-Field-Chat-Contract, X-Merian-Handler, X-Request-ID",
 };
 
 export const MERIAN_HANDLER_RESPONSE_HEADER = {

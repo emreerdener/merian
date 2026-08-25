@@ -231,34 +231,74 @@ not contain species UUIDs or names. The public web route and anonymous
 ### Candidate Release Status
 
 Species Dictionary Field Chat is implemented in the source candidate but is
-release-held. It must not be described as shipped or added to paywall/App Store
-copy until all of these boundaries pass:
+release-held. The candidate adds a deletion-resistant admission aggregate,
+automatic exact-UUID iOS replay after ambiguous transport/`5xx`,
+Dictionary-specific refusal copy, a post-authenticated handler-core suite,
+atomic no-orphan conversation admission, a database-clock pending/ready cutover,
+explicit one-way post-bundle activation, and one executable Swift/Deno
+prompt-label policy. The handler suite also executes the actual Edge wrapper
+with deterministic accepted/refused authenticators. Source improvements do not
+substitute for hosted real-token, database, device, and external release
+evidence.
 
-1. The shared 20-send UTC-day allowance survives deletion of any Insight,
-   Explore, or Dictionary conversation. The current candidate counts live user
-   message rows, so a cascading conversation delete can restore allowance; the
-   admission record must become independent of retained chat content.
-2. `species-dictionary-chat` is added to the iOS network client's audited
-   idempotent replay allowlist and a lost-response/`5xx` test proves automatic
-   replay returns the one saved pair. The request already carries the stable
-   UUID header and manual retry preserves it, but automatic ambiguous retry is
-   not active for this route yet.
-3. Runtime handler tests—not source-string inspection alone—prove
-   authentication, Pro access, all five actions, invalid/unavailable species,
-   exact echoes, ownership, replay/conflict/in-flight recovery, and current
-   dictionary context. The route-contract test must also run in the deploy
-   workflow's focused Function gate.
-4. Every refusal uses Dictionary-specific wording, and iOS fallback prompt
-   labels use the same trimmed, bounded safe label as server suggestions. Raw or
-   overlong dictionary names must not become fallback instructions or oversized
-   chips.
-5. Migration `20260821030027_add_species_dictionary_field_chat.sql` is applied
-   before any updated `insight-chat`, `explore-post-chat`, or
-   `species-dictionary-chat` bundle, followed by the database, iOS, and Great
-   Egret manual matrix in this document and the deployment runbook.
+The machine-readable `species_dictionary_chat_production_hold` remains active in
+`services/supabase/release-holds.json`. Candidate Validation may run, but the
+separate hold job fails before the GitHub `Production` environment or any
+database, secret, or Function mutation. It must not be described as shipped or
+added to paywall/App Store copy. The reviewed 2026-08-24 source now:
 
-These are candidate defects and missing evidence, not accepted product
-limitations. Public web remains unchanged regardless of this release hold.
+1. registers `field_chat_daily_admissions` in the effective Ghost handler
+   allowlist and executes the complete policy-coverage assertion;
+2. derives the merge/admission race day from PostgreSQL, calls the public
+   reservation RPC and full merge orchestrator, and gives each Field Chat family
+   a real reserve-delete-fresh-reserve case;
+3. short-locks all three conversation/message families, removes historical
+   message-less threads, records the next database-observed UTC boundary, blocks
+   all novel sends while `pending` and `ready`, and permanently reserves
+   conversation insertion for the atomic RPC while allowing exact persisted
+   replays; after all three corrected bundles deploy and every live route
+   exposes the `atomic-admission-v1` compatibility marker plus its
+   candidate-derived `X-Merian-Field-Chat-Bundle-SHA256`, a one-way service-only
+   activation records candidate, migration, and all three route digests; a
+   database `ready` state force-selects the full fleet after the migration
+   becomes the deployment baseline;
+4. creates or resolves a conversation only inside the admitted transaction, so
+   quota denial creates no empty conversation, message, or provider dispatch;
+   cap, cutover, and ownership denials have the same no-write behavior;
+5. executes `docs/contracts/species-dictionary-prompt-label-policy.json` in
+   Swift and Deno, including U+2013 EN DASH acceptance, U+0085 normalization,
+   U+FEFF rejection, combining marks, non-BMP scalars, and 64-scalar boundary
+   cases; and
+6. requires the named hold ID fail closed, independently pins and clean-checks
+   the mutation SHA, and—after a reviewed inactive change—requires a protected
+   Production clearance that matches the SHA, manifest digest, complete stable
+   criterion set, evidence types, GitHub artifact IDs/digests, and approval
+   window. The verifier downloads and recomputes every artifact, validates its
+   structured payload and exact-SHA workflow runs, requires the current
+   protected `main` head, rejects evidence or supporting runs older than 30
+   days, prevents artifact reuse across criteria, and checks live branch and
+   environment protections.
+
+Production remains blocked until the database-backed cases execute without a
+connection skip on the immutable candidate; the authenticated HTTP wrapper
+boundary passes; a ready-state rerun always selects all three chat bundles;
+every live route's content digest matches the candidate; a genuine released V49
+binary accepts the exact V50 candidate without safe mode/store replacement or
+data loss; and both hosted gates pass on that same SHA. The live verifier must
+accept two author-independent reviews, protected branch rules without bypass,
+and self-review-resistant `Release Evidence` and `Production` environments. The
+canonical production-consent, App Store privacy/age-rating, paid Gemini billing,
+DPA, and legal evidence must also be approved. Artifact digests establish the
+retained bytes, not the authenticity of an off-platform issuer or independent
+secret administration; those remain external operational approvals.
+
+The exact machine-readable exit criteria and rollout order are canonical in the
+[Supabase deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).
+Evidence authors must follow the
+[release-evidence operations guide](../release-evidence/README.md).
+
+These are release-evidence requirements, not accepted product limitations.
+Public web remains unchanged regardless of this release hold.
 
 ## Title And Alternate Names
 
@@ -894,15 +934,20 @@ Backend:
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/index.ts
-deno test --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts
+deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/fieldChatDailyUsage_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/handler_test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/species-dictionary-chat/refusal_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts
 deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
 ```
 
-The current route-contract file in that command inspects source structure; it
-does not execute an authenticated handler. Before release, add the executable
-route suite described in [Candidate Release Status](#candidate-release-status)
-and include both it and the contract file in the deploy workflow's focused
-Function tests.
+The route-contract file inspects source structure and wrapper registration.
+`handler_test.ts` invokes the post-authenticated handler core with a synthetic
+user and the actual Edge wrapper with deterministic accepted/refused
+authenticators. It is not a hosted real-JWT authentication test. A
+database-backed test is passing evidence only when it connects to a disposable
+fully migrated catalog and executes rather than reporting a connection-refused
+skip. Candidate Validation discovers the no-empty-conversation, three real
+admission-branch, and full merge-orchestrator cases; before release, require
+their non-skipped execution plus the hosted authenticated wrapper boundary on
+the same SHA.
 
 iOS:
 
@@ -936,6 +981,9 @@ Manual acceptance:
   already-loaded offline transcript must remain species-scoped.
 - At the 20-send boundary, delete the Great Egret thread and confirm neither the
   returned remaining count nor a new send regains allowance that UTC day.
+- While already at the 20-send boundary with no Great Egret thread, attempt a
+  send and confirm the denial creates no empty conversation, message, or
+  provider dispatch.
 - Lose one successful send response and force one retryable `5xx`; confirm the
   automatic client retry reuses the exact lowercase UUID and restores one saved
   pair without requiring a second tap.
@@ -943,7 +991,9 @@ Manual acceptance:
   absent/nonbiological UUID as `404 species_not_available`.
 - Trigger every local refusal class and server-suggestion fallback; confirm no
   scan/observation wording remains and an empty or overlong/untrusted display
-  name produces a safe, bounded generic label.
+  name produces a safe, bounded generic label. Include ASCII hyphen, U+2013 EN
+  DASH, combining-mark, non-BMP, U+FEFF, and U+0085 labels and require Swift and
+  Deno to make the same accept/fallback decision.
 - Confirm the public Great Egret web page has no Field Chat change.
 - Reopen the pictured Brown Tabby scan and confirm the European wildcat card
   remains visible and navigable but media `605615444` does not appear in

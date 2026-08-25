@@ -51,13 +51,25 @@ deterministic prompt suggestions make no provider call. Conversations retain a
 30-row cap, and new user sends share one 20-send UTC-day limit with Insight and
 Explore Field Chat.
 
+Deterministic prompt labels execute
+`docs/contracts/species-dictionary-prompt-label-policy.json` in both Deno and
+Swift. The contract counts Unicode scalars, caps the normalized label at 64,
+enumerates whitespace and punctuation, accepts U+2013 EN DASH and U+0085 NEXT
+LINE, rejects U+FEFF BYTE ORDER MARK, and falls back to `this species` for every
+unsupported scalar or boundary violation.
+
 The daily allowance is an admission-history contract, not a content-retention
 contract. Deleting a conversation may erase its private messages, but must not
-restore sends already admitted that UTC day. The current candidate still derives
-daily usage from live user-message rows, whose conversation cascade can erase
-that evidence. This is a release blocker until admission uses durable,
-delete-resistant accounting and a delete-then-send test proves the allowance
-cannot be reset.
+restore sends already admitted that UTC day. Migration
+`20260824210544_preserve_field_chat_daily_usage.sql` makes the content-free
+`internal.field_chat_daily_admissions` aggregate the intended authority.
+Admission increments that user/day row in the same transaction that converges
+the subject-bound conversation and inserts the user message; deleting an
+Insight, Explore, or Dictionary conversation does not touch it. The service-only
+`get_field_chat_daily_usage(...)` RPC shapes responses and fails closed if the
+durable count cannot be verified. Ghost coalescing sums both principals under
+the shared ordered user locks, and the effective policy allowlist is
+source-guarded before the migration re-runs the complete coverage assertion.
 
 ## Storage and rollout
 
@@ -70,6 +82,33 @@ pair; different text with the same UUID conflicts; another unanswered request is
 fenced; and a ten-minute-stale committed provider claim can recover only after
 exact user-row and absent-assistant proof.
 
+Migration `20260824210544_preserve_field_chat_daily_usage.sql` then locks all
+three conversation/message families for the short cutover, removes historical
+message-less threads, lower-bound backfills the current UTC day from retained
+user rows, and replaces live-row counting with the durable aggregate for all
+future admissions. It adds no retained chat content: private conversation
+deletion continues to cascade through messages and feedback. Already-deleted
+current-day rows cannot be reconstructed, so production uses the migration's
+database-owned cutover. It records the next PostgreSQL UTC-day boundary, rejects
+every novel admission before and after that boundary with
+`field_chat_admission_cutover_pending`, and permanently revokes direct
+conversation insertion from API roles. Exact persisted replays return before
+that gate; load, delete, and feedback remain available. The service-only bounded
+status RPC exposes only migration/time/state evidence.
+
+The cutover has three fail-closed states. It is `pending` before the recorded
+UTC boundary, `ready` after that boundary while novel admissions remain closed,
+and `active` only after the workflow successfully deploys all three selected
+Field Chat bundles, observes both
+`X-Merian-Field-Chat-Contract: atomic-admission-v1` and the exact
+candidate-derived `X-Merian-Field-Chat-Bundle-SHA256` on every live route, and
+calls the service-only one-way activation RPC. Activation records candidate,
+migration, all three route digests, and database timestamp. Database `ready`
+force-selects the complete Field Chat fleet even after the migration becomes the
+successful baseline. If deployment fails, an old/different bundle is still
+serving, or rollover occurs during rollout, the database remains closed; time
+alone can never reactivate an older create-before-admission bundle.
+
 Because the current `insight-chat` and `explore-post-chat` bundles also import
 the three-family daily-usage helper, apply this migration before deploying any
 updated `insight-chat`, `explore-post-chat`, or `species-dictionary-chat`
@@ -77,30 +116,68 @@ Function from this candidate. Deployment and production mutation require
 separate release authorization; implementing or validating this route does not
 authorize either operation.
 
-## Candidate Release Blockers
+## Production Release Hold
 
-This source implementation is not release-ready until all of the following are
-fixed and proven:
+The candidate includes durable admission, automatic same-key iOS replay after
+ambiguous transport/`5xx` failures, post-authenticated handler-core tests, and
+Dictionary-specific refusal copy. The source now also includes:
 
-- daily admission survives deletion of any Insight, Explore, or Species
-  Dictionary conversation;
-- iOS includes `species-dictionary-chat` in its audited idempotent ambiguous
-  transport/`5xx` replay allowlist. The request already sends `Idempotency-Key`,
-  and manual retry preserves the UUID, but automatic replay does not currently
-  run for this route;
-- authenticated executable handler tests cover every action, Pro enforcement,
-  invalid and unavailable species, response echoes, replay/conflict/in-flight
-  recovery, and ownership. The current route-contract test inspects source text
-  and is not included in the deploy workflow's focused Function test list; and
-- dictionary refusal copy is fully source-specific and the iOS deterministic
-  fallback sanitizes and bounds the display label exactly like the server
-  fallback. No scan/observation wording or untrusted overlong label may reach a
-  Dictionary thread.
+- a source-guarded effective Ghost handler allowlist plus coverage assertion;
+- a current-UTC-day concurrency case using the public reservation RPC and full
+  merge orchestrator;
+- real reserve-delete-fresh-reserve PostgreSQL cases for all three families;
+- database-atomic conversation creation, quota admission, and user-message
+  insertion, so quota denial leaves no empty conversation;
+- a PostgreSQL-clock pending/ready cutover guard plus one-way post-bundle
+  activation that records candidate, migration, and all three content-addressed
+  bundle digests after live verification;
+- one shared executable prompt-label fixture for Swift and Deno, including
+  U+2013 EN DASH, U+0085 normalization, U+FEFF rejection, combining marks, and
+  exact 64-scalar boundaries; and
+- a source hold gate plus protected-Production clearance that downloads each
+  reviewed GitHub artifact, recomputes archive and embedded evidence digests,
+  validates exact-SHA successful runs, and checks live branch/environment
+  protections before mutation.
+
+Production nevertheless remains blocked by the checked-in
+`species_dictionary_chat_production_hold` in
+`services/supabase/release-holds.json`. Source implementation is not retained
+release evidence. The complete disposable-database suite did not execute in the
+current review environment because no reachable disposable PostgreSQL service
+was available; its database-backed cases explicitly self-skipped and therefore
+are not passing evidence. The handler suite now executes the real
+`withEdgeHandler` boundary with deterministic accepted and refused
+authenticators, but it does not validate a hosted JWT. The real-token HTTP
+boundary still needs explicit exact-SHA execution evidence.
+
+Candidate Validation remains available and must run on the reviewed immutable
+SHA. The separate pre-production source gate fails before the GitHub
+`Production` environment, database push, secret synchronization, Function
+deployment, or smoke probes can begin. It requires this hold ID and a clean
+exact checkout. If a reviewed manifest later marks the hold inactive, the sole
+Production job independently pins and clean-checks the same SHA, then requires
+the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` environment secret
+before reading ordinary production credentials or mutating Supabase. That
+clearance must match the candidate SHA, exact manifest SHA-256, every stable
+criterion ID and evidence type, positive artifact IDs, nonzero evidence digests,
+and a current approval window. A read-only GitHub audit token verifies two
+author-independent current reviews, protected branches without bypass,
+self-review-resistant `Release Evidence`/`Production` environments, artifact
+bytes, supporting runs, and structured evidence payloads. Statements, embedded
+observations, and supporting-run `updated_at` values must be no more than 30
+days old, and artifact IDs cannot be reused across criteria. Evidence dispatch
+must start from current `main`; manual values enter Bash only through step
+environment variables. Keep the hold active until the non-skipped database
+suite, wrapper-auth and iOS retry evidence, genuine released-binary V49→V50
+physical install-over, both hosted gates on one SHA, live external controls, and
+external approvals are complete and retained.
 
 The canonical release checklist and manual Great Egret matrix live in
 [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md)
 and
 [`docs/features-and-hardware/16-species-dictionary.md`](../../../../docs/features-and-hardware/16-species-dictionary.md).
+Evidence authors must also follow the
+[`docs/release-evidence` operations guide](../../../../docs/release-evidence/README.md).
 
 ## Verification
 
@@ -110,11 +187,23 @@ deno check --frozen \
   services/supabase/functions/species-dictionary-chat/index.ts
 
 deno test --frozen --config services/supabase/functions/deno.json \
-  --allow-read=. \
+  --allow-env --allow-read=. \
+  services/supabase/functions/species-dictionary-chat/handler_test.ts \
   services/supabase/functions/species-dictionary-chat/eligibility_test.ts \
   services/supabase/functions/species-dictionary-chat/prompt_test.ts \
   services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts \
+  services/supabase/functions/species-dictionary-chat/refusal_test.ts \
   services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts \
   services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts \
+  services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts \
+  services/supabase/functions/_shared/fieldChatDailyUsage_test.ts \
   services/supabase/functions/_shared/fieldChatReservation_test.ts
 ```
+
+`handler_test.ts` executes both the handler core and `withEdgeHandler` using
+deterministic accepted/refused authenticators. It proves the wrapper
+authenticates before binding the user and never enters the route after refusal;
+it does not validate a hosted JWT. Database-backed cases are evidence only when
+they run against a disposable fully migrated catalog. A connection-refused skip,
+source-contract pass, direct counter update, or test-created V49 store does not
+satisfy the production hold.

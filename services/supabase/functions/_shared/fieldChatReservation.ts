@@ -1,8 +1,32 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  FIELD_CHAT_BUNDLE_SHA256,
+  type FieldChatDeploymentFunction,
+} from "./fieldChatDeploymentIdentity.ts";
 import { publicHttpError } from "./http.ts";
 
 const FIELD_CHAT_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER =
+  "X-Merian-Field-Chat-Contract";
+export const FIELD_CHAT_DEPLOYMENT_CONTRACT_VERSION = "atomic-admission-v1";
+export const FIELD_CHAT_BUNDLE_SHA256_HEADER =
+  "X-Merian-Field-Chat-Bundle-SHA256";
+
+export function fieldChatDeploymentContractHeaders(
+  functionName: FieldChatDeploymentFunction,
+): Readonly<Record<string, string>> {
+  const digest = FIELD_CHAT_BUNDLE_SHA256[functionName];
+  if (!/^[0-9a-f]{64}$/.test(digest) || /^0{64}$/.test(digest)) {
+    throw new Error(`Invalid Field Chat bundle identity for ${functionName}`);
+  }
+  return Object.freeze({
+    [FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER]:
+      FIELD_CHAT_DEPLOYMENT_CONTRACT_VERSION,
+    [FIELD_CHAT_BUNDLE_SHA256_HEADER]: digest,
+  });
+}
 
 export type FieldChatSubjectType =
   | "insight"
@@ -22,12 +46,14 @@ interface StoredFieldChatUserMessage {
 }
 
 interface FieldChatAdmissionRow {
+  conversation_id: unknown;
   message: unknown;
   is_replay: unknown;
   sends_today: unknown;
 }
 
 export interface FieldChatAdmission<Message> {
+  conversationId: string;
   message: Message;
   isReplay: boolean;
   sendsToday: number;
@@ -51,6 +77,14 @@ function admissionError(databaseMessage: string): Error {
       "Another Field Chat send is still completing. Please retry it first.",
       "field_chat_send_in_progress",
       2,
+    );
+  }
+  if (databaseMessage.includes("field_chat_admission_cutover_pending")) {
+    return publicHttpError(
+      503,
+      "Field Chat is briefly unavailable while daily admission accounting is activated. Please retry shortly.",
+      "field_chat_admission_cutover_pending",
+      60,
     );
   }
   if (databaseMessage.includes("field_chat_daily_limit_reached")) {
@@ -173,14 +207,20 @@ export async function reserveFieldChatSend<Message>(
   if (
     !row ||
     typeof row.is_replay !== "boolean" ||
+    typeof row.conversation_id !== "string" ||
+    !FIELD_CHAT_UUID_PATTERN.test(row.conversation_id) ||
     !Number.isSafeInteger(row.sends_today) ||
     (row.sends_today as number) < 0 ||
-    !isBoundUserMessage(row.message, input)
+    !isBoundUserMessage(row.message, {
+      ...input,
+      conversationId: row.conversation_id,
+    })
   ) {
     throw admissionError("field_chat_admission_unavailable");
   }
 
   return {
+    conversationId: canonicalUuid(row.conversation_id as string),
     message: row.message as Message,
     isReplay: row.is_replay,
     sendsToday: row.sends_today as number,

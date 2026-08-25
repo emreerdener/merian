@@ -2,6 +2,8 @@
 set -euo pipefail
 
 schema_file="apps/ios/Merian/Models/SchemaVersions.swift"
+v49_snapshot_file="apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift"
+v49_snapshot_sha256="869fee4639038df74d158fc776b9eed6ccef423ee31aa85a23159162753ad6be"
 alias_file="apps/ios/Merian/Models/Aliases.swift"
 active_queue_file="apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift"
 test_file="apps/ios/MerianTests/Models/MigrationPlanTests.swift"
@@ -11,6 +13,11 @@ app_file="apps/ios/Merian/App/MerianApp.swift"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$v49_snapshot_file" ]; then
+  echo "Missing $v49_snapshot_file" >&2
   exit 1
 fi
 
@@ -48,6 +55,11 @@ fail() {
   echo "iOS migration source guardrail failed: $*" >&2
   exit 1
 }
+
+actual_v49_snapshot_sha256="$(shasum -a 256 "$v49_snapshot_file" | awk '{print $1}')"
+if [ "$actual_v49_snapshot_sha256" != "$v49_snapshot_sha256" ]; then
+  fail "V49 frozen snapshot bytes changed. Reconstruct and review the complete released V49 persisted shape before updating its pinned digest."
+fi
 
 contains() {
   local file="$1"
@@ -162,6 +174,37 @@ contains "$schema_file" "enum MerianSchemaV49: VersionedSchema" \
   || fail "Missing V49 startup repair schema."
 contains "$schema_file" "enum MerianSchemaV50: VersionedSchema" \
   || fail "Missing current V50 schema."
+
+v49_schema="$(extract_block "enum MerianSchemaV49: VersionedSchema" "enum MerianSchemaV50: VersionedSchema")"
+for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
+  printf '%s\n' "$v49_schema" | grep -Fq "MerianSchemaV49.$frozen_model.self" \
+    || fail "V49 must reference its frozen MerianSchemaV49.$frozen_model snapshot."
+  contains "$v49_snapshot_file" "final class $frozen_model" \
+    || fail "V49 snapshot file must define $frozen_model."
+done
+if printf '%s\n' "$v49_schema" | grep -Fq "MerianSchemaV49Offline"; then
+  fail "V49 must not alias an active model through a top-level bridge."
+fi
+not_contains "$v49_snapshot_file" "typealias"
+contains "$v49_snapshot_file" "[MerianSchemaV49.CapturedMediaEntry]?" \
+  || fail "V49 relationship endpoints must use the frozen captured-media type."
+contains "$v49_snapshot_file" "[MerianSchemaV49.ScanCollection]?" \
+  || fail "V49 LocalScanRecord.collections must use the frozen collection type."
+contains "$v49_snapshot_file" "inverse: \\MerianSchemaV49.LocalScanRecord.collections" \
+  || fail "V49 ScanCollection must use the frozen inverse relationship endpoint."
+
+v50_schema="$(extract_block "enum MerianSchemaV50: VersionedSchema" "private typealias MerianSchemaV48OfflineJobRecord")"
+for active_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
+  printf '%s\n' "$v50_schema" | grep -Fq "$active_model.self" \
+    || fail "V50 must reference active $active_model."
+done
+if printf '%s\n' "$v50_schema" | grep -Fq "MerianSchemaV49."; then
+  fail "V50 must not reuse a frozen V49 persistent model."
+fi
+contains "$schema_file" "MerianSchemaV49.CapturedMediaEntry.makeEntries(" \
+  || fail "V49 queue repair must create frozen V49 captured-media rows."
+contains "$test_file" "MerianSchemaV49.OfflineQueuedScan(id: queuedId)" \
+  || fail "V49 disk fixtures must be created with the frozen V49 queue model."
 contains "$alias_file" "typealias CurrentSchema = MerianSchemaV50" \
   || fail "CurrentSchema must remain aligned with the V49 to V50 migration target."
 contains "$schema_file" "static let migrateV48toV49 = MigrationStage.custom" \
@@ -200,13 +243,13 @@ not_contains "$schema_file" "static let migrateV45toV47"
 not_contains "$schema_file" "static let migrateV46toV47"
 
 contains "$active_queue_file" "@Attribute public var queueAttemptCount: Int = 0" \
-  || fail "Active V49 OfflineQueuedScan.queueAttemptCount must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueAttemptCount must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueUpdatedAt: Date = Date()" \
-  || fail "Active V49 OfflineQueuedScan.queueUpdatedAt must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueUpdatedAt must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueNeedsAttention: Bool = false" \
-  || fail "Active V49 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueSchemaRepairGeneration: Int = 1" \
-  || fail "Active V49 OfflineQueuedScan.queueSchemaRepairGeneration must mark the startup repair schema."
+  || fail "Active V50 OfflineQueuedScan.queueSchemaRepairGeneration must retain the startup repair generation."
 not_contains "$active_queue_file" "queueAttemptCount: Int?"
 not_contains "$active_queue_file" "queueUpdatedAt: Date?"
 not_contains "$active_queue_file" "queueNeedsAttention: Bool?"

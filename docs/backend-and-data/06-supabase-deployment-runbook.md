@@ -55,9 +55,20 @@ and reusable non-PR calls always validate. Configure repository rules to require
 readiness`. The complete gate uses a
 disposable database and has no GitHub Production environment, production
 secrets, database push, Function deployment, or production smoke. The production
-workflow declares this reusable gate as a required predecessor; only its
-subsequent `deploy` job enters the Production environment. A green candidate run
-proves the reviewed source and disposable catalog, not that production changed.
+workflow declares this reusable gate as a required predecessor, followed by a
+non-Production checked-in source-hold job. Only the subsequent `deploy` job
+enters the Production environment. That job pins and clean-checks the same SHA
+and validates a protected clearance before it reads ordinary production
+credentials or mutates Supabase. The verifier binds the clearance to the
+candidate, manifest, criterion set, artifact IDs/digests, and approval window;
+uses a read-only GitHub audit token to verify live branch, pull-request, and
+environment protections; then downloads every release-evidence artifact,
+recomputes its archive and embedded-evidence digests, and verifies exact-SHA
+successful workflow provenance. Protected `Release Evidence` and `Production`
+approvals remain required, and off-platform evidence still requires reviewer
+judgment; a digest proves retained bytes, not the issuing authority. A green
+candidate run proves the reviewed source and disposable catalog, not that
+production changed.
 
 ### Scan admission preview release order
 
@@ -5939,22 +5950,24 @@ This section is the GitHub Actions control-plane contract, not a Vercel
 application environment template. Never copy the complete GitHub `Production`
 secret set into either Vercel project.
 
-| GitHub secret                       | Runtime destination                                           |
-| ----------------------------------- | ------------------------------------------------------------- |
-| `APPLE_SIGN_IN_TEAM_ID`             | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_KEY_ID`              | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_PRIVATE_KEY`         | Required `.p8`; synchronized to Supabase Edge only            |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1`        | Synchronized by the workflow to Supabase Edge only            |
-| `GEMINI_PAID_API_KEY`               | Required; synchronized by the workflow to Supabase Edge only  |
-| `REVENUECAT_SECRET_API_KEY`         | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SECRET`         | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET` | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_ACCESS_KEY_ID`             | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_SECRET_ACCESS_KEY`         | Synchronized by the workflow to Supabase Edge only            |
-| `R2_EVENT_WEBHOOK_SECRET`           | Optional; synchronized to Supabase Edge for R2 event hints    |
-| `SUPABASE_ACCESS_TOKEN`             | Used by the GitHub runner to operate the Supabase CLI         |
-| `SUPABASE_DB_URL`                   | Used by the GitHub runner for database migration/audit access |
-| `SUPABASE_DB_PASSWORD`              | Used only by the runner's alternative pooler connection path  |
+| GitHub secret                              | Runtime destination                                           |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `APPLE_SIGN_IN_TEAM_ID`                    | Required; synchronized by the workflow to Supabase Edge only  |
+| `APPLE_SIGN_IN_KEY_ID`                     | Required; synchronized by the workflow to Supabase Edge only  |
+| `APPLE_SIGN_IN_PRIVATE_KEY`                | Required `.p8`; synchronized to Supabase Edge only            |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`               | Synchronized by the workflow to Supabase Edge only            |
+| `GEMINI_PAID_API_KEY`                      | Required; synchronized by the workflow to Supabase Edge only  |
+| `REVENUECAT_SECRET_API_KEY`                | Synchronized by the workflow to Supabase Edge only            |
+| `REVENUECAT_WEBHOOK_SECRET`                | Synchronized by the workflow to Supabase Edge only            |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET`        | Synchronized by the workflow to Supabase Edge only            |
+| `R2_READ_ACCESS_KEY_ID`                    | Synchronized by the workflow to Supabase Edge only            |
+| `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only            |
+| `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints    |
+| `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token       |
+| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Protected runner-only release evidence; never synchronized    |
+| `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI         |
+| `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access |
+| `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path  |
 
 None of these values belongs in Vercel. The public-web Vercel contract is the
 explicit table in **Public Web Waitlist Release** above and
@@ -5966,6 +5979,22 @@ Release**.
 
 Set these in the repository's GitHub Actions secrets:
 
+- `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` — a short-lived, runner-only
+  release-control record stored specifically in the protected GitHub
+  `Production` environment. Populate it from the checked-in template only after
+  every inactive-hold criterion has a reviewed artifact produced by the
+  protected `Release Evidence` workflow. The verifier downloads each immutable
+  artifact, recomputes its archive and embedded-evidence digests, validates its
+  exact candidate and successful supporting workflow runs, and logs only stable
+  IDs and digests. Never synchronize it to Supabase, paste it into logs, or
+  commit the populated record.
+- `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` — a fine-grained read-only token available
+  only to the protected `Production` environment. Grant the minimum repository
+  read permissions needed for Actions artifacts/runs, pull requests, branch
+  protection, and environments. It must not have contents, Actions,
+  administration, deployment, or secrets write access. The clearance verifier
+  uses it before any Supabase credential or mutation and fails closed if the
+  token cannot inspect the live controls.
 - `SUPABASE_ACCESS_TOKEN` — Supabase CLI access token for the deployment actor.
 - `APPLE_SIGN_IN_TEAM_ID`, `APPLE_SIGN_IN_KEY_ID`, and
   `APPLE_SIGN_IN_PRIVATE_KEY` — required Apple Developer issuer/key metadata and
@@ -6169,7 +6198,9 @@ The current inventory is grouped as follows:
   `publish_scan_to_explore_atomically`,
   `request_community_identification_atomically`, `recover_missing_owned_scan`,
   `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
-  `recover_stale_field_chat_quota`.
+  `recover_stale_field_chat_quota`. The bounded cutover routines are
+  `get_field_chat_admission_cutover_status` and the invalid-argument no-write
+  probe for `activate_field_chat_admission_cutover`.
 - Legacy purchase handoff and RevenueCat reconciliation:
   `issue_signout_purchase_handoff`, `complete_signout_purchase_handoff`,
   `claim_revenuecat_reconciliation_for_user`, and
@@ -7134,24 +7165,82 @@ After deployment:
   `20260729163616_reserve_field_chat_sends_atomically.sql` and
   `20260730180000_bind_field_chat_rows_to_subjects.sql` are present. For Species
   Dictionary Chat, also prove
-  `20260821030027_add_species_dictionary_field_chat.sql` is present before
-  deploying any updated `insight-chat`, `explore-post-chat`, or
-  `species-dictionary-chat` bundle from that candidate. All three current
-  bundles import the three-table daily-usage helper, so deploying either legacy
-  route first against an older catalog can fail when it reads the absent
-  Dictionary message table. Preserve migration-first ordering even if the new
-  route itself is held back.
+  `20260821030027_add_species_dictionary_field_chat.sql` and
+  `20260824210544_preserve_field_chat_daily_usage.sql` are present in that order
+  before deploying any updated `insight-chat`, `explore-post-chat`, or
+  `species-dictionary-chat` bundle from that candidate. The latter migration
+  short-locks all three conversation/message families, removes historical
+  message-less threads, lower-bound backfills the current UTC day from retained
+  rows, and then makes its content-free user/day aggregate authoritative. In the
+  same transaction it records the next PostgreSQL UTC-day boundary in
+  `internal.field_chat_admission_cutover`, installs insert guards on all three
+  conversation tables, and makes every novel reservation fail with
+  `field_chat_admission_cutover_pending`. Exact persisted replays return before
+  the gate. It also permanently revokes direct conversation `INSERT` from API
+  roles; only the `SECURITY DEFINER` reservation RPC can create a thread. Before
+  the boundary the state is `pending`; after it the state is `ready`, but novel
+  writes remain closed until explicit activation. This database boundary blocks
+  writes from already deployed Function bundles. An old create-before-reserve
+  invocation can surface a raw permission or cutover failure, but it cannot
+  leave an empty thread before or after activation. Reads, deletes, feedback,
+  and exact replays remain available. A reviewed plan, operator intention,
+  runner clock, or partial-day lower-bound seed is not release evidence.
+- The cumulative planner force-selects `insight-chat`, `explore-post-chat`, and
+  `species-dictionary-chat` whenever the cutover migration enters the change
+  range. After `db push`, `verify_field_chat_cutover.ts` reads the service-only
+  database status before secrets or Function deployment. The separate
+  `finalize_field_chat_function_plan.ts` step then treats database state as the
+  authority: `ready` always adds all three routes to the final plan, even when a
+  prior successful pending run made the migration the deployment baseline.
+  `pending` and `active` preserve the ordinary affected-function plan. The
+  regression explicitly covers pending-success → ready-rerun, so manual full
+  fleet dispatch is no longer the only safe activation path.
+- `generate_field_chat_deployment_identity.ts` derives a per-route SHA-256 from
+  the route's transitive local runtime graph, route/global Deno configuration,
+  and frozen dependency lock. It excludes only its generated identity module to
+  avoid self-reference. Candidate validation rejects a stale generated map.
+  Every response from the three routes carries both
+  `X-Merian-Field-Chat-Contract: atomic-admission-v1` and
+  `X-Merian-Field-Chat-Bundle-SHA256: <digest>`. When status is `ready`, the
+  workflow computes the expected digest again from the exact clean checkout,
+  deploys the final plan, and polls every live route until its compatibility and
+  route-specific digest headers match. A stale bundle with the same
+  compatibility marker cannot satisfy this probe.
+- `activate_field_chat_cutover.ts` verifies that the final plan contains all
+  three routes, recomputes their candidate-derived digests, and calls the
+  service-only one-way RPC with candidate SHA, migration SHA-256, Explore
+  digest, Insight digest, and Species Dictionary digest. Readback must match all
+  five identities before activation succeeds. A failed deployment, stale or
+  unpropagated route, digest mismatch, or rollover between verification steps
+  leaves the database in `ready` and novel admissions closed. A `ready` state at
+  final smoke is a failed deployment, never an open route. Do not sleep a runner
+  until midnight or accept a user-supplied timestamp.
+- Activation is intentionally one-way through the public service boundary. Do
+  not clear or rewrite `activated_*` fields to retry a release. A failure before
+  activation leaves sends closed and is retried with a fresh exact-SHA workflow;
+  a failure after activation requires a reviewed forward fix or an explicit
+  maintenance migration. Retain the activation candidate, migration digest,
+  database timestamp, workflow URL, three observed bundle digests, and final
+  smoke result together. The database activation row is the bounded source of
+  truth for the candidate, migration, and live content identities that opened
+  admission.
 - In staging, replay one exact UUID/text pair, reject contradictory text under
   that UUID, race different UUIDs in one conversation, cross 28/29/30 rows, and
   cross 19/20 daily sends split across Insight, Explore, and Species Dictionary.
   Delete each conversation family after admitted sends and prove those sends
-  still count for the same UTC day. The current candidate counts cascading
-  message rows and does not meet this deletion-resistant invariant; do not
-  deploy until durable admission accounting and this regression pass. Prove
-  direct browser roles cannot access feedback, cross-bound message/feedback
-  inserts fail, and the anonymous-account merge still commits with all deferred
-  identities exact. Terminate after quota commit, require in-progress before ten
-  minutes, then prove exact stale-row recovery starts one newly metered retry.
+  still count for the same UTC day. Prove the service-only
+  `get_field_chat_daily_usage` aggregate read, the private
+  `field_chat_daily_admissions` ledger, no browser-role table/RPC access,
+  counter-preserving deletion, and conservative Ghost merge before clearing the
+  hold. Exercise the public reservation RPC for each family and the complete
+  `internal.perform_ghost_profile_merge(...)` orchestrator; a direct ledger
+  update or direct helper call is not equivalent release evidence. Race Ghost
+  merge against admission for both identities on the actual UTC day and prove
+  the ordered per-user locks preserve the summed counter. Prove direct browser
+  roles cannot access feedback, cross-bound message/feedback inserts fail, and
+  the anonymous-account merge still commits with all deferred identities exact.
+  Terminate after quota commit, require in-progress before ten minutes, then
+  prove exact stale-row recovery starts one newly metered retry.
   Admission/recovery timeout must return retryable `503` without provider
   dispatch.
 - Smoke-test `/species-dictionary-chat` with `load` and `suggest_prompts` for a
@@ -7163,19 +7252,163 @@ After deployment:
   dictionary row between two sends and prove the second prompt uses the new
   bounded reference context. The prompt must contain no Community observation,
   chart, scan, note, user, location, media, reference URL, or attribution data.
-- Keep the Dictionary client release held until `species-dictionary-chat` is in
-  `MerianNetworkClient`'s audited idempotency-aware Function allowlist and a
-  lost-response/`5xx` test proves an automatic retry reuses the same UUID and
-  returns one saved pair. The current candidate sends the idempotency header and
-  supports manual retry, but does not automatically replay this route after an
-  ambiguous failure.
-- Require executable authenticated route tests for all five Dictionary chat
-  actions, Pro enforcement, request errors, ownership, strict echoes, replay,
-  conflict, and in-flight recovery. Source-string contract inspection is not a
-  handler test. The deploy workflow's focused Function test list must include
-  the route contract and its runtime tests before candidate acceptance. Also
-  verify every refusal uses Dictionary-specific language and local fallback
-  chips apply the server's safe, bounded display-name normalization.
+- Confirm `species-dictionary-chat` remains in `MerianNetworkClient`'s audited
+  idempotency-aware Function allowlist and the lost-response/`5xx` regression
+  automatically reuses the same UUID and returns one saved pair. Run the focused
+  post-authenticated handler-core suite for action, ownership, exact
+  replay/conflict, refusal, provider ordering, and stale-quota recovery. The
+  handler suite executes the real wrapper with deterministic accepted/refused
+  authenticators; separately prove the hosted wrapper rejects an unauthenticated
+  request and derives the user from a real verified token. Also prove a
+  daily-limit or cutover rejection creates no conversation, message, or provider
+  dispatch and refunds an uncommitted provider lease. Run shared Swift/Deno
+  label-policy vectors that cover the common 64-Unicode-scalar bound, combining
+  marks, non-BMP characters, ASCII hyphen, U+2013 EN DASH, U+FEFF, and U+0085.
+  Both implementations must make the same normalization and accept/fallback
+  decision for every vector. Both runtimes execute
+  `docs/contracts/species-dictionary-prompt-label-policy.json`, which explicitly
+  accepts U+2013 EN DASH, collapses U+0085 NEXT LINE to ASCII space, rejects
+  U+FEFF BYTE ORDER MARK, counts Unicode scalars, and enumerates the complete
+  whitespace and punctuation sets.
+- Supabase production is machine-held by
+  `species_dictionary_chat_production_hold` in
+  `services/supabase/release-holds.json`. The reusable Candidate Validation job
+  remains production-isolated and may run. A separate non-Production job then
+  invokes `verify_production_release_holds.ts`; while the hold is active, it
+  fails before the GitHub `Production` environment, database URL, migration
+  push, secret synchronization, Function deployment, or smoke probes. A missing,
+  malformed, duplicate, or required-ID-absent manifest fails closed. The hold
+  job verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
+  `refs/heads/main`, compares the checkout with current `origin/main`, and
+  includes that SHA plus the exact manifest SHA-256 in its summary. A reviewed
+  `active: false` change clears only this source gate. Inside the sole GitHub
+  `Production` job, the repository is checked out explicitly at `github.sha`,
+  clean-checked and current-main-checked again, and then
+  `verify_production_release_holds.ts --mode production-clearance` requires the
+  protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` secret before ordinary
+  production credentials or mutations are reachable. Schema-v2 clearance is
+  valid only when its candidate SHA and manifest digest match, every inactive
+  hold and criterion ID/evidence type appears exactly once, every positive
+  GitHub artifact ID has a nonzero SHA-256, and the approval window is current
+  and no longer than seven days. Using the read-only
+  `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the verifier also proves the candidate is
+  the current protected `main` head and is bound unambiguously to one merged
+  `main` pull request. Live protection must require Code Owner review, two
+  current author-independent approvals, stale-review dismissal, last-push
+  approval, admin enforcement, and no bypass. Both `Release Evidence` and
+  `Production` must require reviewers, prevent self-review, and accept protected
+  branches only. It downloads each uniquely assigned artifact, recomputes the
+  archive digest, verifies exact candidate/successful workflow provenance,
+  unpacks exactly one `release-evidence.json`, checks required workflow runs,
+  and recomputes every embedded structured-evidence digest. Statement and
+  embedded observation times must be no more than 30 days old. Missing access,
+  changed settings, non-main provenance, expired/tampered bytes, stale runs, or
+  malformed payloads fail closed. The verifier logs only stable controls,
+  criterion IDs, artifact IDs, and digests; never secret or evidence contents.
+  Do not test either gate by dispatching a deployment.
+
+### Species Dictionary Field Chat hold-exit criteria
+
+The following checked-in criteria are exact release controls. Keep this list in
+sync with `services/supabase/release-holds.json`; a plan or a green source-only
+test does not satisfy an evidence requirement:
+
+1. **`field_chat_database_and_ghost_merge`** (`disposable_database_run`): Ghost
+   merge registers the durable-admission handler in the effective policy
+   allowlist, and disposable-database coverage exercises the public reservation
+   RPCs and full merge orchestrator under a corrected same-UTC-day race.
+2. **`field_chat_delete_quota_and_provider`** (`disposable_database_run`):
+   Insight, Explore, and Species Dictionary each pass real
+   reserve-delete-fresh-reserve coverage, historical message-less threads are
+   removed under the cutover locks, API roles cannot insert conversations
+   outside the atomic RPC, and a quota denial creates no conversation, message,
+   or provider dispatch.
+3. **`field_chat_post_bundle_cutover_activation`** (`cutover_rehearsal`):
+   Workflow contracts and a non-skipped disposable rehearsal prove the database
+   remains closed after the UTC boundary, a ready-state rerun force-selects all
+   three corrected bundles after the migration is already the deployment
+   baseline, every live route exposes its candidate-derived bundle digest in
+   addition to the atomic-admission compatibility marker, and one-way activation
+   records the verified candidate, migration, and all three bundle digests.
+4. **`field_chat_client_wrapper_and_prompt_parity`** (`hosted_test_run`): The
+   iOS exact-key ambiguous retry, executable Swift-Deno Unicode prompt-label
+   contract, post-authenticated handler-core and deterministic wrapper suites,
+   and hosted real-token authenticated HTTP-wrapper boundary pass on the same
+   immutable candidate SHA.
+5. **`release_control_exact_sha_and_clearance`** (`release_control_audit`): The
+   required hold ID and exact clean mutation SHA are enforced; live GitHub
+   checks require two author-independent current reviews, protected branches
+   without bypass, and self-review-resistant Release Evidence and Production
+   environments; every clearance artifact is downloaded, digest-recomputed,
+   exact-SHA and successful-workflow checked, and its structured evidence
+   payload is validated before mutation.
+6. **`swiftdata_v49_v50_install_over`** (`device_install_over`): The V49-to-V50
+   real released-binary install-over gate passes without safe mode, store
+   replacement, or data loss.
+7. **`hosted_same_sha_candidate_gates`** (`hosted_test_run`): Hosted iOS Build
+   and Test and Supabase Candidate Validation pass on the same immutable SHA.
+8. **`external_consent_store_billing_dpa_approvals`**
+   (`external_approval_record`): The production consent, App Store privacy and
+   age-rating, paid Gemini billing, and DPA evidence is approved in the
+   canonical readiness record.
+
+The 2026-08-24 source implements the database/client, content-addressed bundle,
+ready-rerun, artifact-verification, and live-protection controls represented by
+criteria 1 through 5. That does not satisfy the hold by itself. Non-skipped
+disposable PostgreSQL execution, a hosted real-token HTTP-wrapper smoke, hosted
+same-SHA gates, a genuine released-V49 install-over, external approvals, and the
+actual live GitHub protection configuration remain evidence/state checks. A
+missing or unreachable disposable database is missing evidence, not a passing
+result. Keep the hold active until every criterion has a reviewed retained
+artifact and the live verifier accepts the external controls.
+
+For each criterion, start from
+`docs/release-evidence/release-evidence-statement-template.json`. Schema-v2
+statements bind both the hold and criterion, include only redacted structured
+evidence, list the required exact-SHA workflow runs from the manifest, and bind
+every embedded schema-v2 payload to the same hold, criterion, evidence type, and
+candidate. Compute every embedded payload digest, then base64-encode the
+statement. Both statement and embedded observation timestamps must be within 30
+days of verification. Every supporting workflow run's GitHub `updated_at` must
+also be within that 30-day window. Dispatch
+`.github/workflows/release-evidence.yml` from the current `main` head at that
+exact candidate. Manual workflow values must enter Bash through step `env`
+variables; never interpolate `${{ inputs.* }}` directly into a `run` script. Its
+separate `Release Evidence` environment must approve the run; the workflow
+validates the statement and supporting runs before uploading the uniquely named
+90-day audit artifact. Record its artifact ID and GitHub-reported SHA-256. Each
+positive artifact ID may satisfy exactly one criterion; never reuse an artifact
+across criteria. Retention does not extend the 30-day admission window. Follow
+the complete redaction, renewal, and failure procedure in the
+[release-evidence operations guide](../release-evidence/README.md).
+
+Then copy
+`docs/release-evidence/species-dictionary-field-chat-clearance-template.json`,
+replace every placeholder, set `active: false` in the reviewed candidate, and
+calculate the SHA-256 of that candidate's exact
+`services/supabase/release-holds.json`. Store the completed schema-v2 JSON only
+as the protected GitHub `Production` environment secret
+`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON`; do not commit it. Candidate and
+manifest values, criterion IDs/types, positive artifact IDs, nonzero digests,
+and the at-most-seven-day window must be exact. The checked-in templates are
+intentionally invalid until populated.
+
+`.github/CODEOWNERS` remains review routing, not separation of duties. The
+production verifier requires the live Code Owner-review rule plus at least two
+current approvals by identities other than the PR author, stale-review
+dismissal, last-push approval, admin enforcement, and no review bypass. The
+checked-in file currently names one account, so an independently owned account
+or team must be added before that account can author a releasable control
+change; do not weaken the verifier to work around this fail-closed state. Both
+`Release Evidence` and `Production` must require a reviewer, prevent
+self-review, and accept protected branches only. Secret administration must also
+remain restricted to trusted operators; the read-only audit token cannot verify
+who can edit GitHub secrets. If any checked setting, independent owner, token
+scope, or secret-administration boundary is unavailable, keep the hold active.
+Retain the PR reviews, both environment approvals, exact workflow URLs,
+manifest/clearance/artifact digests, three live bundle identities, and final
+post-activation summary together.
+
 - For an admin release, complete the authentication/role, security-header,
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
   smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment

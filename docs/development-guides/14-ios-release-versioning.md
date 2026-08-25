@@ -46,7 +46,25 @@ Backend evidence is likewise validation-only: **Supabase Candidate Validation**
 replays the exact SHA into a disposable database without a Production
 environment, production secrets, or deployment. Public release nomination
 requires its green SHA to match the iOS workflow SHA. The separate Supabase
-production job remains an operator-authorized deployment action.
+production job remains an operator-authorized deployment action and is currently
+blocked before its GitHub `Production` environment by the checked-in
+`species_dictionary_chat_production_hold`. Clearing that hold also requires the
+genuine released-binary V49→V50 physical install-over gate in this runbook. The
+current source-created V49 fixture proves candidate-self consistency only; the
+physical result is still pending. The Field Chat source controls now include
+six-table cleanup and permanent atomic-RPC ownership of conversation insertion,
+explicit post-bundle database activation, one executable Swift/Deno prompt-label
+policy, a structurally bound protected clearance, and an exact clean
+mutation-SHA check. Each live route now exposes a candidate-derived bundle
+digest, database `ready` force-selects the chat fleet, activation records the
+three identities, and clearance retrieves/recomputes artifacts while checking
+live protections. Backend release remains blocked on non-skipped and hosted
+evidence, accepted external GitHub control configuration, the V49 install-over,
+and external approvals. The canonical requirements are in the
+[Supabase hold-exit criteria](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).
+Author and renew their retained artifacts through the
+[release-evidence operations guide](../release-evidence/README.md); a validation
+archive or local test result cannot substitute for that protected flow.
 
 Do not add a second publisher through GitHub Actions, Fastlane, command-line
 export scripts, or a manually forced distribution identity. Two upload paths

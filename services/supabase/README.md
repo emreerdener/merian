@@ -70,7 +70,26 @@ exactly `2.9.4`, and fails closed after the final attempt.
 The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it
-is not evidence that production changed and does not authorize deployment.
+is not evidence that production changed and does not authorize deployment. The
+production workflow next runs a non-Production source hold gate that requires
+the exact checkout to be the current `refs/heads/main`/`origin/main` head. Its
+sole Production job independently pins, clean-checks, and current-main-checks
+the same SHA and, for every reviewed inactive hold, requires the protected
+`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` secret to match the candidate,
+manifest digest, complete criterion/evidence-type set, positive GitHub artifact
+IDs, nonzero digests, and current approval window before ordinary production
+credentials or mutations are reachable. With the read-only
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, it checks live branch/environment
+protections including Code Owner review, downloads each uniquely assigned
+artifact, recomputes archive and embedded evidence digests, rejects evidence
+older than 30 days, and verifies exact-SHA successful supporting runs whose
+GitHub `updated_at` is also within 30 days. One positive artifact ID may satisfy
+only one criterion. Evidence publication must start at the current `main` head,
+and manual workflow inputs must enter Bash through step environment variables,
+never direct `${{ inputs.* }}` interpolation in a `run` script. Artifact
+integrity does not prove an off-platform issuer or independent secret
+administration; those remain reviewed operational boundaries. See the
+[release-evidence operations guide](../../docs/release-evidence/README.md).
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -1686,12 +1705,43 @@ Explore bundles also import the three-table daily-usage helper, apply it before
 deploying any updated `insight-chat`, `explore-post-chat`, or
 `species-dictionary-chat` bundle from this candidate.
 
-The daily allowance must survive conversation deletion. The current candidate
-still calculates the total from live user-message rows; cascading deletion can
-therefore erase admission evidence and restore allowance. This is a release
-blocker until a durable delete-resistant admission record is authoritative and
-the disposable PostgreSQL suite proves delete-then-send behavior across all
-three families.
+Migration `20260824210544_preserve_field_chat_daily_usage.sql` makes the daily
+allowance independent of conversation retention. The content-free
+`internal.field_chat_daily_admissions` row is keyed by user and UTC day,
+increments atomically with each new admission, survives all three conversation
+cascades, and defines conservative Ghost coalescing. The coalescing handler
+acquires both identities' admission locks in UUID order before moving the
+counter, while admission takes its parent-user key lock first to match the merge
+orchestrator's parent-row lock order. The migration short-locks all three
+conversation/message families, removes historical message-less threads, and
+lower-bound backfills the current day from retained rows; future counts come
+only from the durable ledger. It registers the handler in the effective Ghost
+policy allowlist and runs the complete policy-coverage assertion before commit.
+The concurrency fixture derives its day from PostgreSQL, calls the public
+reservation RPC and full merge orchestrator, and asserts the conservative sum.
+The pgTAP fixture executes real Insight, Explore, and Dictionary
+reserve-delete-fresh-reserve branches.
+
+Because the retained-row seed cannot reconstruct messages deleted earlier that
+day, the migration records the next PostgreSQL-observed UTC boundary and blocks
+every novel reservation and direct conversation insert before and after that
+boundary until explicit activation. Direct conversation `INSERT` is also
+permanently revoked from API roles, so only the atomic reservation RPC can
+create a thread after activation. Exact persisted replays remain available.
+Conversation creation and the first user row now occur atomically after the
+daily slot is secured, so cutover, quota, and cap denials create no thread. The
+service-only `get_field_chat_daily_usage(uuid)` RPC remains the authoritative
+read-side allowance projection, while the
+`get_field_chat_admission_cutover_status()` RPC exposes only bounded server-time
+evidence. The production workflow pins the exact candidate SHA and records the
+migration digest and database status. Crossing the UTC boundary yields `ready`,
+not open. The current fixed `atomic-admission-v1` route header proves compatible
+admission behavior. Each route also exposes a generated
+`X-Merian-Field-Chat-Bundle-SHA256` derived from its transitive runtime graph,
+Deno configuration, and frozen lock. A `ready` rerun force-selects all three
+bundles; activation persists candidate, migration, and all three live digests.
+These source controls still require non-skipped disposable PostgreSQL and hosted
+exact-SHA evidence before the hold may be cleared.
 
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
@@ -2550,20 +2600,43 @@ For Field Chat reliability releases, apply
 function and include `20260730180000_bind_field_chat_rows_to_subjects.sql`
 before release acceptance. For Dictionary Field Chat, additionally apply
 `20260821030027_add_species_dictionary_field_chat.sql` before any updated chat
-Function, not only the new route. Deploy `insight-chat`, `explore-post-chat`,
-and `species-dictionary-chat` from the same exact SHA, then stage same-key
-replay/conflict, different-key concurrency in one conversation, 28/29/30-row
-boundaries, a 19-to-20 send transition split across all three chat families,
-deletion without daily-allowance restoration, cross-bound-row rejection,
-feedback ACLs, and the ten-minute stale-quota path before releasing iOS. An RPC
-timeout, malformed admission row, or missing migration must remain a retryable
-`503` without provider dispatch.
+Function, not only the new route, followed by
+`20260824210544_preserve_field_chat_daily_usage.sql`. Deploy `insight-chat`,
+`explore-post-chat`, and `species-dictionary-chat` from the same exact SHA, then
+stage same-key replay/conflict, different-key concurrency in one conversation,
+28/29/30-row boundaries, a 19-to-20 send transition split across all three chat
+families, deletion without daily-allowance restoration, cross-bound-row
+rejection, feedback ACLs, and the ten-minute stale-quota path before releasing
+iOS. An RPC timeout, malformed admission row, or missing migration must remain a
+retryable `503` without provider dispatch.
 
-Dictionary release also requires executable authenticated handler coverage in
-the deploy Function test list, automatic iOS ambiguous replay under the stable
-send UUID, Dictionary-specific refusal wording, and a safely normalized local
-fallback label. Source-contract inspection, header presence, and manual retry
-alone are insufficient evidence.
+Those are ordered rollout steps only after explicit production authorization and
+every checked-in hold criterion passes. The current candidate must not apply the
+migration or deploy any of the three updated bundles to production.
+
+Automatic iOS ambiguous replay uses the stable send UUID, and refusals are
+Dictionary-specific. Conversation creation is owned by the atomic reservation
+RPC after daily and conversation admission succeeds; all three route-local
+pre-create helpers have been removed. Swift and Deno execute the same 64-scalar
+label fixture, including U+2013 EN DASH, U+0085 whitespace normalization, and
+U+FEFF rejection. Database time advances the cutover only to closed `ready`. The
+current route probe observes the shared `atomic-admission-v1` compatibility
+marker plus each route's candidate-derived bundle digest, and activation stores
+all three live identities. Database `ready` force-selects the full Field Chat
+fleet even after the migration becomes the deployment baseline. The current
+handler test executes the post-authenticated core, not a hosted real-token HTTP
+request. Supabase production is blocked by the checked-in
+`species_dictionary_chat_production_hold`; Candidate Validation may run, but the
+separate source hold job must pass before the GitHub `Production` environment or
+any mutation-capable deployment step is reached. A source-only inactive hold is
+insufficient: the exact-SHA-checked Production job also requires a protected
+clearance matching the candidate, manifest digest, complete criterion set, and
+retained evidence digests. The verifier checks those bindings but does not stop
+there: it downloads and recomputes each GitHub artifact, validates its
+structured evidence and exact-SHA supporting runs, and checks live protection
+settings. Keep the hold active until non-skipped database and wrapper-auth
+execution, both same-SHA hosted gates, the released-V49 install-over, and every
+external gate in the canonical deployment runbook are retained.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through

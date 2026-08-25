@@ -100,15 +100,20 @@ Its platform-router `404` recovery is separate from handler-owned `404`, and
 ambiguous transport/`5xx` replay fails closed unless the route is an audited
 read or carries a server-supported idempotency key.
 
-The Dictionary send carries a server-supported idempotency key, but the current
-iOS candidate has not added `species-dictionary-chat` to
-`idempotencyAwareFunctionNames`. It therefore does not automatically replay an
-ambiguous transport/`5xx` failure yet; manual retry remains available under the
-same UUID. This allowlist entry and its lost-response regression are required
-before release. The current deploy workflow also runs the route's eligibility
-and prompt tests but omits `_tests/speciesDictionaryChatRouteContract.test.ts`;
-that test is source-string inspection in any case, so executable authenticated
-handler coverage must be added to the focused gate.
+The Dictionary send carries a server-supported idempotency key and
+`species-dictionary-chat` is in `idempotencyAwareFunctionNames`. Its regression
+loses the first retryable response, automatically replays the identical UUID,
+and accepts one saved pair. The focused deploy gate also runs the source route
+contract and post-authenticated handler-core coverage for action, ownership,
+replay, refusal, provider ordering, and stale recovery. The suite also executes
+the actual wrapper with deterministic accepted/refused authenticators, proving
+auth-before-route ordering without pretending to validate a hosted JWT. Atomic
+database admission now prevents a denied send from creating a conversation, and
+both clients execute the same versioned 64-Unicode-scalar label fixture,
+including U+2013 EN DASH, U+0085 normalization, and U+FEFF rejection. Release
+acceptance still requires both consumers to execute on the exact hosted
+candidate in addition to non-skipped database execution and hosted real-token
+wrapper evidence.
 
 The only direct iOS SDK callers were reviewed separately:
 

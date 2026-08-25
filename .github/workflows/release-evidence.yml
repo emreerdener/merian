@@ -1,0 +1,101 @@
+name: Publish Merian Release Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Exact reviewed candidate SHA
+        required: true
+        type: string
+      hold_id:
+        description: Checked-in release hold ID
+        required: true
+        default: species_dictionary_chat_production_hold
+        type: string
+      criterion_id:
+        description: Checked-in exit-criterion ID
+        required: true
+        type: string
+      evidence_statement_base64:
+        description: Base64 of the redacted release-evidence statement JSON
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Release Evidence
+    steps:
+      - name: Checkout exact evidence candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact clean evidence candidate
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          main_sha="$(git rev-parse refs/remotes/origin/main)"
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Release evidence must be dispatched from refs/heads/main." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$EXPECTED_CANDIDATE_SHA" ]; then
+            echo "Evidence checkout does not match the requested candidate." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$EXPECTED_CANDIDATE_SHA" ]; then
+            echo "Dispatch ref does not identify the requested candidate." >&2
+            exit 1
+          fi
+          if [ "$checked_out_sha" != "$main_sha" ]; then
+            echo "Evidence candidate is not the current origin/main head." >&2
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Evidence checkout is not clean." >&2
+            exit 1
+          fi
+
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Validate and materialize redacted evidence
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+          HOLD_ID: ${{ inputs.hold_id }}
+          CRITERION_ID: ${{ inputs.criterion_id }}
+          MERIAN_RELEASE_EVIDENCE_BASE64: ${{ inputs.evidence_statement_base64 }}
+        run: |
+          output="$RUNNER_TEMP/release-evidence.json"
+          deno run --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,MERIAN_RELEASE_EVIDENCE_BASE64 \
+            --allow-net=api.github.com \
+            --allow-read=services/supabase/release-holds.json \
+            --allow-write="$output" \
+            services/supabase/scripts/prepare_release_evidence.ts \
+            --candidate-sha "$EXPECTED_CANDIDATE_SHA" \
+            --hold-id "$HOLD_ID" \
+            --criterion-id "$CRITERION_ID" \
+            --manifest services/supabase/release-holds.json \
+            --output "$output"
+
+      - name: Upload immutable release evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: merian-release-evidence-${{ inputs.criterion_id }}-${{ inputs.candidate_sha }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-evidence.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

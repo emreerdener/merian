@@ -1898,14 +1898,49 @@ the conversation-optional feature-feedback scan owner, deferred composite
 message/feedback identity, exact RLS joins, and feedback Data API revocation in
 `20260730180000_bind_field_chat_rows_to_subjects.sql`. The executable
 `tests/field_chat_reservation_security.sql` is the PostgreSQL authority for
-runtime transaction, 19 admission/binding/ACL assertions, replay/conflict,
+runtime transaction, 32 admission/binding/ACL assertions, replay/conflict,
 capacity, daily-limit, and stale recovery behavior.
 `_tests/speciesDictionaryChatMigrationContract.test.ts` and
 `tests/species_dictionary_chat_security.sql` pin the Edge-only tables, RLS,
 least-privilege grants, composite species/conversation/viewer bindings, account
 merge, cascade deletion, feedback ownership, and shared three-family admission.
-Both bind those assertions to
+The Dictionary fixture has 14 assertions. Both bind those assertions to
 `20260821030027_add_species_dictionary_field_chat.sql`.
+`_tests/fieldChatDurableDailyUsageMigrationContract.test.ts` and
+`_shared/fieldChatDailyUsage_test.ts` pin
+`20260824210544_preserve_field_chat_daily_usage.sql`, the private content-free
+aggregate, replay-before-consumption ordering, service-only fail-closed read,
+conservative Ghost merge, effective handler allowlist, complete registry
+assertion, database-clock cutover, explicit post-boundary activation, atomic
+conversation creation, six-table cutover locking, historical message-less thread
+cleanup, permanent API-role conversation-insert revocation, and bounded
+status/activation ACLs. The 36-assertion PostgreSQL fixture proves `pending`
+rejects activation, `ready` remains closed, and only an evidence-bound
+activation permits novel sends inside its rolled-back transaction. It executes
+real Insight, Explore, and Dictionary reserve-delete-fresh-reserve branches plus
+the owner-only cleanup against one message-less thread from each family while
+preserving admitted threads. Its cap case begins without a conversation and
+proves quota denial writes neither a conversation nor a user message.
+
+The shared reservation test pins
+`X-Merian-Field-Chat-Contract: atomic-admission-v1` and the route-specific
+`X-Merian-Field-Chat-Bundle-SHA256`. The deployment-identity test recomputes all
+three digests from transitive runtime graphs, Deno configuration, and lock state
+and rejects a stale generated map. `_tests/edgeHandler.test.ts` proves
+configured contract headers reach preflight responses without overriding request
+or fleet-handler metadata, and the Dictionary handler test proves the marker
+survives accepted and refused authentication. The migration contract requires
+all three route entrypoints to configure it, and the deployment workflow
+contract requires the live marker from all three routes after Function
+deployment but before one-way database activation.
+
+`ghostProfileMergeConcurrencyDb.test.ts` derives the admission day from the
+database clock, activates cutover only in the disposable catalog, races the
+public `reserve_field_chat_send(...)` entrypoint with the complete
+`internal.perform_ghost_profile_merge(...)` orchestrator, and asserts the
+conservative ledger sum plus conversation/message reparenting. It is release
+evidence only when it executes against a fully migrated disposable catalog; a
+connection-refused skip is not a pass.
 
 The focused portable Field Chat selection uses the two shared tests, the
 migration contract, and the Insight/Explore guard, eligibility, prompt, and
@@ -1919,29 +1954,54 @@ execution of `field_chat_reservation_security.sql` against the exact deployed
 PostgreSQL catalog, execution of `species_dictionary_chat_security.sql`, or the
 joined physical-device chat smoke.
 
-The candidate is not release-ready on that evidence alone. The following
-regressions are mandatory before Candidate Validation can accept Species
-Dictionary Field Chat:
+Some source regressions are executable. Swift network tests simulate a lost
+retryable response for `species-dictionary-chat`, require automatic replay with
+the same lowercase UUID, and accept one persisted pair. `handler_test.ts`
+invokes the post-authenticated handler core with a synthetic user and covers
+load/suggestions, delete/feedback ownership, absent feedback, exact
+replay/conflict, Dictionary-specific refusal, provider ordering, and stale
+completed-quota recovery. It also invokes the actual `withEdgeHandler` boundary
+with deterministic accepted/refused authenticators, proving authentication
+precedes route binding and refusal never reaches the handler. The source route
+contract separately checks wrapper registration; a hosted real-JWT smoke remains
+required. The daily-limit and cutover cases prove no provider dispatch and
+refund any uncommitted provider lease, while the database fixture proves no
+conversation or message write. Route source contracts reject any reintroduction
+of pre-admission `getOrCreateConversation` helpers. Swift and Deno execute
+`docs/contracts/species-dictionary-prompt-label-policy.json` for ASCII hyphen,
+U+2013 EN DASH, curly apostrophe, combining marks, exact 64-Unicode-scalar
+acceptance, 65-scalar fallback, emoji fallback, U+0085 normalization, and U+FEFF
+rejection. The hosted iOS gate must compile and execute the Swift consumer while
+the recursive Edge gate executes the Deno consumer on the same candidate.
+`ci-detect-ios-build-source-changes.sh` treats that shared fixture as an iOS
+build input, so a policy-only JSON change cannot skip the macOS gate.
 
-- PostgreSQL must admit sends, delete each of the three conversation families,
-  and prove the same UTC-day 20-send total does not decrease. Current accounting
-  reads live user-message rows, so cascading deletion presently fails this
-  invariant.
-- Swift network tests must simulate a lost successful response and retryable
-  `5xx` for `species-dictionary-chat`, prove automatic replay is allowed, and
-  require the same lowercase send UUID and one persisted pair. Header presence
-  and manual retry coverage do not prove the automatic path.
-- Tests must invoke the authenticated handler for `load`, `send`, `delete`,
-  `feedback`, and `suggest_prompts`, covering Free/Pro, malformed and
-  unavailable species, cross-user/cross-species access, strict echoes,
-  replay/conflict, and in-flight/stale recovery.
-  `_tests/speciesDictionaryChatRouteContract.test.ts` currently inspects source
-  text; it and the executable handler suite must be in
-  `.github/workflows/deploy.yml`'s focused Function selection.
-- Swift and Deno copy/safety tests must reject leftover scan/observation wording
-  in Dictionary refusals and must prove local deterministic fallback names are
-  normalized and bounded to the same 120-character chip contract as server
-  suggestions.
+This local evidence still does not authorize release. Candidate Validation must
+execute the complete disposable PostgreSQL and recursive Edge suite on the same
+immutable SHA as the hosted iOS gate. The checked-in
+`species_dictionary_chat_production_hold` remains active until the Ghost
+registry, real three-family database cases, post-bundle cutover activation,
+no-write denial, and exact label-policy parity execute without skips on the
+immutable candidate. The cutover tests cover a ready-state rerun after the
+migration becomes the successful baseline and match each immutable live bundle
+digest to the candidate; the compatibility marker alone is insufficient. The
+hosted real-token HTTP-wrapper evidence must also pass. The fail-closed source
+verifier requires the named ID. If it is later reviewed inactive, the
+exact-SHA-checked mutation job requires a protected Production clearance
+structurally bound to the manifest digest, complete criterion IDs/evidence
+types, GitHub artifact IDs/digests, and a current approval window. The verifier
+fetches and recomputes each artifact, validates embedded evidence and exact-SHA
+runs, requires the current protected `main` head, rejects statement, embedded,
+or supporting-run timestamps older than 30 days, prevents artifact reuse across
+criteria, and checks live branch/environment protections. The manual evidence
+workflow passes `${{ inputs.* }}` through step environment variables before Bash
+consumes them; direct expression interpolation in a `run` script is a
+workflow-security regression. A genuine released-binary V49→V50 physical
+install-over and the canonical external consent/App Store/billing/DPA evidence
+must also pass. Artifact integrity does not authenticate an off-platform issuer
+or establish independent secret administration; follow the
+[release-evidence operations guide](../release-evidence/README.md) and keep the
+hold active if those external controls cannot be verified.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and

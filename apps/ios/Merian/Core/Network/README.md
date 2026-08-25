@@ -495,17 +495,25 @@ while shared transport and admission failures remain retryable. Dictionary
 product telemetry records the source/action outcome without the species UUID,
 name, conversation ID, or message ID. Migration
 `20260821030027_add_species_dictionary_field_chat.sql` extends atomic admission
-and stale recovery to all three chat families.
+and stale recovery to all three chat families;
+`20260824210544_preserve_field_chat_daily_usage.sql` then makes its content-free
+user/day counter the intended authority across conversation deletion. The
+backend candidate remains release-held until its Ghost handler registry and real
+three-family database paths execute without skips, cutover remains closed until
+all three corrected bundles are explicitly activated, quota denial proves no
+empty conversation, Swift/Deno prompt labels make identical normalization
+decisions, and release clearance is bound to retained exact-SHA evidence. Client
+replay correctness cannot substitute for those server gates.
 
-The request already sends the canonical `client_message_id` as
-`Idempotency-Key`, and manual retry reuses it. The current candidate has not yet
-added `species-dictionary-chat` to `idempotencyAwareFunctionNames`, so
-`canReplayAfterAmbiguousFailure` does not automatically retry this route after a
-lost response or retryable `5xx`. That allowlist entry and an exact one-pair
-replay regression are required before Dictionary Field Chat can ship. Missing or
-malformed `species_id` maps to `400 invalid_request`; only a valid canonical
-UUID that is unavailable/nonbiological maps to the permanent
-`404 species_not_available` subject state.
+The request sends the canonical `client_message_id` as `Idempotency-Key`, and
+manual retry reuses it. `species-dictionary-chat` is also in
+`idempotencyAwareFunctionNames`, so `canReplayAfterAmbiguousFailure`
+automatically retries a lost response or retryable `5xx` with the exact same
+body and lowercase UUID. The regression returns failure once, then one saved
+pair, and asserts both attempts carried the identical key. Missing or malformed
+`species_id` maps to `400 invalid_request`; only a valid canonical UUID that is
+unavailable/nonbiological maps to the permanent `404 species_not_available`
+subject state.
 
 Atomic admission and stale-request recovery remain backend authority.
 `field_chat_send_in_progress`, `field_chat_admission_unavailable`, and

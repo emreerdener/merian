@@ -335,6 +335,33 @@ Deno.test("withEdgeHandler overwrites the handler marker on success", async () =
   assertEquals(response.headers.get("X-Merian-Handler"), "1");
 });
 
+Deno.test("withEdgeHandler applies fixed route-contract headers without overriding metadata", async () => {
+  const response = await withEdgeHandler(
+    new Request("https://test-project.supabase.co/functions/v1/test", {
+      method: "OPTIONS",
+    }),
+    () => Promise.resolve(jsonResponse({ ok: true })),
+    {
+      responseHeaders: {
+        "X-Merian-Field-Chat-Contract": "atomic-admission-v1",
+        "X-Merian-Handler": "0",
+        "X-Request-ID": "attacker-selected",
+      },
+    },
+  );
+
+  assertEquals(response.status, 200);
+  assertEquals(
+    response.headers.get("X-Merian-Field-Chat-Contract"),
+    "atomic-admission-v1",
+  );
+  assertEquals(response.headers.get("X-Merian-Handler"), "1");
+  assertEquals(
+    response.headers.get("X-Request-ID") === "attacker-selected",
+    false,
+  );
+});
+
 Deno.test("withPublicEdgeHandler applies metadata without auth timing", async () => {
   const request = new Request(
     "https://test-project.supabase.co/functions/v1/public",

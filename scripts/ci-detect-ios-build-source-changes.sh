@@ -79,6 +79,7 @@ is_ios_build_input() {
     project.yml | \
     Merian.xcodeproj/* | \
     merian.xcodeproj/* | \
+    docs/contracts/species-dictionary-prompt-label-policy.json | \
     apps/ios/* | \
     apps/watch/* | \
     scripts/*ios*.sh | \

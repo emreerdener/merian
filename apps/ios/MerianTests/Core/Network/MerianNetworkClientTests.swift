@@ -1154,6 +1154,9 @@ struct MerianNetworkClientTests {
         let reactionURL = baseURL.appendingPathComponent("toggle-explore-comment-reaction")
         let feedbackURL = baseURL.appendingPathComponent("submit-feedback-survey")
         let uploadURL = baseURL.appendingPathComponent("generate-upload-urls")
+        let dictionaryChatURL = baseURL.appendingPathComponent(
+            "species-dictionary-chat"
+        )
 
         #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
             url: readURL,
@@ -1182,6 +1185,15 @@ struct MerianNetworkClientTests {
         ))
         #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
             url: baseURL.appendingPathComponent("identify-multimodal"),
+            method: "POST",
+            idempotencyKey: "019fa6ef-4fab-7d42-84d8-74dc8b1b5bb0"
+        ))
+        #expect(!MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: dictionaryChatURL,
+            method: "POST"
+        ))
+        #expect(MerianNetworkClient.canReplayAfterAmbiguousFailureForTesting(
+            url: dictionaryChatURL,
             method: "POST",
             idempotencyKey: "019fa6ef-4fab-7d42-84d8-74dc8b1b5bb0"
         ))
@@ -1719,6 +1731,7 @@ struct MerianNetworkClientTests {
         let conversationID = "019fb71d-0c6e-745e-9c2a-ac395aab0731"
         let requestID = "019fb71d-10ee-7114-be47-b551d9adee55"
         let messageID = "019fb71d-14be-7399-b29c-c28a613936c0"
+        let sendProbe = NetworkRequestProbe()
         let responseURL = try #require(URL(string: "https://example.com"))
         let response = try #require(
             HTTPURLResponse(
@@ -1747,6 +1760,25 @@ struct MerianNetworkClientTests {
             let data: Data
             switch action {
             case "send":
+                let attempt = sendProbe.record(
+                    idempotencyKey: request.value(
+                        forHTTPHeaderField: "Idempotency-Key"
+                    )
+                )
+                if attempt == 1 {
+                    let transientResponse = try #require(
+                        HTTPURLResponse(
+                            url: responseURL,
+                            statusCode: 503,
+                            httpVersion: nil,
+                            headerFields: ["X-Merian-Handler": "1"]
+                        )
+                    )
+                    return (
+                        transientResponse,
+                        Data(#"{"code":"service_unavailable"}"#.utf8)
+                    )
+                }
                 #expect(payload["client_message_id"] as? String == requestID)
                 #expect(
                     payload["message_text"] as? String ==
@@ -1862,6 +1894,8 @@ struct MerianNetworkClientTests {
             )
         #expect(sent.messages.count == 2)
         #expect(sent.messages.allSatisfy { $0.scanId == speciesID })
+        #expect(sendProbe.count == 2)
+        #expect(sendProbe.recordedIdempotencyKeys == [requestID, requestID])
 
         let feedback = try await MerianNetworkClient.shared
             .submitSpeciesDictionaryChatFeedback(

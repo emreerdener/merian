@@ -990,6 +990,7 @@ final class MerianNetworkClient {
         "insight-chat",
         "request-community-identification",
         "share-scan-to-explore",
+        "species-dictionary-chat",
         "update-explore-field-notes"
     ]
     private static let insightChatPromptCategoryAllowlist: Set<String> = [

@@ -24,7 +24,12 @@ uncertainty fallback does. This prevents evidence, ecology, or seasonal
 suggestions from crowding out the observation's uncertainty context.
 Explore-post prompt chips do not use private scan confidence and retain their
 separate public fallback behavior. Species Dictionary chips use the same
-confidence-free deterministic fallback and bounded server labels.
+confidence-free deterministic fallback and bounded server labels. Swift and Deno
+execute `docs/contracts/species-dictionary-prompt-label-policy.json`: labels are
+capped at 64 Unicode scalars, the contract enumerates normalized whitespace and
+punctuation, U+2013 EN DASH is accepted, U+0085 NEXT LINE collapses to one ASCII
+space, and U+FEFF BYTE ORDER MARK is rejected. Unsupported input falls back to
+`this species` in both runtimes.
 
 For Explore posts, the empty state uses the concise trust message
 `This Field chat is private and visible only to you.` The conversation is never
@@ -169,30 +174,31 @@ another thread.
 `PendingInsightChatMessage.id` is the send's durable idempotency UUID. Automatic
 network replay and `retryFailedMessage` must reuse it in canonical lowercase
 form; a manual retry must never allocate a new UUID and insert a duplicate
-question. Insight and Explore are currently in the audited automatic-replay
-allowlist. Dictionary requests send the same idempotency header, but the current
-candidate does not yet allow automatic ambiguous replay for
-`species-dictionary-chat`; adding that route and proving a lost-response/`5xx`
-retry returns one saved pair is a client-release blocker. Reusing the UUID for
-edited text is a server-confirmed `field_chat_idempotency_conflict`, so Edit
-intentionally starts a new send UUID. The backend coalesces an in-flight quota
-replay into the exact saved pair or returns retryable
-`field_chat_send_in_progress`. It reserves both persisted rows within the 30-row
-conversation cap and gives the assistant a deterministic row identity,
-preventing concurrent or ambiguous persistence from duplicating an answer.
-Database admission is authoritative across devices and all three chat families:
-it serializes the shared 20/day count, conversation capacity, and the user-row
-insert. `field_chat_admission_unavailable` and `field_chat_recovery_unavailable`
-are retryable failures, never permission to clear the pending bubble or create a
-replacement UUID. A quota-committed unanswered request can be reopened only by
-exact server proof after ten minutes; iOS does not calculate or assume that
-state.
+question. Insight, Explore, and Species Dictionary are in the audited
+automatic-replay allowlist. The Dictionary regression loses the first retryable
+response and proves the automatic retry carries the exact same UUID and returns
+one saved pair. Reusing the UUID for edited text is a server-confirmed
+`field_chat_idempotency_conflict`, so Edit intentionally starts a new send UUID.
+The backend coalesces an in-flight quota replay into the exact saved pair or
+returns retryable `field_chat_send_in_progress`. It reserves both persisted rows
+within the 30-row conversation cap and gives the assistant a deterministic row
+identity, preventing concurrent or ambiguous persistence from duplicating an
+answer. Database admission is authoritative across devices and all three chat
+families: it serializes the shared 20/day count, conversation capacity, and the
+user-row insert. `field_chat_admission_unavailable` and
+`field_chat_recovery_unavailable` are retryable failures, never permission to
+clear the pending bubble or create a replacement UUID. A quota-committed
+unanswered request can be reopened only by exact server proof after ten minutes;
+iOS does not calculate or assume that state.
 
 The 20/day count must survive deletion of retained conversation content. The
-current backend candidate counts live user-message rows and cascades them on
-conversation deletion, so it can restore same-day allowance and remains
-release-held until durable admission accounting and delete-then-send tests pass
-for all three sources.
+backend candidate introduces a content-free admission ledger and remains
+release-held until executable evidence is retained. The migration registers its
+Ghost handler in the effective merge-policy allowlist; fixtures exercise all
+three real reserve-delete-fresh-reserve branches, quota denial without an empty
+conversation, and the complete merge orchestrator race. Its lower-bound seed
+still cannot reconstruct earlier same-day deletions, so novel admission remains
+closed through the next UTC boundary and until explicit post-bundle activation.
 
 Migration `20260730180000_bind_field_chat_rows_to_subjects.sql` makes the same
 identity rule structural for retained server data. Every retained Insight
@@ -246,10 +252,13 @@ it excludes sightings, observation charts, scans, notes, users, locations,
 media, URLs, and attribution identities. No source receives raw media or exact
 GPS. Dictionary product telemetry omits species names and UUIDs.
 
-Before release, Dictionary refusals must be generated from source-specific copy
-instead of partially replacing scan wording, and local fallback prompt chips
-must normalize and bound the display label exactly like server suggestions. The
-current candidate does not yet meet either requirement.
+Dictionary refusals use source-specific copy and never imply a saved scan or
+observation. Local fallback prompt chips collapse only the explicitly enumerated
+whitespace scalars, accept only Unicode letters, marks, decimal digits, and
+reviewed punctuation, and fall back to `this species` for empty, overlong,
+instruction-like, emoji, control-bearing, or U+FEFF-bearing input. Swift and
+Deno execute the same fixture vectors for ASCII hyphen, U+2013 EN DASH,
+punctuation, combining marks, non-BMP input, U+FEFF, and U+0085.
 
 See:
 

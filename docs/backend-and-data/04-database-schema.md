@@ -1677,13 +1677,68 @@ rows using the same chat buckets and model as the existing families.
 
 The daily cap's durable contract is independent of message retention: deleting a
 private conversation must not erase the fact that its sends were admitted
-earlier in the same UTC day. The current candidate counts retained user-message
-rows in both admission and response shaping, while the conversation foreign-key
-cascade deletes those rows. It is therefore release-blocked until a durable
-admission ledger or equivalent delete-resistant counter becomes authoritative
-and PostgreSQL coverage proves that deleting any of the three conversation
-families does not restore daily allowance. Do not document the cascade as a
-quota-reset mechanism or weaken deletion to retain private message content.
+earlier in the same UTC day. Migration
+`20260824210544_preserve_field_chat_daily_usage.sql` adds
+`internal.field_chat_daily_admissions`, one content-free aggregate per user and
+UTC day. The reservation transaction increments it only for a new request and
+returns its authoritative value; exact replay returns before consumption. The
+service-only `get_field_chat_daily_usage(uuid)` RPC reads the same aggregate and
+the Edge adapter fails closed on timeout, error, or malformed output. All three
+conversation cascades continue erasing private messages without touching the
+counter. Ghost merge sums source/destination counts and deletes the source only
+after the destination upsert while taking the same two per-user advisory locks
+as admission in UUID order. The migration adds `field_chat_daily_admissions` to
+the effective Ghost handler allowlist and executes the complete policy-coverage
+assertion before commit.
+
+The same migration moves first-conversation creation into
+`reserve_field_chat_send(...)`. The caller supplies a candidate UUID; under the
+user and deterministic subject locks, PostgreSQL reuses an existing thread or
+creates the subject-bound thread only after a daily slot succeeds, then inserts
+the user row in that transaction. Quota, capacity, cutover, ownership, and
+idempotency denials therefore leave no new conversation or message. The RPC
+returns the authoritative conversation UUID. Explore also replaces a stale
+species binding inside this serialized transaction.
+
+Short cutover locks on the three conversation/message families remove historical
+message-less threads and can lower-bound backfill only retained current-day
+rows, so the migration also creates the singleton
+`internal.field_chat_admission_cutover`. Its `not_before_utc` is the next exact
+UTC boundary derived from `clock_timestamp()` in PostgreSQL. A shared insert
+trigger blocks direct creation in all three conversation tables, and the
+reservation routine allows an exact persisted replay but rejects every novel
+send while the cutover is closed with `field_chat_admission_cutover_pending`.
+Conversation `INSERT` is permanently revoked from all API roles, so only the
+`SECURITY DEFINER` reservation routine can create a thread after activation;
+load/touch/delete retain their narrower table privileges. This also prevents an
+in-flight old bundle from leaving an orphan after the live-route cutover check.
+The service-only `get_field_chat_admission_cutover_status()` returns only the
+migration ID, database time, seed time, boundary, nullable activation time,
+activation candidate SHA, activation migration SHA-256, three nullable
+route-bundle SHA-256 values, and `pending`/`ready`/`active` state; browser roles
+cannot read or mutate the internal state.
+
+Database time can make the cutover `ready`, but cannot open it. The service-only
+`activate_field_chat_admission_cutover(text,text,text,text,text)` routine takes
+the singleton row lock, rejects pre-boundary activation, is idempotent only for
+the same candidate/migration/three-bundle identity set, and performs a one-way
+transition after all three bundles deploy and their live routes return both
+`X-Merian-Field-Chat-Contract: atomic-admission-v1` and the expected
+`X-Merian-Field-Chat-Bundle-SHA256`. `assert_field_chat_admission_open()`
+requires that activation record. A Function deployment failure, an unpropagated
+old route, or UTC rollover during deployment therefore leaves older
+create-before-admission bundles closed. The fixed header remains the
+compatibility marker; the second header is a deterministic digest of each
+route's transitive runtime graph, Deno configuration, and frozen lock. Database
+activation persists the exact three live values. A database `ready` state also
+force-selects all three routes in the final deployment plan after the migration
+becomes the successful baseline.
+
+Source fixtures now execute each public reservation branch, each
+reserve-delete-fresh-reserve path, no-write quota denial, and the complete Ghost
+merge orchestrator under a database-current-day race. They become release
+evidence only when Candidate Validation executes them without a connection skip
+against its fully migrated disposable PostgreSQL catalog.
 
 ### `flagged_reviews`
 
@@ -4830,11 +4885,11 @@ closures that safely transpose old structures (e.g. `MerianSchemaV8` to
 
 **File layout:** The universally active models natively live in the global
 namespace within `apps/ios/Merian/Models/ActiveSchema/`. Historical schema
-snapshots live in their own file (`apps/ios/Merian/Models/Schema/SchemaV1.swift`
-through `SchemaV39.swift`). The file
-`apps/ios/Merian/Models/SchemaVersions.swift` declares `MerianMigrationPlan` —
-the ordered list of schemas and migration stages. When bumping to V{N+1}, follow
-the runbook at `.agents/workflows/schema_update.md`:
+snapshots live under `apps/ios/Merian/Models/Schema/`, including the dedicated
+`SchemaV49Snapshots.swift` freeze for all eight relationship-aware V49 models.
+The file `apps/ios/Merian/Models/SchemaVersions.swift` declares
+`MerianMigrationPlan` — the ordered list of schemas and migration stages. When
+bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
 
 1. Manually freeze the outgoing schema V{N} from the current `ActiveSchema/`
    before any changes. Declare changed models inside the schema enum body, not
@@ -4847,6 +4902,20 @@ the runbook at `.agents/workflows/schema_update.md`:
    classes.
 4. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
 5. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
+
+V49 is frozen independently of active V50 types: its `models` array uses only
+fully qualified `MerianSchemaV49.*` snapshot classes, relationship endpoints
+refer to the same V49 namespace, and no alias points back to an active global
+model. V50 continues to use the active globals plus its new goal-hint entity.
+The source guardrail rejects regressions and pins the complete
+`SchemaV49Snapshots.swift` SHA-256, so a property, annotation, default,
+relationship, initializer, or helper edit requires an explicit historical-shape
+review. The disk migration suite creates a source store from those newly frozen
+snapshots, seeds all eight V49 model types plus both relationship directions,
+and opens it as V50. That proves current snapshot-to-candidate self-consistency;
+it cannot prove that the Core Data model identity emitted by the processed
+released V49 binary is accepted. The genuine released-binary physical
+install-over and second-launch gate remains pending and release-blocking.
 
 There is **no need** to update model references in `MerianApp.swift`, nor
 anywhere else in the application, because the entire app dynamically inherits
