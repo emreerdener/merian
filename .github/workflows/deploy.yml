@@ -70,7 +70,7 @@ jobs:
 
       - name: Verify production release holds
         run: |
-          deno run --frozen \
+          deno run --frozen --config services/supabase/functions/deno.json \
             --allow-read=services/supabase/release-holds.json \
             --allow-write="$GITHUB_STEP_SUMMARY" \
             services/supabase/scripts/verify_production_release_holds.ts \
@@ -146,7 +146,7 @@ jobs:
           MERIAN_GITHUB_RELEASE_AUDIT_TOKEN: ${{ secrets.MERIAN_GITHUB_RELEASE_AUDIT_TOKEN }}
           MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON: ${{ secrets.MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON }}
         run: |
-          deno run --frozen \
+          deno run --frozen --config supabase/functions/deno.json \
             --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN,MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON \
             --allow-net \
             --allow-read=supabase/release-holds.json \

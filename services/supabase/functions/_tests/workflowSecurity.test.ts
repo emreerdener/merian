@@ -311,6 +311,10 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   ) {
     assertStringIncludes(holdBlock, exactEvidence);
   }
+  assertStringIncludes(
+    holdBlock,
+    "deno run --frozen --config services/supabase/functions/deno.json",
+  );
 
   const productionEnvironmentJobs = deployWorkflow.match(
     /^ {4}environment: Production$/gm,
@@ -354,6 +358,10 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   const clearance = deployBlock.indexOf(
     "Verify protected Production release clearance",
   );
+  const clearanceEnd = deployBlock.indexOf(
+    "- name: Setup Supabase CLI",
+    clearance,
+  );
   const productionSecret = deployBlock.indexOf("SUPABASE_ACCESS_TOKEN:");
   const databasePush = deployBlock.indexOf("supabase db push");
   const functionDeploy = deployBlock.indexOf("deploy_function_batches.sh");
@@ -381,6 +389,14 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   ) {
     assertStringIncludes(deployBlock, clearanceEvidence);
   }
+  assert(
+    clearanceEnd > clearance,
+    "Protected clearance step must end before Supabase CLI setup.",
+  );
+  assertStringIncludes(
+    deployBlock.slice(clearance, clearanceEnd),
+    "deno run --frozen --config supabase/functions/deno.json",
+  );
 
   for (
     const ownedPath of [
