@@ -542,9 +542,12 @@ Explore community identification:
 - `submit-community-feedback`
 
 The root iOS contract is Observations / Field trips / Identify. Identify owns
-Requests/Index; its Requests dashboard and complete feed routes live in
-`apps/ios/Merian/Features/Explore/Identify/Views/ExploreCommunityIdentificationView.swift`.
-Index reuses `Features/SpeciesDictionary/Catalog/`. The Activity route's service
+Requests/Index. Its `Models/` define presentation and route values, `Services/`
+adapts live network/identity/event dependencies, `ViewModels/` owns dashboard,
+pagination, detail, search, and feedback state, and `Views/` plus grouped
+`Components/` render without direct networking. The feature boundary is
+documented in `apps/ios/Merian/Features/Explore/Identify/README.md`. Index
+reuses `Features/SpeciesDictionary/Catalog/`. The Activity route's service
 adapter lives in
 `services/supabase/functions/get-community-identification-activity/`, while
 `20260731050009_add_community_identification_activity.sql` owns its internal

@@ -7953,12 +7953,15 @@ deploy whose ancestor SHA contains both controlling migrations and both hosted
 RPC smokes selects `required` immediately. Before that proof and only until the
 2026-09-19 UTC deadline, `expand-compatible` accepts an exact `PGRST202` naming
 either zero-argument recovery-health RPC. API or Git-history ambiguity fails the
-workflow, and the deadline selects `required` without historical Actions
-evidence. The summary exposes `recovery_health_availability` and
-`recovery_preparation_health_availability` as `not_deployed` with the
-corresponding health payload set to `null`; it never substitutes zero counts.
-Authorization, timeout, malformed response, and unrelated catalog errors remain
-fatal.
+workflow. A sole `completed/skipped` deploy job is conclusive nondeployment
+regardless of why it was skipped: the resolver ignores that green run and
+continues to older workflow history. A missing or duplicate deploy job, an
+incomplete job, or any other conclusion remains fail-closed. The deadline
+selects `required` without historical Actions evidence. The summary exposes
+`recovery_health_availability` and `recovery_preparation_health_availability` as
+`not_deployed` with the corresponding health payload set to `null`; it never
+substitutes zero counts. Authorization, timeout, malformed response, and
+unrelated catalog errors remain fatal.
 
 ---
 
@@ -9647,5 +9650,9 @@ until the 2026-09-19 UTC deadline, `expand-compatible` allows an exact
 null payload. This rotation-only flag is independent from the already-deployed
 principal aggregate, which has no compatibility mode and always remains
 required. Malformed shape, authorization, transport, and every unrelated catalog
-failure remain fatal. API or Git-history ambiguity fails the workflow, and the
-deadline selects `required` without retained Actions evidence.
+failure remain fatal. A sole `completed/skipped` deploy job is conclusive
+nondeployment regardless of why it was skipped: the resolver ignores that green
+run and continues to older workflow history. A missing or duplicate deploy job,
+an incomplete job, or any other conclusion remains fail-closed. API or
+Git-history ambiguity fails the workflow, and the deadline selects `required`
+without retained Actions evidence.

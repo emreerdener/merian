@@ -199,14 +199,17 @@ During the bounded pre-deploy window it selects `expand-compatible` only when no
 qualifying production deploy exists. A qualifying deploy is a successful
 `deploy` job on `main`, from an ancestor of the monitor checkout, whose exact
 source contains the controlling migration and hosted rotation-health smoke. That
-proof selects `required` immediately. GitHub API or Git-history ambiguity fails
-the workflow, and the 2026-09-19 UTC compatibility deadline selects `required`
-even if historical Actions evidence is unavailable. The narrow compatibility
-mode accepts only the exact named zero-argument `PGRST202`, records
-`not_deployed` with a null payload, and leaves every established backlog check
-active. Rotation health applies the same warning/critical age thresholds as the
-other identity backlogs and warns at 100 prepared rotations or becomes critical
-at 500 by default.
+proof selects `required` immediately. A sole `completed/skipped` deploy job is
+conclusive nondeployment regardless of why it was skipped: the resolver ignores
+that green run and continues to older workflow history. A missing or duplicate
+deploy job, an incomplete job, or any other conclusion remains fail-closed.
+GitHub API or Git-history ambiguity fails the workflow, and the 2026-09-19 UTC
+compatibility deadline selects `required` even if historical Actions evidence is
+unavailable. The narrow compatibility mode accepts only the exact named
+zero-argument `PGRST202`, records `not_deployed` with a null payload, and leaves
+every established backlog check active. Rotation health applies the same
+warning/critical age thresholds as the other identity backlogs and warns at 100
+prepared rotations or becomes critical at 500 by default.
 
 Forward migration
 `20260819194315_repair_stable_signout_rotation_routine_definitions.sql`
@@ -644,14 +647,18 @@ selects `expand-compatible` only when no qualifying production deploy exists. A
 successful `deploy` job on `main` qualifies only when its SHA is an ancestor of
 the monitor checkout and its exact source contains both recovery migrations and
 both hosted RPC smokes. That proof selects `required` immediately. GitHub API or
-Git-history ambiguity fails the workflow, and the 2026-09-19 UTC compatibility
-deadline selects `required` without depending on retained Actions history. In
-compatibility mode, only an exact PostgREST `PGRST202` for either named
-zero-argument recovery-health RPC is accepted. The summaries record that
-aggregate as `not_deployed` with a `null` payload while established deletion
-queue, cron, credential, storage, and lease checks remain active. The monitor
-never substitutes zero counts, and authorization, transport, response-shape, or
-unrelated catalog errors remain fatal.
+Git-history ambiguity fails the workflow. A sole `completed/skipped` deploy job
+is conclusive nondeployment regardless of why it was skipped: the resolver
+ignores that green run and continues to older workflow history. A missing or
+duplicate deploy job, an incomplete job, or any other conclusion remains
+fail-closed. The 2026-09-19 UTC compatibility deadline selects `required`
+without depending on retained Actions history. In compatibility mode, only an
+exact PostgREST `PGRST202` for either named zero-argument recovery-health RPC is
+accepted. The summaries record that aggregate as `not_deployed` with a `null`
+payload while established deletion queue, cron, credential, storage, and lease
+checks remain active. The monitor never substitutes zero counts, and
+authorization, transport, response-shape, or unrelated catalog errors remain
+fatal.
 
 Coverage lives in `_shared/appleSignIn_test.ts`,
 `register-apple-revocation-token/handler_test.ts`,
@@ -2009,9 +2016,9 @@ disposable replay, every catalog test, automated two-session schedules, complete
 Edge suite, strict lint, and advisors from the exact SHA with Supabase CLI
 `2.109.1`; static contracts or a focused SQL test are not release-equivalent
 evidence. After separate production authorization, the dependent Production job
-detects Ghost migration or Function deltas since the last successful release and
-predeploys the expanded mapper plus cleanup worker before `db push`; manual
-dispatch and an unsafe baseline take the same fail-closed path. No hosted
+detects Ghost migration or Function deltas since the last successful actual
+deploy and predeploys the expanded mapper plus cleanup worker before `db push`;
+manual dispatch and an unsafe baseline take the same fail-closed path. No hosted
 staging project or operator-managed SHA attestation is required. A privacy-safe
 scheduled monitor and the production post-deploy gate report aggregate recent
 prepared receipts, overdue Auth cleanup, and destination RevenueCat queue

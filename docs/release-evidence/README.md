@@ -12,7 +12,12 @@ An active, structurally valid hold is an expected release status rather than a
 candidate defect. The deployment workflow therefore reports the hold job green
 with `release_status=held` and `deploy_allowed=false`, then skips the Production
 job before environment approval or secret access. Missing or malformed hold
-state still fails, and a green held run is never deployment evidence.
+state still fails, and a green held run is never deployment evidence. Deployment
+history treats its sole `completed/skipped` deploy job as conclusive
+nondeployment regardless of why it was skipped, ignores that green held/skipped
+run, and continues to older actual deployment history. If bounded history has no
+safe actual deployment, production planning selects the full Function fleet and
+every predeploy fence.
 
 The checked-in templates are intentionally invalid. Placeholder SHAs, zero
 digests, zero artifact IDs, expired timestamps, and `pending` values must never

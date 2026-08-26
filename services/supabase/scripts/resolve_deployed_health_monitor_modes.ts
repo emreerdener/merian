@@ -29,6 +29,12 @@ interface WorkflowJob {
   conclusion: string | null;
 }
 
+type DeployJobDisposition = "success" | "skipped";
+
+interface DeployJobInspectionBudget {
+  inspected: number;
+}
+
 export interface WorkflowRunsPage {
   totalCount: number;
   runs: WorkflowRun[];
@@ -65,6 +71,7 @@ const DEPLOY_JOB_NAME = "deploy";
 const MAIN_BRANCH = "main";
 const PAGE_SIZE = 100;
 const MAXIMUM_PAGES = 10;
+const MAXIMUM_DEPLOY_JOB_INSPECTIONS = 50;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAXIMUM_RESPONSE_BYTES = 2 * 1_024 * 1_024;
 const GITHUB_API_ORIGIN = "https://api.github.com";
@@ -203,6 +210,73 @@ export function parseWorkflowJobsPage(value: unknown): WorkflowJobsPage {
   return { totalCount, jobs };
 }
 
+function assertCurrentSha(currentSha: string): void {
+  if (!SHA_PATTERN.test(currentSha)) {
+    throw new Error(
+      "Current checkout SHA must be 40 lowercase hexadecimal characters.",
+    );
+  }
+}
+
+function assertSuccessfulMainRun(run: WorkflowRun): void {
+  if (
+    run.status !== "completed" || run.conclusion !== "success" ||
+    run.head_branch !== MAIN_BRANCH
+  ) {
+    throw new Error(
+      "GitHub returned a run outside the requested successful main-branch filter.",
+    );
+  }
+  if (!SHA_PATTERN.test(run.head_sha)) {
+    throw new Error("GitHub returned a malformed production deploy SHA.");
+  }
+}
+
+async function searchSuccessfulMainRuns<T>(
+  runtime: DeploymentEvidenceRuntime,
+  inspect: (run: WorkflowRun) => Promise<T | null>,
+): Promise<{ match: T | null; totalCount: number }> {
+  const seenRunIds = new Set<number>();
+  let expectedTotal: number | null = null;
+  let inspectedRuns = 0;
+
+  for (let page = 1; page <= MAXIMUM_PAGES; page += 1) {
+    const response = await runtime.listSuccessfulRunsPage(page);
+    expectedTotal ??= response.totalCount;
+    if (response.totalCount !== expectedTotal) {
+      throw new Error("GitHub workflow-runs pagination changed during lookup.");
+    }
+
+    for (const run of response.runs) {
+      if (seenRunIds.has(run.id)) {
+        throw new Error("GitHub workflow-runs response repeated a run ID.");
+      }
+      seenRunIds.add(run.id);
+      assertSuccessfulMainRun(run);
+    }
+    inspectedRuns += response.runs.length;
+
+    for (const run of response.runs) {
+      const match = await inspect(run);
+      if (match !== null) {
+        return { match, totalCount: expectedTotal };
+      }
+    }
+
+    if (inspectedRuns === expectedTotal) break;
+    if (response.runs.length < PAGE_SIZE || inspectedRuns > expectedTotal) {
+      throw new Error("GitHub workflow-runs pagination ended inconsistently.");
+    }
+    if (page === MAXIMUM_PAGES) {
+      throw new Error(
+        "GitHub workflow-runs lookup exceeded the bounded page limit.",
+      );
+    }
+  }
+
+  return { match: null, totalCount: expectedTotal ?? 0 };
+}
+
 async function collectRunJobs(
   runtime: DeploymentEvidenceRuntime,
   runId: number,
@@ -226,6 +300,39 @@ async function collectRunJobs(
 
   throw new Error(
     "GitHub workflow-jobs lookup exceeded the bounded page limit.",
+  );
+}
+
+async function deployJobDisposition(
+  runtime: DeploymentEvidenceRuntime,
+  runId: number,
+  budget: DeployJobInspectionBudget,
+): Promise<DeployJobDisposition> {
+  if (budget.inspected >= MAXIMUM_DEPLOY_JOB_INSPECTIONS) {
+    throw new Error(
+      "Production deploy-job lookup exceeded the bounded inspection limit.",
+    );
+  }
+  budget.inspected += 1;
+
+  const jobs = await collectRunJobs(runtime, runId);
+  const deployJobs = jobs.filter((job) => job.name === DEPLOY_JOB_NAME);
+  if (deployJobs.length !== 1) {
+    throw new Error(
+      "A successful main production workflow run did not contain exactly one deploy job.",
+    );
+  }
+
+  const [deployJob] = deployJobs;
+  if (deployJob.status !== "completed") {
+    throw new Error(
+      "A successful main production workflow run had an incomplete deploy job.",
+    );
+  }
+  if (deployJob.conclusion === "success") return "success";
+  if (deployJob.conclusion === "skipped") return "skipped";
+  throw new Error(
+    "A successful main production workflow run had an unexpected deploy-job conclusion.",
   );
 }
 
@@ -363,11 +470,7 @@ export async function resolveDeployedHealthMonitorMode(
   currentSha: string,
   runtime: DeploymentEvidenceRuntime,
 ): Promise<ResolvedHealthMonitorMode> {
-  if (!SHA_PATTERN.test(currentSha)) {
-    throw new Error(
-      "Current checkout SHA must be 40 lowercase hexadecimal characters.",
-    );
-  }
+  assertCurrentSha(currentSha);
 
   const spec = FEATURE_SPECS[feature];
   const now = runtime.now();
@@ -383,80 +486,38 @@ export async function resolveDeployedHealthMonitorMode(
     };
   }
 
-  const seenRunIds = new Set<number>();
-  let expectedTotal: number | null = null;
-  let inspectedRuns = 0;
   let ancestorRuns = 0;
-
-  for (let page = 1; page <= MAXIMUM_PAGES; page += 1) {
-    const response = await runtime.listSuccessfulRunsPage(page);
-    expectedTotal ??= response.totalCount;
-    if (response.totalCount !== expectedTotal) {
-      throw new Error("GitHub workflow-runs pagination changed during lookup.");
-    }
-
-    for (const run of response.runs) {
-      if (seenRunIds.has(run.id)) {
-        throw new Error("GitHub workflow-runs response repeated a run ID.");
-      }
-      seenRunIds.add(run.id);
-      inspectedRuns += 1;
-
-      if (
-        run.status !== "completed" || run.conclusion !== "success" ||
-        run.head_branch !== MAIN_BRANCH
-      ) {
-        throw new Error(
-          "GitHub returned a run outside the requested successful main-branch filter.",
-        );
-      }
-      if (!SHA_PATTERN.test(run.head_sha)) {
-        throw new Error("GitHub returned a malformed production deploy SHA.");
-      }
-      if (!(await runtime.isAncestor(run.head_sha, currentSha))) continue;
+  const deployJobBudget: DeployJobInspectionBudget = { inspected: 0 };
+  const { match, totalCount } = await searchSuccessfulMainRuns(
+    runtime,
+    async (run) => {
+      if (!(await runtime.isAncestor(run.head_sha, currentSha))) return null;
       ancestorRuns += 1;
 
       if (
         !(await revisionContainsFeatureEvidence(runtime, run.head_sha, spec))
       ) {
-        continue;
+        return null;
       }
 
-      const jobs = await collectRunJobs(runtime, run.id);
-      const deployJobs = jobs.filter((job) => job.name === DEPLOY_JOB_NAME);
-      if (deployJobs.length !== 1) {
-        throw new Error(
-          "A source-qualified production run did not contain exactly one deploy job.",
-        );
-      }
-      if (
-        deployJobs[0].status !== "completed" ||
-        deployJobs[0].conclusion !== "success"
-      ) {
-        throw new Error(
-          "A source-qualified production run did not complete its deploy job successfully.",
-        );
-      }
+      const disposition = await deployJobDisposition(
+        runtime,
+        run.id,
+        deployJobBudget,
+      );
+      if (disposition === "skipped") return null;
 
       return {
         mode: "required",
         evidenceSha: run.head_sha,
         reason: "successful-production-deploy",
-      };
-    }
+      } satisfies ResolvedHealthMonitorMode;
+    },
+  );
 
-    if (inspectedRuns === expectedTotal) break;
-    if (response.runs.length < PAGE_SIZE || inspectedRuns > expectedTotal) {
-      throw new Error("GitHub workflow-runs pagination ended inconsistently.");
-    }
-    if (page === MAXIMUM_PAGES) {
-      throw new Error(
-        "GitHub workflow-runs lookup exceeded the bounded page limit.",
-      );
-    }
-  }
+  if (match !== null) return match;
 
-  if ((expectedTotal ?? 0) > 0 && ancestorRuns === 0) {
+  if (totalCount > 0 && ancestorRuns === 0) {
     throw new Error(
       "No successful main production deploy belongs to the current checkout history.",
     );
@@ -467,6 +528,32 @@ export async function resolveDeployedHealthMonitorMode(
     evidenceSha: null,
     reason: "no-qualifying-production-deploy",
   };
+}
+
+export async function resolveLatestSuccessfulDeploySha(
+  currentSha: string,
+  runtime: DeploymentEvidenceRuntime,
+): Promise<string | null> {
+  assertCurrentSha(currentSha);
+  const deployJobBudget: DeployJobInspectionBudget = { inspected: 0 };
+  const { match } = await searchSuccessfulMainRuns(
+    runtime,
+    async (run) => {
+      const disposition = await deployJobDisposition(
+        runtime,
+        run.id,
+        deployJobBudget,
+      );
+      if (disposition === "skipped") return null;
+      if (!(await runtime.isAncestor(run.head_sha, currentSha))) {
+        throw new Error(
+          "The latest successful production deploy is not an ancestor of the current checkout.",
+        );
+      }
+      return run.head_sha;
+    },
+  );
+  return match;
 }
 
 async function readResponseJson(response: Response): Promise<unknown> {
@@ -592,24 +679,32 @@ function createRuntime(
   };
 }
 
-function parseFeature(args: string[]): HealthMonitorFeature {
-  if (args.length !== 2 || args[0] !== "--feature") {
-    throw new Error(
-      "Usage: resolve_deployed_health_monitor_modes.ts --feature <account-deletion-recovery|purchase-principal-signout-rotation>",
-    );
+type ResolverRequest =
+  | { kind: "health-monitor"; feature: HealthMonitorFeature }
+  | { kind: "latest-successful-deploy-sha" };
+
+function parseRequest(args: string[]): ResolverRequest {
+  if (args.length === 1 && args[0] === "--latest-successful-deploy-sha") {
+    return { kind: "latest-successful-deploy-sha" };
   }
-  if (
-    args[1] !== "account-deletion-recovery" &&
-    args[1] !== "purchase-principal-signout-rotation"
-  ) {
+  if (args.length === 2 && args[0] === "--feature") {
+    if (
+      args[1] === "account-deletion-recovery" ||
+      args[1] === "purchase-principal-signout-rotation"
+    ) {
+      return { kind: "health-monitor", feature: args[1] };
+    }
     throw new Error(`Unsupported health-monitor feature: ${args[1]}`);
   }
-  return args[1];
+  throw new Error(
+    "Usage: resolve_deployed_health_monitor_modes.ts (--feature <account-deletion-recovery|purchase-principal-signout-rotation> | --latest-successful-deploy-sha)",
+  );
 }
 
 if (import.meta.main) {
+  let request: ResolverRequest | null = null;
   try {
-    const feature = parseFeature(Deno.args);
+    request = parseRequest(Deno.args);
     const token = Deno.env.get("GITHUB_TOKEN") ?? "";
     const repository = Deno.env.get("GITHUB_REPOSITORY") ?? "";
     const currentSha = Deno.env.get("GITHUB_SHA") ?? "";
@@ -620,23 +715,42 @@ if (import.meta.main) {
       );
     }
 
-    const result = await resolveDeployedHealthMonitorMode(
-      feature,
-      currentSha,
-      createRuntime(repository, token),
-    );
-    const evidence = result.evidenceSha
-      ? ` deploy_sha=${result.evidenceSha}`
-      : "";
-    console.error(
-      `Resolved ${feature} monitor mode: ${result.mode} (${result.reason})${evidence}`,
-    );
-    console.log(result.mode);
+    const runtime = createRuntime(repository, token);
+    if (request.kind === "health-monitor") {
+      const result = await resolveDeployedHealthMonitorMode(
+        request.feature,
+        currentSha,
+        runtime,
+      );
+      const evidence = result.evidenceSha
+        ? ` deploy_sha=${result.evidenceSha}`
+        : "";
+      console.error(
+        `Resolved ${request.feature} monitor mode: ${result.mode} (${result.reason})${evidence}`,
+      );
+      console.log(result.mode);
+    } else {
+      const deploySha = await resolveLatestSuccessfulDeploySha(
+        currentSha,
+        runtime,
+      );
+      if (deploySha === null) {
+        console.error(
+          "No successful production deploy job was found in bounded workflow history.",
+        );
+      } else {
+        console.error(
+          `Resolved latest successful production deploy SHA: ${deploySha}`,
+        );
+        console.log(deploySha);
+      }
+    }
   } catch (error) {
+    const prefix = request?.kind === "latest-successful-deploy-sha"
+      ? "Production deploy baseline resolution failed"
+      : "Health-monitor mode resolution failed";
     console.error(
-      `Health-monitor mode resolution failed: ${
-        error instanceof Error ? error.message : "unknown error"
-      }`,
+      `${prefix}: ${error instanceof Error ? error.message : "unknown error"}`,
     );
     Deno.exit(1);
   }

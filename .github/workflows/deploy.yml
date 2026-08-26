@@ -108,7 +108,8 @@ jobs:
         with:
           ref: ${{ github.sha }}
           # Deployment plans compare against the last successful production
-          # run, which may be more than one commit behind after a failed run.
+          # deploy job, which may be more than one commit behind after failed
+          # or release-held runs.
           fetch-depth: 0
           persist-credentials: false
 
@@ -600,9 +601,9 @@ jobs:
         id: function-plan
         env:
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.sha }}
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           plan_file="$RUNNER_TEMP/merian-supabase-functions.txt"
           recovery_predeploy_required=false
@@ -618,40 +619,32 @@ jobs:
               supabase/scripts/plan_function_deploy.ts \
               --all > "$plan_file"
           else
-            successful_runs_url="https://api.github.com/repos/${REPOSITORY}/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1"
-            successful_runs_json="$(
-              curl -fsSL \
-                --connect-timeout 10 \
-                --max-time 30 \
-                --max-filesize 1048576 \
-                --retry 3 \
-                --retry-all-errors \
-                --retry-delay 2 \
-                -H "Authorization: Bearer ${GH_TOKEN}" \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "$successful_runs_url" || true
-            )"
-            last_success_sha="$(
-              jq -r '.workflow_runs[0].head_sha // empty' \
-                <<< "$successful_runs_json" 2>/dev/null || true
-            )"
+            if ! last_deployed_sha="$(
+              deno run --quiet --frozen --config supabase/functions/deno.json \
+                --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+                --allow-net=api.github.com \
+                --allow-run=git \
+                supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+                --latest-successful-deploy-sha
+            )"; then
+              last_deployed_sha=""
+            fi
 
-            if [[ "$last_success_sha" =~ ^[0-9a-f]{40}$ ]] && \
-               git merge-base --is-ancestor "$last_success_sha" "$HEAD_SHA"; then
-              echo "Planning from last successful production deploy: $last_success_sha"
-              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+            if [[ "$last_deployed_sha" =~ ^[0-9a-f]{40}$ ]] && \
+               git merge-base --is-ancestor "$last_deployed_sha" "$GITHUB_SHA"; then
+              echo "Planning from last successful production deploy: $last_deployed_sha"
+              if ! git diff --quiet "$last_deployed_sha" "$GITHUB_SHA" -- \
                 ":(top)services/supabase/migrations/20260729173000_recover_media_abandoned_owned_scans.sql" \
                 ":(top)services/supabase/migrations/20260729200000_harden_media_abandoned_scan_recovery_proof.sql"; then
                 recovery_predeploy_required=true
               fi
-              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+              if ! git diff --quiet "$last_deployed_sha" "$GITHUB_SHA" -- \
                 ":(glob,top)services/supabase/migrations/*ghost*merge*.sql" \
                 ":(top)services/supabase/functions/merge-ghost-profile" \
                 ":(top)services/supabase/functions/reconcile-ghost-profile-merges"; then
                 ghost_merge_predeploy_required=true
               fi
-              if ! git diff --quiet "$last_success_sha" "$HEAD_SHA" -- \
+              if ! git diff --quiet "$last_deployed_sha" "$GITHUB_SHA" -- \
                 ":(top)services/supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql"; then
                 field_chat_cutover_required=true
               fi
@@ -659,8 +652,8 @@ jobs:
                 --allow-read=supabase \
                 --allow-run=git \
                 supabase/scripts/plan_function_deploy.ts \
-                --base "$last_success_sha" \
-                --head "$HEAD_SHA" > "$plan_file"
+                --base "$last_deployed_sha" \
+                --head "$GITHUB_SHA" > "$plan_file"
             else
               echo "Unable to resolve a safe successful deploy baseline; planning a full deployment."
               recovery_predeploy_required=true

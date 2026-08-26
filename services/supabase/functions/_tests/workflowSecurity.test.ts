@@ -617,6 +617,30 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
     /- name: Test complete Supabase tooling suite\n\s+run: bash supabase\/scripts\/test_supabase_tooling\.sh/,
     "Production deploy must invoke the discovery-based tooling test gate.",
   );
+
+  const planStart = deployWorkflow.indexOf(
+    "- name: Plan affected Edge Function deployment",
+  );
+  const planEnd = deployWorkflow.indexOf(
+    "- name: Prepare database connection URL",
+    planStart,
+  );
+  assert(planStart >= 0 && planEnd > planStart);
+  const planStep = deployWorkflow.slice(planStart, planEnd);
+  for (
+    const scopedResolverControl of [
+      "--latest-successful-deploy-sha",
+      "--allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA",
+      "--allow-net=api.github.com",
+      "--allow-run=git",
+    ]
+  ) {
+    assertStringIncludes(planStep, scopedResolverControl);
+  }
+  assert(
+    !/--allow-(?:env|net|run)(?:\s|\\)/.test(planStep),
+    "Production deploy baseline resolution contains an unrestricted Deno permission.",
+  );
 });
 
 Deno.test("production deploy runs the discovery-based complete Edge suite before mutation", async () => {

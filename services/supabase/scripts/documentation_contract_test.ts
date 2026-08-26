@@ -346,11 +346,11 @@ Deno.test("operator documentation preserves destructive-queue and evidence rules
   );
   assertStringIncludes(
     runbook,
-    "explicit connect, whole-request, response-size, retry-count, and retry-delay bounds",
+    "explicit request-deadline, response-size, retry, ten-page, and 50-job-inspection bounds",
   );
   assertStringIncludes(
     runbook,
-    "falls back to a full-fleet plan",
+    "lookup error, or an unsafe Git relationship selects the full fleet and enables every predeploy fence",
   );
   assertStringIncludes(
     runbook,
@@ -2888,8 +2888,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "visible-without-post `200` preserves the local optimistic cache",
       "deploys them sequentially in the listed order before unrelated parallel batches",
       "stops immediately when an ordered member exhausts its bounded retries",
-      "The planner compares the current exact SHA with the most recent successful production workflow SHA",
-      "fixture-only follow-up to failed catalog runs still includes every undeployed scan and Explore runtime change",
+      "The planner compares the current exact SHA with the most recent successful production `deploy` job SHA",
+      "fixture-only follow-up to failed or held runs still includes every undeployed scan and Explore runtime change",
       "Production smoke must prove database readiness as well as Edge route liveness.",
       "Every production-smoke response is capped at 1 MiB",
       "requires each routine's exact SQLSTATE `22023` message",
@@ -4038,6 +4038,7 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
     deploySource,
     "services/supabase/scripts/verify_production_release_holds.ts",
   );
+  assertStringIncludes(deploySource, "--latest-successful-deploy-sha");
   for (
     const releaseControl of [
       "--mode source-status",
@@ -4111,6 +4112,7 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
       "`.github/CODEOWNERS` currently routes all critical controls to one account",
       "must not contain credentials, personal data, raw coordinates, auth or session state, production response bodies, raw SwiftData stores, user media, or stable user identifiers",
       "Do not dispatch a production deployment merely to test a hold",
+      "green held/skipped run",
     ]
   ) {
     assertStringIncludes(
@@ -4125,6 +4127,7 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
       "never interpolate `${{ inputs.* }}` directly into a `run` script",
       "never reuse an artifact across criteria",
       "[release-evidence operations guide](../release-evidence/README.md)",
+      "green held/skipped workflow is never a deployment baseline",
     ]
   ) {
     assertStringIncludes(
@@ -5383,6 +5386,10 @@ Deno.test("purchase identity rollout documentation is exact-SHA, dry-run-first, 
   );
   for (const source of [api, runbook, testing]) {
     assertStringIncludes(source, "2026-09-19 UTC");
+  }
+  for (const source of [backend, api, runbook, testing]) {
+    assertStringIncludes(source, "`completed/skipped`");
+    assertStringIncludes(source, "continues to older workflow history");
   }
   for (const source of [api, runbook, testing]) {
     assert(

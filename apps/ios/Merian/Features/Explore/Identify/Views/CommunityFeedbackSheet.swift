@@ -2,21 +2,17 @@ import SwiftUI
 
 struct CommunityFeedbackSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var feedbackText = ""
-    @State private var isSubmitting = false
-    @State private var showSuccess = false
-    @State private var errorMessage: String?
-    @State private var validationError: String?
-
-    private let maxCharacterLimit = 4000
+    @State private var viewModel = CommunityFeedbackViewModel()
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             ZStack {
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
 
-                if showSuccess {
+                if viewModel.showSuccess {
                     successContent
                 } else {
                     formContent
@@ -32,21 +28,24 @@ struct CommunityFeedbackSheet: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
                     }
-                    .disabled(isSubmitting)
+                    .disabled(viewModel.isSubmitting)
                 }
             }
-            .alert("Submission Failed", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
+            .alert(
+                "Submission Failed",
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                )
+            ) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(errorMessage ?? "Please check your network and try again.")
+                Text(viewModel.errorMessage ?? "Please check your network and try again.")
             }
-            .onChange(of: feedbackText) { _, _ in
-                if validationError != nil {
+            .onChange(of: viewModel.feedbackText) { _, _ in
+                if viewModel.validationError != nil {
                     withAnimation(.snappy(duration: 0.2)) {
-                        validationError = nil
+                        viewModel.feedbackDidChange()
                     }
                 }
             }
@@ -54,7 +53,9 @@ struct CommunityFeedbackSheet: View {
     }
 
     private var formContent: some View {
-        ScrollView {
+        @Bindable var viewModel = viewModel
+
+        return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Help improve community identification")
@@ -70,30 +71,40 @@ struct CommunityFeedbackSheet: View {
                 .padding(.top, 16)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("Share your thoughts, suggestions, or issues...", text: $feedbackText, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.body)
-                        .lineLimit(6...12)
-                        .padding(16)
-                        .background(Color(uiColor: .secondarySystemGroupedBackground))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
+                    TextField(
+                        "Share your thoughts, suggestions, or issues...",
+                        text: $viewModel.feedbackText,
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .lineLimit(6...12)
+                    .padding(16)
+                    .background(Color(uiColor: .secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
 
                     HStack {
                         Spacer()
-                        Text("\(feedbackText.count)/\(maxCharacterLimit)")
-                            .font(.caption2)
-                            .foregroundStyle(feedbackText.count > maxCharacterLimit ? .red : .secondary)
-                            .monospacedDigit()
+                        Text(
+                            "\(viewModel.feedbackText.count)/\(CommunityFeedbackViewModel.maxCharacterLimit)"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(
+                            viewModel.feedbackText.count > CommunityFeedbackViewModel.maxCharacterLimit
+                                ? .red
+                                : .secondary
+                        )
+                        .monospacedDigit()
                     }
                     .padding(.horizontal, 4)
                 }
                 .padding(.horizontal, 16)
 
-                if let validationError {
+                if let validationError = viewModel.validationError {
                     Text(validationError)
                         .font(.footnote)
                         .foregroundStyle(.red)
@@ -103,7 +114,7 @@ struct CommunityFeedbackSheet: View {
 
                 Button(action: submitFeedback) {
                     HStack {
-                        if isSubmitting {
+                        if viewModel.isSubmitting {
                             ProgressView()
                                 .tint(.white)
                         } else {
@@ -115,7 +126,7 @@ struct CommunityFeedbackSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(isSubmitting)
+                .disabled(viewModel.isSubmitting)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 24)
@@ -161,45 +172,16 @@ struct CommunityFeedbackSheet: View {
     }
 
     private func submitFeedback() {
-        let trimmed = feedbackText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            withAnimation(.snappy(duration: 0.2)) {
-                validationError = "Feedback cannot be empty."
-            }
-            HapticManager.shared.triggerErrorThump()
-            return
+        let isPrepared = withAnimation(.snappy(duration: 0.2)) {
+            viewModel.prepareSubmission()
         }
-        if feedbackText.count > maxCharacterLimit {
-            withAnimation(.snappy(duration: 0.2)) {
-                validationError = "Feedback is too long (maximum \(maxCharacterLimit) characters)."
-            }
-            HapticManager.shared.triggerErrorThump()
-            return
-        }
-
-        withAnimation(.snappy(duration: 0.2)) {
-            validationError = nil
-        }
-
-        isSubmitting = true
-        errorMessage = nil
+        guard isPrepared else { return }
+        viewModel.beginSubmission()
 
         Task {
-            do {
-                try await MerianNetworkClient.shared.submitCommunityFeedback(feedback: trimmed)
-                await MainActor.run {
-                    isSubmitting = false
-                    HapticManager.shared.triggerSuccessPulse()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        showSuccess = true
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    isSubmitting = false
-                    HapticManager.shared.triggerErrorThump()
-                    errorMessage = ExploreErrorFormatter.message(for: error)
-                }
+            guard await viewModel.submitPreparedFeedback() else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                viewModel.showSubmissionSuccess()
             }
         }
     }

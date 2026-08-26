@@ -11,9 +11,10 @@ architecture rewrite.
 - Keep behavior-preserving file splits separate from behavior changes.
 - Prefer small, reviewable slices with one domain owner per slice.
 - Move code toward the narrowest honest owner: feature code under
-  `apps/ios/Merian/Features/<Feature>/`, shared app code under `apps/ios/Merian/Core/`, persistent
-  models under `apps/ios/Merian/Models/`, public web code under `apps/web/`, and backend code
-  under `services/supabase/`.
+  `apps/ios/Merian/Features/<Feature>/`, shared app code under
+  `apps/ios/Merian/Core/`, persistent models under `apps/ios/Merian/Models/`,
+  public web code under `apps/web/`, and backend code under
+  `services/supabase/`.
 - Prefer product-area-first feature folders over broad type buckets. For large
   features, start with the user-facing surface (`Feed/`, `Map/`, `Identify/`,
   `Catalog/`, `Tree/`) and place that area's `Views`, `Components`,
@@ -98,32 +99,33 @@ observations feed, post cards, post detail, comments, hashtag presentation, feed
 formatting, and feed view-model extensions. Map and Community ID logic should
 not be placed there.
 
-When working on the Scans private library, start in `Scans/Library/`; that folder
-owns individual scan browsing, search/index state, queued scan snapshots, and
-fresh `QueuedScanContext` hydration. Completed and queued Insight destinations
-are pushed by `Scans/Shell/` in the existing Scans navigation stack; Library
-emits route values and does not present its own sheet.
-Collection grids, smart collections, and collection detail/editing belong in
+When working on the Scans private library, start in `Scans/Library/`; that
+folder owns individual scan browsing, search/index state, queued scan snapshots,
+and fresh `QueuedScanContext` hydration. Completed and queued Insight
+destinations are pushed by `Scans/Shell/` in the existing Scans navigation
+stack; Library emits route values and does not present its own sheet. Collection
+grids, smart collections, and collection detail/editing belong in
 `Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
 while controls reused outside Scans, such as `CategoryFilterBar`, belong in
 `Core/UI/Components/`.
 
-When working on the Profile tab, start in `Profile/UserProfile/`; that folder owns
-identity, published scans, achievements, persona, terrarium, heatmap, and the
-profile stats actor. Settings rows and account actions belong in
-`Profile/Settings/`; plan/paywall surfaces live in `Profile/Settings/Plan/`, push toggles in
-`Profile/Settings/Notifications/`, bundled release notes in
-`Profile/Settings/Changelog/`, beta survey flows in `Profile/Settings/Feedback/`,
-and cross-area profile state lives in `Profile/Shared/`.
+When working on the Profile tab, start in `Profile/UserProfile/`; that folder
+owns identity, published scans, achievements, persona, terrarium, heatmap, and
+the profile stats actor. Settings rows and account actions belong in
+`Profile/Settings/`; plan/paywall surfaces live in `Profile/Settings/Plan/`,
+push toggles in `Profile/Settings/Notifications/`, bundled release notes in
+`Profile/Settings/Changelog/`, beta survey flows in
+`Profile/Settings/Feedback/`, and cross-area profile state lives in
+`Profile/Shared/`.
 
 Suggested first targets:
 
-| File | Cleanup Direction |
-|---|---|
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift` | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions. |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
-| `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters. |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift` | Separate keys, typed settings store, migration helpers, and cloud sync preference code. |
+| File                                                                      | Cleanup Direction                                                                                                                   |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                           | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions.            |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                  | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
+| `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters.           |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                   | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                             |
 
 Rules for this phase:
 
@@ -133,15 +135,26 @@ Rules for this phase:
   the split compiles cleanly.
 - Commit each large file split independently.
 
+Implemented Explore slices:
+
+- `Explore/FieldTrips` now uses feature-owned Models, Services, ViewModels,
+  Views, and grouped Components, with live networking isolated to Services and
+  production files kept below the pass's 600-line review guard.
+- `Explore/Identify` now applies the same product-area boundary to its
+  dashboard, complete feeds, request detail, taxonomy search, and feedback flow.
+  Its presentation and asynchronous-state tests live under
+  `MerianTests/Features/Explore/Identify`; wire decoding remains under Core
+  network tests.
+
 ## Phase 3: Ownership Cleanup
 
 After the large files are split, move code to clearer long-term homes:
 
-- Explore-specific network DTOs and endpoint wrappers should live under
-  the narrowest Explore product area when only one area uses them, or under
-  `apps/ios/Merian/Features/Explore/Shared/Network/` when reused across
-  multiple Explore areas. Only move them outside Explore when another feature
-  depends on the same contract.
+- Explore-specific network DTOs and endpoint wrappers should live under the
+  narrowest Explore product area when only one area uses them, or under
+  `apps/ios/Merian/Features/Explore/Shared/Network/` when reused across multiple
+  Explore areas. Only move them outside Explore when another feature depends on
+  the same contract.
 - Insight-specific export, carousel, and result-rendering helpers should stay
   under `apps/ios/Merian/Features/Insights/`.
 - Capture modality code should stay under

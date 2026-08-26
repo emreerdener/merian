@@ -4,11 +4,13 @@ import {
   parseWorkflowJobsPage,
   parseWorkflowRunsPage,
   resolveDeployedHealthMonitorMode,
+  resolveLatestSuccessfulDeploySha,
   type WorkflowRunsPage,
 } from "./resolve_deployed_health_monitor_modes.ts";
 
 const CURRENT_SHA = "f".repeat(40);
 const DEPLOY_SHA = "a".repeat(40);
+const HELD_SHA = "b".repeat(40);
 const BEFORE_DEADLINE = new Date("2026-08-20T00:00:00.000Z");
 const DEPLOY_WORKFLOW = `
       - name: Push Database Migrations
@@ -229,15 +231,293 @@ Deno.test("unexpected non-main run and pagination drift fail closed", async () =
     Error,
     "pagination changed during lookup",
   );
-});
 
-Deno.test("source-qualified run requires one successful deploy job", async () => {
   await assertRejects(
     () =>
-      resolveDeployedHealthMonitorMode(
-        "purchase-principal-signout-rotation",
+      resolveLatestSuccessfulDeploySha(
         CURRENT_SHA,
         runtime({
+          listSuccessfulRunsPage: () =>
+            Promise.resolve({
+              totalCount: 2,
+              runs: [
+                successfulRunsPage().runs[0],
+                { ...successfulRunsPage().runs[0], head_sha: HELD_SHA },
+              ],
+            }),
+        }),
+      ),
+    Error,
+    "repeated a run ID",
+  );
+});
+
+Deno.test("source-qualified skipped run yields to an older successful deploy", async () => {
+  assertEquals(
+    await resolveDeployedHealthMonitorMode(
+      "purchase-principal-signout-rotation",
+      CURRENT_SHA,
+      runtime({
+        listSuccessfulRunsPage: () =>
+          Promise.resolve({
+            totalCount: 2,
+            runs: [
+              {
+                id: 43,
+                status: "completed",
+                conclusion: "success",
+                head_branch: "main",
+                head_sha: HELD_SHA,
+              },
+              {
+                id: 42,
+                status: "completed",
+                conclusion: "success",
+                head_branch: "main",
+                head_sha: DEPLOY_SHA,
+              },
+            ],
+          }),
+        listRunJobsPage: (runId) =>
+          Promise.resolve({
+            totalCount: 1,
+            jobs: [{
+              name: "deploy",
+              status: "completed",
+              conclusion: runId === 43 ? "skipped" : "success",
+            }],
+          }),
+      }),
+    ),
+    {
+      mode: "required",
+      evidenceSha: DEPLOY_SHA,
+      reason: "successful-production-deploy",
+    },
+  );
+});
+
+Deno.test("source-qualified skipped history continues across workflow-run pages", async () => {
+  const firstPageRuns = Array.from({ length: 100 }, (_, index) => ({
+    id: index + 1,
+    status: "completed",
+    conclusion: "success",
+    head_branch: "main",
+    head_sha: (index + 1).toString(16).padStart(40, "0"),
+  }));
+  const sourceQualifiedShas = new Set([
+    ...firstPageRuns.slice(0, 49).map((run) => run.head_sha),
+    DEPLOY_SHA,
+  ]);
+
+  assertEquals(
+    await resolveDeployedHealthMonitorMode(
+      "purchase-principal-signout-rotation",
+      CURRENT_SHA,
+      runtime({
+        listSuccessfulRunsPage: (page) =>
+          Promise.resolve(
+            page === 1 ? { totalCount: 101, runs: firstPageRuns } : {
+              totalCount: 101,
+              runs: [{
+                id: 101,
+                status: "completed",
+                conclusion: "success",
+                head_branch: "main",
+                head_sha: DEPLOY_SHA,
+              }],
+            },
+          ),
+        revisionHasPath: (revision) =>
+          Promise.resolve(sourceQualifiedShas.has(revision)),
+        listRunJobsPage: (runId) =>
+          Promise.resolve({
+            totalCount: 1,
+            jobs: [{
+              name: "deploy",
+              status: "completed",
+              conclusion: runId <= 49 ? "skipped" : "success",
+            }],
+          }),
+      }),
+    ),
+    {
+      mode: "required",
+      evidenceSha: DEPLOY_SHA,
+      reason: "successful-production-deploy",
+    },
+  );
+});
+
+Deno.test("source-qualified skipped run preserves compatibility without older deployment evidence", async () => {
+  assertEquals(
+    await resolveDeployedHealthMonitorMode(
+      "purchase-principal-signout-rotation",
+      CURRENT_SHA,
+      runtime({
+        listRunJobsPage: () =>
+          Promise.resolve({
+            totalCount: 1,
+            jobs: [{
+              name: "deploy",
+              status: "completed",
+              conclusion: "skipped",
+            }],
+          }),
+      }),
+    ),
+    {
+      mode: "expand-compatible",
+      evidenceSha: null,
+      reason: "no-qualifying-production-deploy",
+    },
+  );
+});
+
+Deno.test("latest deployment lookup skips green held runs", async () => {
+  assertEquals(
+    await resolveLatestSuccessfulDeploySha(
+      CURRENT_SHA,
+      runtime({
+        listSuccessfulRunsPage: () =>
+          Promise.resolve({
+            totalCount: 2,
+            runs: [
+              {
+                id: 43,
+                status: "completed",
+                conclusion: "success",
+                head_branch: "main",
+                head_sha: HELD_SHA,
+              },
+              {
+                id: 42,
+                status: "completed",
+                conclusion: "success",
+                head_branch: "main",
+                head_sha: DEPLOY_SHA,
+              },
+            ],
+          }),
+        listRunJobsPage: (runId) =>
+          Promise.resolve({
+            totalCount: 1,
+            jobs: [{
+              name: "deploy",
+              status: "completed",
+              conclusion: runId === 43 ? "skipped" : "success",
+            }],
+          }),
+      }),
+    ),
+    DEPLOY_SHA,
+  );
+});
+
+Deno.test("latest deployment lookup returns no baseline when bounded history contains only skipped runs", async () => {
+  assertEquals(
+    await resolveLatestSuccessfulDeploySha(
+      CURRENT_SHA,
+      runtime({
+        listRunJobsPage: () =>
+          Promise.resolve({
+            totalCount: 1,
+            jobs: [{
+              name: "deploy",
+              status: "completed",
+              conclusion: "skipped",
+            }],
+          }),
+      }),
+    ),
+    null,
+  );
+});
+
+Deno.test("health and baseline resolution reject deploy-job ambiguity and non-success states", async () => {
+  const cases = [
+    {
+      jobs: [{
+        name: "candidate-validation",
+        status: "completed",
+        conclusion: "success",
+      }],
+      message: "exactly one deploy job",
+    },
+    {
+      jobs: [
+        { name: "deploy", status: "completed", conclusion: "skipped" },
+        { name: "deploy", status: "completed", conclusion: "skipped" },
+      ],
+      message: "exactly one deploy job",
+    },
+    {
+      jobs: [{ name: "deploy", status: "in_progress", conclusion: null }],
+      message: "incomplete deploy job",
+    },
+    {
+      jobs: [{ name: "deploy", status: "completed", conclusion: "cancelled" }],
+      message: "unexpected deploy-job conclusion",
+    },
+    {
+      jobs: [{ name: "deploy", status: "completed", conclusion: "failure" }],
+      message: "unexpected deploy-job conclusion",
+    },
+  ];
+
+  for (const testCase of cases) {
+    const ambiguousRuntime = runtime({
+      listRunJobsPage: () =>
+        Promise.resolve({
+          totalCount: testCase.jobs.length,
+          jobs: testCase.jobs,
+        }),
+    });
+    await assertRejects(
+      () =>
+        resolveDeployedHealthMonitorMode(
+          "purchase-principal-signout-rotation",
+          CURRENT_SHA,
+          ambiguousRuntime,
+        ),
+      Error,
+      testCase.message,
+    );
+    await assertRejects(
+      () => resolveLatestSuccessfulDeploySha(CURRENT_SHA, ambiguousRuntime),
+      Error,
+      testCase.message,
+    );
+  }
+});
+
+Deno.test("latest deployment lookup rejects a nonancestor actual deploy", async () => {
+  await assertRejects(
+    () =>
+      resolveLatestSuccessfulDeploySha(
+        CURRENT_SHA,
+        runtime({ isAncestor: () => Promise.resolve(false) }),
+      ),
+    Error,
+    "not an ancestor",
+  );
+});
+
+Deno.test("latest deployment lookup bounds skipped-run job inspection", async () => {
+  const runs = Array.from({ length: 51 }, (_, index) => ({
+    id: index + 1,
+    status: "completed",
+    conclusion: "success",
+    head_branch: "main",
+    head_sha: (index + 1).toString(16).padStart(40, "0"),
+  }));
+  await assertRejects(
+    () =>
+      resolveLatestSuccessfulDeploySha(
+        CURRENT_SHA,
+        runtime({
+          listSuccessfulRunsPage: () =>
+            Promise.resolve({ totalCount: runs.length, runs }),
           listRunJobsPage: () =>
             Promise.resolve({
               totalCount: 1,
@@ -250,7 +530,7 @@ Deno.test("source-qualified run requires one successful deploy job", async () =>
         }),
       ),
     Error,
-    "did not complete its deploy job successfully",
+    "bounded inspection limit",
   );
 });
 

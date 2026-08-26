@@ -124,7 +124,7 @@ steps:
    retains the full history required by cumulative deployment planning but sets
    `persist-credentials: false`, leaving Git credential-free; the later GitHub
    API lookup receives its read token only through that step's explicit
-   `GH_TOKEN`. `_tests/workflowSecurity.test.ts` enforces those pins and
+   `GITHUB_TOKEN`. `_tests/workflowSecurity.test.ts` enforces those pins and
    permissions across every checked-in workflow, rejects job-scoped secret
    references, and limits `contents: write` to the taxonomy checklist's isolated
    follow-up job. The import job itself remains `contents: read` and passes only
@@ -187,17 +187,22 @@ steps:
    suite, lint, and both advisors to finish before deployment planning,
    migration push, or Function deployment.
 9. Builds an affected-function deployment plan across the cumulative Git range
-   from the most recent successful production workflow SHA through the current
-   exact SHA—not merely the triggering commit. The baseline must be a
-   40-character hexadecimal SHA and an ancestor of the current revision. Manual
-   dispatch, an unavailable workflow baseline, or an unsafe Git relationship
-   selects the full fleet. The workflow token has only `actions: read` plus
-   `contents: read`, which is sufficient to list the repository's prior workflow
-   runs without granting write access. The lookup has explicit connect,
-   whole-request, response-size, retry-count, and retry-delay bounds; any
-   unavailable, oversized, malformed, non-ancestor, or missing result falls back
-   to a full-fleet plan. Therefore a fixture-only follow-up after one or more
-   failed runs still deploys every pending runtime change.
+   from the most recent successful production `deploy` job SHA through the
+   current exact SHA—not merely the triggering commit or newest green workflow.
+   A sole `completed/skipped` deploy job is conclusive nondeployment regardless
+   of why it was skipped, so the resolver ignores that run and continues to
+   older workflow history. A missing or duplicate deploy job, an incomplete job,
+   or any other conclusion makes the baseline unavailable. The baseline must be
+   a 40-character hexadecimal SHA and an ancestor of the current revision.
+   Manual dispatch, no actual deployment in bounded history, a lookup error, or
+   an unsafe Git relationship selects the full fleet and enables every predeploy
+   fence. The workflow token has only `actions: read` plus `contents: read`,
+   which is sufficient to list prior workflow runs and their jobs without
+   granting write access. The lookup has explicit request-deadline,
+   response-size, retry, ten-page, and 50-job-inspection bounds; exhausting a
+   bound falls back to the same full plan. Therefore green held/skipped runs
+   cannot become deployment baselines, and a fixture-only follow-up after one or
+   more failed or held runs still deploys every pending runtime change.
 10. Prepares a Postgres connection string for database migrations without
     calling `supabase link`. The workflow prefers a full `SUPABASE_DB_URL`, but
     can also construct a session-pooler URL from `SUPABASE_DB_POOLER_HOST` plus
@@ -205,13 +210,13 @@ steps:
     flags predeploy the fail-closed scan-recovery consumers when their migration
     pair is pending and predeploy `merge-ghost-profile` plus
     `reconcile-ghost-profile-merges` whenever a Ghost merge migration or either
-    Function changed since the last successful release. Manual dispatch and an
-    unsafe or unavailable baseline enable both predeploy fences. Before either
-    fence can mutate production, the exact workflow SHA must pass the fresh
-    disposable database replay, every catalog test, the complete Edge suite
-    (including the two-session Ghost merge schedules), strict database lint, and
-    both advisors in the same job. No hosted staging project or manual SHA
-    attestation is required.
+    Function changed since the last successful actual deploy. Manual dispatch
+    and an unsafe or unavailable baseline enable both predeploy fences. Before
+    either fence can mutate production, the exact workflow SHA must pass the
+    fresh disposable database replay, every catalog test, the complete Edge
+    suite (including the two-session Ghost merge schedules), strict database
+    lint, and both advisors in the same job. No hosted staging project or manual
+    SHA attestation is required.
 11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
     search-path, owner, allowlist, and default-privilege report before any
     database write.
@@ -6402,13 +6407,16 @@ a successful `deploy` job on `main`, a deploy SHA that is an ancestor of the
 monitor checkout, both controlling recovery migrations in that exact source, and
 both recovery-health endpoints in that source's unconditioned hosted smoke step.
 Qualifying evidence selects `required` automatically. API, payload, pagination,
-or Git-history ambiguity fails the workflow rather than silently downgrading.
-The 2026-09-19 UTC hard deadline also selects `required`, so Actions retention
-cannot make compatibility permanent. While compatibility is selected, only an
-exact `PGRST202` for a named zero-argument recovery RPC is accepted; the
-artifact reports `not_deployed` and a null payload while baseline
-queue/cron/credential/erasure health remains enforced. It never reports
-unavailable recovery data as a zero backlog.
+or Git-history ambiguity fails the workflow rather than silently downgrading. A
+sole `completed/skipped` deploy job is conclusive nondeployment regardless of
+why it was skipped: the resolver ignores that green run and continues to older
+workflow history. A missing or duplicate deploy job, an incomplete job, or any
+other conclusion remains fail-closed. The 2026-09-19 UTC hard deadline also
+selects `required`, so Actions retention cannot make compatibility permanent.
+While compatibility is selected, only an exact `PGRST202` for a named
+zero-argument recovery RPC is accepted; the artifact reports `not_deployed` and
+a null payload while baseline queue/cron/credential/erasure health remains
+enforced. It never reports unavailable recovery data as a zero backlog.
 
 Scheduled runs warn and fail on claimable work aged 10 minutes, active work aged
 27 hours, backlog of 25 jobs, any retry error, or any expired lease. They become
@@ -6466,12 +6474,16 @@ selects `required` as soon as a successful `deploy` job on `main` proves an
 ancestor SHA containing the protocol-3 migration and exact hosted
 rotation-health smoke. Before that proof, it may select `expand-compatible` only
 until the 2026-09-19 UTC hard deadline. API or Git-history ambiguity fails the
-workflow, and the deadline selects `required` without relying on retained
-Actions history. In compatibility mode, only an exact `PGRST202` naming that
-zero-argument rotation RPC becomes `not_deployed`/null; the established
-reconciliation and principal aggregates remain required, and malformed
-responses, authorization failures, timeouts, and unrelated catalog errors remain
-fatal. Both aggregates must return valid health before stable canary activation.
+workflow. A sole `completed/skipped` deploy job is conclusive nondeployment
+regardless of why it was skipped: the resolver ignores that green run and
+continues to older workflow history. A missing or duplicate deploy job, an
+incomplete job, or any other conclusion remains fail-closed. The deadline
+selects `required` without relying on retained Actions history. In compatibility
+mode, only an exact `PGRST202` naming that zero-argument rotation RPC becomes
+`not_deployed`/null; the established reconciliation and principal aggregates
+remain required, and malformed responses, authorization failures, timeouts, and
+unrelated catalog errors remain fatal. Both aggregates must return valid health
+before stable canary activation.
 
 ## DwC-A Export and Archive Health Automation
 
@@ -7282,9 +7294,14 @@ After deployment:
   downstream Production job is skipped before the GitHub `Production`
   environment, database URL, migration push, secret synchronization, Function
   deployment, or smoke probes. This keeps exact-SHA candidate validation useful
-  for unrelated work without representing the backend as deployed. A missing,
-  malformed, duplicate, or required-ID-absent manifest still fails closed. The
-  hold job verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
+  for unrelated work without representing the backend as deployed. Such a green
+  held/skipped workflow is never a deployment baseline: deployment-history
+  resolution treats its sole `completed/skipped` deploy job as conclusive
+  nondeployment and continues to older actual deployment history. If no safe
+  actual deployment remains within the lookup bounds, production planning uses
+  the full Function fleet and every predeploy fence. A missing, malformed,
+  duplicate, or required-ID-absent manifest still fails closed. The hold job
+  verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
   `refs/heads/main`, compares the checkout with current `origin/main`, and
   includes that SHA plus the exact manifest SHA-256 in its summary. A reviewed
   `active: false` change clears only this source gate. Inside the sole GitHub

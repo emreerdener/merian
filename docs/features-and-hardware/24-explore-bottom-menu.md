@@ -138,7 +138,13 @@ for the surface they are changing:
   filters, waypoints, clusters, preview cards, and map view model.
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
-  community feedback entry points.
+  community feedback entry points. `Models/` owns presentation policy and typed
+  routes, `Services/` is the only Identify layer that supplies live network
+  closures, `@MainActor @Observable` models under `ViewModels/` own asynchronous
+  state, and `Views/` plus feature-grouped `Components/` contain no direct
+  networking. See the feature-local
+  [`README`](../../apps/ios/Merian/Features/Explore/Identify/README.md) for the
+  compatibility and test boundaries.
 - `apps/ios/Merian/Features/Explore/FieldTrips/` owns public Field trip Outings
   and Events, Seasonal Challenges cards/detail, guided template detail, progress
   cards, publication and challenge entry detail pages, profile modules,

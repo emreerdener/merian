@@ -423,18 +423,22 @@ Deno.test("iOS project guardrail runs the DTO contract gate for all app sources"
   );
 });
 
-Deno.test("production deploy plans every runtime change since the last successful release", async () => {
+Deno.test("production deploy plans every runtime change since the last actual deploy", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
 
   for (
     const requiredFragment of [
       "fetch-depth: 0",
       "actions: read",
-      "actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=1",
-      'git merge-base --is-ancestor "$last_success_sha" "$HEAD_SHA"',
-      "Planning from last successful production deploy: $last_success_sha",
-      '--base "$last_success_sha"',
-      '--head "$HEAD_SHA"',
+      "supabase/scripts/resolve_deployed_health_monitor_modes.ts",
+      "--latest-successful-deploy-sha",
+      "--allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA",
+      "--allow-net=api.github.com",
+      "--allow-run=git",
+      'git merge-base --is-ancestor "$last_deployed_sha" "$GITHUB_SHA"',
+      "Planning from last successful production deploy: $last_deployed_sha",
+      '--base "$last_deployed_sha"',
+      '--head "$GITHUB_SHA"',
       "Unable to resolve a safe successful deploy baseline; planning a full deployment.",
     ]
   ) {
@@ -461,21 +465,14 @@ Deno.test("production deploy plans every runtime change since the last successfu
     "The cumulative function plan must be resolved before production migration begins.",
   );
   const planStep = workflow.slice(planIndex, planEndIndex);
-  for (
-    const requiredTransportBound of [
-      "--connect-timeout 10",
-      "--max-time 30",
-      "--max-filesize 1048576",
-      "--retry 3",
-      "--retry-all-errors",
-      "--retry-delay 2",
-    ]
-  ) {
-    assert(
-      planStep.includes(requiredTransportBound),
-      `Production deploy baseline lookup is missing: ${requiredTransportBound}`,
-    );
-  }
+  assertStringIncludes(planStep, 'if ! last_deployed_sha="$(');
+  assertStringIncludes(planStep, 'last_deployed_sha=""');
+  assert(
+    !planStep.includes(".workflow_runs[0].head_sha") &&
+      !planStep.includes("last_success_sha") &&
+      !planStep.includes("per_page=1"),
+    "The planner must not treat the newest green workflow as an actual deployment.",
+  );
 
   const fullDeployFallbacks =
     workflow.match(/--all > "\$plan_file"/g)?.length ?? 0;

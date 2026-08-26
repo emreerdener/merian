@@ -1653,11 +1653,27 @@ not accept one layer as evidence for another.
 
 iOS focused coverage:
 
+- `Features/Explore/Identify/CommunityIdentificationPresentationTests.swift`
+  locks Requests/Index mode cases, 12/10 preview limits, 30-row complete page
+  size, independent request/Activity presentation state, filter mapping, empty
+  copy, and current-filter route propagation.
+- `Features/Explore/Identify/IdentifyDashboardViewModelTests.swift` verifies
+  dashboard request construction, stale-content retention, independent errors,
+  refreshes, and section-only retries.
+- `Features/Explore/Identify/IdentifyFeedViewModelTests.swift` verifies request
+  and Activity cursor advancement, location forwarding, near-end policy,
+  de-duplication, end detection, and initial error state.
+- `Features/Explore/Identify/CommunityIDDetailViewModelTests.swift`,
+  `CommunityTaxonomySearchViewModelTests.swift`, and
+  `CommunityFeedbackViewModelTests.swift` verify detail ownership and mutation
+  adapters, typed request-change events, mutation-state restoration and success
+  ordering, pinned-version search, debounce-independent search outcomes,
+  4,000-character feedback validation, trimming, success, and failure
+  restoration.
 - `Features/SpeciesDictionary/SpeciesDictionaryTests.swift` locks the exact
-  three root tabs, Requests/Index mode cases, species-to-Index and
-  request-to-Requests deep-link policy, 12/10 preview limits, 30-row complete
-  page size, independent request/Activity failure state, and current-filter
-  route propagation.
+  three root tabs plus species-to-Index and request-to-Requests deep-link
+  policy. Identify presentation and asynchronous state tests do not belong in
+  this dictionary suite.
 - `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
   and verifies `limit`, shared scope/group filters, plus paired
   `(before_activity_at, before_activity_id)` payload construction.
@@ -2620,11 +2636,14 @@ device-evidence checks:
   migration contract statically locks the Vault-first, NULL-only selection
   order. `resolve_deployed_health_monitor_modes_test.ts` separately proves that
   both recovery migrations and both hosted smokes are required at one ancestor
-  SHA with a successful `main` production deploy job, malformed API/history
-  evidence fails closed, and the 2026-09-19 UTC deadline selects `required`
-  without retained Actions evidence. Workflow security checks keep actions
-  immutable, permissions minimal, mode resolution ahead of Supabase credential
-  loading, and secrets step-scoped.
+  SHA with a successful `main` production deploy job. A sole `completed/skipped`
+  deploy job is conclusive nondeployment regardless of why it was skipped, so
+  the resolver ignores that green run and continues to older workflow history.
+  Missing, duplicate, incomplete, cancelled, and failed deploy-job states remain
+  fail-closed; malformed API/history evidence does too. The 2026-09-19 UTC
+  deadline selects `required` without retained Actions evidence. Workflow
+  security checks keep actions immutable, permissions minimal, mode resolution
+  ahead of Supabase credential loading, and secrets step-scoped.
 - `_tests/publicSchemaSecurityMigrationContract.test.ts` and
   `tests/public_schema_security.sql` lock every migration-created public table's
   effective RLS, deny-by-default global/schema ACLs, PostgreSQL 17 privilege
@@ -4013,13 +4032,17 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   `main` production `deploy` job, the controlling migration, and the exact
   hosted smoke selects `required`; absent proof may select `expand-compatible`
   only before the 2026-09-19 UTC deadline. Resolver tests prove malformed API
-  payloads, pagination drift, Git-history ambiguity, and source-qualified runs
-  without a successful deploy job fail closed, while the hard deadline removes
-  any dependency on retained Actions history. Monitor tests prove that only the
-  exact named rotation `PGRST202` becomes `not_deployed`/null in compatibility
-  mode, while a missing established principal RPC, malformed response,
-  authorization failure, and every unrelated RPC error fail closed. Both
-  aggregates must be required before stable canary activation.
+  payloads, pagination drift, and Git-history ambiguity fail closed. A sole
+  source-qualified `completed/skipped` deploy job is instead conclusive
+  nondeployment regardless of why it was skipped: the resolver ignores that
+  green run and continues to older workflow history. Missing, duplicate,
+  incomplete, cancelled, and failed deploy-job states remain fail-closed, while
+  the hard deadline removes any dependency on retained Actions history. Monitor
+  tests prove that only the exact named rotation `PGRST202` becomes
+  `not_deployed`/null in compatibility mode, while a missing established
+  principal RPC, malformed response, authorization failure, and every unrelated
+  RPC error fail closed. Both aggregates must be required before stable canary
+  activation.
 - **`scripts/revenuecat_customer_operations_test.ts`**: Covers delimiter-safe
   offline exports, conservative customer classification, canonical UUID
   formatting, exact explicit-cohort selection independent of current
