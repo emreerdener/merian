@@ -243,9 +243,12 @@ evidence.
 
 The machine-readable `species_dictionary_chat_production_hold` remains active in
 `services/supabase/release-holds.json`. Candidate Validation may run, but the
-separate hold job fails before the GitHub `Production` environment or any
-database, secret, or Function mutation. It must not be described as shipped or
-added to paywall/App Store copy. The reviewed 2026-08-24 source now:
+separate hold job reports a successful `held` result and the conditional
+Production job is skipped before the GitHub `Production` environment or any
+database, secret, or Function mutation. Malformed or missing hold controls still
+fail. A green held workflow is validation evidence, not deployment evidence; the
+feature must not be described as shipped or added to paywall/App Store copy. The
+reviewed 2026-08-24 source now:
 
 1. registers `field_chat_daily_admissions` in the effective Ghost handler
    allowlist and executes the complete policy-coverage assertion;

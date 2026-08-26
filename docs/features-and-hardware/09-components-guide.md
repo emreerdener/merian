@@ -747,17 +747,17 @@ prior host on unmount. Only the front item starts the 3.5-second timer, haptic,
 and VoiceOver announcement or receives hit testing. Up to two queued items
 render as decorative backplates; their payload subtrees stay unmounted, avoiding
 duplicate material/text layers and queued-card redraws. Field trip items show
-objective artwork, a goal-complete title, and outing name; banner taps request
-typed `AppRoute` destinations through the host's environment-injected
-coordinator rather than presenting a sibling sheet or reaching into the
-production DI singleton. The ordinary system toast unmounts only when it shares
-the milestone stack's alignment, preventing a single Z-plane collision without
-hiding independent top/bottom feedback. The active card's drag offset, scale,
-and dismissal opacity apply only to its foreground surface. Decorative
-backplates are laid out from the card's stable bounds outside that transform, so
-they remain anchored while a swipe reveals the queue beneath instead of leaving
-with the dismissed card and jumping back. Account and app-session generations
-clear the visual queue and reject stale async enqueues. Presentation effects are
+goal artwork, a goal-complete title, and outing name; banner taps request typed
+`AppRoute` destinations through the host's environment-injected coordinator
+rather than presenting a sibling sheet or reaching into the production DI
+singleton. The ordinary system toast unmounts only when it shares the milestone
+stack's alignment, preventing a single Z-plane collision without hiding
+independent top/bottom feedback. The active card's drag offset, scale, and
+dismissal opacity apply only to its foreground surface. Decorative backplates
+are laid out from the card's stable bounds outside that transform, so they
+remain anchored while a swipe reveals the queue beneath instead of leaving with
+the dismissed card and jumping back. Account and app-session generations clear
+the visual queue and reject stale async enqueues. Presentation effects are
 claimed once per item, and a remounted host receives only the remaining lifetime
 rather than replaying haptics, announcements, or a fresh timer. Automatic
 dequeue mutates presenter state directly. The outer feedback overlay animates

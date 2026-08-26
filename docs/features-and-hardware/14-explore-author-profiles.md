@@ -323,8 +323,10 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripPublicationDetailView.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripProfilePresentation.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/ActiveFieldTripsProfileViewModel.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Components/Profile/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Views/FieldTripPublicationDetailView.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
@@ -437,6 +439,13 @@ iOS:
   construction.
 - `apps/ios/MerianTests/Core/Network/FieldTripAPIModelsTests.swift` covers Field
   trip DTO decoding used by profile modules and publication detail.
+- `apps/ios/MerianTests/Features/Explore/FieldTrips/FieldTripProfilePresentationTests.swift`
+  owns `ActiveFieldTripProfilePresentationTests` and
+  `EarnedFieldTripPatchPresentationTests`, covering profile visibility,
+  ordering, patches, and published-summary presentation.
+- `apps/ios/MerianTests/Features/Explore/FieldTrips/ActiveFieldTripsProfileViewModelTests.swift`
+  covers injected active-profile loading, patch projection, and signed-out
+  state.
 
 Recommended verification:
 

@@ -188,6 +188,11 @@ normative wire and rollout contract is
 
 ## Field trip completion evidence
 
+`FieldTripAPIModels.swift` owns Codable DTOs and wire-compatibility fallbacks.
+Catalog filtering, lifecycle display, dates, artwork, profile policy, and other
+UI presentation belong to `Features/Explore/FieldTrips/Models`; do not add
+SwiftUI-facing state or display extensions to the network model file.
+
 Catalog and template-detail checklist items may decode an optional private
 `completed_scan_id` into `FieldTripChecklistItem.completedScanId`. The ID is the
 exact saved scan that completed that item; clients must not infer completed
@@ -259,7 +264,8 @@ only. New and migrated accounts normally receive Backyard Safari Level 1 from
 the server's account-enrollment trigger/backfill. The response must not contain
 scan evidence, media, location, or field notes.
 
-`MerianNetworkClient` performs the request. `FieldTripCaptureGoalProvider` maps
+`MerianNetworkClient` performs the request.
+`Features/Explore/FieldTrips/Services/FieldTripCaptureGoalProvider.swift` maps
 the source DTOs into a generic `CaptureGoalContextSnapshot`. After a successful
 empty response it uses the existing authenticated `template_detail` slug lookup
 to validate the optional post-Reset Backyard Safari introduction.

@@ -8,6 +8,12 @@ rollout order remains the
 The `species_dictionary_chat_production_hold` is active and must remain active
 until every checked-in criterion and external control is satisfied.
 
+An active, structurally valid hold is an expected release status rather than a
+candidate defect. The deployment workflow therefore reports the hold job green
+with `release_status=held` and `deploy_allowed=false`, then skips the Production
+job before environment approval or secret access. Missing or malformed hold
+state still fails, and a green held run is never deployment evidence.
+
 The checked-in templates are intentionally invalid. Placeholder SHAs, zero
 digests, zero artifact IDs, expired timestamps, and `pending` values must never
 be interpreted as evidence.

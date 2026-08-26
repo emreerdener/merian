@@ -234,7 +234,7 @@ authorization:
 - `Preview New to Naturebook notification`
   (`Settings_PreviewNewToMerianNotification`); and
 - `Preview Field trip progress toast`
-  (`Settings_PreviewFieldTripProgressToast`), which shows the objective artwork,
+  (`Settings_PreviewFieldTripProgressToast`), which shows the goal artwork,
   goal-complete title, outing name, and typed tap destination used after a saved
   scan.
 

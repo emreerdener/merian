@@ -100,12 +100,12 @@ Primary implementation files:
 
 - `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
 - `apps/ios/Merian/Core/AppDIContainer.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Services/FieldTripCaptureGoalProvider.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsView.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Views/FieldTripsView.swift`
 - `services/supabase/functions/field-trips/`
 - `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
 - `services/supabase/migrations/20260717213641_preserve_standard_outings_in_capture_context.sql`

@@ -147,13 +147,13 @@ remains centered on screen. It matches the secondary capture-control diameter,
 uses 42 pt artwork, and remains above the 44 pt minimum touch target. It keeps
 the established 32 pt trailing workspace margin when space permits and
 compresses that margin only enough to preserve an 8 pt gap on narrow phones. It
-shows exact bundled objective artwork when mapped, otherwise a neutral
-binoculars symbol. Tapping the artwork moves and expands the same glass surface
-to the full goal row beneath the selector; its leading control returns to 56 pt
-with 36 pt artwork. The centered `Goal: {target}` label and outing title then
-sit between equal 56 pt artwork and up-chevron slots. Tapping the expanded
-artwork or trailing chevron collapses the surface back onto the selector row,
-while tapping the centered text region opens the outing.
+shows exact bundled goal artwork when mapped, otherwise a neutral binoculars
+symbol. Tapping the artwork moves and expands the same glass surface to the full
+goal row beneath the selector; its leading control returns to 56 pt with 36 pt
+artwork. The centered `Goal: {target}` label and outing title then sit between
+equal 56 pt artwork and up-chevron slots. Tapping the expanded artwork or
+trailing chevron collapses the surface back onto the selector row, while tapping
+the centered text region opens the outing.
 
 Expansion is local to the current visual-Scan visit. It survives goal changes,
 root sheets, foreground transitions, and temporary staging, refinement, or

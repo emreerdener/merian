@@ -275,18 +275,28 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     "verify_production_release_holds.ts",
     holdDependency,
   );
+  const holdOutputs = deployWorkflow.indexOf(
+    "deploy_allowed: ${{ steps.release-hold.outputs.deploy_allowed }}",
+    holdJob,
+  );
   const deployJob = deployWorkflow.indexOf("  deploy:", holdVerifier);
   const deployDependencies = deployWorkflow.indexOf(
     "needs: [candidate-validation, production-hold]",
+    deployJob,
+  );
+  const deployHoldCondition = deployWorkflow.indexOf(
+    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
     deployJob,
   );
   assert(
     prerequisite >= 0 && reusableCall > prerequisite &&
       holdJob > reusableCall &&
       holdDependency > holdJob &&
+      holdOutputs > holdDependency &&
       holdVerifier > holdDependency &&
       deployJob > holdVerifier &&
-      deployDependencies > deployJob,
+      deployDependencies > deployJob &&
+      deployHoldCondition > deployDependencies,
     "Production deployment must require reusable candidate validation and the non-Production release-hold job first.",
   );
 
@@ -294,8 +304,12 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assert(
     !holdBlock.includes("environment: Production") &&
       !holdBlock.includes("secrets.") &&
-      holdBlock.includes("services/supabase/release-holds.json"),
-    "The hold must fail before Production environment approval or secret access.",
+      holdBlock.includes("services/supabase/release-holds.json") &&
+      holdBlock.includes('--github-output "$GITHUB_OUTPUT"') &&
+      holdBlock.includes(
+        '--allow-write="$GITHUB_STEP_SUMMARY,$GITHUB_OUTPUT"',
+      ),
+    "The hold status must remain isolated from Production approval and secret access while publishing only bounded workflow outputs.",
   );
   for (
     const exactEvidence of [
@@ -306,7 +320,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
       '"$GITHUB_REF" != "refs/heads/main"',
       '"$GITHUB_SHA"',
       "--candidate-sha",
-      "--mode source-gate",
+      "--mode source-status",
     ]
   ) {
     assertStringIncludes(holdBlock, exactEvidence);
@@ -351,6 +365,15 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   }
 
   const deployBlock = deployWorkflow.slice(deployJob);
+  const deployHoldConditionInBlock = deployBlock.indexOf(
+    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+  );
+  const productionEnvironment = deployBlock.indexOf("environment: Production");
+  assert(
+    deployHoldConditionInBlock >= 0 &&
+      productionEnvironment > deployHoldConditionInBlock,
+    "The Production environment must be unreachable unless the checked-in hold explicitly allows deployment.",
+  );
   const exactCheckout = deployBlock.indexOf("ref: ${{ github.sha }}");
   const exactHead = deployBlock.indexOf(
     "Verify exact clean production candidate",

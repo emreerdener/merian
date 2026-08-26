@@ -4032,11 +4032,15 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
   );
   assertStringIncludes(
     deploySource,
+    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+  );
+  assertStringIncludes(
+    deploySource,
     "services/supabase/scripts/verify_production_release_holds.ts",
   );
   for (
     const releaseControl of [
-      "--mode source-gate",
+      "--mode source-status",
       "--mode production-clearance",
       "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN",
       "MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON",

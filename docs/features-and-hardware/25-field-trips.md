@@ -129,13 +129,13 @@ only a camera/performance setting.
 - Every saved biological Insight that owns Field trip credit shows one
   persistent **Field trips** card after toxicity and identification review
   content. Each undivided row uses an uppercase **GOAL COMPLETE** eyebrow,
-  headline-sized goal name, enlarged objective art/check badge, an
-  experience-only subtitle, and prominent credited-level ring. Its heading uses
-  the same icon and headline sizing as other Insight cards. The card keeps every
-  credited outing/Event row visible and routes the full row to the experience's
-  detail overview without a redundant chevron. It intentionally drops the
-  credited checklist focus so a completed row never auto-expands an inline tip;
-  native Back returns to the originating Insight.
+  headline-sized goal name, enlarged goal art/check badge, an experience-only
+  subtitle, and prominent credited-level ring. Its heading uses the same icon
+  and headline sizing as other Insight cards. The card keeps every credited
+  outing/Event row visible and routes the full row to the experience's detail
+  overview without a redundant chevron. It intentionally drops the credited
+  checklist focus so a completed row never auto-expands an inline tip; native
+  Back returns to the originating Insight.
 - Field trip comments and likes are separate from Explore post comments and
   likes, even though the iOS UI reuses the compact Explore comment presentation.
 - V4 supports profile showcase, up to 3 pinned published Field trips, completion
@@ -423,10 +423,10 @@ the matching goal tile, and reveals and scrolls to its tips without adding
 separate tip-container highlight chrome. A future goal without guide content
 falls back to its highlighted goal tile. The destination is converted at the
 Explore boundary into `FieldTripTemplateRoute`, whose focused checklist-item
-identifier remains optional for ordinary outing navigation. Guide, objective,
-and Event highlight timers are stored per detail view, cancelled when replaced,
-and released on disappearance. Their delayed fade cannot retain a dismissed
-scroll proxy or clear a newer highlight.
+identifier remains optional for ordinary outing navigation. Guide, goal, and
+Event highlight timers are stored per detail view, cancelled when replaced, and
+released on disappearance. Their delayed fade cannot retain a dismissed scroll
+proxy or clear a newer highlight.
 
 ## Challenge Flow
 
@@ -943,17 +943,50 @@ historical after the atomic cutover. See
 
 ## iOS Implementation
 
+The feature-local ownership contract lives in
+`apps/ios/Merian/Features/Explore/FieldTrips/README.md`. Production code is
+split by responsibility:
+
+- `Models/` owns UI-only catalog, detail, date, artwork, featured-media,
+  publication, and profile presentation policy. Codable Field trip DTOs and wire
+  compatibility remain in `Core/Network/FieldTripAPIModels.swift`.
+- `Services/` is the only feature layer that creates live `MerianNetworkClient`
+  closures. It also owns the capture-goal adapter and the typed outing/Event
+  publication and publish endpoints.
+- `ViewModels/` owns main-actor observable catalog, outing-detail, Event-detail,
+  active-profile, publish-form, and published-content interaction state through
+  initializer-injected dependency values.
+- `Views/` owns screens, route-compatible wrappers, and animation-sensitive
+  selection, gallery, focus, scroll-proxy, and highlight state.
+- `Components/` owns catalog, detail, media, publication, profile, and shared UI
+  without calling the network client directly.
+
+`FieldTripPublishedContent` normalizes outing publications and Event entries for
+one detail renderer and interaction view model while
+`FieldTripPublishedContentEndpoint` preserves their distinct network actions.
+`FieldTripPublishForm` and `FieldTripPublishViewModel` similarly share form
+behavior through typed `FieldTripPublishEndpoint` values. The existing
+`FieldTripPublicationDetailView` and `FieldTripChallengeEntryDetailView`
+initializers remain thin compatibility wrappers.
+
+This organization is an iOS-only parity boundary. It does not change JSON
+payloads, Edge actions, wire DTOs, SwiftData or persistence schemas, feature
+flags, routes, lifecycle behavior, or Outings/Events semantics. Production Field
+Trips Swift files remain below 600 lines.
+
 Primary files:
 
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsView.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/README.md`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Models/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Services/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Views/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Components/`
 - `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
 - `apps/ios/Merian/Core/AppDIContainer.swift`
 - `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripPublicationDetailView.swift`
-- `apps/ios/Merian/Features/Explore/FieldTrips/FieldTripProfileModules.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift`
@@ -992,6 +1025,16 @@ Important model types:
 - `FieldTripChallengeEntry`
 - `FieldTripChallengeEntryDetail`
 - `FieldTripChallengeEntryItem`
+- `FieldTripGoalArtwork`
+- `FieldTripDisplayDate`
+- `FieldTripPublishedContent`
+- `FieldTripPublishedContentEndpoint`
+- `FieldTripPublishedContentViewModel`
+- `FieldTripPublishEndpoint`
+- `FieldTripPublishViewModel`
+
+The live feature service adapters use the existing client methods below. Views
+and components do not call them directly.
 
 Client methods:
 
@@ -1157,13 +1200,13 @@ current session's same-scan work; every suspended progress or achievement result
 is re-fenced before it may schedule work or enqueue feedback.
 
 `FieldTripMilestonePayload` stores the outing title, the first newly completed
-item's label, lightweight objective artwork, and a typed destination. Standard
+item's label, lightweight goal artwork, and a typed destination. Standard
 destinations use `.fieldTrip(templateId:checklistItemId:)`; Seasonal Challenge
 destinations use `.fieldTripChallenge(challengeId:)`. `MilestoneToastBanner`
 renders **Field trip progress**, `{goal} goal complete`, and the outing title
-beside the objective artwork. It preserves the shared 3.5-second timeout,
-haptics, horizontal/vertical swipe and close-button dismissal, queue transition,
-and VoiceOver announcement, and requests `AppRoute.captureGoal` when tapped. The
+beside the goal artwork. It preserves the shared 3.5-second timeout, haptics,
+horizontal/vertical swipe and close-button dismissal, queue transition, and
+VoiceOver announcement, and requests `AppRoute.captureGoal` when tapped. The
 root coordinator serializes the sheet handoff, then Explore converts the typed
 destination into the standard focused outing route or Seasonal Challenge detail
 route.
@@ -1324,11 +1367,21 @@ iOS:
 
 ```sh
 make xcodegen
+make validate-ios-project
+bash scripts/test-ios-project-source-membership.sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
   -only-testing:merianTests/FieldTripAPIModelsTests \
   -only-testing:merianTests/FieldTripCaptureContextModelsTests \
+  -only-testing:merianTests/FieldTripPresentationTests \
+  -only-testing:merianTests/ActiveFieldTripProfilePresentationTests \
+  -only-testing:merianTests/EarnedFieldTripPatchPresentationTests \
+  -only-testing:merianTests/FieldTripsViewModelTests \
+  -only-testing:merianTests/FieldTripTemplateDetailViewModelTests \
+  -only-testing:merianTests/FieldTripChallengeDetailViewModelTests \
+  -only-testing:merianTests/ActiveFieldTripsProfileViewModelTests \
+  -only-testing:merianTests/FieldTripPublishedContentViewModelTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
   -only-testing:merianTests/StagedCaptureTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
@@ -1337,7 +1390,33 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/InsightSheetViewModelTests \
   -only-testing:merianTests/MigrationPlanTests \
   -only-testing:merianTests/AppTelemetryTests test
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' \
+  -only-testing:merianTests test
+swiftlint lint --strict \
+  apps/ios/Merian/Features/Explore/FieldTrips \
+  apps/ios/MerianTests/Features/Explore/FieldTrips \
+  apps/ios/Merian/Core/Network/FieldTripAPIModels.swift \
+  apps/ios/Merian/Core/UI/Feedback/AchievementToastPresenter.swift
+make validate-markdown-format
+git diff --check
 ```
+
+The focused selector matrix and complete `merianTests` target are both required;
+one does not replace the other. Run the SwiftLint command only when the local
+SourceKitten installation is functional, and report the limitation if it cannot
+run.
+
+Manual iOS parity matrix:
+
+| Surface                    | Required regression coverage                                                                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog                    | Switch Outings/Events repeatedly; exercise independent loading, error, retry, pull-to-refresh, difficulty/status filters, Reset, and server-order preservation.                                                  |
+| Standard outing detail     | Goal focus/collapse/tips, featured-media fallback and viewer, Start/Resume/Stop/Reset/Publish, progress refresh, lifecycle menu, selection continuity, and typed Back navigation.                                |
+| Event detail               | Join, Continue, badge/progress, independent loading/error, reverse-chronological entry pagination, and typed entry publication completion.                                                                       |
+| Published content          | Open both thin wrapper routes; load items/comments, optimistic like and rollback, 500-character validation, trimmed comment/reply submission, draft restoration, pagination, author routing, and error feedback. |
+| Profile and shared artwork | Authenticated active cards, public active/pinned/published rows, earned-patch paging, patch gallery, cover/image fallback, and completed local-media previews.                                                   |
+| Accessibility and layout   | Preserve visible copy and identifiers; inspect VoiceOver actions/labels, large Dynamic Type, compact and large phones, light/dark appearance, Reduce Motion, focus timing, and scroll/highlight behavior.        |
 
 The database integration tests require the local Supabase/Postgres stack. They
 report a skip when `127.0.0.1:54322` is unavailable; a skip is not production
@@ -1379,14 +1458,14 @@ swipe/close, haptic, and VoiceOver inspection.
 For the persistent Insight card, reopen a historical saved biological scan with
 one and then several standard/Event credits. Confirm every row remains visible,
 shows the **Field trips** header, an uppercase **GOAL COMPLETE** eyebrow above
-the headline-sized goal name, enlarged objective art/check badge, an
-experience-only subtitle with no level, and a prominent credited-level ring
-without separators or chevrons. Confirm the heading matches other Insight card
-headers and the card reloads after that scan's progress/evidence invalidation.
-Every standard row must open at the top of the outing detail with no focused
-item; every Event row must open challenge overview. Root modal, Scans-embedded,
-Explore-embedded, and modal-from-Explore paths must retain the originating
-Insight beneath the detail so native Back returns to it. Also exercise
+the headline-sized goal name, enlarged goal art/check badge, an experience-only
+subtitle with no level, and a prominent credited-level ring without separators
+or chevrons. Confirm the heading matches other Insight card headers and the card
+reloads after that scan's progress/evidence invalidation. Every standard row
+must open at the top of the outing detail with no focused item; every Event row
+must open challenge overview. Root modal, Scans-embedded, Explore-embedded, and
+modal-from-Explore paths must retain the originating Insight beneath the detail
+so native Back returns to it. Also exercise
 queued/unauthenticated/non-biological gates, no-match and network failure, long
 goal/experience names, compact and large widths, dark mode, accessibility
 Dynamic Type, VoiceOver, and Reduce Motion. The card must add no haptic or

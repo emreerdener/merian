@@ -56,18 +56,21 @@ readiness`. The complete gate uses a
 disposable database and has no GitHub Production environment, production
 secrets, database push, Function deployment, or production smoke. The production
 workflow declares this reusable gate as a required predecessor, followed by a
-non-Production checked-in source-hold job. Only the subsequent `deploy` job
-enters the Production environment. That job pins and clean-checks the same SHA
-and validates a protected clearance before it reads ordinary production
-credentials or mutates Supabase. The verifier binds the clearance to the
-candidate, manifest, criterion set, artifact IDs/digests, and approval window;
-uses a read-only GitHub audit token to verify live branch, pull-request, and
-environment protections; then downloads every release-evidence artifact,
-recomputes its archive and embedded-evidence digests, and verifies exact-SHA
-successful workflow provenance. Protected `Release Evidence` and `Production`
-approvals remain required, and off-platform evidence still requires reviewer
-judgment; a digest proves retained bytes, not the issuing authority. A green
-candidate run proves the reviewed source and disposable catalog, not that
+non-Production checked-in source-hold job. A valid active hold produces a green
+`held` status and `deploy_allowed=false`; the conditional `deploy` job is then
+skipped before GitHub requests Production approval or exposes credentials. A
+missing or malformed hold remains a workflow failure. Only a clear source status
+allows the subsequent `deploy` job to enter the Production environment. That job
+pins and clean-checks the same SHA and validates a protected clearance before it
+reads ordinary production credentials or mutates Supabase. The verifier binds
+the clearance to the candidate, manifest, criterion set, artifact IDs/digests,
+and approval window; uses a read-only GitHub audit token to verify live branch,
+pull-request, and environment protections; then downloads every release-evidence
+artifact, recomputes its archive and embedded-evidence digests, and verifies
+exact-SHA successful workflow provenance. Protected `Release Evidence` and
+`Production` approvals remain required, and off-platform evidence still requires
+reviewer judgment; a digest proves retained bytes, not the issuing authority. A
+green candidate run proves the reviewed source and disposable catalog, not that
 production changed.
 
 ### Scan admission preview release order
@@ -7275,10 +7278,13 @@ After deployment:
   `services/supabase/release-holds.json`. The reusable Candidate Validation job
   remains production-isolated and may run. A separate non-Production job then
   invokes `verify_production_release_holds.ts`; while the hold is active, it
-  fails before the GitHub `Production` environment, database URL, migration
-  push, secret synchronization, Function deployment, or smoke probes. A missing,
-  malformed, duplicate, or required-ID-absent manifest fails closed. The hold
-  job verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
+  reports a successful `held` decision with `deploy_allowed=false`. The
+  downstream Production job is skipped before the GitHub `Production`
+  environment, database URL, migration push, secret synchronization, Function
+  deployment, or smoke probes. This keeps exact-SHA candidate validation useful
+  for unrelated work without representing the backend as deployed. A missing,
+  malformed, duplicate, or required-ID-absent manifest still fails closed. The
+  hold job verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
   `refs/heads/main`, compares the checkout with current `origin/main`, and
   includes that SHA plus the exact manifest SHA-256 in its summary. A reviewed
   `active: false` change clears only this source gate. Inside the sole GitHub

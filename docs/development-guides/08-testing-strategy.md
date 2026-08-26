@@ -3244,23 +3244,37 @@ manually maintained snapshot of the actions emitted by iOS and verifies that
 missing and unknown actions are rejected. It does not parse Swift source, so
 review the client call sites and update both arrays whenever an action is added,
 renamed, or retired. `FieldTripCaptureContextModelsTests` covers capture-context
-decoding, while `FieldTripAPIModelsTests` covers the optional completing scan ID
-used by catalog/detail thumbnails, optional ordered reference-species media,
-published status, optional removed-item metadata, and standard/Event
-contribution decoding plus typed destinations. A separate legacy-payload test
-ensures absent publication fields decode as Private during rollout. The
-progress-response tests cover both the legacy shape and an extended level-
-advancement shape where current counts are `0/N` but credited counts are the
-completed full level. `AchievementToastPresenterTests` covers delayed strict
-ordering, multiple standard/challenge destinations, common-name fallback,
-progress failure, empty matches, completed-level rings, foreground/background
-scan-ID deduplication, bounded overflow, typed payload coalescing, session
-fencing, and foreground-host lifetime/effect ownership. The Field Trips Deno
-`referenceMedia_test.ts` suite locks all 20 current goal-to-illustrative-species
-mappings, target extraction, one-per-source Naturebook/Wikipedia/GBIF ordering,
-and item-scoped payload attachment; `db_test.ts` also executes the bounded
-species/reference hydration projection. `InsightSheetViewModelTests` covers
-contribution loading, scan-change race rejection, silent error/empty states,
+decoding, while `FieldTripAPIModelsTests` is limited to wire behavior: the
+optional completing scan ID used by catalog/detail thumbnails, ordered
+reference-species media, published status, optional removed-item metadata, and
+standard/Event contribution decoding plus typed destinations. A separate
+legacy-payload test ensures absent publication fields decode as Private during
+rollout. `FieldTripPresentationTests` and the suites in
+`FieldTripProfilePresentationTests.swift` own feature display, filtering,
+lifecycle, profile, patch, and artwork policies. `FieldTripsViewModelTests`,
+`FieldTripTemplateDetailViewModelTests`,
+`FieldTripChallengeDetailViewModelTests`,
+`ActiveFieldTripsProfileViewModelTests`, and
+`FieldTripPublishedContentViewModelTests` cover injected loading and mutation
+state, independent catalog errors, outing lifecycle mutations, Event join and
+pagination, active-profile loading, normalized outing/Event mapping, both
+published-content endpoint adapters, optimistic-like rollback, 500-character
+comment validation, trimming, and failed-draft restoration. These suites live
+under `MerianTests/Features/Explore/FieldTrips` and share deterministic builders
+through `FieldTripTestFixtures.swift`; feature presentation behavior must not
+move back into the Core network suite. The progress-response tests cover both
+the legacy shape and an extended level-advancement shape where current counts
+are `0/N` but credited counts are the completed full level.
+`AchievementToastPresenterTests` covers delayed strict ordering, multiple
+standard/challenge destinations, common-name fallback, progress failure, empty
+matches, completed-level rings, foreground/background scan-ID deduplication,
+bounded overflow, typed payload coalescing, session fencing, and foreground-host
+lifetime/effect ownership. The Field Trips Deno `referenceMedia_test.ts` suite
+locks all 20 current goal-to-illustrative-species mappings, target extraction,
+one-per-source Naturebook/Wikipedia/GBIF ordering, and item-scoped payload
+attachment; `db_test.ts` also executes the bounded species/reference hydration
+projection. `InsightSheetViewModelTests` covers contribution loading,
+scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
 policy. `FieldTripFeaturedMediaTests` covers the standard outing hero
@@ -3447,12 +3461,24 @@ successful run proves the test actually connected.
 The public Field trips release has explicit regression coverage.
 `FieldTripsAvailabilityTests` locks the parent Field trips surface on for every
 account and verifies Events are absent from the feature-flag registry.
-`FieldTripAPIModelsTests`, `ActiveCaptureGoalStoreTests`, profile visibility
-tests, `AchievementToastPresenterTests`, and `InsightSheetViewModelTests` verify
-that Event sections, badges, progress, typed routes, and scan contributions are
-part of the normal client path. Manually test a physical signed-in account, a
-physical ghost account, and a simulator build; all must see the Events segment
-and be able to exercise the server-authorized flow.
+`FieldTripAPIModelsTests`, `FieldTripPresentationTests`, the profile
+presentation suites in `FieldTripProfilePresentationTests.swift`, the Field
+Trips view-model suites, `ActiveCaptureGoalStoreTests`,
+`AchievementToastPresenterTests`, and `InsightSheetViewModelTests` verify that
+Event sections, badges, progress, typed routes, publications, profiles, and scan
+contributions are part of the normal client path. Manually test a physical
+signed-in account, a physical ghost account, and a simulator build; all must see
+the Events segment and be able to exercise the server-authorized flow.
+
+Manual refactor-parity QA must also switch Outings/Events while their catalog
+requests load, fail, retry, and refresh independently; combine difficulty and
+status filters; and exercise Start, Resume, Stop, Reset, Join, Publish outing,
+and Publish Entry. Open both published-content wrappers and verify optimistic
+likes, rollback feedback, comments/replies, the 500-character limit, failed
+draft restoration, pagination, and author routing. Regress active and public
+profile cards, patch paging, cover/media fallbacks, goal focus/tips, featured
+media, VoiceOver, large Dynamic Type, Reduce Motion, compact/large devices, and
+light/dark appearance.
 
 Progress-toast device QA must use the DEBUG Settings preview at compact and
 large widths with long species/trip names, VoiceOver, and Reduced Motion. A live

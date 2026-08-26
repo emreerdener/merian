@@ -151,13 +151,16 @@ authenticators, but it does not validate a hosted JWT. The real-token HTTP
 boundary still needs explicit exact-SHA execution evidence.
 
 Candidate Validation remains available and must run on the reviewed immutable
-SHA. The separate pre-production source gate fails before the GitHub
-`Production` environment, database push, secret synchronization, Function
-deployment, or smoke probes can begin. It requires this hold ID and a clean
-exact checkout. If a reviewed manifest later marks the hold inactive, the sole
-Production job independently pins and clean-checks the same SHA, then requires
-the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` environment secret
-before reading ordinary production credentials or mutating Supabase. That
+SHA. The separate pre-production source gate reports a successful `held` status
+and `deploy_allowed=false` for a valid active hold, so the conditional
+Production job is skipped before its environment, database push, secret
+synchronization, Function deployment, or smoke probes can begin. Missing,
+malformed, duplicate, and required-ID-absent manifests still fail. The gate
+requires this hold ID and a clean exact checkout. A green held workflow does not
+mean the backend deployed. If a reviewed manifest later marks the hold inactive,
+the sole Production job independently pins and clean-checks the same SHA, then
+requires the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` environment
+secret before reading ordinary production credentials or mutating Supabase. That
 clearance must match the candidate SHA, exact manifest SHA-256, every stable
 criterion ID and evidence type, positive artifact IDs, nonzero evidence digests,
 and a current approval window. A read-only GitHub audit token verifies two

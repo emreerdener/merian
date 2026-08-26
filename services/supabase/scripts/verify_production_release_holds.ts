@@ -48,11 +48,18 @@ interface ProductionReleaseClearance {
 
 export interface ProductionHoldDecision {
   allowed: boolean;
+  manifestValid: boolean;
   summary: string;
   activeHoldIds: string[];
   inactiveHoldIds: string[];
   manifestSha256: string;
 }
+
+export type ProductionSourceStatus = "clear" | "held" | "invalid";
+export type ProductionHoldMode =
+  | "source-gate"
+  | "source-status"
+  | "production-clearance";
 
 export interface ProductionClearanceDecision extends ProductionHoldDecision {
   clearanceSha256: string;
@@ -205,6 +212,7 @@ function sourceDecision(
   if (activeHolds.length === 0) {
     return {
       allowed: true,
+      manifestValid: true,
       activeHoldIds: [],
       inactiveHoldIds: inactiveHolds.map((hold) => hold.id),
       manifestSha256: loaded.digest,
@@ -215,6 +223,7 @@ function sourceDecision(
 
   return {
     allowed: false,
+    manifestValid: true,
     activeHoldIds: activeHolds.map((hold) => hold.id),
     inactiveHoldIds: inactiveHolds.map((hold) => hold.id),
     manifestSha256: loaded.digest,
@@ -237,6 +246,7 @@ export async function evaluateProductionReleaseHolds(
     const detail = error instanceof Error ? error.message : "unknown error";
     return {
       allowed: false,
+      manifestValid: false,
       activeHoldIds: [],
       inactiveHoldIds: [],
       manifestSha256: "unavailable",
@@ -246,6 +256,21 @@ export async function evaluateProductionReleaseHolds(
   }
 
   return sourceDecision(loaded);
+}
+
+export function productionSourceStatus(
+  decision: ProductionHoldDecision,
+): ProductionSourceStatus {
+  if (!decision.manifestValid) return "invalid";
+  return decision.allowed ? "clear" : "held";
+}
+
+export function productionHoldCommandSucceeds(
+  mode: ProductionHoldMode,
+  decision: ProductionHoldDecision,
+): boolean {
+  return decision.allowed ||
+    (mode === "source-status" && productionSourceStatus(decision) === "held");
 }
 
 function parseTimestamp(value: unknown, field: string): number {
@@ -346,6 +371,7 @@ export async function evaluateProductionReleaseClearance(
     const detail = error instanceof Error ? error.message : "unknown error";
     return {
       allowed: false,
+      manifestValid: false,
       activeHoldIds: [],
       inactiveHoldIds: [],
       manifestSha256: "unavailable",
@@ -496,21 +522,30 @@ if (import.meta.main) {
   const manifestPath = argumentValue("--manifest") ??
     new URL("../release-holds.json", import.meta.url);
   const summaryPath = argumentValue("--summary");
+  const githubOutputPath = argumentValue("--github-output");
   const candidateSha = argumentValue("--candidate-sha");
   const mode = argumentValue("--mode");
   if (!candidateSha || !SHA_PATTERN.test(candidateSha)) {
     console.error("A lowercase 40-hex --candidate-sha is required.");
     Deno.exit(2);
   }
-  if (mode !== "source-gate" && mode !== "production-clearance") {
-    console.error("--mode must be source-gate or production-clearance.");
+  if (
+    mode !== "source-gate" && mode !== "source-status" &&
+    mode !== "production-clearance"
+  ) {
+    console.error(
+      "--mode must be source-gate, source-status, or production-clearance.",
+    );
+    Deno.exit(2);
+  }
+  if (githubOutputPath && mode !== "source-status") {
+    console.error("--github-output is only valid with --mode source-status.");
     Deno.exit(2);
   }
 
   const decision: ProductionHoldDecision | ProductionClearanceDecision =
-    mode === "source-gate"
-      ? await evaluateProductionReleaseHolds(manifestPath)
-      : await evaluateProductionReleaseClearance(
+    mode === "production-clearance"
+      ? await evaluateProductionReleaseClearance(
         manifestPath,
         Deno.env.get("MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON"),
         candidateSha,
@@ -521,7 +556,8 @@ if (import.meta.main) {
           repository: Deno.env.get("GITHUB_REPOSITORY") ?? "",
           branch: "main",
         }),
-      );
+      )
+      : await evaluateProductionReleaseHolds(manifestPath);
   const clearanceDecision = mode === "production-clearance"
     ? decision as ProductionClearanceDecision
     : undefined;
@@ -548,17 +584,36 @@ if (import.meta.main) {
       clearanceDecision.verifiedEvidenceReferences,
     )
     : "";
-  const heading = decision.allowed
+  const sourceStatus = productionSourceStatus(decision);
+  const heading = mode === "production-clearance"
+    ? decision.allowed
+      ? "## Supabase production clearance: clear"
+      : "## Supabase production clearance: blocked"
+    : sourceStatus === "clear"
     ? `## Supabase production ${mode}: clear`
-    : `## Supabase production ${mode}: blocked`;
+    : sourceStatus === "held"
+    ? `## Supabase production ${mode}: intentionally held`
+    : `## Supabase production ${mode}: invalid`;
   const output =
     `${heading}\n\nCandidate SHA: \`${candidateSha}\`\n\nManifest SHA-256: \`${decision.manifestSha256}\`${clearanceDigest}${verifiedCriteria}${verifiedControls}${verifiedEvidence}\n\n${decision.summary}\n`;
 
   if (summaryPath) {
     await Deno.writeTextFile(summaryPath, output, { append: true });
   }
-  if (decision.allowed) {
+  if (githubOutputPath) {
+    await Deno.writeTextFile(
+      githubOutputPath,
+      `deploy_allowed=${decision.allowed}\nrelease_status=${sourceStatus}\n`,
+      { append: true },
+    );
+  }
+  if (productionHoldCommandSucceeds(mode, decision)) {
     console.log(decision.summary);
+    if (sourceStatus === "held") {
+      console.log(
+        "Candidate validation passed; production deployment is intentionally skipped while the checked-in hold remains active.",
+      );
+    }
   } else {
     console.error(decision.summary);
     Deno.exit(1);

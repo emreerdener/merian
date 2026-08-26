@@ -3,6 +3,8 @@ import type { ReleaseEvidenceVerifier } from "./github_release_evidence.ts";
 import {
   evaluateProductionReleaseClearance,
   evaluateProductionReleaseHolds,
+  productionHoldCommandSucceeds,
+  productionSourceStatus,
   sha256Hex,
 } from "./verify_production_release_holds.ts";
 
@@ -69,6 +71,10 @@ Deno.test("an active checked-in hold blocks Supabase production", async () => {
     () => Promise.resolve(manifest(true)),
   );
   assertEquals(decision.allowed, false);
+  assertEquals(decision.manifestValid, true);
+  assertEquals(productionSourceStatus(decision), "held");
+  assertEquals(productionHoldCommandSucceeds("source-status", decision), true);
+  assertEquals(productionHoldCommandSucceeds("source-gate", decision), false);
   assertEquals(decision.activeHoldIds, [holdId]);
   assertStringIncludes(decision.summary, "Candidate evidence is incomplete.");
 });
@@ -78,6 +84,8 @@ Deno.test("the repository keeps the Species Dictionary production hold active", 
     new URL("../release-holds.json", import.meta.url),
   );
   assertEquals(decision.allowed, false);
+  assertEquals(decision.manifestValid, true);
+  assertEquals(productionSourceStatus(decision), "held");
   assertEquals(decision.activeHoldIds, [holdId]);
 });
 
@@ -88,6 +96,12 @@ Deno.test("an inactive source hold still requires protected clearance", async ()
     () => Promise.resolve(manifestRaw),
   );
   assertEquals(sourceDecision.allowed, true);
+  assertEquals(sourceDecision.manifestValid, true);
+  assertEquals(productionSourceStatus(sourceDecision), "clear");
+  assertEquals(
+    productionHoldCommandSucceeds("source-status", sourceDecision),
+    true,
+  );
 
   const productionDecision = await evaluateProductionReleaseClearance(
     "manifest.json",
@@ -188,6 +202,9 @@ Deno.test("a missing release-hold manifest fails closed", async () => {
     () => Promise.reject(new Deno.errors.NotFound("missing")),
   );
   assertEquals(decision.allowed, false);
+  assertEquals(decision.manifestValid, false);
+  assertEquals(productionSourceStatus(decision), "invalid");
+  assertEquals(productionHoldCommandSucceeds("source-status", decision), false);
   assertStringIncludes(decision.summary, "failed closed");
 });
 

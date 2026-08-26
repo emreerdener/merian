@@ -30,10 +30,13 @@ jobs:
     uses: ./.github/workflows/supabase-candidate-validation.yml
 
   production-hold:
-    name: Enforce checked-in production release holds
+    name: Report checked-in production release holds
     needs: candidate-validation
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      deploy_allowed: ${{ steps.release-hold.outputs.deploy_allowed }}
+      release_status: ${{ steps.release-hold.outputs.release_status }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,19 +71,22 @@ jobs:
         with:
           deno-version: v2.9.4
 
-      - name: Verify production release holds
+      - name: Evaluate production release holds
+        id: release-hold
         run: |
           deno run --frozen --config services/supabase/functions/deno.json \
             --allow-read=services/supabase/release-holds.json \
-            --allow-write="$GITHUB_STEP_SUMMARY" \
+            --allow-write="$GITHUB_STEP_SUMMARY,$GITHUB_OUTPUT" \
             services/supabase/scripts/verify_production_release_holds.ts \
-            --mode source-gate \
+            --mode source-status \
             --manifest services/supabase/release-holds.json \
             --candidate-sha "$GITHUB_SHA" \
-            --summary "$GITHUB_STEP_SUMMARY"
+            --summary "$GITHUB_STEP_SUMMARY" \
+            --github-output "$GITHUB_OUTPUT"
 
   deploy:
     needs: [candidate-validation, production-hold]
+    if: needs.production-hold.outputs.deploy_allowed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: Production

@@ -143,8 +143,9 @@ for the surface they are changing:
   and Events, Seasonal Challenges cards/detail, guided template detail, progress
   cards, publication and challenge entry detail pages, profile modules,
   challenge badges, pin controls, and Field Trip comment presentation.
-  `FieldTripsViewModel.swift` also contains the app-injected, account-cached
-  active-target store consumed by Capture.
+  `Services/FieldTripCaptureGoalProvider.swift` adapts the feature DTOs into
+  generic Capture goals. `Core/Models/CaptureGoalContext.swift` owns the
+  app-injected, account-cached active-target store consumed by Capture.
 - `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
   rows, sheet UI, and notification fetch/read state.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author

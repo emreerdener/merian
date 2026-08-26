@@ -58,7 +58,7 @@ struct FieldTripMilestonePayload: Sendable, Equatable {
         for item: FieldTripProgressCompletedItem,
         templateSlug: String
     ) -> CaptureGoalArtwork {
-        guard let imageName = FieldTripObjectiveArtwork.exactImageName(
+        guard let imageName = FieldTripGoalArtwork.exactImageName(
             for: item.prompt,
             templateSlug: templateSlug
         ) else {

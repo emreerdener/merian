@@ -478,22 +478,25 @@ The Scans tab is the user's primary offline biological journal.
   disconnected from MVP navigation.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
   checklist surface. Standard Outings and live/upcoming curated Events are
-  released for every user. Base cards route into guided template detail pages
-  with Goals/Tips, a left-aligned Private/Published badge above the title, a
-  larger active-level progress ring, cover image, duration, tags, levels,
-  guidance, item tips, and Start/Continue/Publish actions. Completed standard
-  goals use their exact device-local completing scan as the catalog/detail
-  thumbnail when available; tapping one pushes the existing embedded Insight
-  route inside Explore and back returns to the outing. Seasonal cards open
-  challenge detail pages with Join/Continue/Publish Entry states, schedules,
-  progress, badges, and reverse-chronological entries. Published base trips are
-  mixed into unfiltered Observations Recent and Following as typed Field trip
-  cards that route to `FieldTripPublicationDetailView`; observation-specific
-  species, media, or date filters omit these typed cards because Field trip
-  publications do not share the observation filter contract. They retain Field
-  trip-native likes/comments and do not create duplicate `explore_posts`.
-  Trending, Nearby, map, APNs, widgets, public-web posts, and global
-  Seasonal-entry aggregation remain out of scope.
+  released for every user. The area is organized into feature-owned Models,
+  Services, ViewModels, Views, and grouped Components; only Services supplies
+  live networking closures. Base cards route into guided template detail pages
+  with Goals/Tips, an optional edge-to-edge featured-media hero, centered
+  lifecycle/title/description/metadata/action presentation, responsive levels
+  and goals, Community content, guidance, and Start/Resume/Stop/Reset/Publish
+  actions. Completed standard goals use their exact device-local completing scan
+  as the catalog/detail thumbnail when available; tapping one pushes the
+  existing embedded Insight route inside Explore and Back returns to the outing.
+  Seasonal cards open challenge detail pages with Join/Continue/Publish Entry
+  states, schedules, progress, badges, and reverse-chronological entries.
+  Published base trips are mixed into unfiltered Observations Recent and
+  Following as typed Field trip cards that route to
+  `FieldTripPublicationDetailView`; observation-specific species, media, or date
+  filters omit these typed cards because Field trip publications do not share
+  the observation filter contract. They retain Field trip-native likes/comments
+  and do not create duplicate `explore_posts`. Trending, Nearby, map, APNs,
+  widgets, public-web posts, and global Seasonal-entry aggregation remain out of
+  scope.
 - **Feed Filters**: The feed tab mounts a leading `Filters` pill before
   `Recent`, `Following`, `Trending`, and `Nearby`. The pill opens a sheet that
   keeps feed mode single-select, adds multi-select Species and Media sections,
@@ -808,7 +811,7 @@ an Edge API response or opened offline via the Scans library.
     scans, includes standard and Event rows, rejects stale scan-change
     responses, and silently hides empty/error states. The adaptive card is
     visibly titled **Field trips**; undivided rows use an uppercase completion
-    eyebrow, standalone goal name, enlarged objective art/check badge, and a
+    eyebrow, standalone goal name, enlarged goal art/check badge, and a
     prominent trailing `GoalProgressRing` without a redundant chevron. Full-row
     taps forward typed destinations through the shell so embedded Explore and
     root modal navigation remain distinct. The card is not a celebration surface
@@ -910,8 +913,8 @@ an Edge API response or opened offline via the Scans library.
   `is_new_to_merian_dictionary` for a valid biological contribution; local
   `isNewDiscovery` remains limited to stats, persona, and achievements. Progress
   banners show `Field trip progress`, a `{goal} goal complete` title, the outing
-  name, and lightweight objective artwork; taps open the focused standard goal
-  or challenge detail. All milestone types share haptics, a 3.5-second timeout,
+  name, and lightweight goal artwork; taps open the focused standard goal or
+  challenge detail. All milestone types share haptics, a 3.5-second timeout,
   close or horizontal/vertical swipe dismissal, queue transitions, and VoiceOver
   announcements. Achievement taps open achievement detail; `New to Naturebook`
   taps dismiss. `AppDIContainer` owns the production presenter, coordinator,

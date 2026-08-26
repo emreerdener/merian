@@ -72,14 +72,18 @@ production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it
 is not evidence that production changed and does not authorize deployment. The
 production workflow next runs a non-Production source hold gate that requires
-the exact checkout to be the current `refs/heads/main`/`origin/main` head. Its
-sole Production job independently pins, clean-checks, and current-main-checks
-the same SHA and, for every reviewed inactive hold, requires the protected
-`MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` secret to match the candidate,
-manifest digest, complete criterion/evidence-type set, positive GitHub artifact
-IDs, nonzero digests, and current approval window before ordinary production
-credentials or mutations are reachable. With the read-only
-`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, it checks live branch/environment
+the exact checkout to be the current `refs/heads/main`/`origin/main` head. A
+valid active hold reports `release_status=held` and `deploy_allowed=false`, so
+the validated workflow remains green while the downstream Production job is
+skipped before environment approval, credentials, or mutation. A missing,
+malformed, duplicate, or required-ID-absent manifest still fails the workflow.
+When the source status is clear, the sole Production job independently pins,
+clean-checks, and current-main-checks the same SHA and, for every reviewed
+inactive hold, requires the protected `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON`
+secret to match the candidate, manifest digest, complete criterion/evidence-type
+set, positive GitHub artifact IDs, nonzero digests, and current approval window
+before ordinary production credentials or mutations are reachable. With the
+read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, it checks live branch/environment
 protections including Code Owner review, downloads each uniquely assigned
 artifact, recomputes archive and embedded evidence digests, rejects evidence
 older than 30 days, and verifies exact-SHA successful supporting runs whose

@@ -640,7 +640,7 @@ private struct FieldTripProgressContributionRow: View {
     private var artwork: some View {
         ZStack(alignment: .bottomTrailing) {
             Group {
-                if let imageName = FieldTripObjectiveArtwork.exactImageName(
+                if let imageName = FieldTripGoalArtwork.exactImageName(
                     for: contribution.artworkPrompt,
                     templateSlug: contribution.artworkTemplateSlug
                 ) {

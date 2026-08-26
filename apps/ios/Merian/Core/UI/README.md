@@ -131,7 +131,7 @@ finishes.
 
 `MilestoneToastBanner` preserves the shared 3.5-second timeout, haptics,
 swipe/close dismissal, queue transition, and VoiceOver announcement. Field trip
-payloads use the completed objective artwork, goal-complete title, and outing
-name in the same compact layout as other milestones, and publish their typed
+payloads use the completed goal artwork, goal-complete title, and outing name in
+the same compact layout as other milestones, and publish their typed
 capture-goal destination when tapped. Other views must not show a second plain
 progress message in response to the same refresh event.

@@ -1,7 +1,7 @@
 import Combine
 import Foundation
-import SwiftUI
 @testable import Merian
+import SwiftUI
 import Testing
 
 @MainActor
@@ -957,6 +957,50 @@ struct AchievementToastPresenterTests {
 
         #expect(first.map(\.type) == [.firstFieldTrip])
         #expect(duplicate.isEmpty)
+    }
+
+    @Test func firstFieldTripAchievementProgressCachesPerAccountAndMergesAward() throws {
+        let progress = FirstFieldTripAchievementProgress(
+            kind: .seasonalChallenge,
+            completedAt: "2026-07-18T14:00:00.123Z",
+            templateSlug: nil,
+            challengeId: "challenge-1"
+        )
+        let suiteName = "FirstFieldTripAchievementProgressStoreTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        FirstFieldTripAchievementProgressStore.save(
+            progress,
+            accountId: "ACCOUNT-A",
+            userDefaults: defaults
+        )
+
+        #expect(
+            FirstFieldTripAchievementProgressStore.load(
+                accountId: "account-a",
+                userDefaults: defaults
+            ) == progress
+        )
+        #expect(
+            FirstFieldTripAchievementProgressStore.load(
+                accountId: "account-b",
+                userDefaults: defaults
+            ) == nil
+        )
+
+        let locked = AwardPayload(
+            type: .firstFieldTrip,
+            currentCount: 0,
+            lastInteractionDate: nil
+        )
+        let merged = [locked].mergingFirstFieldTripAchievement(progress)
+        #expect(merged.count == 1)
+        #expect(merged[0].isCompleted)
+        #expect(
+            merged[0].destination
+                == .fieldTripChallenge(challengeId: "challenge-1")
+        )
     }
 
     @Test func liveAndBackgroundCompletionRaceProcessesScanOnce() async {
