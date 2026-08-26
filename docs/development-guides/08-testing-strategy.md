@@ -1567,6 +1567,50 @@ import, and permission-denial UI require the physical-device checklist in
   start classifications: nil is signed out, a current session is authenticated,
   and an expired cached session is awaiting refresh rather than signed out.
 
+### Explore Map
+
+Explore Map has separate presentation/state and wire-contract owners. Do not
+move DTO decoding or request-payload tests into the feature suite, and do not
+leave Map view-model policy in the monolithic `merianTests.swift` file.
+
+- `Features/Explore/Map/ExploreMapPresentationTests.swift` locks singular and
+  plural visible-count copy plus camera zoom thresholds and clamping.
+  `ExploreMapViewModelTests.swift` locks selection order and wrapping,
+  species/media composition, zero-count facets, focus and camera continuity,
+  focused-post refresh, stale-response generation fencing, canonical
+  post/privacy synchronization, public-detail focus mapping, exact versus
+  approximate presentation, viewport/zoom/filter request forwarding, 500-row
+  limit ownership, fresh cache reuse, stale cache revalidation, and
+  stale-content retention across an offline area refresh.
+- `Core/Network/MerianNetworkClientTests.swift` retains JSON and transport
+  coverage for media-only Map posts, response facet decoding, and
+  `species_categories` / `media_types` request construction.
+- Generated-project source membership must include every Swift file below
+  `Features/Explore/Map/` and both mirrored test files. Production Map Swift
+  files must remain below the feature's 600-line review ceiling, and a static
+  scan must find `MerianNetworkClient` only below `Explore/Map/Services/`.
+
+After `make xcodegen` and a successful build-for-testing, run:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/ExploreMapPresentationTests \
+  -only-testing:merianTests/ExploreMapViewModelTests
+```
+
+Then run the complete `merianTests` target. The focused suite proves pure state,
+request, cache, filtering, focus, and public-coordinate presentation contracts;
+it does not prove MapKit rendering or gesture timing. Manually regress Feed/Map
+switching, initial/recenter/search-area camera behavior, cluster zoom,
+dot-to-thumbnail transition at zoom 11.5, exact/approximate waypoints, quick and
+sheet filters, empty/offline/503/error states, discoveries sheet, preview
+horizontal wrapping and vertical dismissal, all preview actions, detail/back
+navigation, VoiceOver, large Dynamic Type, and light/dark appearance. Also
+confirm the owner-only Scans map still shows no public actions or Explore data.
+
 ### Private Scan Map
 
 The focused UI case

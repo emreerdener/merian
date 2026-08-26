@@ -5272,11 +5272,17 @@ The Explore client decodes these endpoints via:
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
-- `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Map/Models/` for Map-only request, focus,
+  filter, region, and cache policy
+- `apps/ios/Merian/Features/Explore/Map/Services/ExploreMapViewModelDependencies.swift`
+  for the live map-points adapter
+- `apps/ios/Merian/Features/Explore/Map/ViewModels/` for spatial loading,
+  filtering, request-generation, and selection state
 - `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
-- `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
+- `apps/ios/Merian/Features/Explore/Map/Views/` and grouped `Components/` for
+  MapKit camera/gesture ownership and network-free rendering
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 
 The current feed UI uses only a subset of the payload for visible card

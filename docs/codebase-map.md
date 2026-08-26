@@ -559,6 +559,15 @@ the actor-to-user reverse FK index used by deletion and identity maintenance.
 public-username attribution in the Activity read RPC. Tree/galaxy code remains
 under `Features/SpeciesDictionary/Tree/` but has no MVP navigation entry point.
 
+Observations Map is organized under `apps/ios/Merian/Features/Explore/Map/`:
+`Models/` owns focus/request values, presentation, camera, filtering, and region
+policy, plus its bounded in-memory cache; `Services/` is the only Map layer with
+a live `MerianNetworkClient` closure; `ViewModels/` owns spatial
+load/filter/selection state; and `Views/` plus grouped `Components/` own
+camera/gesture timing and rendering. Its focused presentation and state tests
+mirror that owner under `apps/ios/MerianTests/Features/Explore/Map/`; wire
+decoding and payload tests remain under `MerianTests/Core/Network/`.
+
 Explore publishing, activity, and delivery:
 
 - `get-explore-notifications`

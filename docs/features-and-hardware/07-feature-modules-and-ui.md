@@ -642,7 +642,13 @@ The Scans tab is the user's primary offline biological journal.
   `Search This Area` CTA when the viewport meaningfully changes, supports
   `Recenter`, an offline banner, and a compact results chip, and keys its
   aggressively evicted in-memory region cache by viewport plus both filter
-  groups.
+  groups. Map-owned focus/request values, presentation/camera/filtering policy,
+  region math, and cache policy live in `Explore/Map/Models`; only
+  `Explore/Map/Services` supplies the live map-points closure. The
+  `@MainActor @Observable` view model owns asynchronous spatial state, while
+  camera, annotation-tap, drag-axis, carousel-anchor, and swipe-commit timing
+  remain in `ExploreMapView`. Grouped filter, marker, preview, and status
+  components contain no direct networking.
 - **Map Selection Flow**: Tapping a cluster zooms inward. Tapping either a dot
   waypoint or a thumbnail waypoint selects it and opens a preview card above the
   bottom edge. The preview card can like, comment, share, unshare, report, or

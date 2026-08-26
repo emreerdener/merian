@@ -135,7 +135,15 @@ for the surface they are changing:
   cards, post detail, comments, hashtags, feed formatting, and feed view-model
   extensions.
 - `apps/ios/Merian/Features/Explore/Map/` owns the Observations map surface, map
-  filters, waypoints, clusters, preview cards, and map view model.
+  filters, waypoints, clusters, preview cards, and map view model. `Models/`
+  owns focus/request values, presentation/camera/filtering/region policy, and
+  the bounded in-memory cache; `Services/` alone supplies the live map-points
+  network closure; `ViewModels/` owns spatial loading, request generations,
+  filtering, and selection; `Views/` retains camera and gesture timing; and
+  grouped `Components/` renders filters, markers, previews, and status chrome
+  without direct networking. See the feature-local
+  [`README`](../../apps/ios/Merian/Features/Explore/Map/README.md) for the
+  compatibility, public/private map boundary, and focused test ownership.
 - `apps/ios/Merian/Features/Explore/Identify/` owns Community ID requests,
   activity, request detail, taxonomy search, disagreement handling, and
   community feedback entry points. `Models/` owns presentation policy and typed

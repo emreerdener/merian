@@ -1166,8 +1166,19 @@ Recommended additions:
 
 - `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
 - `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Map/Models/`
+- `apps/ios/Merian/Features/Explore/Map/Services/ExploreMapViewModelDependencies.swift`
+- `apps/ios/Merian/Features/Explore/Map/Components/`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
+
+The shipped iOS owner is now split by responsibility. Map-only focus/request
+values, presentation/camera/region/filter policy, and the bounded response cache
+live under `Models/`; the live map-points closure lives under `Services/`; the
+`@MainActor @Observable` view model owns asynchronous spatial state; and
+network-free views/components retain MapKit rendering plus camera, annotation,
+carousel, and drag timing. Codable DTOs and wire compatibility remain in
+`Core/Network/ExploreAPIModels.swift`.
 
 Current shipped state on `ExploreMapViewModel`:
 
