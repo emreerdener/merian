@@ -452,6 +452,11 @@ The Scans tab is the user's primary offline biological journal.
   deterministic layout rendering tests without changing production behavior.
   Maps, widgets, profile grids, and compact previews remain thumbnail-first;
   widgets show clean still thumbnails without video badges.
+  `ExplorePublicMediaView`, its playback extensions/state/coordinator, the hero
+  image, and media indicators live under `Explore/Shared/Media` because they are
+  consumed by Feed, Identify, Map, Shell, Author Profile, Profile, or Species
+  Dictionary. Feed-only square hosts and zoom remain under Feed. Run the
+  cross-area matrix in the Feed README after changing Shared media.
 - **Explore Audio Playhead**: Feed and detail standalone audio share
   `ExplorePublicMediaView`, so both surfaces render the same thin playhead over
   the spectrogram. While playback intent and `AVPlayer.timeControlStatus` are
@@ -1599,10 +1604,12 @@ on gesture-driven layout abstractions.
   published-scan library hides the inherited stack back button and supplies one
   explicit back-to-profile control, library scans open `ExplorePostDetailView`
   with the current author-profile depth, and further author-profile taps are
-  disabled after one profile hop. `Feed/Components/ExplorePostCard.swift` owns
-  the shared feed/detail video host and keeps playback recovery local to the
-  visible media view rather than sharing interrupted-player state across routed
-  surfaces.
+  disabled after one profile hop. `Feed/Components/Cards/ExplorePostCard.swift`
+  owns card composition, while
+  `Shared/Media/Components/ExplorePublicMediaView.swift` and its `Playback/`
+  extensions own the shared Feed/detail and Identify media host. The contained
+  playback-state owner keeps recovery local to the visible media view rather
+  than sharing interrupted-player state across routed surfaces.
 - `Profile` uses product-area-first folders. `Shell/` owns `ProfileView` and the
   profile/settings pager, `UserProfile/` owns the visible user profile tab
   (public identity, published scans, achievements, persona, terrarium, heatmap,

@@ -3612,6 +3612,45 @@ repair; `update-explore-field-notes/db_test.ts` verifies edit media is approved
 before thumbnail attachment; and `_shared/scanMediaDeletion_test.ts` verifies
 derived thumbnails are included in coordinated R2 cleanup.
 
+Explore media tests mirror the final production owners.
+`MerianTests/Features/Explore/Shared/Media/ExploreMediaPlaybackPolicyTests.swift`
+locks overlay reduction, center play/pause hit policy, system resume intent,
+contained player/task/observer state, and nested coordinator-token behavior.
+`MerianTests/Features/Explore/Feed/ExploreMediaLayoutTests.swift` locks stable
+square rendering for Feed-owned feed/detail hosts, and
+`ExplorePostCardAuthorPresentationTests.swift` locks prepared avatar and Pro
+presentation without live identity or entitlement services. Run these focused
+XCTest suites after changing card/media extraction, playback recovery, overlay
+ownership, or square-host layout:
+
+```bash
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -only-testing:merianTests/ExploreVideoPlaybackOverlayStateTests \
+  -only-testing:merianTests/ExploreVideoPlaybackResumeIntentStateTests \
+  -only-testing:merianTests/ExplorePublicMediaPlaybackStateTests \
+  -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests \
+  -only-testing:merianTests/ExploreMediaLayoutTests \
+  -only-testing:merianTests/ExplorePostCardAuthorPresentationTests test
+```
+
+After changing Shared `ExplorePublicMediaView`, media indicators, hero-image
+loading, coordinator/mute policy, Core Pro-badge presentation, or their folder
+ownership, manually regress:
+
+- Feed and detail image/audio/video presentation, autoplay, Low Power behavior,
+  interruption recovery, boost cancellation, seeking, and zoom.
+- Identify request-card play indicators and request-detail media.
+- Map markers/previews and Shell-routed post previews.
+- Author Profile and Profile thumbnails, media indicators, and Pro badges.
+- Species Dictionary community-sighting thumbnails and media indicators.
+- VoiceOver, large Dynamic Type, Reduce Motion, and light/dark appearance on
+  each affected surface.
+
+Ownership-only moves are code parity work: keep focused tests with their
+production owner, update XcodeGen source grouping, and do not change visible
+copy, accessibility, image-loading, playback, or navigation behavior.
+
 iOS audio playback policy coverage lives in
 `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` because the focused
 suite exercises the shared Core policy and both playback surfaces. The

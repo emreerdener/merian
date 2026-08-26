@@ -6,4 +6,4 @@ Core/Media/MediaPlaybackObservation.swift
 Core/Network/SupabaseManager.swift
 Core/Utilities/UserDefaultsKeys.swift
 Features/Capture/Shell/Views/CaptureWorkspaceView.swift
-Features/Explore/Feed/Components/ExplorePostCard.swift
+Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift

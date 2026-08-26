@@ -20,7 +20,7 @@ struct ExplorePostDetailAuthorHeader: View {
                         .lineLimit(1)
 
                     if shouldShowAuthorProBadge {
-                        ExploreProBadge()
+                        MerianProBadge()
                     }
                 }
                 .accessibilityElement(children: .combine)

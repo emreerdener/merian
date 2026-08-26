@@ -477,7 +477,7 @@ private struct ProfilePublishedScansLibraryView: View {
                         .lineLimit(1)
 
                     if RevenueCatManager.shared.isSubscribed {
-                        ExploreProBadge()
+                        MerianProBadge()
                     }
                 }
 

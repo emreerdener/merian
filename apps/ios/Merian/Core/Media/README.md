@@ -24,10 +24,13 @@ up a player. A new playback surface must retain this owner and explicitly call
 
 ## Bounded media helpers
 
-- `AudioBoostProcessor` creates capped temporary enhanced audio without
-  changing or uploading the canonical recording.
+- `AudioBoostProcessor` creates capped temporary enhanced audio without changing
+  or uploading the canonical recording.
 - `AudioSpectrogramSeekingPolicy` normalizes non-finite seeking inputs and
   clamps display progress before geometry is derived.
+- `AudioSpectrogramThumbnailLoader` coalesces and caches bounded spectrogram
+  decodes for Scans and Explore. Feature components receive it through their
+  owning dependency boundary instead of resolving it directly.
 
 See
 [Event and Presentation Routing](../../../../../docs/system-architecture/10-event-and-presentation-routing.md#media-notification-lifetime)

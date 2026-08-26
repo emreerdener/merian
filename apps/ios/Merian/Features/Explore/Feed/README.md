@@ -9,6 +9,60 @@ feed variants: the global public feed, a following-only feed, trending
 observations, and geographically nearby posts. It handles pagination, likes, and
 comment interactions backed by Supabase RPCs.
 
+## Ownership Boundaries
+
+The public card and media implementation is grouped by responsibility:
+
+- `Components/Cards/` owns `ExplorePostCard`, its loading skeleton, and preview
+  fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
+  through parent callbacks, and do not resolve identity or entitlement services.
+- `Components/Media/` owns Feed-only square feed/detail hosts and detail zoom.
+- `Components/Shared/` owns the Feed-only hashtag pill.
+- `Models/` owns Feed-only card-author presentation, finite detail-zoom layout,
+  badge/chat policy, formatting, hashtag suggestions, and the device-local audio
+  boost preference store.
+- `../Shared/Media/` owns the Explore-wide public-media renderer, remote hero
+  image, media indicators, `AVPlayerLayer` bridge, playback extensions,
+  coordinator, deterministic playback policies, dependency adapters, and the
+  single mutable playback-state owner.
+- `Core/UI/Components/MerianProBadge.swift` owns the domain-neutral Pro badge,
+  while `Core/Media/` owns reusable playback observation, audio processing, and
+  spectrogram loading.
+
+Networking for the public feed remains owned by the existing Feed view model and
+network client. The extracted `ExplorePostCard` and Explore-shared media
+rendering boundary must not call RPCs, Edge Functions, or raw `URLSession` work
+directly. The shell prepares viewer identity and entitlement presentation for
+the card. Shared media receives image-loading closures through narrow live
+dependency adapters; only those adapters resolve the established loaders.
+Comments and publishing retain their existing feature-owned interaction
+boundaries and are outside this extraction. Preserve the existing card and media
+initializer signatures, visible copy, accessibility values, hit regions,
+gestures, haptics, telemetry, autoplay rules, Low Power behavior, audio-session
+behavior, observer lifetime, and coordinator semantics when moving declarations
+between these folders. New or extracted production files in this boundary should
+remain below 600 lines.
+
+### Cross-area media ownership
+
+`Explore/Shared/Media` is the final Explore-wide owner for declarations consumed
+by more than one product area:
+
+- `ExplorePublicMediaView` and its Playback extensions render Feed/detail and
+  Identify request-detail media.
+- `ExploreMediaPlayIndicator` is shared by Feed media and Identify cards.
+- `ExploreMediaTypeIndicator` and `ExploreHeroImageView` are consumed by Map,
+  Shell, Author Profile, Profile, and Species Dictionary surfaces.
+- `ExploreVideoPlaybackCoordinator`, mute policy, and playback policies form one
+  Explore-wide lifecycle boundary.
+
+`ExplorePublicMediaPlaybackState` contains player, observer, task, seek, audio
+session, boost, and recovery mutation. View extensions receive read-only
+forwarding values and invoke semantic mutations; they do not own mutable task or
+observer storage. File-local view helpers remain `private`. The persisted mute
+preference remains private to `ExplorePublicMediaView` so extraction cannot
+change its SwiftUI update timing.
+
 ## Publication Ingress
 
 Insight-originated publication does not write feed models directly. The
@@ -106,8 +160,8 @@ tap still likes. The center zone remains a VoiceOver Play/Pause button. Detail
 media keeps its existing local playback controls.
 
 Video recovery is coordinated through `ExploreVideoPlaybackCoordinator` in
-`Feed/Models`. `ExploreView` owns one coordinator and injects it into the
-Explore environment. Sheet hosts use
+`Shared/Media/Models`. `ExploreView` owns one coordinator and injects it into
+the Explore environment. Sheet hosts use
 `.exploreVideoPresentedOverlayLifecycle(...)` instead of ad-hoc
 `NotificationCenter` events or paired manual pause/resume calls. The coordinator
 tracks overlay tokens, nested overlay depth, `pauseGeneration`, and
@@ -220,3 +274,41 @@ cover a playing video must participate in the coordinator:
   completion callback.
 - Nested sheets are safe as long as each host owns exactly one token for its own
   presented state. Do not send global playback notifications.
+
+## Focused Tests
+
+Focused media tests mirror their production owners:
+
+- `MerianTests/Features/Explore/Shared/Media/ExploreMediaPlaybackPolicyTests.swift`
+  covers overlay reduction, center-hit policy, resume intent, contained playback
+  state, and nested coordinator tokens.
+- `MerianTests/Features/Explore/Feed/ExploreMediaLayoutTests.swift` covers the
+  stable Feed-owned square feed/detail hosts.
+- `MerianTests/Features/Explore/Feed/ExplorePostCardAuthorPresentationTests.swift`
+  covers prepared avatar fallback and Pro presentation without live services.
+- `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` remains one level
+  higher because it exercises shared Core policy and both Explore and Insight
+  playback surfaces.
+
+After building the test bundle, run the focused XCTest suites with the canonical
+simulator destination:
+
+```bash
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -only-testing:merianTests/ExploreVideoPlaybackOverlayStateTests \
+  -only-testing:merianTests/ExploreVideoPlaybackResumeIntentStateTests \
+  -only-testing:merianTests/ExplorePublicMediaPlaybackStateTests \
+  -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests \
+  -only-testing:merianTests/ExploreMediaLayoutTests \
+  -only-testing:merianTests/ExplorePostCardAuthorPresentationTests test
+```
+
+Manual parity coverage must exercise image, audio, and video cards in feed and
+detail; autoplay and mute reset; center play/pause; buffering, interruption, and
+overlay recovery; audio boost, seeking, and source fallback; detail zoom; card
+navigation; VoiceOver; large Dynamic Type; Reduce Motion; Low Power Mode; and
+light/dark appearance. Because `Explore/Shared/Media` is cross-area, also
+regress Identify request cards/detail, Map markers and previews, Shell-routed
+post previews, Author Profile and Profile grids/Pro badges, and Species
+Dictionary community sightings.

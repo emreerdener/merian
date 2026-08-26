@@ -1348,10 +1348,22 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
-- `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/Media/ExploreFeedMediaHosts.swift`
+- `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift`
+- `apps/ios/Merian/Features/Explore/Shared/Media/Playback/`
+- `apps/ios/Merian/Features/Explore/Shared/Media/Models/ExplorePublicMediaPlaybackState.swift`
+- `apps/ios/Merian/Features/Explore/Shared/README.md`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
+
+Explore-wide media lives in `Features/Explore/Shared/Media` because the public
+renderer also serves Identify and its hero image, indicators, coordinator, and
+mute policy have Map, Shell, Author Profile, Profile, or Species Dictionary
+consumers. Feed retains its square hosts and detail zoom. The domain-neutral Pro
+badge lives in Core UI. Preserve initializer, rendering, accessibility,
+playback, and navigation contracts when changing these boundaries.
 
 Routing changes:
 

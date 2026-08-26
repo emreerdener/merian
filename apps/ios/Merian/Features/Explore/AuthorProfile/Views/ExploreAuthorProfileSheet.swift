@@ -396,7 +396,7 @@ struct ExploreAuthorProfileContent: View {
                             .accessibilityAddTraits(.isHeader)
 
                         if shouldShowProBadge(for: profile) {
-                            ExploreProBadge()
+                            MerianProBadge()
                         }
                     }
 

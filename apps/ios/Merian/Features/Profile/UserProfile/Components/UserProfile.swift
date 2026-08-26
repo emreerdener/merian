@@ -327,7 +327,7 @@ struct UserProfile: View {
                         .truncationMode(.tail)
 
                     if isPaidPro {
-                        ExploreProBadge()
+                        MerianProBadge()
                     }
                 }
 

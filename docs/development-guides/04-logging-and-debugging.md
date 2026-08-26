@@ -466,8 +466,8 @@ Useful event names:
 Feed audio/video interaction is intentionally split before these recovery paths:
 the centered 96-point zone always owns Play/Pause (and center double-tap Like),
 while the surrounding media owns detail navigation. If a center tap opens
-detail, inspect `ExploreFeedMediaInteractionPolicy`, the playback overlay
-`zIndex`, and competing full-media gestures before changing recovery logic.
+detail, inspect `ExploreMediaInteractionPolicy`, the playback overlay `zIndex`,
+and competing full-media gestures before changing recovery logic.
 
 If a video freezes after a sheet closes, first check that every covering
 Explore-hosted sheet owns exactly one

@@ -7,8 +7,8 @@ comments, or captions.
 
 ## Shipped Behavior
 
-- The Explore share flow accepts up to five hashtags with spaces or commas in the
-  iOS share sheet.
+- The Explore share flow accepts up to five hashtags with spaces or commas in
+  the iOS share sheet.
 - The share sheet also renders quick-tap AI-assisted suggestions below the
   hashtag text field. Suggestions are derived locally from the scan's field
   notes, species identity, AI metadata, public location label, habitat/weather
@@ -54,8 +54,8 @@ Publishing uses `share-scan-to-explore`:
 ```
 
 The endpoint trims leading `#`, lowercases tags, deduplicates them, rejects more
-than five tags, and accepts only 2 to 40 letters, digits, or underscores per tag.
-Resharing writes the submitted tag set for that Explore post.
+than five tags, and accepts only 2 to 40 letters, digits, or underscores per
+tag. Resharing writes the submitted tag set for that Explore post.
 
 ## Composer Suggestions
 
@@ -71,8 +71,8 @@ uses the already-available identification and scan metadata:
 - ecology type, taxonomy kingdom/class/order/family, habitat, weather, colors,
   group tags, semantic tags, invasive flag, image quality score, life stage,
   reproductive condition, and ecological interactions
-- optional `eventHashtags` for future local event or BioBlitz configuration
-  and Field trip Challenge suggestions returned for the scan
+- optional `eventHashtags` for future local event or BioBlitz configuration and
+  Field trip Challenge suggestions returned for the scan
 
 Suggestions are normalized through the same client-side helper used for typed
 hashtags:
@@ -137,13 +137,11 @@ withholds location fields without hiding an otherwise visible tagged post.
 
 - DTOs and network calls: `Core/Network/ExploreAPIModels.swift` and
   `Core/Network/MerianNetworkClient.swift`
-- Feed chips: `Features/Explore/Feed/Components/ExplorePostCard.swift`
+- Feed chips: `Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
 - Detail chips: `Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - Tagged-post route and collection: `Features/Explore/Shell/ExploreView.swift`
-- Share input:
-  `Features/Insights/Sharing/Components/InsightShareButton.swift`
-- Composer UI:
-  `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
+- Share input: `Features/Insights/Sharing/Components/InsightShareButton.swift`
+- Composer UI: `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
   `Features/Explore/Feed/Models/ExploreHashtagSuggestion.swift`
 - Context assembly from scan/identification metadata:

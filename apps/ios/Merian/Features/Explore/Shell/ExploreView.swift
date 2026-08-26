@@ -1005,6 +1005,8 @@ private struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
+    @Environment(SupabaseManager.self) private var supabase
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @State private var isLocationSettingsAlertPresented = false
@@ -1103,6 +1105,7 @@ private struct ExploreFeedTabContent: View {
                         post: post,
                         speciesDisplayName: viewModel.resolvedSpeciesCommonName(for: post),
                         mediaReloadGeneration: viewModel.mediaReloadGeneration,
+                        authorPresentation: postCardAuthorPresentation(for: post),
                         onLike: { Task { await viewModel.toggleLike(for: post) } },
                         onComments: {
                             Task { await viewModel.openCommentsSheet(for: post) }
@@ -1142,6 +1145,22 @@ private struct ExploreFeedTabContent: View {
         }
         .padding(.top, 12)
         .padding(.bottom, 24)
+    }
+
+    private func postCardAuthorPresentation(
+        for post: ExplorePost
+    ) -> ExplorePostCardAuthorPresentation {
+        ExplorePostCardAuthorPresentation.resolve(
+            authorAvatarURL: post.authorAvatarUrl,
+            authorUserID: post.authorUserId,
+            authorIsPro: post.authorIsPro,
+            isOwnedByViewer: post.isOwnedByViewer,
+            viewer: ExplorePostCardViewerContext(
+                userID: supabase.currentUser?.id.uuidString,
+                avatarURL: supabase.currentUserAvatarUrl,
+                isSubscribed: revenueCatManager.isSubscribed
+            )
+        )
     }
 
     private var loadingState: some View {

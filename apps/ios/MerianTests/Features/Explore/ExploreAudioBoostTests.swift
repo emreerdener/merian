@@ -73,28 +73,28 @@ struct ExploreAudioBoostTests {
     }
 
     @Test func feedBoostPillPresentsShortcutUntilBoostedAudioIsReady() {
-        let unboosted = ExploreFeedAudioBoostPillState.resolve(
+        let unboosted = ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: false,
             isBoostedAudioReady: false,
             hasToggleAction: true
         )
-        let preparing = ExploreFeedAudioBoostPillState.resolve(
+        let preparing = ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: true,
             isBoostedAudioReady: false,
             hasToggleAction: true
         )
-        let boosted = ExploreFeedAudioBoostPillState.resolve(
+        let boosted = ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: true,
             isBoostedAudioReady: true,
             hasToggleAction: true
         )
-        let boosting = ExploreFeedAudioBoostPillState.resolve(
+        let boosting = ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: true,
@@ -102,7 +102,7 @@ struct ExploreAudioBoostTests {
             isBoostedAudioReady: false,
             hasToggleAction: true
         )
-        let reverting = ExploreFeedAudioBoostPillState.resolve(
+        let reverting = ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: false,
@@ -126,21 +126,21 @@ struct ExploreAudioBoostTests {
     }
 
     @Test func exploreBoostPillIsLimitedToInteractiveFeedAndDetailAudio() {
-        #expect(ExploreFeedAudioBoostPillState.resolve(
+        #expect(ExploreAudioBoostPillState.resolve(
             surface: .detail,
             mediaKind: .audio,
             isBoostEnabled: false,
             isBoostedAudioReady: false,
             hasToggleAction: true
         ) == .boost)
-        #expect(ExploreFeedAudioBoostPillState.resolve(
+        #expect(ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .video,
             isBoostEnabled: false,
             isBoostedAudioReady: false,
             hasToggleAction: true
         ) == nil)
-        #expect(ExploreFeedAudioBoostPillState.resolve(
+        #expect(ExploreAudioBoostPillState.resolve(
             surface: .feed,
             mediaKind: .audio,
             isBoostEnabled: false,

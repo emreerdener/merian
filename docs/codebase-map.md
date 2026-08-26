@@ -568,6 +568,23 @@ camera/gesture timing and rendering. Its focused presentation and state tests
 mirror that owner under `apps/ios/MerianTests/Features/Explore/Map/`; wire
 decoding and payload tests remain under `MerianTests/Core/Network/`.
 
+Observations Feed public cards and media are organized under
+`apps/ios/Merian/Features/Explore/Feed/`: `Components/Cards/` owns composition
+and prepared author presentation, `Components/Media/` owns Feed-only square
+hosts and zoom, `Components/Shared/` owns hashtags, and `Models/` owns Feed-only
+presentation and layout policy. The cross-area public-media renderer, player
+bridge, hero image, indicators, playback extensions/state/policies/coordinator,
+and narrow loader adapters live under
+`apps/ios/Merian/Features/Explore/Shared/Media/`. The domain-neutral Pro badge
+lives under `Core/UI/Components/`; reusable spectrogram loading lives under
+`Core/Media/`. `ExplorePostCard` and Shared media rendering call no Explore
+endpoint or raw `URLSession`. Shell prepares its identity/entitlement values,
+while Shared media components receive loader closures from their owning adapter.
+Comments and publishing retain their existing feature-owned interaction
+boundaries. Playback-policy/state tests mirror Shared/Media; Feed card/layout
+tests mirror Feed; the cross-surface audio-boost suite remains under
+`MerianTests/Features/Explore/`.
+
 Explore publishing, activity, and delivery:
 
 - `get-explore-notifications`

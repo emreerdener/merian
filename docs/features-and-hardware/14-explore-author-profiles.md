@@ -321,7 +321,11 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift`
-- `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Components/Media/ExploreFeedMediaHosts.swift`
+- `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreHeroImageView.swift`
+- `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreMediaIndicators.swift`
+- `apps/ios/Merian/Core/UI/Components/MerianProBadge.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripProfilePresentation.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/ActiveFieldTripsProfileViewModel.swift`
@@ -331,6 +335,12 @@ Primary files:
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements.swift`
+
+`ExploreHeroImageView` and `ExploreMediaTypeIndicator` live in Explore Shared
+Media because Author Profile, Profile, and other Explore areas consume them.
+`MerianProBadge` lives in Core UI because Feed, Author Profile, and Profile
+share the domain-neutral visual primitive. Changes to these declarations require
+both profile surfaces in the regression matrix.
 
 Important model types:
 
