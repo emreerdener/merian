@@ -10,27 +10,50 @@ final class ExploreNotificationsViewModel {
     var errorMessage: String?
     var recentlyReadNotificationIds = Set<String>()
 
-    @ObservationIgnored private let pageSize = 50
+    @ObservationIgnored private let dependencies: Dependencies
+    @ObservationIgnored private let pageSize: Int
     @ObservationIgnored private var nextCursorUpdatedAt: String?
     @ObservationIgnored private var nextCursorNotificationId: String?
     @ObservationIgnored private var hasLoadedOnce = false
     @ObservationIgnored private var hasReachedEnd = false
+    @ObservationIgnored private var catalogGeneration = UUID()
+    @ObservationIgnored private var activePaginationRequestId: UUID?
+    @ObservationIgnored private var activeMarkAllRequestId: UUID?
+
+    init(
+        dependencies: Dependencies = .live,
+        pageSize: Int = 50
+    ) {
+        self.dependencies = dependencies
+        self.pageSize = pageSize
+    }
 
     func fetchNotifications(force: Bool = false) async -> Bool {
-        guard !isLoading else { return false }
+        guard force || !isLoading else { return false }
 
+        let generation = UUID()
+        catalogGeneration = generation
+        activePaginationRequestId = nil
+        activeMarkAllRequestId = nil
         isLoading = true
+        isLoadingMore = false
         errorMessage = nil
         recentlyReadNotificationIds = []
-        if force {
-            hasReachedEnd = false
-            nextCursorUpdatedAt = nil
-            nextCursorNotificationId = nil
+
+        defer {
+            if catalogGeneration == generation {
+                isLoading = false
+            }
         }
-        defer { isLoading = false }
 
         do {
-            let loadedNotifications = try await MerianNetworkClient.shared.getExploreNotifications(limit: pageSize)
+            let loadedNotifications = try await dependencies.loadNotifications(
+                pageSize,
+                nil,
+                nil
+            )
+            guard catalogGeneration == generation else { return false }
+
             notifications = visibleNotifications(loadedNotifications)
             hasLoadedOnce = true
             hasReachedEnd = loadedNotifications.count < pageSize
@@ -42,7 +65,9 @@ final class ExploreNotificationsViewModel {
                 return false
             }
 
-            _ = try await MerianNetworkClient.shared.markExploreNotificationsRead()
+            try await dependencies.markNotificationsRead()
+            guard catalogGeneration == generation else { return false }
+
             recentlyReadNotificationIds = unreadIds
             notifications = notifications.map { notification in
                 var updatedNotification = notification
@@ -55,11 +80,9 @@ final class ExploreNotificationsViewModel {
         } catch let error as URLError where error.code == .cancelled {
             return false
         } catch {
-            MerianLog.network.error(
-                "Explore notifications fetch failed: \(error.localizedDescription, privacy: .private)"
-            )
-            AppTelemetry.trackExploreNotificationsFetchFailed(context: "sheet_load")
-            errorMessage = ExploreErrorFormatter.message(for: error)
+            guard catalogGeneration == generation else { return false }
+            dependencies.reportFetchFailure(error, "sheet_load")
+            errorMessage = dependencies.errorMessage(error)
             return false
         }
     }
@@ -75,15 +98,26 @@ final class ExploreNotificationsViewModel {
             return
         }
 
+        let generation = catalogGeneration
+        let requestId = UUID()
+        activePaginationRequestId = requestId
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        defer {
+            if catalogGeneration == generation,
+               activePaginationRequestId == requestId {
+                isLoadingMore = false
+            }
+        }
 
         do {
-            let nextPage = try await MerianNetworkClient.shared.getExploreNotifications(
-                limit: pageSize,
-                beforeUpdatedAt: nextCursorUpdatedAt,
-                beforeNotificationId: nextCursorNotificationId
+            let nextPage = try await dependencies.loadNotifications(
+                pageSize,
+                nextCursorUpdatedAt,
+                nextCursorNotificationId
             )
+            guard catalogGeneration == generation,
+                  activePaginationRequestId == requestId else { return }
+
             appendUniqueNotifications(visibleNotifications(nextPage))
             hasReachedEnd = nextPage.count < pageSize
             updateCursor(using: nextPage)
@@ -92,10 +126,24 @@ final class ExploreNotificationsViewModel {
         } catch let error as URLError where error.code == .cancelled {
             // Absorb URLSession cancellation.
         } catch {
-            MerianLog.network.error(
-                "Explore notifications pagination failed: \(error.localizedDescription, privacy: .private)"
-            )
-            AppTelemetry.trackExploreNotificationsFetchFailed(context: "pagination")
+            guard catalogGeneration == generation,
+                  activePaginationRequestId == requestId else { return }
+            dependencies.reportFetchFailure(error, "pagination")
+        }
+    }
+
+    func markAllAsRead() async {
+        let generation = catalogGeneration
+        let requestId = UUID()
+        activeMarkAllRequestId = requestId
+
+        _ = try? await dependencies.markNotificationsRead()
+        guard catalogGeneration == generation,
+              activeMarkAllRequestId == requestId else { return }
+
+        recentlyReadNotificationIds.removeAll()
+        for index in notifications.indices {
+            notifications[index].isRead = true
         }
     }
 
@@ -112,15 +160,9 @@ final class ExploreNotificationsViewModel {
     }
 
     private func visibleNotifications(_ page: [ExploreNotification]) -> [ExploreNotification] {
-        guard !FeatureFlags.isEnabled(.fieldTrips) else { return page }
-        return page.filter { !$0.type.isFieldTripNotification }
-    }
-
-    func markAllAsRead() async {
-        _ = try? await MerianNetworkClient.shared.markExploreNotificationsRead()
-        recentlyReadNotificationIds.removeAll()
-        for i in notifications.indices {
-            notifications[i].isRead = true
+        guard dependencies.includesFieldTripNotifications() else {
+            return page.filter { !$0.type.isFieldTripNotification }
         }
+        return page
     }
 }

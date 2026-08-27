@@ -12,7 +12,9 @@ Product-area screens, cards, filters, and view models remain with their owning
 area.
 
 The root components own keyboard dismissal, unavailable-state presentation, and
-the Explore onboarding prompt. `Media/` owns the cross-area media boundary:
+the Explore onboarding prompt. `Models/ExploreCommentAuthorPresentation.swift`
+owns secure comment-avatar fallback shared by Feed and Notifications. `Media/`
+owns the cross-area media boundary:
 
 - `Components/` owns `ExplorePublicMediaView`, the thin player-layer bridge,
   hero-image rendering, and media indicators.
@@ -31,5 +33,7 @@ and card-author presentation. The domain-neutral Pro badge lives in
 
 Changes to Shared media require its focused playback-state/policy tests, Feed
 layout tests, and manual regression of Identify, Map, Shell previews, Author
-Profile, Profile, and Species Dictionary consumers. The detailed matrix lives in
-the [Feed README](../Feed/README.md#focused-tests).
+Profile, Profile, and Species Dictionary consumers. Comment-author presentation
+changes require the focused Shared presentation suite plus manual Feed and
+Notifications avatar regression. The detailed media matrix lives in the
+[Feed README](../Feed/README.md#focused-tests).

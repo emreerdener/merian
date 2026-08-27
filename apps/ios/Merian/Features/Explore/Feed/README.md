@@ -19,9 +19,9 @@ semantics; this README documents the iOS ownership boundary.
 
 Feed declarations are grouped by responsibility:
 
-- `Models/` owns Feed routes, composer drafts, comment-author presentation,
-  formatting, finite layout, badges, hashtags, Field Chat admission, and the
-  device-local audio-boost preference.
+- `Models/` owns Feed routes, composer drafts, formatting, finite layout,
+  badges, hashtags, Field Chat admission, and the device-local audio-boost
+  preference.
 - `Services/` owns the live dependency adapters for feed/comments/interactions,
   post detail, composer image loading, identity/entitlement presentation, and
   unread-notification realtime lifecycle. These are the only Feed declarations
@@ -325,10 +325,10 @@ Focused tests mirror their production owners:
   restoration, cross-session submission fencing, hashtag generation fencing,
   post-detail generation fencing, editor preparation, and typed mutations
   through injected closures.
-- `ExploreReplyLoadingStateTests`, `ExploreCommentAuthorPresentationTests`, and
-  `ExploreCommentMentionTextTests` cover reply lifecycle/pagination, avatar
-  fallback, and mention parsing/rendering without mutating the shared network
-  client.
+- `ExploreReplyLoadingStateTests` and `ExploreCommentMentionTextTests` cover
+  reply lifecycle/pagination and mention parsing/rendering without mutating the
+  shared network client. Shared comment-avatar fallback coverage lives in
+  `MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`.
 - `ExploreHashtagSuggestionTests`,
   `ExplorePostFieldChatPresentationPolicyTests`, and the rehomed formatting,
   route, location-privacy, store-merge, and share-copy suites cover their

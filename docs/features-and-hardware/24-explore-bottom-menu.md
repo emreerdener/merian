@@ -171,8 +171,15 @@ for the surface they are changing:
   `Services/FieldTripCaptureGoalProvider.swift` adapts the feature DTOs into
   generic Capture goals. `Core/Models/CaptureGoalContext.swift` owns the
   app-injected, account-cached active-target store consumed by Capture.
-- `apps/ios/Merian/Features/Explore/Notifications/` owns notification models,
-  rows, sheet UI, and notification fetch/read state.
+- `apps/ios/Merian/Features/Explore/Notifications/` owns decoded notification,
+  row-presentation, and reply-route models; live catalog/read/comment/reply
+  adapters; generation-fenced catalog and reply-thread state; rows; and thin
+  sheet hosts. Views and components perform no endpoint or singleton lookup.
+  Failed refreshes retain the last usable catalog cursor, and later
+  authoritative reply pages replace bounded notification fallback content. See
+  the feature-local
+  [`README`](../../apps/ios/Merian/Features/Explore/Notifications/README.md) for
+  lifecycle, routing, and focused test ownership.
 - `apps/ios/Merian/Features/Explore/AuthorProfile/` owns public Explore author
   profile content, route metadata, and published-scan library presentation.
 - `apps/ios/Merian/Features/Explore/Shared/` is reserved for Explore helpers

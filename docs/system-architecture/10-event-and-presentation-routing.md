@@ -256,15 +256,20 @@ the post ID and re-resolve the bounded feed-store value after dismissal. Async
 notification opens carry a latest-wins token; a newer tap, manual dismissal, or
 sheet replacement invalidates late fetch completion. No path uses a fixed
 animation delay to guess that UIKit has released its presentation slot. The
-Insight-to-Community-request handoff inside Explore follows the same rule: the
-root or post-detail owner stores the request ID, clears its Insight route, and
-changes the Explore navigation path only from that sheet's real `onDismiss`.
-Opening the current user's Insight from an Insight-hosted Explore sheet is also
-single-owner: the leaf post detail reports the scan ID, the Explore shell owns
-its own dismissal, and the parent Insight applies the staged scan only from the
-Explore sheet's `onDismiss`. The leaf must never dismiss a parent-owned sheet.
-The Profile patch gallery likewise stages its Field-trip template ID and waits
-for the full-screen artwork cover's `onDismiss` before pushing detail.
+Shell owns the private `ExploreNotificationDismissalDestination` and retains
+only lightweight identifiers through teardown. Notifications owns the decoded
+row and `ExploreNotificationReplyThreadRoute`/fallback models plus the
+generation-fenced reply-thread state; it does not own the shared navigation
+path. The Insight-to-Community-request handoff inside Explore follows the same
+rule: the root or post-detail owner stores the request ID, clears its Insight
+route, and changes the Explore navigation path only from that sheet's real
+`onDismiss`. Opening the current user's Insight from an Insight-hosted Explore
+sheet is also single-owner: the leaf post detail reports the scan ID, the
+Explore shell owns its own dismissal, and the parent Insight applies the staged
+scan only from the Explore sheet's `onDismiss`. The leaf must never dismiss a
+parent-owned sheet. The Profile patch gallery likewise stages its Field-trip
+template ID and waits for the full-screen artwork cover's `onDismiss` before
+pushing detail.
 
 Feature-local hosts that expose several UIKit-backed destinations still own one
 typed presentation slot:
@@ -274,8 +279,10 @@ Explore Feed navigation values live in
 appends `ExplorePostRoute` and `ExploreHashtagRoute` on the shared navigation
 stack. An `ExploreNotificationReplyThreadTarget` travels inside
 `ExplorePostRoute`; post detail converts that typed target into its reply-thread
-sheet presentation. The Shell does not own these models or render the Feed
-tab/hashtag screens. Other post-detail modal values remain separately owned by
+sheet presentation using the route/fallback model under
+`Features/Explore/Notifications/Models/`. The Shell does not own these Feed or
+notification reply models or render the Feed tab/hashtag screens. Other
+post-detail modal values remain separately owned by
 `ExplorePostDetailPresentation` so stack routing and sheet occupancy cannot
 compete through one untyped state channel.
 

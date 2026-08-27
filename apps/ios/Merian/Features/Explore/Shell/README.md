@@ -71,6 +71,14 @@ not an `ExplorePost`, and re-resolve from `ExploreFeedViewModel` after
 `onDismiss`. Async post preparation is guarded by a latest-wins token so a newer
 tap or manual dismissal invalidates late completion.
 
+`Notifications/` owns decoded activity and row presentation, live catalog/read
+and comment/reply adapters, generation-fenced catalog and reply-thread state,
+and the notification-specific reply route/fallback. The Shell owns only the
+private dismiss-then-navigate destination, latest-open token, and shared
+`NavigationPath`; Feed owns the lightweight reply target carried inside
+`ExplorePostRoute`. Post detail converts that target to the Notifications-owned
+reply route immediately before presenting the thin reply sheet.
+
 The taxonomy Tree/galaxy map remains implemented behind the default-off
 `.speciesDictionaryTree` flag but is disconnected from root MVP navigation.
 

@@ -3665,6 +3665,41 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExplorePostFieldChatPolicyTests test
 ```
 
+Explore Notifications tests mirror the feature owner under
+`MerianTests/Features/Explore/Notifications/`.
+`ExploreNotificationsViewModelTests` locks initial fetch/read ordering, read
+failure, transient pagination errors, Field-trip availability filtering, refresh
+supersession of in-flight pagination, failed-refresh cursor preservation, and
+stale mark-all completion. `ExploreReplyThreadViewModelTests` locks bounded
+parent/target cursor traversal, sanitized fallback insertion and authoritative
+replacement, refresh-over-pagination invalidation, route-generation fencing,
+optimistic reaction forwarding, and error mapping.
+`ExploreNotificationRowPresentationTests` locks visible aggregated, reaction,
+informational, and Field-trip copy plus symbols, accents, and disclosure policy.
+Secure avatar fallback shared by Feed and Notifications lives in
+`MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`;
+wire decoding and endpoint contract tests remain under Core Network.
+
+Run the focused suites after changing Notifications models, services, view
+models, views, components, reply routing, or presentation:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/ExploreNotificationsViewModelTests \
+  -only-testing:merianTests/ExploreReplyThreadViewModelTests \
+  -only-testing:merianTests/ExploreNotificationRowPresentationTests \
+  -only-testing:merianTests/ExploreCommentAuthorPresentationTests test
+```
+
+Manual Notifications parity covers loading/error/empty and read-highlight
+states; pull-to-refresh during pagination; mark all as read; settings;
+informational follows; post/comment/mention/reaction, Community, media-recovery,
+and Field-trip destinations; unavailable reply fallback; reply
+pagination/reactions; rapid tap/dismiss replacement; VoiceOver; large Dynamic
+Type; Reduce Motion; light/dark appearance; and video remaining paused until the
+final overlay disappears.
+
 Explore Author Profile tests mirror the feature owner.
 `ExploreAuthorProfilePresentationTests` locks navigation depth, current-viewer
 and possessive titles, Pro presentation, and stable post deduplication.

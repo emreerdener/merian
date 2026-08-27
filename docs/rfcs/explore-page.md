@@ -1358,8 +1358,12 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Services/`
 - `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationReplyThreadViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationRowPresentation.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationReplyThreadRoute.swift`
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/Media/ExploreFeedMediaHosts.swift`
@@ -1369,7 +1373,9 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Shared/README.md`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Components/ReplyThread/ExploreNotificationReplyThreadContent.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationReplyThreadSheet.swift`
 
 Explore-wide media lives in `Features/Explore/Shared/Media` because the public
 renderer also serves Identify and its hero image, indicators, coordinator, and
@@ -1385,6 +1391,18 @@ reside in `Feed/Services`. Shell retains cross-area navigation coordination, but
 Feed owns its tab, hashtag collection, post detail, and typed route values.
 View-local selection, focus, scroll, and typed presentation state remain in the
 rendering hosts to preserve animation and cancellation timing.
+
+Notifications follows the same boundary. `Notifications/Services` alone resolves
+catalog/read, comment/reply, viewer-context, telemetry, and error dependencies.
+Dedicated `@MainActor @Observable` catalog and reply-thread view models fence
+first-page loads, pagination, read completion, and route replacement by
+generation. Notification views and components render prepared state without
+endpoint or singleton access. Shell retains its private dismiss-then-navigate
+destination and latest-open token; Feed retains the reply target carried inside
+`ExplorePostRoute`. Secure comment-avatar fallback shared by Feed and
+Notifications lives in `Explore/Shared/Models`. A failed catalog refresh keeps
+the last successful cursor usable, and a server reply found after bounded
+fallback insertion replaces that fallback in place.
 
 Routing changes:
 

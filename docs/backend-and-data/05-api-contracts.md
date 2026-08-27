@@ -5286,8 +5286,15 @@ The Explore iOS mapping, state, and presentation layers are:
   for the live map-points adapter
 - `apps/ios/Merian/Features/Explore/Map/ViewModels/` for spatial loading,
   filtering, request-generation, and selection state
-- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
-- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Services/` for the live
+  notification catalog/read, comment/reply, current-viewer, telemetry, and error
+  adapters
+- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/` for
+  generation-fenced catalog and notification reply-thread state
+- `apps/ios/Merian/Features/Explore/Notifications/Models/` for decoded activity,
+  stable row presentation, and typed notification reply routes
+- `apps/ios/Merian/Features/Explore/Notifications/Views/` plus grouped
+  `Components/` for network-free rendering and sheet-local lifecycle timing
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Models/` for typed routes and
   deterministic presentation mapping
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Services/ExploreAuthorProfileViewModelDependencies.swift`
@@ -5305,6 +5312,16 @@ invoke small initializer-injected closure groups; only their live
 implementations under `Feed/Services` bridge to `MerianNetworkClient`, Supabase
 realtime, identity/entitlement services, telemetry, or image loading. Wire DTOs
 and JSON contracts remain in `Core/Network/ExploreAPIModels.swift`.
+
+Notifications uses the same rule: only live closures under
+`Notifications/Services` bridge to `MerianNetworkClient` or viewer identity. The
+catalog state owner fences refresh against pagination and read completion; the
+reply-thread state owner fences route loads and pagination. Notification views
+and components do not resolve endpoint clients. A failed first-page refresh
+preserves the last successful catalog cursor, and a later server reply replaces
+the bounded notification fallback with the authoritative comment. These client
+recovery rules do not alter `/get-explore-notifications`,
+`/mark-explore-notifications-read`, comment/reply payloads, or cursor semantics.
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:

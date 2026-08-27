@@ -204,8 +204,9 @@ notifications feed remains complete and continues to include mention rows.
   for parent-owned navigation stacks and
   `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
   for the standalone modal host
-- Notification rendering:
-  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- Notification model, presentation, and rendering:
+  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`,
+  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationRowPresentation.swift`,
   and
   `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - Push preference:
@@ -213,8 +214,9 @@ notifications feed remains complete and continues to include mention rows.
   and `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
 - Regression tests:
   `apps/ios/MerianTests/Features/Explore/Feed/ExploreCommentMentionTextTests.swift`,
-  `ExploreCommentAuthorPresentationTests.swift`, and
-  `ExploreReplyLoadingStateTests.swift`
+  `apps/ios/MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`,
+  and
+  `apps/ios/MerianTests/Features/Explore/Feed/ExploreReplyLoadingStateTests.swift`
 
 The composer watches the trailing token. Selecting a suggestion replaces the
 active `@query` token with `@username` followed by a space and leaves the

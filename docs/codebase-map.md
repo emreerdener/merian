@@ -579,15 +579,28 @@ render without direct networking. Focus, scroll proxies, typed sheet occupancy,
 and delayed presentation work remain view-local. Feed production files stay at
 or below the pass's 600-line review guard.
 
+Explore activity is organized under
+`apps/ios/Merian/Features/Explore/Notifications/`: `Models/` owns decoded
+notification values, stable row presentation, and notification reply routes;
+`Services/` alone resolves live catalog/read, comment/reply, viewer-context,
+telemetry, and error dependencies; `ViewModels/` owns generation-fenced catalog
+and reply-thread loading/pagination state; and `Views/` plus grouped
+`Components/` render without direct networking or singleton lookup. Shell keeps
+the private dismiss-then-navigate destination and latest-open token, while Feed
+keeps `ExploreNotificationReplyThreadTarget` inside `ExplorePostRoute`. Failed
+catalog refresh preserves the last successful cursor, and a server reply found
+after bounded notification fallback insertion replaces that fallback in place.
+
 The cross-area public-media renderer, player bridge, hero image, indicators,
 playback extensions/state/policies/coordinator, and narrow loader adapters live
 under `apps/ios/Merian/Features/Explore/Shared/Media/`. The domain-neutral Pro
 badge lives under `Core/UI/Components/`; reusable spectrogram loading lives
-under `Core/Media/`. Shell coordinates navigation but Feed owns its tab,
-hashtag, detail, and typed route declarations. Playback-policy/state tests
-mirror Shared/Media; Feed presentation and deterministic state tests mirror
-Feed; the cross-surface audio-boost suite remains under
-`MerianTests/Features/Explore/`.
+under `Core/Media/`; and secure comment-avatar fallback shared by Feed and
+Notifications lives under `Explore/Shared/Models/`. Shell coordinates navigation
+but Feed owns its tab, hashtag, detail, and typed route declarations.
+Playback-policy/state tests mirror Shared/Media; Feed, Notifications, and Shared
+presentation/state tests mirror their production owners; the cross-surface
+audio-boost suite remains under `MerianTests/Features/Explore/`.
 
 Explore publishing, activity, and delivery:
 

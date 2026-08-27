@@ -157,6 +157,15 @@ Implemented Explore slices:
   and pagination discard stale results through request identity or generation
   state. Focused tests mirror the feature, and production files stay at or below
   the pass's 600-line review guard.
+- `Explore/Notifications` now separates decoded values, row and reply-route
+  presentation, live catalog/read/comment/reply adapters, generation-fenced
+  catalog and reply-thread state, thin sheet hosts, and focused row/thread
+  components. Views and components contain no endpoint or singleton access;
+  refresh supersedes pagination, route replacement discards stale reply work,
+  failed refresh keeps the last successful catalog cursor usable, and later
+  authoritative reply pages replace bounded notification fallback content.
+  Focused tests mirror the feature. Shared comment-avatar fallback moved to
+  `Explore/Shared/Models` because both Feed and Notifications consume it.
 
 ## Phase 3: Ownership Cleanup
 

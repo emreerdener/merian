@@ -178,7 +178,10 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/AuthorProfile/ViewModels/ExploreAuthorProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Components/Profile/ExploreAuthorProfileHeader.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Services/ExploreNotificationsDependencies.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+- `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotificationRowPresentation.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 
@@ -202,7 +205,10 @@ Only the Author Profile live dependency adapter resolves this method.
 `ExploreAuthorProfileViewModel` owns the optimistic follower count and
 Follow/Following mutation, applies the server-authoritative response, and rolls
 back with recoverable feedback on failure. Views and components invoke no
-endpoint.
+endpoint. The Notifications live adapter separately resolves catalog/read
+operations; `ExploreNotificationsViewModel` owns cursor and read-state
+lifecycle, and the row presentation model keeps postless Follow activity
+informational.
 
 ## Testing
 
@@ -220,6 +226,11 @@ iOS:
   follow-state decoding and request payload construction.
 - `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreAuthorProfileViewModelTests.swift`
   covers authoritative follow success and optimistic rollback.
+- `apps/ios/MerianTests/Features/Explore/Notifications/ExploreNotificationRowPresentationTests.swift`
+  locks the postless Follow copy, symbol, accent, and no-disclosure policy.
+- `apps/ios/MerianTests/Features/Explore/Notifications/ExploreNotificationsViewModelTests.swift`
+  locks the shared initial fetch/read, refresh, pagination, and stale-completion
+  lifecycle used by Follow activity.
 
 Useful verification:
 
@@ -228,7 +239,7 @@ deno check --config services/supabase/functions/deno.json services/supabase/func
 deno test --config services/supabase/functions/deno.json --allow-env --allow-net services/supabase/functions/_tests/exploreFeedDb.test.ts services/supabase/functions/_tests/exploreAuthorProfileDb.test.ts services/supabase/functions/_tests/exploreNotificationsDb.test.ts services/supabase/functions/_tests/mergeGhostProfile.test.ts services/supabase/functions/_tests/userFollowsDb.test.ts
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
-xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -only-testing:merianTests/ExploreAuthorProfileViewModelTests test
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -only-testing:merianTests/ExploreAuthorProfileViewModelTests -only-testing:merianTests/ExploreNotificationRowPresentationTests -only-testing:merianTests/ExploreNotificationsViewModelTests test
 ```
 
 The DB-backed Deno tests skip live assertions when local Supabase Postgres is

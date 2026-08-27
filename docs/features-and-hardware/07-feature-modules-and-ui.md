@@ -684,7 +684,14 @@ The Scans tab is the user's primary offline biological journal.
   realtime subscription filtered to the viewer's notification rows. The sheet
   fetches the in-app activity feed first, paginates with a stable
   `(updated_at, notification_id)` cursor, and marks notifications as read only
-  after a successful initial fetch. Post-backed activity routes through a
+  after a successful initial fetch. Notification `Services/` alone resolves
+  catalog/read, comment/reply, current-viewer, telemetry, and error closures;
+  dedicated observable catalog and reply-thread state owners fence refresh,
+  pagination, read completion, and route replacement by generation. Views and
+  components perform no endpoint or singleton lookup. A failed refresh keeps the
+  last successful cursor available to the still-visible catalog, and an
+  authoritative reply found after bounded notification fallback insertion
+  replaces that fallback in place. Post-backed activity routes through a
   single-post fetch path so older or paged-out posts still open correctly in
   `ExplorePostDetailView`; Field trip activity routes to
   `FieldTripPublicationDetailView`; follow activity is informational and does
