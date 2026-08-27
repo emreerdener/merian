@@ -112,7 +112,7 @@ struct LibraryView: View {
                                     switch emptyStateCopy.action {
                                     case .clearFilters:
                                         Button {
-                                            HapticManager.shared.triggerMediumPulse()
+                                            searchManager.triggerMediumFeedback()
                                             searchManager.clearFilters()
                                         } label: {
                                             Text(emptyStateCopy.actionTitle ?? "Clear filters")
@@ -178,7 +178,7 @@ struct LibraryView: View {
                 .accessibilityElement(children: .combine)
             } else {
                 Button("Refresh") {
-                    HapticManager.shared.triggerSelectionPulse()
+                    searchManager.triggerSelectionFeedback()
                     onRefreshExploreMediaIncidents?()
                 }
                 .font(.subheadline.weight(.semibold))
@@ -188,7 +188,7 @@ struct LibraryView: View {
 
             if let onDismissUnavailableMediaOverview {
                 Button {
-                    HapticManager.shared.triggerSelectionPulse()
+                    searchManager.triggerSelectionFeedback()
                     onDismissUnavailableMediaOverview()
                 } label: {
                     Image(systemName: "xmark")
@@ -225,7 +225,7 @@ struct LibraryView: View {
                     searchManager.performSearch(query: "", category: category)
                 },
                 onLeadingSelection: {
-                    HapticManager.shared.triggerSelectionPulse()
+                    searchManager.triggerSelectionFeedback()
                     isShowingFilterSheet = true
                 }
             )

@@ -1119,6 +1119,12 @@ MerianTests/
   coverage also locks the selected-ID set and selection mode while
   `isDownloading` is true, then proves normal selection teardown resumes after
   the export fence clears.
+- **`ScansLibraryActionsTests.swift`**: Injects the Library's export,
+  publication, durable-share-state, event, error, and haptic closures. It
+  verifies batch share/save success and failure, exact selection teardown,
+  missing and ineligible scan rejection before the endpoint, publication state
+  followed by event and success feedback only after endpoint success, and
+  failure feedback without a false local publication commit.
 - **`AppRouteCoordinatorTests.swift`**: Locks priority/FIFO ordering, semantic
   coalescing, latest lightweight pending payload with stable identity,
   stronger-source promotion, bounded overflow, pending/deferred expiry without
@@ -1529,6 +1535,10 @@ import, and permission-denial UI require the physical-device checklist in
 - **`ScansManagerTests.swift`**: Verifies text/filter-index construction,
   incremental and coalesced reindexing, sort behavior, and selection limits for
   the Scans library, including the batch-media export selection-mutation fence.
+- **`ScansLibraryActionsTests.swift`**: Verifies the initializer-injected batch
+  export, Explore publication, local share-state/event, and feedback adapters
+  without live services, including endpoint → durable state → event → feedback
+  ordering.
 - **`PrivateScanMapTests.swift`**: Locks coordinate-only Collections preview
   projection and presentation-field isolation, mapped-record inclusion and
   coordinate validation, exact owner-coordinate preservation, antimeridian

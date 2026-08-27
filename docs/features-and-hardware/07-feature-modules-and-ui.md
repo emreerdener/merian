@@ -69,7 +69,7 @@ may continue; public production remains held until **iOS Build and Test** and
 controls in the
 [production consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
-## 2. The Scans Library (`ScansSheetView`, `ScansManager`)
+## 2. The Scans Library (`ScansSheetView`, `ScansManager`, `ScansLibrarySearchCoordinator`)
 
 The Scans tab is the user's primary offline biological journal.
 
@@ -135,8 +135,9 @@ The Scans tab is the user's primary offline biological journal.
   capabilities and standard 'X' overlays, requiring no custom
   `UIViewRepresentable` bindings. Uses `.ultraThinMaterial` toolbars matching
   the aesthetic.
-- Driven by `ScansManager`, which uses cancellable tasks to filter arrays
-  asynchronously without lagging the visual input.
+- Driven by `ScansManager`, which owns observable Library input and delegates
+  cancellable generation-fenced work to `ScansLibrarySearchCoordinator` without
+  lagging visual input.
 - **Dynamic Search & Filtering Chrome**: The UI tracks `isSearchFocused` state
   via the `.searchable(isPresented:)` binding alongside
   `searchManager.searchQuery`. Scans now owns its bottom search/filter chrome in
@@ -167,12 +168,14 @@ The Scans tab is the user's primary offline biological journal.
   additionally appending `customTags`, an explicit `"invasive"` keyword
   (injected conditionally via `isInvasive`), the Latin taxonomy fields
   (`taxonomyClass`, etc.), and a `commonGroupName` synonym mapping (e.g.
-  `"aves"` → `"bird birds avian"`). SwiftData `#Predicate` constraints
-  orchestrate swift case-insensitive SQLite matching across the index matrix.
+  `"aves"` → `"bird birds avian"`). Full rebuilds construct the immutable
+  exact-term and n-gram posting index in a cancellation-aware detached task;
+  incremental additions use one ID-batched SwiftData fetch before the same
+  in-memory index semantics are applied.
 - **LazyVGrid Rendering Resilience**: To prevent SwiftUI rendering engine drops
-  when swapping multi-thousand item text collections, `ScansManager` commits
-  filtered arrays through a single async boundary and keeps sort primitives
-  separate from model reads.
+  when swapping multi-thousand item text collections, the contained search
+  coordinator returns only the latest filtered record set through one main-actor
+  commit and keeps sort primitives separate from model reads.
 - **Indexed Advanced Filters**: Filter-sheet dimensions, taxonomy buckets, and
   per-scan filter values are cached once per scan generation. Selected values
   are normalized once per interaction, then immutable scan snapshots are
@@ -1652,10 +1655,12 @@ on gesture-driven layout abstractions.
 - The `Scans` feature uses product-area-first folders. `Shell/` owns the
   presented sheet, paging, toolbar, search/filter chrome, and completed/queued
   pushed Insight destinations; `Library/` owns individual private scans,
-  `ScansManager`, `SearchDatabaseActor`, `SearchableScan`, fresh queued-context
-  hydration, and the scan-library route callback; `Collections/` owns collection
-  cards, collection detail, smart collections, multi-scan selection flows, and
-  the passive private-map entry; `Map/` owns exact owner-coordinate snapshots,
+  `ScansManager`, its contained `ScansLibrarySearchCoordinator`, filter/search
+  models, `SearchDatabaseActor`, injected export/publication adapters, fresh
+  queued-context hydration, and the scan-library route callback. Library views
+  resolve no endpoint or singleton. `Collections/` owns collection cards,
+  collection detail, smart collections, multi-scan selection flows, and the
+  passive private-map entry; `Map/` owns exact owner-coordinate snapshots,
   region fitting, local filters, deterministic clustering, the interactive map,
   private previews/list, and embedded Insight routing; `NonBiological/` owns the
   non-biological scan isolation route; `Shared/` holds scan-only primitives such

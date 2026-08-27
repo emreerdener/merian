@@ -84,6 +84,7 @@ struct SearchIndexSnapshot: Sendable {
         allDocumentIDs.reserveCapacity(searchableScans.count)
 
         for scan in searchableScans {
+            if Task.isCancelled { return }
             upsert(scan)
         }
     }

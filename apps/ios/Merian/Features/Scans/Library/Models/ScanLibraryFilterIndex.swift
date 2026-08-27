@@ -2,8 +2,9 @@ import Foundation
 
 /// Immutable scalar projection of one library record.
 ///
-/// SwiftData models stay on their owning actor. `ScansManager` extracts these values in
-/// yielding batches, then constructs `ScanLibraryFilterIndexSnapshot` on a detached task.
+/// SwiftData models stay on their owning actor. `ScansLibrarySearchCoordinator` extracts
+/// these values in yielding batches, then constructs `ScanLibraryFilterIndexSnapshot` on
+/// a detached task.
 struct RawScanFilterSnapshot: Sendable {
     let id: String
     let captureDate: Date

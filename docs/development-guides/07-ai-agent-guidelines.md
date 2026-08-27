@@ -130,13 +130,17 @@ dependency audit, tests, type-check, and production build; preserve the required
 `Naturebook Admin Quality / test` GitHub check and Vercel Deployment Check.
 
 - `MerianLog` lives at `Core/MerianLog.swift`.
-- `SearchDatabaseActor` lives with `ScansManager` in
-  `Features/Scans/Library/ViewModels/ScansManager.swift` because it is an
-  implementation detail of the Scans library search index.
+- `SearchDatabaseActor` lives in
+  `Features/Scans/Library/Services/ScanLibrarySearchActors.swift` because it is
+  an implementation detail of the Scans Library search index.
 - The Sendable advanced-filter projection and detached predicate engine live in
   `Features/Scans/Library/Models/ScanLibraryFilterIndex.swift`. Keep
-  `LocalScanRecord` reads in `ScansManager`'s yielding extraction boundary;
-  never move SwiftData models into the detached filter engine.
+  `LocalScanRecord` reads in `ScansLibrarySearchCoordinator`'s yielding
+  extraction boundary; never move SwiftData models into the detached filter
+  engine. Full `SearchIndexSnapshot` construction must remain cancellation-aware
+  and detached with the text-payload build. Live export, publication, app-event,
+  durable-share-state, and haptic resolution belongs only in
+  `Scans/Library/Services`.
 
 ## 3. Application State & Dependency Injection
 

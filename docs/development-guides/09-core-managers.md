@@ -817,38 +817,43 @@ triggering excessive SwiftUI view rebuilds.
   `MerianLog.data.error("ingestScans: unparseable timestamp ...")` in the logs
   for affected scan IDs.
 
-### `ScansManager` (Search Indexing)
+### `ScansManager` and `ScansLibrarySearchCoordinator`
 
-- Offloads search index rebuilds from the main `.onChange()` thread to avoid
-  stalls on large scan lists.
+- `ScansManager` owns observable filter input, selection/action feedback, and
+  the reviewed app-event subscription. It delegates every mutable search task,
+  generation, posting/filter snapshot, lookup map, and sorted-ID cache to the
+  contained `ScansLibrarySearchCoordinator`.
+- The coordinator offloads search index rebuilds from the main `.onChange()`
+  thread to avoid stalls on large scan lists.
 - Uses an O(1) delta update pattern: computes `oldIds.subtracting(newIds)` and
   `newIds.subtracting(oldIds)` via Swift Set operations, updating only the
   affected entries rather than rebuilding the full index on every change.
 - **Dynamic Hot-Swapping**: To prevent stale caches when users mutate inner
   properties of existing scans (e.g., adding `customTags`), `ScansManager`
-  listens for `AppEvent.scanSearchIndexInvalidated(scanId:)`. This typed,
-  main-actor invalidation triggers a targeted isolated re-evaluation via
-  `SearchDatabaseActor`, updating the string index in under 10ms without an app
-  reboot. The scan row—not the event payload—remains authoritative.
+  listens for `AppEvent.scanSearchIndexInvalidated(scanId:)` and asks the
+  coordinator to perform a targeted isolated re-evaluation via
+  `SearchDatabaseActor`. The scan row—not the event payload—remains
+  authoritative.
 - **Dual-path indexing**: Full rebuilds cooperatively extract `RawScanSnapshot`
   values from the already-resident `allScans` array on `@MainActor` in
-  128-record chunks with `Task.yield()` between chunks, then build both
-  `SearchableScan` payloads and a detached `SearchIndexSnapshot`. Incremental
-  inserts stay on `SearchDatabaseActor`, but fetch their delta through one batch
+  128-record chunks with `Task.yield()` between chunks, then construct both
+  `SearchableScan` payloads and `SearchIndexSnapshot` posting lists inside one
+  cancellation-aware detached task. Incremental inserts stay on
+  `SearchDatabaseActor`, but fetch their delta through one batch
   `FetchDescriptor` (`WHERE id IN (...)`) rather than faulting records
   one-by-one; the main actor then upserts only the changed documents into the
   existing snapshot.
-- **O(1) lookup caches**: `ScansManager` keeps `[String: Int]` index positions,
-  a `[String: LocalScanRecord]` live-reference fallback map,
+- **O(1) lookup caches**: `ScansLibrarySearchCoordinator` keeps `[String: Int]`
+  index positions, a `[String: LocalScanRecord]` live-reference fallback map,
   `[String: ScanSortPrimitive]` sort snapshots, and a `sortedAllScanIDsCache`
   keyed by `ScanSortOption.rawValue`. The record map is rebuilt from the
   existing `@Query` array only; it must not trigger a second SwiftData fetch or
   copy model data. `record(for:)` resolves through the index first and falls
   back to the map if an index is stale during a snapshot transition.
-- **Generation-guarded commits**: `searchCacheGeneration` increments whenever
-  `allScans` changes. Full-rebuild snapshot extraction and incremental actor
-  fetches both verify the generation before committing, so a cancelled/stale
-  indexing task cannot overwrite a newer library snapshot.
+- **Generation-guarded commits**: The coordinator's private generation
+  increments whenever `allScans` changes. Full-rebuild snapshot extraction and
+  incremental actor fetches both verify that generation before committing, so a
+  cancelled or stale indexing task cannot overwrite a newer library snapshot.
 - **`searchString` composition**: Each scan's search index string is a robust
   concatenation of
   `commonName + scientificName + petLabel + ecologyType + semanticTags + taxonomyClass + taxonomyOrder + taxonomyFamily + commonGroupName + aiReasoning + locationName + habitatDescription + weatherCondition + lifeStage + reproductiveCondition + sex + sexEvidence + similarSpecies.joined() + iucnRedListStatus + hazardType + ecologicalInteractions`.
@@ -880,8 +885,8 @@ triggering excessive SwiftUI view rebuilds.
   replacement search task, rebuild the immutable filter snapshot, and rerun the
   active query. Coalescing is required: cancelling task A before carrying A's ID
   into task B can silently remove A from the index.
-- **Debug completion hook**: In `DEBUG`, `ScansManager` exposes internal
-  `SearchDebugEvent` callbacks for `indexingCompleted`,
+- **Debug completion hook**: In `DEBUG`, `ScansManager` proxies the contained
+  coordinator's internal `SearchDebugEvent` callbacks for `indexingCompleted`,
   `filterIndexingCompleted`, and `searchCompleted`. The test suite uses these
   events to await real background completion instead of sleeping for guessed
   debounce/indexing windows, which makes search regressions deterministic
@@ -897,11 +902,15 @@ triggering excessive SwiftUI view rebuilds.
   — generated once per species by a background Gemini Flash call and returned in
   the `/identify` response on cache hit. `group_tags` is a `TEXT[]` column on
   `species_dictionary`, not `scans`.
-- **Detached Primitive Sort Engine**: `ScansManager` maps pure `@Model` objects
-  into `ScanSortPrimitive` arrays before offloading large sorts to
-  `Task.detached`. The "no query / all categories" path caches sorted ID arrays
-  per sort option, so repeated sort changes and query clears do not rebuild the
-  same full-library sort every time.
+- **Detached Primitive Sort Engine**: The coordinator maps pure `@Model` objects
+  into `ScanSortPrimitive` arrays and delegates ordering to the value-only
+  `ScanLibrarySortPolicy` inside `Task.detached`. The "no query / all
+  categories" path caches sorted ID arrays per sort option, so repeated sort
+  changes and query clears do not rebuild the same full-library sort every time.
+- **Injected actions**: `ScansLibraryDependencies` is the only Library owner
+  that resolves media export, Explore publication, local publication-state
+  writes, app events, error formatting, or haptics. Deterministic tests replace
+  every closure without constructing a network client or UI presenter.
 
 ### `ProfileDatabaseActor` (Profile Stats)
 

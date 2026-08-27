@@ -100,11 +100,12 @@ formatting, and feed view-model extensions. Map and Community ID logic should
 not be placed there.
 
 When working on the Scans private library, start in `Scans/Library/`; that
-folder owns individual scan browsing, search/index state, queued scan snapshots,
-and fresh `QueuedScanContext` hydration. Completed and queued Insight
-destinations are pushed by `Scans/Shell/` in the existing Scans navigation
-stack; Library emits route values and does not present its own sheet. Collection
-grids, smart collections, and collection detail/editing belong in
+folder owns individual scan browsing, UI-facing Library state, contained
+generation-fenced search/index work, injected export/publication adapters,
+queued scan snapshots, and fresh `QueuedScanContext` hydration. Completed and
+queued Insight destinations are pushed by `Scans/Shell/` in the existing Scans
+navigation stack; Library emits route values and does not present its own sheet.
+Collection grids, smart collections, and collection detail/editing belong in
 `Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
 while controls reused outside Scans, such as `CategoryFilterBar`, belong in
 `Core/UI/Components/`.
@@ -150,6 +151,10 @@ Implemented Explore slices:
   in-flight pagination. Its views call no endpoint, deterministic feature tests
   mirror the production owner, and the published-scan grid layout shared with
   Profile and Species Dictionary lives in Core UI.
+- `Explore/Map` now separates focus/request and projection models, the live map
+  dependency adapter, generation-fenced loading/filtering state, camera/gesture
+  views, and grouped rendering components. Map views perform no endpoint lookup,
+  and focused tests mirror presentation, spatial cache, and view-model policy.
 - `Explore/Feed` now separates route/composer/presentation models, live endpoint
   and realtime adapters, catalog/comment/hashtag/post-detail state owners, route
   hosts, and grouped catalog/comment/composer/detail/card/media components. Feed
@@ -176,6 +181,17 @@ Implemented Explore slices:
   notification-handoff policy, and every production Shell file stays below the
   pass's 600-line guard. Cross-surface Field-trip route values moved unchanged
   to `Explore/FieldTrips/Models`.
+
+Implemented Scans slices:
+
+- `Scans/Library` now separates sort/filter and Sendable search models, ad-hoc
+  search actors, narrow export/publication/event/haptic dependencies, observable
+  Library state, and a contained generation-fenced search coordinator. Library
+  views perform no endpoint or singleton lookup, focused action tests replace
+  every live closure and lock publication side-effect ordering, full posting
+  snapshots build off-main with cooperative cancellation, existing search/filter
+  tests retain deterministic debug completion, and every production Library file
+  stays below the pass's 600-line guard.
 
 ## Phase 3: Ownership Cleanup
 

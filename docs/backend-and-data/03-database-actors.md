@@ -70,13 +70,13 @@ _Upload state machine (V33):_
   and transitions `.uploading → .staged` in one save. Source-state guard: only
   advances from `.uploading`; prevents a concurrent tombstone from being
   resurrected. It returns `.staged` only after save, `.alreadyAdvanced` for a
-  serialized matching staged manifest or inferencing owner, `.retryRequired`
-  for retryable fetch/state/manifest/save failure, and `.discarded` for missing
-  or non-runnable rows. Save failure rolls back every part of the transaction,
-  and the upload callback cannot continue to an inference claim from
-  uncommitted or mismatched keys. An exact scheduled
-  `server_retryable_failure` reclaim preserves its marker, count, last attempt,
-  and matching job metadata through a required re-stage.
+  serialized matching staged manifest or inferencing owner, `.retryRequired` for
+  retryable fetch/state/manifest/save failure, and `.discarded` for missing or
+  non-runnable rows. Save failure rolls back every part of the transaction, and
+  the upload callback cannot continue to an inference claim from uncommitted or
+  mismatched keys. An exact scheduled `server_retryable_failure` reclaim
+  preserves its marker, count, last attempt, and matching job metadata through a
+  required re-stage.
 - `tryClaimForInference(scanId:generation:)` — atomic local-persistence lock for
   inference. It transitions `.staged → .inferencing` and saves the generation in
   the same transaction; returns `false` if the scan is already `.inferencing`,
@@ -396,7 +396,7 @@ let localStats = await actor.fetchLocalStats(
 
 ---
 
-### `SearchDatabaseActor` (`Features/Scans/Library/ViewModels/ScansManager.swift`)
+### `SearchDatabaseActor` (`Features/Scans/Library/Services/ScanLibrarySearchActors.swift`)
 
 **Declaration**: `@ModelActor actor SearchDatabaseActor`
 
@@ -407,8 +407,9 @@ let localStats = await actor.fetchLocalStats(
   `FetchDescriptor` and restores caller order through an ID map; it does not
   issue one `model(for:)` fault per record.
 - Full library rebuilds do not create this actor for a second fetch.
-  `ScansManager` cooperatively extracts `RawScanSnapshot` values from its
-  already-resident query, then builds the text snapshot in a detached task.
+  `ScansLibrarySearchCoordinator` cooperatively extracts `RawScanSnapshot`
+  values from its already-resident query, then builds both text payloads and the
+  posting-index snapshot in one cancellation-aware detached task.
 - Advanced filters are a separate value-type pipeline in
   `ScanLibraryFilterIndex.swift`; they do not dereference SwiftData models from
   `SearchDatabaseActor`.
@@ -416,15 +417,16 @@ let localStats = await actor.fetchLocalStats(
   class limits (e.g. "Aves" -> "bird", "Insecta" -> "insect", "Mammalia" ->
   "mammal") to augment layperson searchability alongside AI reasoning text.
 
-**When to create**: Created ad-hoc by `ScansManager` inside `Task.detached`
-blocks whenever library models mutate, or when the typed
-`AppEvent.scanSearchIndexInvalidated(scanId:)` invalidation necessitates a
-targeted index hot-swap. The event carries only the stable ID; the actor reloads
-the authoritative durable scan before rebuilding its payload.
+**When to create**: Created ad-hoc by `ScansLibrarySearchCoordinator` for
+incremental additions and targeted index hot-swaps. Full rebuilds use
+`RawScanSnapshot` values and do not instantiate this actor for a second fetch.
+The typed `AppEvent.scanSearchIndexInvalidated(scanId:)` event carries only the
+stable ID; the actor reloads the authoritative durable scan before rebuilding
+its payload.
 
 ```swift
 let dbActor = SearchDatabaseActor(modelContainer: container)
-let newPayload = await dbActor.extractSearchablePayloads(from: [persistentId])
+let newPayload = await dbActor.extractSearchablePayloads(from: [scanID])
 ```
 
 ---
