@@ -5269,9 +5269,17 @@ The Explore iOS mapping, state, and presentation layers are:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Services/` for live Feed,
+  comment/interaction, post-detail, composer-image, presentation, and
+  unread-realtime adapters
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExplorePostDetailViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Models/ExploreFeedRoutes.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Views/` and grouped `Components/` for
+  network-free rendering and view-local focus, scroll, and presentation timing
 - `apps/ios/Merian/Features/Explore/Map/Models/` for Map-only request, focus,
   filter, region, and cache policy
 - `apps/ios/Merian/Features/Explore/Map/Services/ExploreMapViewModelDependencies.swift`
@@ -5291,6 +5299,12 @@ The Explore iOS mapping, state, and presentation layers are:
 - `apps/ios/Merian/Features/Explore/Map/Views/` and grouped `Components/` for
   MapKit camera/gesture ownership and network-free rendering
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+
+Feed views and components do not resolve endpoint clients. The Feed state owners
+invoke small initializer-injected closure groups; only their live
+implementations under `Feed/Services` bridge to `MerianNetworkClient`, Supabase
+realtime, identity/entitlement services, telemetry, or image loading. Wire DTOs
+and JSON contracts remain in `Core/Network/ExploreAPIModels.swift`.
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:

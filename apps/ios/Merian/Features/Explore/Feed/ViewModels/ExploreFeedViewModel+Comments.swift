@@ -42,9 +42,11 @@ extension ExploreFeedViewModel {
         commentErrorMessage = nil
 
         do {
-            let loadedComments = try await MerianNetworkClient.shared.getExploreComments(
-                postId: activeCommentsPostId,
-                limit: commentsPageSize
+            let loadedComments = try await dependencies.comments.loadComments(
+                activeCommentsPostId,
+                commentsPageSize,
+                nil,
+                nil
             )
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
@@ -58,7 +60,7 @@ extension ExploreFeedViewModel {
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
             }
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+            commentErrorMessage = dependencies.errorMessage(error)
         }
 
         if activeCommentsRequestId == resolvedRequestId {
@@ -83,11 +85,11 @@ extension ExploreFeedViewModel {
         defer { isLoadingMoreComments = false }
 
         do {
-            let nextPage = try await MerianNetworkClient.shared.getExploreComments(
-                postId: activeCommentsPostId,
-                limit: commentsPageSize,
-                afterCreatedAt: nextCommentsCursorCreatedAt,
-                afterCommentId: nextCommentsCursorCommentId
+            let nextPage = try await dependencies.comments.loadComments(
+                activeCommentsPostId,
+                commentsPageSize,
+                nextCommentsCursorCreatedAt,
+                nextCommentsCursorCommentId
             )
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
@@ -104,17 +106,18 @@ extension ExploreFeedViewModel {
             guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                 return
             }
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+            commentErrorMessage = dependencies.errorMessage(error)
         }
     }
 
     func submitComment() async {
-        guard let activeCommentsPostId else { return }
+        guard let submissionPostId = activeCommentsPostId else { return }
         guard !isSubmittingComment else { return }
 
         let trimmed = String(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
         guard !trimmed.isEmpty else { return }
 
+        let submissionSessionId = activeCommentsRequestId
         let replyParent = replyingToComment
         isSubmittingComment = true
         commentErrorMessage = nil
@@ -122,14 +125,19 @@ extension ExploreFeedViewModel {
         commentDraft = ""
         composerResetToken = UUID()
 
-        defer { isSubmittingComment = false }
+        defer {
+            if isActiveCommentsSession(postId: submissionPostId, requestId: submissionSessionId) {
+                isSubmittingComment = false
+            }
+        }
 
         do {
-            let response = try await MerianNetworkClient.shared.createExploreComment(
-                postId: activeCommentsPostId,
-                body: trimmed,
-                parentCommentId: replyParent?.id
+            let response = try await dependencies.comments.createComment(
+                submissionPostId,
+                trimmed,
+                replyParent?.id
             )
+            guard isActiveCommentsSession(postId: submissionPostId, requestId: submissionSessionId) else { return }
 
             if let parentId = response.comment.parentCommentId ?? replyParent?.id {
                 appendReply(response.comment, parentCommentId: parentId)
@@ -145,50 +153,51 @@ extension ExploreFeedViewModel {
                 }
             }
 
-            updateCommentCount(postId: activeCommentsPostId, commentCount: response.commentCount)
-            HapticManager.shared.triggerSuccessPulse()
+            updateCommentCount(postId: submissionPostId, commentCount: response.commentCount)
+            dependencies.feedback.success()
         } catch {
+            guard isActiveCommentsSession(postId: submissionPostId, requestId: submissionSessionId) else { return }
             commentDraft = previousDraft
             composerResetToken = UUID()
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
-            HapticManager.shared.triggerErrorThump()
+            commentErrorMessage = dependencies.errorMessage(error)
+            dependencies.feedback.error()
         }
     }
 
     func removeComment(_ comment: ExploreComment) async {
         do {
-            let response = try await MerianNetworkClient.shared.deleteExploreComment(commentId: comment.id)
+            let response = try await dependencies.comments.deleteComment(comment.id)
             removeCommentLocally(comment)
             updateCommentCount(postId: comment.postId, commentCount: response.commentCount)
-            HapticManager.shared.triggerSelectionPulse()
+            dependencies.feedback.selection()
             let successMessage = comment.removalSuccessMessage
             toastMessage = .success(successMessage)
         } catch {
-            HapticManager.shared.triggerErrorThump()
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            dependencies.feedback.error()
+            toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 
     func reportComment(_ comment: ExploreComment) async {
         do {
-            try await MerianNetworkClient.shared.reportExploreComment(commentId: comment.id)
-            HapticManager.shared.triggerSuccessPulse()
+            try await dependencies.comments.reportComment(comment.id)
+            dependencies.feedback.success()
             toastMessage = .success("Report submitted. Thanks!")
         } catch {
-            HapticManager.shared.triggerErrorThump()
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            dependencies.feedback.error()
+            toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 
     func beginReply(to comment: ExploreComment) {
         replyingToComment = comment
         commentErrorMessage = nil
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.feedback.selection()
     }
 
     func cancelReply() {
         replyingToComment = nil
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.feedback.selection()
     }
 
     func replyThreadRenderState(for commentId: String) -> ExploreReplyThreadRenderState {
@@ -196,7 +205,7 @@ extension ExploreFeedViewModel {
     }
 
     func expandReplies(for comment: ExploreComment) {
-        HapticManager.shared.triggerSheetSpring()
+        dependencies.feedback.sheet()
         guard !expandedReplyCommentIds.contains(comment.id) else { return }
 
         expandedReplyCommentIds.insert(comment.id)
@@ -226,9 +235,11 @@ extension ExploreFeedViewModel {
         }
 
         do {
-            let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
-                parentCommentId: comment.id,
-                limit: 1
+            let replies = try await dependencies.comments.loadReplies(
+                comment.id,
+                1,
+                nil,
+                nil
             )
             guard !hasLoadedRepliesByCommentId.contains(comment.id) else { return }
             repliesByCommentId[comment.id] = replies
@@ -243,7 +254,7 @@ extension ExploreFeedViewModel {
             MerianLog.network.error(
                 "Explore reply preview load failed: \(error.localizedDescription, privacy: .private)"
             )
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+            commentErrorMessage = dependencies.errorMessage(error)
         }
     }
 
@@ -268,9 +279,11 @@ extension ExploreFeedViewModel {
             }
 
             do {
-                let replies = try await MerianNetworkClient.shared.getExploreCommentReplies(
-                    parentCommentId: comment.id,
-                    limit: repliesPageSize
+                let replies = try await dependencies.comments.loadReplies(
+                    comment.id,
+                    repliesPageSize,
+                    nil,
+                    nil
                 )
                 repliesByCommentId[comment.id] = replies
                 hasLoadedReplyPreviewByCommentId.insert(comment.id)
@@ -290,9 +303,9 @@ extension ExploreFeedViewModel {
                 MerianLog.network.error(
                     "Explore reply load failed: \(error.localizedDescription, privacy: .private)"
                 )
-                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                commentErrorMessage = dependencies.errorMessage(error)
                 failedReplyCommentIds.insert(comment.id)
-                HapticManager.shared.triggerErrorThump()
+                dependencies.feedback.error()
             }
         }
 
@@ -326,11 +339,11 @@ extension ExploreFeedViewModel {
         }
 
         do {
-            let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
-                parentCommentId: parentComment.id,
-                limit: repliesPageSize,
-                afterCreatedAt: cursor.createdAt,
-                afterCommentId: cursor.commentId
+            let nextPage = try await dependencies.comments.loadReplies(
+                parentComment.id,
+                repliesPageSize,
+                cursor.createdAt,
+                cursor.commentId
             )
             appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
             if nextPage.count < repliesPageSize {
@@ -339,7 +352,7 @@ extension ExploreFeedViewModel {
             }
             updateReplyCursor(parentCommentId: parentComment.id, using: nextPage)
         } catch {
-            commentErrorMessage = ExploreErrorFormatter.message(for: error)
+            commentErrorMessage = dependencies.errorMessage(error)
         }
     }
 
@@ -394,11 +407,11 @@ extension ExploreFeedViewModel {
             isLoadingMoreComments = true
 
             do {
-                let nextPage = try await MerianNetworkClient.shared.getExploreComments(
-                    postId: activeCommentsPostId,
-                    limit: commentsPageSize,
-                    afterCreatedAt: cursorCreatedAt,
-                    afterCommentId: cursorCommentId
+                let nextPage = try await dependencies.comments.loadComments(
+                    activeCommentsPostId,
+                    commentsPageSize,
+                    cursorCreatedAt,
+                    cursorCommentId
                 )
                 guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                     isLoadingMoreComments = false
@@ -414,7 +427,7 @@ extension ExploreFeedViewModel {
                 guard activeCommentsRequestId == resolvedRequestId, self.activeCommentsPostId == activeCommentsPostId else {
                     return
                 }
-                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                commentErrorMessage = dependencies.errorMessage(error)
                 return
             }
         }
@@ -435,11 +448,11 @@ extension ExploreFeedViewModel {
             markReplyStateChanged()
 
             do {
-                let nextPage = try await MerianNetworkClient.shared.getExploreCommentReplies(
-                    parentCommentId: parentComment.id,
-                    limit: repliesPageSize,
-                    afterCreatedAt: cursor.createdAt,
-                    afterCommentId: cursor.commentId
+                let nextPage = try await dependencies.comments.loadReplies(
+                    parentComment.id,
+                    repliesPageSize,
+                    cursor.createdAt,
+                    cursor.commentId
                 )
                 appendUniqueReplies(nextPage, parentCommentId: parentComment.id)
                 if nextPage.count < repliesPageSize {
@@ -452,7 +465,7 @@ extension ExploreFeedViewModel {
             } catch {
                 loadingMoreReplyCommentIds.remove(parentComment.id)
                 markReplyStateChanged()
-                commentErrorMessage = ExploreErrorFormatter.message(for: error)
+                commentErrorMessage = dependencies.errorMessage(error)
                 return
             }
         }
@@ -464,6 +477,7 @@ extension ExploreFeedViewModel {
         resetReplyState(keepingPendingExpansion: true)
         commentDraft = ""
         commentErrorMessage = nil
+        isSubmittingComment = false
         let requestId = UUID()
         activeCommentsRequestId = requestId
         nextCommentsCursorCreatedAt = nil
@@ -471,6 +485,10 @@ extension ExploreFeedViewModel {
         hasLoadedCommentsOnce = false
         hasReachedEndOfComments = false
         return requestId
+    }
+
+    private func isActiveCommentsSession(postId: String, requestId: UUID) -> Bool {
+        activeCommentsPostId == postId && activeCommentsRequestId == requestId
     }
 
     func updateCommentCount(postId: String, commentCount: Int) {
@@ -574,63 +592,4 @@ extension ExploreFeedViewModel {
         markReplyStateChanged()
     }
 
-    func toggleReaction(for comment: ExploreComment, emoji: String) {
-        let updatedComment = comment.applyingReactionToggle(emoji: emoji)
-        HapticManager.shared.triggerMediumPulse()
-
-        if let parentCommentId = updatedComment.parentCommentId,
-           var replies = repliesByCommentId[parentCommentId],
-           let index = replies.firstIndex(where: { $0.id == updatedComment.id }) {
-            replies[index] = updatedComment
-            repliesByCommentId[parentCommentId] = replies
-            markReplyStateChanged()
-        } else if let index = comments.firstIndex(where: { $0.id == updatedComment.id }) {
-            comments[index] = updatedComment
-        }
-
-        Task {
-            do {
-                try await MerianNetworkClient.shared.toggleExploreCommentReaction(commentId: comment.id, emoji: emoji)
-            } catch {
-                MerianLog.network.error("Failed to toggle reaction: \(error)")
-            }
-        }
-    }
-
-    private func markReplyStateChanged() {
-        replyStateVersion &+= 1
-        refreshReplyThreadRenderStates()
-    }
-
-    private func refreshReplyThreadRenderStates() {
-        let parentCommentIds = Set(repliesByCommentId.keys)
-            .union(expandedReplyCommentIds)
-            .union(loadingReplyCommentIds)
-            .union(loadingReplyPreviewCommentIds)
-            .union(loadingMoreReplyCommentIds)
-            .union(failedReplyCommentIds)
-            .union(hasLoadedReplyPreviewByCommentId)
-            .union(hasLoadedRepliesByCommentId)
-            .union(hasReachedEndOfRepliesByCommentId)
-
-        var nextStates: [String: ExploreReplyThreadRenderState] = [:]
-        for parentCommentId in parentCommentIds {
-            nextStates[parentCommentId] = currentReplyThreadRenderState(for: parentCommentId)
-        }
-        replyThreadRenderStates = nextStates
-    }
-
-    private func currentReplyThreadRenderState(for parentCommentId: String) -> ExploreReplyThreadRenderState {
-        ExploreReplyThreadRenderState(
-            replies: repliesByCommentId[parentCommentId] ?? [],
-            isExpanded: expandedReplyCommentIds.contains(parentCommentId),
-            isLoading: loadingReplyCommentIds.contains(parentCommentId),
-            isLoadingPreview: loadingReplyPreviewCommentIds.contains(parentCommentId),
-            isLoadingMore: loadingMoreReplyCommentIds.contains(parentCommentId),
-            didFail: failedReplyCommentIds.contains(parentCommentId),
-            hasLoadedPreview: hasLoadedReplyPreviewByCommentId.contains(parentCommentId),
-            hasLoadedReplies: hasLoadedRepliesByCommentId.contains(parentCommentId),
-            hasReachedEnd: hasReachedEndOfRepliesByCommentId.contains(parentCommentId)
-        )
-    }
 }

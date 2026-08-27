@@ -1,5 +1,6 @@
-@testable import Merian
 import Testing
+
+@testable import Merian
 
 @Suite("Explore Post Field Chat Presentation Policy Tests")
 struct ExplorePostFieldChatPolicyTests {

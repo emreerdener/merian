@@ -568,21 +568,25 @@ camera/gesture timing and rendering. Its focused presentation and state tests
 mirror that owner under `apps/ios/MerianTests/Features/Explore/Map/`; wire
 decoding and payload tests remain under `MerianTests/Core/Network/`.
 
-Observations Feed public cards and media are organized under
-`apps/ios/Merian/Features/Explore/Feed/`: `Components/Cards/` owns composition
-and prepared author presentation, `Components/Media/` owns Feed-only square
-hosts and zoom, `Components/Shared/` owns hashtags, and `Models/` owns Feed-only
-presentation and layout policy. The cross-area public-media renderer, player
-bridge, hero image, indicators, playback extensions/state/policies/coordinator,
-and narrow loader adapters live under
-`apps/ios/Merian/Features/Explore/Shared/Media/`. The domain-neutral Pro badge
-lives under `Core/UI/Components/`; reusable spectrogram loading lives under
-`Core/Media/`. `ExplorePostCard` and Shared media rendering call no Explore
-endpoint or raw `URLSession`. Shell prepares its identity/entitlement values,
-while Shared media components receive loader closures from their owning adapter.
-Comments and publishing retain their existing feature-owned interaction
-boundaries. Playback-policy/state tests mirror Shared/Media; Feed card/layout
-tests mirror Feed; the cross-surface audio-boost suite remains under
+Observations Feed is organized under `apps/ios/Merian/Features/Explore/Feed/`:
+`Models/` owns routes, composer values, and presentation policy; `Services/`
+owns live feed/comment/interaction, post-detail, composer-image,
+identity/entitlement, and notification-realtime adapters; `ViewModels/` owns
+catalog, post-store, comments, hashtag pagination, and post-detail state; and
+`Views/` plus grouped
+`Components/{Cards,Catalog,Comments,Composer,Detail,DetailCards,Media,Shared}`
+render without direct networking. Focus, scroll proxies, typed sheet occupancy,
+and delayed presentation work remain view-local. Feed production files stay at
+or below the pass's 600-line review guard.
+
+The cross-area public-media renderer, player bridge, hero image, indicators,
+playback extensions/state/policies/coordinator, and narrow loader adapters live
+under `apps/ios/Merian/Features/Explore/Shared/Media/`. The domain-neutral Pro
+badge lives under `Core/UI/Components/`; reusable spectrogram loading lives
+under `Core/Media/`. Shell coordinates navigation but Feed owns its tab,
+hashtag, detail, and typed route declarations. Playback-policy/state tests
+mirror Shared/Media; Feed presentation and deterministic state tests mirror
+Feed; the cross-surface audio-boost suite remains under
 `MerianTests/Features/Explore/`.
 
 Explore publishing, activity, and delivery:

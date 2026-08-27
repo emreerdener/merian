@@ -269,6 +269,16 @@ for the full-screen artwork cover's `onDismiss` before pushing detail.
 Feature-local hosts that expose several UIKit-backed destinations still own one
 typed presentation slot:
 
+Explore Feed navigation values live in
+`Features/Explore/Feed/Models/ExploreFeedRoutes.swift`. The Shell registers and
+appends `ExplorePostRoute` and `ExploreHashtagRoute` on the shared navigation
+stack. An `ExploreNotificationReplyThreadTarget` travels inside
+`ExplorePostRoute`; post detail converts that typed target into its reply-thread
+sheet presentation. The Shell does not own these models or render the Feed
+tab/hashtag screens. Other post-detail modal values remain separately owned by
+`ExplorePostDetailPresentation` so stack routing and sheet occupancy cannot
+compete through one untyped state channel.
+
 | Owner                       | Typed slot                      | Serialized destinations                                                                        | Admission and teardown contract                                                                                                          |
 | --------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `ExplorePostDetailView`     | `ExplorePostDetailPresentation` | Insight, author/reply, Field Notes, post composer, Field Chat, paywall                         | Composer work is one stored replaceable task; composer/chat commits require the current request/post, no cancellation, and an empty slot |

@@ -67,7 +67,7 @@ extension ExploreFeedViewModel {
             )
         }
 
-        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: Date())
+        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: dependencies.feed.now())
 
         await loadInitialFeed(force: true)
     }
@@ -84,6 +84,8 @@ extension ExploreFeedViewModel {
         currentInitialFeedRequestId = requestId
         isLoadingInitialFeed = true
         if force {
+            currentLoadMoreRequestId = nil
+            isLoadingMore = false
             errorMessage = nil
         }
 
@@ -96,14 +98,14 @@ extension ExploreFeedViewModel {
 
         do {
             let request = try makeInitialFeedRequest()
-            let freshPosts = try await MerianNetworkClient.shared.getExploreFeed(
-                limit: feedPageSize,
-                filter: request.filter,
-                latitude: request.latitude,
-                longitude: request.longitude,
-                cursor: request.cursor,
-                advancedFilters: request.advancedFilters,
-                sharedSince: request.sharedSince
+            let freshPosts = try await dependencies.feed.loadPosts(
+                feedPageSize,
+                request.filter,
+                request.latitude,
+                request.longitude,
+                request.cursor,
+                request.advancedFilters,
+                request.sharedSince
             )
             let freshFieldTripPublications = FeatureFlags.isEnabled(.fieldTrips)
                 ? await loadFieldTripPublicationsForActiveFilter()
@@ -130,9 +132,9 @@ extension ExploreFeedViewModel {
         } catch {
             guard activeFeedRequestId == requestId else { return }
             if posts.isEmpty {
-                errorMessage = ExploreErrorFormatter.message(for: error)
+                errorMessage = dependencies.errorMessage(error)
             } else {
-                toastMessage = .error(ExploreErrorFormatter.message(for: error))
+                toastMessage = .error(dependencies.errorMessage(error))
             }
         }
     }
@@ -161,14 +163,14 @@ extension ExploreFeedViewModel {
                 return
             }
 
-            let nextPage = try await MerianNetworkClient.shared.getExploreFeed(
-                limit: feedPageSize,
-                filter: request.filter,
-                latitude: request.latitude,
-                longitude: request.longitude,
-                cursor: request.cursor,
-                advancedFilters: request.advancedFilters,
-                sharedSince: request.sharedSince
+            let nextPage = try await dependencies.feed.loadPosts(
+                feedPageSize,
+                request.filter,
+                request.latitude,
+                request.longitude,
+                request.cursor,
+                request.advancedFilters,
+                request.sharedSince
             )
 
             guard activeFeedRequestId == requestId else { return }
@@ -183,7 +185,7 @@ extension ExploreFeedViewModel {
             // Absorb
         } catch {
             guard activeFeedRequestId == requestId else { return }
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 
@@ -230,7 +232,7 @@ extension ExploreFeedViewModel {
         hasLoadedFeedOnce = false
         hasReachedEndOfFeed = false
         nextFeedCursor = .empty
-        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: Date())
+        activeSharedSince = advancedFilters.dateRange.sharedSince(referenceDate: dependencies.feed.now())
         store.setFeedPosts([])
         fieldTripPublications = []
         dismissComments()
@@ -289,9 +291,6 @@ extension ExploreFeedViewModel {
             return []
         }
 
-        return (try? await MerianNetworkClient.shared.getFieldTripCommunityPublications(
-            mode: mode,
-            limit: feedPageSize
-        )) ?? []
+        return (try? await dependencies.feed.loadFieldTripPublications(mode, feedPageSize)) ?? []
     }
 }

@@ -999,10 +999,11 @@ MerianTests/
   policy coverage also rejects a cancelled Field Chat preflight or one that
   completes while another Dictionary destination owns the slot, while accepting
   case-insensitive identity for the same canonical UUID.
-- **`ExplorePostFieldChatPresentationPolicyTests.swift`**: Locks the post-detail
-  async commit gate: the post identity must remain current, cancellation must be
-  false, and the typed modal slot must be empty. It also proves Field Notes,
-  composer, Field Chat, and paywall cases have disjoint stable identities.
+- **`Features/Explore/Feed/ExplorePostFieldChatPresentationPolicyTests.swift`**:
+  Locks the post-detail async commit gate: the post identity must remain
+  current, cancellation must be false, and the typed modal slot must be empty.
+  It also proves Field Notes, composer, Field Chat, and paywall cases have
+  disjoint stable identities.
 - **`ProfileViewModelTests.swift`**: In addition to public-identity behavior,
   locks avatar-crop admission to the current request with no cancellation and an
   empty local presentation slot.
@@ -1520,8 +1521,8 @@ import, and permission-denial UI require the physical-device checklist in
   generated description text, field-notes opt-in behavior, public Explore URL
   inclusion, canonical `naturebook://` generation, and legacy `merian://`
   deep-link parsing.
-- **`ExploreHashtagSuggestionTests.swift`**: Covers the share composer's
-  AI-assisted hashtag suggestions, including
+- **`Features/Explore/Feed/ExploreHashtagSuggestionTests.swift`**: Covers the
+  share composer's AI-assisted hashtag suggestions, including
   species/taxonomy/location/field-note ranking, selected-tag exclusion, five-tag
   slot handling, optional Field trip Challenge `eventHashtags`, and
   normalization of typed hashtag input before publishing.
@@ -3632,6 +3633,36 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests \
   -only-testing:merianTests/ExploreMediaLayoutTests \
   -only-testing:merianTests/ExplorePostCardAuthorPresentationTests test
+```
+
+The rest of the Feed suite now mirrors its production owner under
+`MerianTests/Features/Explore/Feed/`. `ExploreFeedViewModelTests` locks initial
+load and refresh error separation, refresh/pagination generation safety,
+optimistic-like rollback, 500-character comment trimming/draft restoration, and
+cross-session submission fencing. `ExploreHashtagPostsViewModelTests` locks
+refresh-over-pagination invalidation and transient pagination errors.
+`ExplorePostDetailViewModelTests` locks detail generation fencing, editor-media
+preparation, and typed mutation forwarding. `ExploreReplyLoadingStateTests` uses
+injected closures to cover success/cancellation/failure and cursor pagination
+without replacing the shared network client's session. Presentation, formatting,
+route, location-privacy, post-store merge, hashtag, Field Chat, and share-copy
+policies remain in focused Feed files rather than the legacy monolithic test
+source.
+
+Run the state/presentation matrix after changing Feed models, services, view
+models, comment flows, hashtag browsing, composer editing, or post detail:
+
+```bash
+xcodebuild -scheme Merian -project Merian.xcodeproj \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -only-testing:merianTests/ExploreFeedViewModelTests \
+  -only-testing:merianTests/ExploreHashtagPostsViewModelTests \
+  -only-testing:merianTests/ExplorePostDetailViewModelTests \
+  -only-testing:merianTests/ExploreReplyLoadingStateTests \
+  -only-testing:merianTests/ExploreCommentAuthorPresentationTests \
+  -only-testing:merianTests/ExploreCommentMentionTextTests \
+  -only-testing:merianTests/ExploreHashtagSuggestionTests \
+  -only-testing:merianTests/ExplorePostFieldChatPolicyTests test
 ```
 
 Explore Author Profile tests mirror the feature owner.

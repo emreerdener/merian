@@ -3,6 +3,7 @@ import SwiftUI
 struct ExplorePostDetailAuthorHeader: View {
     let post: ExplorePost
     let avatarUrl: URL?
+    let showsProBadge: Bool
     let locationText: String?
     let opensAuthorProfile: Bool
     let onOpenAuthorProfile: () -> Void
@@ -19,7 +20,7 @@ struct ExplorePostDetailAuthorHeader: View {
                         .foregroundStyle(.primary)
                         .lineLimit(1)
 
-                    if shouldShowAuthorProBadge {
+                    if showsProBadge {
                         MerianProBadge()
                     }
                 }
@@ -76,10 +77,6 @@ struct ExplorePostDetailAuthorHeader: View {
         post.authorDisplayName(preferUsername: true)
     }
 
-    private var shouldShowAuthorProBadge: Bool {
-        post.authorIsPro == true
-            || (post.isOwnedByViewer && RevenueCatManager.shared.isSubscribed)
-    }
 }
 
 struct ExplorePostDetailActionRow: View {

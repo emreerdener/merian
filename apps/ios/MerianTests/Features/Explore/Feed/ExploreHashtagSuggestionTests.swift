@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Merian
 
 final class ExploreHashtagSuggestionTests: XCTestCase {

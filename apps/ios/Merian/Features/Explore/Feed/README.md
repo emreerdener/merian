@@ -4,23 +4,55 @@ The `Feed` directory drives the core social timeline of the application.
 
 ## Purpose
 
-This area manages the discovery of community observations. It supports multiple
-feed variants: the global public feed, a following-only feed, trending
-observations, and geographically nearby posts. It handles pagination, likes, and
-comment interactions backed by Supabase RPCs.
+This area owns the Observations catalog, hashtag collections, post detail,
+publishing/editing presentation, and comment interactions. It supports the
+global public feed, a following-only feed, trending observations, and
+geographically nearby posts while preserving one shared `ExplorePostStore` for
+cross-surface mutations.
+
+The
+[canonical Explore product contract](../../../../../../docs/rfcs/explore-page.md)
+remains authoritative for shipped behavior, copy, routing, privacy, and backend
+semantics; this README documents the iOS ownership boundary.
 
 ## Ownership Boundaries
 
-The public card and media implementation is grouped by responsibility:
+Feed declarations are grouped by responsibility:
 
+- `Models/` owns Feed routes, composer drafts, comment-author presentation,
+  formatting, finite layout, badges, hashtags, Field Chat admission, and the
+  device-local audio-boost preference.
+- `Services/` owns the live dependency adapters for feed/comments/interactions,
+  post detail, composer image loading, identity/entitlement presentation, and
+  unread-notification realtime lifecycle. These are the only Feed declarations
+  that resolve `MerianNetworkClient`, `SupabaseManager`, `RevenueCatManager`,
+  `PostHogManager`, or `LocalImageLoader` singletons.
+- `ViewModels/` owns catalog/filter/pagination state, the shared post store,
+  comments/replies/reactions, post-detail loading and mutations, hashtag
+  pagination, and the thin unread-notification facade. These state owners
+  receive small grouped closure dependencies. Feed and hashtag
+  refresh/pagination paths discard stale results through request identity or
+  generation state, while comment page loads and submissions validate the active
+  post and comments-session identity.
+- `Views/` owns the Feed tab, hashtag collection, and post-detail route hosts.
+  Selection, sheet occupancy, focus, scroll proxy, delayed-scroll work, and
+  overlay timing remain view-local so extraction does not change SwiftUI
+  lifecycle behavior.
+- `Components/Catalog/` owns the filter sheet.
+- `Components/Comments/` owns the shared thread/reply renderer used by the modal
+  comments sheet and inline post-detail section; each host retains its distinct
+  navigation, sticky-composer, focus, and scroll behavior.
+- `Components/Composer/` and `ExplorePostComposerView` own the shared publish
+  form, prepared image rendering, and media selection tiles.
+- `Components/Detail/` owns post-detail structure, loading, and the single typed
+  sheet renderer; `Components/DetailCards/` owns public detail cards.
 - `Components/Cards/` owns `ExplorePostCard`, its loading skeleton, and preview
   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
   through parent callbacks, and do not resolve identity or entitlement services.
 - `Components/Media/` owns Feed-only square feed/detail hosts and detail zoom.
 - `Components/Shared/` owns the Feed-only hashtag pill.
-- `Models/` owns Feed-only card-author presentation, finite detail-zoom layout,
-  badge/chat policy, formatting, hashtag suggestions, and the device-local audio
-  boost preference store.
+- The remaining comment, post-detail action/header, composer, and reference
+  gallery components are Feed-owned UI with no direct networking.
 - `../Shared/Media/` owns the Explore-wide public-media renderer, remote hero
   image, media indicators, `AVPlayerLayer` bridge, playback extensions,
   coordinator, deterministic playback policies, dependency adapters, and the
@@ -29,19 +61,20 @@ The public card and media implementation is grouped by responsibility:
   while `Core/Media/` owns reusable playback observation, audio processing, and
   spectrogram loading.
 
-Networking for the public feed remains owned by the existing Feed view model and
-network client. The extracted `ExplorePostCard` and Explore-shared media
-rendering boundary must not call RPCs, Edge Functions, or raw `URLSession` work
-directly. The shell prepares viewer identity and entitlement presentation for
-the card. Shared media receives image-loading closures through narrow live
-dependency adapters; only those adapters resolve the established loaders.
-Comments and publishing retain their existing feature-owned interaction
-boundaries and are outside this extraction. Preserve the existing card and media
-initializer signatures, visible copy, accessibility values, hit regions,
-gestures, haptics, telemetry, autoplay rules, Low Power behavior, audio-session
-behavior, observer lifetime, and coordinator semantics when moving declarations
-between these folders. New or extracted production files in this boundary should
-remain below 600 lines.
+Views and components must not call RPCs, Edge Functions, or raw `URLSession`
+work. View models use their injected dependencies for endpoint, interaction,
+feedback, and realtime work; live endpoint, realtime, identity/entitlement,
+telemetry, and loader resolution stays in `Services/`. The Feed tab may read
+injected environment identity and entitlement state to prepare card
+presentation, but cards consume only those prepared values. Shared media
+receives image-loading closures through its narrow Explore-wide adapter.
+
+Keep existing Feed-tab, hashtag-route, post-detail, composer, and card
+initializer signatures stable. Preserve visible copy, accessibility values, hit
+regions, gestures, haptics, telemetry, autoplay rules, Low Power behavior,
+audio-session behavior, observer lifetime, and coordinator semantics when moving
+declarations between these folders. Production Feed files stay at or below the
+pass's 600-line review guard.
 
 ### Cross-area media ownership
 
@@ -277,7 +310,7 @@ cover a playing video must participate in the coordinator:
 
 ## Focused Tests
 
-Focused media tests mirror their production owners:
+Focused tests mirror their production owners:
 
 - `MerianTests/Features/Explore/Shared/Media/ExploreMediaPlaybackPolicyTests.swift`
   covers overlay reduction, center-hit policy, resume intent, contained playback
@@ -286,6 +319,20 @@ Focused media tests mirror their production owners:
   stable Feed-owned square feed/detail hosts.
 - `MerianTests/Features/Explore/Feed/ExplorePostCardAuthorPresentationTests.swift`
   covers prepared avatar fallback and Pro presentation without live services.
+- `ExploreFeedViewModelTests`, `ExploreHashtagPostsViewModelTests`, and
+  `ExplorePostDetailViewModelTests` cover catalog refresh/pagination races,
+  transient versus blocking errors, optimistic rollback, comment validation and
+  restoration, cross-session submission fencing, hashtag generation fencing,
+  post-detail generation fencing, editor preparation, and typed mutations
+  through injected closures.
+- `ExploreReplyLoadingStateTests`, `ExploreCommentAuthorPresentationTests`, and
+  `ExploreCommentMentionTextTests` cover reply lifecycle/pagination, avatar
+  fallback, and mention parsing/rendering without mutating the shared network
+  client.
+- `ExploreHashtagSuggestionTests`,
+  `ExplorePostFieldChatPresentationPolicyTests`, and the rehomed formatting,
+  route, location-privacy, store-merge, and share-copy suites cover their
+  Feed-owned pure policies.
 - `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` remains one level
   higher because it exercises shared Core policy and both Explore and Insight
   playback surfaces.
@@ -301,7 +348,15 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExplorePublicMediaPlaybackStateTests \
   -only-testing:merianTests/ExploreVideoPlaybackCoordinatorTests \
   -only-testing:merianTests/ExploreMediaLayoutTests \
-  -only-testing:merianTests/ExplorePostCardAuthorPresentationTests test
+  -only-testing:merianTests/ExplorePostCardAuthorPresentationTests \
+  -only-testing:merianTests/ExploreFeedViewModelTests \
+  -only-testing:merianTests/ExploreHashtagPostsViewModelTests \
+  -only-testing:merianTests/ExplorePostDetailViewModelTests \
+  -only-testing:merianTests/ExploreReplyLoadingStateTests \
+  -only-testing:merianTests/ExploreCommentAuthorPresentationTests \
+  -only-testing:merianTests/ExploreCommentMentionTextTests \
+  -only-testing:merianTests/ExploreHashtagSuggestionTests \
+  -only-testing:merianTests/ExplorePostFieldChatPolicyTests test
 ```
 
 Manual parity coverage must exercise image, audio, and video cards in feed and

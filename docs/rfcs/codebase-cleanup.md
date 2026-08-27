@@ -120,12 +120,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                                      | Cleanup Direction                                                                                                                   |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`                           | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions.            |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`                  | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
-| `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift` | Keep the root route/container in place and extract detail sections, comments, toolbar, media, and UIKit gesture adapters.           |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`                   | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                             |
+| File                                                     | Cleanup Direction                                                                                                                   |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions.            |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                             |
 
 Rules for this phase:
 
@@ -151,6 +150,13 @@ Implemented Explore slices:
   in-flight pagination. Its views call no endpoint, deterministic feature tests
   mirror the production owner, and the published-scan grid layout shared with
   Profile and Species Dictionary lives in Core UI.
+- `Explore/Feed` now separates route/composer/presentation models, live endpoint
+  and realtime adapters, catalog/comment/hashtag/post-detail state owners, route
+  hosts, and grouped catalog/comment/composer/detail/card/media components. Feed
+  views and components contain no direct networking; Feed and hashtag refresh
+  and pagination discard stale results through request identity or generation
+  state. Focused tests mirror the feature, and production files stay at or below
+  the pass's 600-line review guard.
 
 ## Phase 3: Ownership Cleanup
 

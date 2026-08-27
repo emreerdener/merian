@@ -148,7 +148,11 @@ is:
   coordinates are normalized/backfilled correctly before map reads.
 - `ExplorePostStore` now owns shared Explore post state across feed, map,
   detail, comments, and notification-driven navigation, while
-  `ExploreFeedViewModel` keeps feed-specific UI and pagination state.
+  `ExploreFeedViewModel` keeps feed-specific UI, interaction, comment, and
+  pagination state behind initializer-injected dependency groups. Hashtag and
+  post-detail asynchronous state have dedicated `@MainActor @Observable` view
+  models; Feed `Services/` alone resolves live endpoint, realtime,
+  identity/entitlement, telemetry, and image-loader dependencies.
 - Explore post projections can carry `pet_identification` from the backing scan.
   Native clients may show its label on cards/detail/share text, while dictionary
   links, species stats, and taxonomy routing continue to use
@@ -288,7 +292,9 @@ The shipped browse behavior is:
   lookup and render a one-line horizontally scrolling chip row
 - detail payloads include the same tags and render centered wrapping chips
 - tapping a chip opens `ExploreHashtagPostsView`, a paginated image grid backed
-  by `get-explore-hashtag-posts` and `public.get_explore_hashtag_posts(...)`
+  by `ExploreHashtagPostsViewModel`, `get-explore-hashtag-posts`, and
+  `public.get_explore_hashtag_posts(...)`; refresh invalidates pagination so a
+  stale page cannot merge into the new first page
 - hashtag collections apply the same visible-post filters as feed and author
   library reads, then page by `(shared_at DESC, post_id DESC)`
 
@@ -1343,6 +1349,12 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExplorePostDetailViewModel.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Services/`
+- `apps/ios/Merian/Features/Explore/Feed/Models/ExploreFeedRoutes.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Views/ExploreFeedTabContent.swift`
+- `apps/ios/Merian/Features/Explore/Feed/Views/ExploreHashtagPostsView.swift`
 - `apps/ios/Merian/Features/Explore/Map/ViewModels/ExploreMapViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Interactions.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Notifications.swift`
@@ -1365,6 +1377,14 @@ mute policy have Map, Shell, Author Profile, Profile, or Species Dictionary
 consumers. Feed retains its square hosts and detail zoom. The domain-neutral Pro
 badge lives in Core UI. Preserve initializer, rendering, accessibility,
 playback, and navigation contracts when changing these boundaries.
+
+Feed views and components perform no direct networking. The catalog, comments,
+interactions, post detail, composer image loading, and unread-notification
+realtime lifecycle cross small injected closures whose live implementations
+reside in `Feed/Services`. Shell retains cross-area navigation coordination, but
+Feed owns its tab, hashtag collection, post detail, and typed route values.
+View-local selection, focus, scroll, and typed presentation state remain in the
+rendering hosts to preserve animation and cancellation timing.
 
 Routing changes:
 

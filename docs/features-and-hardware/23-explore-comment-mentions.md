@@ -185,6 +185,10 @@ notifications feed remains complete and continues to include mention rows.
   and `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - Shared comment composer:
   `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentComposer.swift`
+- Comment/mention endpoint adapter and state owner:
+  `apps/ios/Merian/Features/Explore/Feed/Services/ExploreFeedViewModelDependencies.swift`
+  and
+  `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+CommentPresentation.swift`
 - Mention parsing, replacement, and attributed links:
   `apps/ios/Merian/Features/Explore/Feed/Models/ExploreCommentMentionText.swift`
 - Tappable rendered body:
@@ -208,7 +212,9 @@ notifications feed remains complete and continues to include mention rows.
   `apps/ios/Merian/Features/Profile/Settings/Notifications/Views/NotificationSettingsView.swift`
   and `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
 - Regression tests:
-  `apps/ios/MerianTests/Features/Explore/ExploreCommentMentionTextTests.swift`
+  `apps/ios/MerianTests/Features/Explore/Feed/ExploreCommentMentionTextTests.swift`,
+  `ExploreCommentAuthorPresentationTests.swift`, and
+  `ExploreReplyLoadingStateTests.swift`
 
 The composer watches the trailing token. Selecting a suggestion replaces the
 active `@query` token with `@username` followed by a space and leaves the

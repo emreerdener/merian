@@ -1,9 +1,8 @@
 import Foundation
-import Supabase
 
 extension ExploreFeedViewModel {
     func presentNotifications() {
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.feedback.selection()
         isNotificationsSheetPresented = true
     }
 
@@ -12,55 +11,29 @@ extension ExploreFeedViewModel {
     }
 
     func refreshUnreadNotificationCount(force: Bool = false) async {
-        guard let accountWorkLease = try? SupabaseManager.shared
-            .beginUnownedAccountBoundWork() else { return }
-        defer {
-            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
-        }
-        guard let count = await AppIconBadgeCoordinator
-            .refreshExploreUnreadNotificationCount(force: force),
-              !Task.isCancelled,
-              SupabaseManager.shared.allowsUnownedAccountBoundWork,
-              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
-                accountWorkLease
-              ) else {
-            return
-        }
+        guard let count = await dependencies.notifications
+            .refreshUnreadCount(force) else { return }
         unreadNotificationCount = count
     }
 
     func startUnreadNotificationUpdates() async {
-        guard SupabaseManager.shared.allowsUnownedAccountBoundWork else {
-            return
+        await dependencies.notifications.startUpdates { [weak self] count in
+            self?.unreadNotificationCount = count
         }
-        await refreshUnreadNotificationCount()
-        guard !Task.isCancelled,
-              SupabaseManager.shared.allowsUnownedAccountBoundWork else {
-            return
-        }
-        await startRealtimeUnreadNotificationUpdates()
     }
 
     func stopUnreadNotificationUpdates() {
-        unreadNotificationListenerTask?.cancel()
-        unreadNotificationListenerTask = nil
-
-        guard let channel = unreadNotificationsChannel else { return }
-        unreadNotificationsChannel = nil
-
-        Task {
-            await SupabaseManager.shared.client.removeChannel(channel)
-        }
+        dependencies.notifications.stopUpdates()
     }
 
     func preparePostForNavigation(postId: String) async throws -> ExplorePost {
         if store.post(id: postId) != nil {
-            let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
+            let refreshedPost = try await dependencies.interactions.loadPost(postId)
             upsertPost(refreshedPost)
             return refreshedPost
         }
 
-        let loadedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
+        let loadedPost = try await dependencies.interactions.loadPost(postId)
         upsertPost(loadedPost)
         return loadedPost
     }
@@ -68,49 +41,4 @@ extension ExploreFeedViewModel {
     func upsertPostForNotifications(_ post: ExplorePost) {
         upsertPost(post)
     }
-
-    private func startRealtimeUnreadNotificationUpdates() async {
-        guard unreadNotificationsChannel == nil, unreadNotificationListenerTask == nil else { return }
-        guard let accountWorkLease = try? SupabaseManager.shared
-            .beginUnownedAccountBoundWork() else { return }
-        defer {
-            SupabaseManager.shared.finishAccountBoundWork(accountWorkLease)
-        }
-        let userId = accountWorkLease.session.userID.uuidString
-
-        let channel = SupabaseManager.shared.client.channel(
-            "explore-notifications-\(userId)-\(UUID().uuidString)"
-        )
-        let changes = channel.postgresChange(
-            AnyAction.self,
-            schema: "public",
-            table: "explore_post_notifications",
-            filter: .eq("user_id", value: userId)
-        )
-
-        do {
-            try await channel.subscribeWithError()
-            guard !Task.isCancelled,
-                  SupabaseManager.shared.allowsUnownedAccountBoundWork,
-                  SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
-                    accountWorkLease
-                  ) else {
-                await SupabaseManager.shared.client.removeChannel(channel)
-                return
-            }
-            unreadNotificationsChannel = channel
-            unreadNotificationListenerTask = Task { [weak self] in
-                for await _ in changes {
-                    guard !Task.isCancelled else { break }
-                    await self?.refreshUnreadNotificationCount(force: true)
-                }
-            }
-        } catch {
-            MerianLog.network.debug(
-                "Explore notifications realtime subscription failed: \(error.localizedDescription, privacy: .private)"
-            )
-            await SupabaseManager.shared.client.removeChannel(channel)
-        }
-    }
-
 }

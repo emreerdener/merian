@@ -138,8 +138,14 @@ withholds location fields without hiding an otherwise visible tagged post.
 - DTOs and network calls: `Core/Network/ExploreAPIModels.swift` and
   `Core/Network/MerianNetworkClient.swift`
 - Feed chips: `Features/Explore/Feed/Components/Cards/ExplorePostCard.swift`
-- Detail chips: `Features/Explore/Feed/Views/ExplorePostDetailView.swift`
-- Tagged-post route and collection: `Features/Explore/Shell/ExploreView.swift`
+- Detail chips:
+  `Features/Explore/Feed/Components/Detail/ExplorePostDetailContentView.swift`
+- Tagged-post route model:
+  `Features/Explore/Feed/Models/ExploreFeedRoutes.swift`
+- Tagged-post collection and request-fenced pagination:
+  `Features/Explore/Feed/Views/ExploreHashtagPostsView.swift` and
+  `Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
+- Root navigation registration: `Features/Explore/Shell/ExploreView.swift`
 - Share input: `Features/Insights/Sharing/Components/InsightShareButton.swift`
 - Composer UI: `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
@@ -149,7 +155,8 @@ withholds location fields without hiding an otherwise visible tagged post.
 - Field trip Challenge hashtag lookup:
   `MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId:)`
 - Regression tests:
-  `MerianTests/Features/Explore/ExploreHashtagSuggestionTests.swift`
+  `MerianTests/Features/Explore/Feed/ExploreHashtagSuggestionTests.swift` and
+  `MerianTests/Features/Explore/Feed/ExploreHashtagPostsViewModelTests.swift`
 
 The feed `ExplorePost` DTO keeps `hashtags` optional for rollout tolerance. The
 updated feed-like Edge functions should still return `[]` for untagged posts so

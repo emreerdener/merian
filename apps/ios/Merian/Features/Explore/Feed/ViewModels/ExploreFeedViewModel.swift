@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import Supabase
 import SwiftData
 import SwiftUI
 
@@ -204,9 +203,14 @@ private extension ExplorePost {
 @Observable
 final class ExploreFeedViewModel {
     @ObservationIgnored private var appSettings: AppSettings
+    @ObservationIgnored let dependencies: Dependencies
 
-    init(appSettings: AppSettings? = nil) {
+    init(
+        appSettings: AppSettings? = nil,
+        dependencies: Dependencies = .live
+    ) {
         self.appSettings = appSettings ?? AppSettings.shared
+        self.dependencies = dependencies
     }
 
     let store = ExplorePostStore()
@@ -279,8 +283,6 @@ final class ExploreFeedViewModel {
     @ObservationIgnored var activeReplyTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored var activeCommentsRequestId = UUID()
     @ObservationIgnored var likeRequestsInFlight = Set<String>()
-    @ObservationIgnored var unreadNotificationsChannel: RealtimeChannelV2?
-    @ObservationIgnored var unreadNotificationListenerTask: Task<Void, Never>?
     @ObservationIgnored var activeFeedRequestId = UUID()
     @ObservationIgnored var currentInitialFeedRequestId: UUID?
     @ObservationIgnored var currentLoadMoreRequestId: UUID?

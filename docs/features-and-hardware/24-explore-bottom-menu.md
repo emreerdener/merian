@@ -132,17 +132,17 @@ for the surface they are changing:
   toolbar, root mode picker, navigation routes, stack-based author-profile
   presentation, the profile-to-scan nesting cap, and cross-area presentation.
 - `apps/ios/Merian/Features/Explore/Feed/` owns the Observations feed, post
-  detail, comments, hashtags, feed formatting, and feed view-model extensions.
-  Its card/media boundary is divided into `Components/Cards/` for card
-  composition and callbacks, `Components/Media/` for Feed-only square hosts and
-  zoom, `Components/Shared/` for hashtags, and `Models/` for Feed-only
-  presentation and layout policy. Cross-area media rendering and playback live
+  detail, comments, hashtags, publishing/editing presentation, and Feed routes.
+  `Models/` owns route and presentation values; `Services/` owns live endpoint,
+  realtime, identity/entitlement, and loader adapters; `ViewModels/` owns
+  catalog, post-store, comment, hashtag, and post-detail state; and `Views/`
+  plus grouped
+  `Components/{Cards,Catalog,Comments,Composer,Detail,DetailCards,Media,Shared}`
+  render with no direct networking. Cross-area media rendering and playback live
   under `Explore/Shared/Media`; the domain-neutral Pro badge and reusable
-  spectrogram loader live in Core. `ExplorePostCard` and Shared media rendering
-  call no Explore endpoint or raw `URLSession`; Shell prepares the card's
-  identity/entitlement values and Shared media receives loader closures from its
-  narrow adapter. Comments and publishing retain their existing feature-owned
-  interaction boundaries. See the feature-local
+  spectrogram loader live in Core. Shell prepares card identity/entitlement
+  values and coordinates navigation, while Feed owns its tab, hashtag
+  collection, detail host, and typed routes. See the feature-local
   [`README`](../../apps/ios/Merian/Features/Explore/Feed/README.md) for the
   exact consumer matrix and focused test ownership.
 - `apps/ios/Merian/Features/Explore/Map/` owns the Observations map surface, map

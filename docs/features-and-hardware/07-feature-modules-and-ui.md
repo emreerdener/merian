@@ -578,7 +578,12 @@ The Scans tab is the user's primary offline biological journal.
 - **Feed Refresh Safety**: `ExploreFeedViewModel` owns the active filter, feed
   reset, and pagination cursor lifecycle. Switching filters clears the current
   page, reloads from page 1, and uses request IDs to discard stale async
-  responses during rapid tab or filter switching.
+  responses during rapid tab or filter switching. A forced refresh also
+  invalidates any in-flight page before applying the new first page. Feed,
+  interaction, comment, post-detail, hashtag, composer-image, and unread
+  realtime work crosses small initializer-injected dependency groups whose live
+  implementations reside under `Explore/Feed/Services`; Feed views and
+  components perform no direct networking.
 - **Detail Navigation**: Tapping the feed post body pushes a dedicated Explore
   detail page inside the Explore `NavigationStack`, except for the centered
   audio/video playback zone. That 96-point zone remains above navigation,
@@ -1598,18 +1603,23 @@ on gesture-driven layout abstractions.
   foregrounded.
 - `Explore` uses product-area-first folders inside a single presented Explore
   navigation surface. `Shell/ExploreView.swift` owns the root Feed/Map/Field
-  trips router and Identify Requests/Index mode, stack-based request/activity
-  feed routes, stack-based author-profile routes, and the profile-to-scan
-  nesting cap so author profiles do not layer a second sheet over active
-  feed/detail video. `AuthorProfile/Models`, `Services`, `ViewModels`, `Views`,
-  and grouped `Components` own route/presentation policy, injected live
-  dependencies, profile/library/follow/report state, and declarative UI. Only
-  the Author Profile `Services` adapter resolves its endpoints. The in-place
-  published-scan library hides the inherited stack back button and supplies one
-  explicit back-to-profile control, library scans open `ExplorePostDetailView`
-  with the current author-profile depth, and further author-profile taps are
-  disabled after one profile hop. `Feed/Components/Cards/ExplorePostCard.swift`
-  owns card composition, while
+  trips router and Identify Requests/Index mode, cross-area destination
+  registration, stack-based request/activity and author-profile coordination,
+  and the profile-to-scan nesting cap so author profiles do not layer a second
+  sheet over active feed/detail video. `AuthorProfile/Models`, `Services`,
+  `ViewModels`, `Views`, and grouped `Components` own route/presentation policy,
+  injected live dependencies, profile/library/follow/report state, and
+  declarative UI. Only the Author Profile `Services` adapter resolves its
+  endpoints. The in-place published-scan library hides the inherited stack back
+  button and supplies one explicit back-to-profile control, library scans open
+  `ExplorePostDetailView` with the current author-profile depth, and further
+  author-profile taps are disabled after one profile hop. Feed owns
+  `ExploreFeedTabContent`, hashtag and post-detail hosts, and the typed values
+  in `Feed/Models/ExploreFeedRoutes.swift`; Shell only appends and resolves
+  those routes. Feed models, live services, observable state owners, views, and
+  grouped catalog/comment/composer/detail/card/media components follow the
+  feature-local boundary documented in `Feed/README.md`.
+  `Feed/Components/Cards/ExplorePostCard.swift` owns card composition, while
   `Shared/Media/Components/ExplorePublicMediaView.swift` and its `Playback/`
   extensions own the shared Feed/detail and Identify media host. The contained
   playback-state owner keeps recovery local to the visible media view rather

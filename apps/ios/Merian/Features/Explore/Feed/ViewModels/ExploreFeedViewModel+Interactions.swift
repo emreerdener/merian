@@ -27,24 +27,24 @@ extension ExploreFeedViewModel {
         defer { likeRequestsInFlight.remove(post.id) }
 
         do {
-            let response = try await MerianNetworkClient.shared.setExplorePostLike(
-                postId: post.id,
-                liked: optimisticPost.viewerHasLiked
+            let response = try await dependencies.interactions.setLike(
+                post.id,
+                optimisticPost.viewerHasLiked
             )
             applyLikeState(
                 postId: response.postId,
                 likeCount: response.likeCount,
                 viewerHasLiked: response.viewerHasLiked
             )
-            HapticManager.shared.triggerSelectionPulse()
+            dependencies.feedback.selection()
         } catch {
             applyLikeState(
                 postId: post.id,
                 likeCount: previousLikeCount,
                 viewerHasLiked: previousLikedState
             )
-            HapticManager.shared.triggerErrorThump()
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            dependencies.feedback.error()
+            toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 
@@ -53,16 +53,16 @@ extension ExploreFeedViewModel {
         guard post.isOwnedByViewer else { return false }
 
         do {
-            try await MerianNetworkClient.shared.unshareExplorePost(postId: post.id)
+            try await dependencies.interactions.unsharePost(post.id)
             ExploreShareStateStore.setSharedPostId(nil, for: post.scanId)
-            AppDIContainer.shared.appEventPublisher.send(.exploreShareStateChanged(scanId: post.scanId, postId: nil))
+            dependencies.interactions.sendShareStateChanged(post.scanId, nil)
             removePost(id: post.id)
-            HapticManager.shared.triggerSuccessPulse()
+            dependencies.feedback.success()
             toastMessage = .success("Removed from Explore")
             return true
         } catch {
-            HapticManager.shared.triggerErrorThump()
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            dependencies.feedback.error()
+            toastMessage = .error(dependencies.errorMessage(error))
             return false
         }
     }
@@ -70,14 +70,14 @@ extension ExploreFeedViewModel {
     @discardableResult
     func report(_ post: ExplorePost) async -> Bool {
         do {
-            try await MerianNetworkClient.shared.reportExplorePost(postId: post.id)
+            try await dependencies.interactions.reportPost(post.id)
             removePost(id: post.id)
-            HapticManager.shared.triggerSuccessPulse()
+            dependencies.feedback.success()
             toastMessage = .success("Report submitted. Thanks!")
             return true
         } catch {
-            HapticManager.shared.triggerErrorThump()
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            dependencies.feedback.error()
+            toastMessage = .error(dependencies.errorMessage(error))
             return false
         }
     }
@@ -85,9 +85,7 @@ extension ExploreFeedViewModel {
     @discardableResult
     func blockAuthor(of post: ExplorePost) async -> Bool {
         let targetUserId = post.authorUserId
-        await SocialGuardManager.shared.blockUser(targetUserId: targetUserId)
-
-        if SocialGuardManager.shared.blockedUserIds.contains(targetUserId) {
+        if await dependencies.interactions.blockAuthor(targetUserId) {
             removePosts(byAuthorUserId: targetUserId)
             toastMessage = .success("User blocked")
             return true
@@ -111,7 +109,7 @@ extension ExploreFeedViewModel {
                 playbackCoordinator?.endOverlay(overlayToken)
             }
         }
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.feedback.selection()
     }
 
     func indexForPost(id: String) -> Int? {
@@ -125,10 +123,10 @@ extension ExploreFeedViewModel {
 
     func refreshPost(postId: String) async {
         do {
-            let refreshedPost = try await MerianNetworkClient.shared.getExplorePost(postId: postId)
+            let refreshedPost = try await dependencies.interactions.loadPost(postId)
             upsertPost(refreshedPost)
         } catch {
-            toastMessage = .error(ExploreErrorFormatter.message(for: error))
+            toastMessage = .error(dependencies.errorMessage(error))
         }
     }
 

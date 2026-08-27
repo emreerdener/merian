@@ -1,49 +1,6 @@
 import SwiftData
 import SwiftUI
 
-enum ExplorePostDetailPresentation: Identifiable, Equatable {
-    case insight(ScanInsightRoute)
-    case author(ExploreAuthorProfileRoute)
-    case notificationReply(ExploreNotificationReplyThreadRoute)
-    case fieldNotes(postId: String)
-    case postComposer(postId: String)
-    case fieldChat(postId: String)
-    case paywall
-
-    var id: String {
-        switch self {
-        case .insight(let route):
-            "insight-\(route.id)"
-        case .author(let route):
-            "author-\(route.id)"
-        case .notificationReply(let route):
-            "notification-reply-\(route.id)"
-        case .fieldNotes(let postId):
-            "field-notes-\(postId)"
-        case .postComposer(let postId):
-            "post-composer-\(postId)"
-        case .fieldChat(let postId):
-            "field-chat-\(postId)"
-        case .paywall:
-            "paywall"
-        }
-    }
-}
-
-enum ExplorePostDetailPresentationPolicy {
-    static func canCommitAsyncPresentation(
-        requestedPostId: String,
-        currentPostId: String?,
-        hasPresentationConflict: Bool,
-        isCancelled: Bool
-    ) -> Bool {
-        guard !isCancelled, !hasPresentationConflict, let currentPostId else {
-            return false
-        }
-        return currentPostId.caseInsensitiveCompare(requestedPostId) == .orderedSame
-    }
-}
-
 struct ExplorePostDetailView: View {
     @Bindable var viewModel: ExploreFeedViewModel
     let postId: String
@@ -60,57 +17,26 @@ struct ExplorePostDetailView: View {
     let onOpenCommunityIdentificationRequest: ((String) -> Void)?
     let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
 
-    @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
-    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var isComposerFocused: Bool
-    @State private var detail: ExplorePostDetail?
-    @State private var isLoadingDetail = false
-    @State private var detailErrorMessage: String?
-    @State private var detailRequestGeneration: UInt64 = 0
-    @State private var isUpdatingFieldNotesVisibility = false
-    @State private var isSavingPostContent = false
-    @State private var postComposerMediaItems: [ExplorePostComposerMediaDraft] = []
+    @State private var detailViewModel: ExplorePostDetailViewModel
     @State private var localFieldNotes: String?
     @State private var fieldNotesEditorInitialText = ""
     @State private var presentedSheet: ExplorePostDetailPresentation?
     @State private var insightDismissalRoute: ScanInsightRoute?
     @State private var pendingInsightCommunityRequestId: String?
     @State private var isRefreshingAfterInsightDismiss = false
-    @State private var didAutoOpenInsight = false
-    @State private var didPresentNotificationReplyThread = false
-    @State private var isCommonNameScrolledPast = false
     @State private var postToUnpublish: ExplorePost?
-    @State private var commentsSectionMinY: CGFloat = .infinity
-    @State private var viewportHeight: CGFloat = 0
-    @State private var didFocusTargetComment = false
-    @State private var focusedComposerIsSticky: Bool?
-    @State private var isAudioBoostEnabled = false
-    @State private var audioBoostActionToken: UUID?
     @State private var exploreChatViewModel = InsightChatViewModel(source: .explorePost)
     @State private var pendingExploreChatPreparationPostID: String?
     @State private var postComposerPreparationID: UUID?
     @State private var postComposerPreparationTask: Task<Void, Never>?
-    @State private var composerFocusTask: Task<Void, Never>?
-    @State private var composerScrollTask: Task<Void, Never>?
-
-    private var isComposerSticky: Bool {
-        commentsSectionMinY <= viewportHeight - 150
-    }
-
-    private var presentedComposerIsSticky: Bool {
-        focusedComposerIsSticky ?? isComposerSticky
-    }
+    private let presentationServices = ExplorePostDetailPresentationServices.live
 
     private var canOpenAuthorProfileRoutes: Bool {
-        allowsAuthorProfilePresentation &&
-            ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: authorProfileDepth)
+        allowsAuthorProfilePresentation && ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: authorProfileDepth)
     }
-
-    private let commentsSectionId = "explore-comments-section"
-    private let commentsComposerId = "explore-comments-composer"
 
     init(
         viewModel: ExploreFeedViewModel,
@@ -128,6 +54,7 @@ struct ExplorePostDetailView: View {
         onOpenCommunityIdentificationRequest: ((String) -> Void)? = nil,
         onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)? = nil
     ) {
+        _detailViewModel = State(initialValue: ExplorePostDetailViewModel(postId: postId))
         self.viewModel = viewModel
         self.postId = postId
         self.shouldFocusCommentComposer = shouldFocusCommentComposer
@@ -144,313 +71,74 @@ struct ExplorePostDetailView: View {
         self.onOpenExploreMap = onOpenExploreMap
     }
 
-    private var currentPost: ExplorePost? {
-        viewModel.post(id: postId)
-    }
-
-    private var fieldNotesArePublicOnExplore: Bool {
-        detail?.trimmedFieldNotes != nil
-    }
-
-    private var canOpenOwnedPostInsight: Bool {
-        allowsInsightPresentation || onOpenOwnedPostInsight != nil
-    }
-
+    private var currentPost: ExplorePost? { viewModel.post(id: postId) }
+    private var canOpenOwnedPostInsight: Bool { allowsInsightPresentation || onOpenOwnedPostInsight != nil }
     private var hasPresentationConflict: Bool {
         presentedSheet != nil || postToUnpublish != nil
-    }
-
-    private func finishAudioBoostAction(_ token: UUID) {
-        guard audioBoostActionToken == token else { return }
-        audioBoostActionToken = nil
-    }
-
-    private func toggleAudioBoostFromMedia() {
-        if !isAudioBoostEnabled {
-            audioBoostActionToken = UUID()
-        }
-        isAudioBoostEnabled.toggle()
-        if isAudioBoostEnabled {
-            HapticManager.shared.triggerMediumPulse(
-                source: "media.explore.detail.audioBoost.enabled"
-            )
-        } else {
-            HapticManager.shared.triggerLightImpact(
-                intensity: 0.5,
-                source: "media.explore.detail.audioBoost.disabled"
-            )
-        }
     }
 
     var body: some View {
         Group {
             if let post = currentPost {
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            ExplorePostDetailAuthorHeader(
-                                post: post,
-                                avatarUrl: resolvedAuthorAvatarUrl(for: post),
-                                locationText: locationText(for: post),
-                                opensAuthorProfile: canOpenAuthorProfileRoutes,
-                                onOpenAuthorProfile: {
-                                    openAuthorProfile(ExploreAuthorProfileRoute(post: post))
-                                }
-                            )
-                                .padding(.horizontal, 12)
-                                .padding(.top, 12)
-                                .padding(.bottom, 12)
-
-                            ExploreDetailMediaView(
-                                imageUrl: post.heroImageUrl,
-                                mediaItems: post.resolvedMediaItems,
-                                reloadGeneration: viewModel.mediaReloadGeneration,
-                                audioBoostEnabled: $isAudioBoostEnabled,
-                                audioBoostActionToken: audioBoostActionToken,
-                                onAudioBoostActionFinished: finishAudioBoostAction,
-                                onAudioBoostToggleRequested: toggleAudioBoostFromMedia
-                            )
-
-                            ExplorePostDetailActionRow(
-                                viewerHasLiked: post.viewerHasLiked,
-                                likeCountText: compactCount(post.likeCount),
-                                commentCountText: compactCount(post.commentCount),
-                                onLike: {
-                                    Task { await viewModel.toggleLike(for: post) }
-                                },
-                                onComments: {
-                                    focusComments(using: scrollProxy)
-                                },
-                                onShare: {
-                                    viewModel.share(post, playbackCoordinator: playbackCoordinator)
-                                }
-                            )
-                                .padding(.horizontal, 16)
-                                .padding(.top, 14)
-                                .padding(.bottom, 12)
-
-                            VStack(spacing: 24) {
-                                ExplorePostDetailSpeciesSummary(
-                                    scientificName: post.speciesScientificName,
-                                    postCommonName: post.speciesCommonName,
-                                    displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
-                                    aiReasoning: detail?.trimmedAiReasoning.map {
-                                        styledAiReasoning(text: $0, scientificName: post.speciesScientificName)
-                                    },
-                                    onCommonNameMaxYChange: {
-                                        evaluateCommonNameScrollOffset(maxY: $0)
-                                    }
-                                )
-
-                                hashtagRow
-
-                                toxicityBanner
-
-                                fieldNotesSection(for: post)
-
-                                ExplorePostDetailInsightSection(
-                                    post: post,
-                                    scientificName: post.speciesScientificName,
-                                    displayCommonName: viewModel.resolvedSpeciesCommonName(for: post),
-                                    alternativeCommonNames: detail?.alternativeCommonNames ?? [],
-                                    detail: detail,
-                                    isLoading: isLoadingDetail,
-                                    errorMessage: detailErrorMessage,
-                                    onOpenExploreMap: onOpenExploreMap
-                                )
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 16)
-
-                             ExplorePostDetailCommentsSection(
-                                viewModel: viewModel,
-                                post: post,
-                                composerId: commentsComposerId,
-                                targetCommentId: targetCommentId,
-                                targetReplyParentCommentId: targetReplyParentCommentId,
-                                isComposerFocused: $isComposerFocused,
-                                onDismissComposer: dismissCommentComposer,
-                                isComposerSticky: false,
-                                hideInlineComposer: presentedComposerIsSticky,
-                                allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
-                                onOpenAuthorProfile: onOpenAuthorProfile
-                            )
-                                .padding(.horizontal, 16)
-                                .padding(.top, 20)
-                                .padding(.bottom, 24)
-                                .id(commentsSectionId)
-                                .background(
-                                    GeometryReader { geo in
-                                        Color.clear
-                                            .onChange(
-                                                of: geo.frame(in: .named("ExplorePostDetailScrollSpace")).minY,
-                                                initial: true
-                                            ) { _, newMinY in
-                                                if newMinY.isFinite {
-                                                    commentsSectionMinY = newMinY
-                                                }
-                                            }
-                                    }
-                                )
-                        }
-                    }
-                    .coordinateSpace(name: "ExplorePostDetailScrollSpace")
-                    .safeAreaInset(edge: .bottom) {
-                        if presentedComposerIsSticky {
-                            ExplorePostDetailCommentsSection(
-                                viewModel: viewModel,
-                                post: post,
-                                composerId: commentsComposerId,
-                                targetCommentId: targetCommentId,
-                                targetReplyParentCommentId: targetReplyParentCommentId,
-                                isComposerFocused: $isComposerFocused,
-                                onDismissComposer: dismissCommentComposer,
-                                isComposerSticky: true,
-                                allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
-                                onOpenAuthorProfile: onOpenAuthorProfile
-                            )
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-                    }
-                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: presentedComposerIsSticky)
-                    .onChange(of: presentedComposerIsSticky) { _, _ in
-                        HapticManager.shared.triggerLightImpact(intensity: 0.8)
-                    }
-                    .onChange(of: isComposerFocused) { _, newValue in
-                        if newValue {
-                            let composerWasSticky = isComposerSticky
-                            focusedComposerIsSticky = composerWasSticky
-                            scrollFocusedInlineComposerIntoViewIfNeeded(
-                                using: scrollProxy,
-                                composerWasSticky: composerWasSticky
-                            )
-                        } else {
-                            focusedComposerIsSticky = nil
-                        }
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .background(
-                        ExploreKeyboardDismissTapRecognizer(
-                            isEnabled: isComposerFocused,
-                            onTap: dismissCommentComposer
-                        )
-                    )
-                    .background(Color(uiColor: .systemBackground))
-                    .navigationTitle(viewModel.resolvedSpeciesCommonName(for: post))
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            ScrollAwareToolbarTitleBadge(
-                                title: viewModel.resolvedSpeciesCommonName(for: post),
-                                isVisible: isCommonNameScrolledPast
-                            )
-                        }
-
-                        ToolbarItem(placement: .topBarTrailing) {
-                            ExplorePostDetailMenuButton(
-                                isOwnedByCurrentUser: isOwnedByCurrentUser(post),
-                                allowsInsightPresentation: canOpenOwnedPostInsight,
-                                onOpenInsight: { openInsight(for: post) },
-                                onEditPost: { openPostComposer(for: post) },
-                                onUnpublish: { openUnpublishConfirmation(for: post) },
-                                showsFieldChatAction: ExplorePostFieldChatPresentationPolicy.showsMenuAction(
-                                    isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
-                                    isCommentComposerSticky: presentedComposerIsSticky,
-                                    isCommentComposerFocused: isComposerFocused
-                                ),
-                                onFieldChat: { openExploreFieldChat(for: post) },
-                                onBlockAuthor: {
-                                    Task { await viewModel.blockAuthor(of: post) }
-                                },
-                                onReportPost: {
-                                    Task { await viewModel.report(post) }
-                                },
-                                audioBoostEnabled: post.resolvedMediaItems.first?.kind == .audio
-                                    ? $isAudioBoostEnabled
-                                    : nil,
-                                onAudioBoostEnableRequested: {
-                                    audioBoostActionToken = UUID()
-                                }
-                            )
-                        }
-
-                        if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
-                            isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
-                            isCommentComposerSticky: presentedComposerIsSticky,
-                            isCommentComposerFocused: isComposerFocused
-                        ) {
-                            ToolbarItemGroup(placement: .bottomBar) {
-                                Spacer()
-                                FieldChatToolbarButton {
-                                    openExploreFieldChat(for: post)
-                                }
-                            }
-                        }
-                    }
-                    .task(id: post.id) {
-                        async let detailTask: Void = loadPostDetail()
-                        async let commentsTask: Void = viewModel.openComments(for: post)
-                        _ = await (detailTask, commentsTask)
-                        await viewModel.expandPendingReplyThreadIfNeeded()
-                        await focusTargetCommentIfNeeded(using: scrollProxy)
+                ExplorePostDetailContentView(
+                    viewModel: viewModel,
+                    detailViewModel: detailViewModel,
+                    post: post,
+                    shouldFocusCommentComposer: shouldFocusCommentComposer,
+                    shouldOpenInsight: shouldOpenInsight,
+                    targetCommentId: targetCommentId,
+                    targetReplyParentCommentId: targetReplyParentCommentId,
+                    notificationReplyThreadTarget: notificationReplyThreadTarget,
+                    allowsInsightPresentation: allowsInsightPresentation,
+                    onOpenOwnedPostInsight: onOpenOwnedPostInsight,
+                    canOpenOwnedPostInsight: canOpenOwnedPostInsight,
+                    canOpenAuthorProfileRoutes: canOpenAuthorProfileRoutes,
+                    authorProfileDepth: authorProfileDepth,
+                    onOpenAuthorProfile: { openAuthorProfile($0) },
+                    onOpenExploreMap: onOpenExploreMap,
+                    authorPresentation: presentationServices.authorPresentation(for: post),
+                    isOwnedByCurrentUser: presentationServices.isOwnedByCurrentUser(post),
+                    localFieldNotes: localFieldNotes,
+                    isRefreshingAfterInsightDismiss: isRefreshingAfterInsightDismiss,
+                    isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
+                    onLoadDetail: {
+                        await loadPostDetail()
+                    },
+                    onSyncLocalFieldNotes: {
                         syncLocalFieldNotes(for: post)
-                        presentNotificationReplyThreadIfNeeded(for: post)
-
-                        if shouldFocusCommentComposer {
-                            focusComments(using: scrollProxy, animated: false)
-                        }
-
-                        if canOpenOwnedPostInsight && shouldOpenInsight && !didAutoOpenInsight {
-                            didAutoOpenInsight = true
-                            do {
-                                try await Task.sleep(for: .milliseconds(250))
-                            } catch {
-                                return
-                            }
-                            guard !Task.isCancelled, currentPost?.id == post.id else { return }
-                            openInsight(for: post)
-                        }
-                    }
-                    .onChange(of: currentPost?.id) { _, newValue in
-                        if newValue == nil {
-                            dismiss()
-                        }
-                    }
-                    .onChange(of: post.id, initial: true) { _, _ in
-                        isCommonNameScrolledPast = false
-                        isAudioBoostEnabled = ExploreAudioBoostPreferenceStore().isEnabled(for: post.id)
-                        if isAudioBoostEnabled {
-                            AppTelemetry.trackExploreAudioBoost(event: "restored", surface: "detail")
-                        }
-                    }
-                    .onChange(of: isAudioBoostEnabled) { _, enabled in
-                        ExploreAudioBoostPreferenceStore().setEnabled(enabled, for: post.id)
-                    }
-                    .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
-                        guard case let .exploreAudioBoostPreferenceChanged(postId, enabled) = event,
-                              postId == post.id,
-                              enabled != isAudioBoostEnabled else { return }
-                        isAudioBoostEnabled = enabled
-                    }
-                    .onDisappear {
-                        cancelPendingAsyncPresentations()
-                        composerFocusTask?.cancel()
-                        composerFocusTask = nil
-                        composerScrollTask?.cancel()
-                        composerScrollTask = nil
-                        ExploreVideoMutePreference.resetToMuted()
+                    },
+                    onPresentNotificationReply: { route in
+                        beginPresentation(.notificationReply(route))
+                    },
+                    onOpenInsight: {
+                        openInsight(for: post)
+                    },
+                    onEditFieldNotes: {
+                        openFieldNotesEditor(for: post)
+                    },
+                    onEditPost: {
+                        openPostComposer(for: post)
+                    },
+                    onUnpublish: {
+                        openUnpublishConfirmation(for: post)
+                    },
+                    onOpenFieldChat: {
+                        openExploreFieldChat(for: post)
+                    },
+                    onDisappear: cancelPendingAsyncPresentations
+                )
+                .onChange(of: currentPost?.id) { _, newValue in
+                    if newValue == nil {
+                        dismiss()
                     }
                 }
+            } else if !viewModel.hasLoadedFeedOnce || viewModel.isLoadingInitialFeed {
+                ExplorePostDetailSkeleton()
             } else {
-                if !viewModel.hasLoadedFeedOnce || viewModel.isLoadingInitialFeed {
-                    Skeleton()
-                } else {
-                    Color.clear
-                        .task {
-                            dismiss()
-                        }
-                }
+                Color.clear
+                    .task {
+                        dismiss()
+                    }
             }
         }
         .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
@@ -462,59 +150,35 @@ struct ExplorePostDetailView: View {
             }
         }
         .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
-            switch event {
-            case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
-                Task {
-                    await viewModel.refreshPost(postId: changedPostId)
-                    await loadPostDetail(force: true)
-                }
-            case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
-                guard let post = currentPost,
-                      authorIdentityChangeAffects(
-                        post.authorUserId,
-                        previousUserId: previousUserId,
-                        currentUserId: currentUserId
-                      ) else { return }
-                Task {
-                    await viewModel.refreshPost(postId: post.id)
-                    await loadPostDetail(force: true)
-                }
-            default:
-                break
-            }
+            handleAppEvent(event)
         }
         .task(id: pendingExploreChatPreparationPostID) {
-            guard let postID = pendingExploreChatPreparationPostID else { return }
-            let canPresent = await exploreChatViewModel.prepareForPresentation(scanId: postID)
-            guard pendingExploreChatPreparationPostID == postID else { return }
-            defer {
-                if pendingExploreChatPreparationPostID == postID {
-                    pendingExploreChatPreparationPostID = nil
-                }
-            }
-            guard ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
-                requestedPostId: postID,
-                currentPostId: currentPost?.id,
-                hasPresentationConflict: hasPresentationConflict,
-                isCancelled: Task.isCancelled
-            ) else { return }
-
-            if canPresent {
-                HapticManager.shared.triggerSheetSpring()
-                presentedSheet = .fieldChat(postId: postID)
-            } else {
-                HapticManager.shared.triggerErrorThump()
-                viewModel.toastMessage = .error(
-                    exploreChatViewModel.errorMessage
-                        ?? "Field chat isn't available for this post."
-                )
-            }
+            await preparePendingFieldChat()
         }
         .sheet(
             item: $presentedSheet,
             onDismiss: handlePresentedSheetDismissed
         ) { presentation in
-            presentedSheetContent(presentation)
+            ExplorePostDetailSheetContent(
+                feedViewModel: viewModel,
+                detailViewModel: detailViewModel,
+                chatViewModel: exploreChatViewModel,
+                presentedSheet: $presentedSheet,
+                presentation: presentation,
+                currentPost: currentPost,
+                localFieldNotes: localFieldNotes,
+                onUpdateLocalFieldNotes: updateLocalFieldNotes,
+                onSaveFieldNotes: { text, isPublic, post in
+                    await saveFieldNotesDraft(text, isPublic: isPublic, for: post)
+                },
+                onSavePost: { draft, post in
+                    await savePostContent(draft, for: post)
+                },
+                onOpenCommunityIdentificationRequest: { requestID in
+                    pendingInsightCommunityRequestId = requestID
+                    dismissPresentedSheet(ifMatching: presentation.id)
+                }
+            )
         }
         .alert(
             "Unpublish Post?",
@@ -532,152 +196,58 @@ struct ExplorePostDetailView: View {
         } message: {
             Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
-        .background(
-            GeometryReader { outerGeo in
-                Color.clear
-                    .onChange(of: outerGeo.size.height, initial: true) { _, newHeight in
-                        if newHeight.isFinite, newHeight >= 0 {
-                            viewportHeight = newHeight
-                        }
-                    }
-            }
-        )
     }
 
-    @ViewBuilder
-    private func presentedSheetContent(
-        _ presentation: ExplorePostDetailPresentation
-    ) -> some View {
-        switch presentation {
-        case .insight(let route):
-            LocalScanInsightLoader(scanId: route.scanId) {
-                InsightSheetView(
-                    isPresented: presentedSheetBinding(for: presentation),
-                    initialScanId: route.scanId,
-                    inferenceEngine: inferenceEngine,
-                    allowsExplorePresentation: false,
-                    onOpenCommunityIdentificationRequest: { requestId in
-                        pendingInsightCommunityRequestId = requestId
-                        dismissPresentedSheet(ifMatching: presentation.id)
-                    }
-                )
+    private func handleAppEvent(_ event: AppEvent) {
+        switch event {
+        case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
+            Task {
+                await viewModel.refreshPost(postId: changedPostId)
+                await loadPostDetail(force: true)
             }
-            .exploreVideoPresentedOverlayLifecycle(
-                reason: "explore-post-detail-insight-sheet"
-            )
-
-        case .author(let route):
-            ExploreAuthorProfileSheet(viewModel: viewModel, route: route)
-                .exploreVideoPresentedOverlayLifecycle(
-                    reason: "explore-post-detail-author-profile-sheet"
-                )
-
-        case .notificationReply(let route):
-            ExploreNotificationReplyThreadSheet(viewModel: viewModel, route: route)
-                .exploreVideoPresentedOverlayLifecycle(
-                    reason: "explore-post-detail-reply-thread-sheet"
-                )
-
-        case .fieldNotes(let presentedPostId):
-            Group {
-                if let post = currentPost(matching: presentedPostId) {
-                    FieldNotesSheet(
-                        text: Binding(
-                            get: { localFieldNotes ?? detail?.trimmedFieldNotes ?? "" },
-                            set: { updateLocalFieldNotes($0) }
-                        ),
-                        promptContext: .resolved(subjectId: nil),
-                        visibilityConfiguration: FieldNotesVisibilityConfiguration(
-                            initialIsPublic: fieldNotesArePublicOnExplore,
-                            onSave: { text, isPublic in
-                                await saveFieldNotesDraft(text, isPublic: isPublic, for: post)
-                            }
-                        )
-                    )
-                }
+        case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
+            guard let post = currentPost,
+                  ExplorePostDetailAuthorIdentityPolicy.changeAffectsAuthor(
+                    post.authorUserId,
+                    previousUserID: previousUserId,
+                    currentUserID: currentUserId
+                  ) else { return }
+            Task {
+                await viewModel.refreshPost(postId: post.id)
+                await loadPostDetail(force: true)
             }
-            .exploreVideoPresentedOverlayLifecycle(
-                reason: "explore-post-detail-field-notes-sheet"
-            )
-
-        case .postComposer(let presentedPostId):
-            Group {
-                if let post = currentPost(matching: presentedPostId) {
-                    ExplorePostComposerView(
-                        mode: .edit,
-                        speciesName: postSnapshotCommonName(for: post),
-                        scientificName: post.speciesScientificName,
-                        heroImageUrl: post.heroImageUrl,
-                        publicLocationLabel: post.publicDisplayLocationLabel,
-                        commonNameOptions: commonNameOptions(for: post),
-                        initialSelectedCommonName: postSnapshotCommonName(for: post),
-                        initialFieldNotes: detail?.trimmedFieldNotes ?? localFieldNotes,
-                        initialFieldNotesArePublic: fieldNotesArePublicOnExplore,
-                        initialHashtags: detail?.hashtags ?? post.hashtags ?? [],
-                        initialLocationSharing: detail?.locationSharing ?? post.locationSharing ?? .obscured,
-                        mediaItems: postComposerMediaItems,
-                        isSaving: isSavingPostContent,
-                        onSubmit: { draft in
-                            Task { await savePostContent(draft, for: post) }
-                        }
-                    )
-                }
-            }
-            .exploreVideoPresentedOverlayLifecycle(
-                reason: "explore-post-detail-edit-post-sheet"
-            )
-
-        case .fieldChat(let presentedPostId):
-            Group {
-                if let post = currentPost(matching: presentedPostId) {
-                    InsightChatSheet(
-                        viewModel: exploreChatViewModel,
-                        scanId: post.id,
-                        speciesData: nil,
-                        displayName: viewModel.resolvedSpeciesCommonName(for: post),
-                        timestamp: post.sharedAtDate,
-                        publicScientificName: post.speciesScientificName,
-                        publicAlternativeNames: detail?.similarSpecies?.map(\.scientificName) ?? [],
-                        allowsOwnerActions: false,
-                        prepareForInitialLoad: nil,
-                        onToast: { message in
-                            viewModel.toastMessage = message
-                        },
-                        onAppendToFieldNotes: { _, _ in },
-                        onReviewAlternatives: nil,
-                        onReanalyzeSpecies: nil,
-                        onClose: {
-                            dismissPresentedSheet(ifMatching: presentation.id)
-                        }
-                    )
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.hidden)
-                }
-            }
-            .exploreVideoPresentedOverlayLifecycle(
-                reason: "explore-post-detail-field-chat-sheet"
-            )
-
-        case .paywall:
-            PaywallView()
-                .exploreVideoPresentedOverlayLifecycle(
-                    reason: "explore-post-detail-paywall-sheet"
-                )
+        default:
+            break
         }
     }
 
-    private func presentedSheetBinding(
-        for presentation: ExplorePostDetailPresentation
-    ) -> Binding<Bool> {
-        Binding(
-            get: { presentedSheet?.id == presentation.id },
-            set: { isPresented in
-                guard !isPresented else { return }
-                dismissPresentedSheet(ifMatching: presentation.id)
+    private func preparePendingFieldChat() async {
+        guard let postID = pendingExploreChatPreparationPostID else { return }
+        let canPresent = await exploreChatViewModel.prepareForPresentation(scanId: postID)
+        guard pendingExploreChatPreparationPostID == postID else { return }
+        defer {
+            if pendingExploreChatPreparationPostID == postID {
+                pendingExploreChatPreparationPostID = nil
             }
-        )
-    }
+        }
+        guard ExplorePostDetailPresentationPolicy.canCommitAsyncPresentation(
+            requestedPostId: postID,
+            currentPostId: currentPost?.id,
+            hasPresentationConflict: hasPresentationConflict,
+            isCancelled: Task.isCancelled
+        ) else { return }
 
+        if canPresent {
+            HapticManager.shared.triggerSheetSpring()
+            presentedSheet = .fieldChat(postId: postID)
+        } else {
+            HapticManager.shared.triggerErrorThump()
+            viewModel.toastMessage = .error(
+                exploreChatViewModel.errorMessage
+                    ?? "Field chat isn't available for this post."
+            )
+        }
+    }
     private func handlePresentedSheetDismissed() {
         guard insightDismissalRoute != nil else { return }
         insightDismissalRoute = nil
@@ -697,14 +267,6 @@ struct ExplorePostDetailView: View {
             }
             isRefreshingAfterInsightDismiss = false
         }
-    }
-
-    private func currentPost(matching expectedPostId: String) -> ExplorePost? {
-        guard let currentPost,
-              currentPost.id.caseInsensitiveCompare(expectedPostId) == .orderedSame else {
-            return nil
-        }
-        return currentPost
     }
 
     @discardableResult
@@ -732,68 +294,6 @@ struct ExplorePostDetailView: View {
         postComposerPreparationID = nil
     }
 
-    private func evaluateCommonNameScrollOffset(maxY: CGFloat) {
-        guard maxY.isFinite else { return }
-
-        let isPast = maxY < 44
-        guard isCommonNameScrolledPast != isPast else { return }
-
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            isCommonNameScrolledPast = isPast
-        }
-    }
-
-    @ViewBuilder
-    private func fieldNotesSection(for post: ExplorePost) -> some View {
-        let isOwner = isOwnedByCurrentUser(post)
-        let fieldNotes = detail?.trimmedFieldNotes
-            ?? (isOwner ? FieldNotesRepository.trimmedNonEmptyText(localFieldNotes) : nil)
-
-        if !isRefreshingAfterInsightDismiss, let fieldNotes {
-            ExploreFieldNotesCard(
-                fieldNotes: fieldNotes,
-                visibility: isOwner
-                    ? (fieldNotesArePublicOnExplore ? .published : .privateNotes)
-                    : nil,
-                canEdit: isOwner,
-                onEdit: { openFieldNotesEditor(for: post) }
-            )
-        }
-    }
-
-    @ViewBuilder
-    private var toxicityBanner: some View {
-        if let hazardType = detail?.hazardType {
-            ToxicityBanner(hazardType: hazardType)
-        }
-    }
-
-    @ViewBuilder
-    private var hashtagRow: some View {
-        if let hashtags = detail?.hashtags, !hashtags.isEmpty {
-            FlowLayout(spacing: 8, lineAlignment: .center) {
-                ForEach(hashtags, id: \.self) { hashtag in
-                    NavigationLink {
-                        ExploreHashtagPostsView(
-                            viewModel: viewModel,
-                            route: ExploreHashtagRoute(hashtag: hashtag),
-                            allowsInsightPresentation: allowsInsightPresentation,
-                            onOpenOwnedPostInsight: onOpenOwnedPostInsight,
-                            allowsAuthorProfilePresentation: canOpenAuthorProfileRoutes,
-                            authorProfileDepth: authorProfileDepth,
-                            onOpenAuthorProfile: onOpenAuthorProfile
-                        )
-                    } label: {
-                        ExploreHashtagPill(hashtag: hashtag)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.top, -8)
-            .padding(.bottom, 2)
-        }
-    }
-
     private func openAuthorProfile(_ route: ExploreAuthorProfileRoute) {
         guard canOpenAuthorProfileRoutes, !hasPresentationConflict else { return }
         if let onOpenAuthorProfile {
@@ -805,145 +305,8 @@ struct ExplorePostDetailView: View {
         }
     }
 
-    private func focusComments(using scrollProxy: ScrollViewProxy, animated: Bool = true) {
-        let scrollBlock = {
-            scrollProxy.scrollTo(commentsSectionId, anchor: .top)
-        }
-
-        if animated {
-            withAnimation(.easeInOut(duration: 0.22), scrollBlock)
-        } else {
-            scrollBlock()
-        }
-
-        composerFocusTask?.cancel()
-        composerFocusTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(250))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            isComposerFocused = true
-            composerFocusTask = nil
-        }
-    }
-
-    private func scrollFocusedInlineComposerIntoViewIfNeeded(
-        using scrollProxy: ScrollViewProxy,
-        composerWasSticky: Bool
-    ) {
-        guard !composerWasSticky else { return }
-
-        composerScrollTask?.cancel()
-        composerScrollTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(120))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled, isComposerFocused, focusedComposerIsSticky == false else { return }
-
-            withAnimation(.easeInOut(duration: 0.18)) {
-                scrollProxy.scrollTo(commentsComposerId, anchor: .bottom)
-            }
-            composerScrollTask = nil
-        }
-    }
-
-    private func presentNotificationReplyThreadIfNeeded(for post: ExplorePost) {
-        guard !didPresentNotificationReplyThread,
-              let notificationReplyThreadTarget else { return }
-
-        let route = ExploreNotificationReplyThreadRoute(
-            post: post,
-            parentCommentId: notificationReplyThreadTarget.parentCommentId,
-            targetReplyId: notificationReplyThreadTarget.targetReplyId,
-            fallbackReply: notificationReplyThreadTarget.fallbackReply
-        )
-        guard beginPresentation(.notificationReply(route)) else { return }
-        didPresentNotificationReplyThread = true
-    }
-
-    private func focusTargetCommentIfNeeded(using scrollProxy: ScrollViewProxy) async {
-        guard let targetCommentId, !didFocusTargetComment else { return }
-
-        if let targetReplyParentCommentId {
-            let targetReplyId = targetReplyParentCommentId == targetCommentId ? nil : targetCommentId
-            await viewModel.expandReplyThread(parentCommentId: targetReplyParentCommentId, targetReplyId: targetReplyId)
-        } else {
-            await viewModel.loadCommentsUntilCommentIfNeeded(commentId: targetCommentId)
-        }
-
-        await performTargetCommentScroll(using: scrollProxy, targetCommentId: targetCommentId)
-    }
-
-    @MainActor
-    private func performTargetCommentScroll(using scrollProxy: ScrollViewProxy, targetCommentId: String) async {
-        let isTargetingReply = targetReplyParentCommentId != nil && targetReplyParentCommentId != targetCommentId
-        let scrollId = !isTargetingReply
-            ? ExploreCommentScrollTarget.comment(targetCommentId).id
-            : ExploreCommentScrollTarget.reply(targetCommentId).id
-
-        let parentScrollId = isTargetingReply ? targetReplyParentCommentId.map {
-            ExploreCommentScrollTarget.comment($0).id
-        } : nil
-
-        for attempt in 0..<5 {
-            if attempt > 0 {
-                try? await Task.sleep(nanoseconds: 200_000_000)
-            } else {
-                await Task.yield()
-            }
-            guard !Task.isCancelled else { return }
-
-            scrollProxy.scrollTo(commentsSectionId, anchor: .top)
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            guard !Task.isCancelled else { return }
-
-            if let parentScrollId {
-                scrollProxy.scrollTo(parentScrollId, anchor: .center)
-                try? await Task.sleep(nanoseconds: 120_000_000)
-                guard !Task.isCancelled else { return }
-            }
-
-            withAnimation(.easeInOut(duration: 0.24)) {
-                scrollProxy.scrollTo(scrollId, anchor: .center)
-            }
-        }
-
-        didFocusTargetComment = true
-    }
-
-    private func dismissCommentComposer() {
-        isComposerFocused = false
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    }
-
     private func loadPostDetail(force: Bool = false) async {
-        guard force || !isLoadingDetail else { return }
-
-        detailRequestGeneration &+= 1
-        let requestGeneration = detailRequestGeneration
-
-        isLoadingDetail = true
-        detailErrorMessage = nil
-        detail = nil
-
-        defer {
-            if requestGeneration == detailRequestGeneration {
-                isLoadingDetail = false
-            }
-        }
-
-        do {
-            let response = try await MerianNetworkClient.shared.getExplorePostDetail(postId: postId)
-            guard requestGeneration == detailRequestGeneration else { return }
-            detail = response
-        } catch {
-            guard requestGeneration == detailRequestGeneration else { return }
-            detailErrorMessage = ExploreErrorFormatter.message(for: error)
-        }
+        await detailViewModel.loadDetail(force: force)
     }
 
     private func saveFieldNotesDraft(
@@ -951,15 +314,16 @@ struct ExplorePostDetailView: View {
         isPublic: Bool,
         for post: ExplorePost
     ) async -> FieldNotesVisibilityUpdateFeedback {
-        guard currentPost?.id == post.id, isOwnedByCurrentUser(post) else {
+        guard currentPost?.id == post.id,
+              presentationServices.isOwnedByCurrentUser(post) else {
             return .failure("This post is no longer available")
         }
-        guard !isUpdatingFieldNotesVisibility else {
+        guard !detailViewModel.isUpdatingFieldNotesVisibility else {
             return .failure("Field notes visibility is already updating")
         }
 
         let previousLocalNotes = FieldNotesEditPolicy.normalizedText(fieldNotesEditorInitialText)
-        let previousPublicNotes = FieldNotesEditPolicy.normalizedText(detail?.fieldNotes)
+        let previousPublicNotes = FieldNotesEditPolicy.normalizedText(detailViewModel.detail?.fieldNotes)
         let wasPublic = previousPublicNotes != nil
         let notesToPublish = FieldNotesEditPolicy.normalizedText(notes)
         let shouldPublish = isPublic && notesToPublish != nil
@@ -990,24 +354,13 @@ struct ExplorePostDetailView: View {
             return .success(isPublic: wasPublic)
         }
 
-        isUpdatingFieldNotesVisibility = true
-        defer { isUpdatingFieldNotesVisibility = false }
-
         do {
             if !shouldPublish, let notesToPublish {
                 preserveLocalFieldNotes(notesToPublish, for: post)
             }
 
-            let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
-                postId: post.id,
-                fieldNotes: desiredPublicNotes
-            )
-            if response.postId == post.id {
-                detail?.fieldNotes = response.fieldNotes
-            } else {
-                detail?.fieldNotes = desiredPublicNotes
-            }
-            let isNowPublic = detail?.trimmedFieldNotes != nil
+            _ = try await detailViewModel.updateFieldNotes(desiredPublicNotes)
+            let isNowPublic = detailViewModel.detail?.trimmedFieldNotes != nil
             HapticManager.shared.triggerSuccessPulse()
             if let message = FieldNotesEditPolicy.successMessage(
                 wasPublic: wasPublic,
@@ -1024,7 +377,7 @@ struct ExplorePostDetailView: View {
     }
 
     private func syncLocalFieldNotes(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post) else {
+        guard presentationServices.isOwnedByCurrentUser(post) else {
             localFieldNotes = nil
             return
         }
@@ -1037,13 +390,13 @@ struct ExplorePostDetailView: View {
     }
 
     private func openFieldNotesEditor(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
+        guard presentationServices.isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
 
         syncLocalFieldNotes(for: post)
-        if localFieldNotes == nil, let publicNotes = detail?.trimmedFieldNotes {
+        if localFieldNotes == nil, let publicNotes = detailViewModel.detail?.trimmedFieldNotes {
             preserveLocalFieldNotes(publicNotes, for: post)
         }
-        fieldNotesEditorInitialText = localFieldNotes ?? detail?.trimmedFieldNotes ?? ""
+        fieldNotesEditorInitialText = localFieldNotes ?? detailViewModel.detail?.trimmedFieldNotes ?? ""
 
         if beginPresentation(.fieldNotes(postId: post.id)) {
             HapticManager.shared.triggerSelectionPulse()
@@ -1051,10 +404,10 @@ struct ExplorePostDetailView: View {
     }
 
     private func openPostComposer(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
+        guard presentationServices.isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
         cancelPendingAsyncPresentations()
         syncLocalFieldNotes(for: post)
-        postComposerMediaItems = ExplorePostComposerMediaDraft.existingPostItems(from: post.mediaItems ?? [])
+        detailViewModel.setInitialComposerMedia(from: post.mediaItems ?? [])
         let requestID = UUID()
         let requestedPostID = post.id
         postComposerPreparationID = requestID
@@ -1062,12 +415,7 @@ struct ExplorePostDetailView: View {
             var resolvedMediaItems: [ExplorePostComposerMediaDraft]?
             var preparationError: Error?
             do {
-                let payload = try await MerianNetworkClient.shared.getExploreComposerMedia(
-                    postId: requestedPostID
-                )
-                resolvedMediaItems = ExplorePostComposerMediaDraft.sourceItems(
-                    from: payload.mediaItems
-                )
+                resolvedMediaItems = try await detailViewModel.loadComposerMedia()
             } catch {
                 preparationError = error
             }
@@ -1087,7 +435,7 @@ struct ExplorePostDetailView: View {
                   ) else { return }
 
             if let resolvedMediaItems {
-                postComposerMediaItems = resolvedMediaItems
+                detailViewModel.commitComposerMedia(resolvedMediaItems)
             }
             if let preparationError {
                 viewModel.toastMessage = .error(
@@ -1100,24 +448,12 @@ struct ExplorePostDetailView: View {
     }
 
     private func savePostContent(_ draft: ExplorePostComposerDraft, for post: ExplorePost) async {
-        guard isOwnedByCurrentUser(post), !isSavingPostContent else { return }
-
-        isSavingPostContent = true
-        defer { isSavingPostContent = false }
+        guard presentationServices.isOwnedByCurrentUser(post),
+              !detailViewModel.isSavingPostContent else { return }
 
         do {
             persistPreferredCommonName(draft.selectedCommonName, scientificName: post.speciesScientificName)
-            let response = try await MerianNetworkClient.shared.updateExplorePostContent(
-                postId: post.id,
-                speciesCommonName: draft.selectedCommonName,
-                fieldNotes: draft.publicFieldNotes,
-                hashtags: draft.hashtags,
-                locationSharing: draft.locationSharing,
-                mediaItems: draft.mediaItems
-            )
-            detailRequestGeneration &+= 1
-            detail?.fieldNotes = response.fieldNotes
-            detail?.locationSharing = response.locationSharing ?? draft.locationSharing
+            _ = try await detailViewModel.updateContent(draft)
             updateLocalFieldNotes(draft.fieldNotes ?? "")
             dismissPresentedSheet(
                 ifMatching: ExplorePostDetailPresentation
@@ -1136,7 +472,8 @@ struct ExplorePostDetailView: View {
     }
 
     private func updateLocalFieldNotes(_ notes: String) {
-        guard let post = currentPost, isOwnedByCurrentUser(post) else { return }
+        guard let post = currentPost,
+              presentationServices.isOwnedByCurrentUser(post) else { return }
 
         let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         let scanId = post.scanId
@@ -1148,23 +485,6 @@ struct ExplorePostDetailView: View {
         localFieldNotes = trimmed.isEmpty ? nil : notes
     }
 
-    private func postSnapshotCommonName(for post: ExplorePost) -> String {
-        let trimmed = post.speciesCommonName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty
-            ? viewModel.resolvedSpeciesCommonName(
-                scientificName: post.speciesScientificName,
-                fallbackCommonName: post.speciesCommonName
-            )
-            : trimmed
-    }
-
-    private func commonNameOptions(for post: ExplorePost) -> [String] {
-        ([postSnapshotCommonName(for: post)] + (detail?.alternativeCommonNames ?? []))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .removingFuzzyDuplicateNames()
-    }
-
     private func persistPreferredCommonName(_ name: String, scientificName: String) {
         _ = SpeciesPreferredNameRepository.setPreferredName(
             name,
@@ -1174,16 +494,10 @@ struct ExplorePostDetailView: View {
     }
 
     private func syncPublicFieldNotesAfterInsightDismiss(for post: ExplorePost) async {
-        guard isOwnedByCurrentUser(post) else { return }
+        guard presentationServices.isOwnedByCurrentUser(post) else { return }
 
         do {
-            let response = try await MerianNetworkClient.shared.updateExplorePostFieldNotes(
-                postId: post.id,
-                fieldNotes: localFieldNotes
-            )
-            if response.postId == post.id {
-                detail?.fieldNotes = response.fieldNotes
-            }
+            _ = try await detailViewModel.updateFieldNotes(localFieldNotes)
         } catch {
             HapticManager.shared.triggerErrorThump()
             viewModel.toastMessage = .error(ExploreErrorFormatter.message(for: error))
@@ -1194,7 +508,7 @@ struct ExplorePostDetailView: View {
         syncLocalFieldNotes(for: post)
         await loadPostDetail()
 
-        guard detail?.trimmedFieldNotes != nil else {
+        guard detailViewModel.detail?.trimmedFieldNotes != nil else {
             syncLocalFieldNotes(for: post)
             return
         }
@@ -1216,10 +530,10 @@ struct ExplorePostDetailView: View {
     }
 
     private func openInsight(for post: ExplorePost) {
-        guard isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
+        guard presentationServices.isOwnedByCurrentUser(post), !hasPresentationConflict else { return }
 
         let scanId = post.scanId
-        if let fieldNotes = detail?.trimmedFieldNotes {
+        if let fieldNotes = detailViewModel.detail?.trimmedFieldNotes {
             localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
                 fieldNotes,
                 for: scanId,
@@ -1260,13 +574,14 @@ struct ExplorePostDetailView: View {
     private func openExploreFieldChat(for post: ExplorePost) {
         guard !hasPresentationConflict else { return }
         HapticManager.shared.triggerSelectionPulse()
-        PostHogManager.shared.capture("ExplorePostFieldChatTapped", properties: [
-            "post_id": post.id,
-            "species_scientific_name": post.speciesScientificName,
-            "is_pro": RevenueCatManager.shared.isProActive
-        ])
+        let isProActive = presentationServices.isProActive()
+        presentationServices.trackFieldChatTapped(
+            post.id,
+            post.speciesScientificName,
+            isProActive
+        )
 
-        guard RevenueCatManager.shared.isProActive else {
+        guard isProActive else {
             _ = beginPresentation(.paywall)
             return
         }
@@ -1279,239 +594,6 @@ struct ExplorePostDetailView: View {
         guard !hasPresentationConflict else { return }
         cancelPendingAsyncPresentations()
         postToUnpublish = post
-    }
-
-    private func isOwnedByCurrentUser(_ post: ExplorePost) -> Bool {
-        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
-        return post.isOwnedByViewer || currentUserId == post.authorUserId
-    }
-
-    private func authorIdentityChangeAffects(
-        _ authorUserId: String,
-        previousUserId: String?,
-        currentUserId: String
-    ) -> Bool {
-        let normalizedAuthorId = authorUserId.lowercased()
-        return previousUserId == normalizedAuthorId || currentUserId == normalizedAuthorId
-    }
-
-    private func resolvedAuthorAvatarUrl(for post: ExplorePost) -> URL? {
-        if let avatarUrl = SecureTransportPolicy.httpsURL(
-            from: post.authorAvatarUrl
-        ) {
-            return avatarUrl
-        }
-
-        let currentUserId = SupabaseManager.shared.currentUser?.id.uuidString
-        let isCurrentUsersPost = post.isOwnedByViewer || currentUserId == post.authorUserId
-        if isCurrentUsersPost {
-            return SupabaseManager.shared.currentUserAvatarUrl
-        }
-
-        return nil
-    }
-
-    private func locationText(for post: ExplorePost) -> String? {
-        post.publicDisplayLocationLabel
-    }
-
-    private func compactCount(_ count: Int) -> String {
-        count.formatted(.number.notation(.compactName))
-    }
-
-    private func styledAiReasoning(text: String, scientificName: String) -> AttributedString {
-        let cleanText = text
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "_", with: "")
-        var result = AttributedString(cleanText)
-
-        let normalizedScientificName = scientificName
-            .replacingOccurrences(of: "'", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if !normalizedScientificName.isEmpty {
-            var searchRange = result.startIndex..<result.endIndex
-            while let range = result[searchRange].range(of: normalizedScientificName, options: .caseInsensitive) {
-                result[range].font = .system(.body, design: .monospaced)
-                result[range].backgroundColor = Color.secondary.opacity(0.15)
-                searchRange = range.upperBound..<result.endIndex
-            }
-        }
-
-        return result
-    }
-
-}
-
-extension ExplorePostDetailView {
-    struct Skeleton: View {
-        @Environment(\.colorScheme) private var colorScheme
-        @State private var isGlowing = false
-
-        var body: some View {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    headerRow
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
-                        .padding(.bottom, 12)
-
-                    mediaView
-                        .padding(.horizontal, 16)
-
-                    actionRow
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
-                        .padding(.bottom, 12)
-
-                    VStack(spacing: 24) {
-                        speciesSection
-
-                        insightCardsSection
-
-                        insightCardsSection
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 16)
-                }
-            }
-            .background(Color(uiColor: .systemBackground))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Circle()
-                        .fill(Color(uiColor: .tertiarySystemFill))
-                        .frame(width: 34, height: 34)
-                }
-            }
-            .opacity(isGlowing ? 1.0 : 0.6)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
-                    isGlowing = true
-                }
-            }
-            .accessibilityHidden(true)
-        }
-
-        private var headerRow: some View {
-            HStack(alignment: .center, spacing: 12) {
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 40, height: 40)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color(uiColor: .secondarySystemFill))
-                            .frame(width: 92, height: 17)
-
-                        Capsule()
-                            .fill(placeholderFill(secondary: true))
-                            .frame(width: 34, height: 16)
-                    }
-
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(placeholderFill(secondary: true))
-                        .frame(width: 82, height: 14)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-
-        private var mediaView: some View {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            placeholderFill(secondary: true),
-                            placeholderFill()
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color(uiColor: .separator).opacity(0.35), lineWidth: 0.5)
-                }
-        }
-
-        private var actionRow: some View {
-            HStack(spacing: 20) {
-                actionGroup
-                actionGroup
-
-                Spacer(minLength: 12)
-
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 24, height: 24)
-            }
-        }
-
-        private var actionGroup: some View {
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(placeholderFill(secondary: true))
-                    .frame(width: 24, height: 24)
-
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(placeholderFill())
-                    .frame(width: 18, height: 14)
-            }
-        }
-        
-        private var speciesSection: some View {
-            VStack(alignment: .center, spacing: 10) {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(placeholderFill(secondary: true))
-                    .frame(width: 154, height: 20)
-
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(placeholderFill())
-                    .frame(width: 248, height: 38)
-
-                VStack(spacing: 8) {
-                    reasoningLine(width: nil)
-                    reasoningLine(width: nil)
-                    reasoningLine(width: 270)
-                    reasoningLine(width: 208)
-                }
-                .padding(.top, 8)
-            }
-            .frame(maxWidth: .infinity)
-        }
-
-        private func reasoningLine(width: CGFloat?) -> some View {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(placeholderFill(secondary: true))
-                .frame(maxWidth: width == nil ? .infinity : nil)
-                .frame(width: width, height: 16)
-        }
-        
-        private var insightCardsSection: some View {
-            VStack(alignment: .leading, spacing: 16) {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
-            }
-        }
-
-        private func placeholderFill(secondary: Bool = false) -> Color {
-            if colorScheme == .dark {
-                return secondary
-                    ? Color(uiColor: .secondarySystemFill)
-                    : Color(uiColor: .tertiarySystemFill)
-            }
-
-            let base = secondary
-                ? Color(uiColor: .secondarySystemFill)
-                : Color(uiColor: .tertiarySystemFill)
-            return base.opacity(isGlowing ? 0.86 : 0.66)
-        }
     }
 
 }

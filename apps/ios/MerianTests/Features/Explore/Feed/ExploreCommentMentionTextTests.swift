@@ -1,5 +1,6 @@
 import SwiftUI
 import XCTest
+
 @testable import Merian
 
 final class ExploreCommentMentionTextTests: XCTestCase {

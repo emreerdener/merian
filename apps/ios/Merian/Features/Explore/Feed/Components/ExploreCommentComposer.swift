@@ -98,7 +98,7 @@ struct ExploreCommentComposer: View {
 
     @ViewBuilder
     private var currentUserAvatar: some View {
-        if SupabaseManager.shared.isAuthenticated, let avatarUrl = SupabaseManager.shared.currentUserAvatarUrl {
+        if let avatarUrl = viewModel.currentUserCommentAvatarURL {
             AsyncImage(url: avatarUrl) { image in
                 image
                     .resizable()
@@ -233,7 +233,7 @@ struct ExploreCommentComposer: View {
             try? await Task.sleep(nanoseconds: 180_000_000)
             guard !Task.isCancelled else { return }
             do {
-                let loaded = try await MerianNetworkClient.shared.getExploreMentionSuggestions(
+                let loaded = try await viewModel.loadMentionSuggestions(
                     postId: postId,
                     parentCommentId: parentCommentId,
                     query: trigger.query,
