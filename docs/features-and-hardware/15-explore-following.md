@@ -173,7 +173,7 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Feed/Services/ExploreFeedViewModelDependencies.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel+Feed.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExploreFeedTabContent.swift`
-- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Services/ExploreAuthorProfileViewModelDependencies.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/ViewModels/ExploreAuthorProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`

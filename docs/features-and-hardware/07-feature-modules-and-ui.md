@@ -1609,21 +1609,30 @@ on gesture-driven layout abstractions.
   state, ensuring the completed modal sheet presents correctly when the app is
   foregrounded.
 - `Explore` uses product-area-first folders inside a single presented Explore
-  navigation surface. `Shell/ExploreView.swift` owns the root Feed/Map/Field
-  trips router and Identify Requests/Index mode, cross-area destination
-  registration, stack-based request/activity and author-profile coordination,
-  and the profile-to-scan nesting cap so author profiles do not layer a second
-  sheet over active feed/detail video. `AuthorProfile/Models`, `Services`,
-  `ViewModels`, `Views`, and grouped `Components` own route/presentation policy,
-  injected live dependencies, profile/library/follow/report state, and
-  declarative UI. Only the Author Profile `Services` adapter resolves its
-  endpoints. The in-place published-scan library hides the inherited stack back
-  button and supplies one explicit back-to-profile control, library scans open
-  `ExplorePostDetailView` with the current author-profile depth, and further
-  author-profile taps are disabled after one profile hop. Feed owns
-  `ExploreFeedTabContent`, hashtag and post-detail hosts, and the typed values
-  in `Feed/Models/ExploreFeedRoutes.swift`; Shell only appends and resolves
-  those routes. Feed models, live services, observable state owners, views, and
+  navigation surface. `Shell/Models` owns root/initial navigation policy and
+  typed notification handoff values; `Shell/Services` supplies only typed app
+  events, the root Scans request, and narrow container-owned haptic actions; the
+  Shell notification coordinator fences post preparation, commits matching
+  success/failure outcomes, and separates staged state from the pending
+  destination consumed after dismissal; `Shell/Views` owns the view-local
+  navigation path, root Feed/Map/Field trips router, Identify Requests/Index
+  mode, destination registration, sheet and lifecycle timing, and playback
+  state; and `Shell/Components` owns root chrome. Shell views contain no
+  endpoint or singleton lookup. Stack-based request/activity and author-profile
+  coordination retains the profile-to-scan nesting cap so author profiles do not
+  layer a second sheet over active feed/detail video. Field-trip typed routes
+  live in `FieldTrips/Models/FieldTripRoutes.swift`. `AuthorProfile/Models`,
+  `Services`, `ViewModels`, `Views`, and grouped `Components` own
+  route/presentation policy, injected live dependencies,
+  profile/library/follow/report state, and declarative UI. Only the Author
+  Profile `Services` adapter resolves its endpoints. The in-place published-scan
+  library hides the inherited stack back button and supplies one explicit
+  back-to-profile control, library scans open `ExplorePostDetailView` with the
+  current author-profile depth, and further author-profile taps are disabled
+  after one profile hop. Feed owns `ExploreFeedTabContent`, hashtag and
+  post-detail hosts, and the typed values in
+  `Feed/Models/ExploreFeedRoutes.swift`; Shell only appends and resolves those
+  routes. Feed models, live services, observable state owners, views, and
   grouped catalog/comment/composer/detail/card/media components follow the
   feature-local boundary documented in `Feed/README.md`.
   `Feed/Components/Cards/ExplorePostCard.swift` owns card composition, while

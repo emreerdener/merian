@@ -5305,7 +5305,17 @@ The Explore iOS mapping, state, and presentation layers are:
   `Components/` for navigation and network-free rendering
 - `apps/ios/Merian/Features/Explore/Map/Views/` and grouped `Components/` for
   MapKit camera/gesture ownership and network-free rendering
-- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Models/` for root/initial navigation
+  policy and the typed notification destination, open token, and preparation
+  outcome
+- `apps/ios/Merian/Features/Explore/Shell/Services/ExploreShellDependencies.swift`
+  for the app-event stream, app-level Scans-library route adapter, and narrow
+  haptic actions
+- `apps/ios/Merian/Features/Explore/Shell/ViewModels/ExploreNotificationNavigationCoordinator.swift`
+  for latest-wins post preparation, token-checked success/failure commits, and
+  the staged-to-pending dismiss handoff
+- `apps/ios/Merian/Features/Explore/Shell/Views/` plus `Components/` for the
+  network-free root navigation, lifecycle, presentation, and chrome
 
 Feed views and components do not resolve endpoint clients. The Feed state owners
 invoke small initializer-injected closure groups; only their live
@@ -5322,6 +5332,14 @@ preserves the last successful catalog cursor, and a later server reply replaces
 the bounded notification fallback with the authoritative comment. These client
 recovery rules do not alter `/get-explore-notifications`,
 `/mark-explore-notifications-read`, comment/reply payloads, or cursor semantics.
+
+Explore Shell has no endpoint adapter. Its narrow `Services` value exposes only
+the process-local typed app-event stream and the app-level Scans-library route
+request. Notification post loading continues through the Feed state owner's
+injected single-post dependency; the Shell coordinator only fences and maps the
+result. Moving the Field-trip route declarations to
+`FieldTrips/Models/FieldTripRoutes.swift` changes no request, response, JSON, or
+cursor contract.
 
 The current feed UI uses only a subset of the payload for visible card
 rendering:

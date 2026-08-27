@@ -1346,7 +1346,15 @@ Reporting:
 
 Recommended feature module:
 
-- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellNavigationView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellPresentationModifier.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellLifecycleModifier.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellEventFeedbackModifier.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Models/`
+- `apps/ios/Merian/Features/Explore/Shell/Services/ExploreShellDependencies.swift`
+- `apps/ios/Merian/Features/Explore/Shell/ViewModels/ExploreNotificationNavigationCoordinator.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripRoutes.swift`
 - `apps/ios/Merian/Features/Explore/Map/Views/ExploreMapView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
@@ -1377,6 +1385,19 @@ Recommended feature module:
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationsSheet.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Views/ExploreNotificationReplyThreadSheet.swift`
 
+The Shell keeps view-local root selection, `NavigationPath`, sheet occupancy,
+Insight handoff, and playback-coordinator state in `ExploreView`. Pure
+initial-route and Capture-goal conversion policy lives under `Shell/Models`; the
+narrow live adapter under `Shell/Services` supplies only the app-event stream,
+root Scans-library request, and selection/light-impact/error haptic actions. The
+Shell notification coordinator owns latest-wins post preparation, token-checked
+success/failure commits, separated staged and pending typed destinations, and
+one-time destination consumption. Navigation registration, presentation,
+lifecycle, and event feedback are separate views/modifiers, and Shell views
+contain no endpoint or singleton lookup. Field-trip route values used across
+Explore, Profile, Feed, Author Profile, and Insights live with Field Trips under
+`FieldTrips/Models/FieldTripRoutes.swift`.
+
 Explore-wide media lives in `Features/Explore/Shared/Media` because the public
 renderer also serves Identify and its hero image, indicators, coordinator, and
 mute policy have Map, Shell, Author Profile, Profile, or Species Dictionary
@@ -1397,8 +1418,9 @@ catalog/read, comment/reply, viewer-context, telemetry, and error dependencies.
 Dedicated `@MainActor @Observable` catalog and reply-thread view models fence
 first-page loads, pagination, read completion, and route replacement by
 generation. Notification views and components render prepared state without
-endpoint or singleton access. Shell retains its private dismiss-then-navigate
-destination and latest-open token; Feed retains the reply target carried inside
+endpoint or singleton access. The Shell notification coordinator owns the
+latest-open token, token-checked outcome commit, and separated staged and
+pending dismiss destinations; Feed retains the reply target carried inside
 `ExplorePostRoute`. Secure comment-avatar fallback shared by Feed and
 Notifications lives in `Explore/Shared/Models`. A failed catalog refresh keeps
 the last successful cursor usable, and a server reply found after bounded

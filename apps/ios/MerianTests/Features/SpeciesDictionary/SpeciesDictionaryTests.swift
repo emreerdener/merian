@@ -453,50 +453,6 @@ struct SpeciesDictionaryTests {
         )
     }
 
-    @Test func testSpeciesDictionaryDeepLinkSelectsIdentifyIndex() {
-        let route = SpeciesDictionaryRoute(
-            scientificName: "",
-            speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-            entryPoint: .deepLink
-        )
-
-        #expect(
-            ExploreInitialTabPolicy.resolve(
-                requestedTab: .feed,
-                speciesDictionaryRoute: route
-            ) == .community
-        )
-        #expect(
-            ExploreInitialIdentifyModePolicy.resolve(
-                speciesDictionaryRoute: route,
-                communityRequestId: nil
-            ) == .index
-        )
-        #expect(
-            ExploreInitialIdentifyModePolicy.resolve(
-                speciesDictionaryRoute: nil,
-                communityRequestId: "request-id"
-            ) == .requests
-        )
-        #expect(
-            ExploreInitialTabPolicy.resolve(
-                requestedTab: .feed,
-                speciesDictionaryRoute: nil,
-                communityRequestId: "request-id"
-            ) == .community
-        )
-        #expect(
-            ExploreInitialTabPolicy.resolve(
-                requestedTab: .community,
-                speciesDictionaryRoute: nil
-            ) == .community
-        )
-    }
-
-    @Test func testExploreBottomNavigationHasExactlyThreeItems() {
-        #expect(ExploreTab.allCases == [.feed, .fieldTrips, .community])
-    }
-
     @Test func testSpeciesDictionaryTreeRemainsBehindReleaseFlag() {
         #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
     }

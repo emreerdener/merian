@@ -1715,10 +1715,11 @@ iOS focused coverage:
   ordering, pinned-version search, debounce-independent search outcomes,
   4,000-character feedback validation, trimming, success, and failure
   restoration.
-- `Features/SpeciesDictionary/SpeciesDictionaryTests.swift` locks the exact
-  three root tabs plus species-to-Index and request-to-Requests deep-link
-  policy. Identify presentation and asynchronous state tests do not belong in
-  this dictionary suite.
+- `Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift` locks the
+  exact three root tabs plus species-to-Index and request-to-Requests deep-link
+  policy. Identify presentation and asynchronous state tests remain with
+  Identify, while dictionary decoding and detail behavior remain in
+  `Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
 - `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
   and verifies `limit`, shared scope/group filters, plus paired
   `(before_activity_at, before_activity_id)` payload construction.
@@ -3699,6 +3700,36 @@ and Field-trip destinations; unavailable reply fallback; reply
 pagination/reactions; rapid tap/dismiss replacement; VoiceOver; large Dynamic
 Type; Reduce Motion; light/dark appearance; and video remaining paused until the
 final overlay disappears.
+
+Explore Shell tests mirror the root owner under
+`MerianTests/Features/Explore/Shell/`. `ExploreShellNavigationPolicyTests` locks
+the exact three-item root, species and Community initial modes,
+initial-destination precedence, focused standard Outing conversion, Event
+section selection, embedded-Insight destination conversion, and post comment
+targets. These root-policy assertions no longer live in the Species Dictionary
+suite. `ExploreNotificationNavigationCoordinatorTests` locks immediate typed
+destinations, Field-trip gating, reply fallback mapping, latest-selection
+supersession, outcome-commit fencing, dismissal invalidation, one-time pending
+destination consumption, and current-error delivery without replacing the Feed
+network adapter.
+
+Run the Shell matrix after changing root models, dependencies, navigation,
+sheet/lifecycle modifiers, initial routes, or notification handoffs:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/ExploreShellNavigationPolicyTests \
+  -only-testing:merianTests/ExploreNotificationNavigationCoordinatorTests \
+  -only-testing:merianTests/ActiveCaptureGoalStoreTests test
+```
+
+Manual Shell parity covers all three root tabs and segmented modes; initial
+post/species/Community/Capture-goal entry; Feed/Map switching; typed author,
+hashtag, Identify, Field-trip, and completed-scan destinations; notification
+tap/dismiss overlap; Insight-to-Community and owned-post handoffs; missing local
+scan feedback; root overlay playback lifetime; VoiceOver; large Dynamic Type;
+Reduce Motion; and light/dark appearance.
 
 Explore Author Profile tests mirror the feature owner.
 `ExploreAuthorProfilePresentationTests` locks navigation depth, current-viewer

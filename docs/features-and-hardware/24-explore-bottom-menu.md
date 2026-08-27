@@ -111,17 +111,18 @@ presenting a second sheet over the active surface. Profile-library scans carry
 an author-profile depth so the app allows `profile -> scan` but blocks another
 author-profile hop from that nested detail. The visual Scan goal indicator
 initializes this stack with a typed `CaptureGoalDestination`. Explore converts
-the Field trip case into a `FieldTripTemplateRoute` carrying an optional focused
+the Field trip case through `ExploreFieldTripNavigationPolicy` into the
+FieldTrips-owned `FieldTripTemplateRoute`, carrying an optional focused
 checklist-item ID. The destination opens Tips and focuses the matching guide, or
 falls back to the Goals tile when no guide exists. Ordinary route callers omit
 the optional focus ID and keep their prior behavior.
 
-Completed-goal navigation uses `ScanInsightRoute`. `ExploreView` resolves the
-private completion scan ID to a local record before appending the value route.
-The mounted `LocalScanInsightLoader` performs the one-time engine hydration and
-then constructs `InsightSheetView` in `.embeddedInScansLibrary` mode. A missing
-local record surfaces an unavailable message instead of presenting another sheet
-or stale content.
+Completed-goal navigation uses `ScanInsightRoute`. `ExploreShellNavigationView`
+resolves the private completion scan ID to a local record before appending the
+value route. The mounted `LocalScanInsightLoader` performs the one-time engine
+hydration and then constructs `InsightSheetView` in `.embeddedInScansLibrary`
+mode. A missing local record surfaces an unavailable message instead of
+presenting another sheet or stale content.
 
 ## iOS File Ownership
 
@@ -129,8 +130,13 @@ Explore is organized by product area first so a contributor can open the folder
 for the surface they are changing:
 
 - `apps/ios/Merian/Features/Explore/Shell/` owns the root Explore sheet,
-  toolbar, root mode picker, navigation routes, stack-based author-profile
-  presentation, the profile-to-scan nesting cap, and cross-area presentation.
+  toolbar, root mode picker, shared navigation path, initial-route and
+  Capture-goal conversion policy, stack-based author-profile presentation, the
+  profile-to-scan nesting cap, root sheet lifecycles, and cross-area
+  presentation. Its live dependency adapter supplies only the app-event stream,
+  root Scans-library request, and narrow haptic actions; Shell views contain no
+  endpoint or singleton lookup. Product areas own their typed destination
+  values, including `FieldTrips/Models/FieldTripRoutes.swift`.
 - `apps/ios/Merian/Features/Explore/Feed/` owns the Observations feed, post
   detail, comments, hashtags, publishing/editing presentation, and Feed routes.
   `Models/` owns route and presentation values; `Services/` owns live endpoint,

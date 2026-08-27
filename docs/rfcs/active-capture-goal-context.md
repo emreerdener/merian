@@ -104,7 +104,9 @@ Primary implementation files:
 - `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
-- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Models/ExploreShellNavigationModels.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripRoutes.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Views/FieldTripsView.swift`
 - `services/supabase/functions/field-trips/`
 - `services/supabase/migrations/20260717195751_active_outing_capture_context.sql`
@@ -337,7 +339,9 @@ Tapping the pill sends `CaptureGoalDestination` through
 `CaptureWorkspaceViewModel` and `CameraSheetRouter` to `ExploreView`. Capture
 does not build a `FieldTripTemplateRoute`.
 
-Explore owns the conversion. Active goals then:
+Explore Shell's `ExploreFieldTripNavigationPolicy` owns the conversion, while
+the resulting template/challenge route values live with Field Trips in
+`FieldTrips/Models/FieldTripRoutes.swift`. Active goals then:
 
 1. presents the Field trips tab;
 2. opens the owning standard outing;

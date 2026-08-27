@@ -422,9 +422,11 @@ Explore presents the Field trips tab, opens the owning standard outing, selects
 the matching goal tile, and reveals and scrolls to its tips without adding
 separate tip-container highlight chrome. A future goal without guide content
 falls back to its highlighted goal tile. The destination is converted at the
-Explore boundary into `FieldTripTemplateRoute`, whose focused checklist-item
-identifier remains optional for ordinary outing navigation. Guide, goal, and
-Event highlight timers are stored per detail view, cancelled when replaced, and
+Explore boundary by `ExploreFieldTripNavigationPolicy` into
+`FieldTripTemplateRoute`, whose declaration lives with Field Trips in
+`Models/FieldTripRoutes.swift` and whose focused checklist-item identifier
+remains optional for ordinary outing navigation. Guide, goal, and Event
+highlight timers are stored per detail view, cancelled when replaced, and
 released on disappearance. Their delayed fade cannot retain a dismissed scroll
 proxy or clear a newer highlight.
 
@@ -995,7 +997,9 @@ Primary files:
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/Core/AI/InferenceEngine.swift`
 - `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`
-- `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
+- `apps/ios/Merian/Features/Explore/Shell/Models/ExploreShellNavigationModels.swift`
+- `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripRoutes.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Views/ProfileTabView.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`
 
@@ -1383,6 +1387,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ActiveFieldTripsProfileViewModelTests \
   -only-testing:merianTests/FieldTripPublishedContentViewModelTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
+  -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/StagedCaptureTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \

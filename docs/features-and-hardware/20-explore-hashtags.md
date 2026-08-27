@@ -145,7 +145,7 @@ withholds location fields without hiding an otherwise visible tagged post.
 - Tagged-post collection and request-fenced pagination:
   `Features/Explore/Feed/Views/ExploreHashtagPostsView.swift` and
   `Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
-- Root navigation registration: `Features/Explore/Shell/ExploreView.swift`
+- Root navigation registration: `Features/Explore/Shell/Views/ExploreView.swift`
 - Share input: `Features/Insights/Sharing/Components/InsightShareButton.swift`
 - Composer UI: `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:

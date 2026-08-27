@@ -145,8 +145,9 @@ generation.
   Activity payloads.
 - `Core/Utilities/ExploreErrorFormatter.swift` owns generic and Recent
   activity-specific error copy.
-- `Explore/Shell/ExploreView.swift` owns root tab/mode selection, destination
-  registration, and deep-link policy.
+- `Explore/Shell/Models/ExploreShellNavigationModels.swift` owns initial
+  tab/mode and deep-link policy; `Explore/Shell/Views/` owns root selection and
+  destination registration.
 
 Production Swift files in this directory must remain below 600 lines. Existing
 screen and route initializer signatures are compatibility boundaries. This
@@ -178,6 +179,7 @@ consensus/resolution behavior, reopened generations, visibility, backfill, and
 stable pagination. See:
 
 - `apps/ios/MerianTests/Features/Explore/Identify/`
+- `apps/ios/MerianTests/Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift`
 - `apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - `apps/ios/MerianTests/Core/Utilities/MerianConfigTests.swift`
@@ -197,6 +199,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityTaxonomySearchViewModelTests \
   -only-testing:merianTests/CommunityFeedbackViewModelTests \
   -only-testing:merianTests/CommunityIdentificationModelsTests \
+  -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/SpeciesDictionaryTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/MerianConfigTests test

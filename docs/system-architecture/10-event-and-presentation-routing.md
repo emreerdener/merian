@@ -254,11 +254,16 @@ activity records the selected post/thread/community/Field-trip target and pushes
 it only after `ExploreNotificationsSheet` dismisses. Post handoffs retain only
 the post ID and re-resolve the bounded feed-store value after dismissal. Async
 notification opens carry a latest-wins token; a newer tap, manual dismissal, or
-sheet replacement invalidates late fetch completion. No path uses a fixed
+sheet replacement invalidates late fetch completion. A prepared destination or
+failure must commit with that same token before the Shell dismisses the sheet or
+reports an error; dismissal discards uncommitted state. No path uses a fixed
 animation delay to guess that UIKit has released its presentation slot. The
-Shell owns the private `ExploreNotificationDismissalDestination` and retains
-only lightweight identifiers through teardown. Notifications owns the decoded
-row and `ExploreNotificationReplyThreadRoute`/fallback models plus the
+Shell's `ExploreNotificationNavigationCoordinator` owns the lightweight
+`ExploreNotificationDismissalDestination`, latest-open token, asynchronous post
+preparation fence, token-checked success/failure commits, separated staged and
+pending destination state, and one-time pending-destination consumption.
+`ExploreView` retains the shared `NavigationPath`. Notifications owns the
+decoded row and `ExploreNotificationReplyThreadRoute`/fallback models plus the
 generation-fenced reply-thread state; it does not own the shared navigation
 path. The Insight-to-Community-request handoff inside Explore follows the same
 rule: the root or post-detail owner stores the request ID, clears its Insight

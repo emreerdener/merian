@@ -77,11 +77,15 @@ viewer, or post-author fallback.
 
 ## Dismiss-then-navigate contract
 
-The Shell owns the private `ExploreNotificationDismissalDestination`, latest
-open token, and shared `NavigationPath`. `ExploreNotificationsSheet` returns the
-selected notification through its callback; it does not push a destination. The
-Shell stages only a lightweight typed destination, dismisses the sheet, and
-resumes the destination from the sheet's real `onDismiss`.
+The Shell-owned `ExploreNotificationNavigationCoordinator` owns the lightweight
+`ExploreNotificationDismissalDestination`, latest-open token, and separated
+staged and pending destination state; `ExploreView` retains the shared
+`NavigationPath`. `ExploreNotificationsSheet` returns the selected notification
+through its callback; it does not push a destination. The coordinator stages
+only a typed destination, the root commits the matching token before dismissing
+the sheet or reporting a preparation error, and navigation resumes from the
+sheet's real `onDismiss`. Dismissal invalidates any uncommitted staged state
+without clearing a destination that was already committed for that `onDismiss`.
 
 Post-backed activity retains only a post ID and re-resolves it from
 `ExplorePostStore`. Community requests and Field-trip publications use their
@@ -116,6 +120,9 @@ Tests mirror this owner under `MerianTests/Features/Explore/Notifications/`:
   informational, and Field-trip copy plus icon/accent/disclosure mapping.
 - `MerianTests/Features/Explore/Shared/ExploreCommentAuthorPresentationTests.swift`
   locks the secure comment-avatar fallback shared with Feed.
+- `MerianTests/Features/Explore/Shell/ExploreNotificationNavigationCoordinatorTests.swift`
+  locks root destination mapping, latest-selection and outcome-commit fencing,
+  and dismissal invalidation after a row callback leaves this feature boundary.
 
 Wire decoding and endpoint request/response tests remain under
 `MerianTests/Core/Network/`.
@@ -128,6 +135,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExploreNotificationsViewModelTests \
   -only-testing:merianTests/ExploreReplyThreadViewModelTests \
   -only-testing:merianTests/ExploreNotificationRowPresentationTests \
+  -only-testing:merianTests/ExploreNotificationNavigationCoordinatorTests \
   -only-testing:merianTests/ExploreCommentAuthorPresentationTests test
 ```
 

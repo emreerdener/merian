@@ -376,11 +376,15 @@ never mutate the backing identification or mount a sibling destination while
 UIKit is tearing the source sheet down. This removes short-lived duplicate view
 graphs and prevents a delayed callback from targeting a replacement scan.
 Explore notification navigation stores only a post ID across dismissal and
-re-resolves the bounded feed-store value afterward; a latest-wins token rejects
-late async preparation after a newer tap or manual dismissal. For an owned post
-inside Insight-hosted Explore, the leaf reports a scan ID, the Explore shell
-owns its dismissal, and Insight applies the staged scan only from the shell's
-real `onDismiss`.
+re-resolves the bounded feed-store value afterward. A latest-wins token rejects
+late async preparation after a newer tap or manual dismissal, and a prepared
+destination or failure must commit with that same token before dismissal or
+feedback. The coordinator keeps uncommitted staged state separate from the
+pending destination consumed by `onDismiss`, so dismissal can invalidate stale
+work without erasing an already committed handoff. For an owned post inside
+Insight-hosted Explore, the leaf reports a scan ID, the Explore shell owns its
+dismissal, and Insight applies the staged scan only from the shell's real
+`onDismiss`.
 
 Explore post detail, Insight content, the outer Insight shell, Profile,
 achievement detail, candidate cards, and Species Dictionary detail also

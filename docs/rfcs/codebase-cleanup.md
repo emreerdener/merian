@@ -166,6 +166,16 @@ Implemented Explore slices:
   authoritative reply pages replace bounded notification fallback content.
   Focused tests mirror the feature. Shared comment-avatar fallback moved to
   `Explore/Shared/Models` because both Feed and Notifications consume it.
+- `Explore/Shell` now separates root-mode and initial-route policy, narrow live
+  app-event/root-route/haptic-action dependencies, latest-wins notification
+  preparation with token-checked success/failure commits, staged-to-pending
+  navigation state, the root navigation host, sheet/lifecycle/event modifiers,
+  and root picker and bell components. `ExploreView` retains view-local
+  `NavigationPath`, tab, sheet, Insight-handoff, and playback state. Shell views
+  contain no endpoint or singleton lookup, focused tests mirror navigation and
+  notification-handoff policy, and every production Shell file stays below the
+  pass's 600-line guard. Cross-surface Field-trip route values moved unchanged
+  to `Explore/FieldTrips/Models`.
 
 ## Phase 3: Ownership Cleanup
 

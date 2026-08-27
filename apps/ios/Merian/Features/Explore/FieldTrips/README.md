@@ -7,8 +7,10 @@ the canonical
 
 ## Directory ownership
 
-- `Models/` contains feature presentation models and policies. Codable wire DTOs
-  remain in `Core/Network/FieldTripAPIModels.swift`.
+- `Models/` contains feature presentation models and policies plus the typed
+  template, publication, Event, and Event-entry routes consumed by Explore,
+  Profile, Feed, Author Profile, and Insights. Codable wire DTOs remain in
+  `Core/Network/FieldTripAPIModels.swift`.
 - `Services/` adapts `MerianNetworkClient` operations into small, typed closure
   endpoints. It is the only feature layer that supplies live networking
   closures.

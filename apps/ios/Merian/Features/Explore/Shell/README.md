@@ -11,6 +11,44 @@ items—Observations, Field trips, and Identify—plus root mode pickers, pushed
 destinations, notifications, and search interfaces while product-area subviews
 remain focused on their own domains.
 
+The
+[canonical Explore product contract](../../../../../../docs/rfcs/explore-page.md)
+and
+[root-navigation contract](../../../../../../docs/features-and-hardware/24-explore-bottom-menu.md)
+remain authoritative for shipped behavior, copy, accessibility, and routing;
+this README documents the iOS ownership boundary.
+
+## Ownership boundary
+
+- `Models/ExploreShellNavigationModels.swift` owns the three root tabs, Feed/Map
+  mode, initial-route precedence, Capture-goal and embedded-Insight conversion
+  policies, and the lightweight post-navigation request passed from the
+  navigation host to the root.
+- `Models/ExploreNotificationNavigationModels.swift` owns the typed destination,
+  opaque open token, and preparation outcome used to authorize the handoff
+  across notifications-sheet dismissal.
+- `Services/ExploreShellDependencies.swift` is the only Shell layer that
+  resolves the live app-event stream, app-level Scans-library route request, and
+  container-owned haptic manager. Views receive only the selection,
+  light-impact, and error-feedback actions they use.
+- `ViewModels/ExploreNotificationNavigationCoordinator.swift` owns the
+  latest-wins open session, asynchronous post preparation fencing, sanitized
+  reply fallback mapping, token-checked destination and failure commits, and the
+  one-time staged-to-pending dismiss handoff.
+- `Views/ExploreView.swift` owns the shared `NavigationPath`, root selection,
+  sheet items, Insight handoff state, playback coordinator, and injected
+  dependencies. `Views/ExploreShellNavigationView.swift` registers typed
+  destinations and owns route-local composition. The lifecycle, presentation,
+  and event/feedback modifiers keep their original ordering and exact mount
+  lifetimes.
+- `Components/` owns the root segmented picker and notification button.
+
+Shell views and components perform no networking and resolve no service
+singletons. Root selection, `NavigationPath`, sheet occupancy, and playback
+overlay lifetime remain view-local so animation and dismissal timing do not move
+into an asynchronous state owner. Production Shell files remain below the
+600-line review guard.
+
 Field trips and standard Outings are released for every user through the
 `.fieldTrips` entry in the central `FeatureFlags` registry. Events are also
 public for every user and have no independent feature flag, allowlist, simulator
@@ -69,15 +107,19 @@ Recent-activity navigation keeps only a typed destination across the
 notifications-sheet boundary. Post destinations retain a lightweight post ID,
 not an `ExplorePost`, and re-resolve from `ExploreFeedViewModel` after
 `onDismiss`. Async post preparation is guarded by a latest-wins token so a newer
-tap or manual dismissal invalidates late completion.
+tap or manual dismissal invalidates late completion. Every prepared destination
+or failure must commit with that same token before sheet dismissal or error
+feedback; dismissal discards uncommitted staged state.
 
 `Notifications/` owns decoded activity and row presentation, live catalog/read
 and comment/reply adapters, generation-fenced catalog and reply-thread state,
-and the notification-specific reply route/fallback. The Shell owns only the
-private dismiss-then-navigate destination, latest-open token, and shared
-`NavigationPath`; Feed owns the lightweight reply target carried inside
-`ExplorePostRoute`. Post detail converts that target to the Notifications-owned
-reply route immediately before presenting the thin reply sheet.
+and the notification-specific reply route/fallback. The Shell notification
+coordinator owns the latest-open session, uncommitted staged destination,
+token-checked success/failure commit, and one-time pending destination, while
+`ExploreView` owns the shared `NavigationPath`; Feed owns the lightweight reply
+target carried inside `ExplorePostRoute`. Post detail converts that target to
+the Notifications-owned reply route immediately before presenting the thin reply
+sheet.
 
 The taxonomy Tree/galaxy map remains implemented behind the default-off
 `.speciesDictionaryTree` flag but is disconnected from root MVP navigation.
@@ -90,7 +132,7 @@ owns its route values and screens. `Feed/Models/ExploreFeedRoutes.swift` owns
 `ExploreHashtagRoute`; `Feed/Views/ExploreFeedTabContent.swift` and
 `ExploreHashtagPostsView.swift` own their rendering and feature-local state.
 Keep new Feed presentation, filtering, post editing, and hashtag loading out of
-`ExploreView.swift`. The Shell should retain only cross-area selection,
+`Views/ExploreView.swift`. The Shell should retain only cross-area selection,
 destination conversion, dismissal handoffs, and navigation-stack coordination.
 
 ## Field trip milestone routing
@@ -99,8 +141,12 @@ destination conversion, dismissal handoffs, and navigation-stack coordination.
 Capture or the shared progress toast at this feature boundary. A standard
 `.fieldTrip(templateId:checklistItemId:)` destination selects Outings, opens the
 template, and focuses the credited goal. A `.fieldTripChallenge(challengeId:)`
-destination selects Events and pushes Seasonal Challenge detail. Do not expose
-`FieldTripTemplateRoute` or `FieldTripChallengeRoute` to Core feedback code.
+destination selects Events and pushes Seasonal Challenge detail.
+`ExploreFieldTripNavigationPolicy` owns that conversion. The unchanged
+`FieldTripTemplateRoute`, `FieldTripPublicationRoute`,
+`FieldTripChallengeRoute`, and `FieldTripChallengeEntryRoute` values live with
+their product owner in `FieldTrips/Models/FieldTripRoutes.swift`; Core feedback
+code sees only `CaptureGoalDestination`.
 
 `fieldTripProgressInvalidated(templateIds:)` and
 `fieldTripChallengeProgressInvalidated(challengeIds:)` continue to refresh
@@ -119,12 +165,12 @@ embedded Insight.
 ## Completed Field-trip Scan Navigation
 
 Completed standard-outing goal tiles pass their private `completedScanId` to
-`ExploreView`. The shell fetches the matching device-local `LocalScanRecord`,
-loads it through `InferenceEngine`, and appends `ScanInsightRoute` to the
-existing Explore `NavigationPath`. The destination renders `InsightSheetView`
-with `.embeddedInScansLibrary`, so the user gets the normal Insight content plus
-a back arrow/back swipe inside the same Explore sheet. Do not present another
-sheet for this route.
+`ExploreShellNavigationView`. The shell fetches the matching device-local
+`LocalScanRecord`, loads it through `InferenceEngine`, and appends
+`ScanInsightRoute` to the existing Explore `NavigationPath`. The destination
+renders `InsightSheetView` with `.embeddedInScansLibrary`, so the user gets the
+normal Insight content plus a back arrow/back swipe inside the same Explore
+sheet. Do not present another sheet for this route.
 
 The Field trips API does not provide media URLs for this feature. If the local
 record is unavailable, show the existing unavailable toast and do not append a
@@ -146,3 +192,33 @@ for their own nested sheets, and UIKit presenters may hold explicit tokens, but
 new Explore overlays should not use global `NotificationCenter` pause/resume
 events. The coordinator's overlay depth is the source of truth that prevents a
 nested sheet dismissal from resuming video while another sheet still covers it.
+
+## Focused tests
+
+Tests mirror Shell ownership under `MerianTests/Features/Explore/Shell/`:
+
+- `ExploreShellNavigationPolicyTests` locks the three root items, deep-link mode
+  selection, initial-route precedence, focused Outing conversion, Event
+  selection, embedded-Insight destination conversion, and post comment targets.
+- `ExploreNotificationNavigationCoordinatorTests` locks typed immediate
+  destinations, Field-trip gating, reply fallback mapping, latest-selection
+  fencing, outcome-commit fencing, dismissal invalidation, one-time destination
+  consumption, and current-error delivery.
+
+Run the focused matrix after changing Shell models, dependencies, navigation,
+sheet lifecycle, or notification handoffs:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/ExploreShellNavigationPolicyTests \
+  -only-testing:merianTests/ExploreNotificationNavigationCoordinatorTests \
+  -only-testing:merianTests/ActiveCaptureGoalStoreTests test
+```
+
+Manual parity must cover all three root items and segmented modes; species,
+Community, post, hashtag, author, Field-trip, and completed-scan destinations;
+initial deep links and capture goals; notification selection/dismissal races;
+Insight-to-Community and owned-post dismissal handoffs; missing local scans;
+root comments/notifications/Insight overlay playback; VoiceOver; large Dynamic
+Type; Reduce Motion; and light/dark appearance.
