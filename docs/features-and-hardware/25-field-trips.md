@@ -997,7 +997,7 @@ Primary files:
 - `apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+URLSession.swift`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Views/ProfileTabView.swift`
-- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`
 
 Important model types:
 

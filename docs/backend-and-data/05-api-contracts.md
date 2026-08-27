@@ -3872,8 +3872,8 @@ presented for a replacement identification.
 ### `/get-explore-author-profile`
 
 Returns a privacy-scoped public author profile for an Explore author. This
-endpoint exists for the author profile sheet opened from Explore feed/detail
-author headers.
+endpoint supplies the typed Author Profile destination opened from Explore
+feed/detail author headers.
 
 Request body:
 
@@ -3913,7 +3913,7 @@ Validation and availability rules:
 - Follower/following counts are aggregate-only and do not expose browsable
   identities.
 - `viewer_is_following` is specific to the requesting viewer and drives the
-  profile sheet follow button.
+  Author Profile follow control.
 - `viewer_can_report` is viewer-scoped and is `true` only for a non-self profile
   returned by this visibility contract. It controls whether the overflow menu
   offers **Report user**; `/report-user` independently revalidates the target.
@@ -5265,7 +5265,7 @@ activity pushes:
 
 ### iOS Mapping
 
-The Explore client decodes these endpoints via:
+The Explore iOS mapping, state, and presentation layers are:
 
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
@@ -5280,7 +5280,14 @@ The Explore client decodes these endpoints via:
   filtering, request-generation, and selection state
 - `apps/ios/Merian/Features/Explore/Notifications/ViewModels/ExploreNotificationsViewModel.swift`
 - `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
-- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Models/` for typed routes and
+  deterministic presentation mapping
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Services/ExploreAuthorProfileViewModelDependencies.swift`
+  for the live profile, library, follow, and report adapters
+- `apps/ios/Merian/Features/Explore/AuthorProfile/ViewModels/` for
+  profile/library/follow and report-form state
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/` and grouped
+  `Components/` for navigation and network-free rendering
 - `apps/ios/Merian/Features/Explore/Map/Views/` and grouped `Components/` for
   MapKit camera/gesture ownership and network-free rendering
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
@@ -5320,8 +5327,8 @@ The Explore detail page additionally uses:
 - `/get-explore-comments` for the inline thread and composer state
 - `/get-explore-comment-replies` for reply pagination under top-level comments
 - `/get-explore-mention-suggestions` for trailing-token `@username` autocomplete
-- `mentions` from comment and reply rows for tappable mention spans that open
-  `ExploreAuthorProfileSheet`
+- `mentions` from comment and reply rows for tappable mention spans that open a
+  typed `ExploreAuthorProfileRoute` destination
 - `author_username` from post/profile/comment rows for stable handle display and
   default/ghost author labels
 - `author_avatar_url` from comment rows for both `ExploreCommentsSheet` and
@@ -5333,8 +5340,8 @@ The Explore detail page additionally uses:
   in-app activity sheet
 - cursor-based activity pagination on `(updated_at, notification_id)` so the
   notifications sheet does not skip or duplicate rows during active usage
-- `/set-user-follow` to apply public author Follow/Following state from
-  `ExploreAuthorProfileSheet`
+- `/set-user-follow` through the Author Profile live dependency adapter;
+  `ExploreAuthorProfileViewModel` owns the optimistic state and rollback
 - `/check-public-username` and `/update-public-username` from the Profile
   account card username editor
 - `/register-push-device` to sync the APNs token, the Explore-specific push

@@ -252,8 +252,9 @@ Following changes only these surfaces:
   from authors the viewer follows, ordered by `(shared_at DESC, post_id DESC)`.
 - `get-explore-author-profile` returns `follower_count`, `following_count`, and
   `viewer_is_following`.
-- `ExploreAuthorProfileSheet` shows follower/following counts and an optimistic
-  `Follow` / `Following` button for non-self profiles.
+- `ExploreAuthorProfileViewModel` owns follower/following state and the
+  optimistic `Follow` / `Following` mutation for non-self profiles; the shared
+  Author Profile content renders it in both navigation hosts.
 - `explore_post_notifications` supports a postless `follow` row for in-app
   notifications.
 

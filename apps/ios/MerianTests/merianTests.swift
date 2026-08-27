@@ -2294,25 +2294,6 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
     }
 }
 
-final class ExploreAuthorProfileNavigationPolicyTests: XCTestCase {
-    func testProfileNavigationCanOpenAtRootButStopsAtMaxDepth() {
-        XCTAssertTrue(ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: 0))
-        XCTAssertFalse(
-            ExploreAuthorProfileNavigationPolicy.canOpenProfile(
-                from: ExploreAuthorProfileNavigationPolicy.maxProfileDepth
-            )
-        )
-    }
-
-    func testProfileNavigationDepthCapsAtMaxDepth() {
-        XCTAssertEqual(ExploreAuthorProfileNavigationPolicy.nextProfileDepth(from: 0), 1)
-        XCTAssertEqual(
-            ExploreAuthorProfileNavigationPolicy.nextProfileDepth(from: 1),
-            ExploreAuthorProfileNavigationPolicy.maxProfileDepth
-        )
-    }
-}
-
 final class ProfilePublicationRecoverySummaryTests: XCTestCase {
     func testRecoveryNoticeIsHiddenWhenUnavailableScansAreAllPrivate() {
         let stats = ProfileSocialStats(

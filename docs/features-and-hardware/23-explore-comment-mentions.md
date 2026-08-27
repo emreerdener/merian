@@ -84,8 +84,8 @@ additive and may be empty:
 ```
 
 `username` is the historical token used to locate the matching span in `body`.
-`user_id` remains stable, while `display_name` and `avatar_url` are read from the
-current public profile. Clients must key link rendering by the snapshot
+`user_id` remains stable, while `display_name` and `avatar_url` are read from
+the current public profile. Clients must key link rendering by the snapshot
 `username` and route the tap by `user_id`; substituting the user's current
 handle would make an old token stop matching its plain-text body.
 
@@ -169,11 +169,11 @@ installs. Effective mention delivery requires:
 - the `Comment mentions` push setting
 - an active `public.user_push_devices` row for the APNs token
 
-The Edge registration contract accepts `comment_mentions_enabled` in addition
-to `explore_enabled`. The field is optional for older clients; when omitted,
-the server treats the mention preference like the submitted `explore_enabled`
-value for compatibility. `send-push-notification` requires
-`explore_enabled = true` for regular Explore activity pushes and requires
+The Edge registration contract accepts `comment_mentions_enabled` in addition to
+`explore_enabled`. The field is optional for older clients; when omitted, the
+server treats the mention preference like the submitted `explore_enabled` value
+for compatibility. `send-push-notification` requires `explore_enabled = true`
+for regular Explore activity pushes and requires
 `comment_mentions_enabled = true` for `comment_mention` payloads.
 
 This setting controls only remote push delivery. The in-app Explore
@@ -190,16 +190,23 @@ notifications feed remains complete and continues to include mention rows.
 - Tappable rendered body:
   `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentBodyText.swift`
 - Comment surfaces:
-  `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift` and
+  `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
+  and
   `apps/ios/Merian/Features/Explore/Feed/Components/ExplorePostDetailCommentsSection.swift`
-- Profile routing:
+- Typed profile route:
+  `apps/ios/Merian/Features/Explore/AuthorProfile/Models/ExploreAuthorProfileRoute.swift`
+- Profile destinations:
+  `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`
+  for parent-owned navigation stacks and
   `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+  for the standalone modal host
 - Notification rendering:
-  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift` and
+  `apps/ios/Merian/Features/Explore/Notifications/Models/ExploreNotification.swift`
+  and
   `apps/ios/Merian/Features/Explore/Notifications/Components/NotificationRowView.swift`
 - Push preference:
-  `apps/ios/Merian/Features/Profile/Settings/Notifications/Views/NotificationSettingsView.swift` and
-  `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
+  `apps/ios/Merian/Features/Profile/Settings/Notifications/Views/NotificationSettingsView.swift`
+  and `apps/ios/Merian/Core/Hardware/PushNotificationManager.swift`
 - Regression tests:
   `apps/ios/MerianTests/Features/Explore/ExploreCommentMentionTextTests.swift`
 

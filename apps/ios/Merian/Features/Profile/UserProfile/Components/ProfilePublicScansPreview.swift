@@ -19,7 +19,7 @@ struct ProfilePublicScansPreview: View {
     @State private var isLibraryPresented = false
 
     private let previewLimit = 9
-    private let columns = ProfilePublishedScanGridStyle.columns
+    private let columns = PublishedScanGridStyle.columns
 
     var body: some View {
         VStack(spacing: 0) {
@@ -161,7 +161,7 @@ struct ProfilePublicScansPreview: View {
                         }
                     }
                     .clipped()
-                    .profilePublishedScanTileCorners(index: index, itemCount: posts.count)
+                    .publishedScanTileCorners(index: index, itemCount: posts.count)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Published scan")
@@ -341,7 +341,7 @@ private struct ProfilePublishedScansLibraryView: View {
     @State private var selectedInsightRoute: ScanInsightRoute?
 
     private let pageSize = 30
-    private let columns = ProfilePublishedScanGridStyle.columns
+    private let columns = PublishedScanGridStyle.columns
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -916,66 +916,7 @@ private struct ProfilePublicScanImageView: View {
     }
 }
 
-enum ProfilePublishedScanGridStyle {
-    static let columnCount = 3
-    static let spacing: CGFloat = 2
-    static let cornerRadius: CGFloat = 16
-
-    static var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: spacing), count: columnCount)
-    }
-
-    static func cornerRadii(
-        index: Int,
-        itemCount: Int,
-        columnCount: Int = ProfilePublishedScanGridStyle.columnCount
-    ) -> RectangleCornerRadii {
-        guard itemCount > 0 else { return RectangleCornerRadii() }
-
-        let normalizedColumnCount = max(columnCount, 1)
-        let r = index / normalizedColumnCount
-        let c = index % normalizedColumnCount
-        let totalRows = (itemCount + normalizedColumnCount - 1) / normalizedColumnCount
-
-        func itemsInRow(_ row: Int) -> Int {
-            min(normalizedColumnCount, itemCount - row * normalizedColumnCount)
-        }
-
-        let isTopLeft = r == 0 && c == 0
-        let isTopRight = r == 0 && c == itemsInRow(0) - 1
-
-        let isBottomLeft = c == 0 && r == totalRows - 1
-
-        let hasNoCellBelow = (r + 1 == totalRows) || (c >= itemsInRow(r + 1))
-        let isBottomRight = c == itemsInRow(r) - 1 && hasNoCellBelow
-
-        return RectangleCornerRadii(
-            topLeading: isTopLeft ? cornerRadius : 0,
-            bottomLeading: isBottomLeft ? cornerRadius : 0,
-            bottomTrailing: isBottomRight ? cornerRadius : 0,
-            topTrailing: isTopRight ? cornerRadius : 0
-        )
-    }
-}
-
 extension View {
-    func profilePublishedScanTileCorners(
-        index: Int,
-        itemCount: Int,
-        columnCount: Int = ProfilePublishedScanGridStyle.columnCount
-    ) -> some View {
-        clipShape(
-            UnevenRoundedRectangle(
-                cornerRadii: ProfilePublishedScanGridStyle.cornerRadii(
-                    index: index,
-                    itemCount: itemCount,
-                    columnCount: columnCount
-                ),
-                style: .continuous
-            )
-        )
-    }
-
     func profileExploreStateStyle() -> some View {
         self
             .font(.subheadline)

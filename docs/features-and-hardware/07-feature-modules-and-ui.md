@@ -528,7 +528,7 @@ The Scans tab is the user's primary offline biological journal.
   Map cards render from the Map projection after canonical engagement state is
   synchronized into it, preventing an older feed-store copy without
   `reference_thumbnail_url` from replacing the richer Map thumbnail. Both the
-  Profile tab and Explore author-profile sheet merge the matching local scan's
+  Profile tab and Explore Author Profile content merge the matching local scan's
   `referenceImageUrl` by `scanId` when showing the current user and an older
   deployed author-post payload omits the reference field. Audio and video use
   `ExploreMediaTypeIndicator`, matching the Scans library's 24-point dark
@@ -595,10 +595,12 @@ The Scans tab is the user's primary offline biological journal.
   show a copied public avatar URL when available; feed posts, author-profile
   routes, and comment rows all use the same `public.users.public_avatar_url`
   projection. Ghost users fall back to iconography when no avatar is available.
-- **Profile Following**: `ExploreAuthorProfileSheet` shows public
-  follower/following counts and an optimistic `Follow` / `Following` button for
-  non-self profiles. Counts are not tappable in v1, and following never grants
-  private scan access or creates mutual friend state.
+- **Profile Following**: `ExploreAuthorProfileViewModel` owns public
+  follower/following state and the optimistic follow mutation with rollback;
+  `ExploreAuthorProfileHeaderCard` and its sibling follow control render the
+  counts and `Follow` / `Following` action for non-self profiles. Counts are not
+  tappable in v1, and following never grants private scan access or creates
+  mutual friend state.
 - **Interactions**: Likes, comments, and follows are optimistic and online-only.
   Feed comment entry uses a dedicated `ExploreCommentsSheet`, while the detail
   page keeps its comment thread and composer inline. Comments support
@@ -1599,8 +1601,10 @@ on gesture-driven layout abstractions.
   trips router and Identify Requests/Index mode, stack-based request/activity
   feed routes, stack-based author-profile routes, and the profile-to-scan
   nesting cap so author profiles do not layer a second sheet over active
-  feed/detail video. `AuthorProfile/ExploreAuthorProfileSheet.swift` owns
-  profile content, route metadata, and profile-library transitions; its in-place
+  feed/detail video. `AuthorProfile/Models`, `Services`, `ViewModels`, `Views`,
+  and grouped `Components` own route/presentation policy, injected live
+  dependencies, profile/library/follow/report state, and declarative UI. Only
+  the Author Profile `Services` adapter resolves its endpoints. The in-place
   published-scan library hides the inherited stack back button and supplies one
   explicit back-to-profile control, library scans open `ExplorePostDetailView`
   with the current author-profile depth, and further author-profile taps are

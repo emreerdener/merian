@@ -94,6 +94,15 @@ clamping, track/progress drawing, and the centered count text. Keep it
 domain-neutral so future goal providers can reuse it without importing Field
 trip models.
 
+## Published scan grids
+
+`Layout/PublishedScanGridStyle.swift` owns the three-column spacing and
+outer-corner policy shared by the current-user Profile grid, Explore Author
+Profile, and Species Dictionary Community sightings. The primitive determines
+only reusable grid geometry and clipping. Each feature continues to own its post
+source, media rendering, callbacks, accessibility copy, pagination, and
+empty/loading states.
+
 ## System and milestone feedback
 
 `ToastBanner` and the compact Scans snackbar share an adaptive inverse-glass

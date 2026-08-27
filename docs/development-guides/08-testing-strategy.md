@@ -3634,6 +3634,33 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/ExplorePostCardAuthorPresentationTests test
 ```
 
+Explore Author Profile tests mirror the feature owner.
+`ExploreAuthorProfilePresentationTests` locks navigation depth, current-viewer
+and possessive titles, Pro presentation, and stable post deduplication.
+`ExploreAuthorProfileViewModelTests` locks profile loading/error recovery,
+latest-author fencing, preview prefetch projection, server-cursor
+pagination/fallback, refresh supersession of in-flight pagination, authoritative
+follow success, and optimistic rollback. `ExploreReportUserViewModelTests` locks
+the 1,000-character details bound and success/error form preservation. Core
+Network continues to own payload and decoding tests. Run the focused suites
+after changing Author Profile models, services, view models, views, components,
+or their dependency adapters:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/ExploreAuthorProfilePresentationTests \
+  -only-testing:merianTests/ExploreAuthorProfileViewModelTests \
+  -only-testing:merianTests/ExploreReportUserViewModelTests test
+```
+
+Manual Author Profile parity covers opening from Feed, comments, Field trips,
+and standalone detail; self versus non-self identity and Pro presentation;
+follow state and counts; profile-to-library animation, refresh, pagination, and
+back behavior; image/video/audio thumbnail fallback; report validation,
+dismissal, success, and recoverable error; account-identity reload/close
+handoff; VoiceOver; large Dynamic Type; and light/dark appearance.
+
 After changing Shared `ExplorePublicMediaView`, media indicators, hero-image
 loading, coordinator/mute policy, Core Pro-badge presentation, or their folder
 ownership, manually regress:

@@ -145,6 +145,12 @@ Implemented Explore slices:
   Its presentation and asynchronous-state tests live under
   `MerianTests/Features/Explore/Identify`; wire decoding remains under Core
   network tests.
+- `Explore/AuthorProfile` now separates typed routes and presentation policy,
+  live dependency adapters, `@MainActor @Observable` profile/report state,
+  views, and grouped components. Generation-fenced library refreshes supersede
+  in-flight pagination. Its views call no endpoint, deterministic feature tests
+  mirror the production owner, and the published-scan grid layout shared with
+  Profile and Species Dictionary lives in Core UI.
 
 ## Phase 3: Ownership Cleanup
 

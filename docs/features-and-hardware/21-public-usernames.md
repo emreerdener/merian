@@ -19,8 +19,8 @@ avatars are documented here because feed/profile identity payloads carry
   either order such as `naturebook_support` and `support_naturebook`.
 - Reservation is exact rather than prefix-based: community handles such as
   `naturebook_fan` and `security_researcher` remain valid.
-- Usernames are public identity only. No username grants an administrative
-  role, authorization claim, or trusted badge.
+- Usernames are public identity only. No username grants an administrative role,
+  authorization claim, or trusted badge.
 - The reservation applies to `public_username`, not `public_author_name`.
   Display labels can be duplicated and must never be treated as proof that an
   account is staff, verified, or otherwise trusted.
@@ -28,36 +28,38 @@ avatars are documented here because feed/profile identity payloads carry
   stripping the marker during normalization, but never stores it.
 - Logged-in users can keep showing their provider-derived public display name on
   Explore posts, such as `Emre E.`.
-- Ghost/default-alias users show the handle on Explore, such as `@stone_glen_72`.
+- Ghost/default-alias users show the handle on Explore, such as
+  `@stone_glen_72`.
 - Explore comment tagging uses `public_username`, not `public_author_name`.
 - `public_avatar_url` resolves to a custom Merian avatar first and an OAuth
   provider avatar second.
 
 ## Reserved-Name Policy
 
-App-facing candidate input is normalized to its lowercase stored form before
-the policy runs; direct database writes must already be canonical and are
-rejected rather than rewritten. The current reserved groups are:
+App-facing candidate input is normalized to its lowercase stored form before the
+policy runs; direct database writes must already be canonical and are rejected
+rather than rewritten. The current reserved groups are:
 
-| Group | Reserved values |
-| --- | --- |
-| Sentinels | `null`, `undefined` |
-| Product namespaces | `explore`, `merian`, `naturebook`, `naturebookearth` |
-| Official/system roles | `abuse`, `account`, `accounts`, `admin`, `administrator`, `api`, `auth`, `billing`, `bot`, `contact`, `customer_service`, `customer_support`, `developer`, `developers`, `help`, `legal`, `moderation`, `moderator`, `notifications`, `official`, `press`, `privacy`, `root`, `safety`, `security`, `staff`, `status`, `support`, `system`, `team`, `trust`, `verified`, `verify` |
-| Product-role combinations | Every exact `<product>_<role>` and `<role>_<product>` combination, such as `naturebook_support` and `support_naturebook` |
+| Group                     | Reserved values                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sentinels                 | `null`, `undefined`                                                                                                                                                                                                                                                                                                                                                               |
+| Product namespaces        | `explore`, `merian`, `naturebook`, `naturebookearth`                                                                                                                                                                                                                                                                                                                              |
+| Official/system roles     | `abuse`, `account`, `accounts`, `admin`, `administrator`, `api`, `auth`, `billing`, `bot`, `contact`, `customer_service`, `customer_support`, `developer`, `developers`, `help`, `legal`, `moderation`, `moderator`, `notifications`, `official`, `press`, `privacy`, `root`, `safety`, `security`, `staff`, `status`, `support`, `system`, `team`, `trust`, `verified`, `verify` |
+| Product-role combinations | Every exact `<product>_<role>` and `<role>_<product>` combination, such as `naturebook_support` and `support_naturebook`                                                                                                                                                                                                                                                          |
 
 Separators normalize before evaluation on the app-facing path, so pasted input
 such as `Naturebook Support` becomes `naturebook_support` and is rejected. The
-rule does not reserve arbitrary prefixes, suffixes, or substrings: `naturebook_fan`,
-`naturebook_supporter`, `security_researcher`, and `team_wren` remain valid.
+rule does not reserve arbitrary prefixes, suffixes, or substrings:
+`naturebook_fan`, `naturebook_supporter`, `security_researcher`, and `team_wren`
+remain valid.
 
-PostgreSQL is authoritative through
-`public.is_reserved_public_username(...)` and the
-`users_public_username_valid_check` constraint. The Edge validation and iOS
-edit-sheet sets are early-feedback mirrors. The static migration contract parses
-all three implementations and fails if a group, ordering rule, or combination
-direction drifts. Authorization must always come from server-owned roles or
-claims; neither a username nor a display label is an authorization boundary.
+PostgreSQL is authoritative through `public.is_reserved_public_username(...)`
+and the `users_public_username_valid_check` constraint. The Edge validation and
+iOS edit-sheet sets are early-feedback mirrors. The static migration contract
+parses all three implementations and fails if a group, ordering rule, or
+combination direction drifts. Authorization must always come from server-owned
+roles or claims; neither a username nor a display label is an authorization
+boundary.
 
 ## Display Rules
 
@@ -129,15 +131,15 @@ metadata updates cannot overwrite a user-uploaded profile picture.
 Migration `20260720042641_optimize_explore_author_maintenance.sql` makes the
 identity refresh idempotent and restricts both identity refresh and Explore post
 ownership repair to `service_role`. Auth triggers and public write/ghost-merge
-paths own refreshes. Feed, profile, map, comment, notification, and other Explore
-reads consume the existing projection and never perform maintenance writes.
+paths own refreshes. Feed, profile, map, comment, notification, and other
+Explore reads consume the existing projection and never perform maintenance
+writes.
 
 ## Edge Function
 
 `update-public-username` is an authenticated app-facing Edge Function. Its
-Supabase gateway entry uses `verify_jwt = false` and identity is resolved
-inside `withEdgeHandler`, matching other anonymous-session-compatible app
-endpoints.
+Supabase gateway entry uses `verify_jwt = false` and identity is resolved inside
+`withEdgeHandler`, matching other anonymous-session-compatible app endpoints.
 
 Request:
 
@@ -155,8 +157,8 @@ Response:
 }
 ```
 
-The function normalizes input, validates the same exact/brand/role policy used by
-PostgreSQL and iOS, checks uniqueness excluding the current user, updates
+The function normalizes input, validates the same exact/brand/role policy used
+by PostgreSQL and iOS, checks uniqueness excluding the current user, updates
 `public.users.public_username`, and returns `409` when the normalized handle is
 already taken. If the user's public identity source is `alias`, the function
 also updates `public_author_name` to the same username so Explore default
@@ -205,8 +207,8 @@ rows.
   validation, and a primary save button below the input.
 - `ExplorePost.publicAuthorDisplayName(from:username:)` keeps logged-in display
   names and renders handles for default identities.
-- `ExploreAuthorProfileSheet` shows `@authorUsername` under the display name
-  when available.
+- `ExploreAuthorProfileHeaderCard` shows `@authorUsername` under the display
+  name when available; both stack and sheet hosts render that shared content.
 
 ## Testing
 

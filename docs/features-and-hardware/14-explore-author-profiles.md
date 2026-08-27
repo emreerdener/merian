@@ -12,10 +12,10 @@ exposing private scan IDs or opening private achievement evidence.
 ## User Experience
 
 - Tapping an author row in the Explore feed, comments, mentions, or a
-  parent-owned `ExplorePostDetailView` pushes `ExploreAuthorProfileSheet` as an
-  author-profile route inside the active Explore stack. A standalone post detail
-  presents the same destination through its one `ExplorePostDetailPresentation`
-  host.
+  parent-owned `ExplorePostDetailView` pushes `ExploreAuthorProfileContent` for
+  the typed author-profile route inside the active Explore stack. A standalone
+  post detail presents `ExploreAuthorProfileSheet` through its one
+  `ExplorePostDetailPresentation` host.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile
   navigation is intentionally scoped to the header.
 - The user's own Profile tab shows a server-authoritative `Published scans`
@@ -145,8 +145,8 @@ notes, exact coordinates, public location labels, and private evidence details.
 Field trip challenge badges are also evidence-free: they expose badge title,
 challenge title, broad tags, and cover imagery only. Published Field trip cards
 link to `FieldTripPublicationDetailView`, not to normal Explore posts. Field
-trip Community cards reuse the same author profile sheet when the author
-identity is tapped.
+trip Community cards reuse the same typed Author Profile destination when the
+author identity is tapped.
 
 Public achievement payloads contain only progress fields:
 
@@ -273,8 +273,9 @@ Ghost-account merge repair:
 - `20260622010000_reparent_community_requests_after_identity_merge.sql` repairs
   existing Community requests whose requester no longer matches the backing scan
   owner.
-- This keeps own-profile Explore previews, author sheets, `is_owned_by_viewer`
-  checks, and Identify's Yours filter aligned with the current Supabase account.
+- This keeps own-profile Explore previews, author-profile routes,
+  `is_owned_by_viewer` checks, and Identify's Yours filter aligned with the
+  current Supabase account.
 
 Field trips extension:
 
@@ -316,7 +317,14 @@ Field trips extension:
 
 Primary files:
 
+- `apps/ios/Merian/Features/Explore/AuthorProfile/README.md`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Models/`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Services/ExploreAuthorProfileViewModelDependencies.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/ViewModels/ExploreAuthorProfileViewModel.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/ViewModels/ExploreReportUserViewModel.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileContent.swift`
 - `apps/ios/Merian/Features/Explore/AuthorProfile/Views/ExploreAuthorProfileSheet.swift`
+- `apps/ios/Merian/Features/Explore/AuthorProfile/Components/`
 - `apps/ios/Merian/Features/Explore/Shell/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Components/ExploreCommentsSheet.swift`
@@ -326,6 +334,7 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreHeroImageView.swift`
 - `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreMediaIndicators.swift`
 - `apps/ios/Merian/Core/UI/Components/MerianProBadge.swift`
+- `apps/ios/Merian/Core/UI/Layout/PublishedScanGridStyle.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripProfilePresentation.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/ActiveFieldTripsProfileViewModel.swift`
@@ -336,11 +345,23 @@ Primary files:
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements.swift`
 
+`ExploreAuthorProfileViewModel` owns profile loading, preview seeding, cursor
+pagination, refresh/append generation fencing, stable post deduplication, and
+optimistic follow mutation with rollback. `ExploreReportUserViewModel` owns
+report reason/details validation and submission state. Their small dependency
+structs are initializer-injected for tests; only the feature's `Services/`
+adapter resolves `MerianNetworkClient`, image prefetching, error formatting, and
+haptic feedback. Author Profile views and components invoke no endpoint. They
+retain UI-only presentation, navigation, local-thumbnail lookup, scroll-trigger,
+and app-event timing.
+
 `ExploreHeroImageView` and `ExploreMediaTypeIndicator` live in Explore Shared
 Media because Author Profile, Profile, and other Explore areas consume them.
 `MerianProBadge` lives in Core UI because Feed, Author Profile, and Profile
-share the domain-neutral visual primitive. Changes to these declarations require
-both profile surfaces in the regression matrix.
+share it. `PublishedScanGridStyle` also lives there because Author Profile,
+Profile, and Species Dictionary share its domain-neutral geometry. Changes to
+these declarations require both profile surfaces and Species Dictionary
+sightings in the regression matrix.
 
 Important model types:
 
@@ -374,9 +395,9 @@ Conversion rules:
 - Remote author rows decode optional `fieldTrips`. The public profile route and
   the local Profile tab render active status-only progress and published cards
   through `FieldTripProfilePreview` / `CurrentUserFieldTripProfilePreview`.
-- Remote author rows decode `viewerCanReport`. The profile overflow action calls
-  `MerianNetworkClient.reportUser(reportedUserId:reason:details:)`; the server
-  remains authoritative if visibility changes after the profile loaded.
+- Remote author rows decode `viewerCanReport`. The profile overflow action asks
+  `ExploreReportUserViewModel` to submit through its typed live dependency; the
+  server remains authoritative if visibility changes after the profile loaded.
 - `ExploreAuthorProfileRoute.navigationDepth` and
   `ExplorePostRoute.authorProfileDepth` carry profile nesting depth through the
   Explore stack. `ExploreAuthorProfileNavigationPolicy` gates profile opens at
@@ -400,6 +421,9 @@ Conversion rules:
 Library pagination behavior:
 
 - The profile response seeds the library with preview posts.
+- Pull-to-refresh and a fresh profile projection advance the library generation
+  before resetting the cursor. An older append completion cannot merge into the
+  replacement page or clear its loading state.
 - Additional pages call `getExploreAuthorPosts(authorUserId:limit:cursor:)`.
 - Duplicate post IDs are removed after every merge.
 - The next cursor is taken directly from the Edge response's `next_cursor`.
@@ -424,6 +448,11 @@ MerianNetworkClient.shared.getFieldTripProfileSummaries(authorUserId:limit:)
 MerianNetworkClient.shared.getFieldTripPublication(publicationId:)
 ```
 
+The Author Profile live dependency adapter is the only layer in that feature
+that calls the first four methods. Core Network continues to own transport,
+payload encoding, and DTO decoding; this organization pass changes no wire
+contract.
+
 ## Testing
 
 Backend:
@@ -440,6 +469,16 @@ Backend:
 
 iOS:
 
+- `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreAuthorProfilePresentationTests.swift`
+  covers route depth, viewer/possessive titles, Pro presentation, and stable
+  post deduplication.
+- `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreAuthorProfileViewModelTests.swift`
+  covers profile load/error recovery, latest-author fencing, preview prefetch
+  projection, direct server-cursor pagination/fallback, refresh supersession of
+  in-flight pagination, authoritative follow state, and optimistic rollback.
+- `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreReportUserViewModelTests.swift`
+  covers the 1,000-character form bound, typed submission, success, and
+  recoverable error state.
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - Covers profile decoding, award/heatmap conversion, and author-post cursor
   payload construction.
@@ -469,6 +508,7 @@ deno test --config services/supabase/functions/deno.json services/supabase/funct
 deno test --config services/supabase/functions/deno.json --allow-read=services/supabase/migrations services/supabase/functions/_tests/fieldTripsMigrationContract.test.ts
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -only-testing:merianTests/ExploreAuthorProfilePresentationTests -only-testing:merianTests/ExploreAuthorProfileViewModelTests -only-testing:merianTests/ExploreReportUserViewModelTests test
 ```
 
 ## Deployment Notes

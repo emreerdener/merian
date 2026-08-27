@@ -73,7 +73,7 @@ struct SpeciesCommunitySightingsSection: View {
                             post: post,
                             reloadGeneration: exploreViewModel.mediaReloadGeneration
                         )
-                        .profilePublishedScanTileCorners(
+                        .publishedScanTileCorners(
                             index: index,
                             itemCount: min(viewModel.posts.count, previewLimit),
                             columnCount: 2
@@ -98,7 +98,7 @@ struct SpeciesCommunitySightingsSection: View {
                         .overlay {
                             GlowPulsingSkeletonView(cornerRadius: 0)
                         }
-                        .profilePublishedScanTileCorners(
+                        .publishedScanTileCorners(
                             index: index,
                             itemCount: previewLimit,
                             columnCount: 2
