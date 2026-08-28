@@ -330,38 +330,39 @@ size. `QueuedScanSnapshot` and `QueuedScanContext` still copy retry metadata,
 captured media, telemetry, and approximate bytes so routing, recovery, and
 diagnostics remain safe after SwiftData rows are updated or deleted.
 
-Two presentation refresh loops have different scopes. While queued tiles exist,
-`ScansSheetView` reads fresh value snapshots every 1.5 seconds to work around
-dropped presented-sheet SwiftData notifications. While a queued Insight is
-visible, `QueuedContentView` reads the exact row through a fresh `ModelContext`
-every second to update queue state and retry presentation. Neither loop owns
-retry scheduling or pipeline dispatch, and unchanged values remain silent. One
-safe presentation resolver maps stable queue/server codes to customer reasons
-and never renders `queueLastErrorMessage`. Future online deadlines show a live
-countdown plus **Retry now** when another attempt can help. Offline rows explain
-that retry resumes with connectivity and show neither a numeric countdown nor a
-**Retry now** action. Local navigation such as **View plans** may remain
-available because it does not attempt network recovery. Elapsed deadlines show
-no helper or retry action because the analyzing state already communicates the
-attempt. Consent, entitlement, missing-media, retry-limit, and terminal states
-use category-specific copy or actions. A manual retry clears persisted backoff
-and resets the bounded automatic attempt counter under the same scan UUID before
+Two presentation refresh loops have different scopes. While eligible queued
+tiles exist, `ScansShellViewModel` asks `ScansShellDataStore` for fresh value
+snapshots every 1.5 seconds to work around dropped presented-sheet SwiftData
+notifications. While a queued Insight is visible, `QueuedContentView` reads the
+exact row through a fresh `ModelContext` every second to update queue state and
+retry presentation. Neither loop owns retry scheduling or pipeline authority,
+and unchanged values remain silent. One safe presentation resolver maps stable
+queue/server codes to customer reasons and never renders
+`queueLastErrorMessage`. Future online deadlines show a live countdown plus
+**Retry now** when another attempt can help. Offline rows explain that retry
+resumes with connectivity and show neither a numeric countdown nor a **Retry
+now** action. Local navigation such as **View plans** may remain available
+because it does not attempt network recovery. Elapsed deadlines show no helper
+or retry action because the analyzing state already communicates the attempt.
+Consent, entitlement, missing-media, retry-limit, and terminal states use
+category-specific copy or actions. A manual retry clears persisted backoff and
+resets the bounded automatic attempt counter under the same scan UUID before
 entering the same atomic claim path. Description-only staged work receives the
 same fresh budget. A known cloud-complete result preserves its owner-result
 recovery marker and never re-enables provider dispatch.
 
 **Value-Type Snapshot Pattern** — `ScansGrid` never holds a live
-`OfflineQueuedScan @Model` reference. When `ScansSheetView.refreshQueuedScans()`
-fetches pending scans, it immediately maps them to `[QueuedScanSnapshot]`
-value-type structs while the objects are live. `LazyVGrid` renders tiles from
-this snapshot array — after `context.delete(scan)` fires, no grid tile can
-access a zombie `@Model` attribute. When the user taps a queued tile, a fresh
-`OfflineQueuedScan` is fetched and snapshotted into `QueuedScanContext` (a
-richer value type with all telemetry and queue fields) before the queued route
-is appended. That route retains the value snapshot through queue deletion and
-completed-result handoff. `QueuedScanSnapshot.gridId` returns `"q_\(id)"` to
-prevent duplicate `ForEach` keys against `LocalScanRecord` tiles that share the
-same UUID.
+`OfflineQueuedScan @Model` reference. When
+`ScansShellDataStore.queuedSnapshots(in:)` fetches pending or needs-attention
+scans, it immediately maps them to `[QueuedScanSnapshot]` value-type structs
+while the objects are live. `LazyVGrid` renders tiles from this snapshot array —
+after `context.delete(scan)` fires, no grid tile can access a zombie `@Model`
+attribute. When the user taps a queued tile, a fresh `OfflineQueuedScan` is
+fetched and snapshotted into `QueuedScanContext` (a richer value type with all
+telemetry and queue fields) before the queued route is appended. That route
+retains the value snapshot through queue deletion and completed-result handoff.
+`QueuedScanSnapshot.gridId` returns `"q_\(id)"` to prevent duplicate `ForEach`
+keys against `LocalScanRecord` tiles that share the same UUID.
 
 **Failed-row retention (`purgeSoftDeletedRecords`)**: Terminal `.failed` (raw
 value 5) rows are not all disposable. Rows marked `queueNeedsAttention == true`

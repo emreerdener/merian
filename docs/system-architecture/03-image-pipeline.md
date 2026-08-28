@@ -649,13 +649,15 @@ falling straight into `ArchivedVisualsView`.
   `Taxonomy Unavailable`), so the UI shows a non-visual terminal placeholder
   instead of implying an archived photo.
 
-`ScansSheetView` now runs a bounded `ScanThumbnailBackfillActor` pass over
-biological scans that lack both local image media and `referenceImageUrl`. The
-actor still checks the legacy `species_dictionary.reference_image_url` cache
-directly for compatibility, then falls back to Wikipedia / GBIF public APIs,
-persists any recovered URL back to `LocalScanRecord.referenceImageUrl`, and
-prewarms `LocalImageLoader` so the grid tile flips from placeholder to image
-without requiring a full sheet reopen.
+`ScansThumbnailPipeline` now prepares and schedules a bounded
+`ScanThumbnailBackfillActor` pass over biological scans that lack both local
+image media and `referenceImageUrl`. The same Shell service owns leading image
+and audio prefetch plus online owner-media cloud repair, so `ScansSheetView`
+does not resolve shared loaders or actors. The actor still checks the legacy
+`species_dictionary.reference_image_url` cache directly for compatibility, then
+falls back to Wikipedia / GBIF public APIs, persists any recovered URL back to
+`LocalScanRecord.referenceImageUrl`, and prewarms `LocalImageLoader` so the grid
+tile flips from placeholder to image without requiring a full sheet reopen.
 
 The owner-only Scan Map opts into the same pipeline only when a rendered map
 thumbnail has no usable captured bitmap and no saved reference URL. Its shared
@@ -873,16 +875,20 @@ unpublish and moderation. The post, likes, comments, reports, and health
 evidence remain. Reference artwork is never substituted for missing observation
 evidence.
 
-The Scan Library owner banner consumes `/get-explore-media-incidents`. The
-canonical response is `{"data":[...]}`; corrected clients also accept only the
-exact legacy direct array during deployment convergence. Rapid queue-event
-refreshes are coalesced within five seconds with one trailing refresh for a
-trigger received in flight. The expected authenticated owner is revalidated
-before projection, malformed successes fail closed, and refresh failure
-preserves the last in-memory alert state. Reviewing a linked local scan can
-activate the strongly matched device repair above. A repair updates the exact
-scan and Explore references and resets health in one transaction. Repeated
-origin checks alone cannot recreate bytes if no recoverable copy exists.
+The Scan Library owner banner consumes `/get-explore-media-incidents` through
+`ScansShellViewModel`'s injected endpoint dependency; Library rendering receives
+only prepared incident state. The canonical response is `{"data":[...]}`;
+corrected clients also accept only the exact legacy direct array during
+deployment convergence. Rapid queue-event refreshes are coalesced within five
+seconds with one trailing refresh for a trigger received in flight. Canceled
+drivers cannot project their response, and account replacement preserves the
+trailing refresh while rejecting the old owner's result. The expected
+authenticated owner is revalidated before projection, malformed successes fail
+closed, and refresh failure preserves the last in-memory alert state. Reviewing
+a linked local scan can activate the strongly matched device repair above. A
+repair updates the exact scan and Explore references and resets health in one
+transaction. Repeated origin checks alone cannot recreate bytes if no
+recoverable copy exists.
 
 See
 [Explore Media Health and Quarantine](../backend-and-data/12-explore-media-health-and-quarantine.md)

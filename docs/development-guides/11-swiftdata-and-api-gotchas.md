@@ -1103,8 +1103,8 @@ struct QueuedScanContext: Identifiable {
     init(from scan: OfflineQueuedScan) { /* copy while live */ }
 }
 
-// In ScansSheetView.refreshQueuedScans() — map at fetch time, before any deletion can fire
-queuedScans = fetched.map {
+// In ScansShellDataStore.queuedSnapshots(in:) — map before deletion can fire
+let queuedSnapshots = fetched.map {
     QueuedScanSnapshot(
         id: $0.id,
         imagePath: $0.capturedMediaSnapshot.primaryImagePath,
@@ -1119,7 +1119,7 @@ if let completedRecord = localScanRecord(id: snapshot.id) {
     onQueuedInsight?(queuedContext)  // helper copied all live fields NOW
 }
 
-// In ScansSheetView — the shell owns navigation, not LibraryView
+// In ScansSheetView — the view retains view-local navigation, not data loading
 onQueuedScanSelected: { context in
     navigationPath.append(QueuedScanInsightRoute(queuedScan: context))
 }
@@ -1136,9 +1136,10 @@ properties that previously switched on a live `OfflineQueuedScan?` now switch on
 `queuedContext == nil`. `QueuedContentView` receives `QueuedScanContext` rather
 than a `@Model` reference, and the queued media path is always rebuilt from
 `queuedContext.capturedMediaSnapshot` instead of faulting properties off the
-deleted model. `ScansSheetView` retains that context in its private pushed route
-while hashing and comparing by scan ID, so the destination survives queue
-deletion and completed-result handoff without a nested sheet.
+deleted model. `ScansShellDataStore` owns the queue-to-value projection;
+`ScansSheetView` retains the resulting context in its private pushed route while
+hashing and comparing by scan ID, so the destination survives queue deletion and
+completed-result handoff without a nested sheet.
 
 ---
 

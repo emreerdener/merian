@@ -1,7 +1,8 @@
-@testable import Merian
 import Combine
 import SwiftData
 import XCTest
+
+@testable import Merian
 
 @MainActor
 private final class ScansLibraryActionRecorder {
@@ -235,6 +236,7 @@ final class ScansLibraryActionsTests: XCTestCase {
             triggerMediumFeedback: { [recorder] in
                 recorder?.mediumFeedbackCount += 1
             },
+            triggerLightFeedback: {},
             triggerSuccessFeedback: { [recorder] in
                 recorder?.actionOrder.append("success-feedback")
                 recorder?.successFeedbackCount += 1

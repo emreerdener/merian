@@ -186,6 +186,14 @@ final class ScansManager {
         dependencies.triggerMediumFeedback()
     }
 
+    func triggerLightFeedback() {
+        dependencies.triggerLightFeedback()
+    }
+
+    func triggerErrorFeedback() {
+        dependencies.triggerErrorFeedback()
+    }
+
     func batchSaveMedia(scans: [LocalScanRecord]) async {
         guard !isDownloading, !scans.isEmpty else { return }
         isDownloading = true

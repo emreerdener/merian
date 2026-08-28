@@ -841,10 +841,11 @@ delegate writes.
   camera tab bar.
 - `CameraSheetRouter.insight.onAppear` — when the insight sheet opens from the
   camera flow.
-- `ScansSheetView.onAppear` — on every scans sheet presentation.
-- `ScansSheetView.onChange(of: appSettings.hasUnseenScan)` — immediately clears
-  the badge if it fires while the scans sheet is already visible (a scan
-  completing while the user is already in the library).
+- `ScansSheetView.onAppear` asks `ScansShellViewModel` to clear it on every
+  scans sheet presentation.
+- `ScansSheetView.onChange(of: appSettings.hasUnseenScan)` asks the view model
+  to clear it immediately if it fires while the scans sheet is already visible
+  (a scan completing while the user is already in the library).
 - `InsightSheetView.onAppear` — clears the badge whenever any insight sheet
   opens (camera or library path).
 

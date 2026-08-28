@@ -73,6 +73,16 @@ controls in the
 
 The Scans tab is the user's primary offline biological journal.
 
+`Scans/Shell` is split by responsibility: Models own typed navigation and
+UI-only incident presentation; Services own SwiftData projection, preferences,
+and thumbnail repair/prefetch; `ScansShellViewModel` owns queue and incident
+state; Views retain only interaction timing and navigation; and Components own
+toolbar/tab/presentation composition. Small dependency values owned by the view
+model and Services contain live auth, endpoint, event, loader, repository, and
+actor resolution. Library owns search/filter/selection and publication/export
+behavior, including the feature-local advanced filter component. Every
+production Shell and Library file remains below the 600-line review guard.
+
 ### Native Paging Navigation
 
 - **Horizontal Swipe-to-Navigate**: The primary `ScansSheetView` uses a modern
@@ -81,8 +91,8 @@ The Scans tab is the user's primary offline biological journal.
   This enables smooth 1:1 interactive swiping between the "Scans" (Library) and
   "Collections" tabs without the safe area anomalies of `TabView`.
 - **Automatic Search Routing**: The `.searchable` prompt maps to the active
-  `.scrollPosition`, displaying "Search keywords, habitats, colors..." or
-  "Search collections..." respectively.
+  `.scrollPosition`, displaying "Search scans" or "Search collections"
+  respectively.
 - **Swipe-to-Clear UX**: If the user swipes between tabs with an active search
   filter, the architecture intercepts the activeTab `.onChange` to clear the
   filter and drop keyboard focus.
@@ -91,12 +101,13 @@ The Scans tab is the user's primary offline biological journal.
   (`.toolbarBackground(.hidden, for: .bottomBar)` when selection mode is
   inactive) lets photo grids flow continuously beneath the floating bar.
 - **Dynamic Multi-Selection & Grid Scaling**: `ScansSheetView` implements a
-  trailing `.ellipsis` toolbar menu through `ScansSheetToolbar` and
-  `ScansSheetModifiers` when the `library` tab is active. Grid options (1x1,
-  2x2, 3x3) are structured as horizontal quick actions using a `ControlGroup` of
-  exclusive `Toggle` elements, writing through `AppSettings.gridColumns` and
-  instantly reflowing the `ScansGrid` geometry. "Select multiple" transitions
-  the entire UI into `isSelectionMode = true`.
+  trailing `.ellipsis` toolbar menu through `ScansSheetToolbar` when the
+  `library` tab is active. `ScansSheetPresentationModifier` owns root search,
+  alert, toast, and export-progress presentation. Grid options (1x1, 2x2, 3x3)
+  are structured as horizontal quick actions using a `ControlGroup` of exclusive
+  `Toggle` elements, writing through `AppSettings.gridColumns` and instantly
+  reflowing the `ScansGrid` geometry. "Select multiple" transitions the entire
+  UI into `isSelectionMode = true`.
 - **Contextual Batch Toolbars**: Entering `isSelectionMode` replaces the global
   toolbar. The header displays a selection count with "Cancel" and "Select All"
   actions. The bottom bar unhides, mounting `Share`, `Download`, and `Delete`
@@ -140,20 +151,24 @@ The Scans tab is the user's primary offline biological journal.
   lagging visual input.
 - **Dynamic Search & Filtering Chrome**: The UI tracks `isSearchFocused` state
   via the `.searchable(isPresented:)` binding alongside
-  `searchManager.searchQuery`. Scans now owns its bottom search/filter chrome in
-  `Scans/Shell/Modifiers/ScansSheetModifiers.swift`, while the generic
-  pill-style `CategoryFilterBar` lives in
-  `Core/UI/Components/CategoryFilterBar.swift` for Explore surfaces that still
-  share that visual shell. When the user activates the Scans search field, the
-  category controls give way to a dynamic "Search library" / "Search results"
-  contextual header with a live result count, transitioning state without layout
+  `searchManager.searchQuery`. Shell root presentation lives in
+  `Scans/Shell/Components/ScansSheetPresentationModifier.swift`; Library's
+  advanced filter rendering lives in
+  `Scans/Library/Components/Filters/ScansFilterSheet.swift`, with filter labels
+  normalized by `ScansFilterPresentation`. The generic pill-style
+  `CategoryFilterBar` remains in `Core/UI/Components/CategoryFilterBar.swift`
+  for Explore surfaces that share that visual shell. When the user activates the
+  Scans search field, category controls give way to a dynamic "Search library" /
+  "Search results" header with a live result count, transitioning without layout
   jumps.
-- Binds to SwiftData's `allRecords` using
-  `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)` with a
-  `#Predicate` filtering to biological scans (`$0.isBiological == true`).
-  Historical unresolved placeholders are guarded separately by the
-  resolved-identification helpers used for confidence, reference media, and
-  Explore sharing.
+- The Shell observes timestamp-sorted `rawRecords` through the unfiltered
+  `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`, then filters
+  `isBiological == true` before assigning `ScansManager.allScans`. Fresh-context
+  Shell service reads apply the equivalent biological predicate when
+  synchronizing after queue transitions. `NonBiologicalScansView` owns its
+  separate `isBiological == false` query. Historical unresolved placeholders are
+  guarded separately by the resolved-identification helpers used for confidence,
+  reference media, and Explore sharing.
 - **Dynamic Biological Taxonomy Pipeline**: Routes captures lacking generic
   class taxonomy (actinopterygii, arachnida, mollusks, unidentified specimens)
   into an "Other" fallback species-category filter without hiding them from the
@@ -201,41 +216,48 @@ The Scans tab is the user's primary offline biological journal.
   completed scans both open as pushed embedded Insights with native Back
   behavior—never as a second sheet or a status toast. The `hasContent` guard
   includes queued scans, suppressing the empty state when the analyzed list is
-  empty. `ScansSheetView.refreshQueuedScans()` immediately converts eligible
-  SwiftData rows into `QueuedScanSnapshot` values, preventing `LazyVGrid` from
-  retaining deleted `@Model` references. The `q_` grid identity namespace and
-  completed-only selection lookup keep queued IDs outside batch selection.
+  empty. `ScansShellDataStore.queuedSnapshots(in:)` immediately converts
+  eligible SwiftData rows into `QueuedScanSnapshot` values, preventing
+  `LazyVGrid` from retaining deleted `@Model` references. The `q_` grid identity
+  namespace and completed-only selection lookup keep queued IDs outside batch
+  selection.
 - **Presentation-only queue refresh**: While queued tiles are visible,
-  `ScansSheetView` reads a fresh value snapshot every 1.5 seconds to work around
-  dropped presented-sheet SwiftData notifications. That loop never owns retry
-  scheduling or pipeline dispatch. It logs only when the queue/record signature
-  changes; unchanged snapshots and throttled duplicate kicks remain silent.
+  `ScansShellViewModel` requests a fresh value snapshot from
+  `ScansShellDataStore` every 1.5 seconds to work around dropped presented-sheet
+  SwiftData notifications. The view model starts that loop only for work that
+  can progress under the current network policy. It never owns retry authority;
+  unchanged snapshots and throttled duplicate queue kicks remain silent.
 - **Modality-aware scan thumbnails**: `ScansGrid` now drives biological tiles
   through `LocalScanRecord.scanThumbnailPresentation` rather than assuming every
   missing image path means "archived". Audio-only / describe-only scans with a
   valid species show a non-visual "Reference pending" placeholder while
-  `ScansSheetView` schedules `ScanThumbnailBackfillActor` to repair
-  `referenceImageUrl` in the background. Unknown / taxonomy-unavailable
-  non-visual scans render a terminal non-visual placeholder instead of a
-  broken-photo state. `ArchivedVisualsView` is now reserved for genuinely
-  missing visual assets or intentionally archived captures.
-- **Explore media recovery banner**: `ScansSheetView` refreshes the
-  authenticated owner's `/get-explore-media-incidents` queue on entry,
-  foreground, connectivity changes, and library-repair events. `LibraryView`
-  keeps a persistent orange Needs-attention banner above filters while incidents
-  remain. Copy distinguishes degraded media from an all-missing hidden post,
-  says that the post/likes/comments are safe, and Review opens the linked local
-  scan when available so device-assisted repair can inspect it. Queue
-  persistence can emit several library events during one upload/inference
-  handoff, so this independent read-only refresh is coalesced within five
-  seconds without dropping one trailing repair/foreground trigger received
-  during an in-flight call. The expected authenticated owner is revalidated
-  before results enter view state. The client accepts the canonical
-  `{"data":[...]}` response and one exact direct-array response retained as a
-  defensive compatibility boundary only; malformed `2xx` bodies fail as
-  `invalidResponse`, and a failed refresh retains the prior in-memory incident
-  state. The old ambiguous HTTP `bytes` benchmark measured requests and cannot
-  prove that the direct-array topology was ever deployed.
+  `ScansThumbnailPipeline` schedules `ScanThumbnailBackfillActor` to repair
+  `referenceImageUrl` in the background. The pipeline also owns leading image
+  and audio prefetch plus online cloud-image repair; Shell views do not call
+  shared loaders or actors. Unknown / taxonomy-unavailable non-visual scans
+  render a terminal non-visual placeholder instead of a broken-photo state.
+  `ArchivedVisualsView` is reserved for genuinely missing visual assets or
+  intentionally archived captures.
+- **Explore media recovery banner**: `ScansShellViewModel` refreshes the
+  authenticated owner's `/get-explore-media-incidents` queue through its
+  injected live dependency on entry, foreground, connectivity changes, and
+  library-repair events. `LibraryView` receives prepared values and keeps a
+  persistent orange Needs-attention banner above filters while incidents remain.
+  Copy distinguishes degraded media from an all-missing hidden post, says that
+  the post/likes/comments are safe, and Review opens the linked local scan when
+  available so device-assisted repair can inspect it. Queue persistence can emit
+  several library events during one upload/inference handoff, so the view model
+  coalesces this independent read-only refresh within five seconds without
+  dropping one trailing repair/foreground trigger received during an in-flight
+  call. Canceled drivers cannot admit an obsolete response, and an
+  account-replacement trigger survives the stale request's teardown. The
+  expected authenticated owner is revalidated before results enter view state.
+  The client accepts the canonical `{"data":[...]}` response and one exact
+  direct-array response retained as a defensive compatibility boundary only;
+  malformed `2xx` bodies fail as `invalidResponse`, and a failed refresh retains
+  the prior in-memory incident state. The old ambiguous HTTP `bytes` benchmark
+  measured requests and cannot prove that the direct-array topology was ever
+  deployed.
 - **Embedded queued Insight**: The queued route retains a `QueuedScanContext`
   value snapshot while comparing and hashing by scan ID. `InsightSheetView` uses
   `.embeddedInScansLibrary`, so queue deletion and completed-record handoff

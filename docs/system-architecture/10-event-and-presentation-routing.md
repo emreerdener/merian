@@ -228,6 +228,14 @@ not initialize a Boolean `navigationDestination(isPresented:)` as true while
 constructing the Scans sheet: the navigation host must own the initial route,
 and Back must return to the Collections tab.
 
+Scans-local tab and route values live in
+`Features/Scans/Shell/Models/ScansShellNavigation.swift`. `ScansShellViewModel`
+exposes its injected app-event publisher, and the mounted `ScansSheetView`
+consumes `scanLibraryChanged` with SwiftUI `.onReceive` before asking the view
+model to refresh store, queue, thumbnail, and incident state. The view does not
+resolve `AppDIContainer` or a network client directly, and no raw Combine sink
+was added.
+
 Local follow-up sheets use `pendingLocalSheet` and mount only after the current
 root sheet's `onDismiss`, provided no queued `AppRoute` has precedence.
 Delivery-critical routes defer through the coordinator rather than sleeping for

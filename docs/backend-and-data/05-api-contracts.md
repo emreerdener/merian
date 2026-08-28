@@ -8196,13 +8196,17 @@ calls `internal.require_service_role()`. Migration
 contract after the later quarantine migration accidentally reintroduced
 role-first dispatch.
 
-The iOS Scan Library refreshes this response on entry, foreground, connection
-changes, and library repair events. Rapid queue-driven refresh triggers are
-coalesced within five seconds because this is an independent read-only alert
-surface. A trigger received during an in-flight call receives one trailing
-refresh rather than being dropped, and the expected authenticated owner is
-revalidated before private incidents enter view state. A failed refresh retains
-the last in-memory incident state instead of falsely claiming recovery.
+The iOS `ScansShellViewModel` refreshes this response through its injected live
+endpoint adapter on entry, foreground, connection changes, and library repair
+events. `LibraryView` consumes only prepared incident/filter presentation
+values. Rapid queue-driven refresh triggers are coalesced within five seconds
+because this is an independent read-only alert surface. A trigger received
+during an in-flight call receives one trailing refresh rather than being
+dropped. Canceled drivers cannot admit their response, account replacement keeps
+the trailing refresh registered while rejecting the old owner's result, and the
+expected authenticated owner is revalidated before private incidents enter view
+state. A failed refresh retains the last in-memory incident state instead of
+falsely claiming recovery.
 
 ---
 

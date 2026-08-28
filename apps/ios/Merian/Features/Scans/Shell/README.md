@@ -1,60 +1,110 @@
 # Scans Shell
 
-The `Shell` directory acts as the root container and routing layer for the
-entire Scans feature.
+`Shell/` is the Scans feature's composition and routing boundary. It coordinates
+Library, Collections, Non-biological scans, the private Scan map, and pushed
+Insight destinations without moving those product areas' domain behavior into
+the root view.
 
-Cross-module requests to open this feature arrive as `AppRoute.scansLibrary`,
-`.nonBiologicalScans`, or `.scansLibraryRecovery`. The Capture root owns the
-sole app-level `.sheet(item:)`; this shell pushes Insight destinations inside
-its existing navigation stack and never adds another app-level sheet.
+The canonical product behavior is documented in
+[Feature Modules and UI](../../../../../../docs/features-and-hardware/07-feature-modules-and-ui.md),
+with cross-feature delivery in
+[Event and Presentation Routing](../../../../../../docs/system-architecture/10-event-and-presentation-routing.md).
 
-Collections can also push the private **Scan map** in this stack. The root keeps
-the semantic `Collections` navigation title behind its segmented toolbar so the
-destination receives the native **Collections** back item and edge-swipe
-behavior. The pushed map supplies its own inline title and does not inherit the
-root close button, segmented picker, add button, search field, or bottom bar.
-The full navigation and acceptance contract is in the
-[Private Scan Map documentation](../../../../../../docs/features-and-hardware/28-private-scan-map.md).
+## Ownership boundary
 
-The Non-biological route pre-seeds its typed destination over the Collections
-tab. When Back reveals the Scans root, the shell explicitly re-anchors the
-horizontal pager to that selected tab after layout so the segmented control and
-visible content cannot disagree. The Debug-only
-`-seedNonBiologicalCollectionRoute` fixture covers this return path without
+- `Models/ScansShellNavigation.swift` owns the Scans tab and typed navigation
+  values plus the minimal authenticated-session snapshot used to fence recovery
+  responses. `Models/ExploreMediaIncidentSummary.swift` owns the UI-only,
+  deduplicated incident presentation model. Wire DTOs remain in `Core/Network`.
+- `Services/ScansShellDataStore.swift` owns fresh-context SwiftData reads,
+  queue-to-value projection, completed-row suppression, selected-record lookup,
+  and repository-backed deletion. `ScansThumbnailPipeline.swift` owns recovery
+  mapping, leading image/audio prefetch, cloud-image repair, reference-thumbnail
+  backfill, and the resulting library invalidation. UI-only account preferences
+  live in `ExploreMediaOverviewPreferences.swift`.
+- `ViewModels/ScansShellViewModel.swift` owns queue snapshot state and polling
+  policy, incident loading/coalescing/cancellation/account fencing, overview
+  preference state, initial recovery filtering, store synchronization, and
+  selected-scan mutations. Its small injected `Dependencies` value resolves live
+  app events, authentication, incident networking, time, and badge updates;
+  Service-level dependency values resolve repository, loader, actor, and
+  invalidation-event integration.
+- `Views/ScansSheetView.swift` retains view-only navigation path, pager anchor,
+  focus, alerts, animation, and presentation timing. It composes the view model
+  and contains no direct endpoint, Supabase, loader, actor, or app-container
+  lookup.
+- `Components/` owns tab composition, toolbar rendering, and root presentation
+  modifiers. Components receive prepared values and actions; they do not load
+  data.
+
+Every production file in `Shell/` remains below the 600-line review guard.
+`project.yml` includes the source tree recursively, so source membership is
+regenerated with `make xcodegen` rather than editing the Xcode project by hand.
+
+## Routing and presentation contract
+
+Cross-module requests arrive as `AppRoute.scansLibrary`, `.nonBiologicalScans`,
+or `.scansLibraryRecovery`. The Capture root owns the sole app-level
+`.sheet(item:)`; this shell pushes completed and queued Insights inside its
+existing `NavigationStack` with `.embeddedInScansLibrary`.
+
+Completed scans use `ScanInsightRoute`, carrying only the stable scan ID. The
+private queued route carries a `QueuedScanContext` value snapshot while hashing
+and comparing by that ID. This lets the destination survive SwiftData queue
+deletion and transition in place when the completed local record appears. The
+shell must not layer another sheet over the Library.
+
+Collections pushes the private **Scan map** in the same stack. The root keeps
+the semantic `Collections` title behind its segmented toolbar so the map gets a
+native **Collections** Back item and edge-swipe behavior. The full contract is
+in
+[Private Scan Map](../../../../../../docs/features-and-hardware/28-private-scan-map.md).
+
+The Non-biological route pre-seeds its typed destination over Collections. When
+Back reveals the root, view-local scroll-proxy logic re-anchors the horizontal
+pager after layout so the selected segment and visible page stay aligned. The
+Debug-only `-seedNonBiologicalCollectionRoute` fixture covers this path without
 shipping test behavior in Release builds.
 
-## Structure
+## Queue, media, and incident contract
 
-- **Views**: Contains the top-level container views that host the tab bar or
-  navigation stack for the scans area.
-- **Modifiers**: Navigation and routing modifiers that manage sheet
-  presentations or full-screen covers within the context of the scans feature.
+`ScansShellDataStore` copies visible queue rows into `QueuedScanSnapshot` values
+before any backing SwiftData model can detach. `ScansShellViewModel` owns the
+bounded 1.5-second presentation refresh and the state-bearing task identity. It
+polls only while at least one visible row can progress under current online,
+constrained-network, large-upload, and explicit-override policy. Retry authority
+remains in `OfflineQueueManager`.
 
-## Purpose
+`ScansThumbnailPipeline` prefetches only the leading 18 scan presentations,
+submits deduplicated cloud-image repairs to their serial actor, and delegates
+reference-thumbnail work to the actor's bounded pass. It publishes a library
+invalidation only after a durable reference-image change; the view does not
+invoke shared loaders or background actors directly.
 
-Following the Merian iOS architecture guidelines, the `Shell` isolates routing,
-layout chrome, and tab-level coordination. It seamlessly switches between the
-`Library`, `Collections`, and `NonBiological` areas, keeping those individual
-product areas focused strictly on their respective domain logic and UI.
+The view model loads authenticated Explore media incidents through its injected
+endpoint closure. Concurrent triggers coalesce while preserving one trailing
+refresh. The recovery-route owner is validated before a request starts. A
+canceled driver cannot replace the last accepted incident state, an
+account-replacement trigger remains queued behind the stale request, and the
+captured authenticated session is revalidated after suspension before a response
+enters UI state. Dismissal is scoped to the normalized account and exact
+incident signature. No JSON payload or endpoint contract changed.
 
-Completed and queued scans both open as pushed Insight destinations in the Scans
-sheet's existing navigation stack with `.embeddedInScansLibrary`. Completed
-scans use `ScanInsightRoute`, carrying only the stable scan ID. The private
-queued route carries `QueuedScanContext` but compares and hashes by that ID.
-This value snapshot lets the destination stay open through SwiftData queue
-deletion and transition in place when the completed local record appears. Both
-routes use native Back behavior; the Scans shell must not layer another sheet
-over its library.
+## Focused verification
 
-Batch save progress is a compact bottom capsule that permits hit testing to pass
-through outside the capsule. Share, download, delete, and selection mutations
-are disabled while the batch snapshot is being exported. Success and failure
-feedback uses typed `ToastPayload` values through the shared modifier. Its
-identity-keyed structured teardown prevents a stale timer from clearing
-replacement feedback, and passive banners do not intercept library gestures.
+Tests mirror this owner under `MerianTests/Features/Scans/Shell/`:
 
-`ScansSheetView` owns the bounded queued-row refresh task. Its identity contains
-both durable row state and live path policy, and it starts only when at least
-one visible row can make progress under the queue worker's current
-online/constrained/large-upload rules. Path-ineligible rows stay visible but
-quiet instead of producing a periodic Library kick/log loop.
+- `ScansShellViewModelTests` covers navigation, recovery filtering, incident
+  presentation/preferences, offline and owner fences, in-flight account changes,
+  canceled-response rejection, account-replacement trailing handoff, overlapping
+  refreshes, failure-state preservation, and resolved-filter cleanup.
+- `ScansShellDataStoreTests` covers queue projection, completed/non-runnable
+  suppression, biological and selected queries, selection limits, and injected
+  deletion order.
+- `ScansThumbnailPipelineTests` covers the leading-media bound, online cloud
+  repair, reference backfill, and post-backfill invalidation.
+
+Manual parity covers tab switching and Back re-anchoring; search, filters, and
+selection; queued/completed Insight handoff; Scan map routing; incident
+refresh/dismissal; thumbnails; VoiceOver; large Dynamic Type; and light/dark
+appearance.

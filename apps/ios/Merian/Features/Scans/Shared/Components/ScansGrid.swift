@@ -8,7 +8,7 @@ import SwiftUI
 /// the fatal "backing data detached from context" crash: `LazyVGrid` accesses tile attributes
 /// lazily, so if `context.delete()` tears down an `OfflineQueuedScan`'s backing before the
 /// grid renders its row, accessing an unfaulted attribute (e.g. `localImagePaths`) crashes.
-/// Because this struct copies the values at `refreshQueuedScans()` time, the SwiftData object
+/// Because `ScansShellDataStore` copies these values at queue-refresh time, the SwiftData object
 /// can be deleted freely without affecting anything the grid has already captured.
 struct QueuedScanSnapshot: Identifiable, Equatable {
     let id: String          // raw scan UUID — used for deletion lookups and onChange tracking

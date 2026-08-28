@@ -413,8 +413,9 @@ Conversion rules:
 - Owner profile stats decode `owner_publication_summary`. A dismissible recovery
   explanation appears above both the preview and full grid when
   `recovery_needed_post_count > 0`; its recovery-specific Scan Library route
-  preserves those totals, fetches scan IDs with unavailable media, and enables
-  the media-issue scope by default.
+  carries the normalized owner ID. `ScansShellViewModel` revalidates that owner,
+  fetches the server-authoritative incident scan IDs through its injected
+  endpoint adapter, and enables the media-issue scope once per presentation.
 - Share and unshare flows publish `exploreShareStateChanged` so an already-open
   Profile tab can refresh its local preview state.
 

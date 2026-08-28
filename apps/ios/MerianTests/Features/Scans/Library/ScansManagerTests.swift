@@ -7,27 +7,6 @@ private final class SharedExplorePostLookup {
 }
 
 @MainActor
-final class ScansSheetInitialNavigationTests: XCTestCase {
-    func testDefaultPresentationStartsAtLibraryRoot() {
-        let navigation = ScansSheetInitialNavigation(
-            initiallyShowsNonBiologicalScans: false
-        )
-
-        XCTAssertEqual(navigation.activeTab, .library)
-        XCTAssertTrue(navigation.routes.isEmpty)
-    }
-
-    func testNonBiologicalPresentationSeedsTypedCollectionRoute() {
-        let navigation = ScansSheetInitialNavigation(
-            initiallyShowsNonBiologicalScans: true
-        )
-
-        XCTAssertEqual(navigation.activeTab, .collections)
-        XCTAssertEqual(navigation.routes, [.nonBiologicalScans])
-    }
-}
-
-@MainActor
 final class ScansManagerTests: XCTestCase {
     private static let asynchronousDebugEventTimeout: TimeInterval = 10
     

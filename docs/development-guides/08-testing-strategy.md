@@ -1341,6 +1341,33 @@ MerianTests/
   Assertions must prove B remains registered and active, not merely that A
   reports `Task.isCancelled`. Swift task cancellation is cooperative and is not
   an ownership assertion.
+- **`ScansShellViewModelTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Shell/`): Locks default and
+  Non-biological initial navigation, incident summary/signature presentation,
+  account-scoped overview dismissal, one-time recovery filtering, offline and
+  recovery-owner endpoint fences, in-flight account-change rejection, canceled
+  response rejection with prior-state preservation, account-replacement trailing
+  handoff, one trailing refresh during ordinary overlap, failure-state
+  preservation, and resolved-filter cleanup. Time, sleep, session, endpoint,
+  events, preferences, and badge updates are injected; these tests do not
+  require live Supabase or networking.
+- **`ScansShellDataStoreTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Shell/`): Uses an in-memory SwiftData
+  container to prove pending and needs-attention rows become value snapshots,
+  completed and non-runnable rows are suppressed, biological/selected queries
+  preserve sorting and limits, and deletion crosses the injected repository
+  boundary in order.
+- **`ScansThumbnailPipelineTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Shell/`): Proves recovery mappings see
+  the full record set, image/audio prefetch stays bounded to the leading 18,
+  offline refresh skips cloud repair, online owner URLs enqueue recoverable
+  local copies, and a durable reference backfill publishes one library
+  invalidation.
+- **`ScansFilterPresentationTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Library/`): Locks normalization of
+  underscore-, hyphen-, whitespace-, and empty filter labels; empty/single/many
+  selection summaries; Date/Naturalist/Taxonomy group summaries; and taxonomy
+  section visibility independently of the SwiftUI sheet.
 - **`CompositeLibraryTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Library/`): Validates the bounding
   behaviors of the composite `ScansGrid` that renders both `OfflineQueuedScan`
@@ -1355,11 +1382,11 @@ MerianTests/
     freshly constructed `OfflineQueuedScan` has `queueState == .pending` (raw
     value 0), so new records are always picked up by the next `syncPendingScans`
     pass.
-  - **`.failed` Predicate (`testFailedScansExcludedByPredicate`)** (V33):
-    Mirrors the exact `#Predicate<OfflineQueuedScan> { $0.scanStateRaw < 5 }`
-    used in `ScansSheetView`'s `@Query` and asserts `.failed` (raw value 5)
-    records are excluded while `.pending` records are returned. Guarantees
-    tombstoned uploads never resurface in the library.
+  - **Queue visibility policy
+    (`testQueueVisibilitySeparatesRunnableAndUserRecoveryRows`)**: Mirrors the
+    `ScansShellDataStore` predicate and asserts runnable rows plus explicit
+    needs-attention failures remain visible, while legacy `externalImport` and
+    purgeable failures remain excluded.
   - **Selection Engine Decoupling**: Injects an `OfflineQueuedScan` ID directly
     into `ScansManager.selectedScans` (the adversarial case) and confirms
     `getSelectedLocalRecords()` returns nothing for it. Because

@@ -11,6 +11,7 @@ struct ScansLibraryDependencies {
     let sendExploreShareChanged: @MainActor (_ scanID: String, _ postID: String?) -> Void
     let triggerSelectionFeedback: @MainActor () -> Void
     let triggerMediumFeedback: @MainActor () -> Void
+    let triggerLightFeedback: @MainActor () -> Void
     let triggerSuccessFeedback: @MainActor () -> Void
     let triggerErrorFeedback: @MainActor () -> Void
     let exploreShareErrorMessage: @MainActor (_ error: Error) -> String
@@ -57,6 +58,9 @@ struct ScansLibraryDependencies {
             },
             triggerMediumFeedback: {
                 container.hapticManager.triggerMediumPulse()
+            },
+            triggerLightFeedback: {
+                container.hapticManager.triggerLightImpact(intensity: 0.5)
             },
             triggerSuccessFeedback: {
                 container.hapticManager.triggerSuccessPulse()

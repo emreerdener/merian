@@ -190,7 +190,7 @@ func executeCapture() {
 | Root presentation destination    | `ActiveSheet` plus an identified envelope                 | `CaptureWorkspaceViewModel.PresentedRoute`                 |
 | Feature-local presentation state | Owner-scoped typed item; Boolean only for one destination | `ExplorePostDetailPresentation`, staged-description editor |
 | Reusable components              | Descriptive noun                                          | `ShutterButton`, `ScanThumbnail`                           |
-| View modifiers                   | Modifier suffix                                           | `CropSheetModifier`, `ScansToolbarModifier`                |
+| View modifiers                   | Modifier suffix                                           | `CropSheetModifier`, `ScansSheetPresentationModifier`      |
 | Local feature models             | No suffix                                                 | `ImageFileWrapper`, `SearchableScan`                       |
 | Utility helpers                  | Manager/Processor suffix                                  | `InsightMediaExportManager`, `ImageCropProcessor`          |
 

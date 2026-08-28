@@ -1,119 +1,11 @@
-import SwiftData
 import SwiftUI
 import UIKit
-
-struct ScansSheetModifiers: ViewModifier {
-    @Bindable var searchManager: ScansManager
-    @Binding var activeTab: ScansTab
-    @Binding var isSearchFocused: Bool
-    
-    @Binding var showNewCollectionAlert: Bool
-    @Binding var newCollectionName: String
-    
-    @Binding var scanToDelete: String?
-    @Binding var showDeleteConfirmation: Bool
-    @Binding var showBatchDeleteConfirmation: Bool
-    @Binding var showSelectionLimitAlert: Bool
-    
-    @Binding var toastMessage: ToastPayload?
-    @Binding var isDownloading: Bool
-    
-    let dismiss: DismissAction
-    let modelContext: ModelContext
-    let onBatchDelete: () -> Void
-    var onCollectionCreated: ((ScanCollection) -> Void)?
-    
-    func body(content: Content) -> some View {
-        content
-            .ignoresSafeArea(.keyboard, edges: .bottom)
-            .onChange(of: activeTab) { _, newValue in
-                if !searchManager.searchQuery.isEmpty {
-                    searchManager.searchQuery = ""
-                    isSearchFocused = false
-                    if newValue == .library {
-                        searchManager.performSearch(query: "")
-                    }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $searchManager.searchQuery,
-                isPresented: $isSearchFocused,
-                placement: .toolbar,
-                prompt: activeTab == .library ? "Search scans" : "Search collections"
-            )
-            .onChange(of: searchManager.searchQuery) { _, newValue in
-                if activeTab == .library {
-                    searchManager.performSearch(query: newValue)
-                }
-            }
-            .newCollectionAlert(
-                isPresented: $showNewCollectionAlert,
-                newCollectionName: $newCollectionName,
-                modelContext: modelContext,
-                onCreated: { onCollectionCreated?($0) }
-            )
-            .scanDeletionDialog(
-                isPresented: $showDeleteConfirmation,
-                scanId: scanToDelete,
-                modelContext: modelContext
-            ) {
-                scanToDelete = nil
-            }
-            .alert(
-                "Delete \(searchManager.selectedScans.count) selected scans?",
-                isPresented: $showBatchDeleteConfirmation
-            ) {
-                Button("Delete permanently", role: .destructive) {
-                    onBatchDelete()
-                }
-                .disabled(isDownloading)
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This permanently removes these discoveries and their visuals. Any published Explore posts, likes, and comments linked to them will also be permanently removed.")
-            }
-            .alert(
-                "Selection limit reached",
-                isPresented: $showSelectionLimitAlert
-            ) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("You can only select up to 20 items at a time to ensure optimal system performance during export and deletion workloads.")
-            }
-            .overlay(alignment: .bottom) {
-                if isDownloading {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Saving media…")
-                            .font(.footnote.weight(.semibold))
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .adaptiveToastSurface(in: Capsule(), shadowRadius: 10, shadowY: 5)
-                    .padding(.bottom, toastMessage == nil ? 60 : 112)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .allowsHitTesting(false)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("Saving selected media")
-                }
-            }
-            .animation(.easeInOut(duration: 0.2), value: isDownloading)
-            .merianSystemFeedback(
-                toast: $toastMessage,
-                showsAchievementToasts: false
-            )
-    }
-}
 
 private extension View {
     func filterSheetOpaqueBackground() -> some View {
         scrollContentBackground(.hidden)
-            .background(FilterSheetStyle.background)
+            .background(Color(uiColor: .systemGroupedBackground))
     }
-}
-
-private enum FilterSheetStyle {
-    static let background = Color(uiColor: .systemGroupedBackground)
 }
 
 private enum ScansFilterGroup: Hashable {
@@ -157,7 +49,9 @@ struct ScansFilterSheet: View {
                 filterDisclosureGroup(
                     .sort,
                     title: "Sort",
-                    summary: formattedFilterTitle(searchManager.sortOption.rawValue)
+                    summary: ScansFilterPresentation.formattedTitle(
+                        searchManager.sortOption.rawValue
+                    )
                 ) {
                     ForEach(ScanSortOption.allCases) { option in
                         filterRow(title: option.rawValue, isSelected: searchManager.sortOption == option) {
@@ -169,7 +63,9 @@ struct ScansFilterSheet: View {
                 filterDisclosureGroup(
                     .category,
                     title: "Species category",
-                    summary: formattedFilterTitle(searchManager.activeCategoryFilter)
+                    summary: ScansFilterPresentation.formattedTitle(
+                        searchManager.activeCategoryFilter
+                    )
                 ) {
                     ForEach(filterCategories, id: \.self) { category in
                         filterRow(
@@ -387,7 +283,7 @@ struct ScansFilterSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Clear") {
-                        HapticManager.shared.triggerMediumPulse()
+                        searchManager.triggerMediumFeedback()
                         searchManager.clearFilters()
                         presentedActiveFilterCount = 0
                     }
@@ -396,14 +292,14 @@ struct ScansFilterSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        HapticManager.shared.triggerLightImpact(intensity: 0.5)
+                        searchManager.triggerLightFeedback()
                         dismiss()
                     }
                 }
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationBackground(FilterSheetStyle.background)
+        .presentationBackground(Color(uiColor: .systemGroupedBackground))
         .onAppear {
             presentedActiveFilterCount = searchManager.activeFilterCount
         }
@@ -478,11 +374,13 @@ struct ScansFilterSheet: View {
         }
     }
 
-    private func expansionBinding(for group: ScansFilterGroup) -> Binding<Bool> {
+    private func expansionBinding(
+        for group: ScansFilterGroup
+    ) -> Binding<Bool> {
         Binding {
             expandedGroups.contains(group)
         } set: { isExpanded in
-            HapticManager.shared.triggerSelectionPulse()
+            searchManager.triggerSelectionFeedback()
             if isExpanded {
                 expandedGroups.insert(group)
             } else {
@@ -524,11 +422,11 @@ struct ScansFilterSheet: View {
 
     private func filterRow(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button {
-            HapticManager.shared.triggerSelectionPulse()
+            searchManager.triggerSelectionFeedback()
             action()
         } label: {
             HStack {
-                Text(formattedFilterTitle(title))
+                Text(ScansFilterPresentation.formattedTitle(title))
                     .foregroundStyle(.primary)
 
                 Spacer()
@@ -542,116 +440,20 @@ struct ScansFilterSheet: View {
         }
     }
 
-    private func formattedFilterTitle(_ title: String) -> String {
-        let normalized = title
-            .replacingOccurrences(of: "_", with: " ")
-            .replacingOccurrences(of: "-", with: " ")
-            .split(separator: " ")
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard let firstCharacter = normalized.first else { return normalized }
-        return firstCharacter.uppercased() + String(normalized.dropFirst())
-    }
-
     private var dateSummary: String {
-        let filters = searchManager.filters.dateFilters
-
-        if filters.isEmpty {
-            return "None"
-        }
-
-        if filters.count == 1, filters.contains(.custom) {
-            return "Custom range"
-        }
-
-        return selectedSummary(filters, title: \.rawValue)
+        ScansFilterPresentation.dateSummary(searchManager.filters)
     }
 
     private var naturalistSummary: String {
-        let count = (searchManager.filters.isInvasive ? 1 : 0)
-            + searchManager.filters.ecologyFilters.count
-            + searchManager.filters.hazardTypes.count
-            + searchManager.filters.conservationStatuses.count
-            + searchManager.filters.lifeStages.count
-
-        if count == 0 {
-            return "None"
-        }
-
-        if count == 1 {
-            if searchManager.filters.isInvasive {
-                return "Invasive"
-            }
-
-            return selectedNaturalistValueSummary
-        }
-
-        return "\(count) selected"
-    }
-
-    private var selectedNaturalistValueSummary: String {
-        if let ecology = searchManager.filters.ecologyFilters.first {
-            return formattedFilterTitle(ecology.rawValue)
-        }
-
-        if let hazardType = searchManager.filters.hazardTypes.first {
-            return formattedFilterTitle(hazardType)
-        }
-
-        if let conservationStatus = searchManager.filters.conservationStatuses.first {
-            return formattedFilterTitle(conservationStatus)
-        }
-
-        if let lifeStage = searchManager.filters.lifeStages.first {
-            return formattedFilterTitle(lifeStage)
-        }
-
-        return "None"
+        ScansFilterPresentation.naturalistSummary(searchManager.filters)
     }
 
     private var hasTaxonomyOptions: Bool {
-        !options.taxonomyClasses.isEmpty
-            || !options.taxonomyOrders.isEmpty
-            || !options.taxonomyFamilies.isEmpty
-            || !options.taxonomyGenera.isEmpty
+        ScansFilterPresentation.hasTaxonomyOptions(options)
     }
 
     private var taxonomySummary: String {
-        let count = searchManager.filters.taxonomyClasses.count
-            + searchManager.filters.taxonomyOrders.count
-            + searchManager.filters.taxonomyFamilies.count
-            + searchManager.filters.taxonomyGenera.count
-
-        if count == 0 {
-            return "None"
-        }
-
-        if count == 1 {
-            return selectedTaxonomyValueSummary
-        }
-
-        return "\(count) selected"
-    }
-
-    private var selectedTaxonomyValueSummary: String {
-        if let taxonomyClass = searchManager.filters.taxonomyClasses.first {
-            return formattedFilterTitle(taxonomyClass)
-        }
-
-        if let taxonomyOrder = searchManager.filters.taxonomyOrders.first {
-            return formattedFilterTitle(taxonomyOrder)
-        }
-
-        if let taxonomyFamily = searchManager.filters.taxonomyFamilies.first {
-            return formattedFilterTitle(taxonomyFamily)
-        }
-
-        if let taxonomyGenus = searchManager.filters.taxonomyGenera.first {
-            return formattedFilterTitle(taxonomyGenus)
-        }
-
-        return "None"
+        ScansFilterPresentation.taxonomySummary(searchManager.filters)
     }
 
     private func selectedSummary<Value: Hashable>(
@@ -667,15 +469,7 @@ struct ScansFilterSheet: View {
         _ values: Set<Value>,
         title: (Value) -> String
     ) -> String {
-        if values.isEmpty {
-            return "None"
-        }
-
-        if values.count == 1, let value = values.first {
-            return formattedFilterTitle(title(value))
-        }
-
-        return "\(values.count) selected"
+        ScansFilterPresentation.selectedSummary(values, title: title)
     }
 
     private func selectedStringSummary(_ values: Set<String>) -> String {
@@ -725,7 +519,7 @@ struct ScansFilterSheet: View {
         Binding {
             searchManager.filters[keyPath: keyPath] ?? Date()
         } set: { newValue in
-            HapticManager.shared.triggerSelectionPulse()
+            searchManager.triggerSelectionFeedback()
             var updated = searchManager.filters
             updated.dateFilters.insert(.custom)
             updated[keyPath: keyPath] = newValue

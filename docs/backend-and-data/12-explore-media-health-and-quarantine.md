@@ -158,6 +158,14 @@ When all media recovers:
 Tapping a missing notification opens Scan Library recovery. Tapping a restored
 notification can open the public post.
 
+On iOS, `ScansShellViewModel` owns the authenticated incident refresh through a
+narrow injected endpoint dependency; `LibraryView` receives only prepared
+incident and filter state. The recovery-route owner is checked before loading,
+the captured authenticated session is checked again after the endpoint returns,
+and a canceled driver cannot replace the last accepted incident state. If an
+account replacement arrives during an active request, the old owner's response
+is rejected while one trailing refresh remains registered for the new account.
+
 ## Recovery
 
 The health lifecycle prevents broken public posts; it does not recreate bytes.
@@ -268,6 +276,10 @@ Never bulk-update health to `healthy` without proving object existence.
   share-state/public-projection parity
 - Scheduled worker: `reconcile-explore-media-health`
 - Owner API: `get-explore-media-incidents`
+- iOS presentation owner:
+  `apps/ios/Merian/Features/Scans/Shell/ViewModels/ScansShellViewModel.swift`
+- iOS overlap and owner-fence tests:
+  `apps/ios/MerianTests/Features/Scans/Shell/ScansShellViewModelTests.swift`
 - Owner publication totals: `get_owned_explore_publication_summary`
 - Owner scan share-state: service-only
   `get_scan_explore_share_state(self_id, target_scan_id)` behind the

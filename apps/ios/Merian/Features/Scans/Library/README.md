@@ -10,7 +10,9 @@ captures.
   `ScanLibraryFilterIndex.swift` owns the immutable advanced-filter projection,
   normalized query, cached option dimensions, and detached matching engine.
   `ScanLibrarySearchModels.swift` owns the Sendable search/sort projections and
-  pure sort policy.
+  pure sort policy. `ScansFilterPresentation.swift` owns user-facing title
+  normalization, grouped selection summaries, and taxonomy section visibility;
+  the filter component keeps its expansion-group identity private.
 - `Services/ScanLibrarySearchActors.swift` owns the ad-hoc SwiftData delta
   reader and actor-isolated text filter. `ScansLibraryDependencies.swift` is the
   only Library layer that resolves live app events, media export, Explore
@@ -20,8 +22,10 @@ captures.
   `ScansLibrarySearchCoordinator.swift` contains the private generation-fenced
   tasks, model lookup maps, posting/filter snapshots, and sorted-ID caches.
 - `Views/LibraryView.swift` owns rendering, filter-sheet occupancy, queued-row
-  hydration, and view-local feedback timing. It performs no endpoint or
-  singleton lookup.
+  hydration, and view-local feedback timing.
+  `Components/Filters/ScansFilterSheet.swift` owns advanced-filter rendering and
+  view-local expansion state. Library views and components perform no endpoint
+  or singleton lookup.
 
 Production Library files remain below the pass's 600-line review guard. The
 existing `ScansManager` initializer signature and all production Shell/Library
@@ -47,10 +51,10 @@ allowing nonmutating use of the sheet.
 
 ## Explore media incident contract
 
-- Every authenticated Library entry loads the owner's active Explore media
-  incidents. Profile `Review scans` is only a route intent that initially
-  enables the `Unavailable media` advanced filter; it is not the source of the
-  alert count.
+- `ScansShellViewModel` loads the authenticated owner's active Explore media
+  incidents and supplies prepared incident/filter state to `LibraryView`.
+  Profile `Review scans` is only a route intent that initially enables the
+  `Unavailable media` advanced filter; it is not the source of the alert count.
 - The unavailable row is derived from the live, deduplicated incident scan IDs.
   The server queue contains only active published posts, so private scans do not
   contribute. The row disappears when no incidents remain.
@@ -75,7 +79,8 @@ allowing nonmutating use of the sheet.
   copies it into `QueuedScanContext`, and emits `onQueuedInsight`. If the row
   disappeared, it builds a safe fallback context from `QueuedScanSnapshot`.
 - The library does not present an Insight sheet or retain a live queued
-  SwiftData model. `ScansSheetView` owns the pushed navigation destination.
+  SwiftData model. `ScansSheetView` owns the pushed navigation destination, and
+  `ScansShellDataStore` owns the queue-to-value projection supplied to Library.
 - Completion handoff must preserve playable queued media and expose the
   completed observation's Field Chat and Share toolbar controls without
   replacing the pushed destination.
@@ -147,6 +152,12 @@ Tests mirror this owner under `MerianTests/Features/Scans/Library/`:
   commit only after endpoint success, and failure-state preservation.
 - `CompositeLibraryTests` locks queued/completed grid identity and selection
   isolation.
+- `ScansFilterPresentationTests` locks title normalization, selected/grouped
+  summaries, and taxonomy option visibility independently of the rendered sheet.
+
+Shell queue, incident, navigation, data-store, and thumbnail-pipeline tests live
+beside their owner under `MerianTests/Features/Scans/Shell/`; see the
+[Shell README](../Shell/README.md) for that matrix.
 
 Run the focused matrix after changing Library models, Services, view models, or
 views:
@@ -156,7 +167,11 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -destination 'id=<BOOTED_SIMULATOR_ID>' \
   -only-testing:merianTests/ScansManagerTests \
   -only-testing:merianTests/ScansLibraryActionsTests \
-  -only-testing:merianTests/CompositeLibraryTests test
+  -only-testing:merianTests/CompositeLibraryTests \
+  -only-testing:merianTests/ScansFilterPresentationTests \
+  -only-testing:merianTests/ScansShellViewModelTests \
+  -only-testing:merianTests/ScansShellDataStoreTests \
+  -only-testing:merianTests/ScansThumbnailPipelineTests test
 ```
 
 Manual parity covers empty/loading/search/filter/sort states; queued and

@@ -101,14 +101,15 @@ not be placed there.
 
 When working on the Scans private library, start in `Scans/Library/`; that
 folder owns individual scan browsing, UI-facing Library state, contained
-generation-fenced search/index work, injected export/publication adapters,
-queued scan snapshots, and fresh `QueuedScanContext` hydration. Completed and
-queued Insight destinations are pushed by `Scans/Shell/` in the existing Scans
-navigation stack; Library emits route values and does not present its own sheet.
-Collection grids, smart collections, and collection detail/editing belong in
-`Scans/Collections/`. Cross-surface Scans-only UI belongs in `Scans/Shared/`,
-while controls reused outside Scans, such as `CategoryFilterBar`, belong in
-`Core/UI/Components/`.
+generation-fenced search/index work, injected export/publication adapters, and
+fresh `QueuedScanContext` hydration. `Scans/Shell/` owns tab and navigation
+composition, queue snapshot projection and polling, Explore-media incident
+state, and thumbnail pipeline coordination. Completed and queued Insight
+destinations are pushed by Shell in the existing Scans navigation stack; Library
+emits route values and does not present its own sheet. Collection grids, smart
+collections, and collection detail/editing belong in `Scans/Collections/`.
+Cross-surface Scans-only UI belongs in `Scans/Shared/`, while controls reused
+outside Scans, such as `CategoryFilterBar`, belong in `Core/UI/Components/`.
 
 When working on the Profile tab, start in `Profile/UserProfile/`; that folder
 owns identity, published scans, achievements, persona, terrarium, heatmap, and
@@ -192,6 +193,14 @@ Implemented Scans slices:
   snapshots build off-main with cooperative cancellation, existing search/filter
   tests retain deterministic debug completion, and every production Library file
   stays below the pass's 600-line guard.
+- `Scans/Shell` now separates typed navigation/session and incident-presentation
+  models, queue/record and thumbnail-pipeline Services, observable queue and
+  incident state, the root view, and focused toolbar/tab/presentation
+  components. Views and components resolve no endpoint, Supabase, app-container,
+  shared loader, or background actor. Incident refresh rejects canceled and
+  stale-account responses while preserving one account-replacement trailing
+  request; focused tests mirror navigation, data-store, thumbnail, and overlap
+  policy. Every production Shell file stays below the pass's 600-line guard.
 
 ## Phase 3: Ownership Cleanup
 
