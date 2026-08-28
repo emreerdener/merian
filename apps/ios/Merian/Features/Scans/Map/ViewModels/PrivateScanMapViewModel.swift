@@ -4,20 +4,6 @@ import MapKit
 import Observation
 import SwiftUI
 
-struct PrivateScanMapCategoryCount: Identifiable, Equatable, Sendable {
-    let category: SearchCategoryBucket
-    let count: Int
-
-    var id: String { category.rawValue }
-}
-
-struct PrivateScanMapMediaCount: Identifiable, Equatable, Sendable {
-    let mediaFilter: ScanMediaFilter
-    let count: Int
-
-    var id: String { mediaFilter.rawValue }
-}
-
 @MainActor
 @Observable
 final class PrivateScanMapViewModel {
@@ -34,7 +20,7 @@ final class PrivateScanMapViewModel {
     var selectedCategories: Set<SearchCategoryBucket> = []
     var selectedMediaFilters: Set<ScanMediaFilter> = []
 
-    @ObservationIgnored private let viewportProjector: PrivateScanMapViewportProjector
+    @ObservationIgnored private var viewportProjector: PrivateScanMapViewportProjector
     @ObservationIgnored private var viewportProjectionTask: Task<Void, Never>?
     @ObservationIgnored private var datasetGeneration: UInt64 = 0
     @ObservationIgnored private var viewportRequestGeneration: UInt64 = 0
@@ -258,6 +244,31 @@ final class PrivateScanMapViewModel {
         } else {
             scheduleViewportProjection()
         }
+    }
+
+    func resetSensitiveState() {
+        viewportRequestGeneration &+= 1
+        datasetGeneration &+= 1
+        viewportProjectionTask?.cancel()
+        viewportProjectionTask = nil
+        isProjectingViewport = false
+
+        let retiredProjector = viewportProjector
+        viewportProjector = PrivateScanMapViewportProjector()
+        Task {
+            await retiredProjector.reset()
+        }
+
+        cameraPosition = .automatic
+        visibleRegion = nil
+        points = []
+        filteredPoints = []
+        visiblePoints = []
+        annotations = []
+        selectedPointID = nil
+        selectedCategories = []
+        selectedMediaFilters = []
+        didSetInitialCamera = false
     }
 
     private func setCamera(region: MKCoordinateRegion) {

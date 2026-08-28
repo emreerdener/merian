@@ -1566,17 +1566,22 @@ import, and permission-denial UI require the physical-device checklist in
   export, Explore publication, local share-state/event, and feedback adapters
   without live services, including endpoint → durable state → event → feedback
   ordering.
-- **`PrivateScanMapTests.swift`**: Locks coordinate-only Collections preview
-  projection and presentation-field isolation, mapped-record inclusion and
-  coordinate validation, exact owner-coordinate preservation, antimeridian
-  extent fitting, current-location fallback, local category/media filters, true
-  viewport counts, deletion refresh, the thumbnail zoom threshold, and **Show
-  scans** recovery. Actor-index coverage distinguishes unchanged,
-  presentation-only, coordinate, and deletion revisions; spatial-index coverage
-  locks wrapped antimeridian lookup. Deterministic clustering remains bounded
-  for coincident points and 5,000-record preview and interactive libraries,
-  including deferral while a MapKit viewport is transiently zero-sized before or
-  after completed layout.
+- **`Features/Scans/Map/PrivateScanMapTests.swift`**: Locks coordinate-only and
+  rich projection, presentation-field isolation, inclusion/privacy policy, exact
+  owner-coordinate preservation, extent fitting, filters, camera/viewport state,
+  actor-index revisions, and deletion recovery.
+- **`Features/Scans/Map/PrivateScanMapClusteringTests.swift`**: Locks bounded,
+  deterministic interactive/preview clustering for 5,000 records, zero-size
+  deferral, and wrapped spatial-index candidates.
+- **`Features/Scans/Map/PrivateScanMapScreenProjectionTests.swift`**: Locks
+  exact 56-point MapKit/Web-Mercator cells at ordinary and high latitudes and
+  across the antimeridian, projected anchors, and rendering-only polar clamping.
+- **`Features/Scans/Map/PrivateScanMapLifecycleTests.swift`**: Locks pending
+  refresh recovery after an in-flight failure, synchronous sensitive reset with
+  view-owned presentation clearing, active preview retirement, stale
+  refresh/preview rejection, durable-state recovery, cancellation before startup
+  location access, and reset during in-flight startup and manual location
+  lookups.
 - **`BackgroundDatabaseActorTests.swift` collection projection**: Creates member
   and unrelated scans plus Favorites, then verifies `collectionSyncPayloads()`
   returns only the non-Favorites collection's direct, deterministically sorted
@@ -1690,16 +1695,18 @@ focused private-map case is not one of the hosted critical UI smokes; run it
 explicitly and retain its result alongside the complete `merianTests` result. A
 permission-path test must launch without the suppression argument.
 
-The existing focused suite is not evidence for four open lifecycle and geometry
-contracts. Before candidate acceptance, add deterministic regressions that:
+The focused unit suites include deterministic regressions that:
 
 - start refresh A, request refresh B while A is running, make A throw, and prove
   B remains pending and publishes the later durable generation;
 - invoke destructive account/local-library reset while snapshots, spatial work,
   and preview rendering exist, then prove observable values and caches are empty
-  and stale completions cannot repopulate them;
+  and stale completions cannot repopulate them, active preview work is retired,
+  and a failed purge can recover the still-durable projection;
 - cancel the destination during a delayed initial refresh and prove no location
-  request begins afterward; and
+  request begins afterward;
+- invalidate the reset generation during a location lookup and prove it cannot
+  publish a stale startup camera or manual-location result afterward; and
 - compare clustering in wrapped MapKit/Web-Mercator projected space at ordinary
   and high latitudes, including an antimeridian viewport, so each cell is truly
   56 screen points rather than a raw coordinate fraction.
@@ -1711,7 +1718,10 @@ xcodebuild test-without-building \
   -scheme Merian \
   -project Merian.xcodeproj \
   -destination 'id=<booted-simulator-id>' \
-  -only-testing:merianTests/PrivateScanMapTests
+  -only-testing:merianTests/PrivateScanMapTests \
+  -only-testing:merianTests/PrivateScanMapClusteringTests \
+  -only-testing:merianTests/PrivateScanMapScreenProjectionTests \
+  -only-testing:merianTests/PrivateScanMapLifecycleTests
 
 xcodebuild test-without-building \
   -scheme Merian \

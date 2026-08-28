@@ -118,4 +118,9 @@ actor PrivateScanMapViewportProjector {
             annotations: annotations
         )
     }
+
+    func reset() {
+        cachedDatasetGeneration = nil
+        cachedSpatialIndex = PrivateScanMapSpatialIndex(points: [])
+    }
 }

@@ -2385,9 +2385,12 @@ route compares either format against its platform-managed environment set.
 
 On `200 OK` or durable `202 Accepted`, the iOS client performs local Supabase
 sign-out for the current device, tears down the local SQLite database via
-`ScanRepository.shared.purgeAllData()`, and clears all cached image files from
-disk. Ordinary in-app sign-out also uses local scope so another simulator or
-device session is not revoked.
+`ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, and supplies the
+app-owned private-map reset closure before deletion. That closure synchronously
+empties and fences exact-coordinate snapshots, index work, and preview rendering
+and advances the active-map presentation reset generation. The client then
+clears all cached image files from disk. Ordinary in-app sign-out also uses
+local scope so another simulator or device session is not revoked.
 
 ## Scan Erasure & The Deletion Pipeline (`delete-scan`)
 

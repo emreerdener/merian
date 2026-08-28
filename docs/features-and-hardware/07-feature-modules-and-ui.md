@@ -1444,12 +1444,14 @@ on gesture-driven layout abstractions.
   delayed-verifies every canonical R2 prefix, revokes a stored Apple credential,
   and removes Auth only after verification. A legacy Apple disposition is saved
   before the client signs out and purges the device SQLite boundary through
-  `ScanRepository.shared.purgeAllData()`; the app-root instructions remain
-  visible across relaunch until the user confirms manual Apple removal. That
-  receipt-and-notice behavior exists only in supporting binaries. Public
-  promotion remains blocked until older clients are covered by an enforceable
-  minimum-supported-build control or an independent server-delivered fallback;
-  publishing the new build alone is insufficient.
+  `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, passing the
+  required synchronous private-map derived-state reset before SwiftData
+  deletion; the app-root instructions remain visible across relaunch until the
+  user confirms manual Apple removal. That receipt-and-notice behavior exists
+  only in supporting binaries. Public promotion remains blocked until older
+  clients are covered by an enforceable minimum-supported-build control or an
+  independent server-delivered fallback; publishing the new build alone is
+  insufficient.
 - **Individual Scan Deletion**: Every single and batch deletion confirmation
   explains that a published scan owns its Explore post and that proceeding
   permanently removes the post, likes, and comments. This explicit destructive

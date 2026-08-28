@@ -2074,7 +2074,9 @@ struct MerianApp: App {
         let completed = await diContainer.supabaseManager
             .resumePendingAccountDeletionLocalCleanup {
                 diContainer.scanRepository.purgeAllData(
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    resetDerivedState:
+                        diContainer.privateScanMapStore.resetSensitiveState
                 )
             }
         isAccountDeletionRecoveryPending =

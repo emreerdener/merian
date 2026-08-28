@@ -454,7 +454,11 @@ final class ScanRepository {
 
     /// Completely eradicates all local database caches and queued data. Use only for full account deletion or hard resets.
     @discardableResult
-    func purgeAllData(modelContext: ModelContext) -> Bool {
+    func purgeAllData(
+        modelContext: ModelContext,
+        resetDerivedState: @MainActor () -> Void
+    ) -> Bool {
+        resetDerivedState()
         do {
             try modelContext.delete(model: LocalScanRecord.self)
             try modelContext.delete(model: ScanCollection.self)
@@ -468,6 +472,7 @@ final class ScanRepository {
             return true
         } catch {
             modelContext.rollback()
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
             return false
         }

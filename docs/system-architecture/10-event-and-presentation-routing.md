@@ -436,7 +436,7 @@ fail-closed to these five reviewed owners:
 | `Core/Utilities/Publisher+MainActor.swift`                          | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
 | `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
 | `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
-| `Features/Scans/Map/Services/PrivateScanMapIndexStore.swift`        | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+| `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
 
 SwiftUI `.onReceive` remains mounted-view-owned and framework producers use
 `sinkOnMainActor`. A new raw sink requires an explicit review of capture

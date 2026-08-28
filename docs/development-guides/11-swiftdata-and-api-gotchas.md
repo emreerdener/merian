@@ -749,8 +749,14 @@ attached to its context. On failure, call `modelContext.rollback()`, log an
 `OfflineQueueManager.enqueueNonVisualCapture(...)`,
 `BackgroundDatabaseActor.markScansAsUploading(...)`, `MerianMigrationPlan`
 custom saves, `ScanRepository.eradicateScan(...)`,
-`ScanRepository.purgeAllData(...)`, and historical `updateExistingScans` /
-`ingestScans` / `syncCollections` follow this containment pattern.
+`ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, and historical
+`updateExistingScans` / `ingestScans` / `syncCollections` follow this
+containment pattern. The all-data purge additionally requires its
+`resetDerivedState` closure. Callers must pass the app-owned private-map
+sensitive reset so exact-coordinate snapshots, actor indexes, and preview
+renders are detached and the active-map presentation reset generation advances
+before the destructive SwiftData transaction begins; an eventual library event
+is not the erasure boundary.
 
 That video-aware signature is shorthand for media adoption. Any inference-owned
 finalization must additionally supply its exact foreground or background

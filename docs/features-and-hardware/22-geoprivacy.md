@@ -92,8 +92,14 @@ Destructive account cleanup or a local destructive library purge must
 synchronously empty the private-map snapshots, invalidate its index, cancel
 pending projection and rendering, and clear rendered preview variants before the
 affected UI can render again. Stale work must not repopulate those values, and
-an eventual library-change notification is not an erasure guarantee. The current
-source candidate does not yet implement this reset and is not release-complete.
+an eventual library-change notification is not an erasure guarantee. The iOS
+source implements this boundary through the required derived-state reset passed
+to `ScanRepository.purgeAllData`: the map store empties observable values,
+detaches its index and renderer, cancels work, and rejects old-epoch completions
+before SwiftData deletion begins. The same generation makes an active map clear
+its view-model projection and fences startup, **Locate me**, and deferred
+Insight-routing results. Release acceptance still requires the manual
+destructive-purge evidence in the Private Scan Map contract.
 
 ## Public Boundaries
 

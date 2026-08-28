@@ -35,6 +35,25 @@ saved GPS because every surface in this module is private to the owner. Exact
 coordinates stay in memory: the feature does not log them, add telemetry, or
 persist rendered map previews.
 
+## Ownership
+
+- `Models/` owns detached preview/rich snapshots, index values, region and
+  annotation geometry, and display-only labels.
+- `Services/` owns SwiftData projection, the revisioned actor index, lossless
+  refresh coalescing, sensitive-state reset fencing, MapKit/Web-Mercator screen
+  projection, clustering, viewport work, startup and current-location request
+  sequencing, and the bounded preview renderer.
+- `ViewModels/` owns filter, selection, camera, and cancellable viewport
+  presentation state.
+- `Views/` owns the destination lifecycle and MapKit composition.
+- `Components/` owns the passive Collections card, waypoint, preview, filter
+  sheet, and private scan-list sheet.
+
+Views and components do not fetch SwiftData or call endpoints. The map view
+receives shared services through SwiftUI environment injection, including haptic
+feedback, and emits only the selected scan ID to the Scans route owner. Every
+production file in this folder remains below the 600-line review guard.
+
 ## Surfaces
 
 Collections shows a non-interactive, full-width **Scan map** card only when the
@@ -54,18 +73,25 @@ its rich snapshot before making the one-shot location request, so denied or
 unavailable location can fall back to the newest mapped scan. Duplicate events
 with unchanged durable values do not rebuild map state.
 
-Two lifecycle contracts remain mandatory for release. A refresh requested while
-another attempt is in flight must survive that attempt throwing, and a canceled
-destination task must stop after the awaited refresh and before it requests
-location. The current source candidate does not yet meet either contract.
+Refresh generations are lossless across failure: when a later request arrives
+during a failing attempt, the store drains that pending generation without an
+unbounded retry of an isolated failure. `PrivateScanMapStartupSequence` checks
+cancellation immediately after the awaited refresh and again around location
+lookup, so a departed destination cannot begin or publish one-shot location
+work. `PrivateScanMapLocationRequestSequence` applies the same
+current-generation check to an explicit **Locate me** request and distinguishes
+invalidated work from a current request whose location is merely unavailable.
 
 `PrivateScanMapViewportProjector` owns a one-degree spatial bucket index for the
 filtered dataset and computes exact viewport membership on an actor. Pan, zoom,
 filter, and dataset changes cancel the prior generation, and only the newest
-result can update the main-actor view model. Its current deterministic cluster
-grid uses linear fractions of the visible latitude/longitude span. Release
-acceptance requires those cells to use wrapped MapKit/Web-Mercator projected
-positions so 56 points means 56 screen points at every latitude.
+result can update the main-actor view model. Its deterministic cluster grid uses
+wrapped MapKit/Web-Mercator positions, so the interactive 56-point cells retain
+their physical screen size at ordinary and high latitudes and across the
+antimeridian. Saved polar coordinates remain eligible and are clamped only for
+rendering projection. Preview clustering uses `MKMapSnapshotter`'s completed
+coordinate-to-point transform so MapKit aspect fitting cannot diverge from the
+drawn overlay.
 
 Tapping the card pushes `PrivateScanMapView` in the existing Scans navigation
 stack. `ScansSheetView` owns both typed route values: the card appends
@@ -80,8 +106,7 @@ The page:
 - offers **Show scans** whenever the current viewport contains no filtered
   scans;
 - filters locally by species group and media type;
-- renders deterministic clusters; release acceptance requires true 56-point
-  projected screen cells;
+- renders deterministic 56-point projected screen-space clusters;
 - uses simple dots at broad zoom and circular thumbnails from zoom level 11.5;
 - reports the true filtered viewport count independently of clustering;
 - presents owner-only previews whose complete card opens Insight, plus a
@@ -128,35 +153,40 @@ environment chain when zooming crosses the thumbnail threshold. Connectivity
 changes still rebuild the value and restart only the affected remote thumbnail
 task.
 
-## Candidate Gaps
+## Sensitive Reset
 
-The current source candidate is not release-complete:
+`ScanRepository.purgeAllData` requires its caller to provide a derived-state
+reset. Account deletion and accepted cleanup recovery pass
+`PrivateScanMapStore.resetSensitiveState`, which runs before SwiftData deletion.
+The reset synchronously empties observable snapshots, cancels and detaches
+refresh/backfill work, retires and cancels active MapKit snapshotters, replaces
+the actor index and preview renderer, and bumps an epoch that rejects stale
+completions. The active map also clears its camera, point, filter, selection,
+annotation, alert, and viewport-projector state when that generation changes.
+Startup/location results and the sheet-to-Insight dismissal handoff carry the
+same generation, so neither can publish after reset. Detached actors erase their
+caches after the synchronous access boundary. A failed database purge emits a
+normal library invalidation so the still-durable records can be projected again.
 
-1. Destructive account or local-library cleanup does not synchronously reset the
-   app-scoped store, index, in-flight work, and rendered preview cache.
-2. A refresh generation requested during a failing in-flight refresh can be
-   dropped.
-3. Leaving the map during its awaited initial refresh can still continue into
-   the location request.
-4. Clustering uses raw coordinate-region fractions rather than actual projected
-   screen positions.
+## Candidate Status
 
-These are defects to close, not supported limitations. The canonical status and
-required regressions live in the linked verification contract.
+The source-level reset, refresh, startup-cancellation, and projected-clustering
+findings are closed. Release acceptance still requires recorded simulator and
+physical-device evidence for live location permission/user annotation, deletion
+and destructive purge presentation, accessibility, appearance, large libraries,
+and offline/degraded tiles. The canonical status and manual matrix live in the
+linked verification contract.
 
 ## Verification
 
-`PrivateScanMapTests` covers preview and interactive projection validity,
-preview presentation-field isolation, exact-coordinate retention, antimeridian
-fitting, location fallback (including deferred snapshot arrival), actor-index
-content/spatial revisions, spatial-index antimeridian lookup, filtering,
-viewport counts, large libraries, and zero-size layout plus deterministic and
-coincident clustering. It also locks captured-image/reference fallback
-projection and eligibility for a missing owner image, corrected identification,
-and reference-image privacy suppression. Before acceptance it must additionally
-cover a failed refresh with a newer pending generation, synchronous
-sensitive-state reset, startup cancellation before location, and projected
-56-point spacing at high latitude and across the antimeridian. The Debug-only
+The mirrored `PrivateScanMapTests`, `PrivateScanMapClusteringTests`,
+`PrivateScanMapScreenProjectionTests`, and `PrivateScanMapLifecycleTests` suites
+cover preview and rich projection, privacy eligibility, index revisions,
+filter/camera/viewport state, bounded and coincident clustering, exact 56-point
+projected cells at high latitude and the antimeridian, projected anchors,
+lossless refresh retry, synchronous sensitive reset with stale-completion
+rejection and durable recovery, startup cancellation before location, and reset
+while startup or manual location is in flight. The Debug-only
 `-seedPrivateScanMapFlow` fixture supplies 305 synthetic mapped records for the
 focused collection-to-map-to-preview-to-Insight and sheet-to-Insight UI test and
 is excluded from Release binaries.

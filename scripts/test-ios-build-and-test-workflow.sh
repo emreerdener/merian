@@ -26,6 +26,8 @@ field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars
 top_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
 scans_sheet_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Views/ScansSheetView.swift"
+scans_shell_view_model_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/ViewModels/ScansShellViewModel.swift"
+scans_shell_data_store_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Services/ScansShellDataStore.swift"
 scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/ScansGrid.swift"
 queued_context_source="$repo_root/apps/ios/Merian/Models/QueuedScanContext.swift"
 queue_durability_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift"
@@ -314,6 +316,10 @@ assert_no_runner_context_in_job_env() {
 [[ -f "$insight_share_button_source" ]] \
   || fail "Missing Insight share-button source: $insight_share_button_source"
 [[ -f "$scans_sheet_source" ]] || fail "Missing Scans sheet source: $scans_sheet_source"
+[[ -f "$scans_shell_view_model_source" ]] \
+  || fail "Missing Scans shell view model: $scans_shell_view_model_source"
+[[ -f "$scans_shell_data_store_source" ]] \
+  || fail "Missing Scans shell data store: $scans_shell_data_store_source"
 [[ -f "$scans_grid_source" ]] || fail "Missing Scans grid source: $scans_grid_source"
 [[ -d "$ios_test_sources" ]] || fail "Missing iOS unit-test sources: $ios_test_sources"
 
@@ -804,23 +810,31 @@ assert_file_contains \
 assert_file_contains \
   "$insight_share_button_source" \
   '.accessibilityIdentifier("InsightShareButton")'
-assert_file_count "$scans_sheet_source" 3 "if hasAutomaticQueuedRecoveryWork {"
-assert_file_count "$scans_sheet_source" 2 "guard hasAutomaticQueuedRecoveryWork else { return }"
-assert_file_contains \
+assert_file_count \
   "$scans_sheet_source" \
+  3 \
+  "shellViewModel.kickQueuedScanPipelineIfNeeded("
+assert_file_count \
+  "$scans_shell_view_model_source" \
+  3 \
+  "guard hasAutomaticQueuedRecoveryWork("
+assert_file_contains \
+  "$scans_shell_view_model_source" \
   "queuedScan.isAutomaticRecoveryEligibleForCurrentNetwork("
-assert_file_contains "$scans_sheet_source" 'String($0.queueState.rawValue)'
 assert_file_contains \
-  "$scans_sheet_source" \
+  "$scans_shell_view_model_source" \
+  'String($0.queueState.rawValue)'
+assert_file_contains \
+  "$scans_shell_view_model_source" \
   '"constrained:\(offlineQueueManager.isCurrentNetworkConstrained)"'
 assert_file_contains \
-  "$scans_sheet_source" \
-  "CapturedMediaSnapshot(items: capturedMediaItems)"
+  "$scans_shell_data_store_source" \
+  "capturedMediaJSON: CapturedMediaSnapshot("
 assert_file_contains \
-  "$scans_sheet_source" \
+  "$scans_shell_data_store_source" \
   "let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue"
 assert_file_contains \
-  "$scans_sheet_source" \
+  "$scans_shell_data_store_source" \
   '$0.scanStateRaw < firstNonRunnableRaw || $0.queueNeedsAttention'
 assert_file_contains "$scans_grid_source" "var isAutomaticRecoveryEligible: Bool"
 assert_file_contains \

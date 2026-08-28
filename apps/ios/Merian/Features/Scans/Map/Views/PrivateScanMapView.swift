@@ -7,6 +7,7 @@ struct PrivateScanMapView: View {
 
     @Environment(EnvironmentContextManager.self)
     private var environmentContextManager
+    @Environment(HapticManager.self) private var hapticManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(PrivateScanMapStore.self) private var privateScanMapStore
     @Environment(\.openURL) private var openURL
@@ -19,11 +20,11 @@ struct PrivateScanMapView: View {
     @State private var isResolvingLocation = false
     @State private var isLocationSettingsAlertPresented = false
     @State private var isLocationUnavailableAlertPresented = false
+    @State private var locationRequestGeneration: UInt64 = 0
 
     var body: some View {
         ZStack {
             mapLayer
-
             topChrome
             bottomChrome
 
@@ -47,34 +48,70 @@ struct PrivateScanMapView: View {
         .onDisappear {
             viewModel.setViewportProjectionSuspended(true)
         }
-        .task {
-            await privateScanMapStore.refresh()
-            viewModel.update(
-                snapshot: privateScanMapStore.snapshot.interactiveSnapshot
+        .task(id: privateScanMapStore.sensitiveResetGeneration) {
+            let resetGeneration =
+                privateScanMapStore.sensitiveResetGeneration
+            await PrivateScanMapStartupSequence.run(
+                refresh: privateScanMapStore.refresh,
+                updateSnapshot: {
+                    viewModel.update(
+                        snapshot:
+                            privateScanMapStore.snapshot.interactiveSnapshot
+                    )
+                },
+                needsInitialCamera: { !viewModel.didSetInitialCamera },
+                isCurrent: {
+                    resetGeneration
+                        == privateScanMapStore.sensitiveResetGeneration
+                },
+                requestCurrentLocation:
+                    environmentContextManager.requestCurrentLocation,
+                setInitialCamera: viewModel.setInitialCamera
             )
-            guard !viewModel.didSetInitialCamera else { return }
-            let currentLocation = await environmentContextManager.requestCurrentLocation()
-            guard !Task.isCancelled else { return }
-            viewModel.setInitialCamera(currentLocation: currentLocation)
         }
         .onChange(of: privateScanMapStore.snapshot.revision) {
             viewModel.update(
                 snapshot: privateScanMapStore.snapshot.interactiveSnapshot
             )
         }
+        .onChange(of: privateScanMapStore.sensitiveResetGeneration) {
+            viewModel.resetSensitiveState()
+            sheetPointIDs = nil
+            pendingInsightScanID = nil
+            isShowingFilterSheet = false
+            isShowingScanList = false
+            locationRequestGeneration &+= 1
+            isResolvingLocation = false
+            isLocationSettingsAlertPresented = false
+            isLocationUnavailableAlertPresented = false
+        }
         .sheet(isPresented: $isShowingFilterSheet) {
-            filterSheet
+            PrivateScanMapFilterSheet(
+                viewModel: viewModel,
+                isPresented: $isShowingFilterSheet
+            )
         }
         .sheet(
             isPresented: $isShowingScanList,
             onDismiss: handleScanListDismissal
         ) {
-            scanListSheet
+            PrivateScanMapScanListSheet(
+                points: pointsPresentedInSheet,
+                isOnline: offlineQueueManager.isOnline,
+                onSelectPoint: { pointID in
+                    pendingInsightScanID = pointID
+                    isShowingScanList = false
+                },
+                onReferenceImageNeeded: requestReferenceImageFallback,
+                isPresented: $isShowingScanList
+            )
         }
         .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
             Button("Not Now", role: .cancel) {}
             Button("Settings") {
-                guard let settingsURL = URL(string: UIApplication.openSettingsURLString) else {
+                guard let settingsURL = URL(
+                    string: UIApplication.openSettingsURLString
+                ) else {
                     return
                 }
                 openURL(settingsURL)
@@ -82,7 +119,10 @@ struct PrivateScanMapView: View {
         } message: {
             Text("Location access lets Scan map center on your current position. Your saved scans remain available without it.")
         }
-        .alert("Location Unavailable", isPresented: $isLocationUnavailableAlertPresented) {
+        .alert(
+            "Location Unavailable",
+            isPresented: $isLocationUnavailableAlertPresented
+        ) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("We couldn’t determine your location right now. Your saved scan locations are still available.")
@@ -112,14 +152,16 @@ struct PrivateScanMapView: View {
                     case .cluster(let cluster):
                         Annotation("", coordinate: cluster.coordinate, anchor: .center) {
                             Button {
-                                HapticManager.shared.triggerSelectionPulse()
+                                triggerSelectionFeedback()
                                 viewModel.selectPoint(nil)
                                 if viewModel.focusRegion(for: cluster) != nil {
                                     withAnimation(.easeInOut(duration: 0.25)) {
                                         viewModel.focus(on: cluster)
                                     }
                                 } else {
-                                    showScanList(pointIDs: cluster.points.map(\.id))
+                                    showScanList(
+                                        pointIDs: cluster.points.map(\.id)
+                                    )
                                 }
                             } label: {
                                 PrivateScanMapClusterBubble(count: cluster.count)
@@ -151,7 +193,7 @@ struct PrivateScanMapView: View {
     ) -> some MapContent {
         Annotation("", coordinate: point.coordinate, anchor: .bottom) {
             Button {
-                HapticManager.shared.triggerSelectionPulse()
+                triggerSelectionFeedback()
                 withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
                     viewModel.selectPoint(point.id)
                 }
@@ -183,7 +225,8 @@ struct PrivateScanMapView: View {
                     actionTitle: nil,
                     action: {}
                 )
-            } else if viewModel.didSetInitialCamera, viewModel.filteredPoints.isEmpty {
+            } else if viewModel.didSetInitialCamera,
+                      viewModel.filteredPoints.isEmpty {
                 mapStateBanner(
                     icon: "line.3.horizontal.decrease.circle",
                     message: "No scans match these filters.",
@@ -204,7 +247,10 @@ struct PrivateScanMapView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.visiblePoints.isEmpty)
+        .animation(
+            .easeInOut(duration: 0.18),
+            value: viewModel.visiblePoints.isEmpty
+        )
     }
 
     private var filterBar: some View {
@@ -225,16 +271,17 @@ struct PrivateScanMapView: View {
                 filterPill(
                     title: "All",
                     systemImage: nil,
-                    isSelected: !viewModel.hasActiveFilters
-                ) {
-                    viewModel.clearFilters()
-                }
+                    isSelected: !viewModel.hasActiveFilters,
+                    action: viewModel.clearFilters
+                )
 
                 ForEach(viewModel.categoryCounts) { categoryCount in
                     filterPill(
                         title: categoryCount.category.title,
                         systemImage: nil,
-                        isSelected: viewModel.selectedCategories.contains(categoryCount.category)
+                        isSelected: viewModel.selectedCategories.contains(
+                            categoryCount.category
+                        )
                     ) {
                         viewModel.toggleCategory(categoryCount.category)
                     }
@@ -252,7 +299,7 @@ struct PrivateScanMapView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button {
-            HapticManager.shared.triggerSelectionPulse()
+            triggerSelectionFeedback()
             action()
         } label: {
             HStack(spacing: 6) {
@@ -268,7 +315,9 @@ struct PrivateScanMapView: View {
             .fontWeight(.medium)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .foregroundStyle(isSelected ? Color(uiColor: .systemBackground) : Color.primary)
+            .foregroundStyle(
+                isSelected ? Color(uiColor: .systemBackground) : Color.primary
+            )
             .background {
                 if isSelected {
                     Capsule().fill(Color.primary)
@@ -333,9 +382,7 @@ struct PrivateScanMapView: View {
 
             HStack(spacing: 12) {
                 countButton
-
                 Spacer(minLength: 16)
-
                 locateButton
             }
             .padding(.horizontal, 30)
@@ -350,17 +397,19 @@ struct PrivateScanMapView: View {
 
     private var countButton: some View {
         Button {
-            HapticManager.shared.triggerSelectionPulse()
+            triggerSelectionFeedback()
             showScanList(pointIDs: nil)
         } label: {
-            Text(discoveriesInViewLabel(count: viewModel.visiblePoints.count))
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.regularMaterial)
-                .clipShape(Capsule(style: .continuous))
+            Text(PrivateScanMapPresentation.discoveriesInViewLabel(
+                count: viewModel.visiblePoints.count
+            ))
+            .font(.footnote)
+            .fontWeight(.semibold)
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("PrivateScanMapVisibleCount")
@@ -368,7 +417,7 @@ struct PrivateScanMapView: View {
 
     private var locateButton: some View {
         Button {
-            HapticManager.shared.triggerSelectionPulse()
+            triggerSelectionFeedback()
             Task { await recenterOnCurrentLocation() }
         } label: {
             Group {
@@ -391,157 +440,6 @@ struct PrivateScanMapView: View {
         .accessibilityIdentifier("PrivateScanMapLocate")
     }
 
-    private var filterSheet: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    filterSectionTitle("Species")
-
-                    Button {
-                        viewModel.clearCategories()
-                    } label: {
-                        FilterSheetSelectionRow(
-                            title: "All species",
-                            subtitle: scanCountLabel(viewModel.points.count),
-                            systemImage: "map",
-                            isSelected: viewModel.selectedCategories.isEmpty
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    ForEach(viewModel.categoryCounts) { categoryCount in
-                        Button {
-                            viewModel.toggleCategory(categoryCount.category)
-                        } label: {
-                            FilterSheetSelectionRow(
-                                title: categoryCount.category.title,
-                                subtitle: scanCountLabel(categoryCount.count),
-                                systemImage: categoryCount.category.privateMapSymbolName,
-                                isSelected: viewModel.selectedCategories.contains(categoryCount.category)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier(
-                            "PrivateScanMapCategory-\(categoryCount.category.rawValue)"
-                        )
-                    }
-
-                    filterSectionTitle("Media type")
-                        .padding(.top, 8)
-
-                    Button {
-                        viewModel.clearMediaFilters()
-                    } label: {
-                        FilterSheetSelectionRow(
-                            title: "All media",
-                            subtitle: scanCountLabel(viewModel.points.count),
-                            systemImage: "rectangle.stack",
-                            isSelected: viewModel.selectedMediaFilters.isEmpty
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    ForEach(viewModel.mediaCounts) { mediaCount in
-                        Button {
-                            viewModel.toggleMediaFilter(mediaCount.mediaFilter)
-                        } label: {
-                            FilterSheetSelectionRow(
-                                title: mediaCount.mediaFilter.rawValue,
-                                subtitle: scanCountLabel(mediaCount.count),
-                                systemImage: mediaCount.mediaFilter.privateMapSymbolName,
-                                isSelected: viewModel.selectedMediaFilters.contains(
-                                    mediaCount.mediaFilter
-                                )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Map filters")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Reset") {
-                        viewModel.clearFilters()
-                    }
-                    .disabled(!viewModel.hasActiveFilters)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        isShowingFilterSheet = false
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-            .background(Color(uiColor: .systemGroupedBackground))
-        }
-        .presentationDragIndicator(.visible)
-        .presentationDetents([.medium, .large])
-    }
-
-    private var scanListSheet: some View {
-        NavigationStack {
-            Group {
-                if pointsPresentedInSheet.isEmpty {
-                    ContentUnavailableView(
-                        "No scans in view",
-                        systemImage: "map",
-                        description: Text("Pan the map or choose Show scans to find your saved locations.")
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(pointsPresentedInSheet) { point in
-                                Button {
-                                    pendingInsightScanID = point.id
-                                    isShowingScanList = false
-                                } label: {
-                                    PrivateScanMapSheetRow(
-                                        point: point,
-                                        isOnline: offlineQueueManager.isOnline,
-                                        onReferenceImageNeeded: {
-                                            requestReferenceImageFallback(for: point.id)
-                                        }
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("PrivateScanMapSheetRow-\(point.id)")
-                            }
-                        }
-                        .padding()
-                    }
-                }
-            }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text("Your scans")
-                            .font(.headline)
-                        Text("Private")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("PrivateScanMapSheetHeader")
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        isShowingScanList = false
-                    }
-                    .fontWeight(.semibold)
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .presentationDragIndicator(.visible)
-        .presentationDetents([.medium, .large])
-    }
-
     private var pointsPresentedInSheet: [PrivateScanMapPoint] {
         guard let sheetPointIDs else { return viewModel.visiblePoints }
         let ids = Set(sheetPointIDs)
@@ -556,10 +454,16 @@ struct PrivateScanMapView: View {
     private func handleScanListDismissal() {
         sheetPointIDs = nil
         guard let pendingInsightScanID else { return }
+        let resetGeneration = privateScanMapStore.sensitiveResetGeneration
         self.pendingInsightScanID = nil
 
         Task { @MainActor in
             await Task.yield()
+            guard !Task.isCancelled,
+                  resetGeneration
+                    == privateScanMapStore.sensitiveResetGeneration else {
+                return
+            }
             openInsight(scanID: pendingInsightScanID)
         }
     }
@@ -574,204 +478,44 @@ struct PrivateScanMapView: View {
 
     private func recenterOnCurrentLocation() async {
         guard !isResolvingLocation else { return }
+        locationRequestGeneration &+= 1
+        let requestGeneration = locationRequestGeneration
+        let resetGeneration = privateScanMapStore.sensitiveResetGeneration
         isResolvingLocation = true
-        defer { isResolvingLocation = false }
+        defer {
+            if requestGeneration == locationRequestGeneration {
+                isResolvingLocation = false
+            }
+        }
 
-        if let location = await environmentContextManager.requestCurrentLocation() {
+        let result = await PrivateScanMapLocationRequestSequence.run(
+            isCurrent: {
+                requestGeneration == locationRequestGeneration
+                    && resetGeneration
+                        == privateScanMapStore.sensitiveResetGeneration
+            },
+            requestCurrentLocation:
+                environmentContextManager.requestCurrentLocation
+        )
+
+        switch result {
+        case .invalidated:
+            return
+        case .location(let location):
             withAnimation(.easeInOut(duration: 0.25)) {
                 viewModel.recenter(on: location)
             }
-            return
-        }
-
-        switch environmentContextManager.locationAuthorizationStatus {
-        case .denied:
-            isLocationSettingsAlertPresented = true
-        default:
-            isLocationUnavailableAlertPresented = true
-        }
-    }
-
-    private func filterSectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.footnote)
-            .fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 4)
-    }
-
-    private func discoveriesInViewLabel(count: Int) -> String {
-        let noun = count == 1 ? "discovery" : "discoveries"
-        return "\(count.formatted()) \(noun) in view"
-    }
-
-    private func scanCountLabel(_ count: Int) -> String {
-        let noun = count == 1 ? "scan" : "scans"
-        return "\(count.formatted()) \(noun)"
-    }
-}
-
-private struct PrivateScanMapPreviewCard: View {
-    let point: PrivateScanMapPoint
-    let isOnline: Bool
-    let onOpen: () -> Void
-    let onReferenceImageNeeded: @MainActor () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 12) {
-                ScanThumbnail(
-                    isOnline: isOnline,
-                    imagePath: point.thumbnail.imagePath,
-                    fallbackImageUrl: point.thumbnail.fallbackImageUrl,
-                    audioPath: point.thumbnail.audioPath,
-                    hasVideo: point.thumbnail.hasVideo,
-                    hasAudio: point.thumbnail.hasAudio,
-                    prefersReferenceForAudio: true,
-                    maxDimension: 180,
-                    placeholderStyle: point.thumbnail.placeholderStyle,
-                    onReferenceImageNeeded: onReferenceImageNeeded
-                )
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(point.privateMapDisplayName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-
-                    Text(point.scientificName)
-                        .font(.caption)
-                        .italic()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-
-                    Text(point.privateMapMetadata)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-
-                Text("View scan")
-                    .font(.footnote)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(Color.accentColor)
-                    .clipShape(Capsule(style: .continuous))
+        case .unavailable:
+            switch environmentContextManager.locationAuthorizationStatus {
+            case .denied:
+                isLocationSettingsAlertPresented = true
+            default:
+                isLocationUnavailableAlertPresented = true
             }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(12)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .accessibilityLabel(
-            "\(point.privateMapDisplayName), \(point.scientificName), View scan"
-        )
-        .accessibilityHint("Opens your private scan")
-        .accessibilityIdentifier("PrivateScanMapPreview")
-    }
-}
-
-private struct PrivateScanMapSheetRow: View {
-    let point: PrivateScanMapPoint
-    let isOnline: Bool
-    let onReferenceImageNeeded: @MainActor () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ScanThumbnail(
-                isOnline: isOnline,
-                imagePath: point.thumbnail.imagePath,
-                fallbackImageUrl: point.thumbnail.fallbackImageUrl,
-                audioPath: point.thumbnail.audioPath,
-                hasVideo: point.thumbnail.hasVideo,
-                hasAudio: point.thumbnail.hasAudio,
-                prefersReferenceForAudio: true,
-                maxDimension: 180,
-                placeholderStyle: point.thumbnail.placeholderStyle,
-                onReferenceImageNeeded: onReferenceImageNeeded
-            )
-            .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(point.privateMapDisplayName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Text(point.scientificName)
-                    .font(.caption)
-                    .italic()
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Text(point.privateMapMetadata)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-        }
-        .padding(12)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-}
-
-private extension PrivateScanMapPoint {
-    var privateMapDisplayName: String {
-        let trimmed = commonName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? scientificName : trimmed
-    }
-
-    var privateMapMetadata: String {
-        let date = timestamp.formatted(date: .abbreviated, time: .omitted)
-        guard let locationName,
-              !locationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return date
-        }
-        return "\(locationName) · \(date)"
-    }
-}
-
-private extension SearchCategoryBucket {
-    var privateMapSymbolName: String {
-        switch self {
-        case .plants: return "leaf"
-        case .fungi: return "circle.hexagongrid"
-        case .insects: return "ant"
-        case .birds: return "bird"
-        case .mammals: return "pawprint"
-        case .reptiles: return "lizard"
-        case .other: return "sparkles"
         }
     }
-}
 
-private extension ScanMediaFilter {
-    var privateMapSymbolName: String {
-        switch self {
-        case .image: return "photo"
-        case .video: return "video"
-        case .audio: return "waveform"
-        }
+    private func triggerSelectionFeedback() {
+        hapticManager.triggerSelectionPulse()
     }
 }

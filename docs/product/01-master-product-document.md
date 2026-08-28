@@ -469,12 +469,12 @@ reference image or request the existing bounded reference fallback for an
 eligible identification. That lookup receives no location data and continues to
 suppress unresolved, human, and domestic-pet reference imagery.
 
-The product contract is ungated, but the current source candidate is not yet
-release-complete. Open source blockers cover destructive sensitive-state reset,
-lossless refresh retry after failure, startup cancellation before location, and
-true projected screen-space clustering. The manual
-location/accessibility/large-library/offline matrix also remains open; all
-acceptance status is tracked in
+The product contract is ungated. The source candidate now includes destructive
+sensitive-state reset, lossless refresh retry after failure, startup
+cancellation before location, and true projected screen-space clustering. It is
+not yet release-complete because the manual
+location/accessibility/large-library/offline and destructive-purge matrix
+remains open; all acceptance status is tracked in
 [Private Scan Map](../features-and-hardware/28-private-scan-map.md#candidate-release-status).
 
 Insight offers **Download scan**, and Scan Library selection offers batch

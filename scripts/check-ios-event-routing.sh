@@ -41,7 +41,7 @@ is_reviewed_raw_sink_owner() {
       Core/Utilities/Publisher+MainActor.swift | \
       Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift | \
       Features/Scans/Library/ViewModels/ScansManager.swift | \
-      Features/Scans/Map/Services/PrivateScanMapIndexStore.swift)
+      Features/Scans/Map/Services/PrivateScanMapStore.swift)
       return 0
       ;;
     *)

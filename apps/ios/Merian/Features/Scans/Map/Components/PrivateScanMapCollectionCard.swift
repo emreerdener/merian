@@ -12,6 +12,7 @@ struct PrivateScanMapCollectionCard: View {
     @State private var renderedRequestID: PreviewRequestID?
 
     private struct PreviewRequestID: Hashable {
+        let sensitiveResetGeneration: UInt64
         let revision: UInt64
         let widthPixels: Int
         let heightPixels: Int
@@ -71,6 +72,10 @@ struct PrivateScanMapCollectionCard: View {
         .accessibilityLabel("Scan map, \(mappedScanLabel), Private")
         .accessibilityHint("Shows all of your mapped scans")
         .accessibilityIdentifier("PrivateScanMapCollectionCard")
+        .onChange(of: privateScanMapStore.sensitiveResetGeneration) {
+            previewImage = nil
+            renderedRequestID = nil
+        }
     }
 
     private var mappedScanLabel: String {
@@ -115,6 +120,8 @@ struct PrivateScanMapCollectionCard: View {
 
     private func previewRequestID(size: CGSize) -> PreviewRequestID {
         PreviewRequestID(
+            sensitiveResetGeneration:
+                privateScanMapStore.sensitiveResetGeneration,
             revision: privateScanMapStore.snapshot.spatialRevision,
             widthPixels: Int((size.width * displayScale).rounded()),
             heightPixels: Int((size.height * displayScale).rounded()),

@@ -33,17 +33,20 @@ as a typed value in the existing Scans navigation path. The preview always fits
 the complete extent of the owner's mapped scans and does not request current
 location. `PrivateScanMapStore` serializes successful durable-library refreshes
 and uses a spatial-only revision to avoid rebuilding the preview for name,
-media, or thumbnail changes. A later invalidation must remain pending when an
-in-flight refresh fails; the current source candidate still needs that
-failure-path guarantee. The bounded rendered-image cache is memory-only; neither
-the image nor derived coordinates are persisted.
+media, or thumbnail changes. Its lossless refresh generation retains a later
+invalidation when an in-flight attempt fails, then drains the pending durable
+generation. The bounded rendered-image cache is memory-only; neither the image
+nor derived coordinates are persisted.
 
 Memory-only data is still owner-sensitive. Destructive account or local-library
 cleanup must synchronously clear the observable map snapshots, actor index,
 pending work, and every rendered preview variant. An eventual
 `scanLibraryChanged` notification is sufficient for ordinary library refresh,
-but not for a destructive erasure boundary. This reset remains a candidate
-release blocker.
+but not for a destructive erasure boundary. The app-owned
+`PrivateScanMapStore.resetSensitiveState` boundary now empties those values,
+retires active snapshotters, rejects old-epoch completion, and replaces the
+store-owned index and renderer before SwiftData deletion. A failed purge emits a
+normal library invalidation so still-durable records can be projected again.
 
 Collections does not construct the map destination in a closure. It appends
 `ScansNavigationRoute.privateScanMap`; `ScansSheetView` owns destination

@@ -4,6 +4,7 @@ import SwiftUI
 struct DeleteAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(PrivateScanMapStore.self) private var privateScanMapStore
     let supabase: SupabaseManager
     
     @State private var confirmationText: String = ""
@@ -141,7 +142,9 @@ struct DeleteAccountSheet: View {
                     .resumePendingAccountDeletionLocalCleanup(
                         purgeLocalData: {
                             ScanRepository.shared.purgeAllData(
-                                modelContext: modelContext
+                                modelContext: modelContext,
+                                resetDerivedState:
+                                    privateScanMapStore.resetSensitiveState
                             )
                         }
                     ) else {
@@ -153,7 +156,9 @@ struct DeleteAccountSheet: View {
             } else {
                 _ = try await supabase.deleteCurrentAccount {
                     ScanRepository.shared.purgeAllData(
-                        modelContext: modelContext
+                        modelContext: modelContext,
+                        resetDerivedState:
+                            privateScanMapStore.resetSensitiveState
                     )
                 }
             }

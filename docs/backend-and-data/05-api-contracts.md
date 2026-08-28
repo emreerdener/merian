@@ -7805,18 +7805,21 @@ neither local sign-out nor local data erasure.
 After either success response, iOS advances the marker to
 `capability_cleanup_pending`, persists any manual Apple disposition, performs
 verified local Supabase sign-out, and drops all local SQLite `ModelContext`
-state through `ScanRepository.purgeAllData()`. It then acknowledges through the
-public recovery route using only the independent acknowledgement capability,
-records `capability_retirement_pending`, verifies local Auth absence and
-idempotent SwiftData purge again on relaunch, verifies Keychain proof removal,
-and clears the marker last. Foreground and cold-launch recovery repeat the exact
-phase behind a blocking screen. Only a matched committed capability's
-`account_deletion_recovery_expired` `410` permits conservative local cleanup;
-the subsequent independent acknowledgement remains valid after expiry and
-converts the row to a permanent replay receipt before local retirement. An
-unknown legacy proof does not. An authenticated duplicate that arrives after
-acknowledgement returns the same permanent receipt and cannot clear
-acknowledgement or extend its expiry. The app establishes its ordinary
+state through `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`.
+The required app-owned private-map reset closure empties and epoch-fences
+exact-coordinate snapshots, index work, and preview rendering and advances the
+active-map presentation reset generation before SwiftData deletion. It then
+acknowledges through the public recovery route using only the independent
+acknowledgement capability, records `capability_retirement_pending`, verifies
+local Auth absence and idempotent SwiftData purge again on relaunch, verifies
+Keychain proof removal, and clears the marker last. Foreground and cold-launch
+recovery repeat the exact phase behind a blocking screen. Only a matched
+committed capability's `account_deletion_recovery_expired` `410` permits
+conservative local cleanup; the subsequent independent acknowledgement remains
+valid after expiry and converts the row to a permanent replay receipt before
+local retirement. An unknown legacy proof does not. An authenticated duplicate
+that arrives after acknowledgement returns the same permanent receipt and cannot
+clear acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility

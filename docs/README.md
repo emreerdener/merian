@@ -715,7 +715,8 @@ as their permanent engineering identity.
   — Owner-only Scan library map, including eligible local-record projection,
   complete-extent Collections preview, current-location fallback, filters,
   clustering, private Insight routing, exact-coordinate privacy boundaries,
-  accessibility, verification, and candidate release status.
+  sensitive-reset and stale-completion fencing, accessibility, verification, and
+  candidate release status.
 - **[`/rfcs/explore-page.md`](./rfcs/explore-page.md)** — Explore feed and map
   product/RPC architecture, including the shipped V1 map implementation and
   follow-up recommendations.

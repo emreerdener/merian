@@ -245,7 +245,9 @@ Process-memory retention is still sensitive. Destructive account cleanup or a
 local destructive library purge must synchronously empty the store's observable
 snapshots, invalidate the actor index, cancel in-flight projection and preview
 work, and clear every rendered preview variant before the affected UI can render
-again. A stale task must not repopulate those values after reset. Posting an
+again. Map-owned location work and deferred navigation handoffs must carry the
+same reset generation so they cannot publish stale presentation after that
+boundary. A stale task must not repopulate those values after reset. Posting an
 eventual `scanLibraryChanged` notification is not an adequate erasure boundary.
 
 MapKit may obtain ordinary system map tiles through Apple's services. That is
@@ -279,14 +281,18 @@ decorative map geometry as duplicate elements.
 
 ## Code Ownership
 
-| Area                                                                                                                              | Owner                                                                                     |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Collections placement, search/count/empty-state integration                                                                       | `apps/ios/Merian/Features/Scans/Collections/`                                             |
-| Database actor, revisioned index, preview renderer, spatial projection, region math, clustering, filters, map, preview, and sheet | `apps/ios/Merian/Features/Scans/Map/`                                                     |
-| Typed map/Insight path ownership and native push/back behavior                                                                    | `apps/ios/Merian/Features/Scans/Shell/`; the map only emits selection values              |
-| Value-route lookup, one-time engine hydration, and embedded Insight construction                                                  | `apps/ios/Merian/Features/Insights/Shell/`                                                |
-| Existing location permission and one-shot lookup                                                                                  | `EnvironmentContextManager`                                                               |
-| Public map and public coordinate projection                                                                                       | `apps/ios/Merian/Features/Explore/Map/` and Supabase Explore contracts; never `Scans/Map` |
+| Area                                                                                                                          | Owner                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Collections placement, search/count/empty-state integration                                                                   | `apps/ios/Merian/Features/Scans/Collections/`                                             |
+| Detached snapshots, index values, region/annotation geometry, labels                                                          | `apps/ios/Merian/Features/Scans/Map/Models/`                                              |
+| SwiftData projection, store/index, reset and request fencing, screen projection, clustering, viewport work, preview rendering | `apps/ios/Merian/Features/Scans/Map/Services/`                                            |
+| Filter, selection, camera, and cancellable viewport state                                                                     | `apps/ios/Merian/Features/Scans/Map/ViewModels/`                                          |
+| Destination lifecycle and MapKit composition                                                                                  | `apps/ios/Merian/Features/Scans/Map/Views/`                                               |
+| Passive Collections card, waypoint, preview, filter, and list UI                                                              | `apps/ios/Merian/Features/Scans/Map/Components/`                                          |
+| Typed map/Insight path ownership and native push/back behavior                                                                | `apps/ios/Merian/Features/Scans/Shell/`; the map only emits selection values              |
+| Value-route lookup, one-time engine hydration, and embedded Insight construction                                              | `apps/ios/Merian/Features/Insights/Shell/`                                                |
+| Existing location permission and one-shot lookup                                                                              | `EnvironmentContextManager`                                                               |
+| Public map and public coordinate projection                                                                                   | `apps/ios/Merian/Features/Explore/Map/` and Supabase Explore contracts; never `Scans/Map` |
 
 The implementation-local ownership notes live in the
 [Scans Map README](../../apps/ios/Merian/Features/Scans/Map/README.md).
@@ -295,7 +301,9 @@ The implementation-local ownership notes live in the
 
 ### Automated coverage
 
-`PrivateScanMapTests` must cover:
+The mirrored `PrivateScanMapTests`, `PrivateScanMapClusteringTests`,
+`PrivateScanMapScreenProjectionTests`, and `PrivateScanMapLifecycleTests` must
+collectively cover:
 
 - inclusion and coordinate validation;
 - exact-coordinate preservation for shared and unshared records;
@@ -308,13 +316,19 @@ The implementation-local ownership notes live in the
   arrival after an unavailable-location result;
 - cancellation after a delayed initial refresh, proving a departed map never
   begins its one-shot location request;
+- reset during an in-flight startup location lookup, proving the old generation
+  cannot set the camera afterward;
+- reset during a manual **Locate me** lookup, proving the old generation cannot
+  reach presentation handling as a current location result;
 - local filter composition and the true viewport count;
 - **Show scans** recovery;
 - snapshot refresh after deletion;
 - lossless refresh coalescing when a request arrives during an attempt that
   fails, followed by a successful retry of the pending generation;
 - synchronous sensitive-state reset, including empty observable snapshots,
-  invalidated spatial and preview caches, and rejection of stale completions;
+  invalidated spatial and preview caches, active snapshotter cancellation,
+  rejection of stale completions, and recovery from still-durable state after a
+  failed purge;
 - stable actor-index revisions for unchanged data, content-only changes,
   coordinate changes, and deletion;
 - spatial-index candidate correctness across the antimeridian;
@@ -367,34 +381,32 @@ Before release acceptance, record pass/fail evidence for:
 
 ### Candidate Release Status
 
-The source candidate now removes private-map SwiftData projection, full-library
+The source candidate removes private-map SwiftData projection, full-library
 identity hashing, media decoding, preview clustering, and viewport clustering
 from the main actor. Collections uses an asynchronous static snapshot instead of
 a live map, and the interactive page consumes the revisioned actor index with
 cancellable spatial queries. The Scans root owns the typed map and Insight
 routes, while the Map-owning view emits selection values and owns no destination
-state. The 305-record UI fixture remains the automated responsiveness and
-navigation-handoff floor. A physical-device retest remains part of the manual
-large-library evidence below. It must not be described as shipped until the
-following source findings and evidence gaps are closed:
+state.
 
-1. Destructive account or local-library cleanup does not synchronously clear the
-   app-scoped map store, actor index, in-flight work, and rendered preview
-   cache.
-2. A refresh requested during an in-flight attempt can be lost when that attempt
-   throws, leaving a newer durable generation unprojected until another event.
-3. The initial destination task does not check cancellation between the awaited
-   refresh and its one-shot location request, so leaving during startup can
-   still request location.
-4. The viewport projector currently divides raw latitude and longitude into a
-   56-cell coordinate grid. It is deterministic, but it is not a true 56-point
-   projected screen-space grid and diverges at high latitude.
-5. The focused UI fixture does not prove live location permission or the user
+The former source findings are closed: destructive cleanup now synchronously
+detaches and empties private map state with epoch-fenced stale-completion
+rejection; refresh coalescing preserves a newer generation across failure; the
+startup sequence checks cancellation before location; and clustering uses exact
+MapKit/Web-Mercator screen points, including the completed snapshot transform
+for the Collections preview. The reset generation also retires active MapKit
+snapshotters and fences in-flight location and deferred navigation completion.
+The mirrored unit suites encode those regressions.
+
+The candidate still must not be described as shipped until these evidence gaps
+are closed:
+
+1. The focused UI fixture does not prove live location permission or the user
    annotation.
-6. The required manual location, deletion/presentation, destructive-purge,
+2. The required manual location, deletion/presentation, destructive-purge,
    accessibility, appearance, large-library, and offline matrix has not yet been
    recorded against a candidate build.
 
-These are candidate defects or missing evidence, not accepted product
-limitations. Closing them does not authorize TestFlight distribution, App Store
-submission, or any deployment.
+These are missing release-evidence items, not accepted product limitations.
+Closing them does not authorize TestFlight distribution, App Store submission,
+or any deployment.
