@@ -26,7 +26,7 @@ struct ScansSheetView: View {
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse)
     private var rawRecords: [LocalScanRecord]
     @Query(
-        filter: #Predicate<ScanCollection> { !$0.isDeleted },
+        filter: #Predicate<ScanCollection> { !$0.isPendingDeletion },
         sort: \ScanCollection.createdAt,
         order: .reverse
     )
@@ -251,6 +251,7 @@ struct ScansSheetView: View {
         ScansCollectionsTabContent(
             searchManager: searchManager,
             isSearchFocused: isSearchFocused,
+            scans: rawRecords,
             collections: collections,
             hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
             onHideSmartCollection: hideSmartCollection,

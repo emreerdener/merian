@@ -1,7 +1,7 @@
-import Testing
-import SwiftData
 import Foundation
 @testable import Merian
+import SwiftData
+import Testing
 
 @Suite("ScanCollection SwiftData Operations")
 @MainActor
@@ -58,7 +58,28 @@ struct ScanCollectionTests {
         
         #expect(fetchedCollections.first?.name == newName)
     }
-    
+
+    @Test("Persists the collection sync tombstone across contexts")
+    func testCollectionPendingDeletionPersistence() throws {
+        let collection = ScanCollection(name: "Pending Sync Deletion")
+        context.insert(collection)
+        try context.save()
+
+        collection.isPendingDeletion = true
+        try context.save()
+
+        let collectionID = collection.id
+        let reloadContext = ModelContext(container)
+        let descriptor = FetchDescriptor<ScanCollection>(
+            predicate: #Predicate { $0.id == collectionID }
+        )
+        let reloadedCollection = try #require(
+            reloadContext.fetch(descriptor).first
+        )
+
+        #expect(reloadedCollection.isPendingDeletion)
+    }
+
     @Test("Hard deletes a collection explicitly off disk")
     func testCollectionDeletion() throws {
         // Arrange
@@ -75,7 +96,7 @@ struct ScanCollectionTests {
         
         // Assert
         descriptor = FetchDescriptor<ScanCollection>()
-        #expect(try context.fetch(descriptor).count == 0)
+        #expect(try context.fetch(descriptor).isEmpty)
     }
     
     @Test("Binds ScanCollection natively to a LocalScanRecord many-to-many relationship")

@@ -993,7 +993,7 @@ actor HistoricalDatabaseActor {
                 // If a collection is marked as deleted locally, aggressively ignore any remote
                 // representations of it. This prevents an obsolete or delayed remote state
                 // from "resurrecting" the collection locally or wiping its tombstone status.
-                if existing.isDeleted {
+                if existing.isPendingDeletion {
                     continue
                 }
             } else {

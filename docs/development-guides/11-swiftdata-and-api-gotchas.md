@@ -17,7 +17,7 @@ of `schemas` and jumps older unknown stores from V43→V49. Source-isolated rece
 plans still handle V44, V45, and V46 stores directly; V44, V45, and V46 stores
 jump through separate direct V44→V49, V45→V49, and V46→V49 plans. Those repairs
 are intermediate targets: every selected plan then applies the lightweight
-V49→V50 stage, while a current V50 store opens without a plan.
+V49→V50 and V50→V51 stages, while a current V51 store opens without a plan.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
@@ -29,15 +29,15 @@ use the actual source stamp as the only recent representative in the plan, then
 jump directly to V49. Startup reads the store metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
-source-isolated plan (V49 through V42); only unknown or older existing stores
-use the full historical plan. V49 has its own one-stage lightweight V49→V50
-plan, preventing a store on the immediate predecessor from validating any
-unrelated historical stage. If SwiftData still throws
-`Duplicate version checksums across stages detected`, startup falls back through
-the same source-isolated plans before legacy rescue or safe mode. These plans
-avoid forcing SwiftData to validate unrelated older retired schemas or adjacent
-checksum-equivalent representatives while a recent store only needs to advance
-to the current version.
+source-isolated plan (V50 through V42); only unknown or older existing stores
+use the full historical plan. V49 has a two-stage lightweight V49→V51 plan, and
+V50 has its own one-stage lightweight V50→V51 plan, preventing either immediate
+predecessor from validating unrelated historical stages. If SwiftData still
+throws `Duplicate version checksums across stages detected`, startup falls back
+through the same source-isolated plans before legacy rescue or safe mode. These
+plans avoid forcing SwiftData to validate unrelated older retired schemas or
+adjacent checksum-equivalent representatives while a recent store only needs to
+advance to the current version.
 
 Do not encode recent sources as an integer range followed by a generic app
 fallback. Keep a finite recent-source enum, convert actual store metadata into
@@ -1499,3 +1499,64 @@ ordinary/reset). That is a semantics change, not a persisted-model change, so it
 does not justify a new SwiftData schema version. If a repair needs a new field,
 relationship, uniqueness rule, or enum storage shape instead, follow the full
 schema-update procedure and migration fixture matrix.
+
+---
+
+## 29. `PersistentModel.isDeleted` Is Framework State, Not App Storage
+
+Every SwiftData `@Model` conforms to `PersistentModel`, which exposes
+`isDeleted` as framework lifecycle state. Do not declare an application-owned
+stored property with that Swift name. The declaration can compile and appear to
+accept an assignment, while `ModelContext.save()` resolves the member as
+framework state rather than a durable application attribute.
+
+The released V50 `ScanCollection` demonstrates the failure: collection deletion
+assigned its intended soft-delete marker to `true`, but an actual simulator save
+left the held value `false`, and a fresh fetch also returned `false`. V51
+repairs the active model with `isPendingDeletion` mapped to the same `isDeleted`
+column; the historical V50 name remains only in the frozen migration source.
+Downstream code now serializes the durable value as `is_deleted`, so enqueue
+ordering, inbound tombstone shielding, and acknowledgement-only purge retain
+their intended guarantees.
+
+### ❌ The Anti-Pattern: Shadow Framework Lifecycle Names
+
+```swift
+@Model
+final class ScanCollection {
+    var isDeleted = false // Collides with PersistentModel.isDeleted.
+}
+```
+
+A successful `save()` call is not proof that the intended field persisted. Tests
+must verify the held model, a fresh context fetch, and a reopened disk-backed
+store. Payload tests must read the reopened model rather than a transient value
+captured before the save.
+
+### ✅ The Pattern: Migrate to a Domain-Specific Stored Name
+
+Choose a non-reserved domain name, keep wire naming in the DTO mapper, and treat
+the rename as a schema change. Freeze the outgoing schema before editing the
+active model, then add one ordered lightweight migration and a source-isolated
+plan for stores already on the outgoing version:
+
+```swift
+@Model
+final class ScanCollection {
+    @Attribute(originalName: "isDeleted")
+    var isPendingDeletion = false
+}
+
+let payload = SyncCollectionPayload(
+    // ...
+    is_deleted: collection.isPendingDeletion
+)
+```
+
+For Merian, V50 is frozen in `SchemaV50Snapshots.swift`; V51 adds one ordered
+lightweight V50 → V51 stage and preserves the existing `is_deleted` JSON
+contract. A disk-backed V50 fixture passes through the production
+startup/migration selector and proves save, refetch, restart, offline retention,
+exact payload mapping, inbound reconciliation fencing, and acknowledgement-only
+purge. Because V50 did not retain prior assignments, the migration does not
+invent or infer historical delete intent.

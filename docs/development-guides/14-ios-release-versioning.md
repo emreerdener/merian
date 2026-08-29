@@ -48,19 +48,20 @@ environment, production secrets, or deployment. Public release nomination
 requires its green SHA to match the iOS workflow SHA. The separate Supabase
 production job remains an operator-authorized deployment action and is currently
 blocked before its GitHub `Production` environment by the checked-in
-`species_dictionary_chat_production_hold`. Clearing that hold also requires the
-genuine released-binary V49→V50 physical install-over gate in this runbook. The
-current source-created V49 fixture proves candidate-self consistency only; the
-physical result is still pending. The Field Chat source controls now include
-six-table cleanup and permanent atomic-RPC ownership of conversation insertion,
-explicit post-bundle database activation, one executable Swift/Deno prompt-label
-policy, a structurally bound protected clearance, and an exact clean
-mutation-SHA check. Each live route now exposes a candidate-derived bundle
-digest, database `ready` force-selects the chat fleet, activation records the
-three identities, and clearance retrieves/recomputes artifacts while checking
-live protections. Backend release remains blocked on non-skipped and hosted
-evidence, accepted external GitHub control configuration, the V49 install-over,
-and external approvals. The canonical requirements are in the
+`species_dictionary_chat_production_hold`. Clearing that hold still requires the
+historical V49→V50 physical install-over baseline and the current V50→V51
+physical install-over gate in this runbook. Source-created V49/V50 fixtures
+prove candidate-self consistency only; physical results remain release evidence.
+The Field Chat source controls now include six-table cleanup and permanent
+atomic-RPC ownership of conversation insertion, explicit post-bundle database
+activation, one executable Swift/Deno prompt-label policy, a structurally bound
+protected clearance, and an exact clean mutation-SHA check. Each live route now
+exposes a candidate-derived bundle digest, database `ready` force-selects the
+chat fleet, activation records the three identities, and clearance
+retrieves/recomputes artifacts while checking live protections. Backend release
+remains blocked on non-skipped and hosted evidence, accepted external GitHub
+control configuration, the V49 install-over, and external approvals. The
+canonical requirements are in the
 [Supabase hold-exit criteria](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).
 Author and renew their retained artifacts through the
 [release-evidence operations guide](../release-evidence/README.md); a validation
@@ -223,54 +224,58 @@ mandatory implementation proof, but they do not replace installing the exact
 processed candidate over a store created by the released application on a
 physical device.
 
-For the current migration, the released source is V49 and the target is V50:
+For the current migration, the released source is V50 and the target is V51. The
+historical V49→V50 install-over evidence remains the prerequisite baseline for
+stores that have not yet crossed that release boundary:
 
-1. Reserve a dedicated non-production iPhone and account. Keep a genuine V49 App
+1. Reserve a dedicated non-production iPhone and account. Keep a genuine V50 App
    Store/TestFlight installation on the device; do not replace it with a locally
-   modified V49 build or inject a test-created SQLite store.
-2. On V49, create and persist representative offline work: an image queue row, a
+   modified V50 build or inject a test-created SQLite store.
+2. On V50, create and persist representative offline work: an image queue row, a
    video queue row, and a mixed-media or description-bearing row with their
-   media and scheduler records. Terminate and relaunch V49 once to prove the
+   media and scheduler records. Terminate and relaunch V50 once to prove the
    source state is durable.
-3. Record sanitized source evidence: V49 app/build, device and iOS version,
+3. Record sanitized source evidence: V50 app/build, device and iOS version,
    source identity when available, current schema, and presence of store
    artifacts. Never copy the raw store or record account identifiers, scan IDs,
    text, coordinates, local paths, or media.
 4. Through the bounded internal TestFlight group, install the exact processed
-   V50 candidate over V49 without uninstalling or clearing app data.
-5. Launch V50 while collecting public device-console output. Require
-   `ModelContainer bootstrap diagnostics` to show `currentSchema=V50` and the
+   V51 candidate over V50 without uninstalling or clearing app data.
+5. Launch V51 while collecting public device-console output. Require
+   `ModelContainer bootstrap diagnostics` to show `currentSchema=V51` and the
    candidate source identity, and require
    `ModelContainer store-aware migration selection` to show
-   `hasStoreArtifacts=true`, `storedSchema=V49`, and
-   `strategy=recent-source-v49`. Reaching the normal UI with no recovery notice
+   `hasStoreArtifacts=true`, `storedSchema=V50`, and
+   `strategy=recent-source-v50`. Reaching the normal UI with no recovery notice
    or safe mode is the required successful-open evidence. A full-historical
    selection is a failure.
 6. If approved internal tooling can retrieve the persisted
-   `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 50`,
-   `store.storedSchemaMajorVersion: 49`, `selectedStrategy: recent-source-v49`,
-   and an `attempts` entry with `name: recent-v49` and `outcome: success`. Do
+   `StartupStoreDiagnostic`, cross-check `currentSchemaMajor: 51`,
+   `store.storedSchemaMajorVersion: 50`, `selectedStrategy: recent-source-v50`,
+   and an `attempts` entry with `name: recent-v50` and `outcome: success`. Do
    not require snake-case recovery telemetry; the normal-success path does not
    emit that event.
-7. Confirm all representative queue rows, media references, retry fields, and
-   scheduler records survive. Migrated V49 rows must not gain
-   `OfflineQueuedScanGoalHint` rows because V49 stored no selected-goal source
-   value.
+7. Confirm all representative queue rows, media references, retry fields,
+   scheduler records, goal hints, collection relationships, and true/false
+   collection tombstones survive. A V50 tombstone must remain mapped to the
+   `isDeleted` column while the active property is `isPendingDeletion`.
 8. Force-quit and relaunch. The second launch must select `current-store`, keep
    the migrated data, and show no recovery notice.
-9. Create separate fresh V50 queue rows and verify the new goal-hint companion
-   in distinct foreground- and background-completion paths, plus relaunch,
-   successful progress acknowledgement, and cancellation/orphan cleanup.
+9. Create separate fresh V51 queue rows and verify the goal-hint companion in
+   distinct foreground- and background-completion paths, plus relaunch,
+   successful progress acknowledgement, and cancellation/orphan cleanup. Verify
+   a deleted collection emits `is_deleted: true`, ignores delayed inbound
+   upserts, and is purged only after the matching cloud acknowledgement.
 10. Add the sanitized source/target builds, device/OS, diagnostic outcomes,
-    queue survival result, relaunch result, V50-only persistence result, tester,
-    date, and pass/fail decision to the restricted release record.
+    queue survival result, relaunch result, V51 tombstone/goal-hint result,
+    tester, date, and pass/fail decision to the restricted release record.
 
 Any failure blocks wider TestFlight assignment and App Review nomination.
 Preserve the device in its failed state for diagnosis; do not uninstall, delete
 the store, or count recovery into a fresh library as migration success. Fix the
 forward migration, upload a new candidate, and rerun the complete gate. The
-diagnostic meanings and exact V49→V50 expectations are canonical in
-[`08-startup-store-recovery.md`](../backend-and-data/08-startup-store-recovery.md#v49v50-release-acceptance).
+diagnostic meanings and exact V50→V51 expectations are canonical in
+[`08-startup-store-recovery.md`](../backend-and-data/08-startup-store-recovery.md#v50v51-release-acceptance).
 
 For future schema bumps, replace the source/target versions and expected recent
 plan with the actual released predecessor and candidate, while retaining the

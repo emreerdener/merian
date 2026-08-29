@@ -117,7 +117,7 @@ struct InsightSheetView: View {
     }
     
     // MARK: - Data Layer
-    @Query(filter: #Predicate<ScanCollection> { !$0.isDeleted }, sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
+    @Query(filter: #Predicate<ScanCollection> { !$0.isPendingDeletion }, sort: \ScanCollection.createdAt, order: .reverse) var collections: [ScanCollection]
 
     var deleteConfirmationBinding: Binding<Bool> {
         let expectedScanId = pendingDeletionScanId

@@ -39,12 +39,30 @@ struct MigrationPlanTests {
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
+    private func currentScanCollectionSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("ActiveSchema")
+            .appendingPathComponent("ScanCollection.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
     private func schemaV49SnapshotsSource() throws -> String {
         let sourceURL = repositoryRoot
             .appendingPathComponent("Merian")
             .appendingPathComponent("Models")
             .appendingPathComponent("Schema")
             .appendingPathComponent("SchemaV49Snapshots.swift")
+        return try String(contentsOf: sourceURL, encoding: .utf8)
+    }
+
+    private func schemaV50SnapshotsSource() throws -> String {
+        let sourceURL = repositoryRoot
+            .appendingPathComponent("Merian")
+            .appendingPathComponent("Models")
+            .appendingPathComponent("Schema")
+            .appendingPathComponent("SchemaV50Snapshots.swift")
         return try String(contentsOf: sourceURL, encoding: .utf8)
     }
 
@@ -982,6 +1000,45 @@ struct MigrationPlanTests {
         #expect(snapshotSource.contains(
             "inverse: \\MerianSchemaV49.LocalScanRecord.collections"
         ))
+
+        let v50SchemaStart = try #require(
+            source.range(of: "enum MerianSchemaV50: VersionedSchema")
+        ).lowerBound
+        let v50Remainder = source[v50SchemaStart...]
+        let v50SchemaEnd = try #require(
+            v50Remainder.range(of: "\nenum MerianSchemaV51: VersionedSchema")
+        ).lowerBound
+        let v50Schema = String(v50Remainder[..<v50SchemaEnd])
+        for model in v49Models {
+            #expect(v50Schema.contains("MerianSchemaV50.\(model).self"))
+        }
+        #expect(v50Schema.contains("MerianSchemaV50.OfflineQueuedScanGoalHint.self"))
+
+        let v50SnapshotSource = try schemaV50SnapshotsSource()
+        #expect(!v50SnapshotSource.contains("typealias"))
+        #expect(v50SnapshotSource.contains(
+            "[MerianSchemaV50.CapturedMediaEntry]?"
+        ))
+        #expect(v50SnapshotSource.contains(
+            "[MerianSchemaV50.ScanCollection]?"
+        ))
+        #expect(v50SnapshotSource.contains(
+            "inverse: \\MerianSchemaV50.LocalScanRecord.collections"
+        ))
+        #expect(v50SnapshotSource.contains("var isDeleted: Bool = false"))
+        #expect(v50SnapshotSource.contains("final class OfflineQueuedScanGoalHint"))
+        #expect(!v50SnapshotSource.contains("isPendingDeletion"))
+    }
+
+    @Test func activeCollectionTombstoneUsesV51RenameMapping() throws {
+        let source = try currentScanCollectionSource()
+
+        #expect(CurrentSchema.versionIdentifier.major == 51)
+        #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
+        #expect(source.contains("public var isPendingDeletion: Bool = false"))
+        #expect(source.contains("isPendingDeletion: Bool = false"))
+        #expect(!source.contains("public var isDeleted"))
+        #expect(!source.contains("isDeleted: Bool = false"))
     }
 
     @Test func latestQueueMetadataMigrationStaysDurable() throws {
@@ -1098,11 +1155,11 @@ struct MigrationPlanTests {
 
         #expect(
             missing.isEmpty,
-            "Active V50 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "Active V51 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             presentForbidden.isEmpty,
-            "Active V50 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
+            "Active V51 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 
@@ -1401,22 +1458,46 @@ struct MigrationPlanTests {
         )
     }
 
-    @Test func recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop() throws {
+    @Test func recentV49MigrationPlanOnlyRunsRequiredLightweightHopsToV51() throws {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50])
+        #expect(schemaMajors == [49, 50, 51])
 
-        let stage = try #require(MerianRecentV49MigrationPlan.stages.first)
-        #expect(MerianRecentV49MigrationPlan.stages.count == 1)
+        let expectedHops = [(49, 50), (50, 51)]
+        #expect(MerianRecentV49MigrationPlan.stages.count == expectedHops.count)
+        for (stage, expectedHop) in zip(
+            MerianRecentV49MigrationPlan.stages,
+            expectedHops
+        ) {
+            switch stage {
+            case let .lightweight(fromVersion, toVersion):
+                #expect(fromVersion.versionIdentifier.major == expectedHop.0)
+                #expect(toVersion.versionIdentifier.major == expectedHop.1)
+            case .custom:
+                Issue.record("The source-isolated V49→V51 plan must remain lightweight.")
+            @unknown default:
+                Issue.record("The source-isolated V49→V51 plan contains an unknown stage kind.")
+            }
+        }
+    }
+
+    @Test func recentV50MigrationPlanOnlyRunsLightweightV50ToV51Hop() throws {
+        let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
+            $0.versionIdentifier.major
+        }
+        #expect(schemaMajors == [50, 51])
+
+        let stage = try #require(MerianRecentV50MigrationPlan.stages.first)
+        #expect(MerianRecentV50MigrationPlan.stages.count == 1)
         switch stage {
         case let .lightweight(fromVersion, toVersion):
-            #expect(fromVersion.versionIdentifier.major == 49)
-            #expect(toVersion.versionIdentifier.major == 50)
+            #expect(fromVersion.versionIdentifier.major == 50)
+            #expect(toVersion.versionIdentifier.major == 51)
         case .custom:
-            Issue.record("The source-isolated V49→V50 plan must remain lightweight.")
+            Issue.record("The source-isolated V50→V51 plan must remain lightweight.")
         @unknown default:
-            Issue.record("The source-isolated V49→V50 plan contains an unknown stage kind.")
+            Issue.record("The source-isolated V50→V51 plan contains an unknown stage kind.")
         }
     }
 
@@ -1711,6 +1792,94 @@ struct MigrationPlanTests {
         let persistedHint = try #require(reloadContext.fetch(hintDescriptor).first)
         #expect(persistedHint.userFieldTripId == "field-trip-after-v49-migration")
         #expect(persistedHint.itemId == "goal-after-v49-migration")
+    }
+
+    @Test func migrationFromV50RenamesAndPreservesCollectionTombstones() throws {
+        let url = migrationStoreURL(named: "v50_collection_tombstone_migration_test")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+
+        let deletedCollectionID = "v50-deleted-collection"
+        let activeCollectionID = "v50-active-collection"
+        let localScanID = "v50-collection-member"
+        let hintScanID = "v50-goal-hint-scan"
+
+        do {
+            let schema50 = Schema(versionedSchema: MerianSchemaV50.self)
+            let config50 = ModelConfiguration(schema: schema50, url: url)
+            let container50 = try makeModelContainer(
+                for: schema50,
+                configurations: [config50]
+            )
+            let context50 = ModelContext(container50)
+            let localScan = MerianSchemaV50.LocalScanRecord(
+                id: localScanID,
+                speciesId: "v50-species",
+                scientificName: "Migratus tombstonus",
+                commonName: "Migration Fixture"
+            )
+            let deletedCollection = MerianSchemaV50.ScanCollection(
+                id: deletedCollectionID,
+                name: "Deleted before V51",
+                isDeleted: true,
+                scans: [localScan]
+            )
+            localScan.collections = [deletedCollection]
+            let activeCollection = MerianSchemaV50.ScanCollection(
+                id: activeCollectionID,
+                name: "Active before V51"
+            )
+
+            context50.insert(localScan)
+            context50.insert(deletedCollection)
+            context50.insert(activeCollection)
+            context50.insert(MerianSchemaV50.OfflineQueuedScanGoalHint(
+                scanId: hintScanID,
+                userFieldTripId: "v50-field-trip",
+                itemId: "v50-goal"
+            ))
+            try context50.save()
+        }
+
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        #expect(decision.storedSchemaMajorVersion == 50)
+        #expect(decision.hint == .recentSource(.v50))
+
+        let store = try openCurrentMigrationStore(
+            at: url,
+            migrationPlan: MerianRecentV50MigrationPlan.self
+        )
+
+        func assertMigratedRows(in context: ModelContext) throws {
+            let deletedCollection = try #require(context.fetch(
+                FetchDescriptor<ScanCollection>(
+                    predicate: #Predicate { $0.id == deletedCollectionID }
+                )
+            ).first)
+            #expect(deletedCollection.name == "Deleted before V51")
+            #expect(deletedCollection.isPendingDeletion)
+            #expect(deletedCollection.scans?.map(\.id) == [localScanID])
+
+            let activeCollection = try #require(context.fetch(
+                FetchDescriptor<ScanCollection>(
+                    predicate: #Predicate { $0.id == activeCollectionID }
+                )
+            ).first)
+            #expect(!activeCollection.isPendingDeletion)
+
+            let hint = try #require(context.fetch(
+                FetchDescriptor<ActiveOfflineQueuedScanGoalHint>(
+                    predicate: #Predicate { $0.scanId == hintScanID }
+                )
+            ).first)
+            #expect(hint.userFieldTripId == "v50-field-trip")
+            #expect(hint.itemId == "v50-goal")
+        }
+
+        try assertMigratedRows(in: store.context)
+        try assertMigratedRows(in: ModelContext(store.container))
     }
 
     @Test func migrationFromFrozenV49PreservesEveryModelAndRelationship() throws {

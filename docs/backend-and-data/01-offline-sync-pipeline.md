@@ -1511,9 +1511,15 @@ disconnected.
 1. **Entity Instantiation**: A user taps "New Collection" — a `ScanCollection`
    is inserted into SwiftData and `modelContext.save()` is called immediately.
    The collection is durable locally from this point.
-   `CollectionActionAlertModifier` trims names, rejects duplicates against
+   `CollectionMutationService` trims names, rejects duplicates against
    non-deleted local collections, reserves `"Favorites"` as a protected system
-   collection name, and only enqueues cloud sync after the local save succeeds.
+   collection name, rejects attempts to rename or delete that folder, and only
+   enqueues cloud sync after the local save succeeds. The feature-owned
+   `CollectionActionAlertModifier` owns alert presentation and delegates the
+   mutation to that service. A failed save explicitly restores the captured
+   pre-mutation model values before rolling back the SwiftData context; no
+   library invalidation or collection-sync job is emitted for the rejected
+   mutation.
 2. **Background Upload**: `OfflineQueueManager.shared.enqueueCollectionSync()`
    is triggered, creating or updating the coalesced
    `OfflineJobRecord(id: "collection-sync")` instead of treating a process-local
@@ -1562,18 +1568,24 @@ disconnected.
    the collection-sync job complete only when the captured revision still
    matches. If a newer rename/delete arrives while the old request is in flight,
    the job remains pending/waiting and the next drain loop replays the newer
-   state. This guarantees `is_deleted: true` reaches the Edge function after any
-   stale upsert snapshots.
+   state. The active V51 application-owned `isPendingDeletion` marker is mapped
+   to the released `isDeleted` column, so this ordering guarantees
+   `is_deleted: true` reaches the Edge function after any stale upsert
+   snapshots.
 
-   **Explicit Local Tombstone Destruction**: When a collection is marked for
-   deletion in the UI, `CollectionActionAlertModifier` explicitly captures
-   underlying SwiftData constraint validations using a strict `do-catch` block
-   around `modelContext.save()` and logs any failures to `MerianLog.data`. This
-   provides a reliable guarantee that the `isDeleted = true` assignment persists
-   to disk. Once the Edge sync returns HTTP 200 indicating successful cloud
-   deletion for the payload, the `BackgroundDatabaseActor` permanently hard
-   deletes the ghost `ScanCollection` record from SwiftData to ensure it cannot
-   resurrect or linger in UI state.
+   **Local Tombstone Lifecycle**: When a collection is marked for deletion in
+   the UI, `CollectionMutationService` assigns the local marker and executes its
+   injected `ModelContext.save()` boundary before enqueueing sync. It restores
+   the previous value, rolls back, and suppresses downstream work when that save
+   throws. Once an acknowledged payload contains `is_deleted: true`,
+   `BackgroundDatabaseActor` hard-deletes the matching local tombstone. V50's
+   reserved-name collision is retained only in the frozen migration source; V51
+   is the active durable boundary.
+
+   The forward V50 → V51 migration freezes V50, maps the active non-reserved
+   property with `@Attribute(originalName:)`, preserves the `is_deleted` wire
+   field, and is covered by a disk-backed V50 fixture. See
+   [ScanCollection schema](./04-database-schema.md#scancollection-user-albums).
 
    > [!IMPORTANT]
    > **Apple Sign-In (`ES256`) and Edge Functions:** Merian utilizes Apple
@@ -1608,15 +1620,16 @@ disconnected.
    `syncHistoricalScansDown` calls
    `HistoricalDatabaseActor.syncCollectionsDown(remoteCollections:)`.
    Collections present in the cloud response are upserted. **Inbound Tombstone
-   Shield**: If the cloud response erroneously includes a collection that is
-   already marked as `isDeleted = true` locally, the cloud response is ignored.
-   This protects against delayed edge functions resurrecting a deleted entity.
-   Collections absent from the cloud response and not named "Favorites" are
-   deleted locally. Because step 4 guarantees every local collection is already
-   in the cloud, the delete pass only removes collections the user genuinely
-   deleted on another device. `syncCollectionsDown` also clears the actor's
-   `cachedLocalIds` set, releasing the accumulated ID set from memory at the end
-   of the sync cycle.
+   Shield**: If the cloud response erroneously includes a collection with a
+   durable local application tombstone, the cloud response is ignored. This is
+   intended to protect against delayed Edge work resurrecting a deleted entity;
+   the active V51 property-name mapping makes that shield durable for migrated
+   stores. Collections absent from the cloud response and not named "Favorites"
+   are deleted locally. Because step 4 guarantees every local collection is
+   already in the cloud, the delete pass only removes collections the user
+   genuinely deleted on another device. `syncCollectionsDown` also clears the
+   actor's `cachedLocalIds` set, releasing the accumulated ID set from memory at
+   the end of the sync cycle.
 6. **FK Safety**: If the assigned scan UUID hasn't reached Cloudflare R2 yet
    when the collection payload arrives, the Edge node safely absorbs the
    Postgres foreign-key rejection. The collection itself is saved. On the next
@@ -1624,8 +1637,9 @@ disconnected.
 
 **Collections debugging quick-check**:
 
-- Confirm the local `ScanCollection.isDeleted` tombstone actually persisted in
-  SwiftData.
+- Confirm the local `isPendingDeletion` tombstone persisted in SwiftData after
+  save and refetch. The same reopened value must project to `is_deleted: true`;
+  a false payload is a regression, not convergence.
 - Confirm the coalesced `OfflineJobRecord(id: "collection-sync")` remains
   `pending`, `running`, or `waiting` until the newest collection mutation has
   been pushed successfully. `UserDefaultsKeys.needsCollectionSync` is only a

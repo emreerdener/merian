@@ -80,6 +80,7 @@ struct ScansLibraryTabContent: View {
 struct ScansCollectionsTabContent: View {
     let searchManager: ScansManager
     let isSearchFocused: Bool
+    let scans: [LocalScanRecord]
     let collections: [ScanCollection]
     let hiddenSmartCollectionIDs: Set<String>
     let onHideSmartCollection: (SmartCollectionSnapshot) -> Void
@@ -92,7 +93,8 @@ struct ScansCollectionsTabContent: View {
             collections: collections,
             hiddenSmartCollectionIDs: hiddenSmartCollectionIDs,
             onHideSmartCollection: onHideSmartCollection,
-            newlyCreatedCollection: $newlyCreatedCollection
+            newlyCreatedCollection: $newlyCreatedCollection,
+            scans: scans
         )
     }
 }

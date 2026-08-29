@@ -26,23 +26,25 @@ compile gate. Every build-relevant startup or schema change must also pass
    `ModelContainer`.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
-   - known recent source store (V42, V43, V44, V45, V46, V47, V48, or V49) →
-     open with the matching source-isolated recent migration plan
+   - known recent source store (V42, V43, V44, V45, V46, V47, V48, V49, or V50)
+     → open with the matching source-isolated recent migration plan
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
-   source-isolated ladder: current-store open, then V49, V48, V47, V46, V45,
-   V44, V43, and V42. V49 uses an isolated one-stage lightweight plan so a
-   released V49 store never validates unrelated historical stages. The V45/V46
-   retry plans keep those source representatives isolated from each other and
-   use direct V49 targets because V46 was a shipped no-op schema; V47 uses its
-   own source-isolated V47→V49 plan with self-contained V47 model classes and
-   scalar queued-scan snapshots. V48 has two isolated V48→V49 lanes: the
-   known-good V48 source and the accidental optional-queue V48 TestFlight
-   source. V42 and V43 use short direct V49 plans to avoid validating older
-   full-historical custom stages; V42 deliberately skips the older V42→V43
-   bridge because real TestFlight V42 stores still fell back to safe mode there.
-   Every selected repair lane then applies the shared lightweight V49→V50 stage;
-   stores already stamped V50 open as current stores without a plan.
+   source-isolated ladder: current-store open, then V50, V49, V48, V47, V46,
+   V45, V44, V43, and V42. V50 uses an isolated one-stage lightweight plan so a
+   released V50 store only validates the tombstone rename. V49 uses its
+   two-stage lightweight plan to reach V51 without validating unrelated
+   historical stages. The V45/V46 retry plans keep those source representatives
+   isolated from each other and use direct V49 targets because V46 was a shipped
+   no-op schema; V47 uses its own source-isolated V47→V49 plan with
+   self-contained V47 model classes and scalar queued-scan snapshots. V48 has
+   two isolated V48→V49 lanes: the known-good V48 source and the accidental
+   optional-queue V48 TestFlight source. V42 and V43 use short direct V49 plans
+   to avoid validating older full-historical custom stages; V42 deliberately
+   skips the older V42→V43 bridge because real TestFlight V42 stores still fell
+   back to safe mode there. Every selected older repair lane then applies the
+   shared lightweight V49→V50 and V50→V51 stages; stores already stamped V51
+   open as current stores without a plan.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -67,8 +69,8 @@ skip quarantine/rescue and go directly to safe mode.
 
 ## TestFlight Diagnostic Expectations
 
-For a legacy V42/V43/V44/V45/V46/V47/V48/V49 store that cannot migrate but is
-not corrupt, the expected diagnostic shape is:
+For a legacy V42/V43/V44/V45/V46/V47/V48/V49/V50 store that cannot migrate but
+is not corrupt, the expected diagnostic shape is:
 
 - `selectedStrategy`: the matching `recent-source-vNN` strategy, or
   `full-historical` for unknown older stores
@@ -85,9 +87,9 @@ failure, treat that as a release-blocking regression unless the diagnostic shows
 current-store open failure should still keep the files in place and use safe
 mode rather than archive user data.
 
-## V49→V50 Release Acceptance
+## V49→V50 Release Acceptance (Historical)
 
-The candidate source now freezes all eight V49 models in
+The historical V50 candidate froze all eight V49 models in
 `SchemaV49Snapshots.swift`, uses V49-qualified relationship endpoints, and keeps
 V50 on active global models. Source guardrails reject an active-type alias and
 pin the complete frozen snapshot file SHA-256, so persisted-property,
@@ -143,6 +145,31 @@ processed candidate build:
    cleanup.
 10. Record the sanitized diagnostic outcomes and pass/fail decision against the
     exact App Store Connect build in the restricted release record.
+
+## V50→V51 Release Acceptance
+
+V51 is the active schema. It keeps the V50 graph frozen in
+`SchemaV50Snapshots.swift`, maps `ScanCollection.isPendingDeletion` to the
+released `isDeleted` column with `@Attribute(originalName:)`, and preserves the
+`is_deleted` wire field. The source-isolated `MerianRecentV50MigrationPlan`
+contains one lightweight V50→V51 hop; `MerianRecentV49MigrationPlan` contains
+V49→V50 followed by V50→V51. The local disk fixture is candidate-self
+consistency evidence, not a substitute for a genuine released-binary install
+over.
+
+For the exact processed V51 candidate build, use a dedicated non-production
+device whose store was created by the released V50 binary. Record only sanitized
+device/build/source identity and schema metadata, then install V51 over V50
+without deleting app data. Successful evidence must show `currentSchema=V51`,
+`storedSchema=V50`, `strategy=recent-source-v50`, a successful `recent-v50`
+attempt, normal UI (no recovery notice or safe mode), and preservation of queued
+scans, media, retry state, goal hints, collection tombstones, and relationships.
+Force-quit and relaunch must select `current-store` and retain the migrated
+state. Verify a true tombstone emits `is_deleted: true`, resists delayed inbound
+upserts, and is purged only after the matching cloud acknowledgement. A V50
+assignment that was never durable must not be inferred by migration. Preserve
+failed devices and artifacts for diagnosis; do not uninstall, delete the store,
+or count recovery into a fresh store as migration success.
 
 Wrong plan selection, safe mode, rescue/quarantine, missing queue or media
 state, synthesized hints, or a relaunch failure blocks promotion. Preserve the
@@ -219,20 +246,20 @@ and the
 `MerianApp` emits `StartupStoreRecovery` after `AppTelemetry.initialize()` with
 only redacted string properties:
 
-| Property                | Examples                                                                                                                                                      |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `outcome`               | `recovered`, `safe_mode`, `blocked`                                                                                                                           |
-| `reason`                | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable` |
-| `selected_strategy`     | `current-store`, `recent-source-v49`, `recent-source-v48`, `full-historical`                                                                                  |
-| `current_schema_major`  | `50`                                                                                                                                                          |
-| `stored_schema_major`   | `49`, `48`, `none`                                                                                                                                            |
-| `attempts`              | `recent-v49:failure,post-migration-rescue-current-store:success` or `recent-v48-known-good:failure,recent-v48-optional-queue:success`                         |
-| `metadata_fingerprints` | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                                         |
-| `first_error`           | error domain, code, and fingerprints of description/failure/debug text                                                                                        |
-| `quarantine_attempted`  | `true`, `false`                                                                                                                                               |
-| `quarantine_performed`  | `true`, `false`                                                                                                                                               |
-| `rescue_attempted`      | `true`, `false`                                                                                                                                               |
-| `rescue_performed`      | `true`, `false`                                                                                                                                               |
+| Property                | Examples                                                                                                                                                         |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outcome`               | `recovered`, `safe_mode`, `blocked`                                                                                                                              |
+| `reason`                | `corruption_quarantined`, `legacy_store_rescued`, `persistent_store_rescue_failed`, `persistent_store_unavailable`, `persistent_and_memory_store_unavailable`    |
+| `selected_strategy`     | `current-store`, `recent-source-v50`, `recent-source-v49`, `recent-source-v48`, `full-historical`                                                                |
+| `current_schema_major`  | `51`                                                                                                                                                             |
+| `stored_schema_major`   | `50`, `49`, `48`, `none`                                                                                                                                         |
+| `attempts`              | `recent-v50:failure,post-migration-rescue-current-store:success`, `recent-v49:failure,...`, or `recent-v48-known-good:failure,recent-v48-optional-queue:success` |
+| `metadata_fingerprints` | Core Data model/version metadata keys with SHA-256 value fingerprints                                                                                            |
+| `first_error`           | error domain, code, and fingerprints of description/failure/debug text                                                                                           |
+| `quarantine_attempted`  | `true`, `false`                                                                                                                                                  |
+| `quarantine_performed`  | `true`, `false`                                                                                                                                                  |
+| `rescue_attempted`      | `true`, `false`                                                                                                                                                  |
+| `rescue_performed`      | `true`, `false`                                                                                                                                                  |
 
 The latest startup diagnostic is also persisted locally and shown as a
 TestFlight/debug share action on the safe-mode/recovery card. Do not attach raw
@@ -261,19 +288,20 @@ path on V42->V49 and V43->V49, keeps duplicate-prone V44/V45/V46/V47
 representatives out of that full path, verifies V42/V43/V44/V45/V46/V47
 source-isolated plans target V49 directly, verifies the known-good and
 optional-queue V48 recovery plan source, guards the legacy migration-rescue
-escape hatch, requires the isolated V49→V50 plan and runtime selection, and
-guards the disk-backed migration tests from unlinking SQLite files during the
-test process. It also locks the checksum retry order to current store, then V49
-through V42, newest to oldest. The exhaustive recent-source enum must remain
-consecutive and end at the schema immediately before `CurrentSchema`; the app
-has no generic recent fallback, so adding a future source case also requires a
-dedicated runtime plan at compile time. Runtime tests separately assert that V48
-required-value validation failures are rescue-eligible because current SwiftData
-may reject malformed historical V48 rows before a repair migration can run. The
-V49 disk fixture invokes the same production metadata decision used at launch,
-proves that SwiftData emitted stored major `49` and selected
-`.recentSource(.v49)`, and only then opens through
-`MerianRecentV49MigrationPlan` and accepts new V50 goal-hint rows.
+escape hatch, requires the isolated V49→V51 and V50→V51 plans and runtime
+selection, pins the frozen V49 and V50 snapshots, and verifies the active
+`isPendingDeletion`/`isDeleted` mapping plus unchanged `is_deleted` projection.
+It also guards the disk-backed migration tests from unlinking SQLite files and
+locks checksum retry order to current store, then V50 through V42, newest to
+oldest. The exhaustive recent-source enum must remain consecutive and end at the
+schema immediately before `CurrentSchema`; the app has no generic recent
+fallback, so adding a future source case also requires a dedicated runtime plan
+at compile time. Runtime tests separately assert that V48 required-value
+validation failures are rescue-eligible because current SwiftData may reject
+malformed historical V48 rows before a repair migration can run. The V49 and V50
+disk fixtures invoke the same production metadata decision used at launch, prove
+stored majors `49` and `50` select `.recentSource(.v49)` and
+`.recentSource(.v50)`, and then open through their corresponding plans.
 
 Run both after XcodeGen changes.
 

@@ -207,13 +207,15 @@ _Enrichment and metadata:_
   non-Favorites `ScanCollection` rows, prefetches their direct inverse `scans`
   relationships, and emits deterministic, sorted membership IDs. It does not
   enumerate unrelated `LocalScanRecord` rows and does not use OFFSET pagination.
-  The Edge function then computes the database membership delta. Upon a
-  successful HTTP 200 response, the actor strictly purges successfully synced
-  tombstones (`isDeleted == true`) from SwiftData. A purge save failure rolls
-  back and returns `false`, so `OfflineQueueManager` retains the pending
-  collection job. Callers must use the shared collection drain
-  (`syncCollectionsIfPending()` / `drainCollectionSyncIfPossible()`), never an
-  unsynchronised side path.
+  The Edge function then computes the database membership delta. When the
+  outgoing payload actually contains an application tombstone, a successful HTTP
+  200 response causes the actor to purge that acknowledged local row. A purge
+  save failure rolls back and returns `false`, so `OfflineQueueManager` retains
+  the pending collection job. The active V51 model reads its durable
+  `isPendingDeletion` marker, mapped to the released `isDeleted` column, so the
+  projection can emit the unchanged `is_deleted` wire value. Callers must use
+  the shared collection drain (`syncCollectionsIfPending()` /
+  `drainCollectionSyncIfPossible()`), never an unsynchronised side path.
 
 **When to create**: Two patterns — ad-hoc for most operations, long-lived for
 the offline queue state machine:
@@ -554,16 +556,33 @@ pagination is not part of this upload path. Historical download reconciliation
 remains independently page-bounded because it is ingesting remote scan history
 rather than projecting an existing local relationship.
 
+## 2026-08 Collection Tombstone Boundary (V51)
+
+The projection and acknowledgement-purge code reads the active
+`ScanCollection.isPendingDeletion` Boolean, which survives `ModelContext.save()`
+and is mapped to the released `isDeleted` column with
+`@Attribute(originalName:)`. `collectionSyncPayloads()` therefore emits the
+unchanged `is_deleted` wire field. The inbound shield ignores delayed cloud
+upserts while the local marker is set, and acknowledgement-only purge removes
+the row only after the matching delete response succeeds.
+
+The V50 source graph is frozen under `Models/Schema/SchemaV50Snapshots.swift`.
+`MerianRecentV50MigrationPlan` contains the single lightweight rename hop, and
+the disk-backed fixture proves true/false values and relationship retention.
+Keep this boundary in the actor and do not synthesize payloads from transient
+view state or hard-delete before server acknowledgement.
+
 ## 2026-06 Smart Collection Boundary
 
-Smart default collections are local, auto-managed UI projections.
-`SmartCollectionSuggester` reads local `LocalScanRecord` rows on the main UI
-side and emits private collections without creating `ScanCollection` objects or
-cloud payloads. Hidden smart collection ids are stored only in
-`UserDefaultsKeys.hiddenSmartCollectionIDs`. The Edge sync contract remains
-unchanged: only persisted `ScanCollection` records are serialized to
-`/sync-collections`, and smart collections do not enter that payload unless a
-future explicit conversion feature creates normal collections.
+Smart default collections are local, auto-managed UI projections. The Scans-root
+`@Query` observes `LocalScanRecord` rows once and passes its main-actor model
+values to `CollectionsViewModel`; `SmartCollectionSuggester` then derives
+private presentation snapshots without performing a database read or creating
+`ScanCollection` objects or cloud payloads. Hidden smart collection ids are
+stored only in `UserDefaultsKeys.hiddenSmartCollectionIDs`. The Edge sync
+contract remains unchanged: only persisted `ScanCollection` records are
+serialized to `/sync-collections`, and smart collections do not enter that
+payload unless a future explicit conversion feature creates normal collections.
 
 ---
 

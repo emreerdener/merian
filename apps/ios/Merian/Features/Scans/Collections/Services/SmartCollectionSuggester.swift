@@ -1,37 +1,5 @@
 import Foundation
 
-struct SmartCollectionDefinition: Identifiable, Equatable {
-    enum Rule: Equatable {
-        case featured
-        case needsReview
-        case recentFinds
-        case shared
-        case location(String)
-        case taxonomy(SearchCategoryBucket)
-        case invasive
-        case hazards
-    }
-
-    let id: String
-    let title: String
-    let iconName: String
-    let rule: Rule
-    let rank: Int
-}
-
-struct SmartCollectionSnapshot: Identifiable {
-    let definition: SmartCollectionDefinition
-    let scans: [LocalScanRecord]
-    let coverScan: LocalScanRecord?
-
-    var id: String { definition.id }
-    var title: String { definition.title }
-    var iconName: String { definition.iconName }
-    var count: Int { scans.count }
-    var newestScanDate: Date { scans.map(\.timestamp).max() ?? .distantPast }
-    var isHideable: Bool { definition.rule != .needsReview }
-}
-
 enum SmartCollectionSuggester {
     private static let maximumSuggestions = 6
     private static let maximumFeaturedScans = 24
@@ -49,12 +17,12 @@ enum SmartCollectionSuggester {
         from scans: [LocalScanRecord],
         existingCollections: [ScanCollection],
         hiddenCollectionIDs: Set<String> = [],
-        sharedPostIDProvider: (String) -> String? = { ExploreShareStateStore.sharedPostId(for: $0) },
+        sharedPostIDProvider: (String) -> String? = { _ in nil },
         referenceDate: Date = Date()
     ) -> [SmartCollectionSnapshot] {
         let activeCollectionNames = Set(
             existingCollections
-                .filter { !$0.isDeleted }
+                .filter { !$0.isPendingDeletion }
                 .map { normalizedCollectionName($0.name) }
         )
 
@@ -116,6 +84,7 @@ enum SmartCollectionSuggester {
     static func refreshedSnapshot(
         for snapshot: SmartCollectionSnapshot,
         from scans: [LocalScanRecord],
+        sharedPostIDProvider: (String) -> String? = { _ in nil },
         referenceDate: Date = Date()
     ) -> SmartCollectionSnapshot {
         let biologicalScans = scans
@@ -124,6 +93,7 @@ enum SmartCollectionSuggester {
         let matchingScans = matchingScans(
             for: snapshot.definition,
             in: biologicalScans,
+            sharedPostIDProvider: sharedPostIDProvider,
             referenceDate: referenceDate
         ).sortedByNewest()
         return SmartCollectionSnapshot(
@@ -328,7 +298,7 @@ enum SmartCollectionSuggester {
         title: String,
         from sortedScans: [LocalScanRecord]
     ) -> LocalScanRecord? {
-        let eligibleScans = sortedScans.filter(\.isEligibleCollectionCover)
+        let eligibleScans = sortedScans.filter(CollectionCoverPolicy.isEligible)
         let coverCandidates = eligibleScans.isEmpty ? sortedScans : eligibleScans
 
         switch rule {
@@ -410,6 +380,7 @@ enum SmartCollectionSuggester {
     private static func matchingScans(
         for definition: SmartCollectionDefinition,
         in scans: [LocalScanRecord],
+        sharedPostIDProvider: (String) -> String?,
         referenceDate: Date
     ) -> [LocalScanRecord] {
         switch definition.rule {
@@ -421,7 +392,7 @@ enum SmartCollectionSuggester {
             let cutoff = referenceDate.addingTimeInterval(-recentWindow)
             return scans.filter { $0.timestamp >= cutoff && $0.timestamp <= referenceDate }
         case .shared:
-            return scans.filter { ExploreShareStateStore.sharedPostId(for: $0.id) != nil }
+            return scans.filter { sharedPostIDProvider($0.id) != nil }
         case .location(let normalizedLocation):
             return scans.filter { normalizedLocationName($0.locationName) == normalizedLocation }
         case .taxonomy(let bucket):
@@ -459,35 +430,6 @@ enum SmartCollectionSuggester {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
-    }
-}
-
-enum SmartCollectionPreferences {
-    private static let nonHideableIDs: Set<String> = ["needs review"]
-
-    static func hiddenIDs(defaults: UserDefaults = .standard) -> Set<String> {
-        Set(defaults.stringArray(forKey: UserDefaultsKeys.hiddenSmartCollectionIDs) ?? [])
-            .subtracting(nonHideableIDs)
-    }
-
-    @discardableResult
-    static func hide(id: String, defaults: UserDefaults = .standard) -> Set<String> {
-        var ids = hiddenIDs(defaults: defaults)
-        guard !nonHideableIDs.contains(id) else {
-            persistHiddenIDs(ids, defaults: defaults)
-            return ids
-        }
-        ids.insert(id)
-        persistHiddenIDs(ids, defaults: defaults)
-        return ids
-    }
-
-    static func clearHiddenIDs(defaults: UserDefaults = .standard) {
-        defaults.removeObject(forKey: UserDefaultsKeys.hiddenSmartCollectionIDs)
-    }
-
-    private static func persistHiddenIDs(_ ids: Set<String>, defaults: UserDefaults) {
-        defaults.set(ids.sorted(), forKey: UserDefaultsKeys.hiddenSmartCollectionIDs)
     }
 }
 

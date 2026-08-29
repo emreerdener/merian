@@ -107,9 +107,12 @@ composition, queue snapshot projection and polling, Explore-media incident
 state, and thumbnail pipeline coordination. Completed and queued Insight
 destinations are pushed by Shell in the existing Scans navigation stack; Library
 emits route values and does not present its own sheet. Collection grids, smart
-collections, and collection detail/editing belong in `Scans/Collections/`.
-Cross-surface Scans-only UI belongs in `Scans/Shared/`, while controls reused
-outside Scans, such as `CategoryFilterBar`, belong in `Core/UI/Components/`.
+collections, collection detail/editing, mutation orchestration, and catalog
+presentation belong in `Scans/Collections/`; the Scans Shell remains the owner
+of the shared completed-library query and passes its record set into that
+feature. Cross-surface Scans-only UI belongs in `Scans/Shared/`, while controls
+reused outside Scans, such as `CategoryFilterBar`, belong in
+`Core/UI/Components/`.
 
 When working on the Profile tab, start in `Profile/UserProfile/`; that folder
 owns identity, published scans, achievements, persona, terrarium, heatmap, and
@@ -201,6 +204,39 @@ Implemented Scans slices:
   stale-account responses while preserving one account-replacement trailing
   request; focused tests mirror navigation, data-store, thumbnail, and overlap
   policy. Every production Shell file stays below the pass's 600-line guard.
+- `Scans/Collections` now separates membership/catalog/smart presentation
+  models, save-first mutation and smart-suggestion services, observable catalog,
+  detail, selection, and smart-detail state, a feature-owned collection-action
+  alert, and Collections-local card/catalog components. The Shell-owned
+  completed-library query replaces four duplicate Collections queries;
+  Collections views/components perform no fetch or singleton lookup. Focused
+  tests lock validation, protected-system-folder handling, rollback and
+  side-effect ordering, catalog filtering/empty-state independence, smart share
+  mapping, and catalog/detail/selection membership-sensitive refresh identity.
+  Every production Collections file stays below the pass's 600-line guard.
+
+### Completed Scans Collections Persistence Repair
+
+The Collections organization pass now includes the reviewed V50 → V51 SwiftData
+repair. V50's complete relationship-bearing graph is frozen in
+`Models/Schema/SchemaV50Snapshots.swift`, including its historical
+`ScanCollection.isDeleted` field and goal-hint companion. The active V51 model
+uses `isPendingDeletion` with `@Attribute(originalName: "isDeleted")`, so the
+application tombstone survives save/refetch while the Supabase/JSON field
+`is_deleted` remains unchanged.
+
+`MerianRecentV50MigrationPlan` contains exactly one lightweight V50 → V51 hop;
+the V49 source-isolated plan applies V49 → V50 followed by V50 → V51. Disk
+fixtures prove metadata-based plan selection, tombstone true/false values,
+relationship and goal-hint retention, and second-context reads. Collection
+mutation and database-actor suites cover exact payload projection, inbound
+reconciliation fencing, rollback, and acknowledgement-only purge. Recovery
+dispatch and checksum fallback include V50 explicitly and remain exhaustive.
+
+Do not synthesize deletion from transient view state, hard-delete before cloud
+acknowledgement, or edit a frozen schema. Any future persisted-model change must
+repeat the schema-update procedure and add its own source-isolated recovery
+lane.
 
 ## Phase 3: Ownership Cleanup
 

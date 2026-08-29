@@ -172,14 +172,20 @@ as their permanent engineering identity.
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
   both URL and client key to a matching local/staging project.
-- **Active SwiftData schema**: `MerianSchemaV50` via
-  `typealias CurrentSchema = MerianSchemaV50` in
-  `apps/ios/Merian/Models/Aliases.swift`. V50 preserves the released V49 queue
+- **Active SwiftData schema**: `MerianSchemaV51` via
+  `typealias CurrentSchema = MerianSchemaV51` in
+  `apps/ios/Merian/Models/Aliases.swift`. V50 is frozen in
+  `Models/Schema/SchemaV50Snapshots.swift`; it preserves the released V49 queue
   entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion through a
-  lightweight migration. A genuine V49 store uses a dedicated one-hop
-  source-isolated plan; older source-specific recovery lanes reach V49 before
-  advancing to V50. Migration creates no goal-hint rows because V49 stored no
-  selected-goal value to backfill.
+  lightweight migration. V51 keeps that companion and renames the active
+  collection tombstone to `isPendingDeletion` with
+  `@Attribute(originalName: "isDeleted")`, preserving the `is_deleted` wire
+  field while avoiding SwiftData's framework lifecycle name. V49 and V50 stores
+  use dedicated source-isolated plans; older source-specific recovery lanes
+  advance through V49 and V50 before reaching V51. Migration creates no
+  goal-hint rows for V49 stores because V49 stored no selected-goal value to
+  backfill. The schema and recovery contract is documented in the
+  [schema contract](./backend-and-data/04-database-schema.md#scancollection-user-albums).
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
   `scan_ingestion_jobs`, sanitized `scan_ingestion_intents`, scheduled
@@ -506,7 +512,8 @@ as their permanent engineering identity.
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)**
   — Zero-data-loss architecture, SwiftData queues, live/background upload
-  ownership, and AppDelegate background URLSession mappings.
+  ownership, V51 collection tombstone synchronization, and AppDelegate
+  background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
   dictionary workers, private Insight, Explore, and in-app Dictionary Field chat
@@ -514,15 +521,16 @@ as their permanent engineering identity.
   cron/webhook boundaries.
 - **[`/backend-and-data/03-database-actors.md`](./backend-and-data/03-database-actors.md)**
   — SwiftData actor model: `BackgroundDatabaseActor`, `HistoricalDatabaseActor`,
-  and `FileIOActor`.
+  and `FileIOActor`, including collection projection and tombstone boundaries.
 - **[`/backend-and-data/04-database-schema.md`](./backend-and-data/04-database-schema.md)**
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
-  V50 durable queued Field trip goal hints, private Insight and per-viewer
-  Explore/Dictionary Field chat tables, scan media assets, and Explore Community
-  Identification versioned taxonomy, consensus jobs, requests, public
-  projections, and internal grouped Activity projection, atomic ingestion
+  V50 durable queued Field trip goal hints, and the V51
+  `ScanCollection.isPendingDeletion` rename migration, private Insight and
+  per-viewer Explore/Dictionary Field chat tables, scan media assets, and
+  Explore Community Identification versioned taxonomy, consensus jobs, requests,
+  public projections, and internal grouped Activity projection, atomic ingestion
   setup/dictionary RPCs, deferred scan-context staging, and the private
   admin/review/audit schema plus canonical AI usage ledger, storage-erasure
   claim fencing, atomic owned scan-image reference repair, and the database-only
@@ -761,7 +769,8 @@ as their permanent engineering identity.
   this codebase.
 - **[`/development-guides/08-testing-strategy.md`](./development-guides/08-testing-strategy.md)**
   — Cross-platform test commands, disposable-database and compiled-iOS gates,
-  SwiftData isolation, privacy/ATS checks, and release-evidence requirements.
+  SwiftData isolation and disk-backed migration fixtures, privacy/ATS checks,
+  and release-evidence requirements.
 - **[`/development-guides/09-core-managers.md`](./development-guides/09-core-managers.md)**
   — Deep dive into singleton instances across Merian (e.g.
   `HardwareOrchestrator`).
@@ -771,7 +780,8 @@ as their permanent engineering identity.
   moderation and the post-publication local playback-boost boundary.
 - **[`/development-guides/11-swiftdata-and-api-gotchas.md`](./development-guides/11-swiftdata-and-api-gotchas.md)**
   — SwiftData background synchronization drops, relationship fault boundaries,
-  and API envelope parsing constraints.
+  reserved `PersistentModel.isDeleted` state, and API envelope parsing
+  constraints.
 - **[`/development-guides/12-in-app-changelog.md`](./development-guides/12-in-app-changelog.md)**
   — Root release history, per-train App Store note source, bundled Settings
   changelog schema, writing rules, asset handling, and update workflow.

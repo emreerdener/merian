@@ -1,5 +1,5 @@
 import SwiftData
 
 // MARK: - Active Schema Aliases
-typealias CurrentSchema = MerianSchemaV50
-typealias ActiveOfflineQueuedScanGoalHint = MerianSchemaV50.OfflineQueuedScanGoalHint
+typealias CurrentSchema = MerianSchemaV51
+typealias ActiveOfflineQueuedScanGoalHint = MerianSchemaV51.OfflineQueuedScanGoalHint

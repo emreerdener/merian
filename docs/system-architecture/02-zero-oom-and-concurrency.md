@@ -225,10 +225,10 @@ When managing many-to-many SwiftData relationships, mutating the "Many" side
 synchronously fault the entire array — potentially thousands of heavy
 `LocalScanRecord` structures — into active RAM on the Main Thread. For power
 users, this causes an immediate JetSam Out-Of-Memory termination. To protect the
-RAM ceiling, inverted "One" side mutation was applied to `ScanCollection` in UI
-components like `SelectMultipleScansView` and `CollectionDetailView`. Developers
-now mutate and read the "One" side of the relationship by reassigning
-`scan.collections` (for example
+RAM ceiling, inverted "One" side mutation is centralized in
+`CollectionMutationService` for `SelectMultipleScansView` and
+`CollectionDetailView`. Collection code mutates and reads the "One" side of the
+relationship by reassigning `scan.collections` (for example
 `var updated = scan.collections ?? []; updated.append(collection); scan.collections = updated`
 or the analogous `removeAll(where:)` + reassignment pattern) rather than
 mutating the "Many" side (e.g., `collection.scans?.append(record)`). This
@@ -1691,24 +1691,25 @@ root SwiftUI environment, repository wiring, and safe-mode state are known
 before user workflows begin. The launch path must therefore avoid unnecessary
 deep migration validation. Startup reads the store metadata first: fresh/current
 stores open without a migration plan, known recent stores use the narrow
-source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores
-use the full historical migration plan. V49 uses a one-stage lightweight V49→V50
-plan rather than validating the full history. The full plan jumps V42→V49 or
-V43→V49 so older-store migration does not validate the duplicate-prone
-V44/V45/V46 recent cluster. V42/V43 use short direct plans to avoid validating
-older full-historical custom stages that can raise SwiftData's
+source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older
+stores use the full historical migration plan. V49 uses the two required
+lightweight hops, V49→V50 and V50→V51, while V50 uses only the one-stage V50→V51
+tombstone-rename plan rather than validating the full history. The full plan
+jumps V42→V49 or V43→V49 so older-store migration does not validate the
+duplicate-prone V44/V45/V46 recent cluster. V42/V43 use short direct plans to
+avoid validating older full-historical custom stages that can raise SwiftData's
 equal-model-reference exception. The V46 plan keeps V46 as the only
 duplicate-cluster source representative and jumps directly to V49 because V46
 was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
-plan with a self-contained scalar queued-scan snapshot. Every chosen lane then
-uses the same lightweight V49→V50 stage for the queued goal-hint companion;
-current V50 stores open without migration. Duplicate-checksum failures retry
-through the same recent-plan ladder, ordered current store then V49 down through
-V42, before legacy rescue or safe mode. Supported recent sources are a finite
-enum ending at the immediate predecessor of `CurrentSchema`, and app dispatch is
-compiler-exhaustive with no full-history default. This keeps the synchronous
-launch boundary bounded for normal upgrades while preserving a deterministic
-recovery surface if SwiftData cannot open the store.
+plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
+then uses V49→V50 and V50→V51; current V51 stores open without migration.
+Duplicate-checksum failures retry through the same recent-plan ladder, ordered
+current store then V50 down through V42, before legacy rescue or safe mode.
+Supported recent sources are a finite enum ending at the immediate predecessor
+of `CurrentSchema`, and app dispatch is compiler-exhaustive with no full-history
+default. This keeps the synchronous launch boundary bounded for normal upgrades
+while preserving a deterministic recovery surface if SwiftData cannot open the
+store.
 
 ### App Boot SDK Stutter (`MerianApp`)
 
@@ -2785,11 +2786,14 @@ This ensures:
   signatures match, archives non-corrupt legacy migration failures under
   `store-rescue/` before rebuilding a fresh persistent store, and falls back to
   an in-memory safe mode with a user-facing notice only if recovery fails.
-- **Collection membership is scan-driven**: hot UI paths (`CollectionCard`,
-  `CollectionsView`, `SelectMultipleScansView`, `CollectionDetailView`) and
-  historical reconciliation no longer rely on `collection.scans` traversal.
-  Membership snapshots are derived from `LocalScanRecord.collections` so
-  SwiftData faults stay bounded.
+- **Collection membership is scan-driven**: `ScansSheetView` owns the shared
+  completed-library query, and `CollectionsViewModel`,
+  `SelectMultipleScansViewModel`, and `CollectionDetailViewModel` derive bounded
+  membership snapshots from `LocalScanRecord.collections`. Collection cards and
+  detail/selection views neither add their own record query nor traverse
+  `collection.scans`. `CollectionMutationService` commits scan-side edits before
+  publishing invalidation or enqueueing sync, so SwiftData faults stay bounded
+  and failed writes cannot advertise uncommitted state.
 - **Offline file work is actor-owned**: queued-scan cleanup and media
   writes/adoption flow through `FileIOActor.deleteFiles(at:)` /
   `writeTemporaryImages(imageDatas:)`.

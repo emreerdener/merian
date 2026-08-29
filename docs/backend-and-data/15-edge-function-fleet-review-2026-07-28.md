@@ -117,8 +117,9 @@ wrapper evidence.
 
 The only direct iOS SDK callers were reviewed separately:
 
-- collection sync sends a stable set-state payload, preserves local tombstones
-  until a confirmed response, and retries on the next sync cycle;
+- collection sync sends a stable set-state payload and is designed to preserve
+  local tombstones until a confirmed response, then retry on the next sync
+  cycle;
 - ghost-profile merge prepare can leave only an expiring unused handoff after a
   lost response; received handoffs stay in Keychain, completion is
   server-idempotent, and unresolved state remains available for retry; and
@@ -129,6 +130,14 @@ The public species website is the only direct web SDK caller. It now accepts
 not-found only with exact Merian handler evidence. The static caller contract
 scans the complete `apps/` tree so future application targets cannot silently
 reference a missing or unconfigured route.
+
+> [!NOTE]
+> **August 2026 correction:** the Edge set-state and acknowledgement contract
+> above remains accurate. The active V51 iOS model persists
+> `ScanCollection.isPendingDeletion` and maps it to the released `isDeleted`
+> column, so the client emits the unchanged `is_deleted` field after
+> save/refetch. The frozen V50 → V51 repair is a local SwiftData migration; it
+> is not an Edge payload or deployment change.
 
 ## Validation Evidence
 

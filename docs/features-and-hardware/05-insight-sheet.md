@@ -391,9 +391,16 @@ and may change from scan to scan even when the scientific name is the same.
 
 `InsightSheetView` also queries SwiftData directly via `@Query` for non-deleted
 `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the
-collection management toolbar. Soft-deleted collections (`isDeleted == true`)
-are intentionally excluded so a collection that is pending remote deletion never
-reappears in the add-to-collection menu.
+collection management toolbar. Its predicate excludes the durable
+`isPendingDeletion` application tombstone so a collection pending remote
+deletion does not reappear in the add-to-collection menu. V51 maps that active
+property to the released `isDeleted` column with `@Attribute(originalName:)`, so
+the filter remains effective after save/refetch and migration. The complete
+contract is described in
+[Collections](./07-feature-modules-and-ui.md#collections-top-level-photo-albums).
+The released V50 schema is the historical source for this rename: its
+`isDeleted` field is preserved in the frozen migration snapshot and is never
+read by current UI code.
 
 Explore share state in the bottom toolbar uses a two-step hydration path.
 `InsightSheetViewModel.fetchLocalRecord(for:modelContext:)` first restores

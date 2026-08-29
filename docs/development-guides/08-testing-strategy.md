@@ -164,8 +164,8 @@ the immediate foreground timeout reset.
 
 ## In-Memory Database Containers (`SwiftData`)
 
-Test suites must not pollute the local iOS file system or SQLite databases. All
-unit tests that exercise caching states and soft-deletions must use an isolated,
+Test suites must not pollute the user's iOS files or application store. Ordinary
+unit tests that exercise caching state and mutation rollback use an isolated,
 volatile `ModelContext`:
 
 ```swift
@@ -182,15 +182,32 @@ Never pin tests to historical versioned schemas — a pinned schema silently dro
 new model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-> **Primitive Mapping Constraints:** Tests must explicitly apply
-> `isStoredInMemoryOnly: true` as the primary isolated context configuration. Do
-> **not** bind testing contexts dynamically to disk via `.sqlite` caches. Under
-> iOS 17/18 Simulator configurations during concurrent execution paths,
-> assigning implicit types like `[String]` primitive arrays to dynamically
-> loaded disk caches triggers an unrecoverable `_KKMDBackingData`
+The current schema is V51. The V50 migration fixture intentionally creates the
+historical `ScanCollection.isDeleted` column, then opens it through the V50→V51
+lightweight stage and asserts the active `isPendingDeletion` mapping. Keep
+`isDeleted` in that fixture and in historical schema tests; production tests
+should use the active property name and predicate.
+
+An in-memory container is not sufficient evidence for a stored-property rename,
+schema migration, restart guarantee, or property-name collision with
+`PersistentModel`. Those contracts require a unique temporary disk store that
+opens the outgoing schema, closes it, and then opens the same URL through the
+production migration/startup-selection path. Collection deletion specifically
+must prove its application marker survives save, refetch, container teardown,
+restart, and an offline interval before any exact `is_deleted: true` payload or
+acknowledgement purge is asserted.
+
+> **Primitive Mapping Constraints:** Ordinary non-migration tests must
+> explicitly apply `isStoredInMemoryOnly: true` as the primary isolated context
+> configuration. Do **not** bind testing contexts dynamically to disk via
+> `.sqlite` caches. Under iOS 17/18 Simulator configurations during concurrent
+> execution paths, assigning implicit types like `[String]` primitive arrays to
+> dynamically loaded disk caches triggers an unrecoverable `_KKMDBackingData`
 > materialization crash. True RAM mappings fundamentally bypass cache
 > serialization and safely bridge properties without needing external
-> attributes.
+> attributes. Purpose-built migration and restart fixtures are the exception:
+> they use a unique temporary store URL, fixed outgoing/current schema shapes,
+> serial execution, and guaranteed cleanup rather than a shared dynamic cache.
 
 This guarantees that:
 
@@ -874,18 +891,22 @@ MerianTests/
     queued rows as the current model during `didMigrate`. This is the preferred
     place for schema-version migration fixtures and SwiftData checksum
     regressions.
-  - V49→V50 coverage verifies the lightweight migration preserves existing
-    queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
-    the same scan ID. Before opening the fixture, the test must call the
-    production metadata decision path and prove the real disk store reports
-    major `49` and selects `.recentSource(.v49)`. It then opens with
-    `MerianRecentV49MigrationPlan`, whose only schemas are V49/V50 and whose
-    only stage is the lightweight V49→V50 hop. Store-recovery tests keep the
+  - V49→V50→V51 coverage verifies that the lightweight migration preserves
+    existing queued scans, permits a new `OfflineQueuedScanGoalHint` companion
+    with the same scan ID, and renames the collection tombstone without changing
+    the stored column. Before opening each fixture, the test calls the
+    production metadata decision path and proves the real disk store reports
+    major `49` or `50` and selects `.recentSource(.v49)` or
+    `.recentSource(.v50)`. The V49 fixture opens with
+    `MerianRecentV49MigrationPlan` (`[V49, V50, V51]` and the two lightweight
+    hops); the V50 fixture opens with `MerianRecentV50MigrationPlan`
+    (`[V50, V51]` and one lightweight hop). Store-recovery tests keep the
     exhaustive recent-source enum consecutive and ending at `CurrentSchema - 1`;
     app dispatch has no default branch, so a future source case cannot silently
-    use the full historical plan. Queue tests must cover hint persistence
-    through foreground and background completion plus deletion/orphan cleanup.
-    The real-device install-over gate remains separate release evidence; a
+    use the full historical plan. Queue and collection tests cover
+    hint/tombstone persistence through foreground and background completion,
+    inbound shielding, acknowledgement purge, and deletion/orphan cleanup. The
+    real-device install-over gate remains separate release evidence; a
     simulator-created V49 store cannot satisfy it.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
@@ -924,16 +945,17 @@ MerianTests/
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared lightweight V49→V50 stage. V49 itself must select a dedicated
-    `[V49, V50]` plan in both normal startup and the checksum retry ladder. The
-    source guardrail must preserve retry order as current store, V49, V48, then
-    V47 through V42; checking only that every label exists is insufficient.
-    Disk-backed SwiftData migration tests should use unique temporary store URLs
-    and must not unlink the `.sqlite`, `.sqlite-shm`, or `.sqlite-wal` files
-    during the test process. Core Data may keep those file descriptors alive
-    after the visible `ModelContainer` scope ends; deleting them in-process can
-    surface as sqlite `vnode unlinked while in use` traps in later tests. The
-    workflow's Swift package cache key depends on the checked-in
+    the shared lightweight V49→V50→V51 stages. V49 must select a dedicated
+    `[V49, V50, V51]` plan and V50 a dedicated `[V50, V51]` plan in both normal
+    startup and the checksum retry ladder. The source guardrail must preserve
+    retry order as current store, V50, V49, V48, then V47 through V42; checking
+    only that every label exists is insufficient. Disk-backed SwiftData
+    migration tests should use unique temporary store URLs and must not unlink
+    the `.sqlite`, `.sqlite-shm`, or `.sqlite-wal` files during the test
+    process. Core Data may keep those file descriptors alive after the visible
+    `ModelContainer` scope ends; deleting them in-process can surface as sqlite
+    `vnode unlinked while in use` traps in later tests. The workflow's Swift
+    package cache key depends on the checked-in
     `Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`
     lockfile and runs with automatic package resolution disabled so startup
     failures are not hidden behind cold dependency resolution or silent package
@@ -1363,6 +1385,24 @@ MerianTests/
   offline refresh skips cloud repair, online owner URLs enqueue recoverable
   local copies, and a durable reference backfill publishes one library
   invalidation.
+- **`CollectionMutationServiceTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Collections/`): Uses an in-memory
+  SwiftData container plus injected save, rollback, event, sync, and feedback
+  effects to lock name validation, protected Favorites handling, related-record
+  creation, membership mutation, explicit pre-mutation restoration before
+  rollback for every mutation kind, and exact
+  save-before-invalidation-before-sync ordering. The
+  `testDeleteUsesDurableSyncBoundary` case verifies the V51
+  `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
+  remain enabled; it is a release-blocking regression if it fails.
+- **`CollectionsViewModelTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Collections/`): Locks membership and
+  non-biological projections from the Shell-owned record set, catalog search and
+  independent empty states, private-map/default/smart/featured composition,
+  injected Explore share mapping, detail and selection membership, smart-detail
+  refresh, catalog/detail/selection membership-sensitive refresh identity, and
+  typed catalog/smart-detail invalidation when same-length review payload data
+  changes in place.
 - **`ScansFilterPresentationTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Library/`): Locks normalization of
   underscore-, hyphen-, whitespace-, and empty filter labels; empty/single/many
@@ -1653,6 +1693,50 @@ sheet filters, empty/offline/503/error states, discoveries sheet, preview
 horizontal wrapping and vertical dismissal, all preview actions, detail/back
 navigation, VoiceOver, large Dynamic Type, and light/dark appearance. Also
 confirm the owner-only Scans map still shows no public actions or Explore data.
+
+### Scans Collections
+
+Collections has separate persisted mutation, derived presentation, and cloud
+sync owners. Feature tests replace the closure-based `CollectionsDependencies`;
+they do not call `AppDIContainer`, `OfflineQueueManager`, Explore share state,
+or a network endpoint. Existing `SmartCollectionTests` retain suggestion
+thresholds, ordering, filtering, and cover policy, while
+`CollectionMutationServiceTests` and `CollectionsViewModelTests` cover the
+extracted service and observable state. Wire DTO and durable sync-job tests
+remain with their Core/network and offline owners.
+
+After `make xcodegen` and build-for-testing, run:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/CollectionMutationServiceTests \
+  -only-testing:merianTests/CollectionsViewModelTests \
+  -only-testing:merianTests/SmartCollectionTests
+```
+
+Then run the complete `merianTests` target. The focused suites prove pure
+catalog/detail/selection/smart state, explicit failed-save restoration, and
+local save/rollback side-effect ordering, including typed smart-state refresh
+projection; they do not prove SwiftUI navigation, alert focus, animations,
+VoiceOver, Dynamic Type, or durable queue execution. Manually regress search;
+map, featured, smart, custom, Favorites, and Non-biological placement and
+counts; create/rename/delete; detail removal and multi-selection; smart
+hide/restore; Insight and Back navigation; VoiceOver; and large Dynamic Type.
+Generated-project membership must include every Swift file below both mirrored
+Collections directories, and each production Collections file must remain under
+the feature's 600-line review guard.
+
+The V51 matrix keeps the durable-delete regression enabled. It verifies that the
+renamed application tombstone survives `ModelContext.save()`, refetch, disk
+migration, and a second context, while the V50 source graph remains frozen. Run
+the complete `MigrationPlanTests` suite with both disk-backed V49 → V50 → V51
+and V50 → V51 fixtures, the focused Collections suites without exclusions,
+startup recovery coverage, and the full `merianTests` target. Any
+duplicate-checksum initialization failure remains a release blocker and must be
+fixed in the migration plan rather than bypassed.
 
 ### Private Scan Map
 

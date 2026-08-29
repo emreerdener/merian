@@ -1171,22 +1171,34 @@ enum MerianSchemaV50: VersionedSchema {
     static var versionIdentifier = Schema.Version(50, 0, 0)
 
     static var models: [any PersistentModel.Type] {
+        [MerianSchemaV50.LocalScanRecord.self,
+         MerianSchemaV50.OfflineQueuedScan.self,
+         MerianSchemaV50.CapturedMediaEntry.self,
+         MerianSchemaV50.ScanCollection.self,
+         MerianSchemaV50.PendingCloudDeletionTask.self,
+         MerianSchemaV50.UserSpeciesPreference.self,
+         MerianSchemaV50.OfflineJobRecord.self,
+         MerianSchemaV50.OfflineQueueEvent.self,
+         MerianSchemaV50.OfflineQueuedScanGoalHint.self]
+    }
+}
+
+enum MerianSchemaV51: VersionedSchema {
+    static var versionIdentifier = Schema.Version(51, 0, 0)
+
+    static var models: [any PersistentModel.Type] {
         [LocalScanRecord.self, OfflineQueuedScan.self, CapturedMediaEntry.self,
          ScanCollection.self, PendingCloudDeletionTask.self,
          UserSpeciesPreference.self, OfflineJobRecord.self, OfflineQueueEvent.self,
-         MerianSchemaV50.OfflineQueuedScanGoalHint.self]
+         MerianSchemaV51.OfflineQueuedScanGoalHint.self]
     }
 }
 
 private typealias MerianSchemaV48OfflineJobRecord = OfflineJobRecord
 private typealias MerianSchemaV48OfflineQueueEvent = OfflineQueueEvent
 
-extension MerianSchemaV50 {
+extension MerianSchemaV51 {
     /// Durable preference captured from the live Capture UI for a queued scan.
-    ///
-    /// This scan-keyed companion keeps the released V49 queue entity byte-for-byte
-    /// stable while allowing V50 to add the two optional-as-a-pair goal identifiers.
-    /// Rows are created only when Capture supplies an eligible preferred goal.
     @Model
     final class OfflineQueuedScanGoalHint {
         @Attribute(.unique) var scanId: String
@@ -3037,7 +3049,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianSchemaV47.self,
             MerianSchemaV48.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
@@ -3087,7 +3100,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV42toV49,
             migrateV43toV49,
             migrateV48toV49,
-            migrateV49toV50
+            migrateV49toV50,
+            migrateV50toV51
         ]
     }
 
@@ -3386,6 +3400,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     static let migrateV49toV50 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV49.self,
         toVersion: MerianSchemaV50.self
+    )
+
+    static let migrateV50toV51 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV50.self,
+        toVersion: MerianSchemaV51.self
     )
 
     static let migrateV41toV42 = MigrationStage.lightweight(
@@ -3926,14 +3945,16 @@ enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV42.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV42toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -3946,14 +3967,16 @@ enum MerianRecentV43MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV43.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV43toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -3963,14 +3986,16 @@ enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV44.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV44toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -3981,14 +4006,16 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV45.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV45toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -4001,14 +4028,16 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV46.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV46toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -4019,14 +4048,16 @@ enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV47.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV47toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -4037,14 +4068,16 @@ enum MerianRecentV48MigrationPlan: SchemaMigrationPlan {
         [
             MerianSchemaV48.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateV48toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
@@ -4055,32 +4088,55 @@ enum MerianOptionalQueueV48RecoveryPlan: SchemaMigrationPlan {
         [
             MerianSchemaV48OptionalQueue.self,
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
             MerianMigrationPlan.migrateOptionalQueueV48toV49,
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }
 
 /// Short migration plan for stores already stamped with the released V49
-/// repair schema. Keeping this plan to one lightweight hop prevents a V49 store
-/// from validating unrelated historical stages on its way to V50.
+/// repair schema. Keeping this plan to the two required lightweight hops
+/// prevents a V49 store from validating unrelated historical stages on its way
+/// to V51.
 enum MerianRecentV49MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
         [
             MerianSchemaV49.self,
-            MerianSchemaV50.self
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
         ]
     }
 
     static var stages: [MigrationStage] {
         [
-            MerianMigrationPlan.migrateV49toV50
+            MerianMigrationPlan.migrateV49toV50,
+            MerianMigrationPlan.migrateV50toV51
+        ]
+    }
+}
+
+/// Source-isolated migration plan for V50 stores. The only schema change is the
+/// active ScanCollection tombstone rename, mapped from the historical
+/// `isDeleted` column by `@Attribute(originalName:)`.
+enum MerianRecentV50MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] {
+        [
+            MerianSchemaV50.self,
+            MerianSchemaV51.self
+        ]
+    }
+
+    static var stages: [MigrationStage] {
+        [
+            MerianMigrationPlan.migrateV50toV51
         ]
     }
 }

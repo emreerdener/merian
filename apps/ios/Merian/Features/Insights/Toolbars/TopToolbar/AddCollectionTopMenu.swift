@@ -29,7 +29,7 @@ private struct AddCollectionMenuItems: View {
     @Binding var showNewCollectionAlert: Bool
 
     var body: some View {
-        if let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isDeleted }) {
+        if let favorites = collections.first(where: { $0.name == "Favorites" && !$0.isPendingDeletion }) {
             let isFavorited = selectedCollectionIds.contains(favorites.id)
             Button(action: { toggleScanInCollection(favorites) }) {
                 Label("Favorites", systemImage: isFavorited ? "heart.fill" : "heart")
@@ -37,7 +37,7 @@ private struct AddCollectionMenuItems: View {
             Divider()
         }
 
-        ForEach(collections.filter { $0.name != "Favorites" && !$0.isDeleted }) { collection in
+        ForEach(collections.filter { $0.name != "Favorites" && !$0.isPendingDeletion }) { collection in
             let isSelected = selectedCollectionIds.contains(collection.id)
             Button(action: { toggleScanInCollection(collection) }) {
                 Label(collection.name, systemImage: isSelected ? "checkmark.circle.fill" : "folder")

@@ -3098,7 +3098,7 @@ actor BackgroundDatabaseActor {
                 id: collection.id,
                 name: collection.name,
                 created_at: DateUtilities.iso8601Formatter.string(from: collection.createdAt),
-                is_deleted: collection.isDeleted,
+                is_deleted: collection.isPendingDeletion,
                 scan_ids: Array(Set((collection.scans ?? []).map(\.id))).sorted()
             )
         }

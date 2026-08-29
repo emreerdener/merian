@@ -184,14 +184,14 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         }
     }
 
-    func testStoreMigrationHintUsesRecentV49PlanForV50Upgrade() {
+    func testStoreMigrationHintUsesRecentV50PlanForV51Upgrade() {
         XCTAssertEqual(
             ModelStoreRecoveryCoordinator.migrationHint(
-                storedSchemaMajorVersion: 49,
+                storedSchemaMajorVersion: 50,
                 hasStoreArtifacts: true,
-                currentSchemaMajor: 50
+                currentSchemaMajor: 51
             ),
-            .recentSource(.v49)
+            .recentSource(.v50)
         )
     }
 
@@ -239,8 +239,8 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
             storeURL: storeURL,
             currentSchemaMajor: currentSchemaMajor,
-            migrationSchemas: "43,47,48,49,50",
-            migrationStages: "43>49:C,48>49:C,49>50:L",
+            migrationSchemas: "43,47,48,49,50,51",
+            migrationStages: "43>49:C,48>49:C,49>50:L,50>51:L",
             decision: decision,
             now: Date(timeIntervalSince1970: 1_788_271_200)
         )
@@ -545,8 +545,8 @@ final class ModelStoreRecoveryCoordinatorTests: XCTestCase {
         var diagnostic = ModelStoreRecoveryCoordinator.makeStartupDiagnostic(
             storeURL: storeURL,
             currentSchemaMajor: currentSchemaMajor,
-            migrationSchemas: "42,49,50",
-            migrationStages: "42>49:C,49>50:L",
+            migrationSchemas: "42,49,50,51",
+            migrationStages: "42>49:C,49>50:L,50>51:L",
             decision: decision,
             now: Date(timeIntervalSince1970: 1_788_271_200)
         )

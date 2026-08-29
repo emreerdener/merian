@@ -455,21 +455,22 @@ The full operating contract lives in
   path.
 - Startup reads SwiftData store metadata before creating the persistent
   container. Fresh/current stores open without a migration plan, known recent
-  stores use source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown
-  older stores use the full historical plan. V49 uses only the lightweight
-  V49→V50 hop. That full plan jumps V42→V49 or V43→V49 so SwiftData does not
-  validate the duplicate-prone V44/V45/V46 recent cluster during older-store
+  stores use source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and
+  unknown older stores use the full historical plan. V49 uses the two required
+  lightweight hops, V49→V50 and V50→V51, while V50 uses the one-stage V50→V51
+  tombstone rename. That full plan jumps V42→V49 or V43→V49 so SwiftData does
+  not validate the duplicate-prone V44/V45/V46 recent cluster during older-store
   migrations. V42/V43 use short direct plans to avoid validating older
   full-historical custom stages that can raise SwiftData's equal-model-reference
   exception. V46 is a no-op checksum twin of V45, so its recent plan keeps V46
   as the only duplicate-cluster source representative and jumps directly to V49.
   V47 has its own source-isolated plan for stores already stamped V47. Every
-  older selected migration path then applies the shared lightweight V49→V50
-  stage that adds `OfflineQueuedScanGoalHint`; current V50 stores open without a
-  migration plan. Duplicate-checksum failures retry through the same descending
-  V49...V42 recent-plan ladder before legacy rescue or safe mode. Recent source
-  stamps are represented by a finite enum ending at `CurrentSchema - 1`, and the
-  app dispatches every case without a generic full-history fallback.
+  older selected migration path then applies V49→V50 and V50→V51; current V51
+  stores open without a migration plan. Duplicate-checksum failures retry
+  through the same descending V50...V42 recent-plan ladder before legacy rescue
+  or safe mode. Recent source stamps are represented by a finite enum ending at
+  `CurrentSchema - 1`, and the app dispatches every case without a generic
+  full-history fallback.
 - Store quarantine remains corruption-only and is owned by
   `Core/Data/StoreRecovery/ModelStoreRecoveryCoordinator.swift`. Non-corrupt
   failures on legacy migration strategies archive `default.store`,

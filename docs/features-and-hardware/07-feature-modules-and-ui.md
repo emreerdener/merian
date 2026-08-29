@@ -301,9 +301,12 @@ production Shell and Library file remains below the 600-line review guard.
   never enters collection synchronization or mutation flows. The normative
   behavior and privacy contract are in
   [Private Scan Map](./28-private-scan-map.md).
-- Uses SwiftData `@Relationship` mapping inside a nested 3-column `LazyVGrid`,
-  providing an "Explore Library" modal inside `CollectionDetailView` to link IDs
-  safely without duplicating local images.
+- `ScansSheetView` owns the timestamp-ordered completed-library `@Query` and
+  passes that record set into Collections. `CollectionsViewModel` derives
+  membership, covers, smart suggestions, and non-biological counts without
+  adding per-screen fetches. `CollectionDetailView` presents an "Explore
+  library" selection sheet that edits the scan-owned relationship without
+  duplicating local images.
 - **SaveToCollectionSheetView Removal**: The standalone
   `SaveToCollectionSheetView` was deleted. Collection routing from
   `InsightSheetView` is now handled via a native iOS Menu without pushing opaque
@@ -312,26 +315,26 @@ production Shell and Library file remains below the 600-line review guard.
   seeded for every user. Bootstrap initialization logic is centralized in
   `ScanRepository.shared.configure(with:)` so the default folder seeds exactly
   once at startup. "Favorites" and "Non-biological" are filtered out of the
-  primary `LazyVGrid` and pinned as `DefaultCollectionLink` components at the
-  top of the viewport, above user-created collections. The `CollectionsView`
-  layout uses an overarching `VStack(spacing: 16)` to maintain consistent
-  proportions.
-- **Smart Default Collections**: `SmartCollectionSuggester` derives up to six
-  auto-managed collections from the local biological scan library without
-  changing SwiftData schema or cloud payloads. Suggestions can include "Needs
-  review", "Recent finds", "Explore posts" for scans shared publicly to Explore,
-  top normalized locations, top taxonomy buckets, invasive finds, and potential
-  hazards. "Needs review" shares the candidate review thresholds: unreviewed
-  biological scans qualify when the primary match is below the tier's Strong
-  threshold, or when a Strong match has a competitive stored alternative, not
-  merely because candidate alternatives exist. Each suggestion is
-  threshold-gated to avoid empty/noisy rows, ranked by usefulness, filtered by
-  locally hidden smart collection ids in
-  `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed when the user
-  already has an active collection with the same normalized name. Card-style
-  smart collections render as image-backed `SmartCollectionCard` tiles before
-  user-created collection cards, while row-style defaults (Favorites,
-  Non-biological, and "Needs review") sit underneath the card grid.
+  primary two-column `LazyVGrid` and rendered as `DefaultCollectionCard`
+  components in the three-column default row below any map, featured, smart, and
+  user-created cards. The `CollectionsView` layout uses an overarching
+  `VStack(spacing: 16)` to maintain consistent proportions.
+- **Smart Default Collections**: `CollectionsViewModel` passes the Shell-owned
+  record set and an injected Explore-share lookup to `SmartCollectionSuggester`,
+  which derives up to six auto-managed collections without changing SwiftData
+  schema or cloud payloads. Suggestions can include "Needs review", "Recent
+  finds", "Explore posts" for scans shared publicly to Explore, top normalized
+  locations, top taxonomy buckets, invasive finds, and potential hazards. "Needs
+  review" shares the candidate review thresholds: unreviewed biological scans
+  qualify when the primary match is below the tier's Strong threshold, or when a
+  Strong match has a competitive stored alternative, not merely because
+  candidate alternatives exist. Each suggestion is threshold-gated to avoid
+  empty/noisy rows, ranked by usefulness, filtered by locally hidden smart
+  collection ids in `UserDefaultsKeys.hiddenSmartCollectionIDs`, and suppressed
+  when the user already has an active collection with the same normalized name.
+  Card-style smart collections render as image-backed `SmartCollectionCard`
+  tiles before user-created collection cards, while row-style defaults
+  (Favorites, Non-biological, and "Needs review") sit underneath the card grid.
 - **Smart Collection Boundary**: `SmartCollectionDetailView` is read-only and
   live-generated from current `LocalScanRecord` matches. Smart collections are
   not converted into `ScanCollection` rows, do not enqueue
@@ -339,10 +342,12 @@ production Shell and Library file remains below the 600-line review guard.
   `/sync-collections` in v1. Users can hide an individual smart collection from
   its detail menu and restore all hidden smart collections from the Collections
   toolbar menu; this hide state is local to the device.
-- **Deleted Collection Filtering**: Soft-deleted collections
-  (`isDeleted == true`) are filtered out of both `CollectionsView` and the
+- **Deleted Collection Filtering**: The UI predicates are designed to filter
+  soft-deleted collections from both `CollectionsView` and the
   `InsightSheetView` add-to-collection menu, so a collection pending remote
-  deletion cannot still be selected from another surface.
+  deletion cannot still be selected from another surface. V51 persists the
+  application marker as `isPendingDeletion`, mapped to the released `isDeleted`
+  column, so this filter survives save/refetch and migration.
 - **Collection State Toasts**: Collection mutations publish a typed
   `ToastPayload` through the shared `merianSystemFeedback` modifier anchored to
   `InsightSheetView`. The modifier owns identity-keyed cancellation, typed
@@ -357,30 +362,54 @@ production Shell and Library file remains below the 600-line review guard.
   by relying on SwiftData's default `.nullify` cascade behavior. Redundant
   inline `.alert("...")` boilerplate throughout `Views` (inside
   `CollectionDetailView`, `CollectionsView`, `InsightSheetView`, and
-  `ScansSheetView`) was extracted into a standalone DRY
+  `ScansSheetView`) was extracted into a standalone DRY feature-owned
   `CollectionActionAlertModifier` handling `.rename`, `.delete`, and `.create`
-  paths. This modifier trims names, blocks duplicates against live collections,
-  reserves `"Favorites"` for the system collection, and only enqueues cloud sync
-  after a successful local save. Membership edits from `CollectionDetailView`,
-  `SelectMultipleScansView`, and the Insight sheet use the same save-first
-  contract: rollback/log on save failure, then skip library refresh and
-  collection sync side effects. These changes trigger the
-  `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
+  presentation. `CollectionMutationService` owns validation and persistence: it
+  trims names, blocks duplicates against live collections, reserves
+  `"Favorites"` for the system collection, rejects attempts to rename or delete
+  that protected folder at the service boundary, and only enqueues cloud sync
+  after a successful local save. The Collections detail and selection view
+  models use the same service for membership edits. Their refresh tasks are
+  keyed to ordered target-membership IDs, so a persisted relationship change is
+  rederived even if a loss-tolerant invalidation event is missed. On save
+  failure, the service restores its captured pre-mutation model values before
+  rolling back the context, logs the failure, and skips library refresh and
+  collection-sync side effects. The explicit restoration keeps held SwiftData
+  references coherent when a relationship rollback does not immediately
+  rematerialize its previous value. The Insight sheet retains the same
+  save-first contract at its own feature boundary. Successful changes trigger
+  the `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
   `SyncCollectionPayload` arrays against the upstream `sync-collections`
   Supabase Edge Function through a shared single-flight sync path.
+- **Collection-Deletion Persistence**: The active V51 `ScanCollection` model
+  names its application soft-delete field `isPendingDeletion` and maps it to the
+  released `isDeleted` column with `@Attribute(originalName:)`. The V50 graph is
+  frozen before this rename, and `MerianRecentV50MigrationPlan` performs the
+  single lightweight V50 → V51 hop. The existing `is_deleted` Edge payload,
+  inbound tombstone shield, and acknowledgement-only purge remain unchanged;
+  disk-backed migration tests prove true/false values and relationship
+  retention. See the
+  [SwiftData schema contract](../backend-and-data/04-database-schema.md#scancollection-user-albums)
+  and
+  [SwiftData gotcha](../development-guides/11-swiftdata-and-api-gotchas.md#29-persistentmodelisdeleted-is-framework-state-not-app-storage).
+- **Collection Refresh Identity**: Catalog and smart-detail state are refreshed
+  from a typed value projection of the persisted fields consumed by membership,
+  smart matching, ordering, review thresholds, and cover eligibility. This
+  avoids depending on SwiftData model-array equality after in-place mutations
+  and avoids delimiter collisions or same-length payload misses from a
+  concatenated string signature. Detail and selection use the smaller ordered
+  target-membership identity appropriate to their state.
 - **Collection Sync Projection**: Each collection-sync attempt fetches only
   persisted non-Favorites collections and their direct inverse `scans`
   relationships. Membership IDs are sorted for stable retries, and the server
   applies only the relationship delta. The client never walks the full scan
   library in OFFSET pages to discover collection membership.
-- **Non-Biological Scans Isolation**: A dedicated navigation button routes users
+- **Non-Biological Scans Isolation**: A dedicated navigation card routes users
   to `NonBiologicalScansView.swift`, which queries exclusively for
-  `$0.isBiological == false`. To prevent JetSam OOM when computing sizes without
-  rendering grids, `ScansCollectionsGridView` drops the `@Query` mechanism and
-  uses an asynchronous `Task` calling `modelContext.fetchCount(descriptor)`,
-  computing exact counts inside the SQLite layer and rendering scalars without
-  inflating memory dictionaries. Expired local non-biological records are purged
-  after `MerianConfig.nonBiologicalRetentionDays` by
+  `$0.isBiological == false`. The catalog count is derived from the already
+  observed Shell record set rather than issuing a second count fetch. Expired
+  local non-biological records are purged after
+  `MerianConfig.nonBiologicalRetentionDays` by
   `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app
   foreground and again when the Non-biological view opens, using the same
   save-first tombstone and file-cleanup contract as manual deletion.

@@ -4903,19 +4903,20 @@ bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
 4. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
 5. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
 
-V49 is frozen independently of active V50 types: its `models` array uses only
-fully qualified `MerianSchemaV49.*` snapshot classes, relationship endpoints
-refer to the same V49 namespace, and no alias points back to an active global
-model. V50 continues to use the active globals plus its new goal-hint entity.
-The source guardrail rejects regressions and pins the complete
-`SchemaV49Snapshots.swift` SHA-256, so a property, annotation, default,
-relationship, initializer, or helper edit requires an explicit historical-shape
-review. The disk migration suite creates a source store from those newly frozen
-snapshots, seeds all eight V49 model types plus both relationship directions,
-and opens it as V50. That proves current snapshot-to-candidate self-consistency;
-it cannot prove that the Core Data model identity emitted by the processed
-released V49 binary is accepted. The genuine released-binary physical
-install-over and second-launch gate remains pending and release-blocking.
+V49 is frozen independently of active V50/V51 types: its `models` array uses
+only fully qualified `MerianSchemaV49.*` snapshot classes, relationship
+endpoints refer to the same V49 namespace, and no alias points back to an active
+global model. V50 is likewise frozen in `SchemaV50Snapshots.swift`, including
+the goal-hint companion and historical `ScanCollection.isDeleted` field. V51
+uses the active globals plus its schema-scoped goal-hint entity. The source
+guardrail rejects regressions and pins both frozen snapshot SHA-256 values, so a
+property, annotation, default, relationship, initializer, or helper edit
+requires an explicit historical-shape review. Disk migration suites create
+source stores from the frozen snapshots and open them through the corresponding
+V49 or V50 source-isolated plans. That proves candidate self-consistency; it
+cannot prove that the Core Data model identity emitted by a processed released
+binary is accepted. Genuine released-binary physical install-over and
+second-launch gates remain separate release evidence.
 
 There is **no need** to update model references in `MerianApp.swift`, nor
 anywhere else in the application, because the entire app dynamically inherits
@@ -4939,7 +4940,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV50`. Recent milestones:
+The current active schema is `MerianSchemaV51`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -4982,14 +4983,14 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   `ModelContainer`: fresh/current stores open without a migration plan, known
   recent stores use the source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans,
   and only unknown older stores use the full historical plan. The V49 plan
-  contains only the lightweight V49→V50 hop, so the immediate predecessor never
-  validates unrelated history. The V42 and V43 recent plans jump directly to V49
-  to avoid validating older full-historical custom stages and to keep V42 off
-  the older V42→V43 bridge that still failed on real TestFlight stores, while
-  V45 and V46 deliberately use one matching source representative each before
-  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
-  validator during plan construction retry with the same source-isolated recent
-  plans before legacy rescue or safe mode.
+  contains the two required lightweight hops, V49→V50 and V50→V51, so the
+  immediate predecessor never validates unrelated history. The V42 and V43
+  recent plans jump directly to V49 to avoid validating older full-historical
+  custom stages and to keep V42 off the older V42→V43 bridge that still failed
+  on real TestFlight stores, while V45 and V46 deliberately use one matching
+  source representative each before the V49 repair target. Stores that still hit
+  SwiftData's duplicate-checksum validator during plan construction retry with
+  the same source-isolated recent plans before legacy rescue or safe mode.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5009,12 +5010,16 @@ The current active schema is `MerianSchemaV50`. Recent milestones:
   media URLs.
 - V50 adds the scan-keyed `OfflineQueuedScanGoalHint` companion through a
   lightweight V49→V50 migration. The released V49 `OfflineQueuedScan` model is
-  reused unchanged. A dedicated `MerianRecentV49MigrationPlan` isolates that
-  single hop for stores already stamped V49; older source-isolated recovery
-  plans reach V49 first and then apply the same lightweight V50 stage. The
-  migration creates the companion entity but does not synthesize hint rows: V49
-  never persisted a selected goal, so only an eligible capture running on V50 or
-  later may insert one.
+  reused unchanged. A dedicated `MerianRecentV49MigrationPlan` isolates the
+  V49→V50→V51 tail, while older source-isolated recovery plans reach V49 first
+  and then apply both lightweight stages. The migration creates no hint rows for
+  V49 stores because V49 never persisted a selected goal; only eligible capture
+  running V50 or later may insert one.
+- V51 renames the active collection application tombstone to `isPendingDeletion`
+  with `@Attribute(originalName: "isDeleted")`. The stored column and
+  `is_deleted` Edge field remain unchanged. V50 is the frozen source for the
+  one-stage `MerianRecentV50MigrationPlan`; the disk fixture verifies tombstone
+  true/false values, relationships, and the V50 goal-hint companion.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5252,8 +5257,9 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 
 ### `OfflineQueuedScanGoalHint`
 
-Added in `MerianSchemaV50`. This optional companion exists only for a queued
-scan submitted from an eligible live Capture goal selection.
+Added in `MerianSchemaV50` and carried forward unchanged by `MerianSchemaV51`.
+This optional companion exists only for a queued scan submitted from an eligible
+live Capture goal selection.
 
 - `scanId`: String, unique and equal to the queued scan ID.
 - `userFieldTripId`: String identifying the selected standard outing.
@@ -5575,9 +5581,26 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isDeleted`: Bool (Added in `MerianSchemaV14`. Soft-delete flag explicitly
-  passed to the Edge function for safe cloud erasure instead of destructive
-  state-diffs.)
+- `isPendingDeletion`: Bool (Active V51 application tombstone, mapped to the
+  released `isDeleted` column with `@Attribute(originalName:)`; the value is
+  explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
+  erasure instead of destructive state-diffs.)
+
+V50 is retained as a frozen source graph in
+`apps/ios/Merian/Models/Schema/SchemaV50Snapshots.swift`. Its historical
+`isDeleted` property remains there solely so SwiftData can open the released
+store. V51 gives the active model the unambiguous `isPendingDeletion` name while
+preserving the stored column and wire contract. `MerianRecentV50MigrationPlan`
+contains the single lightweight V50 → V51 rename hop; the V49 source-isolated
+plan contains V49 → V50 followed by V50 → V51. Older recent lanes use the same
+ordered tail after their source-specific repair.
+
+The disk-backed migration fixture verifies metadata-based V50 plan selection,
+true and false tombstones, relationship retention, and the V50 goal-hint
+companion in a second context. Collection mutation and database-actor tests
+cover save/refetch persistence, exact `is_deleted` projection, inbound tombstone
+shielding, and acknowledgement-only purge. The migration does not invent delete
+intent for V50 assignments that were never durably stored.
 
 **`pending_storage_deletions` — cleanup indexes**: Migration `20260405000002`
 added composite index `idx_pending_storage_deletions_status_user` on

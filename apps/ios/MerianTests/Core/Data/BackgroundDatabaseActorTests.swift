@@ -302,7 +302,7 @@ struct BackgroundDatabaseActorTests {
         let tombstone = ScanCollection(
             id: "collection_auth_transition_preflight",
             name: "Removed Collection",
-            isDeleted: true
+            isPendingDeletion: true
         )
         context.insert(tombstone)
         try context.save()
@@ -330,7 +330,7 @@ struct BackgroundDatabaseActorTests {
         let tombstone = ScanCollection(
             id: "collection_auth_transition_in_flight",
             name: "Removed Collection",
-            isDeleted: true
+            isPendingDeletion: true
         )
         context.insert(tombstone)
         try context.save()
