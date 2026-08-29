@@ -363,6 +363,10 @@ telemetry and queue fields) before the queued route is appended. That route
 retains the value snapshot through queue deletion and completed-result handoff.
 `QueuedScanSnapshot.gridId` returns `"q_\(id)"` to prevent duplicate `ForEach`
 keys against `LocalScanRecord` tiles that share the same UUID.
+`ScanQueueState.isManualRetryEligible` is the single basic state/deadline rule
+used by both queued value types; mutation owners still re-fetch the live row,
+and the Insight presentation resolver may further suppress retry for offline or
+reason-specific states.
 
 **Failed-row retention (`purgeSoftDeletedRecords`)**: Terminal `.failed` (raw
 value 5) rows are not all disposable. Rows marked `queueNeedsAttention == true`
@@ -1319,13 +1323,15 @@ the latch without waiting for a URLSession delegate callback.
   actor instance across consecutive completions avoids repeated actor
   allocation + `ModelContext` setup. Each `@ModelActor` serializes concurrent
   calls through its executor automatically, so rapid burst completions queue
-  safely. `resolvedQueueDbActor(container:)` tracks the container that owns the
-  cached actor (`_queueDbActorContainer`). If the caller provides a different
-  container, the cache is invalidated and a fresh actor is created. In
-  production the container is a process-lifetime singleton so this is a no-op;
-  in tests each suite creates a fresh in-memory container, and the identity
-  check ensures a stale actor bound to a previous test's already-deallocated
-  store is never returned.
+  safely. `resolvedQueueDbActor(container:)` and
+  `resolvedProfileDbActor(container:)` each track the container that owns the
+  cached actor. If the caller provides a different container, the corresponding
+  cache is replaced with a fresh actor. In production the container is a
+  process-lifetime singleton so this is a no-op; store recovery and tests can
+  replace it, and the identity check prevents reuse of an actor bound to the old
+  store. Post-inference `calculateAwards()` also invalidates its value
+  projection before reading because inference can update an existing record
+  without changing its count, latest ID, or timestamp.
 - **Step F**: `GamificationManager.shared.recordNewSpeciesDiscovered()` and the
   inference-complete push notification fire immediately per completion. The
   final database scan ID, decoded `SpeciesData`, and model container then enter
@@ -1568,7 +1574,7 @@ disconnected.
    the collection-sync job complete only when the captured revision still
    matches. If a newer rename/delete arrives while the old request is in flight,
    the job remains pending/waiting and the next drain loop replays the newer
-   state. The active V51 application-owned `isPendingDeletion` marker is mapped
+   state. The active V50 application-owned `isPendingDeletion` marker is mapped
    to the released `isDeleted` column, so this ordering guarantees
    `is_deleted: true` reaches the Edge function after any stale upsert
    snapshots.
@@ -1578,13 +1584,14 @@ disconnected.
    injected `ModelContext.save()` boundary before enqueueing sync. It restores
    the previous value, rolls back, and suppresses downstream work when that save
    throws. Once an acknowledged payload contains `is_deleted: true`,
-   `BackgroundDatabaseActor` hard-deletes the matching local tombstone. V50's
-   reserved-name collision is retained only in the frozen migration source; V51
-   is the active durable boundary.
+   `BackgroundDatabaseActor` hard-deletes the matching local tombstone. The
+   released V50 Swift property name is retained only in the frozen fixture;
+   `MerianActiveSchemaV50` owns the active durable boundary.
 
-   The forward V50 → V51 migration freezes V50, maps the active non-reserved
-   property with `@Attribute(originalName:)`, preserves the `is_deleted` wire
-   field, and is covered by a disk-backed V50 fixture. See
+   The source-only V50 repair freezes the released graph, maps the active
+   non-reserved property with `@Attribute(originalName:)`, preserves both the
+   V50 persisted checksum and the `is_deleted` wire field, and is covered by a
+   disk-backed V50 reopening fixture. See
    [ScanCollection schema](./04-database-schema.md#scancollection-user-albums).
 
    > [!IMPORTANT]
@@ -1623,7 +1630,7 @@ disconnected.
    Shield**: If the cloud response erroneously includes a collection with a
    durable local application tombstone, the cloud response is ignored. This is
    intended to protect against delayed Edge work resurrecting a deleted entity;
-   the active V51 property-name mapping makes that shield durable for migrated
+   the active V50 property-name mapping makes that shield durable for reopened
    stores. Collections absent from the cloud response and not named "Favorites"
    are deleted locally. Because step 4 guarantees every local collection is
    already in the cloud, the delete pass only removes collections the user

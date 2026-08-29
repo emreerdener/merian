@@ -393,10 +393,10 @@ and may change from scan to scan even when the scientific name is the same.
 `[ScanCollection]` rows (reverse-sorted by `createdAt`) to populate the
 collection management toolbar. Its predicate excludes the durable
 `isPendingDeletion` application tombstone so a collection pending remote
-deletion does not reappear in the add-to-collection menu. V51 maps that active
+deletion does not reappear in the add-to-collection menu. Active V50 maps that
 property to the released `isDeleted` column with `@Attribute(originalName:)`, so
-the filter remains effective after save/refetch and migration. The complete
-contract is described in
+the filter remains effective after save/refetch and reopening the store. The
+complete contract is described in
 [Collections](./07-feature-modules-and-ui.md#collections-top-level-photo-albums).
 The released V50 schema is the historical source for this rename: its
 `isDeleted` field is preserved in the frozen migration snapshot and is never
@@ -634,6 +634,13 @@ queue work. Once a deadline elapses, the helper and retry action disappear; the
 analyzing state already communicates that work is underway. Consent,
 entitlement, missing-media, and terminal states use their dedicated explanation
 or action rather than a misleading retry.
+
+`ScanQueueState.isManualRetryEligible` is the single state/deadline baseline
+used by `QueuedScanSnapshot` and `QueuedScanContext`. This value-level agreement
+keeps the grid and Insight route from drifting, but it does not authorize a
+mutation: retry services re-fetch the current SwiftData row, and
+`QueuedRetryPresentation` may further suppress the action for connectivity or a
+reason-specific state.
 
 The queued presentation otherwise follows the same visible scanning contract as
 foreground inference: a rotating status pill, `DidYouKnowCard`, Field notes, and

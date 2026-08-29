@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Individual Gamification Unit
 struct AchievementCard: View {
     let award: AwardPayload
-    
+
     var body: some View {
         HStack(alignment: .center, spacing: 20) {
             AchievementIconView(award: award)
@@ -21,16 +21,16 @@ struct AchievementCard: View {
 // MARK: - Extracted Subcomponents
 private struct AchievementIconView: View {
     let award: AwardPayload
-    
+
     // Core animation state for the premium specular border glow
     @State private var shimmerPhase: CGFloat = -1.0
-    
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(award.isCompleted ? award.tintInfo.color.opacity(0.12) : Color(uiColor: .systemGray6))
                 .frame(width: 96, height: 96)
-            
+
             Image(award.tintInfo.imageName)
                 .resizable()
                 .scaledToFit()
@@ -73,12 +73,12 @@ private struct AchievementIconView: View {
             while !Task.isCancelled {
                 let randomSleepSeconds = Double.random(in: 4.0...12.0)
                 try? await Task.sleep(for: .seconds(randomSleepSeconds))
-                
+
                 guard !Task.isCancelled else { break }
-                
+
                 shimmerPhase = -1.0
                 try? await Task.sleep(nanoseconds: 50_000_000)
-                
+
                 withAnimation(.easeOut(duration: 1.8)) {
                     shimmerPhase = 2.5
                 }
@@ -89,19 +89,19 @@ private struct AchievementIconView: View {
 
 private struct AchievementMetricsView: View {
     let award: AwardPayload
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(award.title)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.primary.opacity(0.85))
-            
+
             Text(award.descriptionText)
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 4)
-            
+
             if award.isCompleted {
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
@@ -126,23 +126,23 @@ private struct AchievementMetricsView: View {
 
 private struct AchievementProgressBar: View {
     let award: AwardPayload
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text("Progress: \(award.currentCount)/\(award.targetCount)")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Color.primary.opacity(0.4))
-                
+
                 Spacer()
             }
-            
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Color(uiColor: .systemGray6))
                         .frame(height: 5)
-                    
+
                     Capsule()
                         .fill(Color(red: 0.25, green: 0.75, blue: 0.35).opacity(0.8))
                         .frame(width: max(0, geo.size.width * award.progressFraction), height: 5)

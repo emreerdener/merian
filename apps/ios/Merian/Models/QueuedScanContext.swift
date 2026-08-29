@@ -11,7 +11,7 @@ import Foundation
 /// Snapshotting all needed data into this value type at tap time (while the object is live)
 /// breaks the direct observation dependency. SwiftUI never registers a tracking dependency on
 /// the `OfflineQueuedScan` model's properties, so no re-evaluation happens on deletion.
-struct QueuedScanContext: Identifiable, Equatable {
+struct QueuedScanContext: Identifiable, Equatable, Sendable {
     let id: String
     let capturedMediaItems: [SerializedMediaItem]
     let queueState: ScanQueueState
@@ -60,13 +60,10 @@ struct QueuedScanContext: Identifiable, Equatable {
     }
 
     var canRetryNow: Bool {
-        guard queueState != .externalImport else { return false }
-        return queueState == .failed ||
-            queueNeedsAttention ||
-            (
-                queueNextRetryAt != nil &&
-                (queueState == .pending || queueState == .staged)
-            )
+        queueState.isManualRetryEligible(
+            needsAttention: queueNeedsAttention,
+            nextRetryAt: queueNextRetryAt
+        )
     }
 
     /// Initialises the context by resolving all attribute faults on the live `OfflineQueuedScan`.

@@ -81,6 +81,12 @@ reference-thumbnail work to the actor's bounded pass. It publishes a library
 invalidation only after a durable reference-image change; the view does not
 invoke shared loaders or background actors directly.
 
+Cross-feature rendering remains in Core UI. `ScanThumbnailLoader` owns the live
+image/spectrogram adapters and cancellation fences for reused tiles, while the
+thumbnail view restarts work from typed source, policy, pixel-size, placeholder,
+and relevant connectivity identity. Shell owns scheduling and durable repair,
+not per-tile media loading.
+
 The view model loads authenticated Explore media incidents through its injected
 endpoint closure. Concurrent triggers coalesce while preserving one trailing
 refresh. The recovery-route owner is validated before a request starts. A

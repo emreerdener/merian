@@ -155,8 +155,8 @@ write_test_tree() {
             suite("Offline Queued Scan Deletion Tests"; [
               "completedInferenceAndQueueDeletionCommitTogether"
             ]),
-            suite("CompositeLibraryTests"; [
-              "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
+            suite("ScansSharedPolicyTests"; [
+              "queuedSnapshotRecoveryRespectsDurableAndNetworkPolicy"
             ]),
             suite("Network Client Tests"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
@@ -333,7 +333,7 @@ required_cases=(
   "queueDiagnosticsExportOmitsPrivateAndFreeFormValues"
   "queueDiagnosticsRowLimitsAlwaysStayWithinOneThroughFiveHundred"
   "completedInferenceAndQueueDeletionCommitTogether"
-  "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
+  "queuedSnapshotRecoveryRespectsDurableAndNetworkPolicy"
   "pausedScansCannotBeClaimedOrReconciled"
   "testReconcileOrphanedUploadingScansResetsOrphansKeepsActive"
   "pendingFetchPagesPastDelayedAndLocallyBlockedRowsWithoutStarvingRunnableWork"

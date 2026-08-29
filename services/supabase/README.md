@@ -1766,7 +1766,8 @@ Fix a stale fixture rather than weakening the Auth FK or production identity
 constraints.
 
 The current reserved-name groups are mirrored in PostgreSQL, the shared
-`update-public-username/validation.ts` Edge module, and the iOS edit sheet.
+`update-public-username/validation.ts` Edge module, and
+`apps/ios/Merian/Features/Profile/UserProfile/Views/Identity/PublicUsernameEditSheet.swift`.
 `_tests/publicUsernamePolicyMigrationContract.test.ts` parses all three sources
 and also locks stable profile-repair order and historical mention preservation.
 `tests/public_username_policy_security.sql` verifies the final immutable

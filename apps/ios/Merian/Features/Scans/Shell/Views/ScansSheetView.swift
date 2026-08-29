@@ -265,7 +265,7 @@ struct ScansSheetView: View {
     ) -> some View {
         switch route {
         case .nonBiologicalScans:
-            NonBiologicalScansView()
+            NonBiologicalScansView(scans: rawRecords)
         case .privateScanMap:
             PrivateScanMapView { scanID in
                 navigationPath.append(ScanInsightRoute(scanId: scanID))

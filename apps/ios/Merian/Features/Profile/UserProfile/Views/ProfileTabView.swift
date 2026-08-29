@@ -1,49 +1,17 @@
-import SwiftData
 import SwiftUI
 
-struct ProfileStatsRefreshKey: Equatable {
-    let refreshToken: UUID
-    let isAuthenticated: Bool
-    let accountId: String?
-}
-
-enum ProfileTabPresentation: Identifiable, Equatable {
-    case paywall
-    case insight(ScanInsightRoute)
-    case fieldTripAuthor(ExploreAuthorProfileRoute)
-
-    var id: String {
-        switch self {
-        case .paywall:
-            "paywall"
-        case .insight(let route):
-            "insight-\(route.id)"
-        case .fieldTripAuthor(let route):
-            "field-trip-author-\(route.id)"
-        }
-    }
-}
-
-/// The standalone layout hierarchy for the primary "Profile" tab.
-/// This acts purely as a declarative composition module that groups all massive
-/// visual data visualizations (Terrarium, Heatmap) and abstracts intense offline SQLite
-/// hardware calculations completely away from the orchestrator logic natively.
+/// Composes the primary Profile tab from prepared feature state.
 struct ProfileTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(RevenueCatManager.self) private var revenueCatManager
-    private var supabase: SupabaseManager { .shared }
+    @Environment(SupabaseManager.self) private var supabase
     @Binding var showPaywall: Bool
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
     @Binding var isShowingUsernameEditor: Bool
-    
-    // Natively isolated State variables dynamically mapped back from the background Actor mathematically.
-    @State private var uniqueSpeciesCount: Int = 0
-    @State private var currentStreak: Int = 0
-    @State private var totalCaptures: Int = 0
-    @State private var heatmapData: ProfileHeatmapData?
-    @State private var awards: [AwardPayload] = []
+
+    @State private var profileState: ProfileTabViewModel
     @State private var exploreViewModel = ExploreFeedViewModel()
     @State private var selectedPostRoute: ExplorePostRoute?
     @State private var selectedFieldTripTemplateRoute: FieldTripTemplateRoute?
@@ -51,8 +19,25 @@ struct ProfileTabView: View {
     @State private var activePresentation: ProfileTabPresentation?
     @State private var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
     @State private var isLoadingEarnedFieldTripPatches = FeatureFlags.isEnabled(.fieldTrips)
-    @State private var profileRefreshToken = UUID()
-    
+
+    init(
+        showPaywall: Binding<Bool>,
+        isShowingAvatarPicker: Binding<Bool>,
+        isShowingDisplayNameEditor: Binding<Bool>,
+        isShowingUsernameEditor: Binding<Bool>,
+        dependencies: ProfileTabDependencies? = nil
+    ) {
+        _showPaywall = showPaywall
+        _isShowingAvatarPicker = isShowingAvatarPicker
+        _isShowingDisplayNameEditor = isShowingDisplayNameEditor
+        _isShowingUsernameEditor = isShowingUsernameEditor
+        _profileState = State(
+            initialValue: ProfileTabViewModel(
+                dependencies: dependencies ?? .live
+            )
+        )
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             // MARK: - Core Profile Content
@@ -63,8 +48,10 @@ struct ProfileTabView: View {
                         isShowingAvatarPicker: $isShowingAvatarPicker,
                         isShowingDisplayNameEditor: $isShowingDisplayNameEditor,
                         isShowingUsernameEditor: $isShowingUsernameEditor,
-                        totalScans: totalCaptures,
-                        completedAchievements: visibleAwards.completedCount,
+                        totalScans: profileState.totalCaptures,
+                        completedAchievements: profileState.completedAwardCount(
+                            fieldTripsEnabled: fieldTripsEnabled
+                        ),
                         earnedFieldTripPatches: earnedFieldTripPatches,
                         isLoadingEarnedFieldTripPatches: isLoadingEarnedFieldTripPatches,
                         onOpenFieldTrip: { templateId in
@@ -75,21 +62,21 @@ struct ProfileTabView: View {
                     )
 
                     // MARK: - Stats
-                    UserStats(speciesCount: uniqueSpeciesCount, streak: currentStreak)
+                    UserStats(
+                        speciesCount: profileState.uniqueSpeciesCount,
+                        streak: profileState.currentStreak
+                    )
                 }
 
                 // MARK: - Field trips
-                if FeatureFlags.isEnabled(.fieldTrips) {
+                if fieldTripsEnabled {
                     ActiveFieldTripsProfilePreview(
                         onOpenTemplate: { templateId in
                             selectedFieldTripTemplateRoute = FieldTripTemplateRoute(templateId: templateId)
                         },
                         onOpenCompletedScan: openFieldTripCompletedScan,
                         onViewAll: {
-                            AppDIContainer.shared.appRouteCoordinator.request(
-                                .fieldTrips,
-                                source: .internalUserAction
-                            )
+                            profileState.openFieldTrips()
                         },
                         onEarnedPatchesChange: { patches in
                             earnedFieldTripPatches = patches
@@ -113,24 +100,26 @@ struct ProfileTabView: View {
 
                 // MARK: - Terrarium & Persona
                 VStack(spacing: 16) {
-                    Terrarium(uniqueSpeciesCount: uniqueSpeciesCount)
+                    Terrarium(uniqueSpeciesCount: profileState.uniqueSpeciesCount)
 #if DEBUG
                         .onTapGesture {
-                            let currentPersona = UserPersona(speciesCount: uniqueSpeciesCount)
+                            let currentPersona = UserPersona(
+                                speciesCount: profileState.uniqueSpeciesCount
+                            )
                             if let nextThreshold = currentPersona.nextLevelThreshold {
-                                uniqueSpeciesCount = nextThreshold
+                                profileState.setDebugSpeciesCount(nextThreshold)
                             } else {
-                                uniqueSpeciesCount = 0
+                                profileState.setDebugSpeciesCount(0)
                             }
-                            HapticManager.shared.triggerSelectionPulse()
+                            profileState.selectionFeedback()
                         }
 #endif
-                    Persona(uniqueSpeciesCount: uniqueSpeciesCount)
+                    Persona(uniqueSpeciesCount: profileState.uniqueSpeciesCount)
                 }
                 .padding(.vertical, 16)
 
                 // MARK: - Heatmap
-                ScansHeatmap(heatmapData: heatmapData)
+                ScansHeatmap(heatmapData: profileState.heatmapData)
 
                 // MARK: - Gamification Awards
                 if !visibleAwards.isEmpty {
@@ -207,20 +196,11 @@ struct ProfileTabView: View {
             .task(id: profileStatsRefreshKey) {
                 await refreshProfileStats()
             }
-            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
-                guard case .scanLibraryChanged = event else { return }
-                profileRefreshToken = UUID()
-            }
-            .onReceive(AppDIContainer.shared.appEventPublisher.publisher) { event in
-                guard FeatureFlags.isEnabled(.fieldTrips) else { return }
-                switch event {
-                case .fieldTripProgressInvalidated,
-                     .fieldTripChallengeProgressInvalidated,
-                     .captureGoalContextInvalidated(.fieldTrip):
-                    profileRefreshToken = UUID()
-                default:
-                    break
-                }
+            .onReceive(profileState.appEvents) { event in
+                profileState.handle(
+                    event: event,
+                    fieldTripsEnabled: fieldTripsEnabled
+                )
             }
             .onChange(of: showPaywall, initial: true) { _, isRequested in
                 if isRequested {
@@ -234,8 +214,7 @@ struct ProfileTabView: View {
             }
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        // Explicitly binds this list to exactly 100% of the screen width securely, 
-        // creating a perfect 1-to-1 swipeable "Page" geometry identical to SettingsTabView!
+        // Match the Profile shell's horizontal paging width.
         .containerRelativeFrame(.horizontal)
     }
 
@@ -259,7 +238,7 @@ struct ProfileTabView: View {
         switch presentation {
         case .paywall:
             PaywallView()
-                .environment(RevenueCatManager.shared)
+                .environment(revenueCatManager)
 
         case .insight(let route):
             LocalScanInsightLoader(scanId: route.scanId) {
@@ -300,61 +279,30 @@ struct ProfileTabView: View {
 
     @MainActor
     private func refreshProfileStats() async {
-        // Decouples massive SwiftData queries explicitly into a `ModelActor` to completely
-        // prevent dropping frames on the physical UI Thread during millions of array computations.
-        let actor = ProfileDatabaseActor(modelContainer: modelContext.container)
-        let stats = await actor.calculateAll()
-        guard !Task.isCancelled else { return }
-
-        uniqueSpeciesCount = stats.speciesCount
-        currentStreak = stats.streak
-        totalCaptures = stats.heatmap.totalCaptures
-        heatmapData = stats.heatmap
-        guard FeatureFlags.isEnabled(.fieldTrips),
-              supabase.isAuthenticated,
-              let accountId = supabase.currentUser?.id.uuidString else {
-            awards = stats.awards
-            return
-        }
-
-        var progress = FirstFieldTripAchievementProgressStore.load(accountId: accountId)
-        awards = stats.awards.mergingFirstFieldTripAchievement(progress)
-        do {
-            if let refreshedProgress = try await MerianNetworkClient.shared
-                .getFirstFieldTripAchievementProgress() {
-                guard supabase.isAuthenticated,
-                      supabase.currentUser?.id.uuidString == accountId else {
-                    return
-                }
-                FirstFieldTripAchievementProgressStore.save(
-                    refreshedProgress,
-                    accountId: accountId
-                )
-                progress = refreshedProgress
-                awards = stats.awards.mergingFirstFieldTripAchievement(progress)
-            }
-        } catch {
-            MerianLog.network.debug(
-                "First Field trip achievement refresh failed: \(error, privacy: .private)"
-            )
-        }
-    }
-
-    private var visibleAwards: [AwardPayload] {
-        guard !FeatureFlags.isEnabled(.fieldTrips) else { return awards }
-        return awards.filter { $0.type != .firstFieldTrip }
-    }
-
-    private var profileStatsRefreshKey: ProfileStatsRefreshKey {
-        ProfileStatsRefreshKey(
-            refreshToken: profileRefreshToken,
-            isAuthenticated: supabase.isAuthenticated,
-            accountId: supabase.currentUser?.id.uuidString
+        await profileState.refresh(
+            key: profileStatsRefreshKey,
+            modelContainer: modelContext.container,
+            fieldTripsEnabled: fieldTripsEnabled
         )
     }
 
+    private var visibleAwards: [AwardPayload] {
+        profileState.visibleAwards(fieldTripsEnabled: fieldTripsEnabled)
+    }
+
+    private var profileStatsRefreshKey: ProfileStatsRefreshKey {
+        profileState.refreshKey(
+            isAuthenticated: supabase.isAuthenticated,
+            accountID: supabase.currentUser?.id.uuidString
+        )
+    }
+
+    private var fieldTripsEnabled: Bool {
+        FeatureFlags.isEnabled(.fieldTrips)
+    }
+
     private func openPublicScanPreview(_ post: ExplorePost) {
-        HapticManager.shared.triggerSelectionPulse()
+        profileState.selectionFeedback()
         exploreViewModel.upsertPost(post)
         exploreViewModel.refreshPreferredSpeciesNames(
             for: [post.speciesScientificName],
@@ -370,23 +318,18 @@ struct ProfileTabView: View {
     }
 
     private func openInsight(scanId: String) -> Bool {
-        var descriptor = FetchDescriptor<LocalScanRecord>(
-            predicate: #Predicate { $0.id == scanId }
-        )
-        descriptor.fetchLimit = 1
-
-        guard let record = try? modelContext.fetch(descriptor).first else {
-            return false
-        }
-
-        return beginPresentation(.insight(ScanInsightRoute(scanId: record.id)))
+        guard let route = profileState.insightRoute(
+            scanID: scanId,
+            modelContext: modelContext
+        ) else { return false }
+        return beginPresentation(.insight(route))
     }
 
     private func openFieldTripCompletedScan(_ scanId: String) {
         if openInsight(scanId: scanId) {
-            HapticManager.shared.triggerSelectionPulse()
+            profileState.selectionFeedback()
         } else {
-            HapticManager.shared.triggerErrorThump()
+            profileState.errorFeedback()
         }
     }
 
@@ -400,12 +343,6 @@ struct ProfileTabView: View {
             )
         )
         guard beginPresentation(presentation) else { return }
-        HapticManager.shared.triggerSelectionPulse()
-    }
-}
-
-private extension [AwardPayload] {
-    var completedCount: Int {
-        filter(\.isCompleted).count
+        profileState.selectionFeedback()
     }
 }

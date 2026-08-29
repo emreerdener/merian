@@ -153,8 +153,9 @@ actor ScanThumbnailBackfillActor {
     ) async -> ThumbnailBackfillPayload? {
         let cached = cachedSpecies
         let cachedUrls = cached?.reference_image_url.commaSeparatedUrls ?? []
-        let cachedWikipediaUrl = cached?.wikipedia_url?.trimmedNonEmpty
-        let cachedWikipediaOverview = cached?.wikipedia_overview?.trimmedNonEmpty
+        let cachedWikipediaUrl = cached?.wikipedia_url?.trimmedNonEmptyValue
+        let cachedWikipediaOverview = cached?.wikipedia_overview?
+            .trimmedNonEmptyValue
         let gbifKey = cached?.gbif_taxon_key ?? candidate.gbifTaxonKey
 
         if !cachedUrls.isEmpty {
@@ -232,7 +233,8 @@ actor ScanThumbnailBackfillActor {
             return ThumbnailWikipediaPayload(
                 overview: overview,
                 articleUrl: "https://en.wikipedia.org/wiki/\(encodedTitle)",
-                imageUrl: decoded.lead.originalimage?.source?.trimmedNonEmpty
+                imageUrl: decoded.lead.originalimage?.source?
+                    .trimmedNonEmptyValue
             )
         } catch {
             return nil
@@ -258,7 +260,9 @@ actor ScanThumbnailBackfillActor {
             var urls: [String] = []
             for result in decoded.results ?? [] {
                 for mediaItem in result.media ?? [] {
-                    if mediaItem.type == "StillImage", let identifier = mediaItem.identifier?.trimmedNonEmpty {
+                    if mediaItem.type == "StillImage",
+                       let identifier = mediaItem.identifier?
+                       .trimmedNonEmptyValue {
                         urls.append(identifier)
                         break
                     }
@@ -273,12 +277,15 @@ actor ScanThumbnailBackfillActor {
     private func mergeUrls(primary: String?, secondary: [String]) -> [String] {
         var merged: [String] = []
 
-        if let primary = primary?.trimmedNonEmpty {
+        if let primary = primary?.trimmedNonEmptyValue {
             merged.append(primary)
         }
 
         for url in secondary {
-            guard let trimmed = url.trimmedNonEmpty, !merged.contains(trimmed) else { continue }
+            guard let trimmed = url.trimmedNonEmptyValue,
+                  !merged.contains(trimmed) else {
+                continue
+            }
             merged.append(trimmed)
         }
 
@@ -320,12 +327,5 @@ private extension Optional where Wrapped == String {
             .split(separator: ",")
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
-    }
-}
-
-private extension String {
-    var trimmedNonEmpty: String? {
-        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

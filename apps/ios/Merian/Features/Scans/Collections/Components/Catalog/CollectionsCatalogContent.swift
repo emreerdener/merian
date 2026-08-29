@@ -200,13 +200,16 @@ struct CollectionsCatalogContent: View {
             }
 
             if presentation.showNonBiologicalRow {
-                DefaultCollectionCard(
-                    title: "Non-biological",
-                    assetName: "cube",
-                    count: nonBiologicalCount
+                NavigationLink(
+                    value: ScansNavigationRoute.nonBiologicalScans
                 ) {
-                    NonBiologicalScansView()
+                    DefaultCollectionCardLabel(
+                        title: "Non-biological",
+                        assetName: "cube",
+                        count: nonBiologicalCount
+                    )
                 }
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("NonBiologicalCollectionCard")
             }
         }

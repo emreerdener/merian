@@ -320,9 +320,9 @@ assert_suite_has_passed_test_case \
   "completedInferenceAndQueueDeletionCommitTogether"
 assert_suite_has_passed_test_case \
   "Needs-attention library recovery quieting" \
-  "CompositeLibraryTests" \
-  "Composite Library Tests" \
-  "testVisibleNeedsAttentionRowsDoNotDriveAutomaticRecovery"
+  "ScansSharedPolicyTests" \
+  "Scans Shared Policy Tests" \
+  "queuedSnapshotRecoveryRespectsDurableAndNetworkPolicy"
 assert_suite_has_passed_test_case \
   "Paused queue atomic claim and reconciliation fence" \
   "BackgroundDatabaseActorTests" \

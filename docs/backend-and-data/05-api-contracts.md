@@ -6726,13 +6726,14 @@ and `collection_scans` schemas, handling diffing and missing FK references.
 }
 ```
 
-The active iOS V51 model names the durable application value
+The active iOS V50 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
 `isDeleted` column with `@Attribute(originalName:)`. The collection-sync DTO
 explicitly projects that value to the canonical `is_deleted` JSON key. The
 optional `isDeleted` request alias remains a server-side compatibility read for
-historical encoder output; clients do not need to send both keys. The V50 → V51
-local rename changes neither this payload nor the deletion semantics.
+historical encoder output; clients do not need to send both keys. The
+source-only rename changes neither the persisted V50 model, this payload, nor
+the deletion semantics.
 
 ### Safety and Transactional Integrity
 

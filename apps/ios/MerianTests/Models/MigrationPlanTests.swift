@@ -420,6 +420,19 @@ struct MigrationPlanTests {
         )
     }
 
+    private func openCurrentStore(at url: URL) throws -> CurrentMigrationStore {
+        let currentSchema = Schema(versionedSchema: CurrentSchema.self)
+        let currentConfig = ModelConfiguration(schema: currentSchema, url: url)
+        let currentContainer = try makeModelContainer(
+            for: currentSchema,
+            configurations: [currentConfig]
+        )
+        return CurrentMigrationStore(
+            container: currentContainer,
+            context: ModelContext(currentContainer)
+        )
+    }
+
     private func encodedMediaJSON(_ items: [SerializedMediaItem]) throws -> String {
         try #require(String(data: JSONEncoder().encode(items), encoding: .utf8))
     }
@@ -1006,13 +1019,30 @@ struct MigrationPlanTests {
         ).lowerBound
         let v50Remainder = source[v50SchemaStart...]
         let v50SchemaEnd = try #require(
-            v50Remainder.range(of: "\nenum MerianSchemaV51: VersionedSchema")
+            v50Remainder.range(of: "\nenum MerianActiveSchemaV50")
         ).lowerBound
         let v50Schema = String(v50Remainder[..<v50SchemaEnd])
         for model in v49Models {
             #expect(v50Schema.contains("MerianSchemaV50.\(model).self"))
         }
         #expect(v50Schema.contains("MerianSchemaV50.OfflineQueuedScanGoalHint.self"))
+
+        let activeV50Start = try #require(
+            source.range(of: "enum MerianActiveSchemaV50: VersionedSchema")
+        ).lowerBound
+        let activeV50Remainder = source[activeV50Start...]
+        let activeV50End = try #require(
+            activeV50Remainder.range(
+                of: "\nprivate typealias MerianSchemaV48OfflineJobRecord"
+            )
+        ).lowerBound
+        let activeV50Schema = String(activeV50Remainder[..<activeV50End])
+        for model in v49Models {
+            #expect(activeV50Schema.contains("\(model).self"))
+        }
+        #expect(activeV50Schema.contains(
+            "MerianActiveSchemaV50.OfflineQueuedScanGoalHint.self"
+        ))
 
         let v50SnapshotSource = try schemaV50SnapshotsSource()
         #expect(!v50SnapshotSource.contains("typealias"))
@@ -1025,15 +1055,16 @@ struct MigrationPlanTests {
         #expect(v50SnapshotSource.contains(
             "inverse: \\MerianSchemaV50.LocalScanRecord.collections"
         ))
+        #expect(v50SnapshotSource.contains("extension MerianSchemaV50"))
         #expect(v50SnapshotSource.contains("var isDeleted: Bool = false"))
         #expect(v50SnapshotSource.contains("final class OfflineQueuedScanGoalHint"))
         #expect(!v50SnapshotSource.contains("isPendingDeletion"))
     }
 
-    @Test func activeCollectionTombstoneUsesV51RenameMapping() throws {
+    @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 51)
+        #expect(CurrentSchema.versionIdentifier.major == 50)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -1155,11 +1186,11 @@ struct MigrationPlanTests {
 
         #expect(
             missing.isEmpty,
-            "Active V51 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
+            "Active V50 OfflineQueuedScan durable retry fields must stay non-optional to preserve already-current store compatibility. Missing snippets:\n\(missing.joined(separator: "\n"))"
         )
         #expect(
             presentForbidden.isEmpty,
-            "Active V51 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
+            "Active V50 OfflineQueuedScan durable retry fields cannot become optional without changing the current schema shape. Found snippets:\n\(presentForbidden.joined(separator: "\n"))"
         )
     }
 
@@ -1197,8 +1228,11 @@ struct MigrationPlanTests {
         #expect(
             !schemasSource.contains("MerianSchemaV44.self") &&
                 !schemasSource.contains("MerianSchemaV45.self") &&
-                !schemasSource.contains("MerianSchemaV46.self"),
-            "MerianMigrationPlan.schemas must omit duplicate-prone V44/V45/V46 representatives; source-isolated recent plans handle those stores."
+                !schemasSource.contains("MerianSchemaV46.self") &&
+                !schemasSource.contains("MerianSchemaV43.self") &&
+                !schemasSource.contains("MerianSchemaV47.self") &&
+                !schemasSource.contains("MerianSchemaV48.self"),
+            "MerianMigrationPlan.schemas must remain a linear V42→V49→V50 path; source-isolated recent plans handle V43...V48 stores."
         )
         #expect(
                 !stagesSource.contains("migrateV43toV44") &&
@@ -1211,9 +1245,9 @@ struct MigrationPlanTests {
                 !stagesSource.contains("migrateV46toV48") &&
                 !stagesSource.contains("migrateV47toV48") &&
                 stagesSource.contains("migrateV42toV49") &&
-                stagesSource.contains("migrateV43toV49") &&
-                stagesSource.contains("migrateV48toV49"),
-            "The full historical stage list must jump V42->V49 and V43->V49, keep the V48->V49 repair source, and avoid duplicate-prone recent hops."
+                !stagesSource.contains("migrateV43toV49") &&
+                !stagesSource.contains("migrateV48toV49"),
+            "The full historical stage list must stay linear through V42→V49; V43 and V48 use their source-isolated plans."
         )
         #expect(
             !source.contains("migrateV45toV46") &&
@@ -1458,46 +1492,22 @@ struct MigrationPlanTests {
         )
     }
 
-    @Test func recentV49MigrationPlanOnlyRunsRequiredLightweightHopsToV51() throws {
+    @Test func recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop() throws {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51])
+        #expect(schemaMajors == [49, 50])
 
-        let expectedHops = [(49, 50), (50, 51)]
-        #expect(MerianRecentV49MigrationPlan.stages.count == expectedHops.count)
-        for (stage, expectedHop) in zip(
-            MerianRecentV49MigrationPlan.stages,
-            expectedHops
-        ) {
-            switch stage {
-            case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == expectedHop.0)
-                #expect(toVersion.versionIdentifier.major == expectedHop.1)
-            case .custom:
-                Issue.record("The source-isolated V49→V51 plan must remain lightweight.")
-            @unknown default:
-                Issue.record("The source-isolated V49→V51 plan contains an unknown stage kind.")
-            }
-        }
-    }
-
-    @Test func recentV50MigrationPlanOnlyRunsLightweightV50ToV51Hop() throws {
-        let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
-            $0.versionIdentifier.major
-        }
-        #expect(schemaMajors == [50, 51])
-
-        let stage = try #require(MerianRecentV50MigrationPlan.stages.first)
-        #expect(MerianRecentV50MigrationPlan.stages.count == 1)
+        let stage = try #require(MerianRecentV49MigrationPlan.stages.first)
+        #expect(MerianRecentV49MigrationPlan.stages.count == 1)
         switch stage {
         case let .lightweight(fromVersion, toVersion):
-            #expect(fromVersion.versionIdentifier.major == 50)
-            #expect(toVersion.versionIdentifier.major == 51)
+            #expect(fromVersion.versionIdentifier.major == 49)
+            #expect(toVersion.versionIdentifier.major == 50)
         case .custom:
-            Issue.record("The source-isolated V50→V51 plan must remain lightweight.")
+            Issue.record("The source-isolated V49→V50 plan must remain lightweight.")
         @unknown default:
-            Issue.record("The source-isolated V50→V51 plan contains an unknown stage kind.")
+            Issue.record("The source-isolated V49→V50 plan contains an unknown stage kind.")
         }
     }
 
@@ -1794,8 +1804,8 @@ struct MigrationPlanTests {
         #expect(persistedHint.itemId == "goal-after-v49-migration")
     }
 
-    @Test func migrationFromV50RenamesAndPreservesCollectionTombstones() throws {
-        let url = migrationStoreURL(named: "v50_collection_tombstone_migration_test")
+    @Test func releasedV50StoreOpensThroughSourceOnlyTombstoneRename() throws {
+        let url = migrationStoreURL(named: "v50_collection_tombstone_reopen_test")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
 
         let deletedCollectionID = "v50-deleted-collection"
@@ -1819,14 +1829,14 @@ struct MigrationPlanTests {
             )
             let deletedCollection = MerianSchemaV50.ScanCollection(
                 id: deletedCollectionID,
-                name: "Deleted before V51",
+                name: "Deleted before source rename",
                 isDeleted: true,
                 scans: [localScan]
             )
             localScan.collections = [deletedCollection]
             let activeCollection = MerianSchemaV50.ScanCollection(
                 id: activeCollectionID,
-                name: "Active before V51"
+                name: "Active before source rename"
             )
 
             context50.insert(localScan)
@@ -1845,12 +1855,9 @@ struct MigrationPlanTests {
             currentSchemaMajor: CurrentSchema.versionIdentifier.major
         )
         #expect(decision.storedSchemaMajorVersion == 50)
-        #expect(decision.hint == .recentSource(.v50))
+        #expect(decision.hint == .currentStore)
 
-        let store = try openCurrentMigrationStore(
-            at: url,
-            migrationPlan: MerianRecentV50MigrationPlan.self
-        )
+        let store = try openCurrentStore(at: url)
 
         func assertMigratedRows(in context: ModelContext) throws {
             let deletedCollection = try #require(context.fetch(
@@ -1858,7 +1865,7 @@ struct MigrationPlanTests {
                     predicate: #Predicate { $0.id == deletedCollectionID }
                 )
             ).first)
-            #expect(deletedCollection.name == "Deleted before V51")
+            #expect(deletedCollection.name == "Deleted before source rename")
             #expect(deletedCollection.isPendingDeletion)
             #expect(deletedCollection.scans?.map(\.id) == [localScanID])
 

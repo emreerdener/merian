@@ -55,11 +55,12 @@ remain valid.
 
 PostgreSQL is authoritative through `public.is_reserved_public_username(...)`
 and the `users_public_username_valid_check` constraint. The Edge validation and
-iOS edit-sheet sets are early-feedback mirrors. The static migration contract
-parses all three implementations and fails if a group, ordering rule, or
-combination direction drifts. Authorization must always come from server-owned
-roles or claims; neither a username nor a display label is an authorization
-boundary.
+iOS edit-sheet sets in
+`Features/Profile/UserProfile/Views/Identity/PublicUsernameEditSheet.swift` are
+early-feedback mirrors. The static migration contract parses all three
+implementations and fails if a group, ordering rule, or combination direction
+drifts. Authorization must always come from server-owned roles or claims;
+neither a username nor a display label is an authorization boundary.
 
 ## Display Rules
 
@@ -200,11 +201,12 @@ rows.
 - `ProfileViewModel.updatePublicAvatar(_:)` uploads a prepared square profile
   image to R2 staging, calls `update-public-avatar`, and publishes
   `.publicAuthorIdentityChanged`.
-- `UserProfile` shows `@publicUsername` in the account card and presents
-  `PublicUsernameEditSheet`; it also wraps the authenticated avatar in a
-  `PhotosPicker` so users can choose a custom public profile picture. The
-  username editor uses a single username field, an X close button, inline
-  validation, and a primary save button below the input.
+- `Components/Identity/UserProfile.swift` shows `@publicUsername` in the account
+  card and wraps the authenticated avatar in a `PhotosPicker` so users can
+  choose a custom public profile picture.
+- `Views/Identity/PublicUsernameEditSheet.swift` owns the username editor and
+  its mirrored reserved-name feedback sets. It uses a single username field, an
+  X close button, inline validation, and a primary save button below the input.
 - `ExplorePost.publicAuthorDisplayName(from:username:)` keeps logged-in display
   names and renders handles for default identities.
 - `ExploreAuthorProfileHeaderCard` shows `@authorUsername` under the display

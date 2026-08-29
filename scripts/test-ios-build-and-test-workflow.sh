@@ -28,8 +28,10 @@ insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharin
 scans_sheet_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Views/ScansSheetView.swift"
 scans_shell_view_model_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/ViewModels/ScansShellViewModel.swift"
 scans_shell_data_store_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Services/ScansShellDataStore.swift"
-scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/ScansGrid.swift"
+scans_grid_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Components/Grid/ScansGrid.swift"
+queued_scan_snapshot_source="$repo_root/apps/ios/Merian/Features/Scans/Shared/Models/QueuedScanSnapshot.swift"
 queued_context_source="$repo_root/apps/ios/Merian/Models/QueuedScanContext.swift"
+queue_state_source="$repo_root/apps/ios/Merian/Models/ScanQueueState.swift"
 queue_durability_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueDurability.swift"
 queue_manager_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift"
 queue_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager+Queue.swift"
@@ -321,6 +323,10 @@ assert_no_runner_context_in_job_env() {
 [[ -f "$scans_shell_data_store_source" ]] \
   || fail "Missing Scans shell data store: $scans_shell_data_store_source"
 [[ -f "$scans_grid_source" ]] || fail "Missing Scans grid source: $scans_grid_source"
+[[ -f "$queued_scan_snapshot_source" ]] \
+  || fail "Missing queued-scan snapshot source: $queued_scan_snapshot_source"
+[[ -f "$queue_state_source" ]] \
+  || fail "Missing scan queue-state source: $queue_state_source"
 [[ -d "$ios_test_sources" ]] || fail "Missing iOS unit-test sources: $ios_test_sources"
 
 assert_contains "  pull_request:"
@@ -836,11 +842,14 @@ assert_file_contains \
 assert_file_contains \
   "$scans_shell_data_store_source" \
   '$0.scanStateRaw < firstNonRunnableRaw || $0.queueNeedsAttention'
-assert_file_contains "$scans_grid_source" "var isAutomaticRecoveryEligible: Bool"
 assert_file_contains \
-  "$scans_grid_source" \
+  "$queued_scan_snapshot_source" \
+  "var isAutomaticRecoveryEligible: Bool"
+assert_file_contains \
+  "$queued_scan_snapshot_source" \
   "func isAutomaticRecoveryEligibleForCurrentNetwork("
-assert_file_contains "$scans_grid_source" "guard isOnline,"
+assert_file_contains "$queued_scan_snapshot_source" "guard isOnline,"
+assert_file_contains "$scans_grid_source" "var onQueuedScanRetry:"
 assert_file_contains \
   "$queue_manager_source" \
   "private var currentPathIsConstrained = false"
@@ -914,11 +923,17 @@ assert_file_contains \
   "$background_database_actor_source" \
   'message: "Recovered an inference claim without an active task."'
 assert_file_contains \
-  "$scans_grid_source" \
-  "guard queueState != .externalImport else { return false }"
+  "$queue_state_source" \
+  "func isManualRetryEligible("
+assert_file_contains \
+  "$queue_state_source" \
+  "guard self != .externalImport else { return false }"
+assert_file_contains \
+  "$queued_scan_snapshot_source" \
+  "queueState.isManualRetryEligible("
 assert_file_contains \
   "$queued_context_source" \
-  "guard queueState != .externalImport else { return false }"
+  "queueState.isManualRetryEligible("
 assert_file_contains \
   "$queue_durability_source" \
   "guard scan.queueState != .externalImport else { return false }"

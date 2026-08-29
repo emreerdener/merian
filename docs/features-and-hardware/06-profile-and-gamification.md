@@ -16,22 +16,29 @@ and account actions; `Settings/Plan/` owns subscription/paywall surfaces,
 bundled release notes, `Settings/Feedback/` owns the beta survey, and `Shared/`
 owns cross-area profile state.
 
-| File                         | Role                                                                                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `ProfileTabView`             | Root profile tab view                                                                                                                     |
-| `SettingsTabView`            | Settings sub-tab                                                                                                                          |
-| `ProfileViewModel`           | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out                                                        |
-| `ProfileAvatarImagePreparer` | Downsamples, square-crops, and WebP/JPEG encodes selected public profile pictures before R2 staging                                       |
-| `ProfileDatabaseActor`       | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main                                |
-| `AchievementsCalculator`     | Pure `struct` with `static func calculate(from:) -> [AwardPayload]`                                                                       |
-| `GamificationManager`        | `@MainActor @Observable` singleton — in-memory award cache, notification triggers                                                         |
-| `GamificationModels`         | `AwardPayload`, `AwardState`, and `UserPersona` enumerations                                                                              |
-| `Achievements` component     | SwiftUI view rendering the award grid with sort options                                                                                   |
-| `UserStats` component        | Renders species count and current streak from `LocalScanRecord`                                                                           |
-| `Persona` component          | Renders the user's active `UserPersona` tier badge and title                                                                              |
-| `Terrarium` component        | Biological 3D hex-grid mapping representation based on the user's active progression tier                                                 |
-| `PlanCard` component         | Plan banner distinguishing paid, verified complimentary, exhausted, and free state; detailed counters appear only in Results and Settings |
-| `ScansHeatmap`               | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate`                 |
+| Owner                                      | Role                                                                                                                                      |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProfileTabView`                           | Root Profile-tab host; retains only navigation, sheet, scroll, and other UI-only state                                                    |
+| `ProfileTabViewModel`                      | Generation-fenced local stats and cached/server Field trip achievement refresh                                                            |
+| `ProfilePublicScansPreviewViewModel`       | Account-fenced first-page published-scan preview state                                                                                    |
+| `ProfilePublishedScansViewModel`           | Refresh-superseding cursor pagination and stable published-post deduplication                                                             |
+| `AchievementDetailViewModel`               | Foreground/background contribution loading and detail telemetry                                                                           |
+| `UserProfileAvatarCoordinator`             | Replaceable selection, serialized upload, staged preview, and request/account fences                                                      |
+| `ProfileTabDependencies` and peer Services | Narrow live adapters for networking, SwiftData lookup, image loading, app events, routes, preferences, and haptics                        |
+| `SettingsTabView`                          | Settings sub-tab                                                                                                                          |
+| `ProfileViewModel`                         | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out                                                        |
+| `ProfileAvatarImagePreparer`               | Downsamples, square-crops, and WebP/JPEG encodes selected public profile pictures before R2 staging                                       |
+| `ProfileDatabaseActor`                     | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main                                |
+| `AchievementsCalculator`                   | Pure `struct` with `static func calculate(from:) -> [AwardPayload]`                                                                       |
+| `GamificationManager`                      | `@MainActor @Observable` singleton — in-memory award cache, notification triggers                                                         |
+| `GamificationModels`                       | Achievement types, definitions, payloads, contribution values, and sorting policy                                                         |
+| `UserPersona`                              | Species-count-derived five-tier identity progression                                                                                      |
+| `Achievements` component                   | SwiftUI view rendering the award grid with sort options                                                                                   |
+| `UserStats` component                      | Renders species count and current streak from prepared values                                                                             |
+| `Persona` component                        | Renders the user's active `UserPersona` tier badge and title                                                                              |
+| `Terrarium` component                      | Biological 3D hex-grid mapping representation based on the user's active progression tier                                                 |
+| `PlanCard` component                       | Plan banner distinguishing paid, verified complimentary, exhausted, and free state; detailed counters appear only in Results and Settings |
+| `ScansHeatmap`                             | Calendar heatmap of scan activity (52-week rolling window) anchored to analysis upload date, bypassing EXIF `captureDate`                 |
 
 ---
 
@@ -45,6 +52,12 @@ its background contribution reload starts only after the exact Insight case has
 cleared. A new Profile sheet destination must join the enum owned by its host,
 not add a sibling `.sheet` modifier.
 
+The views retain those typed destinations and other UI-only state. Async load,
+refresh, error, cursor, and task-lifecycle state belongs to the matching
+`@MainActor @Observable` view model. Only the feature's `Services/` adapters
+resolve network, app-container, haptic, image-loader, or SwiftData lookup
+dependencies.
+
 `UserProfile` owns a separate `UserProfilePresentation` value for username,
 display-name, and avatar-crop destinations. Its item-based sheet and filtered
 full-screen cover read the same mutually exclusive value. The system
@@ -57,17 +70,17 @@ Profile handoff uses a fixed sleep to guess UIKit teardown.
 
 ## Personas and Terrarium
 
-The `UserPersona` enumeration (defined in `GamificationModels.swift`) replaces
+The `UserPersona` enumeration (defined in `Models/UserPersona.swift`) replaces
 legacy arbitrary ranking scales with a strict, 5-tier biological taxonomy path
 derived mathematically from the user's `uniqueSpeciesCount` (NOT total scans):
 
 | Tier Level | Persona Title        | Unique Species Threshold | Asset Identifier        |
 | ---------- | -------------------- | ------------------------ | ----------------------- |
-| Tier 1     | Observer             | 0                        | `persona-observer`      |
-| Tier 2     | Casual Explorer      | 10                       | `persona-explorer`      |
-| Tier 3     | Dedicated Naturalist | 50                       | `persona-naturalist`    |
-| Tier 4     | Verified Scholar     | 250                      | `persona-scholar`       |
-| Tier 5     | Apex Observer        | 1000                     | `persona-apex-observer` |
+| Tier 1     | New Observer         | 0                        | `persona-observer`      |
+| Tier 2     | Casual Explorer      | 1                        | `persona-explorer`      |
+| Tier 3     | Dedicated Naturalist | 10                       | `persona-naturalist`    |
+| Tier 4     | Verified Scholar     | 50                       | `persona-scholar`       |
+| Tier 5     | Apex Observer        | 100                      | `persona-apex-observer` |
 
 The `Persona` UI component cross-references this enum against the user's live
 profile statistics to render the appropriate `.imageset` container from the
@@ -157,21 +170,24 @@ guest upgrades to Apple or Google sign-in.
 ## Public Avatar UX
 
 The Profile card lets guest and signed-in users choose a custom public profile
-picture with `PhotosPicker`. `UserProfile` loads the selected item as an
-`ImageFileWrapper`, asks `MediaPreparationActor` for a bounded crop-preview
-`CGImage`, then hands the confirmed crop bytes to `ProfileAvatarImagePreparer`
-for downsample, square-crop, and WebP/JPEG encoding. `ProfileViewModel` uploads
-the prepared bytes to R2 staging through the same `/generate-upload-urls`
-manifest used by scan media, then calls
-`MerianNetworkClient.updatePublicAvatar(...)`.
+picture with `PhotosPicker`. `UserProfileAvatarCoordinator` owns the selection
+and upload tasks. Its `UserProfileAvatarDependencies` live adapter loads the
+selected item as an `ImageFileWrapper`, asks `MediaPreparationActor` for a
+bounded crop-preview `CGImage`, and hands confirmed crop bytes to
+`ProfileAvatarImagePreparer` for downsample, square-crop, and WebP/JPEG
+encoding. `ProfileViewModel` remains the account/cloud owner that uploads the
+prepared bytes to R2 staging through the same `/generate-upload-urls` manifest
+used by scan media, then calls `MerianNetworkClient.updatePublicAvatar(...)`.
 
 Selection preparation is one stored, replaceable task keyed by a request UUID.
 Opening another picker or editor, changing accounts, or leaving the view cancels
-that task and clears its staged value. Completion may update UI only if the
-request is still current, uncancelled, and the typed presentation slot is empty.
-If the bounded crop preview is ready before the Photos picker binding dismisses,
-exactly one prepared request waits locally and mounts only after the binding is
-false. The preview never enters a global event or feedback payload.
+that task and clears its staged value. The coordinator evaluates a live
+view-provided presentation-slot closure when preparation completes; it may
+update UI only if the request is still current, uncancelled, and the typed
+presentation slot is empty. If the bounded crop preview is ready before the
+Photos picker binding dismisses, exactly one prepared request waits locally and
+mounts only after the binding is false. The preview never enters a global event
+or feedback payload.
 
 Confirmed-crop preparation/upload is stored and serialized. It captures the
 current account ID and checks both account and request identity after image
@@ -215,11 +231,18 @@ LocalScanRecord[] (SwiftData)
         → ScanMilestoneCoordinator batches them after Field trip progress
 ```
 
-`ProfileDatabaseActor` is instantiated in `ProfileTabView.body` inside a `.task`
-modifier. `calculateAll()` is the primary profile render entry point: it loads
-one `ProfileStatsProjection`, derives species count, streak, heatmap, and awards
-from that projection, then dispatches the flat `Sendable` result back to
-`@MainActor` in a single `MainActor.run` block.
+`ProfileTabViewModel` asks the injected `ProfileTabDependencies` adapter to load
+stats. The live adapter creates an ad-hoc `ProfileDatabaseActor` and calls
+`calculateAll()`. That primary render entry point loads one
+`ProfileStatsProjection`, derives species count, streak, heatmap, and awards,
+and returns one flat `Sendable` `ProfileAllStatsPayload`. The view never creates
+an actor or issues a fetch.
+
+Profile refreshes are keyed by account/auth state and a generation token. A
+scan-library or relevant Field trip progress event invalidates that generation;
+late local or server work from an earlier account or generation cannot overwrite
+current Profile state. Cached Field trip achievement progress may render before
+the authoritative server refresh, and a server failure preserves that cache.
 
 `ProfileDatabaseActor.calculateAwards()` is also called by the shared scan
 milestone coordinator after **every** successful inference — not just new
@@ -228,16 +251,20 @@ discoveries. The call runs in follow-up work after parsed/persisted
 award projection and notification evaluation cannot delay the first result frame
 or overtake progress notifications from the same scan. This is intentional:
 awards can trigger on conditions unrelated to species novelty (time-of-day,
-elevation, temperature, IUCN status, etc.).
+elevation, temperature, IUCN status, etc.). The method invalidates its cached
+value projection before reading, so overlapping queued scans and retries cannot
+reuse fields captured before an in-place inference write.
 
 All `ProfileDatabaseActor` fetches use `propertiesToFetch` projections to
 minimise the SQLite column surface loaded into memory, preventing JetSam
 pressure on accounts with large scan histories. The stats projection cache
 stores only scalar `Sendable` structs, timestamps, and precomputed counts —
 never live `LocalScanRecord` model objects. Cache reuse is fingerprinted by scan
-count, latest scan ID, and latest timestamp; call
-`invalidateCachedProfileProjections()` before reusing a long-lived actor after
-in-place scan edits.
+count, latest scan ID, and latest timestamp. Call
+`invalidateCachedProfileProjections()` before requesting cached Profile values
+after other in-place edits; `calculateAwards()` performs this invalidation
+automatically for the post-inference path. `OfflineQueueManager` retains the
+award actor only while its exact `ModelContainer` remains current.
 
 ---
 

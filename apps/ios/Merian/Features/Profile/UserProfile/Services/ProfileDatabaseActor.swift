@@ -1,12 +1,10 @@
 import SwiftData
-import SwiftUI
 
-/// The fundamental anchor of the Offline-First Architecture. 
-/// This completely isolates millions of SQLite computations physically off the UI thread 
-/// guaranteeing flawless iOS 120Hz native Scroll geometries.
+/// Computes Profile projections in an isolated SwiftData model context.
 @ModelActor
 actor ProfileDatabaseActor {
-    private struct ProfileAnalyticsProjection: AchievementRecordRepresentable, Sendable {
+    private struct ProfileAnalyticsProjection:
+        AchievementRecordRepresentable, Sendable {
         let id: String
         let speciesId: String
         let scientificName: String
@@ -26,7 +24,8 @@ actor ProfileDatabaseActor {
         let confidenceScore: Double?
     }
 
-    private struct ProfileAchievementDetailProjection: AchievementRecordRepresentable, Sendable {
+    private struct ProfileAchievementDetailProjection:
+        AchievementRecordRepresentable, Sendable {
         let id: String
         let speciesId: String
         let scientificName: String
@@ -119,7 +118,8 @@ actor ProfileDatabaseActor {
     )?
 
     private func currentProjectionFingerprint() -> ProfileProjectionFingerprint {
-        let count = (try? modelContext.fetchCount(FetchDescriptor<LocalScanRecord>())) ?? 0
+        let descriptor = FetchDescriptor<LocalScanRecord>()
+        let count = (try? modelContext.fetchCount(descriptor)) ?? 0
         guard count > 0 else { return .empty }
 
         var latestDescriptor = FetchDescriptor<LocalScanRecord>(
@@ -151,7 +151,8 @@ actor ProfileDatabaseActor {
         return projection
     }
 
-    private func loadAchievementDetailProjection() -> [ProfileAchievementDetailProjection] {
+    private func loadAchievementDetailProjection()
+        -> [ProfileAchievementDetailProjection] {
         if let cachedAchievementDetailProjection,
            currentProjectionFingerprint() == cachedAchievementDetailProjection.fingerprint {
             return cachedAchievementDetailProjection.records
@@ -262,12 +263,19 @@ actor ProfileDatabaseActor {
     private func calculateStreak(from timestamps: [Date], now: Date = Date()) -> Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let sortedDates = Array(Set(timestamps.map { calendar.startOfDay(for: $0) })).sorted(by: >)
+        let sortedDates = Array(
+            Set(timestamps.map { calendar.startOfDay(for: $0) })
+        )
+        .sorted(by: >)
 
         var streak = 0
         var expectedDate = today
         if !sortedDates.contains(today) {
-            if let yesterday = calendar.date(byAdding: .day, value: -1, to: today), sortedDates.contains(yesterday) {
+            if let yesterday = calendar.date(
+                byAdding: .day,
+                value: -1,
+                to: today
+            ), sortedDates.contains(yesterday) {
                 expectedDate = yesterday
             } else {
                 return 0
@@ -277,7 +285,11 @@ actor ProfileDatabaseActor {
         for date in sortedDates {
             if calendar.isDate(date, inSameDayAs: expectedDate) {
                 streak += 1
-                expectedDate = calendar.date(byAdding: .day, value: -1, to: expectedDate) ?? expectedDate
+                expectedDate = calendar.date(
+                    byAdding: .day,
+                    value: -1,
+                    to: expectedDate
+                ) ?? expectedDate
             } else {
                 break
             }
@@ -286,7 +298,10 @@ actor ProfileDatabaseActor {
         return streak
     }
 
-    private func buildHeatmapData(from timestamps: [Date], now: Date = Date()) -> ProfileHeatmapData {
+    private func buildHeatmapData(
+        from timestamps: [Date],
+        now: Date = Date()
+    ) -> ProfileHeatmapData {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         var counts: [Date: Int] = [:]
@@ -298,17 +313,35 @@ actor ProfileDatabaseActor {
         let currentYear = calendar.component(.year, from: today)
         let weekday = calendar.component(.weekday, from: today)
         let daysToSaturday = 7 - weekday
-        guard let endOfWeek = calendar.date(byAdding: .day, value: daysToSaturday, to: today) else {
+        guard let endOfWeek = calendar.date(
+            byAdding: .day,
+            value: daysToSaturday,
+            to: today
+        ) else {
             let total = counts.values.reduce(0, +)
-            return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
+            return ProfileHeatmapData(
+                totalCaptures: total,
+                currentMonthCaptures: 0,
+                yearString: "\(currentYear)",
+                weeks: []
+            )
         }
 
         let daysInWeek = 7
         let weeksInYear = 52
         let totalDays = weeksInYear * daysInWeek
-        guard let startDate = calendar.date(byAdding: .day, value: -(totalDays - 1), to: endOfWeek) else {
+        guard let startDate = calendar.date(
+            byAdding: .day,
+            value: -(totalDays - 1),
+            to: endOfWeek
+        ) else {
             let total = counts.values.reduce(0, +)
-            return ProfileHeatmapData(totalCaptures: total, currentMonthCaptures: 0, yearString: "\(currentYear)", weeks: [])
+            return ProfileHeatmapData(
+                totalCaptures: total,
+                currentMonthCaptures: 0,
+                yearString: "\(currentYear)",
+                weeks: []
+            )
         }
 
         var weeks: [HeatmapWeek] = []
@@ -345,7 +378,11 @@ actor ProfileDatabaseActor {
                 }
 
                 days.append(HeatmapDay(count: count, date: currentDate))
-                currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+                currentDate = calendar.date(
+                    byAdding: .day,
+                    value: 1,
+                    to: currentDate
+                ) ?? currentDate
             }
 
             weeks.append(HeatmapWeek(days: days, monthLabel: monthLabel))
@@ -370,7 +407,7 @@ actor ProfileDatabaseActor {
         let streak = calculateStreak(from: projection.timestamps)
         return (projection.speciesCount, streak)
     }
-    
+
     func calculateAll() -> ProfileAllStatsPayload {
         let projection = loadStatsProjection()
         let awards = awardPayloads(for: projection)
@@ -397,49 +434,19 @@ actor ProfileDatabaseActor {
         return awardPayloads(for: projection)
     }
 
-    func calculateAchievementDetail(for type: AchievementType) -> AchievementDetailPayload? {
-        AchievementsCalculator.detail(for: type, from: loadAchievementDetailProjection())
+    func calculateAchievementDetail(
+        for type: AchievementType
+    ) -> AchievementDetailPayload? {
+        AchievementsCalculator.detail(
+            for: type,
+            from: loadAchievementDetailProjection()
+        )
     }
-    
-}
 
-// MARK: - Native Thread-Safe Architectures
-// Explicit `Sendable` conformity fundamentally guarantees Apple's compiler instantly halts
-// compilation if accidental memory-race conditions attempt to cross Thread boundaries.
-struct HeatmapDay: Sendable, Identifiable {
-    let id = UUID()
-    let count: Int
-    let date: Date
-}
-
-struct HeatmapWeek: Sendable, Identifiable {
-    let id = UUID()
-    let days: [HeatmapDay]
-    let monthLabel: String?
-}
-
-struct ProfileHeatmapData: Sendable {
-    let totalCaptures: Int
-    let currentMonthCaptures: Int
-    let yearString: String
-    let weeks: [HeatmapWeek]
-}
-
-struct ProfileAllStatsPayload: Sendable {
-    let speciesCount: Int
-    let streak: Int
-    let heatmap: ProfileHeatmapData
-    let awards: [AwardPayload]
-}
-
-struct UserStats: View {
-    let speciesCount: Int
-    let streak: Int
-    
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 24), GridItem(.flexible())], spacing: 16) {
-            StatCard(title: "Species discovered", value: "\(speciesCount)", imageName: "leaf", color: .green)
-            StatCard(title: "Current streak", value: "\(streak) day\(streak == 1 ? "" : "s")", imageName: "fire", color: .orange)
-        }
+    func calculateAwards() -> [AwardPayload] {
+        // This entry point follows an inference write, which can update an
+        // existing scan without changing the projection fingerprint.
+        invalidateCachedProfileProjections()
+        return calculateAwardsProjection()
     }
 }

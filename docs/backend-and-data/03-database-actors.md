@@ -211,7 +211,7 @@ _Enrichment and metadata:_
   outgoing payload actually contains an application tombstone, a successful HTTP
   200 response causes the actor to purge that acknowledged local row. A purge
   save failure rolls back and returns `false`, so `OfflineQueueManager` retains
-  the pending collection job. The active V51 model reads its durable
+  the pending collection job. The active V50 model reads its durable
   `isPendingDeletion` marker, mapped to the released `isDeleted` column, so the
   projection can emit the unchanged `is_deleted` wire value. Callers must use
   the shared collection drain (`syncCollectionsIfPending()` /
@@ -315,35 +315,36 @@ user has.
 
 ---
 
-### `ProfileDatabaseActor` (`Features/Profile/UserProfile/Components/UserStats.swift`)
+### `ProfileDatabaseActor` (`Features/Profile/UserProfile/Services/ProfileDatabaseActor.swift`)
 
 **Declaration**: `@ModelActor actor ProfileDatabaseActor`
 
 **Responsibilities:**
 
-- `calculateAll()` — **preferred entry point**. Single fetch with an 11-column
-  `propertiesToFetch` projection (superset covering stats, heatmap, and awards).
-  Returns
-  `(speciesCount: Int, streak: Int, heatmap: ProfileHeatmapData, awards: [AwardPayload])`.
-  Replaces three sequential actor calls with one.
+- `calculateAll()` — **preferred Profile render entry point**. Loads one compact
+  scalar `propertiesToFetch` projection covering stats, heatmap, and awards and
+  returns `ProfileAllStatsPayload`. It replaces separate Profile render fetches.
 - `calculateProfileStats()` — fetches with `[\.scientificName, \.timestamp]`
-  projection; computes species count and streak. Kept for call sites that only
-  need these two values.
-- `calculateHeatmapData()` — fetches with `[\.timestamp]` projection; computes
-  the 52-week scan heatmap. Kept for call sites that only need heatmap data.
-- `calculateAwards()` (extension in `Achievements.swift`) — fetches with the
-  full 11-column projection; delegates to
-  `AchievementsCalculator.calculate(from:)`. Called from `InferenceEngine` after
-  every successful inference (not gated on `isNewDiscovery` — awards can trigger
-  on any condition: time-of-day, taxonomy, elevation, etc.)
+  values from the shared cached projection; computes species count and streak.
+- `calculateHeatmapData()` — computes the 52-week scan heatmap from the shared
+  cached projection.
+- `calculateAwards()` — invalidates the cached analytics projection, then
+  delegates to `AchievementsCalculator.calculate(from:)`. The post-inference
+  milestone path calls it after every successful inference, not only a new
+  discovery, because inference can update an existing record without changing
+  the projection fingerprint and awards can trigger on time-of-day, taxonomy,
+  elevation, and other conditions.
+- `calculateAchievementDetail(for:)` — lazily loads a separate detail projection
+  containing the media-adjacent fields needed by the achievement sheet. It does
+  not widen the default Profile render projection.
 
 **When to create**: Ad-hoc for profile tab; long-lived shared instance for
 post-inference award refresh:
 
 ```swift
-// ProfileTabView — single fetch for all profile data (ad-hoc)
-let actor = ProfileDatabaseActor(modelContainer: container)
-let (species, streak, heatmap, awards) = await actor.calculateAll()
+// ProfileTabDependencies.live — one ad-hoc actor behind the injected adapter.
+let actor = ProfileDatabaseActor(modelContainer: modelContainer)
+let payload = await actor.calculateAll()
 
 // InferenceEngine — post-inference award refresh only (long-lived shared instance)
 // OfflineQueueManager.shared.resolvedProfileDbActor(container:) returns a cached
@@ -361,6 +362,9 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 > actor setup overhead and generates unnecessary SQLite context churn.
 > `resolvedProfileDbActor` maintains one actor per `ModelContainer` identity;
 > Swift actor serialization ensures concurrent callers queue safely.
+> `calculateAwards()` refreshes the value projection on every call, so this
+> reuse saves actor/context setup without carrying award inputs across
+> completions.
 
 ---
 
@@ -556,7 +560,7 @@ pagination is not part of this upload path. Historical download reconciliation
 remains independently page-bounded because it is ingesting remote scan history
 rather than projecting an existing local relationship.
 
-## 2026-08 Collection Tombstone Boundary (V51)
+## 2026-08 Collection Tombstone Boundary (V50)
 
 The projection and acknowledgement-purge code reads the active
 `ScanCollection.isPendingDeletion` Boolean, which survives `ModelContext.save()`
@@ -567,10 +571,11 @@ upserts while the local marker is set, and acknowledgement-only purge removes
 the row only after the matching delete response succeeds.
 
 The V50 source graph is frozen under `Models/Schema/SchemaV50Snapshots.swift`.
-`MerianRecentV50MigrationPlan` contains the single lightweight rename hop, and
-the disk-backed fixture proves true/false values and relationship retention.
-Keep this boundary in the actor and do not synthesize payloads from transient
-view state or hard-delete before server acknowledgement.
+The active `MerianActiveSchemaV50` owner maps the source name without a
+migration stage, and the disk-backed released-V50 fixture proves true/false
+values and relationship retention when the store opens as current. Keep this
+boundary in the actor and do not synthesize payloads from transient view state
+or hard-delete before server acknowledgement.
 
 ## 2026-06 Smart Collection Boundary
 
@@ -615,6 +620,8 @@ payload unless a future explicit conversion feature creates normal collections.
   faithful to when the user actually captured the scan.
 - The non-biological bulk-delete actor path now inserts cloud-deletion
   tombstones and deletes SwiftData rows first, then saves transactionally. Local
-  files are purged only after the save succeeds.
+  files are purged only after the save succeeds. Each payload ID is re-fetched
+  inside the actor, and a row reclassified as biological after the UI snapshot
+  is skipped before row, file, or cloud-deletion state is changed.
 - Save failures inside bulk deletion now rollback the actor `ModelContext` and
   surface the error to the caller instead of being swallowed with `try?`.

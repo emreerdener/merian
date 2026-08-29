@@ -341,22 +341,6 @@ struct InsightSheetViewModelTests {
         #expect(destination == .event(challengeId: "challenge-participation-1"))
     }
 
-    @Test func profileStatsRefreshKeyChangesWhenAuthenticationRestores() {
-        let refreshToken = UUID()
-        let signedOut = ProfileStatsRefreshKey(
-            refreshToken: refreshToken,
-            isAuthenticated: false,
-            accountId: nil
-        )
-        let restored = ProfileStatsRefreshKey(
-            refreshToken: refreshToken,
-            isAuthenticated: true,
-            accountId: "account-1"
-        )
-
-        #expect(signedOut != restored)
-    }
-
     @Test func testToggleScanInCollection() async throws {
         let ctx = try createIsolatedContext()
         let viewModel = InsightSheetViewModel()

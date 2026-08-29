@@ -228,6 +228,13 @@ not initialize a Boolean `navigationDestination(isPresented:)` as true while
 constructing the Scans sheet: the navigation host must own the initial route,
 and Back must return to the Collections tab.
 
+The in-sheet Collections card appends that same
+`ScansNavigationRoute.nonBiologicalScans` value instead of constructing a
+destination view. `ScansSheetView` is therefore the only destination builder in
+both entry paths. It passes the Shell-owned timestamp-sorted `rawRecords` into
+the destination, and `NonBiologicalScansViewModel` derives the isolated
+projection without installing another query or navigation owner.
+
 Scans-local tab and route values live in
 `Features/Scans/Shell/Models/ScansShellNavigation.swift`. `ScansShellViewModel`
 exposes its injected app-event publisher, and the mounted `ScansSheetView`
@@ -246,6 +253,14 @@ event carries SwiftData models or replaces the persisted rows as recovery
 authority. Collection detail and selection task identities include the target's
 ordered persisted membership, so a later render still recovers a missed
 invalidation.
+
+Non-biological bulk deletion follows the same recovery boundary. The feature
+view model copies record IDs and media paths into `Sendable` values, its
+injected service completes actor-isolated database and file work, and only then
+the view model sends `scanLibraryChanged`, success feedback, a typed toast, and
+the deletion-sync request. Failure publishes no library event or sync request.
+The event remains a loss-tolerant refresh hint; persisted tombstones and rows
+remain the durable authority.
 
 Local follow-up sheets use `pendingLocalSheet` and mount only after the current
 root sheet's `onDismiss`, provided no queued `AppRoute` has precedence.
@@ -318,15 +333,17 @@ compete through one untyped state channel.
 | `ProfileTabView`            | `ProfileTabPresentation`        | Paywall, Insight, Field-trip author                                                            | A request is rejected while another local sheet owns the slot                                                                            |
 | `AchievementDetailSheet`    | `AchievementDetailPresentation` | Insight, Field-trip author                                                                     | Background detail reload begins only after the exact Insight case clears                                                                 |
 | `SwipeableCandidateCard`    | `CandidateCardPresentation`     | Original capture, candidate gallery, distinguishing feature                                    | All three lightweight destinations share one item-based sheet                                                                            |
-| `UserProfile`               | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | Selection/upload tasks are stored, cancellable, request/account fenced, and cannot mount over the picker or another case                 |
+| `UserProfile`               | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | `UserProfileAvatarCoordinator` stores and request/account-fences selection/upload tasks and checks the view's live slot before commit    |
 | `SpeciesDictionaryPageView` | `SpeciesDictionaryPresentation` | Gallery, author, Field Chat, paywall                                                           | Chat commit requires the current canonical species UUID, no cancellation, and an empty slot                                              |
 
-The `UserProfile` selection path may retain one bounded prepared crop preview if
-image preparation completes before the Photos picker binding dismisses. It
-commits only after that binding is false and the typed slot is empty;
+`UserProfileAvatarCoordinator` may retain one bounded prepared crop preview if
+image preparation completes before the Photos picker binding dismisses. The view
+commits it only after that binding is false and the typed slot is empty;
 replacement, editor launch, account change, and view teardown cancel or clear
-the staged request. These owners may retain destination-specific state, but they
-must not attach sibling `.sheet` modifiers to the same host.
+the staged request. Preparation completion also queries the view's current slot,
+so it cannot publish a preview or error behind an intervening editor. These
+owners may retain destination-specific state, but they must not attach sibling
+`.sheet` modifiers to the same host.
 
 Explore video interruption uses view-lifetime ownership for presented overlays.
 Each sheet content acquires a scoped `ExploreVideoPlaybackCoordinator` token at

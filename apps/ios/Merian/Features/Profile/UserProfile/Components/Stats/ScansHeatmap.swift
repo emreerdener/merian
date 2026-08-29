@@ -1,29 +1,29 @@
 import SwiftUI
 
-/// Abstracted computational Heatmap strictly decoupled to manage thousands of explicit Grid rectangles securely.
+/// Renders the prepared Profile activity heatmap at month or year scale.
 struct ScansHeatmap: View {
     @Environment(\.colorScheme) var colorScheme
     let heatmapData: ProfileHeatmapData?
-    
+
     enum HeatmapScale: String, CaseIterable, Identifiable {
         case year
         case month
         var id: String { self.rawValue }
     }
-    
-    // Globally persists the user's explicit Zoom-level structurally mapping local defaults.
+
+    // Preserve the user's selected scale across launches.
     @AppStorage("heatmapScaleSelection") private var scale: HeatmapScale = .month
-    
+
     private let squareHeight: CGFloat = 11
     private let squareSpacing: CGFloat = 3
     private let yAxisGap: CGFloat = 6
-    
+
     private var formattedTotalScans: String {
         guard let data = heatmapData else { return "0" }
         let count = scale == .month ? data.currentMonthCaptures : data.totalCaptures
         return count.formatted(.number)
     }
-    
+
     private var visibleWeeks: [HeatmapWeek] {
         guard let data = heatmapData else { return [] }
         switch scale {
@@ -33,7 +33,7 @@ struct ScansHeatmap: View {
             return Array(data.weeks.suffix(5))
         }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             // Top Header Outside the Container
@@ -43,7 +43,7 @@ struct ScansHeatmap: View {
                         .foregroundColor(.primary)
                     Text("\(formattedTotalScans) scans this")
                         .foregroundColor(.primary)
-                    
+
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             scale = scale == .year ? .month : .year
@@ -77,11 +77,11 @@ struct ScansHeatmap: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 16)
             }
-            
+
             // Grid Container (Canvas Base)
             VStack(alignment: .leading, spacing: 12) {
                 groupGridContent
-                
+
                 // Bottom Row (Links + Legend)
                 if heatmapData != nil {
                     HStack {
@@ -90,13 +90,13 @@ struct ScansHeatmap: View {
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         HStack(spacing: squareSpacing) {
-                            
+
                             ForEach([0, 1, 3, 5, 7], id: \.self) { count in
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(color(for: count))
                                     .frame(width: squareHeight, height: squareHeight)
                             }
-                           
+
                         }
                         Text("More")
                                 .font(.caption2)
@@ -109,7 +109,7 @@ struct ScansHeatmap: View {
         }
         .padding(.vertical, 8)
     }
-    
+
     @ViewBuilder
     private var groupGridContent: some View {
         if heatmapData != nil {
@@ -119,8 +119,7 @@ struct ScansHeatmap: View {
                         weeks: visibleWeeks,
                         colorFor: { count in color(for: count) }
                     )
-                    // Equatable conformation is extremely critical here, as it inherently stops thousands 
-                    // of Heatmap Rectangles from redundantly redrawing structurally unless root data mutates!
+                    // Avoid rebuilding unchanged heatmap cells during parent updates.
                     .equatable()
                     .padding(.horizontal, 16)
                 }
@@ -144,7 +143,7 @@ struct ScansHeatmap: View {
             .padding(.horizontal, 16)
         }
     }
-    
+
     private func color(for count: Int) -> Color {
         HeatmapColor.color(for: count, scheme: colorScheme)
     }
@@ -177,7 +176,7 @@ private struct HeatmapMonthGrid: View, Equatable {
     let squareHeight: CGFloat = 11
     let squareSpacing: CGFloat = 3
     let yAxisGap: CGFloat = 6
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: squareSpacing) {
             // X-Axis Labels (Months)
@@ -196,11 +195,11 @@ private struct HeatmapMonthGrid: View, Equatable {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                
+
                 // Offset for Y-Axis labels
                 Spacer().frame(width: 28 + yAxisGap)
             }
-            
+
             HStack(alignment: .top, spacing: squareSpacing) {
                 ForEach(weeks) { week in
                     VStack(spacing: squareSpacing) {
@@ -213,7 +212,7 @@ private struct HeatmapMonthGrid: View, Equatable {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                
+
                 // Y-Axis Labels
                 VStack(alignment: .leading, spacing: squareSpacing) {
                     Color.clear.frame(height: squareHeight) // Sun
@@ -229,7 +228,7 @@ private struct HeatmapMonthGrid: View, Equatable {
             }
         }
     }
-    
+
     static func == (lhs: HeatmapMonthGrid, rhs: HeatmapMonthGrid) -> Bool {
         lhs.weeks.count == rhs.weeks.count &&
         zip(lhs.weeks, rhs.weeks).allSatisfy { $0.0.id == $0.1.id }
@@ -242,7 +241,7 @@ private struct HeatmapYearGrid: View, Equatable {
     let squareHeight: CGFloat = 11
     let squareSpacing: CGFloat = 3
     let yAxisGap: CGFloat = 6
-    
+
     private func shouldDropLabel(at index: Int) -> Bool {
         for jump in 1...3 {
             if index + jump < weeks.count, weeks[index + jump].monthLabel != nil {
@@ -251,7 +250,7 @@ private struct HeatmapYearGrid: View, Equatable {
         }
         return false
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: squareSpacing) {
             // X-Axis Labels (Months)
@@ -270,11 +269,11 @@ private struct HeatmapYearGrid: View, Equatable {
                     }
                     .frame(width: 11, alignment: .leading)
                 }
-                
+
                 // Offset for Y-Axis labels
                 Spacer().frame(width: 28 + yAxisGap)
             }
-            
+
             LazyHStack(alignment: .top, spacing: squareSpacing) {
                 ForEach(weeks) { week in
                     VStack(spacing: squareSpacing) {
@@ -285,7 +284,7 @@ private struct HeatmapYearGrid: View, Equatable {
                         }
                     }
                 }
-                
+
                 // Y-Axis Labels
                 VStack(alignment: .leading, spacing: squareSpacing) {
                     Color.clear.frame(height: squareHeight) // Sun
@@ -301,7 +300,7 @@ private struct HeatmapYearGrid: View, Equatable {
             }
         }
     }
-    
+
     static func == (lhs: HeatmapYearGrid, rhs: HeatmapYearGrid) -> Bool {
         lhs.weeks.count == rhs.weeks.count &&
         zip(lhs.weeks, rhs.weeks).allSatisfy { $0.0.id == $0.1.id }

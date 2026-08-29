@@ -128,6 +128,12 @@ missing-media, and terminal states use their dedicated explanation or action
 instead of a misleading retry. Keep `ScanningStatusBadge` on the shared pill for
 UI-test and accessibility stability.
 
+`QueuedScanContext.canRetryNow` delegates its state/deadline baseline to
+`ScanQueueState.isManualRetryEligible`, the same policy used by the Scans grid's
+detached snapshot. `QueuedRetryPresentation` remains authoritative for
+connectivity- and reason-specific visibility, and a retry action still
+re-fetches the durable row before mutation.
+
 The deterministic queued-audio UI fixture uses that badge as an explicit
 post-assertion handoff control. It first proves queued navigation, shared
 scanning content, and decoded audio playback, then taps the badge to replace the

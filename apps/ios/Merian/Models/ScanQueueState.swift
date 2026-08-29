@@ -28,3 +28,20 @@ public enum ScanQueueState: Int, Sendable {
     /// Awaiting purge by `purgeSoftDeletedRecords()`.
     case failed      = 5
 }
+
+extension ScanQueueState {
+    /// Shared eligibility for the explicit retry action shown by queued-scan
+    /// presentation values. Mutation owners still revalidate the live record.
+    func isManualRetryEligible(
+        needsAttention: Bool,
+        nextRetryAt: Date?
+    ) -> Bool {
+        guard self != .externalImport else { return false }
+        return self == .failed
+            || needsAttention
+            || (
+                nextRetryAt != nil
+                    && (self == .pending || self == .staged)
+            )
+    }
+}

@@ -1,35 +1,47 @@
-import XCTest
 import SwiftData
+import XCTest
+
 @testable import Merian
 
 @MainActor
 final class ProfileDatabaseActorTests: XCTestCase {
-    
     private var container: ModelContainer!
-    
+
     override func setUpWithError() throws {
-        // Enforce pure volatile memory architecture specifically so Simulator database 
-        // disk I/O logic never mutates actual User-facing state!
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let schema = Schema([LocalScanRecord.self])
-        container = try ModelContainer(for: schema, configurations: [configuration])
+        container = try ModelContainer(
+            for: schema,
+            configurations: [configuration]
+        )
     }
-    
+
     override func tearDownWithError() throws {
         container = nil
     }
-    
-    // MARK: - Generator
-    
-    /// Safely mounts ephemeral SwiftData structures by mapping arrays of timezone-adjusted day offsets natively.
-    /// Example: `0` injects a scan at exactly `12:00 PM` today. `-1` injects a scan exactly yesterday.
-    private func processScans(offsets: [Int]) async throws -> ProfileDatabaseActor {
+
+    private func insertScans(
+        dayOffsets: [Int]
+    ) throws -> ProfileDatabaseActor {
         let context = container.mainContext
         let calendar = Calendar.current
-        let noonToday = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
-        
-        for offset in offsets {
-            let targetDate = calendar.date(byAdding: .day, value: offset, to: noonToday)!
+        let noonToday = try XCTUnwrap(
+            calendar.date(
+                bySettingHour: 12,
+                minute: 0,
+                second: 0,
+                of: Date()
+            )
+        )
+
+        for offset in dayOffsets {
+            let targetDate = try XCTUnwrap(
+                calendar.date(
+                    byAdding: .day,
+                    value: offset,
+                    to: noonToday
+                )
+            )
             let scan = LocalScanRecord(
                 speciesId: UUID().uuidString,
                 scientificName: "Test Species \(offset)_\(UUID().uuidString.prefix(4))",
@@ -39,24 +51,32 @@ final class ProfileDatabaseActorTests: XCTestCase {
             )
             context.insert(scan)
         }
-        
+
         try context.save()
         return ProfileDatabaseActor(modelContainer: container)
     }
-    
-    // MARK: - Validation Suites
 
     func testNewAccountStillReturnsLockedAchievements() async {
         let actor = ProfileDatabaseActor(modelContainer: container)
         let payload: ProfileAllStatsPayload = await actor.calculateAll()
 
-        XCTAssertEqual(payload.awards.count, AchievementType.allCases.count, "Brand-new accounts should still receive the full locked achievements set.")
-        XCTAssertTrue(payload.awards.allSatisfy { !$0.isCompleted && $0.currentCount == 0 }, "Empty libraries should render achievements as locked with zero progress.")
+        XCTAssertEqual(payload.awards.count, AchievementType.allCases.count)
+        XCTAssertTrue(
+            payload.awards.allSatisfy {
+                !$0.isCompleted && $0.currentCount == 0
+            }
+        )
         XCTAssertEqual(payload.heatmap.totalCaptures, 0)
         XCTAssertEqual(payload.heatmap.currentMonthCaptures, 0)
-        XCTAssertEqual(payload.heatmap.weeks.count, 52, "Brand-new accounts should still render an empty contribution grid.")
-        XCTAssertTrue(payload.heatmap.weeks.allSatisfy { $0.days.count == 7 }, "Every empty heatmap week should keep the full seven-day geometry.")
-        XCTAssertTrue(payload.heatmap.weeks.flatMap(\.days).allSatisfy { $0.count <= 0 }, "Empty heatmaps should only contain zero-count past cells or future placeholders.")
+        XCTAssertEqual(payload.heatmap.weeks.count, 52)
+        XCTAssertTrue(
+            payload.heatmap.weeks.allSatisfy { $0.days.count == 7 }
+        )
+        XCTAssertTrue(
+            payload.heatmap.weeks
+                .flatMap(\.days)
+                .allSatisfy { $0.count < 1 }
+        )
     }
 
     func testProfileProjectionCacheRefreshesAfterInsertedScan() async throws {
@@ -93,55 +113,76 @@ final class ProfileDatabaseActorTests: XCTestCase {
         let refreshedAwards = await actor.calculateAwardsProjection()
         let explorerAward = refreshedAwards.first { $0.type == .explorer }
 
-        XCTAssertEqual(refreshedStats.speciesCount, 2, "Profile actor caches must refresh when the library count changes.")
-        XCTAssertEqual(refreshedHeatmap.totalCaptures, 2, "Heatmap generation should reuse the refreshed projection, not a stale timestamp cache.")
-        XCTAssertEqual(explorerAward?.currentCount, 2, "Award payloads must be recomputed after the shared projection refreshes.")
+        XCTAssertEqual(refreshedStats.speciesCount, 2)
+        XCTAssertEqual(refreshedHeatmap.totalCaptures, 2)
+        XCTAssertEqual(explorerAward?.currentCount, 2)
 
         await actor.invalidateCachedProfileProjections()
         let invalidatedPayload = await actor.calculateAll()
         XCTAssertEqual(invalidatedPayload.speciesCount, 2)
     }
-    
-    func testStreakActiveGracePeriod() async throws {
-        // Simulate missing today (0), but having scanned continuously for 3 preceding days.
-        let actor = try await processScans(offsets: [-1, -2, -3])
-        let payload: ProfileAllStatsPayload = await actor.calculateAll()
-        
-        XCTAssertEqual(payload.streak, 3, "Grace period constraint breached! Missing today natively assumes a live streak anchor tied securely to yesterday mathematically.")
+
+    func testPostInferenceAwardsRefreshAfterInPlaceScanMutation() async throws {
+        let context = container.mainContext
+        let scan = LocalScanRecord(
+            speciesId: UUID().uuidString,
+            scientificName: "Amanita muscaria",
+            commonName: "Fly Agaric",
+            ecologyType: "forest",
+            taxonomyKingdom: "Plantae"
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = ProfileDatabaseActor(modelContainer: container)
+        let initialAwards = await actor.calculateAwards()
+        XCTAssertEqual(
+            initialAwards.first { $0.type == .fungi }?.currentCount,
+            0
+        )
+
+        scan.taxonomyKingdom = "Fungi"
+        try context.save()
+
+        let refreshedAwards = await actor.calculateAwards()
+        XCTAssertEqual(
+            refreshedAwards.first { $0.type == .fungi }?.currentCount,
+            1
+        )
     }
-    
-    func testStreakBroken() async throws {
-        // Simulate missing today (0) AND yesterday (-1)
-        let actor = try await processScans(offsets: [-2, -3, -4])
+
+    func testStreakUsesYesterdayAsGraceAnchor() async throws {
+        let actor = try insertScans(dayOffsets: [-1, -2, -3])
         let payload: ProfileAllStatsPayload = await actor.calculateAll()
-        
-        XCTAssertEqual(payload.streak, 0, "Missing both boundary bounds simultaneously must absolutely zero the streak completely!")
+
+        XCTAssertEqual(payload.streak, 3)
     }
-    
-    func testStreakRedundancy() async throws {
-        // Simulating multiple scans fired natively on identically same calendar days.
-        let actor = try await processScans(offsets: [-1, -1, -2, -3])
+
+    func testStreakBreaksAfterMissedYesterday() async throws {
+        let actor = try insertScans(dayOffsets: [-2, -3, -4])
         let payload: ProfileAllStatsPayload = await actor.calculateAll()
-        
-        XCTAssertEqual(payload.streak, 3, "Streak logic deduplication compromised! Array maps must strictly uniquely fold identically anchored offset variables!")
+
+        XCTAssertEqual(payload.streak, 0)
     }
-    
+
+    func testStreakDeduplicatesMultipleScansOnSameDay() async throws {
+        let actor = try insertScans(dayOffsets: [-1, -1, -2, -3])
+        let payload: ProfileAllStatsPayload = await actor.calculateAll()
+
+        XCTAssertEqual(payload.streak, 3)
+    }
+
     func testHeatmapMatrixBounds() async throws {
-        var massiveDistribution: [Int] = []
-        // Massively bombards the footprint bounds logic strictly inside the guaranteed 52-week geometry window!
-        // (Worst-case start date is today - 357 when today is Sunday)
-        for _ in 0..<500 { massiveDistribution.append(Int.random(in: -357...0)) }
-        
-        let actor = try await processScans(offsets: massiveDistribution)
+        let dayOffsets = (0..<500).map { -($0 % 351) }
+
+        let actor = try insertScans(dayOffsets: dayOffsets)
         let heatmap = await actor.calculateHeatmapData()
-        
-        // Assert the matrix mathematically respects constraints despite chaotic time bounds logic inside the nested algorithms
-        XCTAssertEqual(heatmap.weeks.count, 52, "Geometric grid fundamentally crashed generating 52 layout boundaries!")
-        XCTAssertEqual(heatmap.totalCaptures, 500, "Math engine failed summing native database bindings correctly.")
-        
-        // Assert precisely 7 independent vertical structures generated securely inside columns
+
+        XCTAssertEqual(heatmap.weeks.count, 52)
+        XCTAssertEqual(heatmap.totalCaptures, 500)
+
         for week in heatmap.weeks {
-            XCTAssertEqual(week.days.count, 7, "Geometry structurally failed plotting exactly 7 strict days vertically inside bounds!")
+            XCTAssertEqual(week.days.count, 7)
         }
     }
 }

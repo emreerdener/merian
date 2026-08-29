@@ -335,7 +335,11 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/Shared/Media/Components/ExploreMediaIndicators.swift`
 - `apps/ios/Merian/Core/UI/Components/MerianProBadge.swift`
 - `apps/ios/Merian/Core/UI/Layout/PublishedScanGridStyle.swift`
-- `apps/ios/Merian/Features/Profile/UserProfile/Components/ProfilePublicScansPreview.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/Services/ProfilePublicationsDependencies.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/ViewModels/ProfilePublicScansPreviewViewModel.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/ViewModels/ProfilePublishedScansViewModel.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/Components/Publications/`
+- `apps/ios/Merian/Features/Profile/UserProfile/Views/Publications/`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Models/FieldTripProfilePresentation.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/ViewModels/ActiveFieldTripsProfileViewModel.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Components/Profile/`
@@ -343,7 +347,7 @@ Primary files:
 - `apps/ios/Merian/Core/Network/ExploreAPIModels.swift`
 - `apps/ios/Merian/Core/Network/FieldTripAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
-- `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements.swift`
+- `apps/ios/Merian/Features/Profile/UserProfile/Components/Achievements/`
 
 `ExploreAuthorProfileViewModel` owns profile loading, preview seeding, cursor
 pagination, refresh/append generation fencing, stable post deduplication, and
@@ -405,11 +409,14 @@ Conversion rules:
   comments so blocked taps never create another profile surface.
 - Preferred species names are refreshed for preview/library posts after profile
   and page loads.
-- The local Profile tab preview reads the current Supabase user from the view
-  environment, calls `getExploreAuthorPosts(authorUserId:limit:)`, and renders
-  only server-visible rows. It may use a matching local scan's reference image
-  as a thumbnail fallback for that row, but never promotes local share cache
-  into the public grid.
+- The local Profile tab obtains the current account ID from its
+  environment-owned `ProfileViewModel`. `ProfilePublicScansPreviewViewModel` and
+  `ProfilePublishedScansViewModel` own catalog state; only the injected
+  `ProfilePublicationsDependencies` live adapter calls
+  `getExploreAuthorPosts(authorUserId:limit:cursor:)`. Profile views render only
+  server-visible rows. They may use a matching local scan's reference image as a
+  thumbnail fallback for that row, but never promote local share cache into the
+  public grid.
 - Owner profile stats decode `owner_publication_summary`. A dismissible recovery
   explanation appears above both the preview and full grid when
   `recovery_needed_post_count > 0`; its recovery-specific Scan Library route
@@ -425,6 +432,9 @@ Library pagination behavior:
 - Pull-to-refresh and a fresh profile projection advance the library generation
   before resetting the cursor. An older append completion cannot merge into the
   replacement page or clear its loading state.
+- The Profile library's last-tile trigger is a view-lifetime task. Canceling the
+  current append clears only that generation's loading flag, allowing a later
+  appearance to retry without letting stale work affect a replacement refresh.
 - Additional pages call `getExploreAuthorPosts(authorUserId:limit:cursor:)`.
 - Duplicate post IDs are removed after every merge.
 - The next cursor is taken directly from the Edge response's `next_cursor`.
@@ -480,6 +490,12 @@ iOS:
 - `apps/ios/MerianTests/Features/Explore/AuthorProfile/ExploreReportUserViewModelTests.swift`
   covers the 1,000-character form bound, typed submission, success, and
   recoverable error state.
+- `apps/ios/MerianTests/Features/Profile/UserProfile/ProfilePublicationsViewModelTests.swift`
+  covers account-normalized preview loading, account replacement, cursor
+  pagination, stable deduplication, refresh supersession of an in-flight append,
+  and cancellation retry.
+- `apps/ios/MerianTests/Features/Profile/UserProfile/ProfilePublicationRecoverySummaryTests.swift`
+  covers owner recovery visibility, copy, and dismissal identity.
 - `apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift`
 - Covers profile decoding, award/heatmap conversion, and author-post cursor
   payload construction.

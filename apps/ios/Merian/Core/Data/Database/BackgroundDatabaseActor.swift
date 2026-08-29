@@ -756,12 +756,29 @@ actor BackgroundDatabaseActor {
         do {
             for payload in payloads {
                 let scanId = payload.id
-                let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-                if let record = try modelContext.fetch(descriptor).first {
+                var descriptor = FetchDescriptor<LocalScanRecord>(
+                    predicate: #Predicate { $0.id == scanId }
+                )
+                descriptor.fetchLimit = 1
+                let record = try modelContext.fetch(descriptor).first
+
+                // The UI snapshots eligible rows before crossing into this
+                // actor. Revalidate here so a concurrent reconciliation that
+                // promotes the row to biological cannot be erased by stale
+                // presentation state.
+                if let record, record.isBiological {
+                    continue
+                }
+
+                if let record {
                     modelContext.delete(record)
                 }
 
-                imagePathsToDelete.append(contentsOf: payload.imagePaths.filter { !$0.starts(with: "http") })
+                imagePathsToDelete.append(
+                    contentsOf: payload.imagePaths.filter {
+                        !$0.starts(with: "http")
+                    }
+                )
                 try modelContext.ensurePendingCloudDeletionTask(scanId: scanId)
             }
 

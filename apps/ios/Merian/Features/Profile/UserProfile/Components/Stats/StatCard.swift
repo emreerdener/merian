@@ -6,7 +6,7 @@ struct StatCard: View {
     var icon: String?
     var imageName: String?
     let color: Color
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -22,7 +22,7 @@ struct StatCard: View {
                 }
                 Spacer()
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(value)
                     .font(.title2)

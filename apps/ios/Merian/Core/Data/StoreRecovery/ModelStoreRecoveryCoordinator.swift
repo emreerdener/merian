@@ -22,7 +22,6 @@ enum ModelStoreRecoveryCoordinator {
         case v47 = 47
         case v48 = 48
         case v49 = 49
-        case v50 = 50
     }
 
     enum StoreMigrationHint: Equatable, CustomStringConvertible {

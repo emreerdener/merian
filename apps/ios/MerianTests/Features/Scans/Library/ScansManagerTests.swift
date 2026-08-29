@@ -247,27 +247,6 @@ final class ScansManagerTests: XCTestCase {
         XCTAssertTrue(userCorrected.isExploreShareEligible)
     }
 
-    func testNonBiologicalCorrectionReanalysisUsesConfirmationCopyAndScopedEvent() throws {
-        XCTAssertEqual(NonBiologicalCorrectionReanalysis.confirmationTitle, "Reanalyze identification?")
-        XCTAssertEqual(
-            NonBiologicalCorrectionReanalysis.confirmationMessage,
-            "This identification was marked as non-biological. Reanalysis will look for a biological subject using the original capture."
-        )
-        XCTAssertEqual(NonBiologicalCorrectionReanalysis.primaryAction, "Reanalyze")
-        XCTAssertEqual(NonBiologicalCorrectionReanalysis.secondaryAction, "Cancel")
-
-        let scanId = UUID().uuidString
-        let route = NonBiologicalCorrectionReanalysis.refinementRoute(scanId: scanId)
-        guard case let .refinement(eventScanId, initialDescription, entryPoint) = route else {
-            XCTFail("Correction should request a refinement route")
-            return
-        }
-
-        XCTAssertEqual(eventScanId, scanId)
-        XCTAssertNil(initialDescription)
-        XCTAssertEqual(entryPoint, .nonBiologicalCorrection)
-    }
-
     private func waitForIndexing(
         expectedDocumentCount: Int? = nil,
         after trigger: @MainActor () -> Void

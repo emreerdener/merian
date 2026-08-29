@@ -172,19 +172,20 @@ as their permanent engineering identity.
   production Supabase. A Debug simulator emits a conspicuous warning but still
   performs real auth, reads, and writes. Routine simulator work should override
   both URL and client key to a matching local/staging project.
-- **Active SwiftData schema**: `MerianSchemaV51` via
-  `typealias CurrentSchema = MerianSchemaV51` in
-  `apps/ios/Merian/Models/Aliases.swift`. V50 is frozen in
-  `Models/Schema/SchemaV50Snapshots.swift`; it preserves the released V49 queue
-  entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion through a
-  lightweight migration. V51 keeps that companion and renames the active
-  collection tombstone to `isPendingDeletion` with
+- **Active SwiftData schema**: `MerianActiveSchemaV50` via
+  `typealias CurrentSchema = MerianActiveSchemaV50` in
+  `apps/ios/Merian/Models/Aliases.swift`. The released V50 disk shape is frozen
+  in `Models/Schema/SchemaV50Snapshots.swift`; it preserves the released V49
+  queue entity and adds a scan-keyed `OfflineQueuedScanGoalHint` companion
+  through a lightweight migration. The active V50 owner keeps that companion and
+  names the application collection tombstone `isPendingDeletion` with
   `@Attribute(originalName: "isDeleted")`, preserving the `is_deleted` wire
-  field while avoiding SwiftData's framework lifecycle name. V49 and V50 stores
-  use dedicated source-isolated plans; older source-specific recovery lanes
-  advance through V49 and V50 before reaching V51. Migration creates no
-  goal-hint rows for V49 stores because V49 stored no selected-goal value to
-  backfill. The schema and recovery contract is documented in the
+  field while avoiding SwiftData's framework lifecycle name. This source-only
+  rename keeps the persisted schema at V50; released V50 stores open as current
+  without a migration plan. V49 and earlier recent stores use source-isolated
+  plans ending at active V50. Migration creates no goal-hint rows for V49 stores
+  because V49 stored no selected-goal value to backfill. The schema and recovery
+  contract is documented in the
   [schema contract](./backend-and-data/04-database-schema.md#scancollection-user-albums).
 - **Primary inference endpoint**: `/identify-multimodal` for visual, audio,
   describe, and mixed-media submissions. It owns staged media durability through
@@ -512,7 +513,7 @@ as their permanent engineering identity.
 
 - **[`/backend-and-data/01-offline-sync-pipeline.md`](./backend-and-data/01-offline-sync-pipeline.md)**
   — Zero-data-loss architecture, SwiftData queues, live/background upload
-  ownership, V51 collection tombstone synchronization, and AppDelegate
+  ownership, V50 collection tombstone synchronization, and AppDelegate
   background URLSession mappings.
 - **[`/backend-and-data/02-supabase-edge-and-database.md`](./backend-and-data/02-supabase-edge-and-database.md)**
   — Supabase Postgres schemas, Edge Function runtime rules, RLS, public species
@@ -526,11 +527,11 @@ as their permanent engineering identity.
   — Physical table maps for PostgreSQL and the SwiftData persistent schemas,
   including the V41 `CapturedMediaEntry` mixed-media model, V47 offline video
   inference fields, V48 offline job records/events, V49 startup store repair,
-  V50 durable queued Field trip goal hints, and the V51
-  `ScanCollection.isPendingDeletion` rename migration, private Insight and
-  per-viewer Explore/Dictionary Field chat tables, scan media assets, and
-  Explore Community Identification versioned taxonomy, consensus jobs, requests,
-  public projections, and internal grouped Activity projection, atomic ingestion
+  V50 durable queued Field trip goal hints and source-only
+  `ScanCollection.isPendingDeletion` rename, private Insight and per-viewer
+  Explore/Dictionary Field chat tables, scan media assets, and Explore Community
+  Identification versioned taxonomy, consensus jobs, requests, public
+  projections, and internal grouped Activity projection, atomic ingestion
   setup/dictionary RPCs, deferred scan-context staging, and the private
   admin/review/audit schema plus canonical AI usage ledger, storage-erasure
   claim fencing, atomic owned scan-image reference repair, and the database-only

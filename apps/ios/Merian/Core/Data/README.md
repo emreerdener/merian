@@ -13,14 +13,14 @@ durable even when inference fails or network connectivity is absent.
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The
-active V51 schema carries the companion forward unchanged and separately maps
-the collection tombstone `ScanCollection.isPendingDeletion` to the released
-`isDeleted` column while continuing to emit the `is_deleted` wire field.
-Foreground/background completion read the same goal hint. Successful queue
-finalization preserves it as a durable progress outbox until acknowledgement;
-explicit cancellation and terminal orphan repair remove it. Persistent Insight
-contribution cards are server-backed and are intentionally not cached in
-SwiftData.
+active `MerianActiveSchemaV50` owner keeps that companion and maps the
+collection tombstone `ScanCollection.isPendingDeletion` to the released
+`isDeleted` column while continuing to emit the `is_deleted` wire field. The
+source-only rename does not create a new persisted schema. Foreground/background
+completion read the same goal hint. Successful queue finalization preserves it
+as a durable progress outbox until acknowledgement; explicit cancellation and
+terminal orphan repair remove it. Persistent Insight contribution cards are
+server-backed and are intentionally not cached in SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -208,6 +208,12 @@ description-only staged work, which has no successful upload transition to reset
 the counter. A known cloud-complete result is the exception: manual retry
 preserves its owner-result marker and cannot re-enable provider dispatch.
 
+`ScanQueueState.isManualRetryEligible` is only the shared value-presentation
+baseline used by queued grid and Insight snapshots. It does not claim queue
+ownership: retry mutation code must re-fetch the current row, revalidate its
+attention/deadline/state contract, and then enter the existing serialized claim
+path.
+
 `OfflineQueueRetryPolicy` separates scan analysis from maintenance work. Scan
 analysis uses a five-second minimum, jittered exponential growth, a 30-second
 ordinary local maximum, and ten automatic attempts. A safe HTTP `Retry-After` or
@@ -246,11 +252,52 @@ classified as cancellation, and local file cleanup runs only after this save. If
 crash replay reaches the same proven generation after the queue row is gone, an
 already-complete job is accepted without appending a duplicate completion event.
 
+## Long-Lived Actor Cache Boundaries
+
+`OfflineQueueManager` lazily retains both its queue database actor and the
+Profile award actor to avoid repeated `ModelContext` construction during burst
+completion. Each cache records the exact `ModelContainer` object that created
+the actor. Store recovery, tests, or another container replacement therefore
+replace the corresponding actor instead of reusing a context bound to an old
+store.
+
+The Profile actor cache is an execution optimization, not a value-cache
+authority. `ProfileDatabaseActor.calculateAwards()` invalidates its compact
+projection before every post-inference evaluation because inference can mutate
+an existing scan without changing the projection fingerprint's count, latest ID,
+or timestamp. Feature rendering continues to create an ad-hoc actor through
+`ProfileTabDependencies`.
+
+## Non-Biological Bulk Deletion
+
+The UI's non-biological erasure snapshots are advisory values, not deletion
+authority. `BackgroundDatabaseActor.bulkDeleteNonBiologicalScans` re-fetches
+each supplied scan ID in its actor-isolated context immediately before mutation.
+An existing row that is now biological is skipped completely: its record and
+local files remain, and no cloud-deletion task is created. Existing eligible
+rows are deleted; a missing row retains the idempotent cleanup path by ensuring
+its pending cloud-deletion task and returning only local paths for the caller to
+remove.
+
+The actor saves the record deletions and pending cloud-deletion tasks together,
+rolls back the context on failure, and returns local paths only after the commit
+succeeds. `FileIOActor` cleanup therefore cannot run for a row rejected by
+commit-time revalidation or get ahead of durable database state.
+
 Cloud-deletion draining uses a process-local single-flight latch in addition to
 durable restartable job state. Competing scheduler, repository, and UI wake
 sources therefore cannot delete the same `PendingCloudDeletionTask` object
 concurrently, while process termination still leaves `.running` work eligible
 for idempotent replay.
+
+## Reference Thumbnail Recovery
+
+`Images/ScanThumbnailBackfillCandidate.swift` owns the immutable,
+coordinate-free request value and eligibility mapping consumed by
+`ScanThumbnailBackfillActor`. Keeping both declarations in Core Data prevents
+the recovery actor from depending on a feature UI file. Scans Shell and Map
+services decide when to schedule candidates; Core UI only projects and renders
+the resulting local/reference state.
 
 ## External Image Import Inbox
 
@@ -280,14 +327,14 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
   failure is a verified SQLite/Core Data corruption case.
-- It reads actual store metadata before container creation. Fresh and V51 stores
-  open as current; known V42...V50 sources use finite, source-isolated plans;
+- It reads actual store metadata before container creation. Fresh and V50 stores
+  open as current; known V42...V49 sources use finite, source-isolated plans;
   only unknown older stores use the full historical plan.
-- A released V50 store selects `MerianRecentV50MigrationPlan`, whose complete
-  contract is the single lightweight V50→V51 hop. A released V49 store selects
-  `MerianRecentV49MigrationPlan` and advances through V49→V50→V51. The
-  duplicate-checksum retry ladder is ordered current store, then V50 down
-  through V42.
+- A released V50 store opens without a migration plan. A released V49 store
+  selects `MerianRecentV49MigrationPlan` and advances through one lightweight
+  V49→V50 hop. The full historical plan remains linear through V42→V49→V50;
+  V43...V48 use their source-isolated plans. The duplicate-checksum retry ladder
+  is ordered current store, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

@@ -29,11 +29,11 @@ may be reparented or joined across owners.
 
 The canonical current iOS payload uses `is_deleted`; the route also accepts
 `isDeleted` as a backwards-compatible alias for historical Swift encoder output.
-Senders do not need to include both keys. In the active iOS V51 model,
+Senders do not need to include both keys. In the active iOS V50 model,
 `ScanCollection.isPendingDeletion` maps to the released SwiftData `isDeleted`
 column with `@Attribute(originalName:)` and is explicitly projected to
-`is_deleted`. The V50 → V51 local rename does not change this wire contract.
-Bounds are enforced before database work:
+`is_deleted`. This source-only rename does not change the persisted V50 model or
+the wire contract. Bounds are enforced before database work:
 
 - at most 200 collections per request; and
 - at most 5,000 `scan_ids` per collection.

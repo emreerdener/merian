@@ -1567,6 +1567,45 @@ struct BackgroundDatabaseActorTests {
         #expect(deletedPaths == ["should_not_delete.webp"], "Committed local file paths should still be returned for cleanup")
     }
 
+    @Test func testBulkDeleteNonBiologicalScansRevalidatesEligibilityBeforeCommit() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let scanId = "nonbio_reclassified_before_delete"
+        let scan = LocalScanRecord(
+            id: scanId,
+            speciesId: "reclassified_species",
+            scientificName: "Quercus alba",
+            commonName: "White Oak",
+            timestamp: Date(),
+            isBiological: true,
+            isLiveCapture: false,
+            ecologyType: "wild"
+        )
+        context.insert(scan)
+        try context.save()
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        let deletedPaths = try await actor.bulkDeleteNonBiologicalScans(
+            payloads: [
+                .init(
+                    id: scanId,
+                    imagePaths: ["must-remain.webp"]
+                )
+            ]
+        )
+
+        let recordDescriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let taskDescriptor = FetchDescriptor<PendingCloudDeletionTask>(
+            predicate: #Predicate { $0.scanId == scanId }
+        )
+
+        #expect(try context.fetch(recordDescriptor).count == 1)
+        #expect(try context.fetch(taskDescriptor).isEmpty)
+        #expect(deletedPaths.isEmpty)
+    }
+
     @Test func testPurgeExpiredNonBiologicalScansDeletesOnlyExpiredNonBioRecords() async throws {
         let container = try createIsolatedContainer()
         let context = ModelContext(container)

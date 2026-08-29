@@ -1132,21 +1132,31 @@ cache-clearance flows in Settings use `DetachedWork` only as a narrow Sendable
 bridge before actor/file-system work takes over. The main thread is only
 re-entered to flip UI state or trigger `HapticManager` responses.
 
-### OOM-Safe Bulk Deletion (`NonBiologicalScansView`)
+### OOM-Safe Bulk Deletion (`NonBiologicalScanService`)
 
 When executing bulk "Clear All" operations on potentially hundreds of
-non-biological scans, looping `FileManager.default.removeItem` and SwiftData row
-deletions sequentially on the `@MainActor` freezes the 120Hz UI and triggers a
-JetSam crash. Passing an array of `@Model` `[LocalScanRecord]` entities into a
-background thread violates Swift 6 Sendable constraints.
-`NonBiologicalScansView` decouples this operation by presenting a `@State`
-`ProgressView` loading overlay. The architecture iterates the UI array once on
-the Main Thread, mapping the dataset into lightweight `Sendable` primitives
-(`ScanErasurePayload`). These primitives cross a single
-`DetachedWork.fireAndForget(...)` bridge into actor-owned erase/delete work,
-where raw `.jpg` bytes are deleted from the APFS layer, database records are
-removed, and `.save()` executes once at the end of the batch. The main thread
-then dismisses the UI overlay and syncs the pending offline deletion queue.
+non-biological scans, looping file and SwiftData row deletion on the main actor
+would freeze the UI. Passing `[LocalScanRecord]` model objects to background
+work would also violate the SwiftData executor boundary.
+
+The Scans Shell remains the sole query owner and passes its record set into
+`NonBiologicalScansViewModel`. At deletion ingress, the main-actor view model
+copies only IDs and ordered image/audio/video paths into
+`NonBiologicalScanErasureSnapshot` values. These immutable `Sendable` values
+cross the injected service boundary; the live adapter converts them into
+`BackgroundDatabaseActor.ScanErasurePayload` values, and the database actor
+re-fetches every ID before mutation. It skips an existing row that is now
+biological, including its local paths and cloud-deletion job; eligible or
+already-missing IDs retain the idempotent deletion path. The actor saves the
+batch once, and only locally owned paths returned after that commit are passed
+to `FileIOActor` for cleanup. No detached task transports SwiftData models.
+
+The observable view model owns the one-operation overlap fence, grid/toolbar
+interactivity, compact progress badge, and feedback state. After database and
+file completion it publishes `scanLibraryChanged`, success haptics, the typed
+toast, and pending-deletion sync in order. A database failure restores
+interaction and emits only error feedback; it does not delete files, publish a
+commit event, or enqueue sync.
 
 ### Bulk Export OOM Exhaustion (`InsightMediaExportManager` & `PhotoLibraryManager`)
 
@@ -1243,21 +1253,20 @@ RAM. Loading 20 concurrent captures crushed iOS memory limits during
 thumbnails that constrain the memory footprint and enable smooth sheet rendering
 wrapped perfectly inside `autoreleasepool`.
 
-### SwiftData Observer Drop in Presentation Portals (`NonBiologicalScansView`)
+### Non-Biological Correction Presentation Boundary
 
-When capturing `@Model` instances (`LocalScanRecord`) into SwiftUI presentation
-layers like `.alert` or `.confirmationDialog` button closures, SwiftData
-`@Query` observers routinely lose tracking. Modifying `scan.isBiological = true`
-and calling `modelContext.save()` inside these disconnected "portals" mutates
-SQLite correctly but fails to trigger SwiftUI reactive updates, leaving the UI
-in a stale state.
+The correction alert retains only the selected scan ID. Confirming
+`Reanalyze as biological` does not mutate `LocalScanRecord.isBiological`, save a
+model from a presentation closure, or depend on a local query refresh. The
+feature view model requests the typed
+`AppRoute.refinement(..., entryPoint: .nonBiologicalCorrection)` destination
+through its injected routing dependency.
 
-**The Refactor**: Merian resolves this by executing a re-fetch inside the
-`.alert` action via `modelContext.model(for: scan.persistentModelID)`. This
-retrieves the tracked `@MainActor` memory pointer from the active context.
-Operations executed from there propagate correctly, collapsing
-`NonBiologicalScansView` boundaries and routing the payload back into the
-central biological timeline.
+The existing refinement/replacement pipeline refetches the source by ID, stages
+bounded original media, and keeps the original non-biological record unchanged
+unless a replacement analysis succeeds. This makes durable replacement state,
+not an alert-captured model reference or observer side effect, the correction
+authority.
 
 ### GCD Dispatch Mixed Into Swift Concurrency Contexts
 
@@ -1581,9 +1590,10 @@ moves this work off-thread:
   objects or media blobs.
 - The projection cache is guarded by a cheap fingerprint (`recordCount`, latest
   scan ID, latest timestamp). Inserts, deletes, and latest-scan changes refresh
-  the projection automatically; long-lived callers that mutate existing records
-  in place must call `invalidateCachedProfileProjections()` before requesting
-  new profile stats.
+  the projection automatically; callers that mutate existing records in place
+  must invalidate before requesting cached profile stats. The post-inference
+  `calculateAwards()` path invalidates automatically, and its long-lived actor
+  is reused only for the same `ModelContainer` identity.
 - Results are packaged as flat `Sendable` configurations before updating
   lightweight `@State` primitives on the `@MainActor`, insulating `ScansHeatmap`
   from any O(N) loop dependencies.
@@ -1691,22 +1701,21 @@ root SwiftUI environment, repository wiring, and safe-mode state are known
 before user workflows begin. The launch path must therefore avoid unnecessary
 deep migration validation. Startup reads the store metadata first: fresh/current
 stores open without a migration plan, known recent stores use the narrow
-source-isolated V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older
-stores use the full historical migration plan. V49 uses the two required
-lightweight hops, V49→V50 and V50→V51, while V50 uses only the one-stage V50→V51
-tombstone-rename plan rather than validating the full history. The full plan
-jumps V42→V49 or V43→V49 so older-store migration does not validate the
-duplicate-prone V44/V45/V46 recent cluster. V42/V43 use short direct plans to
+source-isolated V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores
+use the full historical migration plan. V49 uses the one required lightweight
+V49→V50 hop, while V50 is current and opens without a plan. The full plan
+remains linear through V42→V49→V50 so older-store migration does not validate
+the duplicate-prone V43...V48 source cluster. V42/V43 use short direct plans to
 avoid validating older full-historical custom stages that can raise SwiftData's
 equal-model-reference exception. The V46 plan keeps V46 as the only
 duplicate-cluster source representative and jumps directly to V49 because V46
 was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
 plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
-then uses V49→V50 and V50→V51; current V51 stores open without migration.
-Duplicate-checksum failures retry through the same recent-plan ladder, ordered
-current store then V50 down through V42, before legacy rescue or safe mode.
-Supported recent sources are a finite enum ending at the immediate predecessor
-of `CurrentSchema`, and app dispatch is compiler-exhaustive with no full-history
+then uses V49→V50; current V50 stores open without migration. Duplicate-checksum
+failures retry through the same recent-plan ladder, ordered current store then
+V49 down through V42, before legacy rescue or safe mode. Supported recent
+sources are a finite enum ending at the immediate predecessor of
+`CurrentSchema`, and app dispatch is compiler-exhaustive with no full-history
 default. This keeps the synchronous launch boundary bounded for normal upgrades
 while preserving a deterministic recovery surface if SwiftData cannot open the
 store.

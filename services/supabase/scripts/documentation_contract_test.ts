@@ -5497,7 +5497,7 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
   assertStringIncludes(reconciler, "rejects apply");
 });
 
-Deno.test("Collections documentation records the V51 tombstone repair without changing the wire contract", async () => {
+Deno.test("Collections documentation records the source-only V50 tombstone repair without changing the wire contract", async () => {
   const [
     documentationIndex,
     coreDataReadme,
@@ -5557,27 +5557,6 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
 
   for (
     const source of [
-      documentationIndex,
-      coreDataReadme,
-      featureReadme,
-      featureContract,
-      offlinePipeline,
-      actorGuide,
-      schema,
-      apiContract,
-      edgeReadme,
-      testing,
-      gotchas,
-      cleanup,
-      fleetReview,
-      codebaseMap,
-    ]
-  ) {
-    assertStringIncludes(source, "V51");
-  }
-
-  for (
-    const source of [
       coreDataReadme,
       featureReadme,
       offlinePipeline,
@@ -5590,12 +5569,14 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
     assertStringIncludes(source, "is_deleted");
     assertStringIncludes(source, "isPendingDeletion");
   }
-  assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
+  assertStringIncludes(schema, "MerianActiveSchemaV50");
   assertStringIncludes(schema, "@Attribute(originalName:)");
-  assertStringIncludes(testing, "V49→V50→V51");
+  assertStringIncludes(schema, "No V50 → V51 stage exists");
+  assert(!schema.includes("MerianRecentV50MigrationPlan"));
+  assertStringIncludes(testing, "V49→V50");
   assertStringIncludes(documentationIndex, "/sync-collections");
-  assertStringIncludes(coreDataReadme, "Fresh and V51 stores");
-  assertStringIncludes(coreDataReadme, "known V42...V50 sources");
+  assertStringIncludes(coreDataReadme, "Fresh and V50 stores");
+  assertStringIncludes(coreDataReadme, "known V42...V49 sources");
   assertStringIncludes(
     apiContract,
     "clients do not need to send both keys",

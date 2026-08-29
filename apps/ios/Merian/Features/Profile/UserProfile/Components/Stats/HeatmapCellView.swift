@@ -6,7 +6,7 @@ struct HeatmapCellView: View {
     let scheme: ColorScheme
     let isMonthScale: Bool
     let squareHeight: CGFloat
-    
+
     var body: some View {
         RoundedRectangle(cornerRadius: 2)
             .fill(HeatmapColor.color(for: count, scheme: scheme))
@@ -22,7 +22,7 @@ struct HeatmapWeekColumnView: View {
     let isMonthScale: Bool
     let squareHeight: CGFloat
     let squareSpacing: CGFloat
-    
+
     var body: some View {
         VStack(spacing: squareSpacing) {
             ForEach(week.days) { day in

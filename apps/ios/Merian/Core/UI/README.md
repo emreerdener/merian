@@ -103,6 +103,36 @@ only reusable grid geometry and clipping. Each feature continues to own its post
 source, media rendering, callbacks, accessibility copy, pagination, and
 empty/loading states.
 
+## Shared scan and empty-state presentation
+
+`Components/ScanThumbnail.swift` owns cross-feature scan-thumbnail rendering for
+Scans, Explore Field Trips, and Profile.
+`Models/ScanThumbnailPresentation.swift` projects `LocalScanRecord` media into
+visual, audio, reference-fallback, and terminal placeholder state. The view
+receives online availability and optional reference-recovery actions from its
+caller. `Services/ScanThumbnailLoader.swift` owns the injected live-loader
+adapter and audio-to-visual fallback sequence; the view does not resolve those
+loaders directly. Every shared-loader suspension is cancellation-fenced before a
+result, fallback load, failure, or reference-recovery action can reach a reused
+tile. The task identity includes source paths, loading policy, target pixel
+size, placeholder kind, and relevant network availability.
+
+Cancellation is represented by the loader returning no result, not by a visual
+failure or no-source result. `ScanThumbnail` therefore leaves the replacement
+task responsible for presentation state and never converts an obsolete request
+into failure copy or a reference-recovery callback. Keep both the service-level
+post-suspension checks and the final main-actor check when changing the loading
+sequence.
+
+`Components/EmptyStateView.swift` owns the generic title, message, symbol, and
+layout treatment used by Scans, Explore, and Species Dictionary. Feature owners
+continue to supply their own copy and decide when an empty state is visible.
+
+Reference-thumbnail lookup and persistence are not UI responsibilities.
+`Core/Data/Images/ScanThumbnailBackfillCandidate.swift` and
+`ScanThumbnailBackfillActor.swift` own those Core image-pipeline boundaries,
+while Scans Shell and Map services decide when to schedule them.
+
 ## System and milestone feedback
 
 `ToastBanner` and the compact Scans snackbar share an adaptive inverse-glass

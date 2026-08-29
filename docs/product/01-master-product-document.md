@@ -58,7 +58,7 @@ when they affect product direction, and are clearly labeled.
 | iOS archive build baseline | 275                      |
 | Minimum iOS deployment     | iOS 17.2                 |
 | Device family              | iPhone                   |
-| SwiftData schema           | MerianSchemaV51          |
+| SwiftData schema           | MerianActiveSchemaV50    |
 | Local Supabase Postgres    | 17                       |
 | Website                    | https://naturebook.earth |
 | Support                    | support@naturebook.earth |
@@ -116,7 +116,7 @@ targets, bundle identifiers, app group, SwiftData schema names, backend resource
 names, RevenueCat identifiers, and existing media host remain Merian where
 compatibility depends on them. The main application bundle identifier is
 `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the
-current schema is `MerianSchemaV51`.
+current schema is `MerianActiveSchemaV50`.
 
 Legacy `merian.earth` links and the `merian://` scheme remain accepted
 compatibility inputs. New links should use `naturebook.earth` and
@@ -1497,7 +1497,7 @@ numbers.
 | Stale claim                                               | Repository-aligned correction                                                                                                        |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                        |
-| Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV51`; V50 remains the frozen migration source for the collection-tombstone repair.           |
+| Current schema is V45.                                    | Current SwiftData alias is `MerianActiveSchemaV50`; `MerianSchemaV50` remains the immutable released-store fixture.                  |
 | Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                   |
 | New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.              |
 | Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                        |

@@ -10,7 +10,7 @@ const migrationUrl = new URL(
   import.meta.url,
 );
 const swiftProfileUrl = new URL(
-  "../../../../apps/ios/Merian/Features/Profile/UserProfile/Components/UserProfile.swift",
+  "../../../../apps/ios/Merian/Features/Profile/UserProfile/Views/Identity/PublicUsernameEditSheet.swift",
   import.meta.url,
 );
 

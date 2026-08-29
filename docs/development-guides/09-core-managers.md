@@ -914,10 +914,12 @@ triggering excessive SwiftUI view rebuilds.
 
 ### `ProfileDatabaseActor` (Profile Stats)
 
-- `@ModelActor` living with `UserStats` in
-  `apps/ios/Merian/Features/Profile/UserProfile/Components/UserStats.swift`.
-- Owns the off-main projection pipeline for `ProfileTabView`: species count,
-  streak, 52-week heatmap, and award payloads.
+- `@ModelActor` in
+  `apps/ios/Merian/Features/Profile/UserProfile/Services/ProfileDatabaseActor.swift`.
+- Owns the off-main projection pipeline used by `ProfileTabViewModel`: species
+  count, streak, 52-week heatmap, and award payloads. The
+  `ProfileTabDependencies` live adapter creates the ad-hoc Profile render actor;
+  the view never creates it directly.
 - **Shared stats projection**: `calculateProfileStats()`, `calculateAll()`,
   `calculateHeatmapData()`, and `calculateAwardsProjection()` all load the same
   cached `ProfileStatsProjection` instead of issuing separate SwiftData fetches.
@@ -927,9 +929,10 @@ triggering excessive SwiftUI view rebuilds.
 - **Cache fingerprint**: The actor validates cached projections with
   `recordCount`, latest scan ID, and latest timestamp before reuse.
   Inserts/deletes naturally invalidate the cache without reloading full rows
-  just to check freshness. If a future long-lived caller edits existing scan
-  fields in place, call `invalidateCachedProfileProjections()` before asking for
-  updated profile stats.
+  just to check freshness. Callers that edit existing scan fields in place must
+  invalidate before requesting cached profile stats. The post-inference
+  `calculateAwards()` entry point does this itself because concurrent queued
+  scans can mutate records without changing the fingerprint.
 - **Achievement detail projection**: The richer detail projection is lazy and
   separate from the stats projection because it includes thumbnail paths and
   `capturedMediaJSON`-derived presentation fields. Do not merge it into the
@@ -1697,15 +1700,16 @@ consults that Keychain entry.
 - `unlockedAchievements: Set<String>` — type keys of all completed awards,
   persisted across sessions.
 - `evaluateAchievementsForNotifications(awards:)` — called after
-  `ProfileDatabaseActor.calculateAwards()` completes after every inference.
-  Checks for newly completed awards, persists `unlockedAchievements`, returns
-  toast-eligible awards, and queues native local push notifications via
-  `PushNotificationManager` when the achievement notification setting allows it.
-  It never imports or invokes the in-app visual presenter;
-  `ScanMilestoneCoordinator` batches the returned typed awards after Field trip
-  progress. Cat and dog achievements use a July 4, 2026 notification cutoff so
-  historical qualifying scans are seeded silently instead of showing retroactive
-  unlock banners.
+  `ProfileDatabaseActor.calculateAwards()` completes after every inference. That
+  entry point refreshes its projection before evaluating in-place inference
+  writes. The manager checks for newly completed awards, persists
+  `unlockedAchievements`, returns toast-eligible awards, and queues native local
+  push notifications via `PushNotificationManager` when the achievement
+  notification setting allows it. It never imports or invokes the in-app visual
+  presenter; `ScanMilestoneCoordinator` batches the returned typed awards after
+  Field trip progress. Cat and dog achievements use a July 4, 2026 notification
+  cutoff so historical qualifying scans are seeded silently instead of showing
+  retroactive unlock banners.
 - **The Field Naturalist** is the server-authoritative exception to the local
   scan calculator. `ScanMilestoneCoordinator` merges the typed earliest standard
   outing or Seasonal Challenge result, saves it in an account-scoped

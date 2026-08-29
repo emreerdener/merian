@@ -101,6 +101,11 @@ allowing nonmutating use of the sheet.
   from hiding newer runnable scans while retaining the explicit user-forced
   video override. Global server-status recovery excludes attention-paused
   inference rows.
+- `ScanQueueState.isManualRetryEligible` is the canonical state/deadline
+  baseline shared by the Library's `QueuedScanSnapshot` and the Insight route's
+  `QueuedScanContext`. Library callbacks do not treat that value as mutation
+  authority: the queue owner re-fetches and revalidates the durable row before
+  retrying.
 - Automatic Library recovery additionally requires an online, unconstrained
   path. Pending playback video requires an unmetered large-upload path unless
   the user explicitly requested that scan; staged/uploaded video can still run

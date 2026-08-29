@@ -181,13 +181,13 @@ private struct AchievementAccumulator {
             }
             return lhs.earliest.timestamp < rhs.earliest.timestamp
         }
-        
+
         let targetCount = type.definition.targetCount
         let cappedHistories = Array(unlockingHistories.prefix(targetCount))
         let unlockedAt = cappedHistories.count >= targetCount
             ? cappedHistories.last?.earliest.timestamp
             : nil
-        
+
         // Detail rows remain useful and current by showing the newest scan for each
         // species that actually contributed to the unlock.
         let displayContributions = cappedHistories.map(\.latest).sorted { lhs, rhs in

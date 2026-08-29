@@ -55,7 +55,9 @@ administrative role or capability.
 `check-public-username`. PostgreSQL remains authoritative through
 `public.is_reserved_public_username(...)` and the validated
 `users_public_username_valid_check`; privileged or future write paths cannot
-bypass the policy by omitting Edge validation.
+bypass the policy by omitting Edge validation. The iOS early-feedback mirror
+lives in
+`apps/ios/Merian/Features/Profile/UserProfile/Views/Identity/PublicUsernameEditSheet.swift`.
 
 Migration `20260808144244_expand_reserved_public_username_policy.sql` repairs
 existing profiles whose handles are reserved under the expanded policy with

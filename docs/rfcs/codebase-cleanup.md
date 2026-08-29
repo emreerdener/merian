@@ -110,9 +110,11 @@ emits route values and does not present its own sheet. Collection grids, smart
 collections, collection detail/editing, mutation orchestration, and catalog
 presentation belong in `Scans/Collections/`; the Scans Shell remains the owner
 of the shared completed-library query and passes its record set into that
-feature. Cross-surface Scans-only UI belongs in `Scans/Shared/`, while controls
-reused outside Scans, such as `CategoryFilterBar`, belong in
-`Core/UI/Components/`.
+feature and `Scans/NonBiological/`. The latter derives its filtered projection
+and owns correction, retention, and bulk-deletion presentation without mounting
+another query. Cross-surface Scans-only UI belongs in `Scans/Shared/`, while
+controls reused outside Scans, such as `ScanThumbnail`, `EmptyStateView`, and
+`CategoryFilterBar`, belong in `Core/UI/`.
 
 When working on the Profile tab, start in `Profile/UserProfile/`; that folder
 owns identity, published scans, achievements, persona, terrarium, heatmap, and
@@ -214,24 +216,72 @@ Implemented Scans slices:
   side-effect ordering, catalog filtering/empty-state independence, smart share
   mapping, and catalog/detail/selection membership-sensitive refresh identity.
   Every production Collections file stays below the pass's 600-line guard.
+- `Scans/NonBiological` now separates stable presentation/correction and
+  immutable erasure models, narrow purge/database/file/routing/feedback
+  Services, observable filtered and mutation state, a thin destination, and
+  status Components. The Collections card and root app route converge on the
+  Shell-owned typed destination, which consumes the Shell record query instead
+  of mounting another fetch. Focused tests lock copy and routing parity,
+  eligibility refresh, mixed-media snapshot mapping, completion ordering,
+  failure restoration, and overlapping deletion rejection. Actor coverage locks
+  the commit-time eligibility fence so a stale snapshot cannot erase a scan
+  reclassified as biological, while the UI fixture locks native Back behavior
+  and Collections-tab preservation. Every production NonBiological file stays
+  below the pass's 600-line guard.
+- `Scans/Shared` now separates detached queued-row policy, injected grid
+  interaction feedback, single-delete orchestration, Scans-only grid
+  composition, and deletion alert presentation. Shared views/components perform
+  no persistence read, endpoint call, loader/repository use, or app-container
+  lookup. Cross-feature `ScanThumbnail` projection/rendering and
+  `EmptyStateView` moved to `Core/UI`, while immutable backfill inputs moved
+  beside the Core image actor. The thumbnail loader has a feature-neutral
+  service owner, cancellation-fences results from shared cache work, and keys
+  tile tasks by pixel size and audio/reference policy. Queued grid and Insight
+  values share one manual-retry eligibility rule on `ScanQueueState`. Focused
+  tests mirror thumbnail presentation/loading, queued recovery and callback
+  ordering, and deletion outcomes. Every production Shared file stays below the
+  pass's 600-line guard.
+
+Implemented Profile slice:
+
+- `Profile/UserProfile` now separates typed Profile, identity, achievement, and
+  publication models; narrow live Services; generation-fenced observable state;
+  grouped Views; and presentation-only Components. Views and components issue no
+  endpoint calls and resolve no app-container, network-client, haptic, or
+  image-loader singleton. `ProfileDatabaseActor` owns SwiftData projections; the
+  live dependency adapters own actor creation and local route lookup.
+  Published-scan refresh supersedes in-flight pagination, Profile refresh
+  rejects stale account generations, canceled current loads return to a
+  retryable state, and achievement foreground loading clears when a background
+  refresh supersedes it. Avatar selection/upload work is request- and
+  account-fenced and consults the live view presentation slot before committing
+  a prepared preview or error. The long-lived post-inference Profile actor is
+  container-identity-scoped and refreshes its projection before every award
+  evaluation. Focused tests mirror all state owners, persona boundaries,
+  recovery presentation, achievement policy, actor-cache replacement, and
+  projection behavior. Every production UserProfile file stays below the pass's
+  600-line guard.
 
 ### Completed Scans Collections Persistence Repair
 
-The Collections organization pass now includes the reviewed V50 → V51 SwiftData
-repair. V50's complete relationship-bearing graph is frozen in
+The Collections organization pass now includes the reviewed V50 source-only
+SwiftData repair. V50's complete relationship-bearing graph is frozen in
 `Models/Schema/SchemaV50Snapshots.swift`, including its historical
-`ScanCollection.isDeleted` field and goal-hint companion. The active V51 model
-uses `isPendingDeletion` with `@Attribute(originalName: "isDeleted")`, so the
-application tombstone survives save/refetch while the Supabase/JSON field
-`is_deleted` remains unchanged.
+`ScanCollection.isDeleted` field and goal-hint companion. The active
+`MerianActiveSchemaV50` owner uses `isPendingDeletion` with
+`@Attribute(originalName: "isDeleted")`, so the application tombstone survives
+save/refetch while the persisted V50 model and Supabase/JSON field `is_deleted`
+remain unchanged.
 
-`MerianRecentV50MigrationPlan` contains exactly one lightweight V50 → V51 hop;
-the V49 source-isolated plan applies V49 → V50 followed by V50 → V51. Disk
-fixtures prove metadata-based plan selection, tombstone true/false values,
-relationship and goal-hint retention, and second-context reads. Collection
-mutation and database-actor suites cover exact payload projection, inbound
-reconciliation fencing, rollback, and acknowledgement-only purge. Recovery
-dispatch and checksum fallback include V50 explicitly and remain exhaustive.
+Released V50 stores open as current without a migration plan; the V49
+source-isolated plan applies the one required V49 → V50 hop. The full historical
+plan is linear through V42 → V49 → V50, while V43...V48 keep source-isolated
+repair plans. Disk fixtures prove metadata-based plan selection, tombstone
+true/false values, relationship and goal-hint retention, and second-context
+reads. Collection mutation and database-actor suites cover exact payload
+projection, inbound reconciliation fencing, rollback, and acknowledgement-only
+purge. Recovery dispatch treats V50 as current, and checksum fallback tries that
+current-store path before the exhaustive V49...V42 source-isolated ladder.
 
 Do not synthesize deletion from transient view state, hard-delete before cloud
 acknowledgement, or edit a frozen schema. Any future persisted-model change must

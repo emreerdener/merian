@@ -307,6 +307,9 @@ final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
     @ObservationIgnored private var _queueDbActorContainer: ModelContainer?
     /// Persistent `ProfileDatabaseActor` reused for award recalculation.
     @ObservationIgnored private var _profileDbActor: ProfileDatabaseActor?
+    /// Container that owns `_profileDbActor`; store recovery and tests can
+    /// replace the app's model container during this process lifetime.
+    @ObservationIgnored private var _profileDbActorContainer: ModelContainer?
 
     /// Claims the pre-dispatch single-flight slot for a scan.
     ///
@@ -429,9 +432,13 @@ final class BackgroundURLSessionTerminalWorkTracker: @unchecked Sendable {
 
     /// Returns the shared profile actor, creating it once from the provided container.
     func resolvedProfileDbActor(container: ModelContainer) -> ProfileDatabaseActor {
-        if let existing = _profileDbActor { return existing }
+        if let existing = _profileDbActor,
+           _profileDbActorContainer === container {
+            return existing
+        }
         let actor = ProfileDatabaseActor(modelContainer: container)
         _profileDbActor = actor
+        _profileDbActorContainer = container
         return actor
     }
 

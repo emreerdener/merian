@@ -317,15 +317,15 @@ future-source decision is
 [`active-capture-goal-context.md`](../rfcs/active-capture-goal-context.md).
 
 The selected goal is captured when eligible camera media is staged and survives
-both foreground and background completion. V50 introduced, and active V51 keeps,
-the two IDs in a scan-keyed `OfflineQueuedScanGoalHint` companion rather than
-changing the released V49 queue entity. V49→V50 migration creates no hint for an
-existing queue row because V49 persisted no selected-goal source value; only a
-qualifying capture running V50 or later may insert the companion. Successful
-queue finalization preserves the hint as a durable progress outbox until a
-successful or terminal acknowledgement; explicit cancellation and terminal
-orphan cleanup remove it. Insight contributions are not cached in SwiftData;
-reopening the saved biological scan always reads the private server projection.
+both foreground and background completion. Active V50 keeps the two IDs in a
+scan-keyed `OfflineQueuedScanGoalHint` companion rather than changing the
+released V49 queue entity. V49→V50 migration creates no hint for an existing
+queue row because V49 persisted no selected-goal source value; only a qualifying
+capture running V50 or later may insert the companion. Successful queue
+finalization preserves the hint as a durable progress outbox until a successful
+or terminal acknowledgement; explicit cancellation and terminal orphan cleanup
+remove it. Insight contributions are not cached in SwiftData; reopening the
+saved biological scan always reads the private server projection.
 
 Presentation contract:
 
@@ -1474,12 +1474,11 @@ so native Back returns to it. Also exercise
 queued/unauthenticated/non-biological gates, no-match and network failure, long
 goal/experience names, compact and large widths, dark mode, accessibility
 Dynamic Type, VoiceOver, and Reduce Motion. The card must add no haptic or
-confetti. Verify V49→V50→V51 migration and both foreground/background queue
-paths preserve the eligible camera-only hint, while gallery, mixed
-camera/gallery, Describe, Record, audio, video, refinement, and deletion/orphan
-cleanup do not leak it. Also verify migrated V49 queue rows receive no
-synthesized hint, then create fresh V51 queue rows for the foreground/background
-persistence checks.
+confetti. Verify V49→V50 migration and both foreground/background queue paths
+preserve the eligible camera-only hint, while gallery, mixed camera/gallery,
+Describe, Record, audio, video, refinement, and deletion/orphan cleanup do not
+leak it. Also verify migrated V49 queue rows receive no synthesized hint, then
+create fresh V50 queue rows for the foreground/background persistence checks.
 
 For completion-evidence QA, complete a non-leading goal such as Cat and confirm
 that only Cat changes in both the catalog card and detail grid. Test both photo

@@ -1,116 +1,104 @@
 import SwiftData
 import SwiftUI
 
-enum NonBiologicalCorrectionReanalysis {
-    static let confirmationTitle = "Reanalyze identification?"
-    static let confirmationMessage = "This identification was marked as non-biological. Reanalysis will look for a biological subject using the original capture."
-    static let primaryAction = "Reanalyze"
-    static let secondaryAction = "Cancel"
-
-    static func refinementRoute(scanId: String) -> AppRoute {
-        .refinement(
-            scanId: scanId,
-            initialDescription: nil,
-            entryPoint: .nonBiologicalCorrection
-        )
-    }
-}
-
 struct NonBiologicalScansView: View {
+    let scans: [LocalScanRecord]
 
-    // MARK: - State Dependencies
-    @Query(filter: #Predicate<LocalScanRecord> { $0.isBiological == false }, sort: \.timestamp, order: .reverse) private var nonBioRecords: [LocalScanRecord]
-    
     @Environment(\.modelContext) private var modelContext
-    
-    // MARK: - Interface State
+
+    @State private var viewModel: NonBiologicalScansViewModel
     @State private var scanToReanalyze: String?
     @State private var scanToDelete: String?
     @State private var showDeleteConfirmation = false
     @State private var showClearAllConfirmation = false
-    @State private var isClearingAll = false
-    @State private var toastMessage: ToastPayload?
-    
-    // MARK: - View Layout
-    
+
+    init(
+        scans: [LocalScanRecord],
+        dependencies: NonBiologicalDependencies? = nil
+    ) {
+        self.scans = scans
+        _viewModel = State(
+            initialValue: NonBiologicalScansViewModel(
+                scans: scans,
+                dependencies: dependencies
+            )
+        )
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
-                if nonBioRecords.isEmpty {
+                if viewModel.scans.isEmpty {
                     EmptyStateView(
-                        iconName: "photo.on.rectangle.angled",
-                        title: "Empty",
-                        message: "This collection is currently empty. Non-biological items are automatically purged here after 30 days."
+                        iconName:
+                            NonBiologicalScansPresentation.emptyIconName,
+                        title: NonBiologicalScansPresentation.emptyTitle,
+                        message: NonBiologicalScansPresentation.emptyMessage
                     )
-                    .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                    .frame(
+                        maxWidth: .infinity,
+                        minHeight: geometry.size.height
+                    )
                 } else {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.red)
-                            .font(.system(size: 18))
+                    NonBiologicalRetentionBanner()
 
-                        Text("Items in this collection are permanently deleted after 30 days to free up space.")
-                            .font(.footnote)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-
-                        Spacer()
-                    }
-                    .padding(16)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-
-                    ScansGrid(scans: nonBioRecords, onSelect: { scan in
-                        scanToReanalyze = scan.id
-                    }, onDelete: { scan in
-                        scanToDelete = scan.id
-                        showDeleteConfirmation = true
-                    }) { scan in
+                    ScansGrid(
+                        scans: viewModel.scans,
+                        onSelect: { scan in
+                            scanToReanalyze = scan.id
+                        },
+                        onDelete: { scan in
+                            scanToDelete = scan.id
+                            showDeleteConfirmation = true
+                        }
+                    ) { scan in
                         Button {
                             scanToReanalyze = scan.id
                         } label: {
-                            Label("Reanalyze as biological", systemImage: "leaf.arrow.triangle.circlepath")
+                            Label(
+                                NonBiologicalScansPresentation
+                                    .reanalysisAction,
+                                systemImage:
+                                    "leaf.arrow.triangle.circlepath"
+                            )
                         }
                     }
-                    .allowsHitTesting(!isClearingAll)
-                    .accessibilityHidden(isClearingAll)
+                    .allowsHitTesting(!viewModel.isClearingAll)
+                    .accessibilityHidden(viewModel.isClearingAll)
                 }
             }
         }
         .overlay {
-            if isClearingAll {
-                ProgressView("Clearing scans...")
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
-                    .allowsHitTesting(false)
+            if viewModel.isClearingAll {
+                NonBiologicalClearingProgressView()
             }
         }
         .merianSystemFeedback(
-            toast: $toastMessage,
+            toast: $viewModel.toastMessage,
             showsAchievementToasts: false
         )
-        .task {
-            await purgeExpiredNonBiologicalScans()
+        .task(id: refreshIdentity) {
+            viewModel.refresh(scans: scans)
         }
-        
-        // MARK: - View Modifiers
-        .navigationTitle("Non-biological")
+        .task {
+            await viewModel.purgeExpired(
+                in: modelContext.container
+            )
+        }
+        .navigationTitle(NonBiologicalScansPresentation.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if !nonBioRecords.isEmpty {
-                    Button(action: {
+                if !viewModel.scans.isEmpty {
+                    Button {
                         showClearAllConfirmation = true
-                    }) {
+                    } label: {
                         Image(systemName: "trash")
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
                     .buttonBorderShape(.circle)
-                    .disabled(isClearingAll)
+                    .disabled(viewModel.isClearingAll)
                 }
             }
         }
@@ -121,10 +109,13 @@ struct NonBiologicalScansView: View {
                 set: { if !$0 { scanToReanalyze = nil } }
             )
         ) {
-            Button(NonBiologicalCorrectionReanalysis.secondaryAction, role: .cancel) { }
+            Button(
+                NonBiologicalCorrectionReanalysis.secondaryAction,
+                role: .cancel
+            ) { }
             Button(NonBiologicalCorrectionReanalysis.primaryAction) {
-                if let scanId = scanToReanalyze {
-                    reanalyzeAsBiological(scanId: scanId)
+                if let scanID = scanToReanalyze {
+                    viewModel.requestReanalysis(scanID: scanID)
                 }
             }
         } message: {
@@ -136,71 +127,32 @@ struct NonBiologicalScansView: View {
             modelContext: modelContext
         ) {
             scanToDelete = nil
-            toastMessage = .success("Scan deleted")
+            viewModel.didDeleteSingleScan()
         }
         .alert(
-            "Delete \(nonBioRecords.count) non-biological scans?",
+            viewModel.clearAllConfirmationTitle,
             isPresented: $showClearAllConfirmation
         ) {
-            Button("Delete all", role: .destructive) {
-                clearAllNonBiologicalScans()
+            Button(
+                NonBiologicalScansPresentation.deleteAllAction,
+                role: .destructive
+            ) {
+                Task {
+                    await viewModel.clearAll(
+                        in: modelContext.container
+                    )
+                }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(
+                NonBiologicalScansPresentation.cancelAction,
+                role: .cancel
+            ) { }
         } message: {
-            Text("This action cannot be undone.")
+            Text(NonBiologicalScansPresentation.deleteAllMessage)
         }
     }
-    
-    // MARK: - Action Handlers
-    private func purgeExpiredNonBiologicalScans() async {
-        await AppDIContainer.shared.scanRepository.purgeExpiredNonBiologicalScans(
-            modelContainer: modelContext.container
-        )
-    }
 
-    private func clearAllNonBiologicalScans() {
-        guard !isClearingAll else { return }
-        isClearingAll = true
-        let payloads = nonBioRecords.map { scan in
-            let snapshot = scan.capturedMediaSnapshot
-            let paths = snapshot.thumbnailImagePaths + snapshot.audioPaths + snapshot.videoPaths
-            return BackgroundDatabaseActor.ScanErasurePayload(id: scan.id, imagePaths: paths)
-        }
-        let container = modelContext.container
-        
-        DetachedWork.fireAndForget(
-            priority: .userInitiated,
-            category: .backgroundDatabaseMutation
-        ) {
-            let backgroundActor = BackgroundDatabaseActor(modelContainer: container)
-
-            do {
-                let deletedPaths = try await backgroundActor.bulkDeleteNonBiologicalScans(payloads: payloads)
-                await FileIOActor.shared.deleteImages(at: deletedPaths)
-
-                await MainActor.run {
-                    isClearingAll = false
-                    AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-                    HapticManager.shared.triggerSuccessPulse()
-                    toastMessage = .success("Scans cleared")
-                    Task { await AppDIContainer.shared.offlineQueueManager.syncPendingDeletions() }
-                }
-            } catch {
-                await MainActor.run {
-                    isClearingAll = false
-                    HapticManager.shared.triggerErrorThump()
-                    toastMessage = .error("Couldn't clear scans")
-                }
-            }
-        }
-    }
-    
-    private func reanalyzeAsBiological(scanId: String) {
-        AppDIContainer.shared.appRouteCoordinator.request(
-            NonBiologicalCorrectionReanalysis.refinementRoute(scanId: scanId),
-            source: .internalUserAction
-        )
-        HapticManager.shared.triggerSelectionPulse()
-        toastMessage = .information("Reanalysis started")
+    private var refreshIdentity: NonBiologicalScansRefreshIdentity {
+        viewModel.refreshIdentity(scans: scans)
     }
 }

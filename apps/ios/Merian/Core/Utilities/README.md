@@ -3,6 +3,11 @@
 The `Utilities` directory owns lightweight cross-cutting helpers and the typed
 process-local coordination primitives used across feature boundaries.
 
+`String+Trimming.swift` provides the single trim-to-non-empty normalization used
+by the shared scan-thumbnail projection, renderer, and reference-image backfill
+pipeline. Keep that mechanical normalization here instead of recreating
+file-private variants across those layers.
+
 ## Scan transport classification
 
 `MerianError.swift` owns `ScanConnectivityFailurePolicy`, the shared bounded

@@ -1,21 +1,20 @@
 import SwiftUI
 
-// MARK: - Scans Feature UI Primitive
+/// Cross-feature empty-state composition with optional artwork and action
+/// content. Product areas retain ownership of visible copy and behavior.
 public struct EmptyStateView<Content: View>: View {
-    // MARK: - Component State
     let iconName: String?
     let imageName: String?
     let imageHeight: CGFloat
     let title: String
     let message: String
     let content: Content
-    
-    // MARK: - Initialization Lifecycle
+
     public init(
         iconName: String? = nil,
         imageName: String? = nil,
-        title: String, 
-        message: String, 
+        title: String,
+        message: String,
         @ViewBuilder content: () -> Content = { EmptyView() }
     ) {
         self.init(
@@ -43,40 +42,36 @@ public struct EmptyStateView<Content: View>: View {
         self.message = message
         self.content = content()
     }
-    
-    // MARK: - Visual Layout
+
     public var body: some View {
         VStack(spacing: 16) {
             Spacer()
-            // 1. Core Visual Iconography
-            if let imageName = imageName {
+
+            if let imageName {
                 Image(imageName)
                     .resizable()
                     .scaledToFit()
                     .frame(height: imageHeight)
                     .padding(.bottom, 16)
-            } else if let iconName = iconName {
+            } else if let iconName {
                 Image(systemName: iconName)
                     .font(.system(size: 32, weight: .light))
                     .foregroundColor(.secondary)
                     .padding(.bottom, 8)
             }
-            
-            // 2. Headline Messaging Layer
+
             Text(title)
                 .font(.title3)
                 .fontWeight(.semibold)
-            
-            // 3. Subheadline Context
+
             Text(message)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
-            
-            // 4. Injected Action Hierarchy
+
             content
-            
+
             Spacer()
         }
         .padding()

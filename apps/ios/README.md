@@ -73,12 +73,66 @@ Use the narrowest owner that fits:
 
 Examples:
 
-- `Features/Scans/Shared` can own scan-only thumbnails, grids, and deletion
-  dialogs.
-- `Core/UI` can own generic controls or modifiers reused by Explore, Scans,
-  Profile, and Capture.
+- `Features/Scans/Shared` owns the Scans-only composite grid, queued-row value
+  policy, and deletion interaction boundary.
+- `Core/UI` owns `ScanThumbnail` and `EmptyStateView` because Explore, Scans,
+  Profile, and Species Dictionary consume them.
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
   feature-specific scan screen.
+
+## Scans Ownership
+
+Scans is composed from product-area owners rather than one root implementation:
+
+- [Shell](Merian/Features/Scans/Shell/README.md) owns the root record and
+  collection SwiftData queries, typed navigation stack, tab/pager state, and
+  root presentation.
+- [Library](Merian/Features/Scans/Library/README.md),
+  [Collections](Merian/Features/Scans/Collections/README.md), and
+  [Map](Merian/Features/Scans/Map/README.md) own their respective product
+  behavior and receive prepared records or value snapshots from the Shell.
+- [Non-Biological](Merian/Features/Scans/NonBiological/README.md) derives its
+  projection from the Shell's timestamp-sorted records and owns its mutation
+  orchestration, but it does not mount another persistence query.
+- [Shared](Merian/Features/Scans/Shared/README.md) owns the Scans-only grid,
+  queued-row value policy, and single-delete interaction shared by multiple
+  Scans product areas. Cross-feature thumbnail and empty-state rendering lives
+  in `Core/UI`.
+
+`ScanThumbnail` delegates media work to the Core UI loader service, whose
+post-suspension cancellation checks prevent cache-filling work from publishing
+into a reused tile. Its task identity includes source, policy, target-size,
+placeholder, and relevant connectivity inputs. Scans queued-row and Insight
+snapshots share `ScanQueueState.isManualRetryEligible`; mutation owners still
+re-fetch and revalidate the live row before changing durable state.
+
+For bulk non-biological deletion, view state supplies immutable candidate
+snapshots while `BackgroundDatabaseActor` remains the commit-time authority. It
+re-fetches each ID and skips a row that has since become biological before any
+record, local-path, or cloud-deletion mutation is accepted.
+
+## Profile Ownership
+
+Profile is split by user-facing responsibility:
+
+- [User Profile](Merian/Features/Profile/UserProfile/README.md) owns the visible
+  identity card, local stats and achievements, persona and terrarium
+  presentation, and the signed-in user's published scans.
+- `Profile/Settings` owns preferences and account actions, while its Plan,
+  Notifications, Changelog, and Feedback product areas own their corresponding
+  screens and state.
+- `Profile/Shared` owns account and public-identity state consumed across
+  Profile product areas. UserProfile view models depend on narrow live adapters
+  rather than resolving shared managers or endpoints in views.
+
+Within UserProfile, `Models`, `Services`, `ViewModels`, `Views`, and grouped
+`Components` define the ownership boundary. `ProfileDatabaseActor` prepares
+immutable stats and achievement projections off-main. Its post-inference actor
+is cached only for the exact `ModelContainer` identity, and `calculateAwards()`
+refreshes the value projection before every evaluation so in-place inference
+updates cannot reuse stale fields. Avatar preparation and upload are
+request/account fenced and consult the view's live typed-presentation slot
+before publishing a preview or error.
 
 ## AI And Foreground Analysis
 

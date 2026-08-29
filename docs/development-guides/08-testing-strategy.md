@@ -177,16 +177,17 @@ private func createIsolatedContext() throws -> ModelContainer {
 }
 ```
 
-Always use `CurrentSchema` (aliased to the latest active `MerianSchemaV{N}`).
-Never pin tests to historical versioned schemas — a pinned schema silently drops
-new model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
+Always use `CurrentSchema` (aliased to the latest active schema owner). Never
+pin tests to historical versioned schemas — a pinned schema silently drops new
+model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current schema is V51. The V50 migration fixture intentionally creates the
-historical `ScanCollection.isDeleted` column, then opens it through the V50→V51
-lightweight stage and asserts the active `isPendingDeletion` mapping. Keep
-`isDeleted` in that fixture and in historical schema tests; production tests
-should use the active property name and predicate.
+The current persisted schema is V50. The released-V50 fixture intentionally
+creates the historical `ScanCollection.isDeleted` Swift property, then opens it
+as current through `MerianActiveSchemaV50` and asserts the active
+`isPendingDeletion` mapping without a migration plan. Keep `isDeleted` in that
+fixture and in historical schema tests; production tests should use the active
+property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -763,6 +764,60 @@ MerianTests/
   Features/Profile/Settings/Changelog/
 ```
 
+### Profile UserProfile
+
+`apps/ios/MerianTests/Features/Profile/UserProfile/` mirrors the visible Profile
+product area. The cache integration test remains under the Core manager that
+owns the cache:
+
+- `AchievementsCalculatorTests` and `ProfileDatabaseActorTests` cover pure award
+  policy, projection fields, inserted and in-place mutation invalidation,
+  heatmap/streak values, and achievement-detail mapping.
+- `Core/Data/OfflineSync/ProfileActorCacheTests` locks replacement of the
+  long-lived award actor when the owning `ModelContainer` changes.
+- `ProfileTabViewModelTests` cover local-only refresh, cached then authoritative
+  Field trip progress, server failure fallback, app-event invalidation, and late
+  account response fencing.
+- `ProfilePublicationsViewModelTests` cover normalized owner loading, cursor
+  pagination, stable deduplication, owner replacement, and refresh supersession
+  and cancellation retry for an in-flight append.
+- `AchievementDetailViewModelTests` cover foreground/background load behavior,
+  overlap cleanup, telemetry, stale completion fencing, and cancellation.
+- `UserProfileAvatarCoordinatorTests` cover live presentation-slot admission,
+  empty crops, preparation and server failures, and account replacement during
+  upload.
+- `ProfilePublicationRecoverySummaryTests` and `UserPersonaTests` lock recovery
+  presentation and exact persona tier boundaries.
+
+Keep wire decoding and endpoint request construction in Core Network tests;
+feature tests replace the narrow dependency closures and must not instantiate a
+live Supabase or network client.
+
+After `make xcodegen` and build-for-testing, run the canonical Profile matrix
+against the same built products:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/AchievementsCalculatorTests \
+  -only-testing:merianTests/ProfileDatabaseActorTests \
+  -only-testing:merianTests/ProfileActorCacheTests \
+  -only-testing:merianTests/ProfileTabViewModelTests \
+  -only-testing:merianTests/ProfilePublicationsViewModelTests \
+  -only-testing:merianTests/AchievementDetailViewModelTests \
+  -only-testing:merianTests/UserProfileAvatarCoordinatorTests \
+  -only-testing:merianTests/ProfilePublicationRecoverySummaryTests \
+  -only-testing:merianTests/UserPersonaTests
+```
+
+Then run the complete `merianTests` target. Manually verify account transitions,
+Profile event refresh, avatar picker/crop/upload/error timing, achievement
+detail navigation and Insight return, Field trip badge routes, publication
+recovery and pagination, VoiceOver, large Dynamic Type, and light/dark
+appearance.
+
 ### Analytics & Telemetry
 
 - **`AppTelemetryTests.swift`**: Installs a local capture handler and calls
@@ -891,23 +946,22 @@ MerianTests/
     queued rows as the current model during `didMigrate`. This is the preferred
     place for schema-version migration fixtures and SwiftData checksum
     regressions.
-  - V49→V50→V51 coverage verifies that the lightweight migration preserves
-    existing queued scans, permits a new `OfflineQueuedScanGoalHint` companion
-    with the same scan ID, and renames the collection tombstone without changing
-    the stored column. Before opening each fixture, the test calls the
-    production metadata decision path and proves the real disk store reports
-    major `49` or `50` and selects `.recentSource(.v49)` or
-    `.recentSource(.v50)`. The V49 fixture opens with
-    `MerianRecentV49MigrationPlan` (`[V49, V50, V51]` and the two lightweight
-    hops); the V50 fixture opens with `MerianRecentV50MigrationPlan`
-    (`[V50, V51]` and one lightweight hop). Store-recovery tests keep the
-    exhaustive recent-source enum consecutive and ending at `CurrentSchema - 1`;
-    app dispatch has no default branch, so a future source case cannot silently
-    use the full historical plan. Queue and collection tests cover
-    hint/tombstone persistence through foreground and background completion,
-    inbound shielding, acknowledgement purge, and deletion/orphan cleanup. The
-    real-device install-over gate remains separate release evidence; a
-    simulator-created V49 store cannot satisfy it.
+  - V49→V50 coverage verifies that the lightweight migration preserves existing
+    queued scans and permits a new `OfflineQueuedScanGoalHint` companion with
+    the same scan ID. The released-V50 reopening fixture verifies the
+    source-only collection tombstone rename without changing the stored column
+    or checksum. Before opening each fixture, the test calls the production
+    metadata decision path and proves the real disk store reports major `49` or
+    `50` and selects `.recentSource(.v49)` or `.currentStore`. The V49 fixture
+    opens with `MerianRecentV49MigrationPlan` (`[V49, active V50]` and one
+    lightweight hop); the V50 fixture opens without a migration plan.
+    Store-recovery tests keep the exhaustive recent-source enum consecutive and
+    ending at `CurrentSchema - 1`; app dispatch has no default branch, so a
+    future source case cannot silently use the full historical plan. Queue and
+    collection tests cover hint/tombstone persistence through foreground and
+    background completion, inbound shielding, acknowledgement purge, and
+    deletion/orphan cleanup. The real-device install-over gate remains separate
+    release evidence; a simulator-created V49 store cannot satisfy it.
 - **`ModelStoreRecoveryCoordinatorTests.swift`**: Launch-recovery guard for
   damaged and legacy-unmigratable local stores. It verifies corruption-only
   quarantine, legacy migration rescue for generic SwiftData migration failures,
@@ -945,11 +999,12 @@ MerianTests/
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared lightweight V49→V50→V51 stages. V49 must select a dedicated
-    `[V49, V50, V51]` plan and V50 a dedicated `[V50, V51]` plan in both normal
-    startup and the checksum retry ladder. The source guardrail must preserve
-    retry order as current store, V50, V49, V48, then V47 through V42; checking
-    only that every label exists is insufficient. Disk-backed SwiftData
+    the shared lightweight V49→V50 stage. The full historical plan must remain a
+    single linear chain through V42→V49→active V50; V43...V48 belong only to
+    source-isolated plans. V49 must select a dedicated `[V49, active V50]` plan,
+    and V50 must select the current-store no-plan path. The source guardrail
+    must preserve retry order as current store, V49, V48, then V47 through V42;
+    checking only that every label exists is insufficient. Disk-backed SwiftData
     migration tests should use unique temporary store URLs and must not unlink
     the `.sqlite`, `.sqlite-shm`, or `.sqlite-wal` files during the test
     process. Core Data may keep those file descriptors alive after the visible
@@ -1026,9 +1081,9 @@ MerianTests/
   current, cancellation must be false, and the typed modal slot must be empty.
   It also proves Field Notes, composer, Field Chat, and paywall cases have
   disjoint stable identities.
-- **`ProfileViewModelTests.swift`**: In addition to public-identity behavior,
-  locks avatar-crop admission to the current request with no cancellation and an
-  empty local presentation slot.
+- **`ProfileViewModelTests.swift`**: Locks shared public-identity resolution,
+  sign-out presentation, and user-facing authentication copy. Avatar-crop
+  admission belongs to the feature-owned `UserProfileAvatarCoordinatorTests`.
 - **`ViewfinderIntelligenceTests.swift`**: Validates real-time analysis logic,
   ensuring frames are evaluated correctly before inference is triggered.
 - **`ArchiveManagerTests.swift`, `SyncStateManagerTests.swift`,
@@ -1047,13 +1102,15 @@ MerianTests/
   correctly (covering the `MerianSchemaV27` field added for rich lookalike
   persistence). `BackgroundDatabaseActorTests` uses `CurrentSchema` and a
   disk-isolated container to validate actor-boundary `Sendable` payload
-  extraction across a `Task.detached` boundary. Its upload and inference
-  reconciliation tests also seed rows on both sides of an `observedThrough`
-  cutoff and prove the older orphan resets while newer replacement work remains
-  claimed. Its terminal replay test accepts an absent queue only for the exact
-  generation's completed durable job, while rejecting nonterminal and
-  mismatched-generation jobs. `SyncStateManagerTests` also locks the
-  generation-fencing contract: a stale upload completion cannot clear a
+  extraction across a `Task.detached` boundary. Its non-biological bulk-delete
+  coverage also proves a row reclassified as biological after presentation
+  snapshotting is preserved without local-file or cloud-deletion side effects.
+  Its upload and inference reconciliation tests seed rows on both sides of an
+  `observedThrough` cutoff and prove the older orphan resets while newer
+  replacement work remains claimed. Its terminal replay test accepts an absent
+  queue only for the exact generation's completed durable job, while rejecting
+  nonterminal and mismatched-generation jobs. `SyncStateManagerTests` also locks
+  the generation-fencing contract: a stale upload completion cannot clear a
   replacement batch; a completion delivered after `forceIdle()` cannot remove a
   newer inference token; a stale finalizing transition cannot advance the
   replacement's UI phase; and `GenerationTaskRegistry` rejects
@@ -1392,7 +1449,7 @@ MerianTests/
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the V51
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V50
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -1403,21 +1460,48 @@ MerianTests/
   refresh, catalog/detail/selection membership-sensitive refresh identity, and
   typed catalog/smart-detail invalidation when same-length review payload data
   changes in place.
+- **`NonBiologicalScansViewModelTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/NonBiological/`): Locks stable visible
+  copy and correction routing, the non-biological projection from Shell-owned
+  records, eligibility-sensitive refresh identity, ordered mixed-media erasure
+  snapshots, database/file/event/feedback/sync completion order, failure
+  restoration, overlap rejection, retention purge, and single-delete feedback
+  without resolving the app container or live actors.
 - **`ScansFilterPresentationTests.swift`**
   (`apps/ios/MerianTests/Features/Scans/Library/`): Locks normalization of
   underscore-, hyphen-, whitespace-, and empty filter labels; empty/single/many
   selection summaries; Date/Naturalist/Taxonomy group summaries; and taxonomy
   section visibility independently of the SwiftUI sheet.
+- **`ScanThumbnailPresentationTests.swift`** (`apps/ios/MerianTests/Core/UI/`):
+  Locks cross-feature thumbnail projection for audio-only reference fallback,
+  terminal unknown/Describe state, backfill eligibility, and
+  archived-versus-remote failure presentation.
+- **`ScanThumbnailLoaderTests.swift`** (`apps/ios/MerianTests/Core/UI/`): Locks
+  audio/reference loader selection, no-source short-circuiting, and the
+  cancellation fence that prevents a stale audio request from entering visual
+  fallback after a tile is reused.
+- **`ScansSharedPolicyTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Shared/`): Locks detached queued-row
+  recovery against durable state, connectivity, constrained-network, and
+  large-video policy; legacy image restoration; grid identity; shared manual
+  retry eligibility with queued Insight; and exact feedback-before-callback
+  ordering for queued, completed, and add tiles. The critical-result validator
+  protects `queuedSnapshotRecoveryRespectsDurableAndNetworkPolicy` under this
+  suite; do not point that selector back at the Library integration suite.
+- **`ScanDeletionServiceTests.swift`**
+  (`apps/ios/MerianTests/Features/Scans/Shared/`): Uses an in-memory SwiftData
+  container plus injected fetch, erasure, and feedback effects to prove existing
+  records erase in order, already-absent records complete without mutation, and
+  a missing selection resolves no dependency or presentation completion.
 - **`CompositeLibraryTests.swift`**
-  (`apps/ios/MerianTests/Features/Scans/Library/`): Validates the bounding
-  behaviors of the composite `ScansGrid` that renders both `OfflineQueuedScan`
-  and `LocalScanRecord` items in the same `LazyVGrid`.
+  (`apps/ios/MerianTests/Features/Scans/Library/`): Retains Library/queue
+  integration guards whose owner is not the extracted Shared presentation
+  policy.
   - **Unique ID Guarantee**: Inserts three `OfflineQueuedScan` records and
     asserts all three `id` values are distinct, guarding against accidental
     identifier collisions inside the grid's `ForEach` key space.
-  - **Thumbnail fallback safety**: Asserts queued-scan tiles can safely derive
-    an empty thumbnail from the canonical media timeline when no image is
-    staged, instead of depending on a dedicated `localImagePaths` column.
+  - **Optional cover safety**: Asserts a new queued row has no required cover
+    image, so Shared presentation must continue to accept a missing visual.
   - **`queueState` Default (`testQueueStateDefaultsPending`)** (V33): Asserts a
     freshly constructed `OfflineQueuedScan` has `queueState == .pending` (raw
     value 0), so new records are always picked up by the next `syncPendingScans`
@@ -1433,6 +1517,28 @@ MerianTests/
     `getSelectedLocalRecords()` filters from `filteredScans: [LocalScanRecord]`,
     the queued scan ID cannot reach the batch-share / batch-delete pipeline
     regardless of what is in `selectedScans`.
+
+Run the focused Shared and image-pipeline matrix after changing the grid,
+thumbnail projection/renderer, deletion service/modifier, queued snapshot, or
+backfill candidate:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/ScanThumbnailPresentationTests \
+  -only-testing:merianTests/ScanThumbnailLoaderTests \
+  -only-testing:merianTests/ScansSharedPolicyTests \
+  -only-testing:merianTests/ScanDeletionServiceTests \
+  -only-testing:merianTests/CompositeLibraryTests \
+  -only-testing:merianTests/ScansThumbnailPipelineTests \
+  -only-testing:merianTests/PrivateScanMapTests test
+```
+
+Manually verify Library, Collections, Non-Biological, and Map grid density;
+queued retry/delete visibility; completed/add selection haptics; delete copy and
+completion; cross-feature reference/spectrogram fallbacks; VoiceOver; large
+Dynamic Type; and light/dark appearance.
+
 - **`ImageCacheTests.swift`**: Ensures the Swift RAM cache does not exceed
   maximum system allocation limits.
 
@@ -1729,14 +1835,62 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V51 matrix keeps the durable-delete regression enabled. It verifies that the
+The V50 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration, and a second context, while the V50 source graph remains frozen. Run
-the complete `MigrationPlanTests` suite with both disk-backed V49 → V50 → V51
-and V50 → V51 fixtures, the focused Collections suites without exclusions,
-startup recovery coverage, and the full `merianTests` target. Any
-duplicate-checksum initialization failure remains a release blocker and must be
-fixed in the migration plan rather than bypassed.
+migration from V49, released-V50 reopening, and a second context, while the V50
+fixture graph remains frozen. Run the complete `MigrationPlanTests` suite with
+the disk-backed V49 → V50 migration and released-V50 current-store fixtures, the
+focused Collections suites without exclusions, startup recovery coverage, and
+the full `merianTests` target. Any duplicate-checksum initialization failure
+remains a release blocker and must be fixed in the migration plan rather than
+bypassed.
+
+### Scans Non-Biological
+
+The Non-biological suite replaces `NonBiologicalDependencies` with deterministic
+closures. It verifies feature-owned filtering, routing, presentation, and
+mutation orchestration without calling live persistence actors, the file system,
+the app event publisher, the offline queue, or haptics. Core
+`BackgroundDatabaseActor`, `ScanRepository`, `FileIOActor`, and offline-deletion
+tests remain authoritative for their lower-level durability and cleanup
+contracts, including the actor-side eligibility recheck that prevents a stale
+Clear All snapshot from deleting a row reclassified as biological.
+
+After `make xcodegen` and build-for-testing, run:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/NonBiologicalScansViewModelTests \
+  -only-testing:merianTests/BackgroundDatabaseActorTests
+```
+
+Run the focused navigation regression against the same built test products:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianUITests/merianUITests/testNonBiologicalCollectionBackReturnsToCollectionsTab
+```
+
+Then run the complete `merianTests` target. The focused unit suites prove stable
+copy/route values, shared-query projection, immutable erasure mapping, ordered
+effects, failure recovery, one-owner overlap behavior, actor-side durability,
+and the commit-time eligibility fence. The UI case proves the seeded typed
+destination, native Back behavior, preserved Collections selection, and visible,
+hittable Non-biological card. It does not prove the cross-feature route, alert
+timing, file deletion, retention purge, correction, VoiceOver, Dynamic Type, or
+deletion-queue delivery. Manually regress both entry paths (Collections card and
+cross-feature route), Back to Collections, empty and populated states, retention
+purge, single deletion, Clear All success/failure, correction confirmation and
+refinement, progress interactivity, VoiceOver, large Dynamic Type, and
+light/dark appearance. Generated-project membership must include every Swift
+file below both mirrored NonBiological directories, and each production file
+must remain below the feature's 600-line review guard.
 
 ### Private Scan Map
 

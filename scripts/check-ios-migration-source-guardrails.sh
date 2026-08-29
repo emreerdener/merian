@@ -127,40 +127,35 @@ migration_plan_stages="$(
   ' "$schema_file"
 )"
 
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV43.self" \
-  || fail "MerianMigrationPlan.schemas must include MerianSchemaV43.self."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV47.self" \
-  || fail "MerianMigrationPlan.schemas must include MerianSchemaV47.self."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV48.self" \
-  || fail "MerianMigrationPlan.schemas must include MerianSchemaV48.self."
 printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV49.self" \
   || fail "MerianMigrationPlan.schemas must include MerianSchemaV49.self."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV50.self" \
-  || fail "MerianMigrationPlan.schemas must include the released MerianSchemaV50.self."
-printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV51.self" \
-  || fail "MerianMigrationPlan.schemas must include the current MerianSchemaV51.self."
+printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianActiveSchemaV50.self" \
+  || fail "MerianMigrationPlan.schemas must finish with the active V50 Swift type owner."
+if printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV50.self"; then
+  fail "MerianMigrationPlan.schemas must not include the checksum-identical released V50 fixture beside active V50."
+fi
+if printf '%s\n' "$migration_plan_schemas" | grep -Fq "MerianSchemaV51.self"; then
+  fail "MerianMigrationPlan.schemas must not invent a V51 stage for a source-only property rename."
+fi
 
-for retired_recent_schema in MerianSchemaV44.self MerianSchemaV45.self MerianSchemaV46.self; do
+for retired_recent_schema in MerianSchemaV43.self MerianSchemaV44.self MerianSchemaV45.self MerianSchemaV46.self MerianSchemaV47.self MerianSchemaV48.self; do
   if printf '%s\n' "$migration_plan_schemas" | grep -Fq "$retired_recent_schema"; then
-    fail "MerianMigrationPlan.schemas must omit duplicate-prone $retired_recent_schema."
+    fail "MerianMigrationPlan.schemas must omit source-isolated recent schema $retired_recent_schema and remain linear through V42 to V49."
   fi
 done
 
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV43toV49" \
-  || fail "MerianMigrationPlan.stages must jump from V43 to V49."
 printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV42toV49" \
   || fail "MerianMigrationPlan.stages must jump from V42 to V49."
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV48toV49" \
-  || fail "MerianMigrationPlan.stages must advance V48 to the V49 startup repair schema."
 printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV49toV50" \
-  || fail "MerianMigrationPlan.stages must advance V49 to the released V50 schema."
-printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV50toV51" \
-  || fail "MerianMigrationPlan.stages must advance V50 to the current V51 schema."
+  || fail "MerianMigrationPlan.stages must advance V49 to active V50."
+if printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV50toV51"; then
+  fail "MerianMigrationPlan.stages must not contain a checksum-identical V50 to V51 hop."
+fi
 if printf '%s\n' "$migration_plan_stages" | grep -Fq "migrateV47toV49"; then
   fail "MerianMigrationPlan.stages must not route historical stores through V47."
 fi
 
-for source_isolated_stage in migrateV42toV43 migrateV44toV49 migrateV45toV49 migrateV46toV49 migrateV43toV47 migrateV44toV47 migrateV45toV47 migrateV46toV47 migrateV45toV46; do
+for source_isolated_stage in migrateV42toV43 migrateV43toV49 migrateV44toV49 migrateV45toV49 migrateV46toV49 migrateV48toV49 migrateV43toV47 migrateV44toV47 migrateV45toV47 migrateV46toV47 migrateV45toV46; do
   if printf '%s\n' "$migration_plan_stages" | grep -Fq "$source_isolated_stage"; then
     fail "MerianMigrationPlan.stages must not include source-isolated or duplicate recent stage $source_isolated_stage."
   fi
@@ -202,8 +197,9 @@ contains "$schema_file" "enum MerianSchemaV49: VersionedSchema" \
   || fail "Missing V49 startup repair schema."
 contains "$schema_file" "enum MerianSchemaV50: VersionedSchema" \
   || fail "Missing released V50 schema."
-contains "$schema_file" "enum MerianSchemaV51: VersionedSchema" \
-  || fail "Missing current V51 schema."
+contains "$schema_file" "enum MerianActiveSchemaV50: VersionedSchema" \
+  || fail "Missing active V50 Swift type owner."
+not_contains "$schema_file" "enum MerianSchemaV51: VersionedSchema"
 
 v49_schema="$(extract_block "enum MerianSchemaV49: VersionedSchema" "enum MerianSchemaV50: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
@@ -223,7 +219,7 @@ contains "$v49_snapshot_file" "[MerianSchemaV49.ScanCollection]?" \
 contains "$v49_snapshot_file" "inverse: \\MerianSchemaV49.LocalScanRecord.collections" \
   || fail "V49 ScanCollection must use the frozen inverse relationship endpoint."
 
-v50_schema="$(extract_block "enum MerianSchemaV50: VersionedSchema" "enum MerianSchemaV51: VersionedSchema")"
+v50_schema="$(extract_block "enum MerianSchemaV50: VersionedSchema" "enum MerianActiveSchemaV50: VersionedSchema")"
 for frozen_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
   printf '%s\n' "$v50_schema" | grep -Fq "MerianSchemaV50.$frozen_model.self" \
     || fail "V50 must reference its frozen MerianSchemaV50.$frozen_model snapshot."
@@ -241,24 +237,23 @@ contains "$v50_snapshot_file" "var isDeleted: Bool" \
   || fail "V50 must retain its historical ScanCollection.isDeleted persisted property."
 not_contains "$v50_snapshot_file" "isPendingDeletion"
 
-v51_schema="$(extract_block "enum MerianSchemaV51: VersionedSchema" "private typealias MerianSchemaV48OfflineJobRecord")"
+active_v50_schema="$(extract_block "enum MerianActiveSchemaV50: VersionedSchema" "private typealias MerianSchemaV48OfflineJobRecord")"
 for active_model in LocalScanRecord OfflineQueuedScan CapturedMediaEntry ScanCollection PendingCloudDeletionTask UserSpeciesPreference OfflineJobRecord OfflineQueueEvent; do
-  printf '%s\n' "$v51_schema" | grep -Fq "$active_model.self" \
-    || fail "V51 must reference active $active_model."
+  printf '%s\n' "$active_v50_schema" | grep -Fq "$active_model.self" \
+    || fail "Active V50 must reference active $active_model."
 done
-if printf '%s\n' "$v51_schema" | grep -Eq "MerianSchemaV(49|50)[.]"; then
-  fail "V51 must not reuse a frozen V49 or V50 persistent model."
+if printf '%s\n' "$active_v50_schema" | grep -Eq "MerianSchemaV(49|50)[.]"; then
+  fail "Active V50 must not reuse a frozen V49 or released V50 persistent model."
 fi
 contains "$schema_file" "MerianSchemaV49.CapturedMediaEntry.makeEntries(" \
   || fail "V49 queue repair must create frozen V49 captured-media rows."
 contains "$test_file" "MerianSchemaV49.OfflineQueuedScan(id: queuedId)" \
   || fail "V49 disk fixtures must be created with the frozen V49 queue model."
-contains "$alias_file" "typealias CurrentSchema = MerianSchemaV51" \
-  || fail "CurrentSchema must remain aligned with the V50 to V51 migration target."
-contains "$alias_file" "typealias ActiveOfflineQueuedScanGoalHint = MerianSchemaV51.OfflineQueuedScanGoalHint" \
-  || fail "The active goal-hint alias must remain aligned with V51."
-contains "$schema_file" "static let migrateV50toV51 = MigrationStage.lightweight" \
-  || fail "Missing lightweight V50 to V51 collection-tombstone repair migration."
+contains "$alias_file" "typealias CurrentSchema = MerianActiveSchemaV50" \
+  || fail "CurrentSchema must remain aligned with the active V50 Swift type owner."
+contains "$alias_file" "typealias ActiveOfflineQueuedScanGoalHint = MerianActiveSchemaV50.OfflineQueuedScanGoalHint" \
+  || fail "The active goal-hint alias must remain aligned with active V50."
+not_contains "$schema_file" "static let migrateV50toV51"
 contains "$schema_file" "static let migrateV48toV49 = MigrationStage.custom" \
   || fail "Missing known-good V48 to V49 migration."
 contains "$schema_file" "private static func snapshotV48QueuedScansForV49(in context: ModelContext) throws" \
@@ -288,34 +283,33 @@ contains "$schema_file" "enum MerianRecentV42MigrationPlan" \
 contains "$schema_file" "enum MerianRecentV43MigrationPlan" \
   || fail "Missing source-isolated V43 recovery plan."
 contains "$schema_file" "enum MerianRecentV49MigrationPlan" \
-  || fail "Missing source-isolated V49 to V51 migration plan."
-contains "$schema_file" "enum MerianRecentV50MigrationPlan" \
-  || fail "Missing source-isolated V50 to V51 migration plan."
+  || fail "Missing source-isolated V49 to active V50 migration plan."
+not_contains "$schema_file" "enum MerianRecentV50MigrationPlan"
 not_contains "$schema_file" "static let migrateV43toV47"
 not_contains "$schema_file" "static let migrateV44toV47"
 not_contains "$schema_file" "static let migrateV45toV47"
 not_contains "$schema_file" "static let migrateV46toV47"
 
 contains "$active_queue_file" "@Attribute public var queueAttemptCount: Int = 0" \
-  || fail "Active V51 OfflineQueuedScan.queueAttemptCount must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueAttemptCount must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueUpdatedAt: Date = Date()" \
-  || fail "Active V51 OfflineQueuedScan.queueUpdatedAt must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueUpdatedAt must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueNeedsAttention: Bool = false" \
-  || fail "Active V51 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve already-current store compatibility."
+  || fail "Active V50 OfflineQueuedScan.queueNeedsAttention must remain non-optional to preserve already-current store compatibility."
 contains "$active_queue_file" "@Attribute public var queueSchemaRepairGeneration: Int = 1" \
-  || fail "Active V51 OfflineQueuedScan.queueSchemaRepairGeneration must retain the startup repair generation."
+  || fail "Active V50 OfflineQueuedScan.queueSchemaRepairGeneration must retain the startup repair generation."
 not_contains "$active_queue_file" "queueAttemptCount: Int?"
 not_contains "$active_queue_file" "queueUpdatedAt: Date?"
 not_contains "$active_queue_file" "queueNeedsAttention: Bool?"
 not_contains "$active_queue_file" "queueSchemaRepairGeneration: Int?"
 
 contains "$active_collection_file" "@Attribute(originalName: \"isDeleted\")" \
-  || fail "Active V51 ScanCollection.isPendingDeletion must map the released V50 isDeleted column."
+  || fail "Active V50 ScanCollection.isPendingDeletion must map the released V50 isDeleted column."
 contains "$active_collection_file" "public var isPendingDeletion: Bool = false" \
-  || fail "Active V51 ScanCollection must expose an unambiguous persistent tombstone property."
+  || fail "Active V50 ScanCollection must expose an unambiguous persistent tombstone property."
 not_contains "$active_collection_file" "public var isDeleted: Bool"
 contains "$background_database_actor_file" "is_deleted: collection.isPendingDeletion" \
-  || fail "Collection synchronization must preserve the is_deleted wire key while reading the V51 tombstone."
+  || fail "Collection synchronization must preserve the is_deleted wire key while reading the V50 tombstone."
 
 recent_v42_plan="$(extract_block "enum MerianRecentV42MigrationPlan" "enum MerianRecentV43MigrationPlan")"
 recent_v43_plan="$(extract_block "enum MerianRecentV43MigrationPlan" "enum MerianRecentV44MigrationPlan")"
@@ -325,32 +319,30 @@ recent_v46_plan="$(extract_block "enum MerianRecentV46MigrationPlan" "enum Meria
 recent_v47_plan="$(extract_block "enum MerianRecentV47MigrationPlan" "enum MerianRecentV48MigrationPlan")"
 recent_v48_plan="$(extract_block "enum MerianRecentV48MigrationPlan" "enum MerianOptionalQueueV48RecoveryPlan")"
 optional_v48_plan="$(extract_block "enum MerianOptionalQueueV48RecoveryPlan" "enum MerianRecentV49MigrationPlan")"
-recent_v49_plan="$(extract_block "enum MerianRecentV49MigrationPlan" "enum MerianRecentV50MigrationPlan")"
-recent_v50_plan="$(extract_block "enum MerianRecentV50MigrationPlan" "__MERIAN_STOP__")"
+recent_v49_plan="$(extract_block "enum MerianRecentV49MigrationPlan" "__MERIAN_STOP__")"
 
-require_v51_tail() {
+require_active_v50_tail() {
   local plan_text="$1"
   local plan_name="$2"
 
-  printf '%s\n' "$plan_text" | grep -Fq "MerianSchemaV50.self" \
-    || fail "$plan_name must include the released V50 hop."
-  printf '%s\n' "$plan_text" | grep -Fq "MerianSchemaV51.self" \
-    || fail "$plan_name must include the current V51 target."
+  printf '%s\n' "$plan_text" | grep -Fq "MerianActiveSchemaV50.self" \
+    || fail "$plan_name must include the active V50 target."
   printf '%s\n' "$plan_text" | grep -Fq "MerianMigrationPlan.migrateV49toV50" \
     || fail "$plan_name must include the shared V49 to V50 stage."
-  printf '%s\n' "$plan_text" | grep -Fq "MerianMigrationPlan.migrateV50toV51" \
-    || fail "$plan_name must finish with the shared V50 to V51 stage."
+  if printf '%s\n' "$plan_text" | grep -Fq "migrateV50toV51"; then
+    fail "$plan_name must not contain a checksum-identical V50 to V51 stage."
+  fi
 }
 
-require_v51_tail "$recent_v42_plan" "Recent V42 plan"
-require_v51_tail "$recent_v43_plan" "Recent V43 plan"
-require_v51_tail "$recent_v44_plan" "Recent V44 plan"
-require_v51_tail "$recent_v45_plan" "Recent V45 plan"
-require_v51_tail "$recent_v46_plan" "Recent V46 plan"
-require_v51_tail "$recent_v47_plan" "Recent V47 plan"
-require_v51_tail "$recent_v48_plan" "Recent V48 plan"
-require_v51_tail "$optional_v48_plan" "Optional-queue V48 plan"
-require_v51_tail "$recent_v49_plan" "Recent V49 plan"
+require_active_v50_tail "$recent_v42_plan" "Recent V42 plan"
+require_active_v50_tail "$recent_v43_plan" "Recent V43 plan"
+require_active_v50_tail "$recent_v44_plan" "Recent V44 plan"
+require_active_v50_tail "$recent_v45_plan" "Recent V45 plan"
+require_active_v50_tail "$recent_v46_plan" "Recent V46 plan"
+require_active_v50_tail "$recent_v47_plan" "Recent V47 plan"
+require_active_v50_tail "$recent_v48_plan" "Recent V48 plan"
+require_active_v50_tail "$optional_v48_plan" "Optional-queue V48 plan"
+require_active_v50_tail "$recent_v49_plan" "Recent V49 plan"
 
 printf '%s\n' "$recent_v42_plan" | grep -Fq "MerianSchemaV42.self" \
   || fail "Recent V42 plan must include MerianSchemaV42."
@@ -437,22 +429,8 @@ fi
 if [ "$(printf '%s\n' "$recent_v49_plan" | grep -Fc "MerianMigrationPlan.migrateV49toV50")" -ne 1 ]; then
   fail "Recent V49 plan must contain exactly one V49 to V50 stage reference."
 fi
-if [ "$(printf '%s\n' "$recent_v49_plan" | grep -Fc "MerianMigrationPlan.migrateV50toV51")" -ne 1 ]; then
-  fail "Recent V49 plan must contain exactly one V50 to V51 stage reference."
-fi
-
-printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianSchemaV50.self" \
-  || fail "Recent V50 plan must include the released V50 source."
-printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianSchemaV51.self" \
-  || fail "Recent V50 plan must include the current V51 target."
-if printf '%s\n' "$recent_v50_plan" | grep -Eq "MerianSchemaV(4[2-9]|48OptionalQueue)[.]self"; then
-  fail "Recent V50 plan must not validate an earlier source schema."
-fi
-if [ "$(printf '%s\n' "$recent_v50_plan" | grep -Fc "MerianMigrationPlan.migrateV50toV51")" -ne 1 ]; then
-  fail "Recent V50 plan must contain exactly one V50 to V51 stage reference."
-fi
-if printf '%s\n' "$recent_v50_plan" | grep -Fq "MerianMigrationPlan.migrateV49toV50"; then
-  fail "Recent V50 plan must not rerun the V49 to V50 stage."
+if printf '%s\n' "$recent_v49_plan" | grep -Fq "MerianSchemaV50.self"; then
+  fail "Recent V49 plan must not pair the checksum-identical released and active V50 schemas."
 fi
 
 not_contains "$test_file" "removeSQLiteStore"
@@ -469,12 +447,10 @@ contains "$test_file" "optionalQueueV48RequiredValueFailureUsesLegacyRescue" \
   || fail "MigrationPlanTests must cover the accidental optional-queue V48 legacy rescue fixture."
 contains "$test_file" "migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan" \
   || fail "MigrationPlanTests must cover the V42 source-isolated recovery fixture from startup diagnostics."
-contains "$test_file" "recentV49MigrationPlanOnlyRunsRequiredLightweightHopsToV51" \
-  || fail "MigrationPlanTests must lock the source-isolated V49 to V51 plan shape."
-contains "$test_file" "recentV50MigrationPlanOnlyRunsLightweightV50ToV51Hop" \
-  || fail "MigrationPlanTests must lock the source-isolated V50 to V51 plan shape."
+contains "$test_file" "recentV49MigrationPlanOnlyRunsLightweightV49ToV50Hop" \
+  || fail "MigrationPlanTests must lock the source-isolated V49 to active V50 plan shape."
 contains "$test_file" "migrationFromV49UsesDiskMetadataSelectionAndPreservesQueueData" \
-  || fail "MigrationPlanTests must exercise a disk-backed V49 to V51 migration."
+  || fail "MigrationPlanTests must exercise a disk-backed V49 to V50 migration."
 contains "$test_file" "let decision = ModelStoreRecoveryCoordinator.migrationDecision(" \
   || fail "The V49 disk fixture must exercise production metadata-based plan selection."
 contains "$test_file" "#expect(decision.storedSchemaMajorVersion == 49)" \
@@ -483,21 +459,21 @@ contains "$test_file" "#expect(decision.hint == .recentSource(.v49))" \
   || fail "The V49 disk fixture must select the source-isolated V49 startup path."
 contains "$test_file" "migrationPlan: MerianRecentV49MigrationPlan.self" \
   || fail "The V49 disk fixture must open with the production V49 migration plan."
-contains "$test_file" "migrationFromV50RenamesAndPreservesCollectionTombstones" \
-  || fail "MigrationPlanTests must exercise a disk-backed V50 to V51 tombstone migration."
+contains "$test_file" "releasedV50StoreOpensThroughSourceOnlyTombstoneRename" \
+  || fail "MigrationPlanTests must reopen a released V50 fixture through the source-only tombstone rename."
 contains "$test_file" "MerianSchemaV50.ScanCollection(" \
   || fail "The V50 disk fixture must create collections with the frozen V50 model."
 contains "$test_file" "#expect(decision.storedSchemaMajorVersion == 50)" \
   || fail "The V50 disk fixture must verify the emitted on-disk schema major."
-contains "$test_file" "#expect(decision.hint == .recentSource(.v50))" \
-  || fail "The V50 disk fixture must select the source-isolated V50 startup path."
-contains "$test_file" "migrationPlan: MerianRecentV50MigrationPlan.self" \
-  || fail "The V50 disk fixture must open with the production V50 migration plan."
+contains "$test_file" "#expect(decision.hint == .currentStore)" \
+  || fail "The released V50 fixture must select the current-store startup path."
+contains "$test_file" "let store = try openCurrentStore(at: url)" \
+  || fail "The released V50 fixture must reopen without a synthetic migration stage."
 contains "$test_file" "#expect(deletedCollection.isPendingDeletion)" \
-  || fail "The V50 disk fixture must verify that true tombstones survive the V51 rename."
+  || fail "The V50 disk fixture must verify that true tombstones survive the Swift property rename."
 contains "$recovery_file" "enum RecentSourceSchema: Int, CaseIterable, Equatable" \
   || fail "Store recovery must model recent source schemas as an exhaustive enum."
-for recent_major in $(seq 42 50); do
+for recent_major in $(seq 42 49); do
   contains "$recovery_file" "case v${recent_major} = ${recent_major}" \
     || fail "RecentSourceSchema must include V${recent_major}."
 done
@@ -505,8 +481,6 @@ contains "$recovery_file" "RecentSourceSchema(rawValue: storedSchemaMajorVersion
   || fail "Store recovery must classify metadata through the exhaustive recent-source enum."
 contains "$recovery_test_file" "testSourceIsolatedSchemasAreConsecutiveAndEndAtCurrentPredecessor" \
   || fail "Store recovery tests must fail when a future schema bump omits its immediate-predecessor plan."
-contains "$recovery_test_file" "testStoreMigrationHintUsesRecentV50PlanForV51Upgrade" \
-  || fail "Store recovery tests must route V50 to the source-isolated V50 plan."
 contains "$app_file" "private static func makePersistentContainerForRecentSource(" \
   || fail "MerianApp must dispatch recent sources through an exhaustive plan selector."
 recent_source_dispatch="$(
@@ -516,7 +490,7 @@ recent_source_dispatch="$(
     printing && /forStoreMigrationHint hint:/ { exit }
   ' "$app_file"
 )"
-for recent_major in $(seq 42 50); do
+for recent_major in $(seq 42 49); do
   printf '%s\n' "$recent_source_dispatch" | grep -Fq "case .v${recent_major}:" \
     || fail "MerianApp recent-source dispatch must handle V${recent_major} explicitly."
 done
@@ -524,14 +498,10 @@ if printf '%s\n' "$recent_source_dispatch" | grep -Eq '^[[:space:]]*(@unknown[[:
   fail "MerianApp recent-source dispatch must remain compiler-exhaustive without a default branch."
 fi
 not_contains "$app_file" "recent-fallback-full"
-contains "$app_file" "named: \"recent-v50\"" \
-  || fail "MerianApp must record the selected recent-v50 startup attempt."
 contains "$app_file" "named: \"recent-v49\"" \
   || fail "MerianApp must record the selected recent-v49 startup attempt."
-contains "$app_file" "named: \"checksum-recent-v50\"" \
-  || fail "The checksum retry ladder must try the V50 plan before older sources."
 contains "$app_file" "named: \"checksum-recent-v49\"" \
-  || fail "The checksum retry ladder must try the V49 plan after V50 and before older sources."
+  || fail "The checksum retry ladder must try the V49 plan before older sources."
 checksum_retry_dispatch="$(
   awk '
     /private static func makePersistentContainerRetryingChecksumRepresentative\(/ { printing = 1 }
@@ -541,7 +511,6 @@ checksum_retry_dispatch="$(
 )"
 checksum_retry_markers=(
   'named: "checksum-current-store"'
-  'named: "checksum-recent-v50"'
   'named: "checksum-recent-v49"'
   'let recovered = try makePersistentContainerForV48Source'
   'named: "checksum-recent-v47"'
@@ -561,7 +530,7 @@ for marker in "${checksum_retry_markers[@]}"; do
     fail "The checksum retry ladder is missing ordered marker: $marker"
   fi
   if [ "$retry_line" -le "$previous_retry_line" ]; then
-    fail "The checksum retry ladder must stay ordered current, then V50 through V42."
+    fail "The checksum retry ladder must stay ordered current, then V49 through V42."
   fi
   previous_retry_line="$retry_line"
 done

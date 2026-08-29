@@ -1,4 +1,3 @@
-import Foundation
 @testable import Merian
 import Testing
 
@@ -57,36 +56,6 @@ struct ProfileViewModelTests {
             #expect(!message.localizedCaseInsensitiveContains("guest"))
             #expect(!message.localizedCaseInsensitiveContains("ghost"))
         }
-    }
-
-    @Test("Prepared avatars require the current request and an empty modal slot")
-    func testPreparedAvatarPresentationPolicy() {
-        let requestID = UUID()
-
-        #expect(UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
-            requestID: requestID,
-            currentRequestID: requestID,
-            hasActivePresentation: false,
-            isCancelled: false
-        ))
-        #expect(!UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
-            requestID: requestID,
-            currentRequestID: UUID(),
-            hasActivePresentation: false,
-            isCancelled: false
-        ))
-        #expect(!UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
-            requestID: requestID,
-            currentRequestID: requestID,
-            hasActivePresentation: true,
-            isCancelled: false
-        ))
-        #expect(!UserProfileAvatarPresentationPolicy.canAcceptPreparedAvatar(
-            requestID: requestID,
-            currentRequestID: requestID,
-            hasActivePresentation: false,
-            isCancelled: true
-        ))
     }
 
 }

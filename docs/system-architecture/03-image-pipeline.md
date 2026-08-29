@@ -658,6 +658,9 @@ does not resolve shared loaders or actors. The actor still checks the legacy
 falls back to Wikipedia / GBIF public APIs, persists any recovered URL back to
 `LocalScanRecord.referenceImageUrl`, and prewarms `LocalImageLoader` so the grid
 tile flips from placeholder to image without requiring a full sheet reopen.
+`ScanThumbnailBackfillCandidate` lives beside the actor under
+`Core/Data/Images`, so the Core recovery pipeline no longer depends on a
+feature-owned SwiftUI file.
 
 The owner-only Scan Map opts into the same pipeline only when a rendered map
 thumbnail has no usable captured bitmap and no saved reference URL. Its shared
@@ -670,16 +673,25 @@ GBIF key; unresolved, human, domestic-cat, and domestic-dog scans remain
 ineligible. The lookup never receives a scan coordinate, and an offline
 thumbnail waits for connectivity instead of starting a public reference request.
 
-`ScanThumbnail` takes online availability as an explicit input instead of
-resolving `OfflineQueueManager` internally. Ordinary owners pass the observed
-queue value directly. The private map resolves it before its MapKit annotation
-builder and passes the scalar into each waypoint, because hosted annotation
-content is not guaranteed to retain required observable-environment objects
-while zoom changes swap dots for thumbnails. Reconnection changes the input and
-therefore the thumbnail retry identity without coupling image rendering to the
-queue manager.
+`Core/UI/Components/ScanThumbnail.swift` takes online availability as an
+explicit input instead of resolving `OfflineQueueManager` internally. Ordinary
+owners pass the observed queue value directly. The private map resolves it
+before its MapKit annotation builder and passes the scalar into each waypoint,
+because hosted annotation content is not guaranteed to retain required
+observable-environment objects while zoom changes swap dots for thumbnails.
+Reconnection changes the input and therefore the thumbnail retry identity
+without coupling image rendering to the queue manager. The renderer also
+receives spectrogram and visual loading through `ScanThumbnailLoader`; only its
+live dependency adapter resolves `AudioSpectrogramThumbnailLoader` and
+`LocalImageLoader`. Shared loader work may continue filling the cache after a
+cell task is cancelled, but the loader checks the caller's cancellation before
+starting a visual fallback or returning a result. The main-actor renderer checks
+again before publishing state or requesting reference recovery, so a reused tile
+cannot admit an obsolete image. Its typed task identity also restarts for
+changes to the requested pixel size or audio/reference loading policy, not only
+path and connectivity changes.
 
-The shared `ScanThumbnail` keeps spectrogram rendering as its default for
+The Core-owned `ScanThumbnail` keeps spectrogram rendering as its default for
 non-library consumers. `ScansGrid` opts into `prefersReferenceForAudio` and
 `showsAudioBadge`, so only the primary Scans library replaces an audio-only
 spectrogram tile with the hydrated reference photo and bottom-trailing waveform

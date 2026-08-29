@@ -133,11 +133,11 @@ reference a missing or unconfigured route.
 
 > [!NOTE]
 > **August 2026 correction:** the Edge set-state and acknowledgement contract
-> above remains accurate. The active V51 iOS model persists
+> above remains accurate. The active V50 iOS model persists
 > `ScanCollection.isPendingDeletion` and maps it to the released `isDeleted`
 > column, so the client emits the unchanged `is_deleted` field after
-> save/refetch. The frozen V50 → V51 repair is a local SwiftData migration; it
-> is not an Edge payload or deployment change.
+> save/refetch. The source-only rename preserves the released V50 persisted
+> model; it is not an Edge payload, schema migration, or deployment change.
 
 ## Validation Evidence
 

@@ -17,7 +17,7 @@ of `schemas` and jumps older unknown stores from V43→V49. Source-isolated rece
 plans still handle V44, V45, and V46 stores directly; V44, V45, and V46 stores
 jump through separate direct V44→V49, V45→V49, and V46→V49 plans. Those repairs
 are intermediate targets: every selected plan then applies the lightweight
-V49→V50 and V50→V51 stages, while a current V51 store opens without a plan.
+V49→V50 stage, while a current V50 store opens without a plan.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
@@ -29,10 +29,9 @@ use the actual source stamp as the only recent representative in the plan, then
 jump directly to V49. Startup reads the store metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
-source-isolated plan (V50 through V42); only unknown or older existing stores
-use the full historical plan. V49 has a two-stage lightweight V49→V51 plan, and
-V50 has its own one-stage lightweight V50→V51 plan, preventing either immediate
-predecessor from validating unrelated historical stages. If SwiftData still
+source-isolated plan (V49 through V42); only unknown or older existing stores
+use the linear full historical plan. V49 has a one-stage lightweight V49→V50
+plan; V50 is current and has no source-only rename stage. If SwiftData still
 throws `Duplicate version checksums across stages detected`, startup falls back
 through the same source-isolated plans before legacy rescue or safe mode. These
 plans avoid forcing SwiftData to validate unrelated older retired schemas or
@@ -1512,12 +1511,12 @@ framework state rather than a durable application attribute.
 
 The released V50 `ScanCollection` demonstrates the failure: collection deletion
 assigned its intended soft-delete marker to `true`, but an actual simulator save
-left the held value `false`, and a fresh fetch also returned `false`. V51
-repairs the active model with `isPendingDeletion` mapped to the same `isDeleted`
-column; the historical V50 name remains only in the frozen migration source.
-Downstream code now serializes the durable value as `is_deleted`, so enqueue
-ordering, inbound tombstone shielding, and acknowledgement-only purge retain
-their intended guarantees.
+left the held value `false`, and a fresh fetch also returned `false`. The active
+V50 Swift type repairs the collision with `isPendingDeletion` mapped to the same
+`isDeleted` column; the historical Swift property remains only in the frozen V50
+fixture. Downstream code now serializes the durable value as `is_deleted`, so
+enqueue ordering, inbound tombstone shielding, and acknowledgement-only purge
+retain their intended guarantees.
 
 ### ❌ The Anti-Pattern: Shadow Framework Lifecycle Names
 
@@ -1553,10 +1552,12 @@ let payload = SyncCollectionPayload(
 )
 ```
 
-For Merian, V50 is frozen in `SchemaV50Snapshots.swift`; V51 adds one ordered
-lightweight V50 → V51 stage and preserves the existing `is_deleted` JSON
-contract. A disk-backed V50 fixture passes through the production
-startup/migration selector and proves save, refetch, restart, offline retention,
-exact payload mapping, inbound reconciliation fencing, and acknowledgement-only
-purge. Because V50 did not retain prior assignments, the migration does not
-invent or infer historical delete intent.
+For Merian, the released V50 graph is frozen in `SchemaV50Snapshots.swift`;
+`MerianActiveSchemaV50` maps the source property with
+`@Attribute(originalName:)` while preserving the same persisted checksum and the
+existing `is_deleted` JSON contract. A disk-backed V50 fixture passes through
+the production startup selector, opens without a migration plan, and proves
+save, refetch, restart, offline retention, exact payload mapping, inbound
+reconciliation fencing, and acknowledgement-only purge. Because V50 did not
+retain prior assignments, the migration does not invent or infer historical
+delete intent.

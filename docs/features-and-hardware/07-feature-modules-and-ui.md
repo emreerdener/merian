@@ -124,11 +124,15 @@ production Shell and Library file remains below the 600-line review guard.
   cleanup contract is defined in
   [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
 - **Non-biological bulk deletion conflict domain**: Bulk removal snapshots the
-  selected non-biological IDs, performs the database mutation off the view
-  render path, and disables the grid plus destructive toolbar controls that
-  could invalidate that snapshot. The compact progress badge does not block
-  unrelated navigation, and durable `scanLibraryChanged` recovery refreshes
-  every mounted library projection after commit.
+  eligible non-biological IDs and media paths, then an injected service performs
+  actor-isolated database and file mutation off the view render path. The
+  database actor re-fetches each ID and skips a row reclassified as biological
+  after the UI snapshot, closing the check/use race before any row, local media,
+  or cloud-deletion task is mutated. The observable state owner disables the
+  grid plus destructive toolbar controls that could invalidate that operation.
+  The compact progress badge does not block unrelated navigation, and durable
+  `scanLibraryChanged` recovery refreshes every mounted library projection after
+  commit.
 - **Private map push**: Collections pushes **Scan map** inside this same
   `NavigationStack` with a typed `ScansNavigationRoute.privateScanMap` value.
   `ScansSheetView` remains the sole path owner: the Map view emits a selected
@@ -165,10 +169,12 @@ production Shell and Library file remains below the 600-line review guard.
   `@Query(sort: \LocalScanRecord.timestamp, order: .reverse)`, then filters
   `isBiological == true` before assigning `ScansManager.allScans`. Fresh-context
   Shell service reads apply the equivalent biological predicate when
-  synchronizing after queue transitions. `NonBiologicalScansView` owns its
-  separate `isBiological == false` query. Historical unresolved placeholders are
-  guarded separately by the resolved-identification helpers used for confidence,
-  reference media, and Explore sharing.
+  synchronizing after queue transitions. The same Shell-owned `rawRecords` feed
+  the typed Non-biological destination, where `NonBiologicalScansViewModel`
+  derives the `isBiological == false` projection; no second feature query is
+  mounted. Historical unresolved placeholders are guarded separately by the
+  resolved-identification helpers used for confidence, reference media, and
+  Explore sharing.
 - **Dynamic Biological Taxonomy Pipeline**: Routes captures lacking generic
   class taxonomy (actinopterygii, arachnida, mollusks, unidentified specimens)
   into an "Other" fallback species-category filter without hiding them from the
@@ -201,7 +207,10 @@ production Shell and Library file remains below the 600-line review guard.
   `SelectMultipleScansView`. It accepts analysed `LocalScanRecord` rows plus
   optional `QueuedScanSnapshot` values, and relies on closures / generic menu
   content for context-specific UX such as deleting, selecting, or removing from
-  collections.
+  collections. `Scans/Shared/Components/Grid` owns only Scans composition;
+  injected `ScansGridInteractions` owns selection feedback, and Library supplies
+  the explicit queued-retry callback instead of the grid resolving queue state
+  mutations itself.
 - **Composite Offline Queue Rendering and Routing (`ScansGrid` + `LibraryView` +
   `ScansSheetView`)**: `OfflineQueuedScan` photos, videos, audio, and
   descriptions render at the **top** of the `ScansGrid` `LazyVGrid`, before
@@ -237,7 +246,15 @@ production Shell and Library file remains below the 600-line review guard.
   shared loaders or actors. Unknown / taxonomy-unavailable non-visual scans
   render a terminal non-visual placeholder instead of a broken-photo state.
   `ArchivedVisualsView` is reserved for genuinely missing visual assets or
-  intentionally archived captures.
+  intentionally archived captures. Because Explore Field Trips and Profile also
+  render this scan primitive, projection and rendering live under `Core/UI`, not
+  `Scans/Shared`. The renderer delegates to `ScanThumbnailLoader`; only that
+  service's live dependency adapter resolves image and spectrogram loaders.
+  Post-suspension cancellation fences prevent shared cache work from publishing
+  an obsolete result or starting visual fallback for a reused tile. Typed task
+  identity includes source paths, audio/reference policy, target pixel size,
+  placeholder kind, and relevant connectivity. Immutable recovery candidates
+  live beside `ScanThumbnailBackfillActor` in `Core/Data/Images`.
 - **Explore media recovery banner**: `ScansShellViewModel` refreshes the
   authenticated owner's `/get-explore-media-incidents` queue through its
   injected live dependency on entry, foreground, connectivity changes, and
@@ -280,7 +297,9 @@ production Shell and Library file remains below the 600-line review guard.
 - **Unified Empty States (`EmptyStateView`)**: Monolithic `VStack` geometries
   for 0-result states inside library and selection flows were replaced with a
   reusable `EmptyStateView` component mapping to strongly typed dynamic message
-  fallbacks.
+  fallbacks. Explore and Species Dictionary also consume this primitive, so its
+  owner is `Core/UI/Components`, while each feature continues to own its copy
+  and visibility policy.
 
 ### Collections (Top-Level Photo Albums)
 
@@ -345,9 +364,9 @@ production Shell and Library file remains below the 600-line review guard.
 - **Deleted Collection Filtering**: The UI predicates are designed to filter
   soft-deleted collections from both `CollectionsView` and the
   `InsightSheetView` add-to-collection menu, so a collection pending remote
-  deletion cannot still be selected from another surface. V51 persists the
-  application marker as `isPendingDeletion`, mapped to the released `isDeleted`
-  column, so this filter survives save/refetch and migration.
+  deletion cannot still be selected from another surface. Active V50 persists
+  the application marker as `isPendingDeletion`, mapped to the released
+  `isDeleted` column, so this filter survives save/refetch and migration.
 - **Collection State Toasts**: Collection mutations publish a typed
   `ToastPayload` through the shared `merianSystemFeedback` modifier anchored to
   `InsightSheetView`. The modifier owns identity-keyed cancellation, typed
@@ -381,14 +400,15 @@ production Shell and Library file remains below the 600-line review guard.
   the `OfflineQueueManager.enqueueCollectionSync()` pipeline, which drains
   `SyncCollectionPayload` arrays against the upstream `sync-collections`
   Supabase Edge Function through a shared single-flight sync path.
-- **Collection-Deletion Persistence**: The active V51 `ScanCollection` model
+- **Collection-Deletion Persistence**: The active V50 `ScanCollection` model
   names its application soft-delete field `isPendingDeletion` and maps it to the
-  released `isDeleted` column with `@Attribute(originalName:)`. The V50 graph is
-  frozen before this rename, and `MerianRecentV50MigrationPlan` performs the
-  single lightweight V50 → V51 hop. The existing `is_deleted` Edge payload,
-  inbound tombstone shield, and acknowledgement-only purge remain unchanged;
-  disk-backed migration tests prove true/false values and relationship
-  retention. See the
+  released `isDeleted` column with `@Attribute(originalName:)`. The released V50
+  graph is frozen as an immutable fixture, while `MerianActiveSchemaV50` owns
+  the current Swift type names with the same persisted version. Released V50
+  stores open as current without a migration stage. The existing `is_deleted`
+  Edge payload, inbound tombstone shield, and acknowledgement-only purge remain
+  unchanged; disk-backed reopening tests prove true/false values and
+  relationship retention. See the
   [SwiftData schema contract](../backend-and-data/04-database-schema.md#scancollection-user-albums)
   and
   [SwiftData gotcha](../development-guides/11-swiftdata-and-api-gotchas.md#29-persistentmodelisdeleted-is-framework-state-not-app-storage).
@@ -404,15 +424,17 @@ production Shell and Library file remains below the 600-line review guard.
   relationships. Membership IDs are sorted for stable retries, and the server
   applies only the relationship delta. The client never walks the full scan
   library in OFFSET pages to discover collection membership.
-- **Non-Biological Scans Isolation**: A dedicated navigation card routes users
-  to `NonBiologicalScansView.swift`, which queries exclusively for
-  `$0.isBiological == false`. The catalog count is derived from the already
-  observed Shell record set rather than issuing a second count fetch. Expired
-  local non-biological records are purged after
-  `MerianConfig.nonBiologicalRetentionDays` by
-  `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app
-  foreground and again when the Non-biological view opens, using the same
-  save-first tombstone and file-cleanup contract as manual deletion.
+- **Non-Biological Scans Isolation**: The dedicated Collections card appends
+  `ScansNavigationRoute.nonBiologicalScans` to the Shell-owned navigation path;
+  cross-feature `AppRoute.nonBiologicalScans` presentation seeds that same typed
+  destination. `ScansSheetView` passes its already observed records into
+  `NonBiologicalScansViewModel`, which derives both the visible projection and
+  bulk-deletion state without another SwiftData query. The catalog count uses
+  the same Shell record set. Expired local non-biological records are purged
+  after `MerianConfig.nonBiologicalRetentionDays` through the feature's injected
+  service and `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)`
+  on app foreground and again when the destination opens, preserving the
+  save-first tombstone and file-cleanup contract.
 - **Correction Reanalysis Flow**: `NonBiologicalScansView` no longer mutates an
   existing record into a biological placeholder. The `Reanalyze as biological`
   action opens a local confirmation first (`Reanalyze identification?`)
@@ -439,10 +461,15 @@ production Shell and Library file remains below the 600-line review guard.
   resolved biological identification exists. Programmatic Explore sharing for
   those records fails before the network request with
   `Reanalyze this scan before sharing to Explore.` A "Clear All" command still
-  executes batch deletion through `BackgroundDatabaseActor.ScanErasurePayload`
-  properties inside isolated `Task.detached` blocks.
-- The `NonBiologicalScansView` injects a `.blue.opacity(0.1)` 30-day auto-purge
-  informational banner above the core layout grid.
+  maps record IDs and mixed-media paths into immutable `Sendable` snapshots,
+  then the feature service delegates database mutation to
+  `BackgroundDatabaseActor`, where current non-biological eligibility is
+  revalidated, and file cleanup to `FileIOActor`. On success the observable
+  state owner publishes the library invalidation, feedback, toast, and
+  deletion-sync request in order; failure restores interaction without
+  publishing commit-only effects.
+- `NonBiologicalRetentionBanner` renders the existing red-tinted 30-day
+  auto-purge message above the shared scan grid.
 
 ### Main Tab Bar
 
@@ -1164,7 +1191,7 @@ on gesture-driven layout abstractions.
 - Normal logout clears only the current device's Supabase, RevenueCat, and
   PostHog session state so a simulator logout does not revoke the same account
   on another device.
-- Uses functional `RevenueCatManager.shared.isProActive` for eligible settings
+- Uses environment-owned `RevenueCatManager.isProActive` for eligible settings
   and paywall behavior, while public Profile and Explore Pro badges use paid
   `isSubscribed`. The public Profile card never shows the complimentary
   countdown; Results and Settings own that detail. DEBUG can bypass only the
@@ -1177,31 +1204,37 @@ on gesture-driven layout abstractions.
   Rank) offline inside the profile header. `StatCard` modules and
   `ProfileTabView` deploy geometric 24px Continuous Squircles via
   `.background(...)` shape modifiers, avoiding intrinsic OS table cell clipping
-  masks. Statistics are loaded from SwiftData `@Query` property wrappers,
-  preventing network errors and UI lag.
+  masks. `ProfileTabViewModel` loads one prepared stats payload through
+  `ProfileTabDependencies`; the live adapter creates `ProfileDatabaseActor` so
+  SwiftData projection and aggregation remain outside the view and off-main.
 - **Single profile presentation slots**: `ProfileTabView` serializes paywall,
   Insight, and Field-trip author sheets through `ProfileTabPresentation`.
   `UserProfile` serializes username, display-name, and avatar-crop destinations
   and treats the system Photos picker as occupied presentation state. Avatar
-  selection preparation is replaceable; upload preparation is serialized while
-  it runs. Both tasks are stored, cancelled at account or view-lifecycle
-  boundaries, and fenced by request and account identity before they update UI.
-  At most one bounded prepared preview may wait for the Photos picker binding to
-  dismiss before the crop cover mounts.
+  work belongs to `UserProfileAvatarCoordinator`, which owns replaceable
+  selection and serialized upload preparation. Both tasks are stored, cancelled
+  at account or view-lifecycle boundaries, and fenced by request and account
+  identity before they update UI. Selection completion also checks the view's
+  live typed-presentation slot, so an intervening editor cannot receive a crop
+  preview or deferred error behind it. At most one bounded prepared preview may
+  wait for the Photos picker binding to dismiss before the crop cover mounts.
 
 ### Achievements UI
 
 - **Visual Hierarchy & Safe Geometry**: Uses a vertical `VStack` layout stacking
-  discrete component files. `Achievements.swift` acts as a top-level
-  orchestrator importing isolated
-  `Features/Profile/UserProfile/Components/AchievementCard.swift` capsules.
-  `ProfileTabView` replaced the legacy `List` UIKit wrappers (which broke
-  Apple's iOS 17 horizontal `.paging` layout with double top-safe-area padding)
-  with a pure `.grouped` background `ScrollView`.
+  discrete component files. `Components/Achievements/Achievements.swift` acts as
+  a top-level orchestrator using `Components/Achievements/AchievementCard.swift`
+  capsules. Detail hosting lives in `Views/Achievements/`, while detail loading
+  and live dependencies live in `ViewModels/` and `Services/`. `ProfileTabView`
+  replaced the legacy `List` UIKit wrappers (which broke Apple's iOS 17
+  horizontal `.paging` layout with double top-safe-area padding) with a pure
+  `.grouped` background `ScrollView`.
 - **Achievement detail presentation ownership**: Insight and Field-trip author
-  destinations share one `AchievementDetailPresentation` sheet host. Insight
-  dismissal triggers the existing background detail refresh only after that
-  exact typed destination clears.
+  destinations share one `AchievementDetailPresentation` sheet host.
+  `AchievementDetailViewModel` owns contribution loading and telemetry; Insight
+  dismissal triggers its background refresh only after that exact typed
+  destination clears. If that background refresh supersedes a foreground load,
+  the replaced foreground request still clears its visible loading state.
 - **Dynamic Sorting Control & Temporal Heuristics**: The master header
   incorporates a native iOS `Menu` bound to an `@State` enum
   (`AwardSortOption`), allowing users to reorder the layout via a spring
@@ -1214,6 +1247,11 @@ on gesture-driven layout abstractions.
   Completed achievements older than a week. **Tier 0.0** buries unstarted goals
   (0%). Chronological `lastInteractionDate` timestamps serve as a secondary
   tie-breaker.
+- **Post-inference projection freshness**: The milestone path reuses one
+  `ProfileDatabaseActor` only while the exact `ModelContainer` identity remains
+  current. `calculateAwards()` invalidates its compact value projection before
+  every evaluation, so an in-place scan update cannot reuse pre-inference award
+  fields merely because record count, latest ID, and timestamp stayed the same.
 - **Achievement and Milestone Toast Previews**: DEBUG builds expose Developer
   settings controls for styling the shared milestone banner without mutating
   real state. Achievement previews can launch cat, dog, and long-title
@@ -1715,11 +1753,17 @@ on gesture-driven layout abstractions.
   collection detail, smart collections, multi-scan selection flows, and the
   passive private-map entry; `Map/` owns exact owner-coordinate snapshots,
   region fitting, local filters, deterministic clustering, the interactive map,
-  private previews/list, and embedded Insight routing; `NonBiological/` owns the
-  non-biological scan isolation route; `Shared/` holds scan-only primitives such
-  as `ScansGrid`, `ScanThumbnail`, `EmptyStateView`, and deletion dialogs. Truly
-  cross-feature primitives, including `CategoryFilterBar`, live under
-  `Core/UI/Components/`.
+  private previews/list, and embedded Insight routing; `NonBiological/` owns
+  correction/presentation models, narrow purge/deletion/routing/feedback
+  services, observable filtering and mutation state, and the thin destination
+  plus status components. It consumes the Shell query and performs no direct
+  persistence read or singleton lookup. `Shared/Models` owns the detached queued
+  value, `Shared/Services` owns injected grid feedback and single-delete
+  orchestration, `Shared/Components/Grid` owns `ScansGrid`, and
+  `Shared/Modifiers` owns the deletion alert. Shared views/components perform no
+  persistence, endpoint, loader, repository, or app-container lookup.
+  Cross-feature primitives including `ScanThumbnail`, `EmptyStateView`, and
+  `CategoryFilterBar` live under `Core/UI/`.
 - **UIKit Window Theme Injection**: Previously,
   `.preferredColorScheme(themeMode.colorScheme)` declarations were utilized
   across view hierarchies, which exhibited a known caching bug where switching

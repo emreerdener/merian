@@ -1,18 +1,15 @@
 import SwiftData
 import SwiftUI
 
+@MainActor
 struct ScanDeletionDialogModifier: ViewModifier {
-    // MARK: - State Dependencies
     @Binding var isPresented: Bool
-    
-    // MARK: - Context Dependencies
+
     let scanId: String?
     let modelContext: ModelContext
-    
-    // MARK: - Callbacks
     let onComplete: () -> Void
+    let deletionService: ScanDeletionService
 
-    // MARK: - Modifier Layout
     func body(content: Content) -> some View {
         content
             .alert(
@@ -20,18 +17,13 @@ struct ScanDeletionDialogModifier: ViewModifier {
                 isPresented: $isPresented
             ) {
                 Button("Delete permanently", role: .destructive) {
-                    guard let scanId else { return }
-                    var descriptor = FetchDescriptor<LocalScanRecord>(
-                        predicate: #Predicate { $0.id == scanId }
+                    let result = deletionService.delete(
+                        scanID: scanId,
+                        in: modelContext
                     )
-                    descriptor.fetchLimit = 1
-                    guard let activeRecord = try? modelContext.fetch(descriptor).first else {
+                    if result.shouldCompletePresentation {
                         onComplete()
-                        return
                     }
-                    HapticManager.shared.triggerErrorThump()
-                    AppDIContainer.shared.scanRepository.eradicateScan(record: activeRecord, modelContext: modelContext)
-                    onComplete()
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -40,20 +32,23 @@ struct ScanDeletionDialogModifier: ViewModifier {
     }
 }
 
-// MARK: - View Extensions
-
 extension View {
+    @MainActor
     func scanDeletionDialog(
         isPresented: Binding<Bool>,
         scanId: String?,
         modelContext: ModelContext,
+        deletionService: ScanDeletionService? = nil,
         onComplete: @escaping () -> Void = {}
     ) -> some View {
-        self.modifier(ScanDeletionDialogModifier(
-            isPresented: isPresented,
-            scanId: scanId,
-            modelContext: modelContext,
-            onComplete: onComplete
-        ))
+        modifier(
+            ScanDeletionDialogModifier(
+                isPresented: isPresented,
+                scanId: scanId,
+                modelContext: modelContext,
+                onComplete: onComplete,
+                deletionService: deletionService ?? ScanDeletionService()
+            )
+        )
     }
 }

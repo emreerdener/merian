@@ -68,6 +68,12 @@ struct LibraryView: View {
                                     onQueuedScanTapped: { snapshot in
                                         openQueuedScan(snapshot)
                                     },
+                                    onQueuedScanRetry: { snapshot in
+                                        _ = offlineQueueManager
+                                            .retryQueuedScanNow(
+                                                scanId: snapshot.id
+                                            )
+                                    },
                                     onQueuedScanDelete: { snapshot in
                                         guard !searchManager.isDownloading else { return }
                                         Task {

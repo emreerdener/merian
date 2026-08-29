@@ -6,12 +6,14 @@ Repeat Yourself) principles and establish a unified aesthetic baseline.
 
 ## 1. Zero-State Handling: `EmptyStateView`
 
-**Location**: `Features/Scans/Shared/Components/EmptyStateView.swift`
+**Location**: `Core/UI/Components/EmptyStateView.swift`
 
 Historically, empty states in the Scans Library, Non-Biological Vault, and
 Collections were monolithic `VStack` geometries scattered across multiple view
 files. These were consolidated into a single, strongly-typed `EmptyStateView`
-component.
+component. Explore and Species Dictionary now consume the same primitive, so
+Core owns its geometry while each feature supplies its own copy and visibility
+policy.
 
 - **Dynamic Context**: It accepts dynamic messaging primitives (`title: String`,
   `message: String`, `systemImage: String`).
@@ -53,6 +55,12 @@ between archived/missing visual assets and non-visual analyses that are waiting
 on a biological reference image. Those non-visual paths render a dedicated
 placeholder (`Reference pending`, `Reference unavailable`) keyed off the capture
 modality instead of implying that a photo once existed and was archived.
+`ScanThumbnail` and its projection/loading helpers live under `Core/UI` because
+Scans, Explore Field Trips, and Profile consume them. The renderer delegates to
+`ScanThumbnailLoader`, whose live dependency adapter is the only owner that
+resolves image and spectrogram loaders. The service and final main-actor commit
+both fence cancellation, and the view's typed task identity covers every input
+that can change the requested source or rendering policy.
 
 ## 4. Scroll Physics: `FadingScrollView`
 
@@ -71,14 +79,17 @@ Heatmap (52-week grid).
 
 **Location**: `Features/Scans/Shared/Modifiers/ScanDeletionDialogModifier.swift`
 
-A global `.viewModifier` that intercepts `.contextMenu` or `Menu` delete
-interactions.
+A Scans-scoped `.viewModifier` that presents the shared destructive confirmation
+for delete interactions.
 
 - Replaces isolated inline `.alert` or `.confirmationDialog` blocks to ensure
   identical warning dialogue verbiage across all views.
-- Safely decouples the deletion `Task` from the view hierarchy, executing
-  SwiftData `modelContext.delete()` constraints upstream of Cloudflare R2 binary
-  deletions.
+- Owns only alert copy and completion handoff. The injected
+  `ScanDeletionService` performs the single-record fetch, feedback, and
+  repository erasure sequence; the modifier does not fetch SwiftData or resolve
+  the app container.
+- Treats an already-absent record as a completed presentation, while a missing
+  scan selection performs no work and leaves completion untouched.
 
 ## 6. Confidence Badge: `ConfidenceBadge`
 
