@@ -4903,15 +4903,15 @@ bumping to V{N+1}, follow the runbook at `.agents/workflows/schema_update.md`:
 4. Update `typealias CurrentSchema = MerianSchemaV{N+1}` in `Aliases.swift`.
 5. Add the `migrateV{N}toV{N+1}` stage to `MerianMigrationPlan.stages`.
 
-V49 is frozen independently of active V50/V51 types: its `models` array uses
-only fully qualified `MerianSchemaV49.*` snapshot classes, relationship
-endpoints refer to the same V49 namespace, and no alias points back to an active
-global model. V50 is likewise frozen in `SchemaV50Snapshots.swift`, including
-the goal-hint companion and historical `ScanCollection.isDeleted` field. V51
-uses the active globals plus its schema-scoped goal-hint entity. The source
-guardrail rejects regressions and pins both frozen snapshot SHA-256 values, so a
-property, annotation, default, relationship, initializer, or helper edit
-requires an explicit historical-shape review. Disk migration suites create
+V49 is frozen independently of every later global active type: its `models`
+array uses only fully qualified `MerianSchemaV49.*` snapshot classes,
+relationship endpoints refer to the same V49 namespace, and no alias points back
+to a global model. V50 is likewise frozen in `SchemaV50Snapshots.swift`,
+including the goal-hint companion and historical `ScanCollection.isDeleted`
+field. V51 uses the active globals plus its schema-scoped goal-hint entity. The
+source guardrail rejects regressions and pins both frozen snapshot SHA-256
+values, so a property, annotation, default, relationship, initializer, or helper
+edit requires an explicit historical-shape review. Disk migration suites create
 source stores from the frozen snapshots and open them through the corresponding
 V49 or V50 source-isolated plans. That proves candidate self-consistency; it
 cannot prove that the Core Data model identity emitted by a processed released

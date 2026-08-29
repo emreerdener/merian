@@ -27,8 +27,13 @@ may be reparented or joined across owners.
 }
 ```
 
-The delete flag accepts `is_deleted` and `isDeleted` because historical Swift
-encoder strategies emitted both forms. Bounds are enforced before database work:
+The canonical current iOS payload uses `is_deleted`; the route also accepts
+`isDeleted` as a backwards-compatible alias for historical Swift encoder output.
+Senders do not need to include both keys. In the active iOS V51 model,
+`ScanCollection.isPendingDeletion` maps to the released SwiftData `isDeleted`
+column with `@Attribute(originalName:)` and is explicitly projected to
+`is_deleted`. The V50 → V51 local rename does not change this wire contract.
+Bounds are enforced before database work:
 
 - at most 200 collections per request; and
 - at most 5,000 `scan_ids` per collection.

@@ -541,11 +541,11 @@ as their permanent engineering identity.
   `/species-dictionary-chat`, `/field-trips` starter enrollment, preferred
   progress, and scan contributions, `/update-public-avatar`, Community
   Identification request/detail and grouped Activity endpoints,
-  `/species-dictionary`, `/species-observation-stats`, `/report-user`, the
-  internal admin RPC surface, Explore detail similar species, and internal cron
-  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
-  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
-  inspection and recovery contract.
+  `/species-dictionary`, `/species-observation-stats`, `/sync-collections`,
+  `/report-user`, the internal admin RPC surface, Explore detail similar
+  species, and internal cron workers such as Merian reference-image refresh,
+  diagnostic `Server-Timing`, and `/update-scan-context`, plus the
+  owner-authenticated `/repair-scan-image` inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — Validation-only Supabase candidate gate, separately authorized production
   deployment path, required GitHub secrets, local emergency fallback, frozen

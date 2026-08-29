@@ -6720,19 +6720,25 @@ and `collection_scans` schemas, handling diffing and missing FK references.
       "name": "My Favorites",
       "created_at": "2026-03-23T12:00:00Z",
       "scan_ids": ["B2C3D4E5-..."],
-      "is_deleted": false,
-      "isDeleted": false
+      "is_deleted": false
     }
   ]
 }
 ```
 
+The active iOS V51 model names the durable application value
+`ScanCollection.isPendingDeletion` and maps it to the released SwiftData
+`isDeleted` column with `@Attribute(originalName:)`. The collection-sync DTO
+explicitly projects that value to the canonical `is_deleted` JSON key. The
+optional `isDeleted` request alias remains a server-side compatibility read for
+historical encoder output; clients do not need to send both keys. The V50 → V51
+local rename changes neither this payload nor the deletion semantics.
+
 ### Safety and Transactional Integrity
 
-1. **Dual Casing Delete Parsing**: To protect against Swift `JSONEncoder`
-   converting structural snake_case keys into camelCase payloads based on
-   codable strategies, the Edge function supports both `is_deleted` and
-   `isDeleted` attributes when resolving the deleted tombstone array.
+1. **Dual Casing Delete Parsing**: The current iOS client emits `is_deleted`. To
+   protect historical Swift encoder output, the Edge function also accepts
+   `isDeleted` when resolving the deleted tombstone array.
 2. **Atomic Ownership Upsert**:
    `upsert_owned_collections(p_user_id, p_collections)` performs one
    `INSERT ... ON CONFLICT ... DO UPDATE` and returns every input ID as accepted

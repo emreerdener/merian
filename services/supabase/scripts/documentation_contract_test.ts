@@ -5500,12 +5500,15 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
 Deno.test("Collections documentation records the V51 tombstone repair without changing the wire contract", async () => {
   const [
     documentationIndex,
+    coreDataReadme,
     featureReadme,
     featureContract,
     insightContract,
     offlinePipeline,
     actorGuide,
     schema,
+    apiContract,
+    edgeReadme,
     testing,
     gotchas,
     cleanup,
@@ -5513,12 +5516,15 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
     codebaseMap,
   ] = await Promise.all([
     read("docs/README.md"),
+    read("apps/ios/Merian/Core/Data/README.md"),
     read("apps/ios/Merian/Features/Scans/Collections/README.md"),
     read("docs/features-and-hardware/07-feature-modules-and-ui.md"),
     read("docs/features-and-hardware/05-insight-sheet.md"),
     read("docs/backend-and-data/01-offline-sync-pipeline.md"),
     read("docs/backend-and-data/03-database-actors.md"),
     read("docs/backend-and-data/04-database-schema.md"),
+    read("docs/backend-and-data/05-api-contracts.md"),
+    read("services/supabase/functions/sync-collections/README.md"),
     read("docs/development-guides/08-testing-strategy.md"),
     read("docs/development-guides/11-swiftdata-and-api-gotchas.md"),
     read("docs/rfcs/codebase-cleanup.md"),
@@ -5529,12 +5535,15 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
   for (
     const source of [
       documentationIndex,
+      coreDataReadme,
       featureReadme,
       featureContract,
       insightContract,
       offlinePipeline,
       actorGuide,
       schema,
+      apiContract,
+      edgeReadme,
       testing,
       gotchas,
       cleanup,
@@ -5549,11 +5558,14 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
   for (
     const source of [
       documentationIndex,
+      coreDataReadme,
       featureReadme,
       featureContract,
       offlinePipeline,
       actorGuide,
       schema,
+      apiContract,
+      edgeReadme,
       testing,
       gotchas,
       cleanup,
@@ -5564,13 +5576,34 @@ Deno.test("Collections documentation records the V51 tombstone repair without ch
     assertStringIncludes(source, "V51");
   }
 
-  for (const source of [featureReadme, offlinePipeline, actorGuide, schema]) {
+  for (
+    const source of [
+      coreDataReadme,
+      featureReadme,
+      offlinePipeline,
+      actorGuide,
+      schema,
+      apiContract,
+      edgeReadme,
+    ]
+  ) {
     assertStringIncludes(source, "is_deleted");
     assertStringIncludes(source, "isPendingDeletion");
   }
   assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
   assertStringIncludes(schema, "@Attribute(originalName:)");
   assertStringIncludes(testing, "V49→V50→V51");
+  assertStringIncludes(documentationIndex, "/sync-collections");
+  assertStringIncludes(coreDataReadme, "Fresh and V51 stores");
+  assertStringIncludes(coreDataReadme, "known V42...V50 sources");
+  assertStringIncludes(
+    apiContract,
+    "clients do not need to send both keys",
+  );
+  assertStringIncludes(
+    edgeReadme,
+    "Senders do not need to include both keys",
+  );
   assertStringIncludes(
     cleanup,
     "Completed Scans Collections Persistence Repair",

@@ -10,10 +10,13 @@ configurations, the `HistoricalDatabaseActor` for cloud sync reconciliation, and
 the `OfflineQueuedScan` persistence mechanism. It ensures that data remains
 durable even when inference fails or network connectivity is absent.
 
-The active V50 schema adds `OfflineQueuedScanGoalHint`, a scan-keyed companion
-that stores the optional standard-outing and checklist-item IDs selected in a
-qualifying live Capture. Keeping this separate preserves the released V49 queue
-entity. Foreground/background completion read the same hint. Successful queue
+V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
+the optional standard-outing and checklist-item IDs selected in a qualifying
+live Capture. Keeping this separate preserved the released V49 queue entity. The
+active V51 schema carries the companion forward unchanged and separately maps
+the collection tombstone `ScanCollection.isPendingDeletion` to the released
+`isDeleted` column while continuing to emit the `is_deleted` wire field.
+Foreground/background completion read the same goal hint. Successful queue
 finalization preserves it as a durable progress outbox until acknowledgement;
 explicit cancellation and terminal orphan repair remove it. Persistent Insight
 contribution cards are server-backed and are intentionally not cached in
@@ -277,12 +280,13 @@ persistence.
 
 - `ModelStoreRecoveryCoordinator` decides whether a `ModelContainer` startup
   failure is a verified SQLite/Core Data corruption case.
-- It reads actual store metadata before container creation. Fresh and V50 stores
-  open as current; known V42...V49 sources use finite, source-isolated plans;
+- It reads actual store metadata before container creation. Fresh and V51 stores
+  open as current; known V42...V50 sources use finite, source-isolated plans;
   only unknown older stores use the full historical plan.
-- A released V49 store must select `MerianRecentV49MigrationPlan`, whose
-  complete contract is the single lightweight V49→V50 hop. The
-  duplicate-checksum retry ladder is ordered current store, then V49 down
+- A released V50 store selects `MerianRecentV50MigrationPlan`, whose complete
+  contract is the single lightweight V50→V51 hop. A released V49 store selects
+  `MerianRecentV49MigrationPlan` and advances through V49→V50→V51. The
+  duplicate-checksum retry ladder is ordered current store, then V50 down
   through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
