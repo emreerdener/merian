@@ -370,8 +370,10 @@ fallback behavior.
 For live camera submissions, identification receives a short context grace
 window of approximately 150 milliseconds. Context that arrives later can be
 patched through `/update-scan-context` without repeating the biological
-identification request. This keeps the capture response fast while preserving
-weather or place data that becomes available shortly afterward.
+identification request. The window bounds optional WeatherKit/geocoding waiting,
+not the complete client dispatch path; existing bounded telemetry preparation
+may still follow. This keeps the capture response fast while preserving weather
+or place data that becomes available shortly afterward.
 
 ## 5.4 Progressive analyzing feedback - Implemented
 

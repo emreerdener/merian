@@ -9,7 +9,7 @@ import Observation
     /// True when dictation has been requested; the lifecycle observer listens and handles termination,
     /// ultimately resetting this back to false once the session naturally ends.
     var isDictationRequested: Bool = false
-    
+
     /// A single-shot trigger that asks the workspace to present the Table of Contents sheet.
     /// UUID is used so that repeated button taps (true -> true) cleanly trigger `.onChange`.
     var tocRequestID: UUID?

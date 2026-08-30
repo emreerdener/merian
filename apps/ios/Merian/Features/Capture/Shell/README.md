@@ -15,6 +15,58 @@ selected during workspace initialization, and camera-session startup remains
 gated on visual mode. Keep page sizing and `scrollTargetLayout()` on the lazy
 stack when changing pager behavior.
 
+## Ownership
+
+The Shell is organized by responsibility rather than as a pair of aggregate
+files:
+
+- `Models/` owns value-only media, goal, and presentation policy. These
+  declarations do not resolve live state or platform actions; share-state and
+  account-seed lookups enter through injected closures.
+- `Services/` is the only Shell owner that constructs live networking, remote
+  media-download, connection-prewarm, share/account lookup, keyboard platform,
+  and haptic adapters. `CaptureWorkspaceKeyboardService` owns the raw UIKit
+  keyboard publishers, dismissal action, and software-keyboard visibility check;
+  Views, Components, and Modifiers do not access `NotificationCenter.default`.
+  The root view model receives live dependencies through the narrow
+  closure-based `CaptureWorkspaceDependencies` value; it does not construct a
+  network client or URL session.
+- `ViewModels/` owns capture state and orchestration. Responsibility-specific
+  extensions cover routing, imports, staging, refinement, and lifecycle. The
+  `CaptureWorkspaceOperationState` contains private mutable tasks, route
+  handoffs, import coalescing, timeout fences, and ordered crop requests so the
+  underlying storage is not widened to the module. Its external-import task owns
+  the retry loop, keeping the final retry check and task-handle release in one
+  MainActor turn so an overlapping request cannot be stranded at completion. A
+  sheet deferral still stops that iteration until the exact dismissal callback;
+  if dismissal wins the final handoff race, its resume request becomes the next
+  iteration before the handle is released.
+- `Modifiers/` composes root routing, lifecycle observation, presentation,
+  binding adapters, and external-import retry triggers. The mounted
+  orchestration modifier delivers the keyboard service's publishers on the main
+  queue before consuming them through SwiftUI `.onReceive`, while presentation
+  bindings retain keyboard animation timing. Modifiers may consume app-injected
+  environment state, but they do not resolve endpoint, client, URL-session, or
+  haptic singletons.
+- `Views/` and `Components/` retain UI-only pager selection, scroll/focus state,
+  goal expansion, presentation bindings, and exact dismissal timing. They send
+  user intents to the view model and contain no direct networking.
+
+Tests mirror this boundary under `apps/ios/MerianTests/Features/Capture/Shell/`.
+The architecture suite enforces the live-service and deterministic Models
+boundaries, required ownership directories, and a 600-line ceiling for every
+production Swift file in this folder. Presentation-policy and operation-state
+suites exercise the extracted deterministic behavior, the dependencies suite
+locks injected feedback/prewarm and account lookup behavior, and the existing
+`CaptureWorkspaceViewModelRefinementTests` selector remains stable across the
+responsibility-specific test files.
+
+Cross-area declarations do not remain in Shell merely because the root supplies
+them. `Capture/Shared/Utilities` owns the composing-center environment contract
+used by Shell and Record, while `Core/Media` owns the immutable
+`SendableCGImage` concurrency wrapper used by Capture and Insights. The
+architecture suite also prevents Shell Models from importing SwiftUI or UIKit.
+
 `MediaModeToggle` remains fixed above that pager and uses one native
 `UISegmentedControl`. Its bounded 200 by 56 pt frame uses compact tab-bar-like
 proportions, displays 24 pt symbols, and leaves at least 24 pt side margins on

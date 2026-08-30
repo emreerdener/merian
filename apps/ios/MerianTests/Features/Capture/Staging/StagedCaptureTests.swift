@@ -137,21 +137,6 @@ struct StagedCaptureTests {
             wrappedCertificateFailure
         ))
 
-        #expect(CaptureScanAdmissionPolicy.resolve(
-            isOnline: true,
-            canStartLocally: true,
-            previewResult: .connectivityUnavailable
-        ) == .proceed(.queued))
-        #expect(CaptureScanAdmissionPolicy.resolve(
-            isOnline: true,
-            canStartLocally: false,
-            previewResult: .connectivityUnavailable
-        ) == .paywall)
-        #expect(CaptureScanAdmissionPolicy.resolve(
-            isOnline: true,
-            canStartLocally: true,
-            previewResult: .unavailable
-        ) == .retryRequired)
     }
 
     @Test func exhaustedImageImportAdmissionBlocksBeforePickerAndCrop() async {
@@ -190,21 +175,6 @@ struct StagedCaptureTests {
             #expect(viewModel.stagedCapture.isEmpty)
             #expect(viewModel.imageToCrop == nil)
             #expect(!viewModel.isCheckingScanAdmission)
-            #expect(!CaptureWorkspaceViewModel.isImageImportFlashFallbackEligible(
-                existingItemCount: 0,
-                prospectiveImageCount: 2,
-                isRefining: false
-            ))
-            #expect(!CaptureWorkspaceViewModel.isImageImportFlashFallbackEligible(
-                existingItemCount: 1,
-                prospectiveImageCount: 1,
-                isRefining: false
-            ))
-            #expect(!CaptureWorkspaceViewModel.isImageImportFlashFallbackEligible(
-                existingItemCount: 0,
-                prospectiveImageCount: 1,
-                isRefining: true
-            ))
         }.value
     }
 
@@ -266,69 +236,6 @@ struct StagedCaptureTests {
                 isCropPresented: false
             ))
         }
-    }
-
-    @Test func liveImageLatencyOptimizationExcludesGalleryAudioAndVideo() {
-        #expect(CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
-            hasStillImage: true,
-            hasAudio: false,
-            hasVideo: false,
-            isGalleryPhoto: false
-        ))
-        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
-            hasStillImage: true,
-            hasAudio: false,
-            hasVideo: false,
-            isGalleryPhoto: true
-        ))
-        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
-            hasStillImage: true,
-            hasAudio: true,
-            hasVideo: false,
-            isGalleryPhoto: false
-        ))
-        #expect(!CaptureWorkspaceViewModel.shouldOptimizeLiveImageAnalysis(
-            hasStillImage: false,
-            hasAudio: false,
-            hasVideo: true,
-            isGalleryPhoto: false
-        ))
-    }
-
-    @Test func preferredGoalRequiresCameraOnlyStillMedia() {
-        let preferredGoal = FieldTripPreferredGoal(
-            userFieldTripId: "outing",
-            itemId: "butterfly"
-        )
-
-        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
-            preferredGoal,
-            hasCameraStill: true,
-            hasGalleryStill: false,
-            hasAudio: false,
-            hasVideo: false
-        ) == preferredGoal)
-        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
-            preferredGoal,
-            hasCameraStill: true,
-            hasGalleryStill: true,
-            hasAudio: false,
-            hasVideo: false
-        ) == nil)
-        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
-            preferredGoal,
-            hasCameraStill: true,
-            hasGalleryStill: false,
-            hasAudio: true,
-            hasVideo: false
-        ) == nil)
-        #expect(CaptureWorkspaceViewModel.preferredGoalForSubmission(
-            preferredGoal,
-            hasCameraStill: false,
-            hasGalleryStill: false,
-            hasAudio: false,
-            hasVideo: true
-        ) == nil)
     }
 
     // MARK: - isEmpty

@@ -1,6 +1,6 @@
 # Camera Roll and Captured-Media Export
 
-Last reviewed: 2026-08-01.
+Last reviewed: 2026-08-29.
 
 Naturebook can write captured photos and videos to the user's iOS Photos
 library. Automatic capture saves and explicit **Download** actions share the
@@ -12,11 +12,11 @@ backend, database schema, upload contract, or the media-import surface.
 
 ## Product Contract
 
-| Path | Trigger | Honors `saveToCameraRoll` | Video source | Location added by Naturebook |
-|---|---|---:|---|---|
-| Automatic capture | Capture completes while **Save to camera roll** is enabled | Yes | Original camera recording | Resolved shutter location, when available |
-| Single download | **Download scan** in Insight | No | Retained playback clip | No |
-| Batch download | **Download** for selected scans in the Scan Library | No | Retained playback clips | No |
+| Path              | Trigger                                                    | Honors `saveToCameraRoll` | Video source              | Location added by Naturebook              |
+| ----------------- | ---------------------------------------------------------- | ------------------------: | ------------------------- | ----------------------------------------- |
+| Automatic capture | Capture completes while **Save to camera roll** is enabled |                       Yes | Original camera recording | Resolved shutter location, when available |
+| Single download   | **Download scan** in Insight                               |                        No | Retained playback clip    | No                                        |
+| Batch download    | **Download** for selected scans in the Scan Library        |                        No | Retained playback clips   | No                                        |
 
 The persisted setting remains `UserDefaultsKeys.saveToCameraRoll`. It defaults
 to `false`. Turning it off prevents both automatic photo and automatic video
@@ -51,10 +51,10 @@ Permission outcomes follow these rules:
 `PhotoLibraryMediaKind` value maps directly to the corresponding
 `PHAssetResourceType`:
 
-| Media kind | PhotoKit resource | Input behavior |
-|---|---|---|
-| `.photo` | `.photo` | Accepts resident `Data` or a file URL; removes inherited GPS metadata before import |
-| `.video` | `.video` | Uses the source file URL unchanged; does not decode or load the clip into memory |
+| Media kind | PhotoKit resource | Input behavior                                                                      |
+| ---------- | ----------------- | ----------------------------------------------------------------------------------- |
+| `.photo`   | `.photo`          | Accepts resident `Data` or a file URL; removes inherited GPS metadata before import |
+| `.video`   | `.video`          | Uses the source file URL unchanged; does not decode or load the clip into memory    |
 
 The helper creates a `PHAssetCreationRequest`, adds the resource, assigns an
 optional `request.location`, and awaits
@@ -127,14 +127,20 @@ Normal completion, cancellation, timeout, and preparation failure all await the
 PhotoKit task before removing the original. This prevents compression cleanup
 from invalidating a file while PhotoKit is importing it.
 
+After a prepared clip crosses into `StagedCapture`, Scan finalizes that
+recording generation and removes its cancel affordance before awaiting the
+PhotoKit task. The local capture task continues to own the original URL and save
+handle until PhotoKit returns. This prevents a user action from cancelling media
+that is already staged without shortening the original source lifetime.
+
 If playback preparation falls back to the original recording, that file becomes
 the retained playback clip and is not deleted by the successful capture path.
 
 ## Single and Batch Downloads
 
 `InsightMediaExportManager` converts UI- and SwiftData-bound records into a
-`Sendable` `SaveMediaPayload` before work crosses into
-`ExportProcessingActor`. The payload keeps media classes explicit:
+`Sendable` `SaveMediaPayload` before work crosses into `ExportProcessingActor`.
+The payload keeps media classes explicit:
 
 ```swift
 localImageURLs
@@ -151,8 +157,8 @@ Single and batch Download actions may save:
 - approved remote captured photos and videos; and
 - the existing approved reference photo associated with a scan.
 
-Audio recordings, descriptions, sampled video inference frames, and video
-poster thumbnails are not exported as separate user captures.
+Audio recordings, descriptions, sampled video inference frames, and video poster
+thumbnails are not exported as separate user captures.
 
 ### Local URL Resolution
 
@@ -173,9 +179,8 @@ third-party reference URLs are not fetched as arbitrary export resources.
 
 `URLSession.download` writes each approved response to a temporary file. The
 actor passes that file URL directly to `PhotoLibraryManager`, awaits the
-PhotoKit transaction, and removes the download file in `defer` on success,
-HTTP failure, or PhotoKit failure. Remote videos are never materialized as
-`Data`.
+PhotoKit transaction, and removes the download file in `defer` on success, HTTP
+failure, or PhotoKit failure. Remote videos are never materialized as `Data`.
 
 ## Results and User Feedback
 
@@ -201,28 +206,29 @@ toast. Both clear their loading state after completion.
 
 ## Ownership and Cleanup
 
-| File | Owner before save | Cleanup rule |
-|---|---|---|
-| Original camera video | Capture task | Await automatic PhotoKit import before deleting; retain when it is the playback fallback |
-| Retained playback video | Scan staging/persistence | Never delete as part of a manual Photos export |
-| Approved remote download | Export actor | Delete after the awaited PhotoKit write returns |
-| Scrubbed temporary photo | `PhotoLibraryManager` | Delete after the awaited PhotoKit write returns |
+| File                                                 | Owner before save               | Cleanup rule                                                                                             |
+| ---------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Original camera video                                | Capture task                    | Await automatic PhotoKit import before deleting; retain when it is the playback fallback                 |
+| Unaccepted generated WAV or compressed playback clip | `CaptureScanTemporaryFileLease` | Delete on cancellation, timeout, validation failure, supersession, or release without staging acceptance |
+| Retained playback video                              | Scan staging/persistence        | Never delete as part of a manual Photos export                                                           |
+| Approved remote download                             | Export actor                    | Delete after the awaited PhotoKit write returns                                                          |
+| Scrubbed temporary photo                             | `PhotoLibraryManager`           | Delete after the awaited PhotoKit write returns                                                          |
 
 PhotoKit failure never grants an export path permission to delete a retained
 playback clip or persisted local photo.
 
 ## Failure Behavior
 
-| Condition | Result |
-|---|---|
-| Automatic setting disabled | Skip the write without requesting Photos access |
-| Add-only permission denied | Record failure; preserve Naturebook media |
-| Missing local file | Record failure and continue remaining items |
-| Unapproved remote host | Skip the URL |
-| Remote non-2xx response | Record failure and remove the temporary download |
-| Download cancellation/network error | Record failure and continue or return normally |
-| PhotoKit import failure | Record failure; remove only export-owned temporary files |
-| Video preparation failure | Await any automatic PhotoKit import before original-source cleanup |
+| Condition                           | Result                                                             |
+| ----------------------------------- | ------------------------------------------------------------------ |
+| Automatic setting disabled          | Skip the write without requesting Photos access                    |
+| Add-only permission denied          | Record failure; preserve Naturebook media                          |
+| Missing local file                  | Record failure and continue remaining items                        |
+| Unapproved remote host              | Skip the URL                                                       |
+| Remote non-2xx response             | Record failure and remove the temporary download                   |
+| Download cancellation/network error | Record failure and continue or return normally                     |
+| PhotoKit import failure             | Record failure; remove only export-owned temporary files           |
+| Video preparation failure           | Await any automatic PhotoKit import before original-source cleanup |
 
 ## Automated Verification
 
@@ -231,6 +237,9 @@ Focused coverage lives in:
 - `PhotoLibraryManagerTests.swift` for default-off automatic photo/video
   behavior, `.photo`/`.video` resource selection, source-video retention, and
   image GPS scrubbing;
+- `CaptureScanTemporaryFileLeaseTests.swift` and `DetachedWorkTests.swift` for
+  unaccepted-artifact cleanup, explicit ownership transfer, and propagation of
+  parent cancellation into detached media work;
 - `InsightMediaExportManagerTests.swift` for local/approved remote image/video
   payloads, unapproved-host filtering, and mixed/partial result copy; and
 - `services/supabase/scripts/documentation_contract_test.ts` for maintained
@@ -242,6 +251,8 @@ Run the focused suites with a valid simulator identifier:
 xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -destination 'id=<SIMULATOR_ID>' \
   -only-testing:merianTests/PhotoLibraryManagerTests \
+  -only-testing:merianTests/CaptureScanTemporaryFileLeaseTests \
+  -only-testing:merianTests/DetachedWorkTests \
   -only-testing:merianTests/InsightMediaExportManagerTests test
 
 deno test --config services/supabase/functions/deno.json --frozen \

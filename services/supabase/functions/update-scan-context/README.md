@@ -53,8 +53,10 @@ verified `user.id`. Direct RPC execution is revoked from `PUBLIC`, `anon`, and
 - A `BEFORE INSERT` trigger merges staged context into the matching owner scan
   and removes the staging row.
 - If the server has not claimed the scan yet, the RPC error is returned as
-  `409`. The iOS live path performs one short retry; the durable local queue
-  also retains the context for replay.
+  `409`. The iOS `CaptureSubmissionDeferredContextService` first retains the
+  context in the durable local queue, then performs at most one remote retry
+  after 500 ms. Endpoint, transport, or task cancellation is terminal and does
+  not start that retry; the local copy remains the durable fallback.
 
 The staging table has RLS enabled and no direct client grants. It deliberately
 does not foreign-key `user_id` to `public.users`, because the first anonymous

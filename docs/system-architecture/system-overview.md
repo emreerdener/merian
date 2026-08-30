@@ -36,9 +36,11 @@ begins this pipeline:
    sends all current still, gallery, audio, Describe, mixed-media, and video
    submissions to `/identify-multimodal`, keeping `GEMINI_PAID_API_KEY` off the
    client. The eligible live-camera still path first gives shutter-prefetched
-   environmental context at most 150 ms; request-body completion then releases
-   its durable queue source for R2/background recovery. Late context is applied
-   through `/update-scan-context` without a second model call.
+   environmental context at most 150 ms. That grace bounds context waiting, not
+   all telemetry preparation or total dispatch latency. Request-body completion
+   then releases its durable queue source for R2/background recovery. Late
+   context is applied through `/update-scan-context` without a second model
+   call; a branch with no live foreground owner cancels an unconsumed lookup.
 4. **Durable First Result**: The Edge route verifies cached ES256 claims,
    performs one atomic ingestion-setup RPC, calls the unchanged tier model once,
    and uses at most one combined cached dictionary-hydration RPC for eligible

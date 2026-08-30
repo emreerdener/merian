@@ -1,4 +1,3 @@
-import StoreKit
 import SwiftUI
 
 struct Community: View {
@@ -11,7 +10,9 @@ struct Community: View {
     @Binding var safariUrl: URL?
     @Binding var showSafari: Bool
     @Binding var showFeedbackSurvey: Bool
-    
+
+    private let dependencies = CommunitySettingsDependencies.live
+
     var body: some View {
         Section {
             SettingsToggleRow(
@@ -36,11 +37,7 @@ struct Community: View {
                 iconColor: .teal
             )
 
-            Button {
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                    SKStoreReviewController.requestReview(in: scene)
-                }
-            } label: {
+            Button(action: dependencies.requestAppStoreReview) {
                 Label("Rate Naturebook", systemImage: "star.fill")
             }
 
@@ -50,9 +47,7 @@ struct Community: View {
                 Label("Give us feedback", systemImage: "bubble.left.fill")
             }
 
-            Button {
-                AppShareContent.presentShareSheet()
-            } label: {
+            Button(action: dependencies.presentShareSheet) {
                 Label("Share Naturebook", systemImage: "square.and.arrow.up")
             }
 

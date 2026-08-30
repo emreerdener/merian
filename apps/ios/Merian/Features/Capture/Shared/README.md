@@ -1,6 +1,19 @@
 # Capture Shared
 
-The `Shared` directory contains reusable components and state managers used across the capture modes.
+The `Shared` directory owns Capture-domain code consumed by more than one
+product area or modality. Code that is also used outside Capture belongs in
+`Core` instead.
 
-## Purpose
-Code lives here when it is utilized by multiple capture modalities (e.g., `Scan`, `Record`, and `Describe`) but is specific enough to the capture domain that it shouldn't be promoted to the app-wide `Core` layer. This might include shared camera overlays, shutter button components, or unified telemetry state.
+## Ownership
+
+- `Models/` contains shared Capture values such as observation context, the
+  file-backed Photos transfer wrapper, and `IdentifiableImage` source context,
+  provenance, distance, and resumable crop geometry.
+- `ViewModels/` contains the action coordinator shared by the Shell and capture
+  modes.
+- `Utilities/ComposingCenterEnvironment.swift` owns the cross-modality SwiftUI
+  environment contract: Shell supplies the measured composing center and Record
+  consumes it for aligned audio presentation.
+
+Generic bounded media transport, including `SendableCGImage`, belongs to
+`Core/Media` because both Capture and Insights consume it.

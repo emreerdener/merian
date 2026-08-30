@@ -75,7 +75,7 @@ Primary files:
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
 - `apps/ios/Merian/App/MerianApp.swift`
-- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`

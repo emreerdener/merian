@@ -235,31 +235,34 @@ startRecording() → [recording] ───────────────�
                   [review: pendingPlaybackPath set]
                        ↓ confirmAndSubmit()
                   [submitted: audioFilePath set]
-                       ↓ CaptureWorkspaceView.onChange
+                       ↓ CaptureWorkspaceOrchestrationModifier.onChange
                   [stage into toolbar OR submitAudio] → reset()
 
                   [review] → discardPending() → [idle]
 ```
 
-`CaptureWorkspaceView.onChange(of: audioCaptureManager.audioFilePath)` fires
-only when the user explicitly confirms; this replaces the previous auto-submit
-that fired immediately when recording finished. If the user already has staged
-images, videos, or descriptions, if multi-capture mode is enabled, or if
-explicit confirmation is required, the confirmed clip is appended to
+`CaptureWorkspaceOrchestrationModifier.onChange(of:
+audioCaptureManager.audioFilePath)`
+fires only when the user explicitly confirms; this replaces the previous
+auto-submit that fired immediately when recording finished. If the user already
+has staged images, videos, or descriptions, if multi-capture mode is enabled, or
+if explicit confirmation is required, the confirmed clip is appended to
 `stagedCapture.audios` and shares the same 2-item total mixed-media cap as
 images, videos, and descriptions. Otherwise the audio-only path calls
 `submitAudio(...)` immediately.
 
-When recording begins, `CaptureWorkspaceView` calls
-`prepareNonVisualCaptureContext()`. This starts the same pinned environment
-lookup used by camera captures while the user is still recording, hiding the
-reverse-geocoding and WeatherKit latency behind the recording/review flow. Each
-new recording replaces an abandoned lookup. Submission consumes that task; if no
-prefetch exists (for example, a programmatic or legacy entry path), it resolves
-`lastKnownLocation` before constructing queue telemetry. This prevents audio
-scans with valid GPS from losing `locationName`, which would otherwise leave an
-Explore post unable to display a location label after switching the post to
-Open.
+When recording begins, `CaptureWorkspaceOrchestrationModifier` asks the
+workspace view model to `prepareNonVisualCaptureContext()`. This starts the same
+pinned environment lookup used by camera captures while the user is still
+recording, hiding the reverse-geocoding and WeatherKit latency behind the
+recording/review flow. Each new recording replaces an abandoned lookup.
+Submission snapshots that task and uses `lastKnownLocation` for immediate queue
+telemetry. Only after the WAV and queue row are durable does the prefetched or
+fallback lookup receive a 150 ms live-request grace. A late result merges
+locally and through `/update-scan-context`; a queue-only, queue-rejected,
+superseded, or unavailable-owner branch cancels an unconsumed lookup. This
+prevents audio scans with valid GPS from losing `locationName` without making
+WeatherKit or reverse geocoding a durability dependency.
 
 ### File Format
 
@@ -290,10 +293,10 @@ discarding the companion compatibility fallback.
 
 ---
 
-## 4. Submission Flow — `AudioAnalysis.swift`
+## 4. Submission Flow — `CaptureWorkspaceViewModel+NonVisualSubmission.swift`
 
 **File**:
-`apps/ios/Merian/Features/Capture/Submission/ViewModels/AudioAnalysis.swift`
+`apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureWorkspaceViewModel+NonVisualSubmission.swift`
 
 `extension CaptureWorkspaceViewModel { func submitAudio(audioFileName:modelContext:) }`
 now routes through the shared non-visual submission path rather than a dedicated
@@ -302,28 +305,33 @@ audio-only analyzer.
 ```
 debounce check (1.5 s, CFAbsoluteTimeGetCurrent)
     ↓
-cameraManager.resetZoom()
-    ↓ await recording-time preFetchTask
-      (fallback: resolve pinned lastKnownLocation if no prefetch exists)
-    ↓
 submitNonVisualCapture(
     audioFileNames: [audioFileName],
     observationContexts: [],
     mediaTimeline: [.audio(audioFileName)],
     modelContext: modelContext
 )
+    ↓ caller-scoped admission preview selects foreground or queue-only
+    ↓ reset zoom + snapshot recording-time preFetchTask
+    ↓ enqueue WAV and cached telemetry durably
+    ↓ if foreground-owned, race prefetched/fallback context against 150 ms
+    ↓ analyze with available telemetry
+    ↓ if context finishes late, merge locally and through /update-scan-context
 ```
 
 **Live + offline dual-path**: audio-bearing captures always enqueue durably
 first (moving the WAV into `Documents/` and creating a `.pending` queue record
-for R2 staging). When offline the flow shows a toast and stops without calling
-`InferenceEngine.prepareForNewScan()`. When online the queue transaction also
-persists a foreground inference UUID, then the app prepares the live engine,
+for R2 staging). An offline or typed queue-only route shows a toast and stops
+without calling `InferenceEngine.prepareForNewScan()`. A still-online foreground
+route also persists a foreground inference UUID, then prepares the live engine,
 opens the insight sheet, and passes that UUID to
 `InferenceEngine.analyzeNonVisual(...)`. On live success, `deleteQueuedScan`
 preserves audio adopted by the final local scan and requires a matching
 `ForegroundInferenceGenerationExpectation`, preventing stale cleanup or a
-redundant background Gemini call on the same file.
+redundant background Gemini call on the same file. If no live request can own
+the scan, the captured context task is cancelled. A timeout-losing task retains
+only the deferred-context service and bounded telemetry values for its late
+merge, not the workspace view model.
 
 ---
 
@@ -594,20 +602,20 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 ## 9. Session Lifecycle
 
-| Trigger                                                 | Action                                                                                                                      |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms        |
-| User leaves `.audio` while recording startup is pending | Cancel the owned startup task; do not activate audio and do not show a cancellation toast                                   |
-| Swipe from `.audio` to another mode                     | `cancelRecording()` if active or paused — clears engine, file, and review state                                             |
-| App backgrounds while `.audio` active                   | Same: `cancelRecording()` if recording or paused                                                                            |
-| 15 s countdown completes                                | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state                                              |
-| User taps `AudioDoneButton` (checkmark) while recording | `stopRecordingEarly()` → same end state as countdown completion                                                             |
-| User taps center button while recording                 | `pauseRecording()` → engine paused, countdown halted                                                                        |
-| User taps center button while paused                    | `resumeRecording()` → engine and countdown resumed from current progress                                                    |
-| User taps `AudioDeleteButton` while recording/paused    | `cancelRecording()` → returns to idle                                                                                       |
-| User taps center button in review                       | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceView.onChange` either stages the clip or calls `submitAudio` |
-| User taps `AudioDeleteButton` in review                 | `discardPending()` → returns to idle                                                                                        |
-| User taps `AudioReviewPlayButton` in review             | Toggles `playPendingRecording()` / `stopPlayback()`                                                                         |
+| Trigger                                                 | Action                                                                                                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
+| User leaves `.audio` while recording startup is pending | Cancel the owned startup task; do not activate audio and do not show a cancellation toast                                                    |
+| Swipe from `.audio` to another mode                     | `cancelRecording()` if active or paused — clears engine, file, and review state                                                              |
+| App backgrounds while `.audio` active                   | Same: `cancelRecording()` if recording or paused                                                                                             |
+| 15 s countdown completes                                | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state                                                               |
+| User taps `AudioDoneButton` (checkmark) while recording | `stopRecordingEarly()` → same end state as countdown completion                                                                              |
+| User taps center button while recording                 | `pauseRecording()` → engine paused, countdown halted                                                                                         |
+| User taps center button while paused                    | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
+| User taps `AudioDeleteButton` while recording/paused    | `cancelRecording()` → returns to idle                                                                                                        |
+| User taps center button in review                       | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
+| User taps `AudioDeleteButton` in review                 | `discardPending()` → returns to idle                                                                                                         |
+| User taps `AudioReviewPlayButton` in review             | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
 
 The camera session is **not** started when the user is on `.audio`. The mode
 change still requests an eager stop, and the Record path independently awaits

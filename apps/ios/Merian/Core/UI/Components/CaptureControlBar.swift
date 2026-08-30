@@ -225,9 +225,12 @@ struct CaptureControlBar: View {
 
                 Spacer()
                 ZStack {
-                    FlashButton(
+                    CaptureFlashButton(
                         isFlashEnabled: cameraManager.isFlashEnabled,
-                        onToggleFlash: { cameraManager.toggleFlash() }
+                        onToggleFlash: {
+                            viewModel.triggerMediumFeedback()
+                            cameraManager.toggleFlash()
+                        }
                     )
                     .opacity(captureMode == .visual ? (isAtCapacity ? 0.5 : 1) : 0)
                     .allowsHitTesting(captureMode == .visual && !isAtCapacity)

@@ -107,9 +107,24 @@ The retry triggers are:
 
 - the Capture workspace becoming available;
 - the app returning to an active scene;
-- the current staged-item count decreasing; and
-- the configured staged-item limit increasing; and
+- the current staged-item count decreasing;
+- the configured staged-item limit increasing; or
 - the RevenueCat Pro entitlement changing.
+
+`ExternalImageImportRetryModifier` converts these UI/lifecycle changes into a
+semantic import intent. `CaptureWorkspaceOperationState` owns the corresponding
+main-actor task and coalesces any trigger that arrives during an active attempt
+into a subsequent loop iteration. Its final retry decision and task-handle
+release happen in one MainActor turn, so an arrival at completion cannot become
+a stranded flag after the worker has stopped.
+
+Presentation deferral is stricter than ordinary coalescing. When the workspace
+must dismiss an existing root sheet, the current iteration records a one-shot
+resume and stops; new starts remain blocked until the exact sheet `onDismiss`
+callback consumes that resume. If dismissal arrives before the previous task has
+released its handle, the consumed request is retained as the next iteration
+instead of being lost. `CaptureWorkspaceViewModel+Routing` owns that dismissal
+handoff, while `CaptureWorkspaceViewModel+Imports` owns the import worker.
 
 `CaptureWorkspaceViewModel.importPendingExternalImageIfPossible()` processes the
 oldest pending receipt. It snapshots the normal gallery budget before expensive
@@ -196,12 +211,20 @@ Automated coverage lives in:
   exclusion;
 - `apps/ios/MerianTests/Core/Data/OfflineQueueManagerTests.swift` for durable
   gallery provenance and offline replay with and without an embedded date;
-- `CaptureWorkspaceViewModelRefinementTests` for successful staging and cleanup,
-  capacity retention/retry, local and server admission retention before crop,
-  Pro entitlement retry, and terminal unreadable-image cleanup. Its
-  launch-routing case also starts with generic Explore presented, injects a
-  pending image and timeout event, and verifies the import wins, remains staged,
-  and presents the crop; and
+- `apps/ios/MerianTests/Features/Capture/Shell/` for the stable
+  `CaptureWorkspaceViewModelRefinementTests` selector across its focused
+  presentation/import, refinement, routing, and submission source files. The
+  suite covers successful staging and cleanup, capacity retention/retry, local
+  and server admission retention before crop, Pro entitlement retry, and
+  terminal unreadable-image cleanup. Its launch-routing case also starts with
+  generic Explore presented, injects a pending image and timeout event, and
+  verifies the import wins, remains staged, and presents the crop;
+- `CaptureWorkspaceOperationStateTests` for one-shot timeout, route/sheet,
+  completion-safe import coalescing, exact sheet-dismissal resume including the
+  dismissal-before-task-release handoff, idempotent receipt feedback, and
+  ordered-crop state;
+- `CaptureShellArchitectureTests` for the Shell live-service boundary and
+  600-line production-file ceiling; and
 - `apps/ios/MerianTests/Core/Analytics/AppTelemetryTests.swift` for the
   privacy-safe telemetry property set.
 

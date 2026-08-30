@@ -7,7 +7,7 @@ struct CameraSheetRouter: ViewModifier {
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.modelContext) private var modelContext
     @State private var isPresentingInsight = false
-    
+
     func body(content: Content) -> some View {
         content
             .sheet(item: Binding(
@@ -42,8 +42,8 @@ struct CameraSheetRouter: ViewModifier {
                     case .insight:
                         InsightSheetView(isPresented: Binding(
                             get: { viewModel.activeSheet == .insight },
-                            set: { 
-                                if !$0 && viewModel.activeSheet == .insight { 
+                            set: {
+                                if !$0 && viewModel.activeSheet == .insight {
                                     inferenceEngine.dismissAnalyzingPresentation()
                                     isPresentingInsight = false
                                     if !appSettings.hasPromptedForNotificationsPostIdent {
@@ -51,7 +51,7 @@ struct CameraSheetRouter: ViewModifier {
                                         viewModel.queueNotificationPromptAfterInsightDismissal()
                                     }
                                     viewModel.dismissActivePresentation()
-                                } 
+                                }
                             }
                         ), inferenceEngine: inferenceEngine)
                         .onAppear {

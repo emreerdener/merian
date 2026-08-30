@@ -3,15 +3,14 @@ import SwiftUI
 struct ManagePlanView: View {
     @Environment(RevenueCatManager.self) private var revenueCatManager
     @State private var showPaywall = false
-    @State private var isRestoring = false
-    @State private var operationErrorMessage: String?
+    @State private var viewModel = ManagePlanViewModel()
 
     private var isShowingOperationError: Binding<Bool> {
         Binding(
-            get: { operationErrorMessage != nil },
+            get: { viewModel.operationErrorMessage != nil },
             set: { isPresented in
                 if !isPresented {
-                    operationErrorMessage = nil
+                    viewModel.operationErrorMessage = nil
                 }
             }
         )
@@ -29,50 +28,44 @@ struct ManagePlanView: View {
             Section {
                 Button {
                     Task {
-                        isRestoring = true
-                        defer { isRestoring = false }
-                        do {
-                            try await revenueCatManager.restorePurchases()
-                        } catch {
-                            operationErrorMessage = error.localizedDescription
-                            MerianLog.general.error("Failed to restore purchases: \(error.localizedDescription, privacy: .private)")
-                        }
+                        await viewModel.restorePurchases()
                     }
                 } label: {
                     HStack {
                         Text("Restore purchases")
                             .foregroundColor(.primary)
                         Spacer()
-                        if isRestoring {
+                        if viewModel.isRestoring {
                             ProgressView()
                         }
                     }
                 }
                 .padding(.vertical, 8)
-                .disabled(!revenueCatManager.isPurchaseIdentityReady || isRestoring)
+                .disabled(
+                    !revenueCatManager.isPurchaseIdentityReady ||
+                        viewModel.isRestoring
+                )
             } footer: {
                 Text("If you've already made a purchase on another device, tap to enable it on this device.")
             }
-            
+
             Section {
                 Button {
-                    do {
-                        try revenueCatManager.presentCodeRedemptionSheet()
-                    } catch {
-                        operationErrorMessage = error.localizedDescription
-                        MerianLog.general.error("Failed to present code redemption: \(error.localizedDescription, privacy: .private)")
-                    }
+                    viewModel.presentCodeRedemption()
                 } label: {
                     Text("Redeem code")
                         .foregroundColor(.primary)
                 }
                 .padding(.vertical, 8)
-                .disabled(!revenueCatManager.isPurchaseIdentityReady)
-                
+                .disabled(
+                    !revenueCatManager.isPurchaseIdentityReady ||
+                        viewModel.isRestoring
+                )
+
                 Link("Terms of service", destination: PublicBrand.websiteURL(path: "terms"))
                     .foregroundColor(.primary)
                     .padding(.vertical, 8)
-                
+
                 Link("Privacy policy", destination: PublicBrand.websiteURL(path: "privacy"))
                     .foregroundColor(.primary)
                     .padding(.vertical, 8)
@@ -85,11 +78,11 @@ struct ManagePlanView: View {
         }
         .alert("Unable to Complete Purchase", isPresented: isShowingOperationError) {
             Button("OK", role: .cancel) {
-                operationErrorMessage = nil
+                viewModel.operationErrorMessage = nil
             }
         } message: {
-            Text(operationErrorMessage ?? "Please try again.")
+            Text(viewModel.operationErrorMessage ?? "Please try again.")
         }
     }
-    
+
 }

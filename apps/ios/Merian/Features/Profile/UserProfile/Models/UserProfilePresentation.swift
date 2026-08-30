@@ -3,7 +3,7 @@ import Foundation
 enum UserProfilePresentation: Identifiable {
     case usernameEditor
     case displayNameEditor
-    case avatarCrop(IdentifiableImage)
+    case avatarCrop(UserProfileAvatarCropImage)
 
     var id: String {
         switch self {

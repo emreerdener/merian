@@ -1,10 +1,11 @@
-import SwiftData
 import SwiftUI
 
 struct SettingsTabView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(RevenueCatManager.self) private var revenueCatManager
     var supabase: SupabaseManager
     @Bindable var viewModel: ProfileViewModel
+    let geoprivacyDependencies: GeoprivacySettingsDependencies
+    let preferenceActions: SettingsPreferenceActions
 
     // MARK: - State
     @State private var isExporting = false
@@ -34,7 +35,9 @@ struct SettingsTabView: View {
                     audioRecordingSettingsActive: $audioRecordingSettingsActive,
                     captureModeOrderSettingsActive: $captureModeOrderSettingsActive,
                     showPaywall: $showPaywall,
-                    showTestExploreOnboarding: $showTestExploreOnboarding
+                    showTestExploreOnboarding: $showTestExploreOnboarding,
+                    geoprivacyDependencies: geoprivacyDependencies,
+                    preferenceActions: preferenceActions
                 )
 
                 if FeatureFlags.isEnabled(.dwcaExports) {
@@ -79,7 +82,7 @@ struct SettingsTabView: View {
             }
             .navigationDestination(isPresented: $managePlanActive) {
                 ManagePlanView()
-                    .environment(RevenueCatManager.shared)
+                    .environment(revenueCatManager)
             }
             .listStyle(InsetGroupedListStyle())
             .contentMargins(.top, 16, for: .scrollContent)
@@ -94,7 +97,7 @@ struct SettingsTabView: View {
             }
             .sheet(isPresented: $showPaywall) {
                 PaywallView()
-                    .environment(RevenueCatManager.shared)
+                    .environment(revenueCatManager)
             }
             .sheet(isPresented: $showFeedbackSurvey) {
                 FeedbackSurveyView()

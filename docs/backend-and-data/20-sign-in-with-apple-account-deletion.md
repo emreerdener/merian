@@ -208,8 +208,9 @@ The migration and these runtime consumers form one release unit:
 - `recover-account-deletion`
 - `reconcile-account-deletions`
 - iOS `SupabaseManager`, `MerianNetworkClient`,
-  `AccountDeletionRecoveryCapability`, `DeleteAccountSheet`, and the app-root
-  manual notice
+  `AccountDeletionRecoveryCapability`, the Settings
+  `AccountDeletionDependencies`, `DeleteAccountViewModel`, and
+  `DeleteAccountSheet` presentation path, and the app-root manual notice
 
 The production workflow applies migrations before Edge bundles. The prior worker
 rejects the new `provider_revocation_pending` cleanup result, so a stored

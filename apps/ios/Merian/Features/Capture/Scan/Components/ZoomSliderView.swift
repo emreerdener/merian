@@ -8,6 +8,9 @@ import SwiftUI
 /// Self-contained: reads `CameraManager` from the environment and returns
 /// `EmptyView` on hardware where zoom is not supported.
 struct ZoomSliderView: View {
+    let onOpticalStopTick: () -> Void
+    let onRegularTick: () -> Void
+
     @Environment(CameraManager.self) private var camera
     @Environment(AppSettings.self) private var appSettings
 
@@ -33,6 +36,14 @@ struct ZoomSliderView: View {
     /// starts and 1→0 when the idle timer fires; the Canvas re-draws on every frame
     /// of both the gesture and the collapse animation.
     @State private var zoomActivityStrength: CGFloat = 0
+
+    init(
+        onOpticalStopTick: @escaping () -> Void = {},
+        onRegularTick: @escaping () -> Void = {}
+    ) {
+        self.onOpticalStopTick = onOpticalStopTick
+        self.onRegularTick = onRegularTick
+    }
 
     var body: some View {
         Group {
@@ -205,9 +216,9 @@ struct ZoomSliderView: View {
         })
 
         if opticalStopTicks.contains(currentTick) {
-            HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
+            onOpticalStopTick()
         } else {
-            HapticManager.shared.triggerLightImpact(intensity: 0.4)
+            onRegularTick()
         }
     }
 

@@ -3,6 +3,24 @@
 The optical and physical layer of the Merian application wraps Apple's
 `AVFoundation` framework behind a thermal-aware orchestrator.
 
+## Ownership Boundary
+
+`CameraManager` owns `AVCaptureSession`, device discovery/configuration,
+hardware callbacks, depth, stabilization, torch, focus, and zoom mutations.
+`Features/Capture/Scan` owns the visual-modality UI and actions around that
+hardware. Its Models define platform-neutral preparation values; Services adapt
+the injected camera, context, Photo Library, media, entitlement, and feedback
+owners; ViewModels coordinate photo/video lifecycle with generation-fenced task
+state; and Views/Components/Modifiers retain viewfinder interaction timing. Scan
+views do not perform networking or resolve global services.
+
+Still, sampled-frame, playback-video, and companion-WAV work have separate
+bounded service owners. Generic crop encoding is shared from `Core/Media`, while
+the crop editor and presentation-only flash control live in `Core/UI`.
+Capture-specific source/crop metadata stays in `Capture/Shared`, and Profile
+owns its own avatar-crop presentation value. `Capture/Scan/README.md` is the
+local ownership index.
+
 ## The Core Pipeline
 
 ### `CameraManager`
@@ -213,8 +231,9 @@ The lowest-level integration, interfacing directly with the iPhone optics.
 
 Vertical zoom meter overlaid on the viewfinder. Supports direct drag interaction
 as well as reflecting zoom changes from pinch and viewfinder swipe gestures.
-Reads `CameraManager` from the environment; no parameters are passed from
-`MainOverlayView`.
+Reads `CameraManager` from the environment. `MainOverlayView` supplies separate
+optical-stop and regular-tick feedback actions from Scan's injected semantic
+feedback boundary; the slider never resolves a haptic service.
 
 - Renders only when
   `camera.isZoomSupported && camera.isSessionRunning && zoomSliderVisible`.
@@ -312,7 +331,7 @@ Reads `CameraManager` from the environment; no parameters are passed from
 - **Orientation-aware rendering**: When `invertZoomDirection` is `true`, the
   indicator formula, Canvas tick-to-zoom mapping all invert together so the
   visual ruler direction always matches the swipe direction.
-- **Zoom as inference context**: `submitActiveScan()` snapshots
+- **Zoom as inference context**: `submitStagedCapture(...)` snapshots
   `CameraManager.zoomFactor` before the first `await` and stores it in
   `CaptureTelemetry.zoomFactor`. A zoom of exactly 1× is stored as `nil` — it
   carries no identification signal. The value is forwarded to the Edge function
@@ -392,19 +411,20 @@ critical path.
 - Pre-warms `.heavy`, `.light`, `.rigid`, `.medium` `UIImpactFeedbackGenerator`
   instances and a `success` `UINotificationFeedbackGenerator` sequentially
   inside `init()` using `.prepare()`.
-- The shared `AppDIContainer.shared.hapticManager` instance is injected into
-  `CaptureWorkspaceViewModel` shutter callbacks and `ImageCropperView` crop
-  confirmations, eliminating the 15+ ms stutter caused by cold-starting taptic
-  engines at input time.
+- The app container's `HapticManager` is routed through narrow feature
+  dependencies or environment injection. Scan shutter/zoom callbacks and shared
+  crop/flash controls receive semantic actions, eliminating the 15+ ms stutter
+  caused by cold-starting taptic engines at input time without making those
+  controls service owners.
 - **System Haptics Toggle (`isHapticsEnabled`)**: All motor triggers are guarded
   by the injected `AppSettings.isHapticsEnabled` boundary. If the user disables
   haptics in Settings, `HapticManager` skips all `.impactOccurred()` calls.
   Haptics are also suppressed while expedition mode is active through the
   injected `HardwareOrchestrator`.
 - **Strict Requirement**: Never use `UIImpactFeedbackGenerator` or
-  `.sensoryFeedback` modifiers directly in views. Always route haptic feedback
-  through `HapticManager.shared` API methods to ensure the user's
-  `isHapticsEnabled` preference is respected globally.
+  `.sensoryFeedback` modifiers directly in views. Route haptic feedback through
+  the injected `HapticManager` or a semantic feature dependency so the user's
+  `isHapticsEnabled` preference remains authoritative.
 
 ### `ViewfinderHints` (`Features/Capture/Scan/Components/ViewfinderHints.swift`)
 
@@ -577,6 +597,23 @@ user-orderable full-screen modes driven by `captureMode: CaptureMode`:
 | `.audio`         | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring)                                                                                                                                                   |
 | `.describe`      | `DescribeInputView` (text + tag strip + voice dictation)                                                                                                                                                          |
 
+The root view is deliberately a composition surface. Deterministic layout, goal,
+media, and presentation policy lives under `Capture/Shell/Models`; live
+connection prewarm, remote refinement downloads, prepared-media loaders, durable
+external imports, share/account lookups, keyboard platform actions, and feedback
+adapters are injected from `Capture/Shell/Services`. Responsibility-specific
+view-model extensions own routing, imports, staging, refinement, and lifecycle
+behavior, while an encapsulated operation-state object keeps their task handles
+and one-shot handoff state in private storage. The keyboard service owns raw
+UIKit notification publishers, dismissal, and frame policy; the mounted
+orchestration modifier delivers those signals on the main queue before binding
+them to SwiftUI state. The view and its modifiers otherwise retain only
+UI-sensitive pager, focus, scroll, expansion, presentation bindings, and exact
+dismissal timing. The composing-center environment contract belongs to
+`Capture/Shared/Utilities` because Record consumes the value supplied by Shell;
+the cross-feature immutable image transport belongs to `Core/Media` because
+Insights consumes it as well.
+
 Describe's 350 ms tag-selection auto-advance is keyed to a lightweight request
 identity with SwiftUI `.task(id:)`. A newer tag replaces it and page unmount
 cancels it, so delayed navigation cannot advance a replacement prompt or retain
@@ -628,18 +665,19 @@ unaffected by page position:
 
 - **Top** — `MediaModeToggle` (hidden when staging is at capacity, except during
   refinement).
-- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` · `FlashButton`) and
-  **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two independent
-  `VStack` overlays**, each with its own `Spacer()` and fixed bottom padding.
-  `CaptureControlBarLayout` defines the 80 pt primary control, 124 pt bottom
-  inset, and 204 pt safe-area-relative reservation. The shared `HStack`
-  center-aligns the 80 pt primary control with its 50 pt auxiliary controls in
-  all capture modes. Full-screen Camera and Audio overlays use a separate fixed
-  250 pt clearance that preserves their pre-regression position without
-  consulting the safe-area-ignoring pager. No child-height preference is written
-  back into the workspace, avoiding a layout feedback loop while keeping the
-  shutter row fixed when the taller `ActiveScanToolbar` slides in.
-- `PhotoLibraryButton` and `FlashButton` fade to opacity 0 when
+- **Capture bar** (`PhotoLibraryButton` · `CaptureButton` ·
+  `CaptureFlashButton`) and **toolbar** (`MainTabBar` / `ActiveScanToolbar`)
+  live in **two independent `VStack` overlays**, each with its own `Spacer()`
+  and fixed bottom padding. `CaptureControlBarLayout` defines the 80 pt primary
+  control, 124 pt bottom inset, and 204 pt safe-area-relative reservation. The
+  shared `HStack` center-aligns the 80 pt primary control with its 50 pt
+  auxiliary controls in all capture modes. Full-screen Camera and Audio overlays
+  use a separate fixed 250 pt clearance that preserves their pre-regression
+  position without consulting the safe-area-ignoring pager. No child-height
+  preference is written back into the workspace, avoiding a layout feedback loop
+  while keeping the shutter row fixed when the taller `ActiveScanToolbar` slides
+  in.
+- `PhotoLibraryButton` and `CaptureFlashButton` fade to opacity 0 when
   `captureMode == .audio` (camera-only controls), preserving their layout slot
   so the shutter button stays centred. During active visual video recording, the
   photo-library slot swaps to `VideoCancelButton`, matching the audio recording
@@ -715,10 +753,10 @@ conserve thermal budget and prevent hardware deadlocks.
   the user reverses the mode switch, preventing the old Audio action from racing
   a newly restarted visual session.
 - **Sheet Occlusion Guard**:
-  `CaptureWorkspaceView.onChange(of: viewModel.activeSheet)` explicitly stops
-  the `AVCaptureSession` whenever `activeSheet != nil` (e.g., when the Scans
-  Library or Insight sheet is open). When processing completes via
-  `viewModel.handleInferenceProcessingChange()`, the system forces
+  `CaptureWorkspaceOrchestrationModifier.onChange(of: viewModel.activeSheet)`
+  explicitly stops the `AVCaptureSession` whenever `activeSheet != nil` (e.g.,
+  when the Scans Library or Insight sheet is open). When processing completes
+  via `viewModel.handleInferenceProcessingChange()`, the system forces
   `activeSheet = .insight` _only_ for live scans (where `activeSheet` is `nil`
   or `.paywall`). For historical scans opened from the library, it preserves the
   existing parent sheet (`.scans` or `.profile`), relying on their local
@@ -754,12 +792,14 @@ Battery and thermal protection, monitoring device usage thresholds.
 - Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive`
   pipeline on low-battery states.
 - **Expedition Mode Override**: Users can set
-  `AppSettings.isExpeditionModeActive = true` via Settings;
-  `HardwareOrchestrator` reads that injected settings boundary and applies a
-  24fps framerate cap while dropping iOS glass materials, trading UI fidelity
-  for maximum battery life off-grid. `OfflineQueueManager` reads its injected
-  `hardwareOrchestrator` boundary before dispatching uploads, pausing background
-  cellular uploads without hard-coding the shared singleton in tests.
+  `AppSettings.isExpeditionModeActive = true` via Settings. The Profile Shell
+  injects a `SettingsPreferenceActions` value whose update persists that setting
+  before asking the environment-owned `HardwareOrchestrator` to reevaluate
+  constraints. The orchestrator then applies a 24fps framerate cap while
+  dropping iOS glass materials, trading UI fidelity for maximum battery life
+  off-grid. `OfflineQueueManager` reads its injected `hardwareOrchestrator`
+  boundary before dispatching uploads, pausing background cellular uploads
+  without hard-coding the shared singleton in tests.
 - **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes
   the current UI motion budget to the view layer. Returns
   `isGlassmorphismEnabled`, which is already `false` under expedition mode and
@@ -856,9 +896,9 @@ A dedicated `PHPhotoLibrary` handler.
   UI to reflect the available historical context rather than defaulting missing
   values to current device sensors, while preserving the baseline `timestamp`
   for the precise analysis upload moment required by gamification and Heatmap
-  analytics. Before `submitActiveScan()` performs state cleanup, it caches this
-  historical context from `StagedImage.original` so both import sources retain
-  their true available origin metadata.
+  analytics. Before `submitStagedCapture(...)` performs state cleanup, it caches
+  this historical context from `StagedImage.original` so both import sources
+  retain their true available origin metadata.
 - **OOM Prevention & UI Decoupling**: Live 12MP hardware buffers, gallery
   `PhotosPickerItem` bytes, and files shared from Photos all run through two
   bounded ImageIO passes — one at `MerianConfig.inferenceImageMaxSize` (1024 px
@@ -958,20 +998,27 @@ A dedicated `PHPhotoLibrary` handler.
   playback clip is staged. The video-audio export uses `AVAssetReader` plus
   `AVAssetWriter` with copied sample buffers, avoiding the fragile no-copy
   `AVAudioFile.write(from:)` path while preserving the WAV format expected by
-  the Edge audio parser. Scan lists, widgets, sharing previews, and Explore
-  compact surfaces use that poster thumbnail; the Insight carousel opens the
-  video item itself. `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem`
-  metadata travel with the sampled frames/audio so `/identify-multimodal` can
-  label still photos, ordered video frames, and accompanying video audio
-  accurately for AI. Offline queue persistence keeps sampled video frames in
-  `inferenceImagePaths` and stores only the playback video item plus thumbnail
-  in the captured-media timeline, so UI/share surfaces never treat inference
-  frames as user-selected photos. `handlePhotoPickerSelection` skips any
-  actor-prepared still image whose encoded payloads fail the byte or dimension
-  budgets, rather than appending empty `Data()`, which would base64-encode to an
-  empty string and cause Gemini to reject the request with an opaque AI
-  processing error. The matching guard in `Capture.swift` (camera shutter and
-  video-frame paths) follows the same pattern. Cancel, remove, replace, and
+  the Edge audio parser. Companion WAV and compressed-playback outputs remain in
+  temporary file leases until staging accepts them; cancellation, timeout,
+  supersession, validation failure, or an unconsumed late result releases the
+  lease and deletes the file. Once the prepared video is staged, the recording
+  generation and cancel UI finish before the optional Camera Roll write is
+  awaited. PhotoKit retains the original recording through that write, so this
+  prevents post-commit cancellation without shortening source-file lifetime.
+  Scan lists, widgets, sharing previews, and Explore compact surfaces use that
+  poster thumbnail; the Insight carousel opens the video item itself.
+  `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem` metadata travel with
+  the sampled frames/audio so `/identify-multimodal` can label still photos,
+  ordered video frames, and accompanying video audio accurately for AI. Offline
+  queue persistence keeps sampled video frames in `inferenceImagePaths` and
+  stores only the playback video item plus thumbnail in the captured-media
+  timeline, so UI/share surfaces never treat inference frames as user-selected
+  photos. `handlePhotoPickerSelection` skips any actor-prepared still image
+  whose encoded payloads fail the byte or dimension budgets, rather than
+  appending empty `Data()`, which would base64-encode to an empty string and
+  cause Gemini to reject the request with an opaque AI processing error.
+  `CaptureScanStillMediaPreparer` and `CaptureScanVideoMediaPreparer` apply the
+  matching camera/video-frame guard. Cancel, remove, replace, and
   queue-rejection paths call the discard helper so temporary playback `.mp4`
   files and companion WAV files are deleted through `FileIOActor`; submit paths
   use reference-only clearing after queue acceptance so durable queue/live
@@ -979,7 +1026,7 @@ A dedicated `PHPhotoLibrary` handler.
   (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail,
   and crop/metadata bundle) are released with the same value reset — index
   mismatches between parallel arrays are impossible because media stays
-  co-located in typed staging models. `submitActiveScan()` extracts
+  co-located in typed staging models. `submitStagedCapture(...)` extracts
   `historicalContext` from `stagedCapture.images[0]` (via the
   `StagedImage.original` bundle) before reference-only staging reset to preserve
   EXIF location data from library uploads.
@@ -1041,15 +1088,16 @@ A dedicated `PHPhotoLibrary` handler.
   image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels
   pending image download or audio preparation, deletes an uncommitted audio
   sidecar, and clears the refinement context.
-- **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceViewModel.init`)**: A
-  background `Task` refreshes auth and calls
+- **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceDependencies`)**: The
+  live Shell service adapter refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a
   shot. The latter sends `OPTIONS` to `/identify-multimodal` through the same
   certificate-pinned `URLSession` used by inference, warming the relevant
   DNS/TCP/TLS connection pool instead of assuming the Supabase auth SDK's
-  separate session warms it. The initializer keeps prewarm enabled in production
-  and exposes a test-only off switch so refinement staging tests avoid network
-  side effects.
+  separate session warms it. `CaptureWorkspaceViewModel` launches only the
+  injected closure. Its existing initializer keeps prewarm enabled in production
+  and exposes a test-only off switch so deterministic workspace tests avoid
+  network side effects.
 - **Accelerate Histogram Memory Isolation (`CameraManager.swift`)**: During
   60fps hardware execution, the histogram buffer is now allocated as a local
   variable (`var histogram = [vImagePixelCount](repeating: 0, count: 256)`)
@@ -1086,9 +1134,11 @@ Follows a battery-bounded tracking philosophy during the camera lifecycle.
 - Resolves `CLLocation` and passes it to Apple's `WeatherKit`
   `WeatherService.shared`, capturing `weatherCondition`, `weatherTemperatureF`,
   and `gpsElevation`. Concurrently runs an `MKReverseGeocodingRequest` to derive
-  `locationName`. During the Crop UI phase, an asynchronous
-  `fetchDeferredContext` mutates `@Published var preFetchedContext`, hiding
-  network latency from the user behind the crop interaction.
+  `locationName`. `fetchDeferredContext` returns an `EnvironmentContext` value;
+  it does not publish manager-owned presentation state. Scan stores the
+  shutter-pinned lookup as `CaptureWorkspaceViewModel.preFetchTask`, hiding
+  network latency behind crop or recording interaction. Submission consumes or
+  cancels that task according to its foreground-owner fence.
 - The environment snapshot feeds Gemini with regional context for identification
   and invasive species logic, and persists UI metrics in the offline Scans
   library. (Requires the `com.apple.developer.weatherkit` entitlement set to

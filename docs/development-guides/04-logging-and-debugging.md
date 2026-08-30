@@ -500,9 +500,9 @@ level and are filtered by the prefix in the Xcode console or Console.app.
 Xcode console: `⏱ BENCH`):
 
 ```
-[⏱ BENCH] tap→durable queue: 0.041s
-[⏱ BENCH] context grace: 0.150s timed_out=true
-[⏱ BENCH] non-visual context wait: 0.482s
+[⏱ BENCH] Analyze tap to durable queue commit: 0.041s
+[⏱ BENCH] Context grace: 0.150s timed_out=true
+[⏱ BENCH] Non-visual context grace: 0.150s timed_out=true
 [⏱ BENCH] URLSession request_upload=0.082s ttfb_after_upload=4.101s response_transfer=0.022s
 [⏱ BENCH] HTTP identify-multimodal auth=0.006s transfer+server=4.205s status=200 requestBytes=183424 responseBytes=7824
 [⏱ BENCH] Server-Timing auth;dur=3.1, body_read;dur=11.8, tier;dur=0.4, pre_gemini_db;dur=7.2, gemini;dur=4189.0, dictionary;dur=5.6, post_gemini;dur=8.1, edge_total;dur=4223.4 region=...

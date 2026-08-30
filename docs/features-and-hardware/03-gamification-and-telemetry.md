@@ -24,36 +24,34 @@ Tracks device-local discovery milestones and achievement notification state.
   `species_dictionary`. Non-biological results, including processed-material
   demotions such as wool rugs or leather goods, cannot set this flag.
 - Routes newly eligible awards through the `AppDIContainer`-owned,
-  account/session-fenced `MilestoneToastPresenter` for in-app milestone UX.
-  The DI-owned `ScanMilestoneCoordinator` waits for the scan's Field trip progress attempt,
-  asks `GamificationManager.evaluateAchievementsForNotifications` for newly
-  eligible awards; the domain manager never invokes an in-app presenter.
-  The coordinator then evaluates
-  `SpeciesData.isNewToMerianDictionary`, and batches standard outing progress,
-  Seasonal Challenge progress, achievements, then `New to Naturebook`.
-  Foreground and background scan completion use this boundary and deduplicate
-  by a trimmed, lowercase coordination key while preserving the caller's ID for
-  network/store operations; queue-generated UUIDs use lowercase casing and
-  caller-supplied queue IDs retain their stable value. The old
-  local `CelebrationBanner` confetti overlay has been
-  removed. A scan may enqueue progress for several eligible experiences, with
-  at most one credited goal in each. The persistent Insight contribution card
-  reloads from server-backed completion rows and does not enqueue another
-  milestone, haptic, or celebration.
-  Presentation is bounded to 32 lightweight items, coalesces stable milestone
-  identities, and renders only the front item plus two decorative layers.
-  Authentication changes and five-minute app-session resets clear queued visual
-  feedback, cancel session-bound milestone retry tasks, and release bounded
-  in-flight keys. Account changes clear recent-scan history; a same-account
-  session reset retains completed/released deduplication. In-flight keys include the account/session
-  generation, so stale work cannot block the same scan key after transition. Resolver results
-  revalidate their captured session token after suspension instead of retaining
-  prior-account work or appearing for another account/session.
-  Automatic Field-trip retries are capped at 16 sleeping tasks across scans;
-  oldest overflow is cancelled because the SwiftData hint is the durable outbox.
-  Opening a Field trip from the earned-patch gallery is staged until the
-  full-screen artwork cover's real `onDismiss`, preventing a navigation push
-  during cover teardown.
+  account/session-fenced `MilestoneToastPresenter` for in-app milestone UX. The
+  DI-owned `ScanMilestoneCoordinator` waits for the scan's Field trip progress
+  attempt, asks `GamificationManager.evaluateAchievementsForNotifications` for
+  newly eligible awards; the domain manager never invokes an in-app presenter.
+  The coordinator then evaluates `SpeciesData.isNewToMerianDictionary`, and
+  batches standard outing progress, Seasonal Challenge progress, achievements,
+  then `New to Naturebook`. Foreground and background scan completion use this
+  boundary and deduplicate by a trimmed, lowercase coordination key while
+  preserving the caller's ID for network/store operations; queue-generated UUIDs
+  use lowercase casing and caller-supplied queue IDs retain their stable value.
+  The old local `CelebrationBanner` confetti overlay has been removed. A scan
+  may enqueue progress for several eligible experiences, with at most one
+  credited goal in each. The persistent Insight contribution card reloads from
+  server-backed completion rows and does not enqueue another milestone, haptic,
+  or celebration. Presentation is bounded to 32 lightweight items, coalesces
+  stable milestone identities, and renders only the front item plus two
+  decorative layers. Authentication changes and five-minute app-session resets
+  clear queued visual feedback, cancel session-bound milestone retry tasks, and
+  release bounded in-flight keys. Account changes clear recent-scan history; a
+  same-account session reset retains completed/released deduplication. In-flight
+  keys include the account/session generation, so stale work cannot block the
+  same scan key after transition. Resolver results revalidate their captured
+  session token after suspension instead of retaining prior-account work or
+  appearing for another account/session. Automatic Field-trip retries are capped
+  at 16 sleeping tasks across scans; oldest overflow is cancelled because the
+  SwiftData hint is the durable outbox. Opening a Field trip from the
+  earned-patch gallery is staged until the full-screen artwork cover's real
+  `onDismiss`, preventing a navigation push during cover teardown.
 - Triggers `HapticManager.shared.triggerSelectionPulse()` when an achievement
   (`hasFireflyBadge`) activates after 5 taxonomic finds.
 - The profile `Terrarium` presents bundled asset-catalog artwork selected by
@@ -131,7 +129,8 @@ using `Set<String>` on `scientificName` to derive unique biological diversity
 per category, and resolves a matrix of lightweight `Sendable` structs
 (`AchievementPayload`) to the UI with exact chronological context for the "Smart
 sort" closures. These primitives are defined in
-`Features/Profile/UserProfile/Models/GamificationModels.swift`, isolated from UI loops.
+`Features/Profile/UserProfile/Models/GamificationModels.swift`, isolated from UI
+loops.
 
 ## Secure Telemetry Ecosystem
 
@@ -139,18 +138,17 @@ Merian uses PostHog as its optional product analytics system with an explicit,
 account-wide permission boundary:
 
 > [!WARNING]
-> The architecture below is the required release invariant. The current
-> source closes the reset-time transport leak and crash-safe ghost evidence
-> migration tracked as `CONSENT-001` and `CONSENT-002`, plus the final
-> synchronization identity fence, target-account restoration, Realtime, and
-> OAuth account-replacement findings tracked as `CONSENT-004` through
-> `CONSENT-007`, plus the verified local-ledger and withdrawal-journal boundary
-> tracked as `CONSENT-010` and the causal cross-device ordering boundary tracked
-> as `CONSENT-011`. The adjacent first-scan Gemini consent-policy recovery is
+> The architecture below is the required release invariant. The current source
+> closes the reset-time transport leak and crash-safe ghost evidence migration
+> tracked as `CONSENT-001` and `CONSENT-002`, plus the final synchronization
+> identity fence, target-account restoration, Realtime, and OAuth
+> account-replacement findings tracked as `CONSENT-004` through `CONSENT-007`,
+> plus the verified local-ledger and withdrawal-journal boundary tracked as
+> `CONSENT-010` and the causal cross-device ordering boundary tracked as
+> `CONSENT-011`. The adjacent first-scan Gemini consent-policy recovery is
 > tracked as `CONSENT-012`. All findings through `CONSENT-012` are closed in
-> source.
-> Internal test builds may continue. Public production remains blocked by
-> same-SHA hosted iOS/Supabase validation and the external controls in the
+> source. Internal test builds may continue. Public production remains blocked
+> by same-SHA hosted iOS/Supabase validation and the external controls in the
 > [consent readiness record](../legal/production-consent-readiness-2026-08-03.md).
 
 - **iOS app analytics (`AppTelemetry`)** — pseudonymous product metrics routed
@@ -212,35 +210,34 @@ without account permission.
 
 **Signal inventory:**
 
-| Signal                           | Method                                                     | Payload                                                                                     | Trigger                                                                                          |
-| -------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `ClientScanCompleted`            | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, server plan (`pro_paid`/`pro_complimentary`/historical `pro_trial`/`free`), `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                |
-| `NewSpeciesDiscovered`           | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                                        | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires) |
-| `PaywallViewed`                  | `trackPaywallImpression()`                                 | —                                                                                           | Camera shutter, gallery picker, or pending Photos import hits the free scan cap                   |
-| `CaptureThermalThrottled`        | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                           | Capture throttles frame rate after device thermal state reaches critical                         |
-| `ScanQueuedForSync`              | `trackOfflineQueued()`                                     | —                                                                                           | Scan successfully written to offline queue after `context.save()`                                |
-| `ExternalImageImport`            | `trackExternalImageImport(outcome:)`                       | `outcome`, `event_source`                                                                   | Photos document import is received, staged, temporarily blocked, or terminally rejected           |
-| `CaptureGoalIndicator`           | `trackCaptureGoalIndicator(action:source:)`                | `action: "shown"/"opened"/"next"/"previous"`, `source: "field_trip"`                  | Active capture goal is presented, opened, or changed                                              |
-| `OnboardingCompleted`            | `trackOnboardingCompleted()`                               | —                                                                                           | User taps **Start scanning** on `.ready`; emitted only when optional analytics is enabled         |
-| `SpeciesDictionaryOpened`        | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                | Species dictionary sheet opens                                                                   |
-| `SpeciesDictionaryPageLoaded`    | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                      | Species dictionary page loads a public dictionary row                                            |
-| `SpeciesDictionaryNotFound`      | `trackSpeciesDictionaryNotFound(entryPoint:)`              | `entryPoint`                                                                                | Species dictionary lookup returns no public row                                                  |
-| `SpeciesDictionaryRetry`         | `trackSpeciesDictionaryRetry(entryPoint:)`                 | `entryPoint`                                                                                | User taps retry from a dictionary error/not-found state                                          |
-| `SpeciesDictionaryReferenceImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)`  | `entryPoint`, `source: "wikipedia"/"gbif"`                                                  | Species dictionary reference image fails to load and falls back to placeholder UI                |
-| `APIDecodingFailure`             | `trackError("APIDecodingFailure")`                         | `domain: "APIDecodingFailure"`                                                              | Gemini response fails schema decoding                                                            |
-| `InferenceNetworkFailure`        | `trackError("InferenceNetworkFailure")`                    | `domain: "InferenceNetworkFailure"`                                                         | Network error on live inference (non-cancellation path)                                          |
-| `InferenceQueuedForConnectivity` | `trackError("InferenceQueuedForConnectivity")`             | `domain: "InferenceQueuedForConnectivity"`                                                  | First queue-backed connectivity failure hands the exact open presentation to durable recovery    |
-| `InferenceQueuedForTransportCancellation` | `trackError("InferenceQueuedForTransportCancellation")` | `domain: "InferenceQueuedForTransportCancellation"`                                        | URLSession-owned cancellation hands a still-current queue-backed presentation to durable recovery |
-| `InferenceQueuedAfterOwnershipRetirement` | `trackError("InferenceQueuedAfterOwnershipRetirement")` | `domain: "InferenceQueuedAfterOwnershipRetirement"`                                        | Post-request ownership check observes that durable recovery already retired the foreground owner |
-| `ClientErrorCaptured`            | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                     | Available for future client error domains                                                        |
-| `StartupStoreRecovery`           | `trackStartupStoreRecovery(outcome:reason:)`               | See startup recovery telemetry below                                                       | App startup enters local store recovery, legacy rescue, safe mode, or startup-blocked fallback    |
+| Signal                                    | Method                                                     | Payload                                                                                                                          | Trigger                                                                                           |
+| ----------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `ClientScanCompleted`                     | `trackScan(isPro:isSubscribed:inferenceTier:)`             | `tier: "Pro"/"Free"`, server plan (`pro_paid`/`pro_complimentary`/historical `pro_trial`/`free`), `inferenceTier: "pro"/"flash"` | Successful client-side parse/save after inference                                                 |
+| `NewSpeciesDiscovered`                    | `trackNewDiscovery(isPro:)`                                | `tier: "Pro"/"Free"`                                                                                                             | `NewDiscoveryCelebrationView.onAppear` (guarded by `hasFiredDiscoveryEvent` to prevent re-fires)  |
+| `PaywallViewed`                           | `trackPaywallImpression()`                                 | —                                                                                                                                | Camera shutter, gallery picker, or pending Photos import hits the free scan cap                   |
+| `CaptureThermalThrottled`                 | `trackThermalThrottling(fpsLimit:)`                        | `targetFPS: "15"`                                                                                                                | Capture throttles frame rate after device thermal state reaches critical                          |
+| `ScanQueuedForSync`                       | `trackOfflineQueued()`                                     | —                                                                                                                                | Scan successfully written to offline queue after `context.save()`                                 |
+| `ExternalImageImport`                     | `trackExternalImageImport(outcome:)`                       | `outcome`, `event_source`                                                                                                        | Photos document import is received, staged, temporarily blocked, or terminally rejected           |
+| `CaptureGoalIndicator`                    | `trackCaptureGoalIndicator(action:source:)`                | `action: "shown"/"opened"/"next"/"previous"`, `source: "field_trip"`                                                             | Active capture goal is presented, opened, or changed                                              |
+| `OnboardingCompleted`                     | `trackOnboardingCompleted()`                               | —                                                                                                                                | User taps **Start scanning** on `.ready`; emitted only when optional analytics is enabled         |
+| `SpeciesDictionaryOpened`                 | `trackSpeciesDictionaryOpened(entryPoint:)`                | `entryPoint`                                                                                                                     | Species dictionary sheet opens                                                                    |
+| `SpeciesDictionaryPageLoaded`             | `trackSpeciesDictionaryLoaded(entryPoint:contentQuality:)` | `entryPoint`, `contentQuality: "complete"/"sparse"/"needs_enrichment"`                                                           | Species dictionary page loads a public dictionary row                                             |
+| `SpeciesDictionaryNotFound`               | `trackSpeciesDictionaryNotFound(entryPoint:)`              | `entryPoint`                                                                                                                     | Species dictionary lookup returns no public row                                                   |
+| `SpeciesDictionaryRetry`                  | `trackSpeciesDictionaryRetry(entryPoint:)`                 | `entryPoint`                                                                                                                     | User taps retry from a dictionary error/not-found state                                           |
+| `SpeciesDictionaryReferenceImageFallback` | `trackSpeciesDictionaryImageFallback(entryPoint:source:)`  | `entryPoint`, `source: "wikipedia"/"gbif"`                                                                                       | Species dictionary reference image fails to load and falls back to placeholder UI                 |
+| `APIDecodingFailure`                      | `trackError("APIDecodingFailure")`                         | `domain: "APIDecodingFailure"`                                                                                                   | Gemini response fails schema decoding                                                             |
+| `InferenceNetworkFailure`                 | `trackError("InferenceNetworkFailure")`                    | `domain: "InferenceNetworkFailure"`                                                                                              | Network error on live inference (non-cancellation path)                                           |
+| `InferenceQueuedForConnectivity`          | `trackError("InferenceQueuedForConnectivity")`             | `domain: "InferenceQueuedForConnectivity"`                                                                                       | First queue-backed connectivity failure hands the exact open presentation to durable recovery     |
+| `InferenceQueuedForTransportCancellation` | `trackError("InferenceQueuedForTransportCancellation")`    | `domain: "InferenceQueuedForTransportCancellation"`                                                                              | URLSession-owned cancellation hands a still-current queue-backed presentation to durable recovery |
+| `InferenceQueuedAfterOwnershipRetirement` | `trackError("InferenceQueuedAfterOwnershipRetirement")`    | `domain: "InferenceQueuedAfterOwnershipRetirement"`                                                                              | Post-request ownership check observes that durable recovery already retired the foreground owner  |
+| `ClientErrorCaptured`                     | `trackError(_:)`                                           | `domain: <errorDomain>`                                                                                                          | Available for future client error domains                                                         |
+| `StartupStoreRecovery`                    | `trackStartupStoreRecovery(outcome:reason:)`               | See startup recovery telemetry below                                                                                             | App startup enters local store recovery, legacy rescue, safe mode, or startup-blocked fallback    |
 
 Species dictionary telemetry must remain free of direct personal and free-form
-content. `entryPoint` may be
-`insight_similar_species`, `explore_detail_similar_species`, `search`,
-`deep_link`, `web`, or `unknown`; events must not attach species names, species
-IDs, scan IDs, Explore post IDs, user locations, field notes, comments, image
-URLs, or user review state.
+content. `entryPoint` may be `insight_similar_species`,
+`explore_detail_similar_species`, `search`, `deep_link`, `web`, or `unknown`;
+events must not attach species names, species IDs, scan IDs, Explore post IDs,
+user locations, field notes, comments, image URLs, or user review state.
 
 Startup recovery telemetry follows the same privacy boundary. `outcome` and
 `reason` are coarse enums, while diagnostic properties are redacted strings used
@@ -249,8 +246,8 @@ startup-blocked outcomes. Do not attach exception text, local file paths, user
 IDs, scan IDs, account state, recovery manifest contents, or raw store metadata.
 Allowed diagnostic keys are `diagnostic_schema`, `selected_strategy`,
 `current_schema_major`, `stored_schema_major`, `attempt_count`, `attempts`,
-`final_outcome`, `final_reason`, `quarantine_attempted`,
-`quarantine_performed`, `rescue_attempted`, and `rescue_performed`.
+`final_outcome`, `final_reason`, `quarantine_attempted`, `quarantine_performed`,
+`rescue_attempted`, and `rescue_performed`.
 
 External image-import telemetry is intentionally receipt-level and coarse.
 Allowed outcomes describe received, staged, quota-blocked,
@@ -267,12 +264,12 @@ identifiers.
 
 ### Pro Paywall Feature Copy
 
-The Pro paywall comparison table is backed by
-`ProPlanValueProps.comparisons` in `PaywallView.swift`. Keep docs, release
-notes, and Profile plan-card summaries aligned with that source. Current
-high-level Pro benefits are high-volume field scans, Gemini Pro model access,
-video scans, AI chat, multi-capture, Apple Watch logging, group-event hosting,
-and expedition mode.
+The Pro paywall comparison table is backed by `ProPlanValueProps.comparisons` in
+`apps/ios/Merian/Features/Profile/Settings/Plan/Models/PaywallPresentation.swift`.
+Keep docs, release notes, and Profile plan-card summaries aligned with that
+source. Current high-level Pro benefits are high-volume field scans, Gemini Pro
+model access, video scans, AI chat, multi-capture, Apple Watch logging,
+group-event hosting, and expedition mode.
 
 ### `PostHogManager` & Edge Telemetry
 
@@ -295,9 +292,9 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
 - `captureApplicationLifecycleEvents = true` for automatic foreground/background
   tracking after permission. Replay, screen views, element interactions,
   surveys, swizzling, and push-notification capture are explicitly disabled.
-  `captureScreenViews` and `captureElementInteractions` are disabled —
-  the former causes iOS 18 layout constraint warnings by inserting
-  `UIKitToolbar` into SwiftUI `UIHostingController` hierarchies.
+  `captureScreenViews` and `captureElementInteractions` are disabled — the
+  former causes iOS 18 layout constraint warnings by inserting `UIKitToolbar`
+  into SwiftUI `UIHostingController` hierarchies.
 - Uses `identify(userId:)` to link the Supabase Auth UUID alongside RevenueCat's
   App User ID. RevenueCat receives matching subscriber attributes for
   support-friendly customer lookup.
@@ -305,10 +302,10 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   as a static `"simulator"` identifier, aggressively decoupling test telemetry
   from live production metrics.
 - `reset()` routes sign-out through the same transport-blocked withdrawal
-  sequence. True-account OAuth replacement suppresses capture and closes
-  consent Realtime before installing another session, then reconciles the
-  SDK's actual account on success or failure. An older overlapping transition
-  cannot reopen capture.
+  sequence. True-account OAuth replacement suppresses capture and closes consent
+  Realtime before installing another session, then reconciles the SDK's actual
+  account on success or failure. An older overlapping transition cannot reopen
+  capture.
 
 **Edge Functions (`_shared/posthog.ts`)**:
 
@@ -331,9 +328,9 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   `video_frame_count`, and `video_inference_frame_count`. For video-backed
   scans, `video_llm_prompt_tokens`, `video_llm_candidate_tokens`,
   `video_llm_thinking_tokens`, and `video_llm_total_tokens` mirror the full
-  Gemini request usage under `video_token_accounting = "full_multimodal_request"`
-  because Gemini does not split token usage by sampled frame versus text or
-  still-image inputs.
+  Gemini request usage under
+  `video_token_accounting = "full_multimodal_request"` because Gemini does not
+  split token usage by sampled frame versus text or still-image inputs.
 - Plan telemetry is intentionally split from the raw database subscription
   value. Edge scan events include `tier` for backward-compatible dashboards,
   plus `effective_tier`, `plan`, `subscription_tier`, `trial_active`, and
@@ -344,10 +341,10 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
     including standard subscriptions, paid 7-day passes, receipt-backed store
     trials, and approved beta promotions. The legacy `pro_paid` label is not by
     itself proof that money changed hands
-  - complimentary Pro: `effective_tier = "pro"`,
-    `plan = "pro_complimentary"`, `subscription_tier = "free"`,
-    `trial_active = false`; balance, in-flight holds, settlement reason, Flash
-    fallback, and exhaustion are server-owned telemetry dimensions
+  - complimentary Pro: `effective_tier = "pro"`, `plan = "pro_complimentary"`,
+    `subscription_tier = "free"`, `trial_active = false`; balance, in-flight
+    holds, settlement reason, Flash fallback, and exhaustion are server-owned
+    telemetry dimensions
   - historical trial Pro rows remain queryable as `plan = "pro_trial"` and
     `trial_active = true`, but no post-cutover resolver emits new rows
   - free: `effective_tier = "free"`, `plan = "free"`,
@@ -358,8 +355,8 @@ Tracks session lifecycle, feature interactions, and backend AI token usage.
   event because provider work fails closed.
 - Cost dashboards should prefer `llm_model` and `effective_tier` for model
   spend, and use `plan` to distinguish paid Pro, complimentary Pro, and
-  historical trial Pro. The raw
-  `subscription_tier` remains useful for debugging RevenueCat webhook state but
-  is not sufficient to classify complimentary model usage.
+  historical trial Pro. The raw `subscription_tier` remains useful for debugging
+  RevenueCat webhook state but is not sufficient to classify complimentary model
+  usage.
 - Safely runs inside Deno's async background tasks (using `.waitUntil` /
   promises) to never block the inference response to the client.

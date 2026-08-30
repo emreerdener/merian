@@ -30,6 +30,7 @@ Features/
     │   ├── Views/
     │   ├── Components/
     │   ├── Models/
+    │   ├── Services/
     │   └── ViewModels/
     └── Shared/             # Reused only inside this feature
 ```
@@ -42,13 +43,17 @@ communicate ownership.
 Features/
 └── Capture/
     ├── Shell/              # Root view, root ViewModel, routing, and app chrome
+    │   ├── Components/
+    │   ├── Models/
     │   ├── Modifiers/
+    │   ├── Services/
     │   ├── ViewModels/
     │   └── Views/
-    ├── Scan/               # Camera-specific UI, controls, cropper, and capture logic
+    ├── Scan/               # Visual input UI, actions, and bounded preparation
     │   ├── Components/
+    │   ├── Models/
     │   ├── Modifiers/
-    │   ├── PostProcessing/
+    │   ├── Services/
     │   ├── ViewModels/
     │   └── Views/
     ├── Record/             # Audio-specific recording and visualization views
@@ -64,6 +69,7 @@ Features/
     │   └── ViewModels/
     └── Shared/             # Capture-only shared models or coordination helpers
         ├── Models/
+        ├── Utilities/
         └── ViewModels/
 ```
 
@@ -71,8 +77,10 @@ Features/
 
 - `Views/` contain only SwiftUI `View` structs. Zero business logic.
 - `ViewModels/` contain `@Observable @MainActor final class` ViewModels. Split
-  large ViewModels into extensions in separate files (e.g. `Capture.swift`,
-  `Analysis.swift`) rather than growing one file.
+  large ViewModels into responsibility-named extensions in separate files (for
+  example, `CaptureWorkspaceViewModel+PhotoCapture.swift` and
+  `CaptureWorkspaceViewModel+VideoCapture.swift`) rather than growing one
+  aggregate file.
 - `Components/` are passive — they receive data via `let` properties and
   closures. They must not access `AppDIContainer.shared` directly.
 - `Models/` are local to the feature and never `@Model` (SwiftData models live
@@ -186,10 +194,10 @@ func executeCapture() {
 | -------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------- |
 | Feature root view                | `<Feature>RootView`                                       | `CaptureWorkspaceView`                                     |
 | Primary ViewModel                | `<Feature>ViewModel`                                      | `CaptureWorkspaceViewModel`, `ScansManager`                |
-| ViewModel extensions             | Verb-noun grouping                                        | `Capture.swift`, `Analysis.swift`                          |
+| ViewModel extensions             | Root type plus responsibility                             | `CaptureWorkspaceViewModel+PhotoCapture.swift`             |
 | Root presentation destination    | `ActiveSheet` plus an identified envelope                 | `CaptureWorkspaceViewModel.PresentedRoute`                 |
 | Feature-local presentation state | Owner-scoped typed item; Boolean only for one destination | `ExplorePostDetailPresentation`, staged-description editor |
-| Reusable components              | Descriptive noun                                          | `ShutterButton`, `ScanThumbnail`                           |
+| Reusable components              | Descriptive noun                                          | `CaptureFlashButton`, `ScanThumbnail`                      |
 | View modifiers                   | Modifier suffix                                           | `CropSheetModifier`, `ScansSheetPresentationModifier`      |
 | Local feature models             | No suffix                                                 | `ImageFileWrapper`, `SearchableScan`                       |
 | Utility helpers                  | Manager/Processor suffix                                  | `InsightMediaExportManager`, `ImageCropProcessor`          |

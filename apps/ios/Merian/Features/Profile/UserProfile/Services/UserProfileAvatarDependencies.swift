@@ -6,7 +6,7 @@ import UIKit
 struct UserProfileAvatarDependencies {
     let prepareCropImage: @MainActor (
         _ item: PhotosPickerItem
-    ) async throws -> IdentifiableImage?
+    ) async throws -> UserProfileAvatarCropImage?
     let prepareUpload: @Sendable (
         _ croppedData: Data
     ) async throws -> PreparedProfileAvatar
@@ -27,7 +27,7 @@ struct UserProfileAvatarDependencies {
                     fileURL: fileURL,
                     maxSize: MerianConfig.displayImageMaxSize
                 )
-            return IdentifiableImage(
+            return UserProfileAvatarCropImage(
                 image: UIImage(cgImage: preview.cgImage)
             )
         },

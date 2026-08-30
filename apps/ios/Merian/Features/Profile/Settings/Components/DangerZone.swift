@@ -4,27 +4,39 @@ struct DangerZone: View {
     let supabase: SupabaseManager
     @Binding var showDeleteConfirmation: Bool
 
-    @State private var showSignOutConfirmation = false
-    @State private var showSignOutError = false
-    @State private var signOutErrorMessage = SignOutPresentationPolicy
-        .incompleteMessage(isAnonymousSession: false)
+    @State private var viewModel: SettingsSignOutViewModel
+
+    init(
+        supabase: SupabaseManager,
+        showDeleteConfirmation: Binding<Bool>
+    ) {
+        self.supabase = supabase
+        _showDeleteConfirmation = showDeleteConfirmation
+        _viewModel = State(
+            initialValue: SettingsSignOutViewModel(
+                dependencies: .live(supabase: supabase)
+            )
+        )
+    }
 
     private var purchaseContinuityPending: Bool {
-        RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+        viewModel.isPurchaseContinuityPending
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         Section {
             if !supabase.isGuestUser {
                 Button {
-                    showSignOutConfirmation = true
+                    viewModel.showConfirmation = true
                 } label: {
                     Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                 }
                 .disabled(supabase.isAuthTransitionInProgress)
                 .confirmationDialog(
                     "Are you sure you want to sign out?",
-                    isPresented: $showSignOutConfirmation,
+                    isPresented: $viewModel.showConfirmation,
                     titleVisibility: .visible
                 ) {
                     Button("Sign out") {
@@ -32,10 +44,13 @@ struct DangerZone: View {
                     }
                     Button("Cancel", role: .cancel) { }
                 }
-                .alert("Sign out incomplete", isPresented: $showSignOutError) {
+                .alert(
+                    "Sign out incomplete",
+                    isPresented: $viewModel.showError
+                ) {
                     Button("OK", role: .cancel) { }
                 } message: {
-                    Text(signOutErrorMessage)
+                    Text(viewModel.errorMessage)
                 }
             }
 
@@ -66,11 +81,8 @@ struct DangerZone: View {
     // MARK: - Actions
 
     private func performSignOut() async {
-        if !(await supabase.transitionToGhostSession()) {
-            signOutErrorMessage = SignOutPresentationPolicy.incompleteMessage(
-                isAnonymousSession: supabase.isGuestUser
-            )
-            showSignOutError = true
+        await viewModel.signOut {
+            supabase.isGuestUser
         }
     }
 }

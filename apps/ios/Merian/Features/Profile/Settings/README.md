@@ -1,29 +1,84 @@
 # Settings
 
-The `Settings` directory contains the user-facing configuration screens and
-preference toggles for the app.
+The `Settings` directory owns the user-facing configuration screens, preference
+controls, data export, subscription management, and account lifecycle actions
+for the Profile tab.
 
 ## Structure
 
-- **Views**: Contains the primary views like `SettingsTabView.swift` and modal
-  flows like `DeleteAccountSheet.swift`.
-- **Changelog**: Components and logic for presenting the bundled feature notes
-  and release history.
-- **Plan**: UI handling the RevenueCat subscription flows (free vs pro tier) and
-  related upsells.
-- **Feedback**: Forms and routing for user support and feedback submission.
-- **Notifications**: Toggles for managing local and push notification
-  preferences (e.g., species discoveries, achievements).
-- **Components**: Reusable list rows, toggles, and section headers specific to
-  the Settings layout.
+- **Models** contains Settings-only presentation values. Cross-feature display
+  values, such as `ComplimentaryScanDisplayState`, belong in `Core/UI/Models`.
+- **Services** contains small closure-based live adapters for account lifecycle,
+  export, preference, review/share, and debug actions.
+- **ViewModels** contains `@MainActor @Observable` state for sign-out, account
+  deletion, export, and serialized geoprivacy updates.
+- **Views** owns the root Settings route, detailed preference pages, and the
+  account-deletion sheet. Views retain navigation, sheet, binding, focus, and
+  animation timing.
+- **Components** owns Settings-only section composition plus reusable rows and
+  banners grouped by Shared, Plan, and Developer responsibility.
+- **Plan** owns paywall and plan presentation models, RevenueCat adapters,
+  purchase/restore state owners, views, and components.
+- **Feedback** owns survey wire and presentation models, the submit adapter,
+  draft/validation/submission state, choice components, and the thin survey
+  host.
+- **Notifications** owns notification preference models, authorization and
+  remote-registration adapters, observable permission state, and its view.
+- **Changelog** owns bundled release-note models and presentation.
+
+## Ownership boundaries
+
+Views and components do not call endpoints or resolve the Supabase client,
+notification center, application container, camera manager, repository, or
+RevenueCat action singleton. Live side effects are confined to the matching
+`Services` dependency value and injected into the observable state owner or
+component. State owners without environment-owned inputs use their subarea's
+default live dependency value; `ProfileView` explicitly composes the adapters
+that require its environment-owned managers. `PlanCard` continues to observe the
+canonical shared entitlement snapshot for reactive display, while purchase and
+subscription actions use a narrow RevenueCat action adapter.
+
+`ProfileView` is the composition boundary for environment-owned geoprivacy and
+hardware dependencies. `GeoprivacySettingsViewModel` serializes writes and
+coalesces queued selections to the latest value. The injected preference action
+persists expedition mode before reconciling hardware constraints; the leaf
+picker and preference component resolve neither live owner themselves.
+
+Asynchronous actions preserve one authoritative interaction session. Export,
+feedback, sign-out, deletion, purchase, restore, and code-redemption owners
+reject conflicting overlap. Notification authorization refreshes are
+generation-fenced so a replaced request cannot overwrite newer state. Failed or
+superseded work cannot publish stale success or error feedback into its
+replacement.
+
+`SettingsTabView` remains the route and sheet composition owner. Detailed
+screens keep UI-only selection and presentation state locally. Account deletion
+continues to delegate protocol ordering and recovery to `SupabaseManager`; the
+sheet supplies its environment `ModelContext` and private-map reset action to a
+narrow local-purge adapter. No Settings owner may reconstruct the server
+deletion protocol or mutate Auth directly.
+
+All production Swift files in this directory are held to a 600-line review guard
+by `SettingsArchitectureTests`. The same test prevents presentation files from
+reintroducing direct live-service lookups. Feature behavior is covered by the
+mirrored suites under `MerianTests/Features/Profile/Settings`; transport and
+shared-manager contracts stay with their canonical Core suites. The focused
+selectors and manual matrix are canonical in the
+[Profile Settings testing strategy](../../../../../../docs/development-guides/08-testing-strategy.md#profile-settings).
+
+The Profile product-area contract is summarized in
+[`06-profile-and-gamification.md`](../../../../../../docs/features-and-hardware/06-profile-and-gamification.md)
+and the app-wide feature inventory in
+[`07-feature-modules-and-ui.md`](../../../../../../docs/features-and-hardware/07-feature-modules-and-ui.md).
 
 ## Purpose
 
 This area provides users with control over their app experience. It manages
 general preferences, the Capture workspace, geoprivacy, data export, and account
 lifecycle (signing in/out and deletion). It operates in conjunction with the
-`ProfileViewModel` and updates the app's global state and preferences through
-the injected `AppSettings` boundary.
+`ProfileViewModel` and updates global preference state through injected
+environment owners such as `AppSettings`, `ConsentManager`, and
+`RevenueCatManager`.
 
 Temporary image caching is automatic and is not exposed as a Settings action.
 The bounded in-memory thumbnail cache evicts under pressure, while durable scan
@@ -66,17 +121,19 @@ are complete.
 
 ## Account deletion
 
-`DeleteAccountSheet` calls the authenticated `safe-delete` Edge Function and
-must treat every successful `2xx` response as an accepted deletion. A `200`
-means relational cleanup, delayed R2 verification, and Auth removal were already
-fully complete; a new request normally returns `202` because the durable
-server-side reaper must sweep and later verify storage before deleting Auth.
-Both responses are safe points for local sign-out and device-data cleanup. While
-sign-out purchase continuity is pending, the Settings action and confirmation
-button remain disabled. The server independently returns
-`409 purchase_continuity_pending` so a stale or second client cannot delete the
-source or exact bound anonymous destination; the user must finish sign-out
-first.
+`DeleteAccountSheet` delegates confirmation state to `DeleteAccountViewModel`.
+Its injected `AccountDeletionDependencies` delegates the authenticated
+`safe-delete` request and recovery ordering to `SupabaseManager`, while the
+separate local-purge adapter owns repository access. Every successful `2xx`
+response remains an accepted deletion. A `200` means relational cleanup, delayed
+R2 verification, and Auth removal were already fully complete; a new request
+normally returns `202` because the durable server-side reaper must sweep and
+later verify storage before deleting Auth. Both responses are safe points for
+local sign-out and device-data cleanup. While sign-out purchase continuity is
+pending, the Settings action and confirmation button remain disabled. The server
+independently returns `409 purchase_continuity_pending` so a stale or second
+client cannot delete the source or exact bound anonymous destination; the user
+must finish sign-out first.
 
 Before the request is dispatched, the confirmation flow creates and verifies a
 random device-only Keychain capability, then records the identity-free
@@ -95,8 +152,8 @@ server-matched expired proof permits conservative local erasure, followed by an
 expiry-tolerant acknowledgement and verified proof retirement.
 
 Every successful response must also contain
-`manual_provider_revocation_required`. When true, `DeleteAccountSheet` records
-the durable app-level notice before sign-out. The root app then presents Apple's
+`manual_provider_revocation_required`. When true, `SupabaseManager` records the
+durable app-level notice before sign-out. The root app then presents Apple's
 Settings/support instructions on launch and foreground until the user explicitly
 confirms removal. New Apple accounts normally use automatic server-side
 revocation; this fallback exists for accounts authorized before a refresh token

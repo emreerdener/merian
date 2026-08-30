@@ -46,7 +46,7 @@ image_cropper_source="$repo_root/apps/ios/Merian/Features/Capture/Scan/PostProce
 capture_workspace_source="$repo_root/apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
-capture_workspace_test_source="$repo_root/apps/ios/MerianTests/merianTests.swift"
+capture_workspace_test_source="$repo_root/apps/ios/MerianTests/Features/Capture/Shell/CaptureWorkspaceSubmissionTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {

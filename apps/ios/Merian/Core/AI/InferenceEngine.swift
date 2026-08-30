@@ -612,7 +612,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     /// when the insight sheet opens — even when the previous scan was a library
     /// load that had already finished (`isProcessing == false`, `speciesData != nil`).
     ///
-    /// Called by `CaptureWorkspaceViewModel.submitActiveScan()` before `activeSheet = .insight`.
+    /// Called by `CaptureWorkspaceViewModel.submitStagedCapture(...)` before `activeSheet = .insight`.
     /// `analyze()` will subsequently overwrite image and telemetry fields with the
     /// new scan's data once the async telemetry Task resolves.
     ///

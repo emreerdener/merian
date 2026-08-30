@@ -47,8 +47,7 @@ struct CropSheetModifier: ViewModifier {
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
                             let capturedDisplayData = existing.displayData
-                            viewModel.activeCropTask?.cancel()
-                            viewModel.activeCropTask = Task {
+                            viewModel.replaceActiveCropTask(with: Task {
                                 async let detectedFocusRegion = ImageFocusRegionDetector.detect(in: croppedData)
                                 async let displayCropped = Task.detached {
                                     let src = ImageDownsampler.downsampledUIImage(data: capturedDisplayData, maxSize: 2048)
@@ -81,7 +80,7 @@ struct CropSheetModifier: ViewModifier {
                                         onRequiredCropReadyForSubmit()
                                     }
                                 }
-                            }
+                            })
                         } else if isRequiredGalleryCrop {
                             viewModel.cancelRequiredGalleryCrop(for: targetId)
                         }
@@ -105,13 +104,16 @@ struct CropSheetModifier: ViewModifier {
                         if viewModel.isRequiredGalleryCrop(targetId) {
                             viewModel.cancelRequiredGalleryCrop(for: targetId)
                         } else {
-                            viewModel.activeCropTask?.cancel()
+                            viewModel.cancelActiveCropTask()
                             if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                                 viewModel.stagedCapture.images.remove(at: editIndex)
                             }
                             viewModel.editingCropIndex = nil
                             viewModel.imageToCrop = nil
                         }
+                    },
+                    onConfirmFeedback: {
+                        viewModel.triggerMediumFeedback()
                     }
                 )
             }

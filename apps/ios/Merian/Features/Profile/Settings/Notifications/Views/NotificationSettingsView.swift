@@ -1,45 +1,40 @@
 import SwiftUI
-import UserNotifications
 
-/// Abstracted detail view establishing a parent/child routing flow specifically isolating Notification configuration.
-/// Ensures the primary Profile `Preferences` list does not organically expand into an unscrollable behemoth.
+/// A focused child route for local and remote notification preferences.
 struct NotificationSettingsView: View {
-    private enum PendingNotificationToggle {
-        case discovery
-        case achievements
-        case explore
-        case exploreCommentMentions
-        case communityIdentifications
-    }
-
     @Environment(AppSettings.self) private var appSettings
     @Environment(\.scenePhase) private var scenePhase
-    
-    @State private var showPermissionPrompt = false
-    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
-    @State private var pendingPermissionToggle: PendingNotificationToggle?
-    
+
+    @State private var viewModel = NotificationSettingsViewModel()
+
     var body: some View {
         @Bindable var appSettings = appSettings
+        @Bindable var viewModel = viewModel
 
         List {
             Section {
                 SettingsToggleRow(
                     title: "Discovery alerts",
                     description: "Receive a notification whenever the AI successfully identifies a species.",
-                    isOn: binding(for: $appSettings.isPushNotificationsEnabled, target: .discovery)
+                    isOn: binding(
+                        for: $appSettings.isPushNotificationsEnabled,
+                        preference: .discovery
+                    )
                 )
             } header: {
                 Text("Inference events")
             } footer: {
                 Text("Turning this off suppresses active OS interruptions but keeps results securely banked in your local collections natively.")
             }
-            
+
             Section {
                 SettingsToggleRow(
                     title: "Achievements & milestones",
                     description: "Get notified when you unlock new ecological awards.",
-                    isOn: binding(for: $appSettings.isAchievementNotificationsEnabled, target: .achievements)
+                    isOn: binding(
+                        for: $appSettings.isAchievementNotificationsEnabled,
+                        preference: .achievements
+                    )
                 )
             } header: {
                 Text("Gamification")
@@ -49,27 +44,19 @@ struct NotificationSettingsView: View {
                 SettingsToggleRow(
                     title: "Explore activity",
                     description: "Receive a push when someone likes or comments on one of your Explore posts.",
-                    isOn: binding(for: $appSettings.isExploreNotificationsEnabled, target: .explore) {
-                        Task { @MainActor in
-                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                                reason: "explore_setting_changed"
-                            )
-                        }
-                    }
+                    isOn: binding(
+                        for: $appSettings.isExploreNotificationsEnabled,
+                        preference: .explore
+                    )
                 )
                 SettingsToggleRow(
                     title: "Comment mentions",
                     description: "Receive a push when someone mentions you in an Explore comment.",
                     isOn: binding(
-                        for: $appSettings.isExploreCommentMentionNotificationsEnabled,
-                        target: .exploreCommentMentions
-                    ) {
-                        Task { @MainActor in
-                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                                reason: "explore_comment_mentions_setting_changed"
-                            )
-                        }
-                    }
+                        for: $appSettings
+                            .isExploreCommentMentionNotificationsEnabled,
+                        preference: .exploreCommentMentions
+                    )
                 )
                 SettingsToggleRow(
                     title: "Community identifications",
@@ -78,15 +65,10 @@ struct NotificationSettingsView: View {
                     or your ID helps resolve a request.
                     """,
                     isOn: binding(
-                        for: $appSettings.isCommunityIdentificationNotificationsEnabled,
-                        target: .communityIdentifications
-                    ) {
-                        Task { @MainActor in
-                            await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                                reason: "community_identifications_setting_changed"
-                            )
-                        }
-                    }
+                        for: $appSettings
+                            .isCommunityIdentificationNotificationsEnabled,
+                        preference: .communityIdentifications
+                    )
                 )
             } header: {
                 Text("Explore")
@@ -124,33 +106,35 @@ struct NotificationSettingsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPermissionPrompt, onDismiss: {
-            pendingPermissionToggle = nil
-            fetchStatus()
-        }) {
+        .sheet(
+            isPresented: $viewModel.showPermissionPrompt,
+            onDismiss: {
+                viewModel.clearPendingPreference()
+                Task { await viewModel.refreshAuthorizationStatus() }
+            }
+        ) {
             PostIdentificationNotificationSheetView { granted in
-                if granted {
-                    applyPendingPermissionToggle()
-                } else {
-                    pendingPermissionToggle = nil
+                if let preference = viewModel.completePermissionPrompt(
+                    granted: granted
+                ) {
+                    applyEnabledPreference(preference)
+                    Task {
+                        await viewModel.syncEnabledAfterAuthorization(
+                            preference
+                        )
+                    }
                 }
-                fetchStatus()
-                showPermissionPrompt = false
+                Task { await viewModel.refreshAuthorizationStatus() }
+                viewModel.showPermissionPrompt = false
             }
             .presentationDetents([.height(320)])
         }
-        .onAppear(perform: fetchStatus)
+        .task {
+            await viewModel.refreshAuthorizationStatus()
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            fetchStatus()
-        }
-    }
-    
-    private func fetchStatus() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            Task { @MainActor in
-                authorizationStatus = settings.authorizationStatus
-            }
+            Task { await viewModel.refreshAuthorizationStatus() }
         }
     }
 
@@ -163,7 +147,8 @@ struct NotificationSettingsView: View {
     }
 
     private func turnOffAllNotifications() {
-        let shouldSyncRemotePushRegistration = appSettings.isExploreNotificationsEnabled ||
+        let shouldSyncRemotePushRegistration =
+            appSettings.isExploreNotificationsEnabled ||
             appSettings.isExploreCommentMentionNotificationsEnabled ||
             appSettings.isCommunityIdentificationNotificationsEnabled
 
@@ -172,76 +157,49 @@ struct NotificationSettingsView: View {
         appSettings.isExploreNotificationsEnabled = false
         appSettings.isExploreCommentMentionNotificationsEnabled = false
         appSettings.isCommunityIdentificationNotificationsEnabled = false
-        pendingPermissionToggle = nil
+        viewModel.clearPendingPreference()
 
-        if shouldSyncRemotePushRegistration {
-            Task { @MainActor in
-                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                    reason: "all_notification_settings_disabled"
-                )
-            }
+        Task {
+            await viewModel.syncAllDisabledIfNeeded(
+                shouldSyncRemotePushRegistration
+            )
         }
     }
-    
+
     private func binding(
         for appStorage: Binding<Bool>,
-        target: PendingNotificationToggle,
-        onCommit: (() -> Void)? = nil
+        preference: NotificationPreference
     ) -> Binding<Bool> {
         Binding(
             get: { appStorage.wrappedValue },
             set: { newValue in
-                if newValue {
-                    if authorizationStatus == .notDetermined {
-                        pendingPermissionToggle = target
-                        showPermissionPrompt = true
-                    } else if authorizationStatus == .denied || authorizationStatus == .provisional {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    } else {
-                        appStorage.wrappedValue = true
-                        onCommit?()
-                    }
-                } else {
-                    appStorage.wrappedValue = false
-                    onCommit?()
+                guard let resolvedValue = viewModel.resolvedValue(
+                    for: newValue,
+                    preference: preference
+                ) else { return }
+
+                appStorage.wrappedValue = resolvedValue
+                Task {
+                    await viewModel.syncPreferenceChange(preference)
                 }
             }
         )
     }
 
-    private func applyPendingPermissionToggle() {
-        guard let pendingPermissionToggle else { return }
-
-        switch pendingPermissionToggle {
+    private func applyEnabledPreference(
+        _ preference: NotificationPreference
+    ) {
+        switch preference {
         case .discovery:
             appSettings.isPushNotificationsEnabled = true
         case .achievements:
             appSettings.isAchievementNotificationsEnabled = true
         case .explore:
             appSettings.isExploreNotificationsEnabled = true
-            Task { @MainActor in
-                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                    reason: "explore_setting_enabled_after_authorization"
-                )
-            }
         case .exploreCommentMentions:
             appSettings.isExploreCommentMentionNotificationsEnabled = true
-            Task { @MainActor in
-                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                    reason: "explore_comment_mentions_setting_enabled_after_authorization"
-                )
-            }
         case .communityIdentifications:
             appSettings.isCommunityIdentificationNotificationsEnabled = true
-            Task { @MainActor in
-                await AppDIContainer.shared.pushNotificationManager.syncRemotePushRegistrationIfPossible(
-                    reason: "community_identifications_setting_enabled_after_authorization"
-                )
-            }
         }
-
-        self.pendingPermissionToggle = nil
     }
 }

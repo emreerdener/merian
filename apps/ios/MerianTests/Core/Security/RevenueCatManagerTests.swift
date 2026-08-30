@@ -25,12 +25,6 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertFalse(revenueCatManager.isFetchingOfferings)
     }
 
-    func testComplimentaryPlanDetailsAreLimitedToResultsAndSettings() {
-        XCTAssertFalse(ComplimentaryPlanDetailContext.hidden.showsDetails)
-        XCTAssertTrue(ComplimentaryPlanDetailContext.results.showsDetails)
-        XCTAssertTrue(ComplimentaryPlanDetailContext.settings.showsDetails)
-    }
-    
     func testRevenueCatAttributionSignature() async {
         // Asserts that the refactored signature compiles securely mapping telemetry correctly.
         // Because purchases.shared is tightly coupled, we do not fully hit the live backend, 

@@ -8,6 +8,8 @@ struct MainOverlayView: View {
     var isVideoRecording: Bool = false
     var videoRecordingProgress: Double = 0
     var showsViewfinderHints: Bool = true
+    var onZoomOpticalStopTick: () -> Void = {}
+    var onZoomRegularTick: () -> Void = {}
 
     @Environment(AppSettings.self) private var appSettings
 
@@ -32,7 +34,10 @@ struct MainOverlayView: View {
         .frame(maxWidth: .infinity)
         .overlay(alignment: appSettings.zoomSideLeft ? .leading : .trailing) {
             if activeScanImages.count < stagedImageCapacity {
-                ZoomSliderView()
+                ZoomSliderView(
+                    onOpticalStopTick: onZoomOpticalStopTick,
+                    onRegularTick: onZoomRegularTick
+                )
                     .padding(.bottom, 110)
             }
         }

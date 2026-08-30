@@ -196,8 +196,17 @@ enum DetachedWork {
         category _: DetachedWorkCategory,
         operation: @Sendable @escaping () async throws -> Success
     ) async throws -> Success {
-        try await Task.detached(priority: priority) {
+        let task = Task.detached(priority: priority) {
             try await operation()
-        }.value
+        }
+
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            let value = try await task.value
+            try Task.checkCancellation()
+            return value
+        } onCancel: {
+            task.cancel()
+        }
     }
 }

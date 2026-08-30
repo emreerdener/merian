@@ -103,6 +103,29 @@ only reusable grid geometry and clipping. Each feature continues to own its post
 source, media rendering, callbacks, accessibility copy, pagination, and
 empty/loading states.
 
+## Shared display values
+
+`Models/ComplimentaryScanDisplayState.swift` is the presentation-only value
+shared by the Settings plan card and the Insight model-tier badge. It describes
+available or exhausted complimentary Pro display state without owning
+entitlement lookup, quota admission, persistence, or RevenueCat behavior.
+Production callers derive it from their established entitlement owner; the
+Settings DEBUG gallery may inject a deterministic override for visual QA.
+
+## Shared image editing
+
+`Components/ImageCropperView.swift` owns the square crop interaction shared by
+Capture staging and Profile avatar editing. It receives crop, cancel, delete,
+and confirmation-feedback actions from the feature caller; it does not resolve
+camera, haptic, persistence, or network services. Each feature retains its own
+input value: Capture owns source context and resumable geometry, while Profile
+owns its bounded avatar-crop preview. Pixel cropping and encoding remain in
+`Core/Media`.
+
+`Components/CaptureFlashButton.swift` is the presentation-only flash control
+used by the shared Capture control bar. The Capture owner supplies feedback and
+the `CameraManager` mutation through its action closure.
+
 ## Shared scan and empty-state presentation
 
 `Components/ScanThumbnail.swift` owns cross-feature scan-thumbnail rendering for

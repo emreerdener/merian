@@ -1172,8 +1172,9 @@ structural orchestrator using a central horizontal `.paging` `ScrollView`
 controlled by a `ToolbarItem` segmented picker, mapping between a
 `ProfileTab.profile` layout (identity, statistics, hardware capabilities) and a
 `ProfileTab.settings` layout (hardware preferences, data exports, Danger Zone).
-Side effects are deferred to `ProfileViewModel`, leaving `ProfileView` focused
-on gesture-driven layout abstractions.
+Side effects are delegated to the owning UserProfile or Settings state owner and
+narrow Service. `ProfileView` remains focused on pager, toolbar, and live
+dependency composition.
 
 ### Native OAuth & Entitlements
 
@@ -1199,6 +1200,11 @@ on gesture-driven layout abstractions.
   Release/TestFlight ignores the override. Purchase QA opens Settings → Plan
   directly. `PaywallView` renders in Light or Dark mode following the system
   color scheme.
+- `PaywallViewModel` and `ManagePlanViewModel` own purchase, restore, and
+  code-redemption interaction state. Their narrow Plan Services resolve
+  RevenueCat actions. Purchase and restore are mutually exclusive, and plan
+  management will not present code redemption while a restore is active; leaf
+  views retain only package selection, carousel, sheet, and alert presentation.
 - Renders global gamification statistics including `uniqueSpeciesCount` and
   `currentStreak` in the stats grid, evaluating the user's `persona` (Explorer
   Rank) offline inside the profile header. `StatCard` modules and
@@ -1338,7 +1344,9 @@ on gesture-driven layout abstractions.
   **Workspace** without moving its Camera, Audio, **Reorder modes**, Field trip
   goals, or confirmation controls.
 - **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps
-  and disables intensive visual blurs to preserve battery.
+  and disables intensive visual blurs to preserve battery. The Profile Shell
+  injects the hardware action; Settings persists the `AppSettings` value before
+  reevaluating constraints so the orchestrator reads the new mode.
 - **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from
   the "Camera" row in Preferences (described as "Zoom controls, viewfinder
   hints, and capture preferences"). Navigation state
@@ -1355,8 +1363,9 @@ on gesture-driven layout abstractions.
   Preferences list into the Viewfinder section of `CameraSettingsView`. Allows
   users to disable real-time AI scanning hints to reduce thermal load or battery
   drain. The toggle inverts `isLiveInferencePaused` for display and writes
-  through the injected `AppSettings` boundary while keeping
-  `CameraManager.shared.isLiveInferencePaused` synchronized.
+  through the injected `AppSettings` boundary. `CameraSettingsDependencies` owns
+  the corresponding live camera-manager update, so the view does not resolve
+  `CameraManager.shared` directly.
 - **Field trip goals (`showsCaptureGoalProgress`)**: The Workspace settings
   section exposes an on-by-default toggle for the active outing target capsule
   on visual Scan. Disabling it changes only the camera presentation; cached
@@ -1379,26 +1388,31 @@ on gesture-driven layout abstractions.
   switches the `.overlay` alignment and padding side; `ZoomSliderView` mirrors
   itself horizontally via `.scaleEffect(x: -1, y: 1)` so ticks and dots face
   inward on both sides without duplicating Canvas drawing logic.
-- **SettingsToggleRow (`Profile/Settings/Components/Preferences.swift`)**: To
-  eliminate `VStack` layout duplication for generic Toggle rows across OS
-  preferences, core features (Expedition mode, Live Pathfinder hints, etc.) were
-  refactored into a unified `SettingsToggleRow(title:, description:, isOn:)`
-  primitive wrapping `.secondary` caption font descriptions globally.
+- **SettingsToggleRow
+  (`Profile/Settings/Components/Shared/SettingsRows.swift`)**: To eliminate
+  `VStack` layout duplication for generic Toggle rows across OS preferences,
+  core features (Expedition mode, Live Pathfinder hints, etc.) were refactored
+  into a unified `SettingsToggleRow(title:, description:, isOn:)` primitive
+  wrapping `.secondary` caption font descriptions globally.
 - **Push Notifications & Progressive Disclosure (`NotificationSettingsView`)**:
   Push notification permission prompting has been fully excised from the initial
   onboarding flow to optimize funnel completion rates. Instead, the system
   employs progressive disclosure: users are prompted dynamically via
   `PostIdentificationNotificationSheetView` when the AI resolves its first edge
-  lookup over the network. Notification configurations are abstracted into a
-  dedicated `NotificationSettingsView`. Navigation uses a `Button` +
-  `.navigationDestination(isPresented:)` pattern (not `NavigationLink`) to avoid
-  the double-chevron that SwiftUI's `List` injects on `NavigationLink` labels.
-  The toggles inside the settings list mutate the typed `AppSettings`
-  notification properties through custom `Binding(get:set:)` wrappers. If a user
-  attempts to enable an alert type and their OS status is `.notDetermined`, the
-  app intercepts the interaction and presents the
-  `PostIdentificationNotificationSheetView` dynamically. If denied, it routes
-  them directly into the iOS settings app url domain
+  lookup over the network. `NotificationSettingsViewModel` owns authorization,
+  pending preference, and stable remote-registration reason selection, while
+  `NotificationSettingsDependencies` owns notification-center, system Settings,
+  and push-manager access. `NotificationSettingsView` retains only preference
+  bindings and presentation. Authorization refreshes are generation-fenced, so a
+  result from an earlier refresh cannot replace newer permission state.
+  Navigation uses a `Button` + `.navigationDestination(isPresented:)` pattern
+  (not `NavigationLink`) to avoid the double-chevron that SwiftUI's `List`
+  injects on `NavigationLink` labels. The toggles inside the settings list
+  mutate the typed `AppSettings` notification properties through custom
+  `Binding(get:set:)` wrappers. If a user attempts to enable an alert type and
+  their OS status is `.notDetermined`, the app intercepts the interaction and
+  presents the `PostIdentificationNotificationSheetView` dynamically. If denied,
+  it routes them directly into the iOS settings app url domain
   (`UIApplication.openSettingsURLString`). `Discovery Complete` deep link alerts
   are queued to the OS only when `HardwareOrchestrator` resolves `!= .active`,
   preventing popovers while the user is inside the app.
@@ -1424,8 +1438,12 @@ on gesture-driven layout abstractions.
   the campaign is active. After a successful manual submission, the thank-you
   state remains during a 24-hour cooldown and then resets to a fresh form so
   testers can send more feedback without the proactive prompt returning.
-  Responses submit through `/submit-feedback-survey` and are stored as private
-  product feedback in Supabase.
+  `FeedbackSurveyViewModel` owns draft, validation, exclusive-choice,
+  single-flight submission, and error state. The view owns step animation and
+  focus timing, and `FeedbackSurveyDependencies` is the only survey owner that
+  invokes `/submit-feedback-survey`. A competing submit is rejected without
+  clearing or replacing the active request's draft and feedback. Responses are
+  stored as private product feedback in Supabase.
 - **System Haptics & Camera Roll**: Typed `AppSettings` bindings let
   `HapticManager` suppress feedback and let `PhotoLibraryManager` skip automatic
   photo/video writes when their preferences are disabled. Haptic interactions
@@ -1466,10 +1484,13 @@ on gesture-driven layout abstractions.
 ### Privacy & Science
 
 - **Geoprivacy Control (`GeoprivacyPickerView`)**: Lives inside
-  `Features/Profile/Settings/Components/Preferences.swift` and is pushed from
-  the settings list. It explains `Open`, `Obscured`, and `Private` coordinate
-  options, binds through `ProfileViewModel.defaultGeoprivacy`, and cascades
-  changes to Supabase in the background.
+  `Features/Profile/Settings/Views/GeoprivacyPickerView.swift` and is pushed
+  from the settings list. It explains `Open`, `Obscured`, and `Private`
+  coordinate options, binds through `ProfileViewModel.defaultGeoprivacy`, and
+  delegates the account-fenced Supabase write to
+  `GeoprivacySettingsDependencies`. `GeoprivacySettingsViewModel` serializes
+  writes and coalesces rapid taps to the latest selection; the live adapter
+  rejects work after account replacement.
 - **Community and Legal Links (`Community.swift`)**: The Profile settings
   Resources section opens `https://naturebook.earth/guidelines` and
   `https://naturebook.earth/legal` through the in-app Safari sheet, appending
@@ -1505,12 +1526,15 @@ on gesture-driven layout abstractions.
 - **Account Deletion**: The destructive "Delete account & data" action opens
   `DeleteAccountSheet`, which itemizes deleted account-owned data and mandatory
   ownerless retention of exact scientific facts, then requires the user to type
-  `DELETE` before calling the durable Deno `/safe-delete` endpoint. Both
-  immediate `200` completion and `202` durable acceptance are successful:
+  `DELETE`. The sheet delegates presentation to `DeleteAccountViewModel`; its
+  `AccountDeletionDependencies` and `SupabaseManager` own the durable Deno
+  `/safe-delete` protocol, while the local-purge adapter owns repository access.
+  Both immediate `200` completion and `202` durable acceptance are successful:
   backend cleanup continues through its scheduled reaper, cursor-sweeps and
   delayed-verifies every canonical R2 prefix, revokes a stored Apple credential,
   and removes Auth only after verification. A legacy Apple disposition is saved
-  before the client signs out and purges the device SQLite boundary through
+  by `SupabaseManager` before the client signs out; the injected adapter then
+  purges the device SQLite boundary through
   `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, passing the
   required synchronous private-map derived-state reset before SwiftData
   deletion; the app-root instructions remain visible across relaunch until the
@@ -1601,32 +1625,43 @@ on gesture-driven layout abstractions.
   `CaptureWorkspaceView`, the Scan/Record/Describe pager, fixed overlay chrome,
   the single routed root sheet host, feature-local presentation occupancy,
   physical shutter handling, pending Photos document-import recovery, and the
-  root `CaptureWorkspaceViewModel`; `Scan/` owns camera UI, cropper, focus/zoom,
-  flash, Pro video capture, in-app photo-library import, and viewfinder hints;
-  `Record/` owns the audio page, spectrogram, SNR gauge, and shared
+  root `CaptureWorkspaceViewModel`. Within Shell, Models own deterministic
+  presentation policy, Services alone construct live client/session, remote
+  media, prewarm, share/account lookup, keyboard platform, and feedback
+  adapters, responsibility-specific ViewModel extensions own orchestration, and
+  an encapsulated operation-state owner keeps task and one-shot handoff state in
+  private storage. Views, Components, and Modifiers retain UI-only pager, focus,
+  scroll, expansion, presentation bindings, and dismissal timing without direct
+  endpoint calls. `Capture/Shared/Utilities` owns the composing-center
+  environment contract shared by Shell and Record, while `Core/Media` owns the
+  immutable image concurrency wrapper shared with Insights. `Scan/` owns camera
+  composition, focus/zoom/photo/video actions, Pro video preparation, in-app
+  photo-library import, and viewfinder hints. It consumes the shared crop editor
+  and passive `CaptureFlashButton` from `Core/UI`, while `Core/Media` owns crop
+  encoding. `Record/` owns the audio page, spectrogram, SNR gauge, and shared
   `RecordingCountdownBadge`; `Describe/` owns text input, guided questions,
   prompt managers, subject matching, and dictation; `Staging/` owns
-  `StagedCapture`, staged video/audio/image/description editing, and crop sheet
-  presentation; `Submission/` owns shared live/offline analysis paths for visual
-  and non-visual captures. **Camera Session Pause During Analysis**: When routed
-  or feature-local presentation becomes occupied, `CaptureWorkspaceView` stops
-  `cameraManager`, conserving thermal budget and battery. Clearing a binding is
-  not enough to restart it: the exact dismissal callback rechecks visual mode,
-  active scene phase, all presentation occupancy, and pending/in-flight routes
-  before starting the session. **Active Scan Dismissal**: Users can manually
-  dismiss the `InsightSheetView` entirely while it is still in the
-  `AnalyzingContentView` processing state. Every Insight dismissal route invokes
-  `InferenceEngine.dismissAnalyzingPresentation()`, which fences Vision,
-  deterministic trait extraction, future Foundation work, and phrase cadence,
-  then clears presentation-owned contextual copy and in-memory media. The
-  already-durable Gemini request, upload, persistence, and queue recovery remain
-  active; dismissal never creates a second queue insertion or inference request.
-  A completed result can therefore appear in Scans later (and trigger the
-  `hasUnseenScan` notification dot) without forcing the user to wait on-screen.
-  **Offline Submission Intercept**: To optimize UX and preserve computing power,
-  `CaptureWorkspaceViewModel.submitActiveScan` gates `activeSheet = .insight`,
-  `InferenceEngine.prepareForNewScan()`, and the live `InferenceEngine.analyze`
-  Task behind durable `enqueueCapture` acceptance plus
+  `StagedCapture`, staged video, audio, image, and description editing, plus
+  crop sheet presentation; `Submission/` owns shared live/offline analysis paths
+  for visual and non-visual captures. **Camera Session Pause During Analysis**:
+  When routed or feature-local presentation becomes occupied,
+  `CaptureWorkspaceView` stops `cameraManager`, conserving thermal budget and
+  battery. Clearing a binding is not enough to restart it: the exact dismissal
+  callback rechecks visual mode, active scene phase, all presentation occupancy,
+  and pending/in-flight routes before starting the session. **Active Scan
+  Dismissal**: Users can manually dismiss the `InsightSheetView` entirely while
+  it is still in the `AnalyzingContentView` processing state. Every Insight
+  dismissal route invokes `InferenceEngine.dismissAnalyzingPresentation()`,
+  which fences Vision, deterministic trait extraction, future Foundation work,
+  and phrase cadence, then clears presentation-owned contextual copy and
+  in-memory media. The already-durable Gemini request, upload, persistence, and
+  queue recovery remain active; dismissal never creates a second queue insertion
+  or inference request. A completed result can therefore appear in Scans later
+  (and trigger the `hasUnseenScan` notification dot) without forcing the user to
+  wait on-screen. **Offline Submission Intercept**: To optimize UX and preserve
+  computing power, `CaptureWorkspaceViewModel.submitStagedCapture` gates
+  `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the live
+  `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance plus
   `OfflineQueueManager.isOnline`. If the queue rejects the durable write, the UI
   shows an error and deletes unowned source media; if the user is un-networked,
   execution drops after the queued callback, clears the pending live scan ID,
@@ -1679,7 +1714,7 @@ on gesture-driven layout abstractions.
   remove actions. Closing preserves the mixed-media timeline, while removal
   deletes the selected temporary recording through the shared file owner. When
   the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed overlays
-  hide `MediaModeToggle`, `CaptureButton`, `FlashButton`, and
+  hide `MediaModeToggle`, `CaptureButton`, `CaptureFlashButton`, and
   `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
   individual processing sequences per image without keeping full 12 MP buffers
   in background memory. Its close/delete controls use native leading/trailing
@@ -1696,7 +1731,7 @@ on gesture-driven layout abstractions.
   retains media; both paths clear pending crop state and keep
   index-out-of-bounds drift impossible because data is co-located rather than
   spread across parallel arrays. To preserve authentic `.environmentContext`
-  metadata from imported photos, `submitActiveScan()` extracts the
+  metadata from imported photos, `submitStagedCapture(...)` extracts the
   `historicalContext` from `stagedCapture.images[0].original` _before_ clearing
   staged capture state. If the user backgrounds the app during an active AI
   lookup, `CaptureWorkspaceViewModel` does not explicitly nil out inference
@@ -1738,11 +1773,17 @@ on gesture-driven layout abstractions.
   profile/settings pager, `UserProfile/` owns the visible user profile tab
   (public identity, published scans, achievements, persona, terrarium, heatmap,
   and `ProfileDatabaseActor`), `Settings/` owns the Settings tab rows plus
-  account export and danger-zone actions; `Settings/Plan/` owns `PlanCard`,
-  `ManagePlanView`, `PaywallView`, and shared Pro value-prop copy,
-  `Settings/Notifications/` owns notification preferences, `Settings/Changelog/`
-  owns bundled release notes, `Settings/Feedback/` owns the beta survey, and
-  `Shared/` holds `ProfileViewModel`.
+  account export and danger-zone actions through Models, narrow Services,
+  observable ViewModels, Views, and grouped Components. `Settings/Plan/` owns
+  `PlanCard`, `ManagePlanView`, `PaywallView`, purchase/restore state, and
+  shared Pro value-prop copy; `Settings/Notifications/` owns notification
+  preferences; `Settings/Changelog/` owns bundled release notes;
+  `Settings/Feedback/` owns the beta survey; and `Shared/` holds
+  `ProfileViewModel`. The complimentary display value shared by Settings and
+  Results lives in `Core/UI/Models`. `Profile/Shell/` composes only the Settings
+  adapters that require environment-owned geoprivacy and hardware managers;
+  other Settings state owners select their narrow live dependency at their own
+  boundary.
 - The `Scans` feature uses product-area-first folders. `Shell/` owns the
   presented sheet, paging, toolbar, search/filter chrome, and completed/queued
   pushed Insight destinations; `Library/` owns individual private scans,

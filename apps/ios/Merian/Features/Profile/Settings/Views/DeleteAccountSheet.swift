@@ -6,27 +6,40 @@ struct DeleteAccountSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(PrivateScanMapStore.self) private var privateScanMapStore
     let supabase: SupabaseManager
-    
-    @State private var confirmationText: String = ""
-    @State private var isDeleting: Bool = false
-    @State private var errorMessage: String?
+
+    @State private var viewModel: DeleteAccountViewModel
+    private let localDataDependencies: AccountLocalDataDependencies
+
+    init(
+        supabase: SupabaseManager,
+        localDataDependencies: AccountLocalDataDependencies = .live
+    ) {
+        self.supabase = supabase
+        self.localDataDependencies = localDataDependencies
+        _viewModel = State(
+            initialValue: DeleteAccountViewModel(
+                dependencies: .live(supabase: supabase)
+            )
+        )
+    }
 
     private var purchaseContinuityPending: Bool {
-        RevenueCatManager.shared.isPurchaseIdentityHandoffPending
+        viewModel.isPurchaseContinuityPending
     }
 
     private var deletionRecoveryPending: Bool {
-        AccountDeletionLocalCleanupStore.isPending()
+        viewModel.isRecoveryPending
     }
-    
+
     var isDeleteEnabled: Bool {
-        confirmationText == "DELETE" &&
-            !purchaseContinuityPending &&
-            !deletionRecoveryPending &&
-            !supabase.isAuthTransitionInProgress
+        viewModel.isDeleteEnabled(
+            isAuthTransitionInProgress: supabase.isAuthTransitionInProgress
+        )
     }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             Form {
                 Section {
@@ -34,7 +47,7 @@ struct DeleteAccountSheet: View {
                         Text("This permanently removes your account and account-owned data. It cannot be reversed.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        
+
                         VStack(alignment: .leading, spacing: 12) {
                             consequenceRow(
                                 icon: "person.crop.circle.badge.xmark",
@@ -62,15 +75,18 @@ struct DeleteAccountSheet: View {
                 } header: {
                     Text("Consequences")
                 }
-                
+
                 Section {
-                    TextField("Enter DELETE to confirm", text: $confirmationText)
+                    TextField(
+                        "Enter DELETE to confirm",
+                        text: $viewModel.confirmationText
+                    )
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.characters)
                 } header: {
                     Text("Confirm Deletion")
                 } footer: {
-                    if let errorMessage = errorMessage {
+                    if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
                             .foregroundColor(.red)
                     } else if purchaseContinuityPending {
@@ -80,14 +96,14 @@ struct DeleteAccountSheet: View {
                         Text("Type the word DELETE in all caps to enable account deletion.")
                     }
                 }
-                
+
                 Section {
                     Button(action: {
                         Task { await performDeletion() }
                     }) {
                         HStack {
                             Spacer()
-                            if isDeleting {
+                            if viewModel.isDeleting {
                                 ProgressView()
                                     .tint(.white)
                             } else {
@@ -97,25 +113,27 @@ struct DeleteAccountSheet: View {
                             Spacer()
                         }
                     }
-                    .disabled(!isDeleteEnabled || isDeleting)
+                    .disabled(!isDeleteEnabled || viewModel.isDeleting)
                     .foregroundColor(isDeleteEnabled ? .white : .gray)
                     .listRowBackground(isDeleteEnabled ? Color.red : nil)
                 }
             }
             .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled(isDeleting || deletionRecoveryPending)
+            .interactiveDismissDisabled(
+                viewModel.isDeleting || deletionRecoveryPending
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .disabled(isDeleting || deletionRecoveryPending)
+                    .disabled(viewModel.isDeleting || deletionRecoveryPending)
                 }
             }
         }
     }
-    
+
     private func consequenceRow(icon: String, text: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
@@ -127,56 +145,16 @@ struct DeleteAccountSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
-    
+
     private func performDeletion() async {
-        guard !supabase.hasPendingPurchaseIdentityHandoffFailClosed() else {
-            errorMessage = "Finish signing out before deleting this account."
-            return
-        }
-        isDeleting = true
-        errorMessage = nil
-        
-        do {
-            if deletionRecoveryPending {
-                guard await supabase
-                    .resumePendingAccountDeletionLocalCleanup(
-                        purgeLocalData: {
-                            ScanRepository.shared.purgeAllData(
-                                modelContext: modelContext,
-                                resetDerivedState:
-                                    privateScanMapStore.resetSensitiveState
-                            )
-                        }
-                    ) else {
-                    errorMessage =
-                        "Account deletion is still being confirmed. Keep Naturebook open and connected; it will retry safely."
-                    isDeleting = false
-                    return
-                }
-            } else {
-                _ = try await supabase.deleteCurrentAccount {
-                    ScanRepository.shared.purgeAllData(
-                        modelContext: modelContext,
-                        resetDerivedState:
-                            privateScanMapStore.resetSensitiveState
-                    )
-                }
-            }
-            dismiss() // the parent view will catch the sign out and pop out to root
-        } catch {
-            MerianLog.general.error(
-                "Account deletion failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+        let didDelete = await viewModel.deleteAccount {
+            localDataDependencies.purgeAllData(
+                modelContext,
+                privateScanMapStore.resetSensitiveState
             )
-            if AccountDeletionLocalCleanupStore.isPending() {
-                errorMessage =
-                    "Account deletion is still being confirmed. Keep Naturebook open and connected; it will retry safely."
-            } else if MerianNetworkClient.stableEdgeErrorCode(from: error)
-                == "purchase_continuity_pending" {
-                errorMessage = "Finish signing out before deleting this account."
-            } else {
-                errorMessage = "Failed to delete account. Please try again or contact support."
-            }
-            isDeleting = false
+        }
+        if didDelete {
+            dismiss() // the parent view will catch the sign out and pop out to root
         }
     }
 }

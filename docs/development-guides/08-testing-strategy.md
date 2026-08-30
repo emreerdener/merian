@@ -761,7 +761,7 @@ MerianTests/
   Features/Scans/Collections/
   Features/Scans/Map/
   Features/Profile/UserProfile/
-  Features/Profile/Settings/Changelog/
+  Features/Profile/Settings/
 ```
 
 ### Profile UserProfile
@@ -817,6 +817,65 @@ Profile event refresh, avatar picker/crop/upload/error timing, achievement
 detail navigation and Insight return, Field trip badge routes, publication
 recovery and pagination, VoiceOver, large Dynamic Type, and light/dark
 appearance.
+
+### Profile Settings
+
+`apps/ios/MerianTests/Features/Profile/Settings/` mirrors the Settings product
+area. Keep shared manager and transport contracts in their Core suites; use
+injected closure dependencies for Settings state tests:
+
+- `AccountSettingsViewModelTests` locks confirmation and auth-transition fences,
+  purchase-continuity refusal, fresh and recovery deletion paths, stable error
+  mapping, local purge delegation, overlapping-deletion feedback isolation, and
+  sign-out failure copy.
+- `ExportScansViewModelTests` covers successful queue presentation, the stable
+  24-hour rate-limit message, single-flight overlap rejection, logging, and
+  unexpected failure recovery.
+- `FeedbackSurveyViewModelTests` covers required ratings, exclusive choices,
+  stable request ordering, success reset, submission failure, and overlapping
+  submission rejection. `FeedbackSurveyTests` retains prompt policy and endpoint
+  encoding coverage.
+- `NotificationSettingsViewModelTests` covers authorization decisions, deferred
+  enablement, disable behavior, stale-refresh fencing, and exact
+  remote-registration reason values.
+- `PlanViewModelTests` covers plan-display policy, restore single-flight,
+  cross-action fencing, subscribed dismissal, and provider error feedback for
+  paywall and plan management.
+- `SettingsPreferenceInteractionTests` covers geoprivacy write serialization and
+  latest-selection coalescing plus expedition-mode persist-before-reconcile
+  ordering.
+- `SettingsArchitectureTests` enforces the 600-line production-file ceiling and
+  prevents Settings views/components from resolving endpoint, Supabase,
+  notification-center, application-container, platform-action, repository, or
+  RevenueCat action owners directly.
+- `ChangelogTests` retains local catalog decoding, ordering, optional metadata,
+  and user-facing terminology coverage.
+
+After `make xcodegen` and build-for-testing, run the Settings matrix against the
+same built products:
+
+```bash
+xcodebuild test-without-building \
+  -scheme Merian \
+  -project Merian.xcodeproj \
+  -destination 'id=<booted-simulator-id>' \
+  -only-testing:merianTests/AccountSettingsViewModelTests \
+  -only-testing:merianTests/ExportScansViewModelTests \
+  -only-testing:merianTests/FeedbackSurveyViewModelTests \
+  -only-testing:merianTests/NotificationSettingsViewModelTests \
+  -only-testing:merianTests/PlanViewModelTests \
+  -only-testing:merianTests/SettingsPreferenceInteractionTests \
+  -only-testing:merianTests/SettingsArchitectureTests \
+  -only-testing:merianTests/FeedbackSurveyTests \
+  -only-testing:merianTests/ChangelogTests
+```
+
+Then run the complete `merianTests` target. Manually verify Settings route and
+sheet presentation, theme and Workspace preference persistence, rapid geoprivacy
+changes, expedition-mode hardware reconciliation, notification permission
+outcomes, conflicting purchase/restore actions, feedback-survey focus and
+cooldown, export loading/success/error states and repeated taps, sign-out and
+deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
 
 ### Analytics & Telemetry
 
@@ -1544,29 +1603,78 @@ Dynamic Type; and light/dark appearance.
 
 ### Hardware & Ecosystem Integrations
 
-- **`CameraManagerTests.swift`, `CaptureWorkspaceViewModelRefinementTests`**:
-  Validates camera state routing, target-FPS debounce ownership, and the
-  video-generation correlation policy. A controlled async sleeper proves the FPS
-  debouncer reads the current target after its delay and rejects a replaced
-  generation even when the sleeper intentionally ignores cooperative
-  cancellation. Focused recording tests prove callback URLs bind to the intended
-  temporary file, generation-A callbacks/actions are rejected while generation B
-  is active, and cooperatively cancelled timeout/stop tasks are rejected after
-  their action token is replaced. These policy tests do not require simulator
-  camera hardware. `CaptureWorkspaceViewModelRefinementTests` drives
-  `startRefinementScan(from:)` through the injected `PreparedStagedImageLoader`
-  seam, asserting both the success path (bounded display-sized refinement
-  request is committed into `stagedCapture.images`) and the failure path
-  (`isStagingRefinement` drops back to `false` without appending a stale image).
-  This gives deterministic coverage over refinement staging behavior without
+- **`CameraManagerTests.swift`**: Validates camera state routing, target-FPS
+  debounce ownership, and the video-generation correlation policy. A controlled
+  async sleeper proves the FPS debouncer reads the current target after its
+  delay and rejects a replaced generation even when the sleeper intentionally
+  ignores cooperative cancellation. Focused recording tests prove callback URLs
+  bind to the intended temporary file, generation-A callbacks/actions are
+  rejected while generation B is active, and cooperatively cancelled
+  timeout/stop tasks are rejected after their action token is replaced. These
+  policy tests do not require simulator camera hardware.
+- **`apps/ios/MerianTests/Features/Capture/Shell/`**: Mirrors the Shell owner
+  instead of placing workspace coverage in the former root `merianTests.swift`
+  aggregate. The stable `CaptureWorkspaceViewModelRefinementTests` selector is
+  split across Shell-owned presentation/import, refinement, and routing files
+  plus the Submission-owned submission file, with shared fixtures in
+  `CaptureWorkspaceTestCase.swift`. It drives `startRefinementScan(from:)`
+  through the injected `PreparedStagedImageLoader` seam, asserting both the
+  success path (bounded display-sized refinement request is committed into
+  `stagedCapture.images`) and the failure path (`isStagingRefinement` drops back
+  to `false` without appending a stale image).
+  `CaptureShellPresentationPolicyTests` covers extracted goal/layout/binding
+  policy; `CaptureWorkspaceOperationStateTests` covers one-shot timeout,
+  route/sheet, deterministic overlapping-import retry coalescing, sheet resume,
+  the dismissal-before-task-release handoff, idempotent receipt feedback, and
+  ordered-crop state; `CaptureWorkspaceDependenciesTests` proves the view model
+  uses injected feedback/account lookup while a disabled prewarm remains idle;
+  and `CaptureShellArchitectureTests` enforces the live-service and
+  platform-neutral deterministic Models boundaries, confines raw
+  `NotificationCenter.default` access outside Views, Components, and Modifiers,
+  verifies the ownership directories, and enforces the 600-line production-file
+  ceiling. Shared inference-audio fixture generation lives in
+  `apps/ios/MerianTests/Support/InferenceAudioTestFixtures.swift`, not in an
+  unrelated Core test class. This gives deterministic coverage without
   simulator-driven UI automation. The complete unit target, including these
-  camera-generation tests plus `InferenceEngineTests`,
+  workspace and camera-generation tests plus `InferenceEngineTests`,
   `OfflineQueueManagerTests`, and `SyncStateManagerTests`, runs in
   `.github/workflows/ios-build-and-test.yml` for every relevant source change.
   The post-run XCResult validator additionally requires the exact critical scan,
   offline-finalization, Community/Explore, and Field Chat regressions described
   above to pass, so one unrelated passing case cannot stand in for a protected
   workflow.
+- **`apps/ios/MerianTests/Features/Capture/Scan/`**: Mirrors the visual modality
+  owner. `CaptureScanMediaPolicyTests` locks deterministic five-frame sampling,
+  short-duration clamping, and prepared playback presentation.
+  `CaptureScanOperationStateTests` proves replacement cancels and generation-
+  fences recording/progress tasks, including stale task installation.
+  `CaptureScanDependenciesTests` proves focus, stop/cancel, and optical/regular
+  zoom feedback use injected semantic actions.
+  `CaptureScanTemporaryFileLeaseTests` proves unaccepted artifacts are deleted
+  and accepted artifacts survive ownership transfer. `DetachedWorkTests` proves
+  parent cancellation reaches a detached media worker and is observed by its
+  caller. `CaptureScanArchitectureTests` enforces the
+  Models/Services/ViewModels/Views/Components/Modifiers ownership tree, removes
+  the former aggregate `Capture.swift`, rejects direct service resolution, keeps
+  Models platform-neutral, and caps every production Scan Swift file at 600
+  lines. Build-for-testing typechecks these suites without camera hardware;
+  actual execution still requires a functioning simulator or device test
+  destination.
+- **`apps/ios/MerianTests/Features/Capture/Submission/`**: Mirrors the durable
+  admission/dispatch owner. `CaptureSubmissionPolicyTests` locks deterministic
+  media, goal-preference, admission, and latency mapping.
+  `CaptureSubmissionEnvironmentContextGraceTests` proves the one-shot 150 ms
+  race returns a sendable snapshot, rejects a late loser, and leaves telemetry
+  work outside the deadline. `CaptureSubmissionDeferredContextServiceTests`
+  locks local-before-remote ordering, success, exactly one 500 ms retry, and
+  endpoint, transport, delay, and post-delay cancellation without a second
+  endpoint call. The rehomed `CaptureWorkspaceSubmissionTests` retains the
+  stable workspace test selector and exact queue-first, scan/generation
+  identity, presentation, and visual/nonvisual behavior, including cancellation
+  of captured environment work when queue rejection or queue-only routing leaves
+  no live consumer. `CaptureSubmissionArchitectureTests` rejects old aggregate
+  files, endpoint calls in ViewModels, live resolution or UI imports in Models,
+  unchecked sendability, and production files over 600 lines.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return
@@ -1608,6 +1716,50 @@ Dynamic Type; and light/dark appearance.
   import case also sends the foreground timeout event and asserts the staged
   image and required crop survive. Foreground returns must never be modeled as
   another launch-policy evaluation.
+
+Run the focused Capture Shell matrix after changing its models, services, state,
+view-model extensions, root view, components, or modifiers:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests \
+  -only-testing:merianTests/CaptureShellPresentationPolicyTests \
+  -only-testing:merianTests/CaptureWorkspaceOperationStateTests \
+  -only-testing:merianTests/CaptureWorkspaceDependenciesTests \
+  -only-testing:merianTests/CaptureShellArchitectureTests test
+```
+
+Run the focused Capture Scan matrix after changing visual capture actions, media
+preparation, recording task ownership, viewfinder interaction, or its dependency
+boundary:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CaptureScanMediaPolicyTests \
+  -only-testing:merianTests/CaptureScanOperationStateTests \
+  -only-testing:merianTests/CaptureScanDependenciesTests \
+  -only-testing:merianTests/CaptureScanArchitectureTests \
+  -only-testing:merianTests/CaptureScanTemporaryFileLeaseTests \
+  -only-testing:merianTests/DetachedWorkTests \
+  -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests test
+```
+
+Run the focused Capture Submission matrix after changing admission, staged
+payload normalization, context acquisition, deferred-context delivery, or
+visual/nonvisual/Describe submission orchestration:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CaptureSubmissionPolicyTests \
+  -only-testing:merianTests/CaptureSubmissionEnvironmentContextGraceTests \
+  -only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests \
+  -only-testing:merianTests/CaptureSubmissionArchitectureTests \
+  -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests test
+```
+
 - **`AppTelemetryTests.testExternalImageImportEventContainsOnlyOutcomeAndClientSource`**:
   Guards the privacy boundary by asserting the event contains only `outcome` and
   `event_source`.
@@ -1760,7 +1912,7 @@ import, and permission-denial UI require the physical-device checklist in
 
 Explore Map has separate presentation/state and wire-contract owners. Do not
 move DTO decoding or request-payload tests into the feature suite, and do not
-leave Map view-model policy in the monolithic `merianTests.swift` file.
+return Map view-model policy to the former root `merianTests.swift` aggregate.
 
 - `Features/Explore/Map/ExploreMapPresentationTests.swift` locks singular and
   plural visible-count copy plus camera zoom thresholds and clamping.

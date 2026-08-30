@@ -13,11 +13,14 @@ shared UI, Explore, public map data, and public exports.
 
 Audio-only, description-only, and other non-visual captures resolve the cached
 capture coordinate through the same environment-context path used by camera
-captures before persistence. This ensures a sanitized location label is
-available if the scan or an Explore post later uses `open` or `obscured`
-sharing. Changing a post from `private` to `open` cannot invent a missing label;
-legacy rows with exact coordinates but no `semantic_location` must first be
-repaired with `services/supabase/scripts/retroactive_geocoding.ts`.
+captures. Immediate coordinate telemetry is persisted first; after queue
+acceptance, optional geocoding/WeatherKit context receives the bounded live
+grace and can late-merge into the durable row. This allows a sanitized location
+label to become available if the scan or an Explore post later uses `open` or
+`obscured` sharing without making enrichment a durability dependency. Changing a
+post from `private` to `open` cannot invent a missing label; legacy rows with
+exact coordinates but no `semantic_location` must first be repaired with
+`services/supabase/scripts/retroactive_geocoding.ts`.
 
 `users.default_geoprivacy` is the preference source of truth. New scans send the
 current setting in the identify request where possible, and Edge insert helpers
@@ -55,6 +58,12 @@ coordinate trigger and public-label trigger:
 Local owner-facing privacy uses `ProfileViewModel.defaultGeoprivacy` for
 visibility decisions:
 
+- Settings presents that shared value optimistically. Its
+  `GeoprivacySettingsViewModel` serializes writes and coalesces rapid selections
+  to the latest option. `GeoprivacySettingsDependencies.live` captures the
+  expected account and acquires an account-bound work lease before updating
+  `users.default_geoprivacy`; work for a replaced account is discarded instead
+  of crossing the session boundary.
 - `ScanInformationCard` hides private location/elevation/weather/map, rounds
   obscured coordinates, and shows exact owner-facing context only for `open`.
 - `PrivateScanMapView` is a deliberate owner-only exception to the Insight
@@ -162,6 +171,12 @@ Focused backend coverage lives in:
 
 - `services/supabase/functions/_shared/identify/db_test.ts`
 - `services/supabase/functions/_tests/geoprivacyDb.test.ts`
+
+The iOS interaction contract is covered by
+`apps/ios/MerianTests/Features/Profile/Settings/SettingsPreferenceInteractionTests.swift`.
+It verifies serialized writes, latest-selection coalescing, and
+persist-before-hardware-reconciliation ordering without resolving live account
+or hardware owners.
 
 Use `deno test`, `deno check`, `deno lint`, `swiftlint lint`, and an Xcode build
 for implementation changes. `geoprivacyDb.test.ts` requires a running local

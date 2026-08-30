@@ -1,15 +1,37 @@
 # Capture Submission
 
-The `Submission` directory handles the visual transition between capturing data
-and viewing the result.
+The `Submission` directory owns admission and durable dispatch after a staged
+Capture observation is ready to analyze.
 
 ## Purpose
 
-This area manages the UI and state during the network round-trip. It displays
-the scanning overlay, animates status phrases driven by the concurrent on-device
-`VNClassifyImageRequest`, handles local SwiftData queuing (`OfflineQueuedScan`)
-before network work begins, and orchestrates the presentation of the final
-Insight sheet or durable queued state.
+This area normalizes staged media, admits it to the durable SwiftData queue
+(`OfflineQueuedScan`) before live work begins, coordinates visual and nonvisual
+foreground inference, and prepares the existing Insight or queued presentation.
+Shell owns the mounted UI and presentation timing; `InferenceEngine` owns
+provider dispatch and its concurrent on-device `VNClassifyImageRequest` status
+phrases.
+
+## Ownership
+
+- `Models/` owns deterministic admission, media, goal-preference, and latency
+  policy plus the normalized staged payload and sendable environment-context
+  snapshot.
+- `Services/` composes narrow live admission and context closures, owns the 150
+  ms one-shot context race, formats submission telemetry, and is the only
+  Submission layer that adapts `/update-scan-context`. The deferred-context
+  adapter persists locally before remote delivery and performs at most one
+  remote retry after 500 ms; endpoint, transport, or task cancellation is
+  terminal and does not trigger that retry.
+- `ViewModels/` contains responsibility-specific `CaptureWorkspaceViewModel`
+  extensions for visual, nonvisual, Describe, admission, and presentation
+  orchestration. These extensions issue no endpoint calls.
+
+Submission intentionally has no Views or Components. UI-only selection,
+animation, sheet, focus, and cancellation timing remain with Capture Shell and
+the modality views. Mirrored tests live under
+`MerianTests/Features/Capture/Submission/`; an architecture suite enforces these
+boundaries and the 600-line production-file review guard.
 
 For visual scans, submission passes only the first visual item's existing focus
 region to local analysis. `InferenceEngine` derives one 512 px local image from
@@ -21,24 +43,41 @@ surface cues. It never analyzes the second capture locally or changes the
 ordered images sent to Gemini. Audio-only and Describe submissions retain their
 established analyzing copy.
 
-## Analysis Submission Contract
+## Submission Contract
 
-`Analysis.submitActiveScan()` starts the user-perceived clock when Analyze is
-tapped. It creates one stable `scan_id` and persists the ordered media timeline
-to `OfflineQueuedScan` before live inference is allowed to start. When online,
-it also creates one foreground inference UUID and persists it on the
-scan-ingestion job in the same queue transaction. The live engine receives the
-same scan/generation pair. A failed queue acceptance is a hard failure: source
-files are cleaned up and the UI must not pretend that the scan is analyzing or
-safely queued.
+`CaptureWorkspaceViewModel.submitStagedCapture(...)` starts the user-perceived
+clock when Analyze is tapped. The caller-scoped admission preview may suspend,
+so staged input remains intact and its captured snapshot is revalidated before
+the visual path clears buffers or initiates the queue. Submission then creates
+one stable `scan_id` and persists the ordered media timeline to
+`OfflineQueuedScan` before live inference is allowed to start. A still-online
+foreground route also creates one foreground inference UUID and persists it on
+the scan-ingestion job in the same queue transaction; a queue-only route does
+not. The live engine receives the same scan/generation pair. A failed queue
+acceptance is a hard failure: source files are cleaned up and the UI must not
+pretend that the scan is analyzing or safely queued.
+
+The context lookup captured from the shutter or recorder has one live consumer.
+Submission cancels it whenever queue acceptance fails or a pre-dispatch branch
+hands sole ownership to the durable queue, including queue-only admission,
+connectivity loss, supersession, and an unavailable foreground generation. Only
+a lookup that loses the 150 ms grace race remains alive for the late-context
+merge. That late task retains the injected service and bounded telemetry inputs,
+not the workspace view model or full display-image collection. A primary gallery
+image cancels any irrelevant live-device lookup and uses only its embedded
+historical context.
 
 For an eligible online live-camera still scan with no audio or video, the
 durable row is created with `startSyncImmediately: false`. The
 shutter-prefetched WeatherKit and reverse-geocoding task receives at most 150 ms
 after queue acceptance. If it is still running, inference uses shutter-time
 coordinates, date/time, distance, and cached telemetry. When the context task
-later finishes it updates both the local queue and `/update-scan-context`; it
-never resubmits images or triggers another Gemini call.
+later finishes, `CaptureSubmissionDeferredContextService` updates the local
+queue first and then `/update-scan-context`, retrying that remote update once
+after 500 ms when necessary. It never resubmits images or triggers another
+Gemini call. The 150 ms value bounds only the optional environment-context wait;
+it is not a total tap-to-dispatch deadline. Existing telemetry preparation,
+including optional LiDAR/Vision size estimation, still runs after that race.
 
 The online check is repeated after that 150 ms grace because the path monitor's
 earlier value is advisory and connectivity may change while context resolves. An
@@ -199,7 +238,7 @@ existing stored deadlines are not rewritten.
 
 `CaptureGoalPreferencePolicy` may snapshot the visibly selected standard goal
 when Field trips and the **Field trip goals** setting are enabled, visual Scan
-is active, and Capture is not refining. `Analysis` performs the final media
+is active, and Capture is not refining. Submission performs the final media
 gate: only camera still images with no gallery still, audio, or video preserve
 the hint. Automatic single-shot, crop-confirmed, and manual submission share
 this path. Gallery, mixed camera/gallery, Describe, Record, refinement, hidden

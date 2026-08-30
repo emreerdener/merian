@@ -77,8 +77,9 @@ The AI inference layer is split across three files under
   and cleared in both `cancelActiveRequest()` and `prepareForNewScan()`,
   ensuring that a write task from a previous scan's review action cannot commit
   stale data after the next scan has started.
-- **`CaptureTelemetry` abstraction (`Analysis.swift`)**: Telemetry context
-  creation is strictly abstracted away from UI controllers. Instead of
+- **`CaptureTelemetry` abstraction
+  (`Capture/Submission/Services/CaptureSubmissionTelemetry.swift`)**: Telemetry
+  context creation is strictly abstracted away from UI controllers. Instead of
   view-layers writing inline logic trees to calculate and map GPS/Weather
   metrics manually, structural instantiation strictly defers to the
   `.resolveForActiveScan()` static wrapper. This strictly ensures that `Float`
@@ -1281,14 +1282,25 @@ insight sheet display.
   an `OPTIONS` request to `/identify-multimodal` through `MerianNetworkClient`'s
   actual TLS-pinned `URLSession`. This warms the same connection pool used by
   inference instead of warming only the Supabase SDK's separate auth session.
-- **Bounded environmental-context grace** (`Analysis.swift`): durable queue
-  acceptance remains mandatory. For eligible live-camera still scans, WeatherKit
-  and reverse geocoding receive at most 150 ms after acceptance. On timeout,
-  inference starts with shutter-time coordinates/date/time/distance plus cached
-  telemetry. Late weather or location is merged locally and through
-  `/update-scan-context`; it never causes a second Gemini call. Gallery,
-  audio-bearing, and video submissions keep their prior full-context behavior in
-  this pass.
+- **Bounded environmental-context grace**
+  (`Capture/Submission/Services/CaptureSubmissionEnvironmentContextGrace.swift`):
+  durable queue acceptance remains mandatory. For eligible live-camera still
+  scans, WeatherKit and reverse geocoding receive at most 150 ms after
+  acceptance. That budget races context acquisition only; it does not bound
+  existing telemetry preparation, including optional LiDAR/Vision size
+  estimation, or total dispatch time. On timeout, submission continues with
+  shutter-time coordinates/date/time/distance plus cached telemetry. Late
+  weather or location is merged locally and through `/update-scan-context`; it
+  never causes a second Gemini call. The deferred service writes locally before
+  remote delivery and retries a real first failure at most once after 500 ms;
+  endpoint, transport, and task cancellation are terminal. Queue rejection,
+  queue-only routing, connectivity loss, supersession, and unavailable
+  foreground ownership cancel context work with no live consumer. A
+  timeout-losing late task retains only the injected deferred-context service
+  and bounded telemetry inputs. A primary gallery image cancels any unrelated
+  live-device lookup and uses its embedded historical context. Gallery,
+  audio-bearing, and video submissions otherwise keep their prior full-context
+  behavior in this pass.
 - **Live/background upload handoff**: the eligible active live-camera still scan
   is durably queued but excluded from background upload until the inline request
   body finishes sending. Upload progress releases the queue immediately; a
@@ -1349,10 +1361,11 @@ insight sheet display.
   reduces vision input-token cost by ~75% for free users with negligible
   accuracy impact for common-species macro-feature identification. Pro
   resolution is preserved to support the fine morphological detail required for
-  subspecies and cultivar discrimination.
-  `diContainer.revenueCatManager.isProActive` is evaluated at the capture
-  boundary — before encoding — in both `Capture.swift` (camera shutter) and
-  `CaptureWorkspaceViewModel.swift` (gallery picker), so the image is already
+  subspecies and cultivar discrimination. The live entitlement owner is
+  evaluated at the capture boundary before encoding: Scan carries it through
+  `CaptureWorkspaceViewModel+PhotoCapture.swift` into
+  `CaptureScanStillMediaPreparer`, while gallery input uses
+  `CaptureWorkspaceViewModel+Imports.swift`. The image is therefore already
   correctly sized before the Edge function receives it.
 - **Image compression quality 0.85** (`MerianConfig.imageCompressionQuality`):
   Raised from 0.80 to preserve fine morphological detail (feather barbs, insect

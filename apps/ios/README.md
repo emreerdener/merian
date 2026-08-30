@@ -118,9 +118,12 @@ Profile is split by user-facing responsibility:
 - [User Profile](Merian/Features/Profile/UserProfile/README.md) owns the visible
   identity card, local stats and achievements, persona and terrarium
   presentation, and the signed-in user's published scans.
-- `Profile/Settings` owns preferences and account actions, while its Plan,
-  Notifications, Changelog, and Feedback product areas own their corresponding
-  screens and state.
+- [Settings](Merian/Features/Profile/Settings/README.md) owns preferences,
+  export, resources, and account actions. Its root Models, Services, ViewModels,
+  Views, and grouped Components separate presentation from live side effects.
+  Plan and Feedback mirror that full shape, Notifications uses
+  Models/Services/ViewModels/Views, and Changelog remains a local Models/Views
+  catalog.
 - `Profile/Shared` owns account and public-identity state consumed across
   Profile product areas. UserProfile view models depend on narrow live adapters
   rather than resolving shared managers or endpoints in views.
@@ -133,6 +136,74 @@ refreshes the value projection before every evaluation so in-place inference
 updates cannot reuse stale fields. Avatar preparation and upload are
 request/account fenced and consult the view's live typed-presentation slot
 before publishing a preview or error.
+
+Within Settings, closure-based Services are the only owners that resolve
+endpoints, Supabase SDK writes, notification authorization, platform actions, or
+RevenueCat actions. The Profile Shell composes the account-fenced geoprivacy and
+hardware-reconciliation adapters that require its environment-owned managers;
+other Settings state owners use their subarea's narrow default live dependency.
+Observable state owners coordinate lifecycle operations, while leaf views retain
+navigation and other UI-only timing. A feature test enforces this boundary and a
+600-line production-file ceiling.
+
+## Capture Ownership
+
+[Capture Shell](Merian/Features/Capture/Shell/README.md) owns the ordered
+Scan/Record/Describe pager, fixed capture chrome, root presentation and route
+handoffs, external-import recovery, and the root capture state owner. Its
+`Models`, `Services`, `ViewModels`, `Views`, `Modifiers`, and grouped
+`Components` separate deterministic presentation policy from live work.
+
+Only Shell Services construct the live network-client, URL-session,
+connection-prewarm, remote-media, share/account lookup, keyboard platform, and
+haptic adapters. The keyboard service owns raw UIKit notification publishers and
+actions; the mounted modifier only binds those publishers to SwiftUI state.
+Models remain deterministic. The view model receives small closure-based
+dependencies and keeps mutable operation tasks and one-shot handoff state inside
+an encapsulated owner with private mutable storage. Views and components retain
+UI-only selection, scrolling, focus, expansion, and dismissal timing and issue
+no endpoint calls. Feature tests mirror this structure and enforce the
+live-service and deterministic Models boundaries, raw-notification confinement,
+and a 600-line ceiling for production Shell files.
+
+Capture-wide layout context lives in `Capture/Shared`, including the
+composing-center environment value supplied by Shell and consumed by Record. The
+cross-feature immutable `CGImage` concurrency wrapper lives in `Core/Media`
+because Insights also consumes it.
+
+The modality folders remain independent: `Scan` owns camera and video input,
+`Record` owns audio capture, `Describe` owns typed and dictated observations,
+`Staging` owns the mixed-media draft and crop presentation, and `Submission`
+owns the shared live/offline analysis pipeline.
+
+[Capture Submission](Merian/Features/Capture/Submission/README.md) separates
+deterministic admission/media/goal policy and normalized payload values in
+`Models`, narrow live admission/context/deferred-update adapters and telemetry
+in `Services`, and visual/nonvisual/Describe orchestration in responsibility-
+specific `CaptureWorkspaceViewModel` extensions. Submission has no view layer;
+Shell and modality views retain UI-only timing. The actor-backed 150 ms context
+race transfers only a sendable snapshot and bounds environment-context waiting,
+not total dispatch preparation. A branch with no foreground consumer cancels its
+captured lookup; only a timeout-losing lookup remains for late enrichment, and
+that task retains the injected service and bounded telemetry inputs rather than
+the workspace view model or full display-image collection. The deferred-context
+service updates the durable local queue before `/update-scan-context` and
+performs at most one remote retry after 500 ms; endpoint, transport, or task
+cancellation is terminal. View-model extensions make no endpoint calls, mirrored
+tests enforce the ownership boundary, and every production Submission file
+remains within the 600-line review guard.
+
+[Capture Scan](Merian/Features/Capture/Scan/README.md) separates
+platform-neutral media requests/results, narrow live
+camera/context/library/media/feedback adapters, bounded still/video/WAV
+preparation, leased temporary media artifacts, cancellation-propagating detached
+workers, generation-fenced recording tasks, and viewfinder UI. Scan views
+perform no networking or global service resolution, and every production Scan
+file remains within the 600-line review guard. The reusable crop processor, crop
+UI, and presentation-only flash control live in `Core/Media` and `Core/UI`
+because Profile or the shared Capture bar also consume them. Capture-specific
+editable image context remains in `Capture/Shared`; Profile owns its own
+avatar-crop presentation value.
 
 ## AI And Foreground Analysis
 

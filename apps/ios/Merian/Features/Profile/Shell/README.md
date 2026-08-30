@@ -1,10 +1,26 @@
 # Profile Shell
 
-The `Shell` directory acts as the entry point and routing container for the Profile feature. 
+`Shell/` is the thin container around Profile's sibling product areas. It owns
+how those areas enter the app and fit together; it does not own their domain
+logic.
 
-## Structure
+## Why “Shell”
 
-It primarily contains the top-level container, `ProfileView`, which is responsible for orchestrating the navigation and state between the different areas of the profile (such as the main User Profile tab and the Settings tab).
+The name describes a boundary that wraps feature content with shared navigation
+and composition. `ProfileView` supplies the close chrome, horizontal
+Profile/Settings pager, segmented tab selection, and Profile-only toolbar. The
+content inside that shell remains owned by `UserProfile/` and `Settings/`.
 
-## Purpose
-Following the Merian iOS architecture guidelines, the `Shell` isolates the routing, layout chrome, and tab-level coordination from the individual domain logic. This keeps `UserProfile` and `Settings` focused purely on their respective UI and logic without worrying about how they fit into the broader navigation hierarchy.
+## Dependency composition
+
+`ProfileView` is also the composition point for Settings dependencies that need
+environment-owned state. It builds the account-fenced geoprivacy adapter from
+the active `SupabaseManager` and the expedition-mode reconciliation action from
+the environment `HardwareOrchestrator`, then injects both into
+`SettingsTabView`. Settings subareas with live side effects construct their
+narrow default dependencies at their own state-owner boundary.
+
+The Shell must not absorb Profile tab loading, Settings interaction state,
+endpoint calls, SwiftData queries, RevenueCat actions, or account-deletion
+protocol ordering. Those responsibilities stay with the product-area Services,
+ViewModels, and established Core managers.

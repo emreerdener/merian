@@ -86,9 +86,9 @@ triggering excessive SwiftUI view rebuilds.
   position.
 - **`audioFilePath: String?`** — set to the WAV filename only when the user
   confirms via review UI; consumed and cleared by
-  `CaptureWorkspaceView.onChange`, which either stages the clip into
-  `stagedCapture.audios` for the shared mixed-media toolbar flow or routes it
-  through `submitAudio` for the audio-only flow, then calls `reset()`.
+  `CaptureWorkspaceOrchestrationModifier.onChange`, which either stages the clip
+  into `stagedCapture.audios` for the shared mixed-media toolbar flow or routes
+  it through `submitAudio` for the audio-only flow, then calls `reset()`.
 - **`startRecording() async throws`**: guards with
   `!isRecording && !isStartingRecording` (the `isStartingRecording` flag is set
   before any `await` to prevent a second call from slipping through the guard
@@ -135,8 +135,8 @@ triggering excessive SwiftUI view rebuilds.
 - **`reset()`** — tears down the engine/tap/session lease, deletes any
   unsubmitted pending temp file, clears playback/review/spectrogram state, and
   prepares the next session. Call after `audioFilePath` has been consumed by the
-  `CaptureWorkspaceView.onChange` handoff (stage-or-submit), or when
-  `CaptureWorkspaceView` disappears.
+  `CaptureWorkspaceOrchestrationModifier.onChange` handoff (stage-or-submit), or
+  from that modifier when `CaptureWorkspaceView` disappears.
 - **Playback finalization**: `playbackCompletionTask` is now a stored handle,
   cancelled by `stopPlayback()` and `reset()`. This prevents an orphaned sleep
   task from retaining `AVAudioPlayer` and from clearing a newer playback session
@@ -550,7 +550,11 @@ triggering excessive SwiftUI view rebuilds.
   falls back to the original recording only when it remains within the hard
   video upload cap. Extracted video-audio WAVs are exported into Documents with
   `AVAssetReader` + `AVAssetWriter` and attached to the video media reference
-  for inference replay rather than displayed as separate audio pages. The
+  for inference replay rather than displayed as separate audio pages. New WAV
+  and compressed-playback files remain in `CaptureScanTemporaryFileLease`
+  ownership until staging accepts them. Parent cancellation propagates through
+  `DetachedWork`, and cancellation, timeout, validation failure, supersession,
+  or an unconsumed late result deletes every unaccepted artifact. The
   queue/database layers derive legacy arrays (`localImagePaths`,
   `localVideoPaths`, `audioFilePaths`, `observationContextsJSON`) from that same
   timeline at the edges. For video, `thumbnailImagePaths` includes the poster
@@ -987,11 +991,11 @@ triggering excessive SwiftUI view rebuilds.
 | -------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `hasUnseenScan`                        | `"hasUnseenScan"`                         | `AppSettings` typed property. Read by `MainTabBar`; written by live/background inference completion; cleared by `InsightSheetView`, `CameraSheetRouter`, and `ScansShellViewModel` from Scans-sheet lifecycle triggers.                                                                                               |
 | `hasCompletedOnboarding`               | `"hasCompletedOnboarding"`                | Legacy routing preference only. `MerianApp` combines it with current required consent and the manager's pending restoration signal to choose onboarding, a launch-matched restoration surface, or the workspace. Active provider/hardware lifecycle behavior still requires current adult, Terms, and Gemini consent. |
-| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `DeleteAccountSheet` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. This key must survive account-local database cleanup.                                                                                          |
+| `pendingManualAppleRevocationNotice`   | `"pendingManualAppleRevocationNotice.v1"` | `SupabaseManager` persists the legacy Apple fallback before sign-out; `MerianApp` restores the manual-removal alert on launch/foreground until explicit resolution. The Settings sheet only explains the two revocation paths. This key must survive account-local database cleanup.                                  |
 | `themeMode`                            | `"themeMode"`                             | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                                                          |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                  | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                   |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`            | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                                                   |
-| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                 | `CaptureWorkspaceViewModel`, `DescribeAnalysis`, onboarding migration                                                                                                                                                                                                                                                 |
+| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                 | `CaptureWorkspaceViewModel`, `CaptureWorkspaceViewModel+DescribeSubmission`, onboarding migration                                                                                                                                                                                                                     |
 | `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`              | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                            |
 | `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | one-time migration in `MerianApp`                                                                                                                                                                                                                                                                                     |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"`  | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                                           |
@@ -1459,6 +1463,10 @@ consults that Keychain entry.
 - `DetachedWork.fireAndForget(...)` replaces ad hoc `Task.detached` in
   high-level app flows so the exceptional escape from structured concurrency
   remains explicit and lintable.
+- `DetachedWork.value(...)` retains the detached task handle, forwards parent
+  cancellation to it, and checks cancellation before and after accepting its
+  result. Detached operations still check cancellation between expensive native
+  stages and retain cleanup ownership for any output that can arrive late.
 - Rule: if a detached boundary is still needed, route it through `DetachedWork`;
   otherwise prefer structured `Task {}` or actor-owned APIs.
 

@@ -5793,9 +5793,13 @@ service-role-only `apply_or_stage_scan_context` RPC owns the update, so a caller
 cannot attach context to another user's scan.
 
 The route returns `409` when neither the owner scan nor its ingestion claim is
-visible yet. The iOS live path retries once after 500 ms and preserves the same
-context in the durable local queue; this condition never causes a second
-identification request.
+visible yet. On iOS, `CaptureSubmissionDeferredContextService` first preserves
+the same context in the durable local queue, then attempts this endpoint and
+retries the remote update at most once after 500 ms. The service is the
+Submission network boundary; Capture view-model extensions do not call the
+endpoint. Endpoint, transport, or task cancellation is terminal and never starts
+the retry; the durable local copy remains available for normal queue recovery.
+This condition never causes a second identification request.
 
 ## Text-Only Describe Path
 

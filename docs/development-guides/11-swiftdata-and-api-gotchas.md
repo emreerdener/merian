@@ -475,8 +475,10 @@ This pattern is structurally broken for three compounding reasons:
 
 ### ✅ The Pattern: Enqueue Immediately at Submission
 
-Call `enqueueCapture()` synchronously **before any async work begins** in
-`submitActiveScan`. Use the already-cached GPS
+The caller-scoped admission preview may suspend before a queue row exists, so it
+must preserve staged input. After that preview succeeds and the captured staging
+snapshot is revalidated, call `enqueueCapture()` synchronously before awaiting
+environment context or starting provider work. Use the already-cached GPS
 (`EnvironmentContextManager.lastKnownLocation` — live location tracking runs
 while the camera is active). Generate both a stable `scanId` and, when a live
 request is eligible, a foreground inference UUID. The queue transaction must
@@ -484,10 +486,10 @@ persist that UUID on the scan-ingestion job, and the concurrent live inference
 must receive the same value.
 
 ```swift
-// In submitActiveScan — BEFORE the Task {} block:
+// In submitStagedCapture, after admission and before context/provider Tasks:
 let scanId = UUID().uuidString.lowercased()
 let foregroundGeneration =
-    offlineQueueManager.isOnline ? UUID() : nil
+    admissionRoute == .foreground && offlineQueueManager.isOnline ? UUID() : nil
 diContainer.offlineQueueManager.enqueueCapture(
     imageDatas: datasToAnalyze,
     telemetry: immediateTelemetry,

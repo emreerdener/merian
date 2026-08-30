@@ -33,7 +33,8 @@ to the Describe page and refine their input without losing their text.
 ### Submission Routing (`CaptureWorkspaceViewModel.submitDescribe`)
 
 `submitDescribe(observationContext:modelContext:)` is an extension on
-`CaptureWorkspaceViewModel` in `DescribeAnalysis.swift`. It routes based on what
+`CaptureWorkspaceViewModel` in
+`CaptureWorkspaceViewModel+DescribeSubmission.swift`. It routes based on what
 else is staged:
 
 | Condition                                   | Path                                                                                                                               |
@@ -44,13 +45,17 @@ else is staged:
 
 `submitDescribeSolo` mirrors the resilience pattern of the other capture paths:
 it always inserts a zero-byte `.staged` nonvisual queue row before any provider
-dispatch. An eligible online request persists and carries a foreground inference
-UUID into `InferenceEngine.analyzeNonVisual`; an offline request retains the
-same durable row, skips the live engine, and surfaces a queued toast. Because
-Describe shares `submitNonVisualCapture`, it also consumes an existing
-environment prefetch or resolves the pinned cached location before persistence;
-a description-only scan can therefore produce the same privacy-filtered Explore
-location label as a visual or audio scan.
+dispatch. A still-online foreground route persists and carries a foreground
+inference UUID into `InferenceEngine.analyzeNonVisual`; an offline or typed
+queue-only route retains the same durable row, skips the live engine, and
+surfaces a queued toast. Because Describe shares `submitNonVisualCapture`, it
+also consumes an existing environment prefetch or starts a lookup from the
+pinned cached location. Cached telemetry is persisted first; only after queue
+acceptance does the optional context receive a 150 ms live-request grace, with a
+later result merged locally and through `/update-scan-context`. A branch with no
+foreground consumer cancels the lookup. A description-only scan can therefore
+produce the same privacy-filtered Explore location label as a visual or audio
+scan without making WeatherKit or geocoding a durability dependency.
 
 **Submission rule**: descriptions participate in the same 2-item total capacity
 as images and audio clips. Supported combinations are any one- or two-item

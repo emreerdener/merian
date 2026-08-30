@@ -239,8 +239,10 @@ as their permanent engineering identity.
   mandatory gate. The eligible live-camera still path waits no more than 150 ms
   for shutter-prefetched weather/geocoding, defers its competing background
   upload until the inline body is sent, and commits parsed/persisted results
-  before awards or Field trips. The Edge path uses verified ES256 claims, one
-  atomic pre-inference RPC, at most one combined post-inference dictionary RPC,
+  before awards or Field trips. That 150 ms budget covers only optional context
+  waiting, not total client dispatch preparation; existing bounded telemetry
+  work may follow. The Edge path uses verified ES256 claims, one atomic
+  pre-inference RPC, at most one combined post-inference dictionary RPC,
   privacy-safe `Server-Timing`, and awaited durable finalization. A primary
   cache miss may require bounded Wikipedia/GBIF species resolution before
   success; analytics, group tags, and candidate enrichment remain optional

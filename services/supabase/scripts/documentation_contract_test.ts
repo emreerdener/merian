@@ -637,7 +637,7 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
     inAppChangelog,
     resultsBadgeSource,
     planCardSource,
-    preferencesSource,
+    developerSectionSource,
   ] = await Promise.all([
     read("docs/backend-and-data/18-complimentary-pro-scans.md"),
     read("docs/product/01-master-product-document.md"),
@@ -659,7 +659,7 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
       "apps/ios/Merian/Features/Profile/Settings/Plan/Components/PlanCard.swift",
     ),
     read(
-      "apps/ios/Merian/Features/Profile/Settings/Components/Preferences.swift",
+      "apps/ios/Merian/Features/Profile/Settings/Components/Developer/SettingsDeveloperSection.swift",
     ),
   ]);
 
@@ -724,7 +724,15 @@ Deno.test("complimentary scan documentation preserves the audited contract", asy
     planCardSource,
     '"\\(scansRemaining) of 3 Pro scans remain',
   );
-  assertStringIncludes(preferencesSource, 'Label("Preview Pro scans"');
+  assertStringIncludes(
+    developerSectionSource,
+    "ComplimentaryScansDeveloperPreview()",
+  );
+  assertStringIncludes(developerSectionSource, '"Preview Pro scans"');
+  assertStringIncludes(
+    developerSectionSource,
+    '"Settings_PreviewComplimentaryScans"',
+  );
 
   for (const customerSource of [terms, changelog, support, releaseNotes]) {
     assertEquals(/\bcomplimentary\b/i.test(customerSource), false);

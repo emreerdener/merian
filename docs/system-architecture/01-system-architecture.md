@@ -158,17 +158,19 @@ orphaned object does not reconstruct its relational context.
   or analyzing state.
 - Eligible online live-camera still submissions create the durable row with
   immediate background sync suppressed for that process-local `scan_id`.
-  Inference waits no more than 150 ms for shutter-prefetched
-  WeatherKit/geocoding, then begins with available coordinates and cached
-  telemetry. The inline request's body-upload callback releases the queue row; a
-  two-second fail-safe, request failure, connectivity loss, app backgrounding,
-  or relaunch also makes it eligible. Late context is merged locally and through
-  `/update-scan-context` without another model call. Gallery, audio-bearing, and
-  video submissions remain instrumented but retain their prior context wait and
-  upload scheduling behavior. Queue eligibility is separate from the open
-  Insight's exact-ID presentation handoff; source and protected transport tests
-  enforce the split, while exact-SHA and device acceptance remain release-gated
-  by the
+  Submission waits no more than 150 ms for shutter-prefetched
+  WeatherKit/geocoding, then continues with available coordinates and cached
+  telemetry. That budget covers context waiting only; bounded telemetry
+  preparation may still precede provider dispatch. The inline request's
+  body-upload callback releases the queue row; a two-second fail-safe, request
+  failure, connectivity loss, app backgrounding, or relaunch also makes it
+  eligible. Late context is merged locally and through `/update-scan-context`
+  without another model call. Unconsumed context work is cancelled when no
+  foreground attempt owns it. Gallery, audio-bearing, and video submissions
+  remain instrumented but retain their prior context wait and upload scheduling
+  behavior. Queue eligibility is separate from the open Insight's exact-ID
+  presentation handoff; source and protected transport tests enforce the split,
+  while exact-SHA and device acceptance remain release-gated by the
   [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 - `NWPathMonitor` observes off-grid boundaries, debouncing signals for 3 seconds
   when connectivity returns. `OfflineJobScheduler` then drains runnable scan

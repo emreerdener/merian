@@ -272,6 +272,14 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   or select a dashboard offering: App Store Connect product readiness,
   RevenueCat package mapping, and current-offering selection must be completed
   externally before release.
+- Settings Plan presentation reads the environment-owned offering and
+  entitlement snapshot reactively. `PaywallDependencies` and
+  `ManagePlanDependencies`, together with `PlanCardDependencies`, are the narrow
+  action boundary for purchase, restore, subscription management, and code
+  redemption. Their `@MainActor` view models reject purchase/restore overlap,
+  serialize restore work, and prevent code redemption from competing with an
+  active restore; SwiftUI views retain only package selection and presentation
+  timing.
 - Evaluates paid `isSubscribed` state via `.customerInfo()` and combines it with
   the current session's server-verified complimentary entitlement.
   - `isSubscribed` checks for active entitlements across the standard Pro

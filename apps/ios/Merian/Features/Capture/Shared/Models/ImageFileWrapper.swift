@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 struct ImageFileWrapper: Transferable, Sendable {
     let url: URL
-    
+
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .image) { wrapper in
             SentTransferredFile(wrapper.url)

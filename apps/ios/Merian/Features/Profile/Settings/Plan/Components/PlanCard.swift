@@ -1,48 +1,35 @@
 import SwiftUI
 
-enum ComplimentaryScanDisplayState: Equatable {
-    case available(scansRemaining: Int)
-    case exhausted
-
-    var scansRemaining: Int {
-        switch self {
-        case .available(let scansRemaining):
-            scansRemaining
-        case .exhausted:
-            0
-        }
-    }
-
-    var hasAccess: Bool {
-        switch self {
-        case .available:
-            true
-        case .exhausted:
-            false
-        }
-    }
-
-    var isExhausted: Bool {
-        self == .exhausted
-    }
-}
-
-enum ComplimentaryPlanDetailContext {
-    case hidden
-    case results
-    case settings
-
-    var showsDetails: Bool {
-        self != .hidden
-    }
-}
-
 struct PlanCard: View {
-    @Environment(RevenueCatManager.self) var revenueCat
+    @Environment(RevenueCatManager.self) private var revenueCat
     @Binding var showPaywall: Bool
     var complimentaryDetailContext: ComplimentaryPlanDetailContext = .hidden
     var complimentaryDisplayOverride: ComplimentaryScanDisplayState?
     @State private var entitlement = EntitlementManager.shared
+    private let dependencies: PlanCardDependencies
+
+    init(
+        showPaywall: Binding<Bool>,
+        complimentaryDetailContext: ComplimentaryPlanDetailContext = .hidden,
+        complimentaryDisplayOverride: ComplimentaryScanDisplayState? = nil
+    ) {
+        _showPaywall = showPaywall
+        self.complimentaryDetailContext = complimentaryDetailContext
+        self.complimentaryDisplayOverride = complimentaryDisplayOverride
+        dependencies = .live
+    }
+
+    init(
+        showPaywall: Binding<Bool>,
+        complimentaryDetailContext: ComplimentaryPlanDetailContext = .hidden,
+        complimentaryDisplayOverride: ComplimentaryScanDisplayState? = nil,
+        dependencies: PlanCardDependencies
+    ) {
+        _showPaywall = showPaywall
+        self.complimentaryDetailContext = complimentaryDetailContext
+        self.complimentaryDisplayOverride = complimentaryDisplayOverride
+        self.dependencies = dependencies
+    }
 
     private var isSubscribed: Bool {
         complimentaryDisplayOverride == nil && revenueCat.isSubscribed
@@ -75,7 +62,7 @@ struct PlanCard: View {
         if hasComplimentaryPro { return "Pro" }
         return "Free"
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .top) {
@@ -90,15 +77,15 @@ struct PlanCard: View {
                             .foregroundColor(.secondary)
                             .tracking(1)
                     }
-                    
+
                     Text(planTitle)
                         .font(.system(.title, design: .serif))
                         .fontWeight(.bold)
                         .foregroundColor(.primary)
                 }
-                
+
                 Spacer()
-                
+
                 if isProActive {
                     Image("luna-moth")
                         .resizable()
@@ -108,19 +95,19 @@ struct PlanCard: View {
                     Image("compass")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 56, height: 56)     
+                        .frame(width: 56, height: 56)
                 }
             }
-            
+
             Text(planSummary)
                 .font(.system(.subheadline))
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .lineSpacing(2)
-            
+
             Button(action: {
                 if isSubscribed {
-                    revenueCat.showManageSubscriptions()
+                    dependencies.showManageSubscriptions()
                 } else {
                     showPaywall = true
                 }

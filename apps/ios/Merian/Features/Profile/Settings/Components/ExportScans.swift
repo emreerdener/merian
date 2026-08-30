@@ -7,15 +7,14 @@ struct ExportScans: View {
     @Binding var isExporting: Bool
     @Binding var exportUrl: URL?
     var onExportRequested: (() -> Void)?
-    
-    @State private var hasRequestedExport = false
-    @State private var errorMessage: String?
-    
+
+    @State private var viewModel = ExportScansViewModel()
+
     var body: some View {
         Section {
             if !supabase.isGuestUser {
                 // Export Scans
-                if hasRequestedExport {
+                if viewModel.hasRequestedExport {
                     HStack {
                         Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
                         Text("Export queued! We'll email you the download link when it's ready.")
@@ -33,35 +32,23 @@ struct ExportScans: View {
                 } else {
                     Button(action: {
                         Task(priority: .userInitiated) {
-                            isExporting = true
-                            do {
-                                // Maps request completely off timeout logic!
-                                try await MerianNetworkClient.shared.requestDwcAExport(scope: "personal")
-                                self.isExporting = false
-                                withAnimation { self.hasRequestedExport = true }
-                                self.onExportRequested?()
-                            } catch let error as MerianError {
-                                isExporting = false
-                                if case .httpError(let statusCode, _) = error, statusCode == 429 {
-                                    self.errorMessage = "You can only generate one Darwin Core Archive every 24 hours. Your most recent export was already emailed to you."
-                                } else {
-                                    self.errorMessage = "Failed to queue export. Please try again later."
+                            let didRequest = await viewModel.requestExport()
+                            if didRequest {
+                                withAnimation {
+                                    viewModel.presentSuccessfulRequest()
                                 }
-                            } catch {
-                                MerianLog.network.error("DwC-A export request failed: \(error, privacy: .private)")
-                                isExporting = false
-                                self.errorMessage = "An unexpected error occurred."
+                                onExportRequested?()
                             }
                         }
                     }) {
                         HStack {
-                            if isExporting {
+                            if viewModel.isRequesting {
                                 ProgressView().padding(.trailing, 8)
                             }
                             Text("Export scans (DwC-A)")
                         }
                     }
-                    .disabled(isExporting)
+                    .disabled(viewModel.isRequesting)
                 }
             } else {
                 Text("Sign in to export data")
@@ -76,14 +63,17 @@ struct ExportScans: View {
             Text("Darwin Core Archive (DwC-A) exports package your entire cloud collection into a standardized scientific format.")
         }
         .alert("Export Failed", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
             Button("OK", role: .cancel) { }
         } message: {
-            if let errorMessage = errorMessage {
+            if let errorMessage = viewModel.errorMessage {
                 Text(errorMessage)
             }
+        }
+        .onChange(of: viewModel.isRequesting, initial: true) { _, isRequesting in
+            isExporting = isRequesting
         }
     }
 }

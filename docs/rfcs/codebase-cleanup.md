@@ -261,6 +261,75 @@ Implemented Profile slice:
   recovery presentation, achievement policy, actor-cache replacement, and
   projection behavior. Every production UserProfile file stays below the pass's
   600-line guard.
+- `Profile/Settings` now separates root and subarea presentation models, narrow
+  account/export/preference/notification/RevenueCat Services, observable
+  lifecycle state, thin Views, and grouped Components. Views and components
+  perform no endpoint, Supabase SDK, notification-center, app-container,
+  repository, or platform-action lookup. Account deletion still delegates its
+  durable protocol and recovery to `SupabaseManager`, with local purge behind a
+  small adapter. Feedback, notification, export, sign-out/deletion, and plan
+  state have deterministic suites; an architecture test locks the live-service
+  boundary and 600-line ceiling. Cross-feature complimentary-scan display state
+  moved to `Core/UI/Models`. The Profile Shell composes the environment-owned
+  geoprivacy and hardware adapters. Geoprivacy writes are account-fenced,
+  serialized, and latest-selection-coalesced; expedition mode persists before
+  constraint reevaluation; notification refreshes discard stale generations; and
+  sign-out, deletion, export, survey, purchase, restore, and redemption actions
+  reject conflicting overlap.
+- `Capture/Shell` now separates deterministic media and presentation models,
+  closure-based live Services, responsibility-specific view-model extensions,
+  grouped goal/media/shared Components, root Views, and routing/lifecycle/
+  presentation Modifiers. Services alone construct the live network client,
+  remote-media URL session, connection prewarm, share/account lookups, keyboard
+  platform actions, and feedback adapters. Models remain deterministic. An
+  encapsulated operation-state owner contains route handoffs, timeout
+  protection, import coalescing, crop ordering, and mutable task handles in
+  private storage. The external-import owner performs its retry decision and
+  task-handle release atomically on the MainActor, closing the completion-time
+  lost-wakeup window. UI-only pager, focus, expansion, scroll, and exact
+  dismissal timing remain in Views and Modifiers. Mirrored tests retain the
+  canonical workspace selector, add deterministic policy and operation-state
+  coverage, and enforce the live-service and Models boundaries plus a 600-line
+  production-file ceiling. Cross-modality composing layout moved to
+  `Capture/Shared/Utilities`, and the image wrapper shared with Insights moved
+  to `Core/Media`; Shell Models now remain free of SwiftUI and UIKit imports.
+- `Capture/Scan` now separates platform-neutral still/video requests, prepared
+  results, and sampling policy; narrow camera/context/Photo Library/media/
+  entitlement/feedback Services; bounded still, frame, playback, and WAV
+  preparation; photo/video/semantic-feedback view-model actions; and a
+  generation-fenced recording/progress task owner. Scan views/components perform
+  no networking or global service resolution, and every production file stays
+  below the 600-line guard. The unused shutter control was removed.
+  Cross-feature crop encoding moved to `Core/Media`, while the crop view and
+  presentation-only flash control moved to `Core/UI`. Capture-specific source/
+  crop metadata remains in `Capture/Shared`, and Profile owns its own bounded
+  avatar-crop presentation value. Callers inject haptic/camera effects so the
+  shared controls remain passive. Detached media work now propagates parent
+  cancellation, and newly created WAV/compressed-playback files remain leased
+  until staging accepts them so timeout-losing or otherwise unconsumed results
+  cannot leak artifacts. A staged video finalizes its recording generation and
+  cancel UI before the optional PhotoKit save completes, while the capture task
+  still retains the original recording through that save. Mirrored tests lock
+  sampling, playback presentation, task replacement, temporary-file transfer and
+  cleanup, detached cancellation, dependency routing, ownership,
+  platform-neutral Models, and the line ceiling.
+- `Capture/Submission` now separates deterministic admission/media/goal/latency
+  Models, normalized staged payload and sendable context values, narrow live
+  admission/context/deferred-update/telemetry Services, and visual, nonvisual,
+  Describe, admission, and presentation view-model extensions. Submission has no
+  view layer and its ViewModels issue no endpoint calls. The actor-backed grace
+  owner races context acquisition alone against 150 ms; late context is
+  committed to the durable queue before the remote update, whose service makes
+  at most one retry after 500 ms without triggering inference. Endpoint,
+  transport, and task cancellation are terminal. Queue rejection, queue-only
+  routing, connectivity loss, supersession, and unavailable foreground ownership
+  cancel context work with no consumer; a timeout-losing late merge retains only
+  the service and bounded telemetry inputs rather than the workspace view model
+  or complete display-image collection. Queue-first persistence and the exact
+  scan/foreground-generation identity remain intact. Mirrored tests lock
+  deterministic policy, context-race and cancellation, retry behavior, existing
+  submission parity, ownership boundaries, removal of the three former aggregate
+  files, and the 600-line production-file ceiling.
 
 ### Completed Scans Collections Persistence Repair
 

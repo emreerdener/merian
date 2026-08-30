@@ -102,7 +102,7 @@ Primary implementation files:
 - `apps/ios/Merian/Core/AppDIContainer.swift`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Services/FieldTripCaptureGoalProvider.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
-- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Models/ExploreShellNavigationModels.swift`

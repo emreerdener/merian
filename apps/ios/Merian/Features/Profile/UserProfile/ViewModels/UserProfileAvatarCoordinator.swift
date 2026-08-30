@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class UserProfileAvatarCoordinator {
-    private(set) var preparedCropImage: IdentifiableImage?
+    private(set) var preparedCropImage: UserProfileAvatarCropImage?
     private(set) var pendingErrorMessage: String?
     private(set) var isUploading = false
 
@@ -69,7 +69,7 @@ final class UserProfileAvatarCoordinator {
         return task
     }
 
-    func takePreparedCropImage() -> IdentifiableImage? {
+    func takePreparedCropImage() -> UserProfileAvatarCropImage? {
         guard selectionRequestID != nil else { return nil }
         let image = preparedCropImage
         preparedCropImage = nil

@@ -1,13 +1,25 @@
 # Profile Shared
 
-The `Shared` directory contains logic, utilities, and view models that are utilized across multiple product areas within the Profile feature (e.g., used by both `UserProfile` and `Settings`).
+The `Shared` directory contains state used by more than one Profile product
+area, such as both `UserProfile` and `Settings`.
 
 ## Structure
 
-- **ViewModels**: Contains shared view models like `ProfileViewModel.swift`.
+- **ViewModels** contains shared state owners such as `ProfileViewModel.swift`.
 
 ## Purpose
-Following the Merian iOS architecture, code is placed in `<Feature>/Shared` when it is reused by multiple product areas inside this specific feature but does not warrant promotion to the app-wide `Core`. The `ProfileViewModel` often serves as the source of truth for the active user's state, driving both the display in the user profile and the actionable toggles/forms in settings.
+
+Code belongs in `<Feature>/Shared` only when multiple Profile product areas use
+it and the type does not warrant promotion to app-wide `Core`.
+`ProfileViewModel` owns the active account's shared identity and cloud
+preference values, including the `defaultGeoprivacy` value displayed by
+Settings. It does not own the Settings interaction lifecycle: Settings-owned
+observable state coordinates serialized geoprivacy writes, export, notification,
+survey, plan, sign-out, and deletion presentation.
+
+`Profile/Shell` composes environment-owned dependencies. `UserProfile` and
+`Settings` consume the shared values but retain their own Services, ViewModels,
+Views, and Components.
 
 ## Avatar upload contract
 

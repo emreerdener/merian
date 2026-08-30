@@ -37,7 +37,7 @@ to merge `capturedMediaEntries` during unique-constraint conflict resolution.
 That relationship intentionally has no inverse, so the correct fix is to
 serialize finalization per scan id rather than relying on merge-policy behavior.
 
-### 2. Scan Submission & Immediate Durability (`submitActiveScan` → `enqueueCapture`)
+### 2. Scan Submission & Immediate Durability (`submitStagedCapture` → `enqueueCapture`)
 
 Every scan — regardless of network state or what the user does after pressing
 the shutter — is made durable **at the moment of submission**, not on a
@@ -54,7 +54,7 @@ different media order than the user staged. The final owner timeline and
 captured-media array order carry chronology across the wire, never a description
 timestamp.
 
-When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
+When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
 
 1. Capture resolves a typed admission route before clearing staged input. Known
    offline state uses current local eligibility and selects queue-only. When
@@ -69,8 +69,10 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    currently owns it. A queue-only route deliberately has no foreground
    generation even if `NWPathMonitor` still reports online.
 3. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:)`
-   is called **synchronously on the main actor**, before any `async` boundary is
-   crossed. It wraps its work in a `.userInitiated` priority
+   is called **synchronously on the main actor** after the caller-scoped
+   admission preview returns and the staged-input snapshot is revalidated. No
+   environment-context or provider await occurs between that revalidation and
+   queue initiation. The queue wraps its work in a `.userInitiated` priority
    `BackgroundTaskWrapper`, dispatching disk writes to `FileIOActor` to prevent
    blocking the UI and ensuring the SwiftData insert completes before the
    cooperative thread pool can be preempted by an app suspension. GPS is sourced
@@ -86,11 +88,11 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    success or starting live analysis. A durable-queue rejection rolls back the
    pending live scan, shows an error, and deletes orphaned source video/audio
    files because neither the live path nor the queue now owns them.
-5. **Immediate Offline/Queue-Only Network Interceptor**: `submitActiveScan` then
-   synchronously evaluates `OfflineQueueManager.shared.isOnline`. If the device
-   currently lacks network connectivity, or admission already selected the
-   queue-only route after its bounded transport failure, the function drops the
-   execution thread. It blocks the UI router from presenting the
+5. **Immediate Offline/Queue-Only Network Interceptor**: `submitStagedCapture`
+   then synchronously evaluates `OfflineQueueManager.shared.isOnline`. If the
+   device currently lacks network connectivity, or admission already selected
+   the queue-only route after its bounded transport failure, the function drops
+   the execution thread. It blocks the UI router from presenting the
    `"Analyzing..."` skeleton `InsightSheetView` overlay and completely skips the
    creation of the live analysis `Task` below, returning control to the
    viewfinder immediately. A non-intrusive `ToastBanner` natively informs the
@@ -103,8 +105,10 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    fires
    `InferenceEngine.analyze(scanId:foregroundInferenceGeneration:imageDatas:...)`
    with shutter-time coordinates, date/time, distance, and cached telemetry. The
-   late context is merged through the authenticated deferred-context endpoint
-   and never causes a second identification request. This is the **live
+   150 ms value bounds only the context wait; existing telemetry preparation,
+   including optional LiDAR/Vision size estimation, still runs after the race.
+   The late context is merged through the authenticated deferred-context
+   endpoint and never causes a second identification request. This is the **live
    inference path** — it delivers results faster than the background upload +
    Gemini round-trip, directly to the open insight sheet. Before calling
    `analyze()`, the Task checks `pendingAnalyzeScanId == scanId` on the main
@@ -113,6 +117,18 @@ When `CaptureWorkspaceViewModel.submitActiveScan(modelContext:)` fires:
    `pendingAnalyzeScanId`), the Task returns without calling `analyze()` and the
    offline queue handles the scan independently. This replaces the weaker
    `guard isProcessing` that only detected completion (not supersession).
+
+Captured context work has exactly one foreground consumer. Queue rejection,
+queue-only admission, connectivity loss, supersession, or an unavailable
+foreground generation cancels that work when no live request will use it. Only a
+lookup that loses the accepted foreground attempt's 150 ms race remains for late
+enrichment; its continuation retains the injected deferred-context service and
+bounded telemetry inputs, not the workspace view model or full display-image
+collection. That service persists locally before remote delivery. It retries a
+real first endpoint failure at most once after 500 ms, while endpoint,
+transport, and task cancellation are terminal and never start the retry. Primary
+gallery media cancels an unrelated live-device lookup and derives its submission
+context only from the imported asset's historical metadata.
 
 Gallery images and audio-bearing or video visual submissions keep their
 immediate queue-sync race. Non-visual audio/video/Describe submission follows
@@ -817,9 +833,11 @@ capture telemetry. After acceptance, the prefetched or fallback context gets a
 `/update-scan-context` without another identification. The eventual
 `LocalScanRecord` can therefore share enriched GPS, `locationName`, weather, and
 capture-time context while durability remains independent of
-WeatherKit/geocoding. This is required for later Explore publication because
-post-level location sharing can sanitize an existing label but cannot derive a
-text label from coordinates by itself.
+WeatherKit/geocoding. Queue-only routing or failure to retain a foreground owner
+cancels an unconsumed lookup instead of leaving recording-time work alive. This
+is required for later Explore publication because post-level location sharing
+can sanitize an existing label but cannot derive a text label from coordinates
+by itself.
 
 For video scans, `MerianNetworkClient.uploadStagedVideoFiles` is strict: every
 requested local `.mp4` must resolve from an absolute path, `file://` URL,

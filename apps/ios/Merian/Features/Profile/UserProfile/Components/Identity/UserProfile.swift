@@ -6,6 +6,7 @@ import UIKit
 struct UserProfile: View {
     @Environment(ProfileViewModel.self) private var profileViewModel
     @Environment(RevenueCatManager.self) private var revenueCatManager
+    @Environment(HapticManager.self) private var hapticManager
     @Binding var isShowingAvatarPicker: Bool
     @Binding var isShowingDisplayNameEditor: Bool
     @Binding var isShowingUsernameEditor: Bool
@@ -192,6 +193,9 @@ struct UserProfile: View {
                 },
                 onCancel: {
                     dismissPresentation(ifMatching: presentation.id)
+                },
+                onConfirmFeedback: {
+                    hapticManager.triggerMediumPulse()
                 }
             )
 

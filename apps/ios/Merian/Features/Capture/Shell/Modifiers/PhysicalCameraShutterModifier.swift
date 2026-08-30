@@ -7,12 +7,12 @@ import UIKit
 struct HardwareCaptureInteraction: UIViewRepresentable {
     var isEnabled: Bool
     let action: () -> Void
-    
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = false // Allow touches to pass safely through to the viewfinder
-        
+
         let interaction = AVCaptureEventInteraction { event in
             // .began guarantees instant zero-latency capture mirroring the native Camera app
             if event.phase == .began {
@@ -21,19 +21,19 @@ struct HardwareCaptureInteraction: UIViewRepresentable {
         }
         interaction.isEnabled = isEnabled
         view.addInteraction(interaction)
-        
+
         context.coordinator.interaction = interaction
         return view
     }
-    
+
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.interaction?.isEnabled = isEnabled
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
-    
+
     class Coordinator {
         var interaction: AVCaptureEventInteraction?
     }

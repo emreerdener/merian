@@ -5,5 +5,5 @@ Core/Hardware/HardwareOrchestrator.swift
 Core/Media/MediaPlaybackObservation.swift
 Core/Network/SupabaseManager.swift
 Core/Utilities/UserDefaultsKeys.swift
-Features/Capture/Shell/Views/CaptureWorkspaceView.swift
+Features/Capture/Shell/Services/CaptureWorkspaceKeyboardService.swift
 Features/Explore/Shared/Media/Components/ExplorePublicMediaView.swift

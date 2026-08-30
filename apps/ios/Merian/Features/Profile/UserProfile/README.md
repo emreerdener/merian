@@ -9,7 +9,7 @@ user's published-scan surfaces. The canonical product and behavior contract is
 
 - `Models/` contains Profile-only value types and display policy, including
   typed presentation routes, stats payloads, recovery summaries, achievement
-  presentation, and `UserPersona` progression.
+  presentation, the bounded avatar-crop preview, and `UserPersona` progression.
 - `Services/` owns every imperative live boundary: SwiftData projections and
   route lookup, Field trip progress, published-post endpoints, image loading,
   avatar preparation, app events, route requests, preferences, and haptics.

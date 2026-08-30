@@ -31,6 +31,12 @@ up a player. A new playback surface must retain this owner and explicitly call
 - `AudioSpectrogramThumbnailLoader` coalesces and caches bounded spectrogram
   decodes for Scans and Explore. Feature components receive it through their
   owning dependency boundary instead of resolving it directly.
+- `SendableCGImage` is the domain-neutral immutable image wrapper used when
+  Capture and Insights transfer bounded `CGImage` results across structured
+  concurrency boundaries without introducing UIKit image ownership.
+- `ImageCropProcessor` owns domain-neutral square-crop geometry and bounded
+  WebP/JPEG encoding for Capture media preparation, Capture's interactive crop,
+  and Profile avatar preparation. Feature views do not own its ImageIO work.
 
 See
 [Event and Presentation Routing](../../../../../docs/system-architecture/10-event-and-presentation-routing.md#media-notification-lifetime)

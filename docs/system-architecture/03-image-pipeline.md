@@ -193,7 +193,7 @@ bounded inference/display bytes plus a `SendableCGImage` preview wrapper. No
 allowed to inherit the view model's `@MainActor` executor.
 
 The gallery picker now uses a bounded snapshot pipeline.
-`CaptureWorkspaceViewModel.handlePhotoPickerSelection` snapshots the
+`CaptureWorkspaceViewModel+Imports.handlePhotoPickerSelection` snapshots the
 staged-image budget (`availableSlots`) and paywall gate once on `@MainActor`,
 clears `selectedPhotoItems`, and then performs all file-backed preparation
 through `MediaPreparationActor`. Historical GPS/weather metadata is converted
@@ -281,9 +281,11 @@ so the toolbar becomes the explicit retry path.
 `AVCapturePhoto.fileDataRepresentation()` in an `autoreleasepool`, releasing
 AVFoundation intermediates immediately after the continuation resumes.
 
-`Analysis.submitActiveScan()` first calls `enqueueCapture` synchronously —
-before any `async` boundary — and waits for the SwiftData row, media files, and
-eligible foreground inference UUID to become durable (see
+After caller-scoped admission returns and the staged-input snapshot is
+revalidated, `CaptureWorkspaceViewModel.submitStagedCapture(...)` calls
+`enqueueCapture` synchronously before optional context or provider work and
+waits for the SwiftData row, media files, and eligible foreground inference UUID
+to become durable (see
 [Offline Sync Pipeline → Scan Submission & Immediate Durability](../backend-and-data/01-offline-sync-pipeline.md)).
 For an online live scan, that queue row is temporarily excluded from background
 upload so the same image bytes do not compete with the inline inference request
@@ -296,6 +298,24 @@ job. Visual live analysis starts only after queue acceptance and carries the
 persisted generation through provider dispatch, local save, UI publication, and
 cleanup. If the queue rejects the write, the UI reports the failure and any
 unowned source video/audio files are deleted.
+
+Capture Submission's actor-backed grace service races only the shutter-pinned
+environment-context snapshot against 150 ms. That value bounds the optional
+context wait, not total tap-to-dispatch time; existing telemetry preparation,
+including optional LiDAR/Vision size estimation, runs after the race. A late
+winner is committed to the durable queue before
+`CaptureSubmissionDeferredContextService` calls `/update-scan-context`. That
+service performs at most one remote retry after 500 ms and never invokes
+inference. Endpoint, transport, and task cancellation are terminal and never
+start that retry. Submission ViewModels receive these narrow Services through
+`CaptureSubmissionDependencies` and do not call endpoints directly. Captured
+context work is cancelled when queue acceptance fails or a queue-only, offline,
+superseded, or unavailable-owner branch will not dispatch foreground inference.
+Only a task that times out while an accepted foreground attempt still owns the
+scan remains active for late enrichment. It retains the injected service and the
+bounded primary inference image needed for optional telemetry, not the workspace
+view model or full display-image collection. A primary gallery image cancels an
+irrelevant live-device lookup and uses its embedded historical context instead.
 
 After the upload handoff, recovery media may stage in parallel with Gemini, but
 the live request retains foreground inference ownership. Staged replay skips
@@ -318,11 +338,13 @@ committed immediately; awards and Field trips follow asynchronously and
 therefore cannot delay the first result render. The AI never receives the larger
 display-image payload.
 
-**Empty-payload guard (both paths)**: The camera shutter path (`Capture.swift`)
-checks `guard !finalSafeData.isEmpty` before appending a `StagedImage`, and the
-gallery/refinement path relies on `MediaPreparationActor` to reject empty
-encoded inference or display payloads before returning `PreparedStillImage`. If
-WebP/JPEG encoding fails for any reason (e.g., low-memory
+**Empty-payload guard (both paths)**: The camera shutter path's
+`CaptureScanStillMediaPreparer` rejects an absent or empty encoded inference
+payload before `CaptureWorkspaceViewModel+PhotoCapture` can append a
+`StagedImage`. Video frame preparation applies the same rule. The gallery and
+refinement path relies on `MediaPreparationActor` to reject empty encoded
+inference or display payloads before returning `PreparedStillImage`. If WebP/
+JPEG encoding fails for any reason (e.g., low-memory
 `CGImageDestinationCreateWithData` failure), the item is skipped entirely rather
 than appending `Data()`. Sending an empty base64 string
 (`Data().base64EncodedString() == ""`) causes Gemini to reject the request with
@@ -345,6 +367,17 @@ staged playback video/audio files through the file actor. Submit paths use
 reference-only clearing after queue acceptance so durable queue/live persistence
 retains media ownership.
 
+**Video-preparation cancellation boundary**: sampled-frame, playback-export, and
+companion-WAV work observe parent cancellation through `DetachedWork` and
+explicit stage checks. Newly created WAV and compressed-playback files stay in
+temporary leases until the prepared result is accepted for staging. A failed,
+cancelled, timed-out, superseded, or otherwise unconsumed result therefore
+deletes its files even when an AVFoundation operation completes after the
+timeout winner. Accepted paths transfer to the staged-media cleanup contract
+above. Once staging commits, Scan finalizes the recording generation and hides
+its cancel UI before awaiting the optional Camera Roll write; PhotoKit still
+retains the original recording until that write finishes.
+
 **Why tier-conditional inference resolution (768 px / 1024 px)?** Gemini Vision
 tokenizes images by tiling them into 768×768 blocks: a 768 px square image
 occupies one tile (~258 input tokens), while a 1024 px square image occupies
@@ -355,10 +388,10 @@ uses 1024 px to preserve the fine morphological detail (feather barbs, gill
 spacing, lichen areolae) that subspecies and cultivar discrimination requires.
 Both payloads are well below the 5 MB guard (~100–250 KB base64 for 768 px;
 ~200–500 KB for 1024 px). `MerianConfig.inferenceImageMaxSize(isProActive:)` is
-the single source of truth—`diContainer.revenueCatManager.canStartProScan` is
-evaluated at the capture boundary before encoding in both the camera shutter
-path (`Capture.swift`) and the gallery picker path
-(`CaptureWorkspaceViewModel.swift`).
+the single source of truth—Scan's injected entitlement action is evaluated by
+`CaptureWorkspaceViewModel+PhotoCapture` and carried in the still-preparation
+request before encoding. The gallery picker path evaluates the same live owner
+in `CaptureWorkspaceViewModel+Imports.swift`.
 
 **Why 2048 px for display?** Covers the full-width pixel density of all current
 iOS devices without upscaling (iPhone Pro Max at 3× = 1290 px native; iPad Pro

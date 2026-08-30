@@ -985,7 +985,7 @@ Primary files:
 - `apps/ios/Merian/Features/Explore/FieldTrips/Views/`
 - `apps/ios/Merian/Features/Explore/FieldTrips/Components/`
 - `apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift`
-- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift`
+- `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Capture/Shell/Modifiers/CameraSheetRouter.swift`
 - `apps/ios/Merian/Core/AppDIContainer.swift`
 - `apps/ios/Merian/Core/Models/CaptureGoalContext.swift`

@@ -52,9 +52,9 @@ final class UserProfileAvatarCoordinatorTests: XCTestCase {
     }
 
     func testSelectionCompletionCannotStageOverOccupiedPresentation() async {
-        let preparedImage = IdentifiableImage(image: UIImage())
+        let preparedImage = UserProfileAvatarCropImage(image: UIImage())
         var pendingPreparation:
-            CheckedContinuation<IdentifiableImage?, any Error>?
+            CheckedContinuation<UserProfileAvatarCropImage?, any Error>?
         var isPresentationSlotAvailable = true
         let coordinator = UserProfileAvatarCoordinator(
             dependencies: makeDependencies(
@@ -187,7 +187,7 @@ final class UserProfileAvatarCoordinatorTests: XCTestCase {
     private func makeDependencies(
         prepareCropImage: @escaping @MainActor (
             PhotosPickerItem
-        ) async throws -> IdentifiableImage? = { _ in nil },
+        ) async throws -> UserProfileAvatarCropImage? = { _ in nil },
         prepareUpload: @escaping @Sendable (
             Data
         ) async throws -> PreparedProfileAvatar = { data in

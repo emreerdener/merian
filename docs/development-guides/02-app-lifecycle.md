@@ -349,36 +349,39 @@ The suppression is intentionally narrow:
   carrying into a later manual Explore open.
 
 **Scan durability note:** This handler is a no-op for scan durability. Scans are
-made durable at submission time in `CaptureWorkspaceViewModel.submitActiveScan`
-— the background URLSession upload is dispatched while the app is still in the
-foreground, before any async boundary is crossed. It does not cancel inference,
-enqueue captures, or modify `InferenceEngine` state.
+made durable at submission time in
+`CaptureWorkspaceViewModel.submitStagedCapture`. After the caller-scoped
+admission preview returns and the staged input is revalidated, queue initiation
+occurs while the app is still in the foreground and before any optional context
+or provider await. It does not cancel inference, enqueue captures, or modify
+`InferenceEngine` state.
 
 **Why the old rescue pattern was removed:** The previous architecture called
-`enqueueCapture` from `handleBackgroundPhase`,
-`CaptureWorkspaceView.onChange(of: activeSheet)`, and
-`InsightSheetView.onDisappear`. All three paths were unreliable for the same
-structural reason: `Task(priority: .background)` tasks can be starved by the
-cooperative scheduler before `urlSession.uploadTask(...).resume()` is ever
-called if the process suspends within milliseconds. The `isSyncing` guard in
-`syncPendingScans` also silently dropped the rescue if a prior sync was
-in-flight. See `docs/development-guides/11-swiftdata-and-api-gotchas.md` §8 for
-the full analysis.
+`enqueueCapture` from `handleBackgroundPhase`, `CaptureWorkspaceView`'s former
+`activeSheet` change handler, and `InsightSheetView.onDisappear`. All three
+paths were unreliable for the same structural reason:
+`Task(priority: .background)` tasks can be starved by the cooperative scheduler
+before `urlSession.uploadTask(...).resume()` is ever called if the process
+suspends within milliseconds. The `isSyncing` guard in `syncPendingScans` also
+silently dropped the rescue if a prior sync was in-flight. See
+`docs/development-guides/11-swiftdata-and-api-gotchas.md` §10 for the full
+analysis.
 
 ---
 
 ## Phase Ordering & Critical Rules
 
-| Phase      | Camera Session  | Offline Queue                                                                | Inference                                                                                            |
-| ---------- | --------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Active     | Start           | Drain (quota-gated for free)                                                 | Normal live path                                                                                     |
-| Inactive   | Stop            | Untouched                                                                    | Untouched — scan already queued                                                                      |
-| Background | Already stopped | No-op — upload already dispatched; timestamp recorded for timeout evaluation | Live `inferenceTask` may still be running; background URLSession owns delivery if it completes first |
+| Phase      | Camera Session  | Offline Queue                                                                                        | Inference                                                                                            |
+| ---------- | --------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Active     | Start           | Drain (quota-gated for free)                                                                         | Normal live path                                                                                     |
+| Inactive   | Stop            | Untouched                                                                                            | Untouched — scan already queued                                                                      |
+| Background | Already stopped | No-op — the durable queue already owns the scan; existing background transport or recovery continues | Live `inferenceTask` may still be running; background URLSession owns delivery if it completes first |
 
 **Rules AI agents must follow:**
 
 - **Never re-introduce rescue logic in `handleBackgroundPhase`.** Scans are
-  enqueued in `submitActiveScan` before any async boundary. Rescue handlers
+  enqueued in `submitStagedCapture` immediately after admission and staged-input
+  revalidation, before optional context or provider work. Rescue handlers
   re-added here will be unreliable for the same structural reasons the originals
   were — see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`.
 - **Never start `AVCaptureSession` without verifying `scenePhase == .active`.**
@@ -397,8 +400,9 @@ the full analysis.
 - **Never bypass the free user queue cap** in `enqueueCapture`. The cap is the
   primary defence against free-tier scan hoarding — do not remove or loosen it.
 - **Never trigger the paywall from `InferenceEngine`'s catch block.** The
-  paywall is only shown from the `canPerformScan` gate in `Capture.swift` and
-  `handlePhotoPickerSelection`. Network failures must never surface a paywall.
+  paywall is only shown from the `canPerformScan` gate in
+  `CaptureWorkspaceViewModel+PhotoCapture.swift` and the image-import admission
+  path. Network failures must never surface a paywall.
 - **Never add direct ViewModel references** to `AppLifecycleManager`. Send a
   loss-tolerant `AppEvent` for lifecycle invalidation, or enqueue an `AppRoute`
   when delivery changes navigation. Do not encode routes as lifecycle events.

@@ -227,7 +227,7 @@ optional enforced `ColorScheme`; callers still own icon choice, color, haptics,
 disabled state, accessibility labels, and action semantics.
 
 - **Current usage**: `CaptureControlBar` audio/describe utility buttons,
-  `FlashButton`, `PhotoLibraryButton`, `ToastBanner` dismiss affordances,
+  `CaptureFlashButton`, `PhotoLibraryButton`, `ToastBanner` dismiss affordances,
   `FieldNotesCard` dismiss, and the candidate-verification dismiss chips.
 - **Abstraction boundary**: Do not use this modifier for controls with
   additional animated backgrounds, semantic fills, or domain-specific geometry.

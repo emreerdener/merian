@@ -190,7 +190,7 @@ with user-controlled rows. `send-push-notification` uses width `8` for APNs
 delivery and device-state writes, preventing one notification from opening a
 socket/write storm inside a single isolate.
 
-### File-Backed Import and Refinement Staging (`CaptureWorkspaceViewModel`)
+### File-Backed Import and Refinement Staging (`Capture/Shell`)
 
 The gallery import path previously bounced back to `@MainActor` on every
 selected item to clear picker state, re-check the staged-image cap, re-check the
@@ -217,6 +217,30 @@ isolation while eliminating both the per-item hop churn and the full-file
 refinement read. That loader contract is also what the test suite stubs, so the
 concurrency-safe production path and the behavior-verified test path stay
 identical.
+
+The Shell keeps construction and task ownership explicit. Its Services layer
+constructs the prepared-image and historical-audio loaders, durable import
+store, bounded ephemeral remote-image downloader, and connection-prewarm
+closure. It also owns share/account lookups and the UIKit keyboard platform
+boundary, keeping Models deterministic. The main-actor view model consumes those
+closures and never constructs a network client or URL session.
+`CaptureWorkspaceOperationState` keeps the external-import, refinement, and crop
+task handles together with import coalescing, timeout protection,
+deferred-route, and ordered-crop state in private storage. Views and
+presentation modifiers invoke semantic view-model intents instead of mutating
+those handles, preventing cancellation and replacement rules from becoming
+module-wide mutable state. The external-import owner also executes its retry
+loop and releases its task handle in the same MainActor turn after the final
+retry check. An arrival overlapping the end of an import iteration is therefore
+coalesced into another iteration instead of being left as an unowned retry flag.
+Feature-sheet deferral takes precedence until its exact dismissal callback. If
+that callback consumes the resume request before the prior task releases its
+handle, the contained owner recognizes the queued request and runs it as the
+next iteration. New starts are rejected while that one-shot sheet resume remains
+pending, preventing an import worker from staging crop behind the presentation
+being dismissed. The composing-center environment contract lives in
+`Capture/Shared/Utilities`, while the immutable `SendableCGImage` wrapper lives
+in `Core/Media`; neither cross-area declaration is owned by Shell.
 
 ### SwiftData Relationship Faults (OOM)
 
@@ -704,15 +728,17 @@ captures, these arrays held several MB of compressed JPEG bytes with no cleanup
 path on the success branch.
 
 All three buffers have been removed entirely. Scan durability is now provided at
-submission time — `CaptureWorkspaceViewModel.submitActiveScan` calls
-`enqueueCapture` synchronously before any `async` boundary and writes images to
-disk (see §8 of `docs/development-guides/11-swiftdata-and-api-gotchas.md`). An
-online live scan initially suppresses that row's background upload so it does
-not contend with the inline inference body; upload completion, a two-second
-fail-safe, request failure, connectivity loss, app backgrounding, or relaunch
-releases the durable row. `analyze()` receives images as `imageDatas`
-parameters, uses them for base64 encoding, and does not retain them as instance
-state — Swift ARC reclaims the memory after the call.
+submission time. After caller-scoped admission succeeds and the staged snapshot
+is revalidated, `CaptureWorkspaceViewModel.submitStagedCapture` calls
+`enqueueCapture` synchronously before optional context or provider work and
+writes images to disk (see §10 of
+`docs/development-guides/11-swiftdata-and-api-gotchas.md`). An online live scan
+initially suppresses that row's background upload so it does not contend with
+the inline inference body; upload completion, a two-second fail-safe, request
+failure, connectivity loss, app backgrounding, or relaunch releases the durable
+row. `analyze()` receives images as `imageDatas` parameters, uses them for
+base64 encoding, and does not retain them as instance state — Swift ARC reclaims
+the memory after the call.
 
 `activeImageData: Data?` is the only raw image buffer retained in
 `InferenceEngine` during the inference window. It holds a single 2048 px
@@ -726,6 +752,16 @@ primary display source. It is released when `prepareForNewScan()` or
 `activeDisplayDatas: [Data]` array that held all display images (potentially
 multiple MB for multi-image captures) simultaneously in RAM for the full
 inference session.
+
+Submission also bounds context-task retention. A queue rejection, queue-only or
+offline handoff, superseded scan, unavailable foreground generation, or lost
+workspace owner cancels the shutter/recording lookup when no live request can
+consume it. Only a lookup that loses the accepted attempt's 150 ms grace remains
+for late enrichment. That continuation captures
+`CaptureSubmissionDeferredContextService` and the first bounded inference image
+needed for optional size telemetry, not `CaptureWorkspaceViewModel` or the full
+display-image array. The service writes the late value to the local queue before
+remote delivery; cancellation is terminal and cannot awaken its single retry.
 
 ### Historical Scan Hydration Task Proliferation (`InferenceEngine.load(from:)`)
 
@@ -754,7 +790,7 @@ image paths, candidates, or species data over the new scan's cleared state.
 `inferenceEngine.isProcessing == true && inferenceEngine.speciesData == nil`.
 After `load(from:)` finishes for a library scan, `isProcessing = false` and
 `speciesData` is fully populated. If the user then submits a new scan,
-`CaptureWorkspaceViewModel.submitActiveScan()` opens the sheet immediately
+`CaptureWorkspaceViewModel.submitStagedCapture(...)` opens the sheet immediately
 (`activeSheet = .insight`) but calls `analyze()` only after an async
 telemetry-resolution Task resolves — a gap that can span hundreds of
 milliseconds. During that window, the router evaluated the stale library state
@@ -786,8 +822,8 @@ it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 `analyze()` subsequently overwrites the image and telemetry fields with the new
 scan's data once the async Task resolves. `analyze()` also cancels
 `historicHydrationTask` internally so the offline-queue reprocessing path (which
-calls `analyze()` directly without going through `submitActiveScan()`) gets the
-same protection.
+calls `analyze()` directly without going through `submitStagedCapture(...)`)
+gets the same protection.
 
 ### Camera Capture Decode Boundary
 
@@ -1367,7 +1403,7 @@ both the `.overlay` rendering and the stochastic task generators inside an
 explicit `guard award.isCompleted else { return }` check, stopping the OS from
 executing animation sweeps on unearned badges.
 
-### UI Thread Blocking (`ProfileView` Exports)
+### UI Thread Blocking (Settings Exports)
 
 Requesting a Darwin Core Archive (DwC-A) over `/request-export-dwca` performs
 only the bounded queue transaction synchronously. That transaction fixes the
@@ -1375,14 +1411,18 @@ eligible scan IDs plus both immutable phase DTOs in one MVCC statement, capped
 by the job's canonical row budget plus one lookahead and an aggregate source
 byte budget; CSV generation, R2 upload, and email remain on the resumable
 `/export-dwca` worker. The request is not assumed to complete within a fixed
-sub-100ms latency, so awaiting it on the UI thread would still be incorrect.
+sub-100ms latency, so it must not run as synchronous main-actor work. The async
+transport suspends at the network boundary while UI state remains main-actor
+isolated.
 
-`ExportScans` now launches the export request from a structured `Task` owned by
-the view lifecycle, keeping `isExporting` on `@MainActor` while the actual
-network request runs asynchronously off-thread. Only when the API returns the
-`200 OK` queue confirmation does execution update the main-thread toast state,
-notifying the user that the request is queued and the archive link will arrive
-by email.
+`ExportScans` launches the request from a user-initiated task and delegates its
+lifecycle to `ExportScansViewModel`. That `@MainActor` state owner keeps the
+request flag and feedback coherent, rejects a second request while one is in
+flight, and invokes the asynchronous transport through
+`SettingsExportDependencies`. The parent binding mirrors the state owner's
+request flag. Only after the API returns the queue confirmation does the state
+owner permit the view to publish the success treatment and notify the parent
+that the archive link will arrive by email.
 
 The server side is bounded independently of the UI. `export-dwca` registers a
 short synchronous phase under a two-minute database lease. Each claim advances
@@ -1780,20 +1820,18 @@ intermediate bitmaps and uses Apple's C `ImageIO` framework
 (`CGImageDestination`). It writes the `cgImg.cropping(to: cropRect)` result
 directly into a binary WebP `Data` buffer using
 `kCGImageDestinationImageMaxPixelSize: 1024` and `kCGImagePropertyOrientation`
-option dictionaries, bypassing RAM bloat. This also enables
-`generateAutoCenterCrop(image:)`, a 1:1 auto-center square pipeline writing
-bytes off the Main Thread, preserving 60/120Hz viewfinder latency during rapid
-multi-capture bursts.
+option dictionaries, bypassing RAM bloat. The domain-neutral processor lives in
+`Core/Media`; Capture and Profile share it without either feature owning the
+other's image pipeline.
 
 `ImageCropProcessor` consolidates the repeated
 `CGImageDestination → NSMutableData → Data` pattern into a single
 `static nonisolated func encode(_ cgImage:, quality:, orientation:, maxPixelSize:) -> Data?`
 helper. The helper wraps its work in its own `autoreleasepool`, attempts WebP
 encoding first (`UTType.webP`), and falls back to JPEG (`UTType.jpeg`)
-transparently. All three call sites — `generateCrop`, `generateAutoCenterCrop`,
-and `Capture.swift`'s inference/display payload construction — delegate to this
-shared encoder, eliminating duplicated encoding blocks and ensuring consistent
-`autoreleasepool` bounding across the pipeline.
+transparently. Interactive `generateCrop` and the Scan still/video preparation
+services delegate to this shared encoder, eliminating duplicated encoding blocks
+and ensuring consistent `autoreleasepool` bounding across the pipeline.
 
 Extracting the binary payload back out of
 `autoreleasepool { ... return renderData }` previously caused bridging RAM leaks
@@ -1855,18 +1893,6 @@ primitives (`targetImage.cgImage` and `targetImage.imageOrientation`) on the
 background processing pool for downsampling without triggering compiler warnings
 or runtime data races.
 
-### Sequential CPU Starvation (`Capture.swift`)
-
-When submitting a multi-capture payload (e.g. multiple 12 MP captures)
-sequentially, `await`-ing `ImageCropProcessor.generateAutoCenterCrop(image:)`
-inside a standard `for` loop forces iOS to compute each crop on a single core,
-multiplying UI analysis latency.
-
-**The Refactor**: Multi-capture evaluation runs inside a concurrent
-`withTaskGroup`, scheduling individual media transformations across separate
-hardware cores simultaneously. Sequential latency is eliminated during critical
-capture bursts.
-
 ### Massive Payload RAM Bypass (`PhotosPickerItem`)
 
 To avoid JetSam OOM terminations when parsing large 48 MP ProRAW/HEIC payloads
@@ -1893,7 +1919,7 @@ that exceeds `MerianConfig.stagedImagePayloadMaxBytes`,
 on `@MainActor`; direct `UIImage(contentsOfFile:)` reads are not permitted for
 user-selected originals.
 
-### AVFoundation Sample Buffer Lifetime (`Capture.swift`)
+### AVFoundation Sample Buffer Lifetime (`CaptureScanVideoAudioExtractor`)
 
 Short video scans can extract a companion WAV through `AVAssetReader` /
 `AVAssetWriter`. Each `trackOutput.copyNextSampleBuffer()` result is wrapped in
@@ -1901,6 +1927,14 @@ a per-sample `autoreleasepool` and invalidated with `CMSampleBufferInvalidate`
 after `writerInput.append(...)`. This keeps native CoreMedia buffers bounded
 during the copy loop and prevents AVFoundation sample objects from accumulating
 until the whole extraction finishes.
+
+WAV and compressed-playback outputs remain owned by a
+`CaptureScanTemporaryFileLease` until the caller accepts them for staging. If a
+timeout wins, cancellation arrives, validation rejects an output, or the late
+worker result is never consumed, releasing the lease deletes the file. Accepted
+paths transfer to the existing staged-media lifecycle. This closes the gap
+between structured timeout cancellation and AVFoundation operations that may
+return only after their current native call completes.
 
 ### File System Sandboxing Limits (`LocalImageLoader`)
 
@@ -2770,6 +2804,7 @@ This ensures:
   `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures
   and invalidate stale write tasks so cancelled work cannot mutate the next scan
   session.
+
 - `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on
   startup cancellation and early failures: tap removal, engine stop, task
   cancellation, stream finishing, and session deactivation all happen on every
@@ -2815,7 +2850,11 @@ This ensures:
 - **Documented detached-work bridge**: high-level app flows now use
   `DetachedWork` instead of spelling raw `Task.detached` inline. This keeps the
   remaining executor escapes explicit, searchable, and narrow enough for
-  linting.
+  linting. `DetachedWork.value` retains the detached task handle, propagates
+  parent cancellation to that handle, and checks cancellation before and after
+  awaiting its result. Native synchronous work is not force-preempted, so each
+  worker still checks cancellation between expensive stages and owns any
+  temporary output until handoff.
 - **Typed settings boundary**: settings-first UI surfaces now read and mutate
   `AppSettings` rather than owning `@AppStorage` strings directly. Storage keys
   remain centralized, while the view layer binds to typed state.

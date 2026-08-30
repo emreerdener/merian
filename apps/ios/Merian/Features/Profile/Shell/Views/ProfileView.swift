@@ -9,6 +9,7 @@ struct ProfileView: View {
     // MARK: - Environment & State
     @Environment(\.dismiss) private var dismiss
     @Environment(ProfileViewModel.self) private var viewModel
+    @Environment(HardwareOrchestrator.self) private var hardwareOrchestrator
 
     var supabase = SupabaseManager.shared
     @State private var showPaywall = false
@@ -40,7 +41,14 @@ struct ProfileView: View {
                     )
                         .id(ProfileTab.profile)
 
-                    SettingsTabView(supabase: supabase, viewModel: viewModel)
+                    SettingsTabView(
+                        supabase: supabase,
+                        viewModel: viewModel,
+                        geoprivacyDependencies: .live(supabase: supabase),
+                        preferenceActions: .live(
+                            hardwareOrchestrator: hardwareOrchestrator
+                        )
+                    )
                         .id(ProfileTab.settings)
                 }
                 .scrollTargetLayout()

@@ -11,10 +11,12 @@ criteria.
 Profile is organized by product area under `apps/ios/Merian/Features/Profile/`:
 `Shell/` owns the profile/settings pager, `UserProfile/` owns the visible user
 profile tab and gamification/statistics surfaces, `Settings/` owns settings rows
-and account actions; `Settings/Plan/` owns subscription/paywall surfaces,
-`Settings/Notifications/` owns push preferences, `Settings/Changelog/` owns
-bundled release notes, `Settings/Feedback/` owns the beta survey, and `Shared/`
-owns cross-area profile state.
+and account actions through Models, Services, ViewModels, Views, and grouped
+Components. `Settings/Plan/` and `Settings/Feedback/` repeat that full boundary
+for subscription and survey flows; `Settings/Notifications/` uses Models,
+Services, ViewModels, and Views for push preferences. `Settings/Changelog/` owns
+bundled release-note Models and Views, and `Shared/` owns cross-area profile
+state.
 
 | Owner                                      | Role                                                                                                                                      |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -25,7 +27,10 @@ owns cross-area profile state.
 | `AchievementDetailViewModel`               | Foreground/background contribution loading and detail telemetry                                                                           |
 | `UserProfileAvatarCoordinator`             | Replaceable selection, serialized upload, staged preview, and request/account fences                                                      |
 | `ProfileTabDependencies` and peer Services | Narrow live adapters for networking, SwiftData lookup, image loading, app events, routes, preferences, and haptics                        |
-| `SettingsTabView`                          | Settings sub-tab                                                                                                                          |
+| `SettingsTabView`                          | Settings sub-tab route and sheet composition; retains UI-only presentation state                                                          |
+| Settings root view models                  | Single-flight sign-out, deletion/recovery and export state, plus serialized geoprivacy updates                                            |
+| Settings subarea view models               | Survey draft/validation/submission, notification authorization, and purchase/restore interaction state                                    |
+| Settings dependency values                 | Narrow live adapters for account lifecycle, local purge, export, preferences, platform actions, notification registration, and RevenueCat |
 | `ProfileViewModel`                         | `@Observable @MainActor` — cloud preferences (geoprivacy), auth state, sign-in/out                                                        |
 | `ProfileAvatarImagePreparer`               | Downsamples, square-crops, and WebP/JPEG encodes selected public profile pictures before R2 staging                                       |
 | `ProfileDatabaseActor`                     | `@ModelActor` — builds compact SwiftData projections, computes profile stats, heatmap, and awards off-main                                |
@@ -57,6 +62,26 @@ refresh, error, cursor, and task-lifecycle state belongs to the matching
 `@MainActor @Observable` view model. Only the feature's `Services/` adapters
 resolve network, app-container, haptic, image-loader, or SwiftData lookup
 dependencies.
+
+Settings applies the same rule to imperative configuration work. Its views and
+components own route, sheet, binding, focus, and animation timing; root and
+subarea observable state owners coordinate account lifecycle, export, survey,
+notification, and RevenueCat operations. Closure-based Services are the only
+Settings files that resolve endpoints, Supabase SDK writes, notification-center
+authorization, platform actions, repository purge, or RevenueCat actions. The
+Profile Shell composes the geoprivacy and hardware adapters that require its
+environment-owned managers; other state owners use their subarea's narrow live
+dependency value. `SupabaseManager` remains the account-deletion protocol and
+recovery authority.
+
+The geoprivacy picker updates the shared display binding optimistically while
+`GeoprivacySettingsViewModel` serializes server writes and coalesces rapid taps
+to the latest selection. Its live adapter captures the expected account and uses
+an account-bound work lease so an account replacement cannot receive the old
+user's write. Expedition mode persists through `AppSettings` before the injected
+hardware action reevaluates constraints. Export, feedback, sign-out, deletion,
+notification, and plan state similarly reject or supersede overlapping work at
+their owning state boundary.
 
 `UserProfile` owns a separate `UserProfilePresentation` value for username,
 display-name, and avatar-crop destinations. Its item-based sheet and filtered
@@ -531,13 +556,14 @@ the UI for development, but cannot override the canonical PostgreSQL release
 gate. Migration `20260728133835_disable_dwca_exports_for_launch.sql` also makes
 old builds and direct authenticated requests fail closed.
 
-`ExportScans` (Settings) calls `MerianNetworkClient.shared.requestDwcAExport()`,
-which hits the `/request-export-dwca` Edge Function with a 15-second timeout.
-The authenticated route queues personal exports only. Its insertion trigger
-first counts bounded eligible IDs, then materializes one bounded occurrence and
-multimedia DTO per member from the same creation-statement MVCC snapshot.
-Oversized sources stop at the first per-row or cumulative byte violation without
-retaining partial DTOs.
+`ExportScans` delegates request state and overlap rejection to
+`ExportScansViewModel`. Its live `SettingsExportDependencies` adapter calls
+`MerianNetworkClient.shared.requestDwcAExport()`, which hits the
+`/request-export-dwca` Edge Function with a 15-second timeout. The authenticated
+route queues personal exports only. Its insertion trigger first counts bounded
+eligible IDs, then materializes one bounded occurrence and multimedia DTO per
+member from the same creation-statement MVCC snapshot. Oversized sources stop at
+the first per-row or cumulative byte violation without retaining partial DTOs.
 
 Server-side work advances through claim-fenced, cursor-persisted 100-row/256 KiB
 pages over that immutable source, bounded streaming assembly, and idempotent

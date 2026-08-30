@@ -339,7 +339,10 @@ blockers in the
 `updateScanContext` sends owner-authenticated late WeatherKit/geocoding data to
 `/update-scan-context`, keyed by `scan_id`. It carries only supported optional
 elevation, weather, and semantic-location fields and never resubmits media or
-starts another identification.
+starts another identification. This method is the transport adapter only.
+`CaptureSubmissionDeferredContextService` owns local-first persistence and the
+single optional 500 ms retry. Endpoint, transport, or task cancellation is
+terminal and never starts that retry.
 
 ## Failure Rules
 

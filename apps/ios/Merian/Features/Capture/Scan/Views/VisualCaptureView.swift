@@ -71,7 +71,13 @@ struct VisualCaptureView: View {
                 isRefining: viewModel.baseRefinementContext != nil,
                 isVideoRecording: viewModel.isVideoRecording,
                 videoRecordingProgress: viewModel.videoRecordingProgress,
-                showsViewfinderHints: viewModel.shouldShowViewfinderHints
+                showsViewfinderHints: viewModel.shouldShowViewfinderHints,
+                onZoomOpticalStopTick: {
+                    viewModel.triggerZoomOpticalStopFeedback()
+                },
+                onZoomRegularTick: {
+                    viewModel.triggerZoomTickFeedback()
+                }
             )
         }
         .onDisappear {
@@ -88,6 +94,8 @@ private struct CameraControlsLayer: View {
     var isVideoRecording: Bool = false
     var videoRecordingProgress: Double = 0
     var showsViewfinderHints: Bool = true
+    let onZoomOpticalStopTick: () -> Void
+    let onZoomRegularTick: () -> Void
 
     var body: some View {
         MainOverlayView(
@@ -95,7 +103,9 @@ private struct CameraControlsLayer: View {
             isRefining: isRefining,
             isVideoRecording: isVideoRecording,
             videoRecordingProgress: videoRecordingProgress,
-            showsViewfinderHints: showsViewfinderHints
+            showsViewfinderHints: showsViewfinderHints,
+            onZoomOpticalStopTick: onZoomOpticalStopTick,
+            onZoomRegularTick: onZoomRegularTick
         )
     }
 }

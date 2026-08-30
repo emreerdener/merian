@@ -122,8 +122,8 @@ admission.
 1. **`CancellationError`** (or `URLError.cancelled`) — inference was cancelled
    (user navigated away or backgrounded). Do not refund the scan token. Do not
    surface any UI. The scan is already durably enqueued in the offline queue
-   (written to disk synchronously in `submitActiveScan` before `analyze()` was
-   called) and will complete via the background URLSession path.
+   (written to disk synchronously in `submitStagedCapture` before `analyze()`
+   was called) and will complete via the background URLSession path.
    Authenticated/public transport, `5xx`, route-propagation, and guest-session
    retry sleeps must propagate this cancellation before issuing another request;
    never use `try?` around those sleeps.
@@ -419,7 +419,9 @@ recoverable without allowing two uploads to contend from the start.
 result arrives before the ingestion claim. The live caller retries once after a
 short delay and the local queued record retains the context for normal replay. A
 409 must not trigger another identification request and must not discard the
-scan.
+scan. Endpoint, transport, and task cancellation are terminal for this optional
+remote enrichment and must not be converted into the retry; the local queue
+remains the fallback.
 
 Compatibility scan-producing endpoints (`identify`, `identify-describe`, and
 `audio-spec`) now use the shared compatibility ledger to claim the same
