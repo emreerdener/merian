@@ -41,12 +41,12 @@ background_database_actor_source="$repo_root/apps/ios/Merian/Core/Data/Database/
 network_client_source="$repo_root/apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
 inference_engine_source="$repo_root/apps/ios/Merian/Core/AI/InferenceEngine.swift"
 scan_admission_source="$repo_root/apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
-capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/Analysis.swift"
-image_cropper_source="$repo_root/apps/ios/Merian/Features/Capture/Scan/PostProcessing/ImageCropperView.swift"
+capture_analysis_source="$repo_root/apps/ios/Merian/Features/Capture/Submission/ViewModels/CaptureWorkspaceViewModel+VisualSubmission.swift"
+image_cropper_source="$repo_root/apps/ios/Merian/Core/UI/Components/ImageCropperView.swift"
 capture_workspace_source="$repo_root/apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift"
 network_client_test_source="$repo_root/apps/ios/MerianTests/Core/Network/MerianNetworkClientTests.swift"
 inference_engine_test_source="$repo_root/apps/ios/MerianTests/Core/AI/InferenceEngineTests.swift"
-capture_workspace_test_source="$repo_root/apps/ios/MerianTests/Features/Capture/Shell/CaptureWorkspaceSubmissionTests.swift"
+capture_workspace_test_source="$repo_root/apps/ios/MerianTests/Features/Capture/Submission/CaptureWorkspaceSubmissionTests.swift"
 ios_test_sources="$repo_root/apps/ios/MerianTests"
 
 fail() {
@@ -795,7 +795,7 @@ assert_file_contains \
   "admissionRoute == .queued || !shouldOptimizeLiveImageAnalysis"
 assert_file_contains \
   "$capture_workspace_test_source" \
-  "testConnectivityUnavailableAdmissionQueuesVisualAndNonVisualCaptureWithoutForegroundInference"
+  "testConnectivityUnavailableAdmissionQueuesWithoutForegroundInferenceAndCancelsVisualContext"
 assert_file_contains \
   "$capture_workspace_test_source" \
   "testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy"
