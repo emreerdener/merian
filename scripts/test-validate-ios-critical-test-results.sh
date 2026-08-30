@@ -136,10 +136,19 @@ write_test_tree() {
             suite("SyncStateManagerTests"; [
               "generationFenceTest"
             ]),
-            suite("StagedCapture"; [
-              "connectivityUnavailableAdmissionSelectsQueueOnlyRoute",
+            suite("Scan connectivity failure policy"; [
+              "connectivityFailuresSelectQueueOnlyAdmission",
+              "authenticationAndTrustFailuresRemainFailClosed",
+              "secureTransportFailuresUseOnlyDurableRecovery"
+            ]),
+            suite("Capture workspace staging"; [
               "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop",
-              "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
+              "automaticSingleCaptureFencesTheIdentifyTray",
+              "requiredCropStateFencesCaptureChromeBeforePresentation"
+            ]),
+            suite("Capture scan dependencies"; [
+              "testLifecycleInterruptionFencesOverlappingStillCapture",
+              "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
             ]),
             suite("BackgroundDatabaseActorTests"; [
               "generatedBackgroundResultRejectsMalformedSuccessBody",
@@ -299,9 +308,14 @@ required_cases=(
   "decodedButUnusableSuccessEnvelopeRemainsRecoverable"
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
   "providerAdmissionFailuresStayOutOfNetworkCircuitForVisualAndNonVisual"
-  "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+  "connectivityFailuresSelectQueueOnlyAdmission"
+  "authenticationAndTrustFailuresRemainFailClosed"
+  "secureTransportFailuresUseOnlyDurableRecovery"
   "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop"
-  "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
+  "automaticSingleCaptureFencesTheIdentifyTray"
+  "requiredCropStateFencesCaptureChromeBeforePresentation"
+  "testLifecycleInterruptionFencesOverlappingStillCapture"
+  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
   "queueBackedConnectivityFailuresUseQueuedPresentationForVisualAndNonVisual"
   "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
   "retiredQueueOwnerStillPublishesQueuedAfterTransportSuccess"

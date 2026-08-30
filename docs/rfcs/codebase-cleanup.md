@@ -297,22 +297,23 @@ Implemented Profile slice:
   results, and sampling policy; narrow camera/context/Photo Library/media/
   entitlement/feedback Services; bounded still, frame, playback, and WAV
   preparation; photo/video/semantic-feedback view-model actions; and a
-  generation-fenced recording/progress task owner. Scan views/components perform
-  no networking or global service resolution, and every production file stays
-  below the 600-line guard. The unused shutter control was removed.
-  Cross-feature crop encoding moved to `Core/Media`, while the crop view and
-  presentation-only flash control moved to `Core/UI`. Capture-specific source/
-  crop metadata remains in `Capture/Shared`, and Profile owns its own bounded
-  avatar-crop presentation value. Callers inject haptic/camera effects so the
-  shared controls remain passive. Detached media work now propagates parent
-  cancellation, and newly created WAV/compressed-playback files remain leased
-  until staging accepts them so timeout-losing or otherwise unconsumed results
-  cannot leak artifacts. A staged video finalizes its recording generation and
-  cancel UI before the optional PhotoKit save completes, while the capture task
-  still retains the original recording through that save. Mirrored tests lock
-  sampling, playback presentation, task replacement, temporary-file transfer and
-  cleanup, detached cancellation, dependency routing, ownership,
-  platform-neutral Models, and the line ceiling.
+  generation-fenced still/pre-recording/recording/progress task owner. Scan
+  views/components perform no networking or global service resolution, and every
+  production file stays below the 600-line guard. The unused shutter control was
+  removed. Cross-feature crop encoding moved to `Core/Media`, while the crop
+  view and presentation-only flash control moved to `Core/UI`. Capture-specific
+  source/ crop metadata remains in `Capture/Shared`, and Profile owns its own
+  bounded avatar-crop presentation value. Callers inject haptic/camera effects
+  so the shared controls remain passive. Detached media work now propagates
+  parent cancellation, and newly created WAV/compressed-playback files remain
+  leased until staging accepts them so timeout-losing or otherwise unconsumed
+  results cannot leak artifacts. A staged video finalizes its recording
+  generation and cancel UI before the optional PhotoKit save completes, while
+  the capture task still retains the original recording through that save.
+  Mirrored tests lock sampling, playback presentation, task replacement,
+  lifecycle overlap rejection, temporary-file transfer and cleanup, detached
+  cancellation, dependency routing, ownership, platform-neutral Models, and the
+  line ceiling.
 - `Capture/Submission` now separates deterministic admission/media/goal/latency
   Models, normalized staged payload and sendable context values, narrow live
   admission/context/deferred-update/telemetry Services, and visual, nonvisual,
@@ -330,6 +331,15 @@ Implemented Profile slice:
   deterministic policy, context-race and cancellation, retry behavior, existing
   submission parity, ownership boundaries, removal of the three former aggregate
   files, and the 600-line production-file ceiling.
+- `Capture/Staging` now separates the ephemeral aggregate, capacity policy,
+  chronological modality nodes, small media wrappers, and UIKit-backed image
+  bundle. Submission owns the live/replay timeline, aligned media projection,
+  and exact hand-written `Identify*` request descriptors; their Swift names,
+  Codable fields, JSON keys, legacy fallback ordering, and sparse replay indexes
+  are unchanged. `ActiveScanToolbar` consumes the canonical staged order without
+  a duplicate sort. Mixed tests were rehomed to Staging, Shell, Submission, and
+  Core Utilities owners, with deterministic projection/descriptor tests and a
+  new Staging architecture/600-line guard.
 - `Capture/Describe` now separates deterministic prompt, subject, tag-ranking,
   and text-composition Models; narrow preference, feedback, keyboard, subject
   delay, and speech-manager Services; observable prompt and lifecycle
@@ -370,6 +380,15 @@ Implemented Profile slice:
   boundaries, platform-neutral Models, and the 600-line production-file ceiling
   without changing the 15-second WAV, confirmation, staging, submission, copy,
   accessibility, or audio-session contracts.
+- The Capture-wide integration audit verified Shell → Scan/Record/Describe →
+  Staging → Submission ownership, chronological media projection, live/replay
+  request-key parity, queue-before-inference ordering, and the absence of DTO or
+  SwiftData schema drift. It closed two cross-boundary gaps: still shutters and
+  video admission/start work are now generation-fenced across scene, mode,
+  presentation, teardown, and reset transitions; and the camera preview now uses
+  its injected `CameraManager` instead of resolving the singleton. Active video
+  keeps its established graceful stop-and-stage semantics. Deterministic overlap
+  and architecture guards lock these contracts.
 
 ### Completed Scans Collections Persistence Repair
 

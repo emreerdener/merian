@@ -52,6 +52,14 @@ files:
   goal expansion, presentation bindings, and exact dismissal timing. They send
   user intents to the view model and contain no direct networking.
 
+Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
+leaving Scan, root or feature presentation takeover, workspace teardown, and
+state reset invalidate Scan's still and pre-recording generations. A video that
+has already started keeps the existing graceful-stop behavior so its partial
+clip can finish staging; a pending video admission or hardware start is
+cancelled. This prevents a late shutter or admission response from repopulating
+cleared state or auto-submitting behind another presentation.
+
 Tests mirror this boundary under `apps/ios/MerianTests/Features/Capture/Shell/`.
 The architecture suite enforces the live-service and deterministic Models
 boundaries, required ownership directories, and a 600-line ceiling for every

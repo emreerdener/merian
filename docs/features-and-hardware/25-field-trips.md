@@ -1388,7 +1388,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/FieldTripPublishedContentViewModelTests \
   -only-testing:merianTests/ActiveCaptureGoalStoreTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
-  -only-testing:merianTests/StagedCaptureTests \
+  -only-testing:merianTests/CaptureSubmissionPolicyTests \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \
   -only-testing:merianTests/FieldTripFeaturedMediaTests \

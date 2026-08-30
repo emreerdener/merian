@@ -370,36 +370,44 @@ HTTP request is dispatched. See the
    for each critical boundary and reports every named scan-flow regression
    exactly once under exactly one matching passed suite as `Passed`. A duplicate
    matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 95 exact
+   contradiction is invalid evidence. The current validator protects 100 exact
    cases. Twenty-seven were added by the joined scan-reliability follow-up.
    Eleven more form the live-connectivity follow-up: nine engine-level
    ownership, presentation, and exact-generation recovery fences plus two
-   network-client replay-policy controls. One additional case protects the
-   pre-queue admission connectivity handoff: a path-satisfied transport failure
-   plus local eligibility selects queue-only, while local ineligibility still
-   paywalls and a non-connectivity preview failure still requires retry. One
-   more protects automatic single-capture chrome:
-   `automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` requires
-   pending automatic ownership to suppress `ActiveScanToolbar`, requires a
-   failed attempt to restore the staged retry toolbar, preserves the toolbar
-   when explicit confirmation is enabled, and clears the suppression with the
-   staged buffer. The same protected case also requires a pending required crop
-   to suppress capture chrome before the crop cover is mounted. The XCTest
-   gallery-flow coverage verifies that runtime ownership. The iOS workflow
-   source contract separately requires native leading/trailing crop toolbar
-   placements and rejects manual `GeometryProxy.safeAreaInsets.top` or
-   `.safeAreaPadding(.top, ...)` positioning, whose zero-inset context caused
+   network-client replay-policy controls. The former consolidated pre-queue
+   admission declaration is now three exact Core Utilities cases:
+   `connectivityFailuresSelectQueueOnlyAdmission`,
+   `authenticationAndTrustFailuresRemainFailClosed`, and
+   `secureTransportFailuresUseOnlyDurableRecovery`. They separately protect the
+   reviewed queue-only connectivity codes and wrapper bound, the
+   authentication/certificate veto, and the broader post-durability secure-
+   transport recovery boundary. Capture Shell protects automatic single-capture
+   chrome with `automaticSingleCaptureFencesTheIdentifyTray`: pending automatic
+   ownership suppresses `ActiveScanToolbar`, a failed attempt restores the
+   staged retry toolbar, explicit confirmation preserves the toolbar, and
+   clearing the staged buffer clears the suppression. The separate
+   `requiredCropStateFencesCaptureChromeBeforePresentation` case requires a
+   pending required crop to suppress capture chrome before the crop cover is
+   mounted. The XCTest gallery-flow coverage verifies that runtime ownership.
+   The iOS workflow source contract separately requires native leading/trailing
+   crop toolbar placements and rejects manual `GeometryProxy.safeAreaInsets.top`
+   or `.safeAreaPadding(.top, ...)` positioning, whose zero-inset context caused
    controls to overlap the status bar. It also rejects a workspace-owned crop
    transition shield or persistent transition-state flag and requires the crop
    confirmation button to use the accent tint instead of an illegible white
-   prominent fill. One final case protects pre-import admission:
+   prominent fill. One final Shell case protects pre-import admission:
    `exhaustedImageImportAdmissionBlocksBeforePickerAndCrop` requires a valid
    server denial to reach the paywall with no staged image or crop state, while
-   proving the prospective single-image RPC shape remains Flash-eligible. Five
-   menu/Field Notes regressions exposed by the prior failed hosted run are
-   individually protected, two require the bounded/redacted offline-queue
-   support artifact, one prevents needs-attention and live-path-ineligible rows
-   from driving the Scan Library recovery loop while preserving staged and
+   proving the prospective single-image RPC shape remains Flash-eligible.
+   Capture Scan also protects lifecycle overlap with
+   `testLifecycleInterruptionFencesOverlappingStillCapture` and
+   `testLifecycleInterruptionCancelsVideoWaitingOnAdmission`. Both resume a
+   controlled non-cooperative continuation after interruption and prove stale
+   still and pre-recording generations cannot publish. Five menu/Field Notes
+   regressions exposed by the prior failed hosted run are individually
+   protected, two require the bounded/redacted offline-queue support artifact,
+   one prevents needs-attention and live-path-ineligible rows from driving the
+   Scan Library recovery loop while preserving staged and
    explicit-video-override eligibility, one preserves the current account by
    refreshing an invalid handler-owned session before replay, one fences
    attention rows from serialized claims, actor-owned global status selection,
@@ -515,7 +523,7 @@ HTTP request is dispatched. See the
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
    requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 95
+   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 100
    exact allowlist entries, requires every Swift function name to resolve to
    exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
    explicit Swift Testing display-name aliases to their corresponding
@@ -1647,19 +1655,21 @@ Dynamic Type; and light/dark appearance.
   owner. `CaptureScanMediaPolicyTests` locks deterministic five-frame sampling,
   short-duration clamping, and prepared playback presentation.
   `CaptureScanOperationStateTests` proves replacement cancels and generation-
-  fences recording/progress tasks, including stale task installation.
-  `CaptureScanDependenciesTests` proves focus, stop/cancel, and optical/regular
-  zoom feedback use injected semantic actions.
+  fences still, recording, and progress tasks, including stale task
+  installation. `CaptureScanDependenciesTests` proves focus, stop/cancel, and
+  optical/regular zoom feedback use injected semantic actions; it also resumes
+  non-cooperative still-capture and video-admission continuations after a
+  lifecycle interruption to prove neither can publish stale work.
   `CaptureScanTemporaryFileLeaseTests` proves unaccepted artifacts are deleted
   and accepted artifacts survive ownership transfer. `DetachedWorkTests` proves
   parent cancellation reaches a detached media worker and is observed by its
   caller. `CaptureScanArchitectureTests` enforces the
   Models/Services/ViewModels/Views/Components/Modifiers ownership tree, removes
-  the former aggregate `Capture.swift`, rejects direct service resolution, keeps
-  Models platform-neutral, and caps every production Scan Swift file at 600
-  lines. Build-for-testing typechecks these suites without camera hardware;
-  actual execution still requires a functioning simulator or device test
-  destination.
+  the former aggregate `Capture.swift`, rejects direct service resolution,
+  including `CameraManager.shared`, keeps Models platform-neutral, and caps
+  every production Scan Swift file at 600 lines. Build-for-testing typechecks
+  these suites without camera hardware; actual execution still requires a
+  functioning simulator or device test destination.
 - **`apps/ios/MerianTests/Features/Capture/Describe/`**: Mirrors typed/dictated
   observation presentation. `DescribePromptViewModelTests` locks standard,
   funnel, Insight, and reanalysis prompt state plus taxonomy-to-subject mapping.
@@ -1680,6 +1690,11 @@ Dynamic Type; and light/dark appearance.
 - **`apps/ios/MerianTests/Features/Capture/Submission/`**: Mirrors the durable
   admission/dispatch owner. `CaptureSubmissionPolicyTests` locks deterministic
   media, goal-preference, admission, and latency mapping.
+  `CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
+  legacy grouped fallback order, and source-file cleanup inventory.
+  `CaptureSubmissionMediaProjectionTests` locks interleaved video/standalone
+  audio alignment, sparse source identities, compact omission behavior,
+  descriptor JSON keys, local-only Codable provenance, and focus lookup.
   `CaptureSubmissionEnvironmentContextGraceTests` proves the one-shot 150 ms
   race returns a sendable snapshot, rejects a late loser, and leaves telemetry
   work outside the deadline. `CaptureSubmissionDeferredContextServiceTests`
@@ -1692,6 +1707,17 @@ Dynamic Type; and light/dark appearance.
   no live consumer. `CaptureSubmissionArchitectureTests` rejects old aggregate
   files, endpoint calls in ViewModels, live resolution or UI imports in Models,
   unchecked sendability, and production files over 600 lines.
+- **`apps/ios/MerianTests/Features/Capture/Staging/`**: Mirrors the ephemeral
+  mixed-media draft owner. `StagedCaptureTests` covers state, capacity, cleanup,
+  chronological nodes, stable tray identities, allowed combinations, and image
+  replacement without importing Shell globals. `CaptureStagingArchitectureTests`
+  keeps request/replay declarations in Submission, enforces Models/Views
+  ownership and the 600-line ceiling, rejects network/persistence resolution,
+  confines UIKit to `StagedImage`, and prevents the toolbar from restoring a
+  duplicate sort. `CaptureWorkspaceStagingTests` lives under Shell for import
+  admission, automatic-submit/crop chrome fences, and selected-media removal.
+  `ScanConnectivityFailurePolicyTests` lives under Core Utilities for queue-only
+  versus fail-closed transport classification.
 - **`MediaPreparationActorTests.swift`**: Pins the production still-image
   contract directly: file URL inputs return bounded inference/display payloads,
   metrics stay within byte and dimension limits, avatar/crop previews return
@@ -1744,7 +1770,24 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CaptureShellPresentationPolicyTests \
   -only-testing:merianTests/CaptureWorkspaceOperationStateTests \
   -only-testing:merianTests/CaptureWorkspaceDependenciesTests \
+  -only-testing:merianTests/CaptureWorkspaceStagingTests \
   -only-testing:merianTests/CaptureShellArchitectureTests test
+```
+
+Run the focused Capture Staging matrix after changing its aggregate, modality
+values, ordering, crop/description views, tray projection, or the boundary into
+Shell and Submission:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/StagedCaptureTests \
+  -only-testing:merianTests/CaptureStagingArchitectureTests \
+  -only-testing:merianTests/CaptureWorkspaceStagingTests \
+  -only-testing:merianTests/CaptureSubmissionMediaTimelineTests \
+  -only-testing:merianTests/CaptureSubmissionMediaProjectionTests \
+  -only-testing:merianTests/CaptureSubmissionArchitectureTests \
+  -only-testing:merianTests/ScanConnectivityFailurePolicyTests test
 ```
 
 Run the focused Capture Scan matrix after changing visual capture actions, media
@@ -1824,6 +1867,8 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CaptureSubmissionPolicyTests \
   -only-testing:merianTests/CaptureSubmissionEnvironmentContextGraceTests \
   -only-testing:merianTests/CaptureSubmissionDeferredContextServiceTests \
+  -only-testing:merianTests/CaptureSubmissionMediaTimelineTests \
+  -only-testing:merianTests/CaptureSubmissionMediaProjectionTests \
   -only-testing:merianTests/CaptureSubmissionArchitectureTests \
   -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests test
 ```
@@ -3587,19 +3632,22 @@ The preceding pre-queue boundary has separate deterministic coverage.
 `testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy` locks the exact
 two-second request/resource deadline, disabled connectivity wait, absent cache,
 and source contract disables PostgREST retry.
-`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` locks every reviewed
-offline/data-path URL code, bounded underlying-error recognition, TLS/auth
-fail-closed exclusions at every wrapper depth, the broader post-durability
-secure-connection recovery boundary, certificate-policy veto precedence over a
-broad outer transport error, fail-closed over-depth handling, and the pure route
-policy without mutating process-wide connectivity state.
-`automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` independently
-locks the adjacent presentation boundary: automatic single-capture ownership
-hides `ActiveScanToolbar` before asynchronous admission begins, admission
-recovery can reveal the retained staged media, and confirmation-enabled capture
-continues to present **Identify** normally. It also locks the distinct pre-crop
-boundary: a required crop suppresses capture chrome even before `imageToCrop`
-mounts the full-screen cover. The workflow source guard requires
+`connectivityFailuresSelectQueueOnlyAdmission` locks every reviewed
+offline/data-path URL code and the bounded underlying-error traversal;
+`authenticationAndTrustFailuresRemainFailClosed` locks TLS/auth exclusions,
+certificate-policy veto precedence over broad outer transport errors, and
+fail-closed over-depth handling; and
+`secureTransportFailuresUseOnlyDurableRecovery` locks the broader
+post-durability secure-connection recovery boundary. Together the Core Utilities
+cases cover the pure route policy without mutating process-wide connectivity
+state. `automaticSingleCaptureFencesTheIdentifyTray` independently locks the
+adjacent Shell presentation boundary: automatic single-capture ownership hides
+`ActiveScanToolbar` before asynchronous admission begins, admission recovery can
+reveal the retained staged media, and confirmation-enabled capture continues to
+present **Identify** normally.
+`requiredCropStateFencesCaptureChromeBeforePresentation` locks the distinct
+pre-crop boundary: a required crop suppresses capture chrome even before
+`imageToCrop` mounts the full-screen cover. The workflow source guard requires
 `ImageCropperView` to keep Close and Delete in native `.topBarLeading` and
 `.topBarTrailing` toolbar placements, with deterministic accessibility IDs, and
 forbids manual top positioning from `GeometryProxy.safeAreaInsets.top` or
@@ -3882,9 +3930,10 @@ user-visibility gating, and focused Explore route compatibility. The exact-art
 test includes the renamed Park **Spider**, **Bird**, and **Meadow plant**
 prompts while retaining aliases for historical publication snapshots. Capture
 preference tests cover visible selected-goal priority across automatic,
-crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
-the camera-only media gate so gallery, mixed camera/gallery, audio, video,
-Describe, Record, refinement, and missing selections cannot persist a hint.
+crop-confirmed, and manual camera-still submission.
+`CaptureSubmissionPolicyTests` locks the camera-only media gate so gallery,
+mixed camera/gallery, audio, video, Describe, Record, refinement, and missing
+selections cannot persist a hint.
 
 The Capture Record organization matrix is split by owner. Run
 `AudioRecordingPresentationTests`, `AudioRecordingViewModelTests`, and

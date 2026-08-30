@@ -272,6 +272,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func resetModalsForSessionTimeout() {
+        cancelAllVisualCaptureWork()
         activeSheet = nil
         operationState.clearPendingLocalSheet()
         pendingExplorePostId = nil

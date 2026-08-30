@@ -32,7 +32,7 @@ struct VisualCaptureView: View {
             .overlay { FocusIndicator(showFocusIndicator: showFocusIndicator, focusLocation: focusLocation) }
             #else
             CameraPreviewView(
-                session: cameraManager.session,
+                cameraManager: cameraManager,
                 onTap: { layerPoint, devicePoint in
                     viewModel.handleFocusTap(devicePoint: devicePoint)
                     

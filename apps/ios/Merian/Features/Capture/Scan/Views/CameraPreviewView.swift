@@ -9,7 +9,7 @@ struct CameraPreviewView: UIViewRepresentable {
     @Environment(AppSettings.self) private var appSettings
 
     // MARK: - Dependencies
-    var session: AVCaptureSession
+    var cameraManager: CameraManager
     var onTap: (CGPoint, CGPoint) -> Void
     /// Called when the user swipes right-to-left across the viewfinder.
     /// Reserved for the future audio recording mode transition — pass `nil` until that view exists.
@@ -33,7 +33,7 @@ struct CameraPreviewView: UIViewRepresentable {
     // MARK: - SwiftUI Lifecycle Bridging
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
-        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.session = cameraManager.session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -56,7 +56,7 @@ struct CameraPreviewView: UIViewRepresentable {
     
     // MARK: - View Update Lifecycle
     func updateUIView(_ uiView: PreviewView, context: Context) {
-        uiView.videoPreviewLayer.session = session
+        uiView.videoPreviewLayer.session = cameraManager.session
         context.coordinator.parent = self
     }
     
@@ -109,7 +109,7 @@ struct CameraPreviewView: UIViewRepresentable {
         /// The chain self-terminates when the coordinator is deallocated ([weak self]).
         @MainActor func startObservingZoom(in view: PreviewView) {
             withObservationTracking {
-                _ = CameraManager.shared.zoomFactor
+                _ = parent.cameraManager.zoomFactor
             } onChange: { [weak self, weak view] in
                 guard let self, let view else { return }
                 // onChange fires synchronously during the property write — jump to the
@@ -117,7 +117,7 @@ struct CameraPreviewView: UIViewRepresentable {
                 // the snapshot is taken before the background ramp reaches the hardware.
                 Task { @MainActor [weak self, weak view] in
                     guard let self, let view else { return }
-                    let newFactor = CameraManager.shared.zoomFactor
+                    let newFactor = self.parent.cameraManager.zoomFactor
                     self.handleLensSwitchIfNeeded(newFactor: newFactor, in: view)
                     self.startObservingZoom(in: view)
                 }
@@ -128,9 +128,9 @@ struct CameraPreviewView: UIViewRepresentable {
             defer { lastZoomFactor = newFactor }
 
             // Skip during session setup / zoom reset so we don't flash on startup.
-            guard CameraManager.shared.isSessionRunning else { return }
+            guard parent.cameraManager.isSessionRunning else { return }
 
-            let stops = CameraManager.shared.opticalZoomStops.filter { $0 > 1.0 }
+            let stops = parent.cameraManager.opticalZoomStops.filter { $0 > 1.0 }
             guard stops.contains(where: { stop in
                 (lastZoomFactor < stop) != (newFactor < stop)
             }) else { return }
@@ -176,12 +176,15 @@ struct CameraPreviewView: UIViewRepresentable {
             MainActor.assumeIsolated {
                 switch state {
                 case .began:
-                    pinchStartZoom = CameraManager.shared.zoomFactor
+                    pinchStartZoom = parent.cameraManager.zoomFactor
                 case .changed:
-                    let proposed = min(max(pinchStartZoom * scale, 1.0), CameraManager.shared.maxZoomFactor)
-                    CameraManager.shared.setZoom(factor: proposed)
+                    let proposed = min(
+                        max(pinchStartZoom * scale, 1.0),
+                        parent.cameraManager.maxZoomFactor
+                    )
+                    parent.cameraManager.setZoom(factor: proposed)
                 case .ended, .cancelled:
-                    CameraManager.shared.snapToNearestOpticalStop()
+                    parent.cameraManager.snapToNearestOpticalStop()
                 default:
                     break
                 }
@@ -202,7 +205,7 @@ struct CameraPreviewView: UIViewRepresentable {
                 switch state {
                 case .began:
                     panDirection = .undetermined
-                    panStartZoom = CameraManager.shared.zoomFactor
+                    panStartZoom = parent.cameraManager.zoomFactor
 
                 case .changed:
                     if panDirection == .undetermined {
@@ -214,12 +217,18 @@ struct CameraPreviewView: UIViewRepresentable {
                         }
                     }
                     guard panDirection == .vertical else { return }
-                    let range = max(1.0, CameraManager.shared.maxZoomFactor - 1.0)
+                    let range = max(
+                        1.0,
+                        parent.cameraManager.maxZoomFactor - 1.0
+                    )
                     // Default: swipe up (negative Y) = zoom in. Inverted: swipe down (positive Y) = zoom in.
                     let sign: CGFloat = parent.appSettings.invertZoomDirection ? 1.0 : -1.0
                     let delta = (sign * translation.y / 600) * range
-                    let proposed = min(max(panStartZoom + delta, 1.0), CameraManager.shared.maxZoomFactor)
-                    CameraManager.shared.setZoom(factor: proposed)
+                    let proposed = min(
+                        max(panStartZoom + delta, 1.0),
+                        parent.cameraManager.maxZoomFactor
+                    )
+                    parent.cameraManager.setZoom(factor: proposed)
 
                 case .ended, .cancelled:
                     if panDirection == .horizontal && velocity.x < -200 {
@@ -229,7 +238,7 @@ struct CameraPreviewView: UIViewRepresentable {
                         parent.onVerticalDragActiveChanged?(false)
                     }
                     panDirection = .undetermined
-                    CameraManager.shared.snapToNearestOpticalStop()
+                    parent.cameraManager.snapToNearestOpticalStop()
 
                 default:
                     break

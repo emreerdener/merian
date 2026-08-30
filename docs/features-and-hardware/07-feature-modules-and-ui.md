@@ -1646,17 +1646,22 @@ dependency composition.
   Scan video. `Describe/` owns text input, guided questions, deterministic
   prompt/text Models, live dependency adapters, prompt/lifecycle view models,
   subject matching, and dictation presentation, while the shared speech engine
-  stays in `Core/Hardware`; `Staging/` owns `StagedCapture`, staged video,
-  audio, image, and description editing, plus crop sheet presentation;
-  `Submission/` owns shared live/offline analysis paths for visual and nonvisual
-  captures. **Camera Session Pause During Analysis**: When routed or
-  feature-local presentation becomes occupied, `CaptureWorkspaceView` stops
-  `cameraManager`, conserving thermal budget and battery. Clearing a binding is
-  not enough to restart it: the exact dismissal callback rechecks visual mode,
-  active scene phase, all presentation occupancy, and pending/in-flight routes
-  before starting the session. **Active Scan Dismissal**: Users can manually
-  dismiss the `InsightSheetView` entirely while it is still in the
-  `AnalyzingContentView` processing state. Every Insight dismissal route invokes
+  stays in `Core/Hardware`; `Staging/Models` owns the ephemeral `StagedCapture`
+  aggregate, capacity policy, modality values, and canonical chronological
+  nodes, while `Staging/Views` owns description editing and crop presentation
+  timing. Capture Shell owns draft mutation, disposable-file deletion, and the
+  required-crop and automatic-submit presentation fences. `Submission/Models`
+  owns staged-to-request projection, live/replay media timelines, and
+  hand-written Identify request/replay descriptors; `Submission/` also owns
+  shared live/offline analysis paths for visual and nonvisual captures. **Camera
+  Session Pause During Analysis**: When routed or feature-local presentation
+  becomes occupied, `CaptureWorkspaceView` stops `cameraManager`, conserving
+  thermal budget and battery. Clearing a binding is not enough to restart it:
+  the exact dismissal callback rechecks visual mode, active scene phase, all
+  presentation occupancy, and pending/in-flight routes before starting the
+  session. **Active Scan Dismissal**: Users can manually dismiss the
+  `InsightSheetView` entirely while it is still in the `AnalyzingContentView`
+  processing state. Every Insight dismissal route invokes
   `InferenceEngine.dismissAnalyzingPresentation()`, which fences Vision,
   deterministic trait extraction, future Foundation work, and phrase cadence,
   then clears presentation-owned contextual copy and in-memory media. The

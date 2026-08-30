@@ -54,6 +54,14 @@ different media order than the user staged. The final owner timeline and
 captured-media array order carry chronology across the wire, never a description
 timestamp.
 
+Source ownership follows that boundary. `Capture/Staging/Models` owns
+`StagedCapture`, its modality wrappers, `StagedImage`, and canonical
+`StagedCaptureNode` ordering. `Capture/Submission/Models` owns
+`CaptureSubmissionMediaTimeline`, the aligned media projection, and the
+hand-written `Identify*` request/replay descriptors consumed by live inference
+and offline replay. Core queue/network code consumes those values but does not
+redefine their ordering or indexes.
+
 When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
 
 1. Capture resolves a typed admission route before clearing staged input. Known

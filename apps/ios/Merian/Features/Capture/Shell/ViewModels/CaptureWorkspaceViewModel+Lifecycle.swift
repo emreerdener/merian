@@ -70,6 +70,7 @@ extension CaptureWorkspaceViewModel {
             }
         }
         if newPhase == .inactive || newPhase == .background {
+            handleVisualCaptureInterruption()
             audioCaptureManager.cancelPendingRecordingTransition()
             if audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
                 audioCaptureManager.pauseRecording()
@@ -82,9 +83,6 @@ extension CaptureWorkspaceViewModel {
             diContainer.offlineQueueManager.releaseAllForegroundInferenceClaims(
                 reason: "app_backgrounded"
             )
-        }
-        if newPhase == .inactive || newPhase == .background, isVideoRecording {
-            stopVideoCapture()
         }
     }
 
@@ -102,8 +100,8 @@ extension CaptureWorkspaceViewModel {
                 audioCaptureManager.pauseRecording()
             }
         }
-        if newMode != .visual, isVideoRecording {
-            stopVideoCapture()
+        if newMode != .visual {
+            handleVisualCaptureInterruption()
         }
 
         if newMode == .audio || newMode == .describe {

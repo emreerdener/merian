@@ -181,6 +181,21 @@ extension CaptureWorkspaceViewModel {
         finishVideoCaptureUIAfterCancellation()
     }
 
+    func handleVisualCaptureInterruption() {
+        cancelStillCapture()
+        if isVideoRecording {
+            stopVideoCapture()
+        } else if scanOperationState.hasActiveVideoCapture {
+            cancelVideoCapture()
+        }
+    }
+
+    func cancelAllVisualCaptureWork() {
+        cancelStillCapture()
+        guard scanOperationState.hasActiveVideoCapture else { return }
+        cancelVideoCapture()
+    }
+
     private func startVideoRecordingProgressTimer(
         for generation: CaptureScanVideoGeneration
     ) {

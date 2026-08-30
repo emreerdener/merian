@@ -21,51 +21,58 @@ extension CaptureWorkspaceViewModel {
 
         isCapturing = true
 
-        Task {
-            guard await requestScanAdmission(
-                flashFallbackEligible: stagedCapture.isEmpty
-                    && baseRefinementContext == nil
-            ) != nil else {
-                isCapturing = false
-                return
-            }
+        let generation = scanOperationState.beginStillCapture()
+        let captureTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.finishStillCaptureUI(for: generation) }
 
-            if emitHaptic {
-                dependencies.scan.feedback.photoCapture()
-            }
-
-            triggerFlash()
+            guard await self.requestScanAdmission(
+                flashFallbackEligible: self.stagedCapture.isEmpty
+                    && self.baseRefinementContext == nil
+            ) != nil else { return }
 
             do {
-                async let shutterLocation = dependencies.scan.context
-                    .requestCurrentLocation()
-                let composingCenter = composingZoneVerticalCenter
-                let captureData = try await dependencies.scan.camera
-                    .captureImage()
-                let resolvedShutterLocation = await shutterLocation
-                let instantLocation = resolvedShutterLocation
-                    ?? dependencies.scan.context.lastKnownLocation()
+                try self.requireCurrentStillCapture(generation)
 
-                let saveImage = dependencies.scan.library.saveImage
-                Task {
+                if emitHaptic {
+                    self.dependencies.scan.feedback.photoCapture()
+                }
+
+                self.triggerFlash()
+
+                async let shutterLocation = self.dependencies.scan.context
+                    .requestCurrentLocation()
+                let composingCenter = self.composingZoneVerticalCenter
+                let captureData = try await self.dependencies.scan.camera
+                    .captureImage()
+                try self.requireCurrentStillCapture(generation)
+
+                let resolvedShutterLocation = await shutterLocation
+                try self.requireCurrentStillCapture(generation)
+                let instantLocation = resolvedShutterLocation
+                    ?? self.dependencies.scan.context.lastKnownLocation()
+
+                let saveImage = self.dependencies.scan.library.saveImage
+                Task { @MainActor in
                     await saveImage(captureData, instantLocation)
                 }
 
-                let preparedCapture = try await dependencies.scan.media
+                let preparedCapture = try await self.dependencies.scan.media
                     .prepareStill(CaptureScanStillPreparationRequest(
                         captureData: captureData,
                         composingCenter: composingCenter,
-                        isProActive: dependencies.scan.canStartProScan()
+                        isProActive: self.dependencies.scan.canStartProScan()
                     ))
+                try self.requireCurrentStillCapture(generation)
 
                 if let preparedCapture {
-                    let fetchDeferredContext = dependencies.scan.context
+                    let fetchDeferredContext = self.dependencies.scan.context
                         .fetchDeferredContext
                     let contextTask = Task {
                         await fetchDeferredContext(instantLocation)
                     }
 
-                    preFetchTask = contextTask
+                    self.preFetchTask = contextTask
                     let previewImage = UIImage(
                         cgImage: preparedCapture.previewCGImage.image,
                         scale: 1.0,
@@ -76,22 +83,54 @@ extension CaptureWorkspaceViewModel {
                         environmentContext: nil,
                         isFromGallery: false
                     )
-                    stagedCapture.images.append(StagedImage(
+                    self.stagedCapture.images.append(StagedImage(
                         compressedData: preparedCapture.inferenceData,
                         displayData: preparedCapture.displayData,
                         uiImage: previewImage,
                         original: identifiable,
                         focusRegion: preparedCapture.focusRegion
                     ))
-                    beginAutomaticStagedSubmissionIfEligible()
+                    self.beginAutomaticStagedSubmissionIfEligible()
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard self.scanOperationState.isCurrent(generation) else {
+                    return
+                }
                 MerianLog.hardware.error(
                     "Hardware shutter failure: \(error, privacy: .private)"
                 )
             }
-
-            isCapturing = false
         }
+        scanOperationState.installStillCaptureTask(
+            captureTask,
+            for: generation
+        )
+    }
+
+    @discardableResult
+    func cancelStillCapture() -> Bool {
+        guard scanOperationState.cancelStillCapture() else { return false }
+        isCapturing = false
+        return true
+    }
+
+    private func requireCurrentStillCapture(
+        _ generation: CaptureScanStillGeneration
+    ) throws {
+        guard !Task.isCancelled,
+              scanOperationState.isCurrent(generation) else {
+            throw CancellationError()
+        }
+    }
+
+    private func finishStillCaptureUI(
+        for generation: CaptureScanStillGeneration
+    ) {
+        guard scanOperationState.finishStillCapture(generation) else {
+            return
+        }
+        isCapturing = false
     }
 }

@@ -173,9 +173,14 @@ because Insights also consumes it.
 
 The modality folders remain independent: `Scan` owns camera and video input,
 `Record` owns audio presentation and interaction, `Describe` owns typed and
-dictated observations, `Staging` owns the mixed-media draft and crop
-presentation, and `Submission` owns the shared live/offline analysis pipeline.
+dictated observations, `Staging` owns the ephemeral mixed-media draft,
+chronological nodes, image bundles, and crop presentation, and `Submission` owns
+conversion into the shared live/offline timeline, descriptors, projection, and
+analysis pipeline. Shell owns staging mutation and disposable-file cleanup; the
+toolbar consumes Staging order without deriving another sort.
 
+[Capture Staging](Merian/Features/Capture/Staging/README.md) documents that
+boundary and its paired Shell/Submission verification.
 [Capture Submission](Merian/Features/Capture/Submission/README.md) separates
 deterministic admission/media/goal policy and normalized payload values in
 `Models`, narrow live admission/context/deferred-update adapters and telemetry
@@ -197,13 +202,16 @@ remains within the 600-line review guard.
 platform-neutral media requests/results, narrow live
 camera/context/library/media/feedback adapters, bounded still/video/WAV
 preparation, leased temporary media artifacts, cancellation-propagating detached
-workers, generation-fenced recording tasks, and viewfinder UI. Scan views
-perform no networking or global service resolution, and every production Scan
-file remains within the 600-line review guard. The reusable crop processor, crop
-UI, and presentation-only flash control live in `Core/Media` and `Core/UI`
-because Profile or the shared Capture bar also consume them. Capture-specific
-editable image context remains in `Capture/Shared`; Profile owns its own
-avatar-crop presentation value.
+workers, generation-fenced still/pre-recording/recording tasks, and viewfinder
+UI. Shell lifecycle and presentation transitions invalidate pending still and
+pre-recording work while gracefully stopping an active video. Scan views perform
+no networking or global service resolution; the preview uses its injected camera
+owner for session and zoom state. Every production Scan file remains within the
+600-line review guard. The reusable crop processor, crop UI, and presentation-
+only flash control live in `Core/Media` and `Core/UI` because Profile or the
+shared Capture bar also consume them. Capture-specific editable image context
+remains in `Capture/Shared`; Profile owns its own avatar-crop presentation
+value.
 
 [Capture Record](Merian/Features/Capture/Record/README.md) separates immutable
 audio presentation and layout policy, narrow manager/haptic adapters, idle and

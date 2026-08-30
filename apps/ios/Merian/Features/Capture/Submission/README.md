@@ -16,7 +16,10 @@ phrases.
 
 - `Models/` owns deterministic admission, media, goal-preference, and latency
   policy plus the normalized staged payload and sendable environment-context
-  snapshot.
+  snapshot. It also owns `CaptureSubmissionMediaTimeline`, the aligned
+  `CaptureSubmissionMediaProjection`, and the hand-written `Identify*` request/
+  replay descriptors. Staging owns chronological draft nodes; Submission alone
+  maps those nodes into live and durable transport values.
 - `Services/` composes narrow live admission and context closures, owns the 150
   ms one-shot context race, formats submission telemetry, and is the only
   Submission layer that adapts `/update-scan-context`. The deferred-context
@@ -32,6 +35,15 @@ animation, sheet, focus, and cancellation timing remain with Capture Shell and
 the modality views. Mirrored tests live under
 `MerianTests/Features/Capture/Submission/`; an architecture suite enforces these
 boundaries and the 600-line production-file review guard.
+
+`CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
+legacy fallback order, and snapshot cleanup.
+`CaptureSubmissionMediaProjectionTests` locks interleaved video/standalone audio
+alignment, sparse persisted source indexes, compact indexing after omitted
+inputs, local Codable provenance, network-key omission, focus lookup, and
+descriptor factories. These are hand-written request/replay values rather than
+generated response DTOs; moving them here changes no request field, enum raw
+value, JSON key, persistence schema, or replay rule.
 
 For visual scans, submission passes only the first visual item's existing focus
 region to local analysis. `InferenceEngine` derives one 512 px local image from

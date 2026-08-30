@@ -48,6 +48,39 @@ final class CaptureSubmissionArchitectureTests: XCTestCase {
         }
     }
 
+    func testRequestAndReplayModelsRemainSubmissionOwned() throws {
+        let models = try submissionSourceRoot().appendingPathComponent("Models")
+        for filename in [
+            "CaptureSubmissionMediaProjection.swift",
+            "CaptureSubmissionMediaTimeline.swift",
+            "IdentifyMediaDescriptors.swift"
+        ] {
+            XCTAssertTrue(FileManager.default.fileExists(
+                atPath: models.appendingPathComponent(filename).path
+            ))
+        }
+
+        let stagingModels = try repositoryRoot().appendingPathComponent(
+            "apps/ios/Merian/Features/Capture/Staging/Models"
+        )
+        let stagingContents = try swiftFiles(in: stagingModels)
+            .map { try String(contentsOf: $0, encoding: .utf8) }
+            .joined(separator: "\n")
+
+        for declaration in [
+            "enum CaptureSubmissionMediaItem",
+            "struct CaptureSubmissionMediaProjection",
+            "struct IdentifyVisualMediaItem",
+            "struct IdentifyAudioMediaItem",
+            "struct IdentifyOwnerMediaTimelineItem"
+        ] {
+            XCTAssertFalse(
+                stagingContents.contains(declaration),
+                "Staging reintroduced Submission declaration \(declaration)"
+            )
+        }
+    }
+
     func testViewModelsDoNotResolveNetworkClients() throws {
         let root = try submissionSourceRoot()
             .appendingPathComponent("ViewModels")

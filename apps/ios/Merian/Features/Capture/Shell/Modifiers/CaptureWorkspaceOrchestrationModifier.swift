@@ -118,9 +118,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             }
         }
         .onDisappear {
-            if viewModel.isVideoRecording {
-                viewModel.stopVideoCapture()
-            }
+            viewModel.handleVisualCaptureInterruption()
             cameraManager.stopSession()
             audioCaptureManager.reset()
             viewModel.stopLiveEnvironmentContextTracking()
@@ -246,6 +244,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             viewModel.updateNotificationSuppression()
 
             if newSheet != nil {
+                viewModel.handleVisualCaptureInterruption()
                 cameraManager.stopSession()
             } else if captureMode == .visual,
                       viewModel.imageToCrop == nil,
@@ -266,6 +265,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         }
         .onChange(of: isFeaturePresentationOccupied) { _, isOccupied in
             if isOccupied {
+                viewModel.handleVisualCaptureInterruption()
                 cameraManager.stopSession()
             }
         }

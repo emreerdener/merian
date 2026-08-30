@@ -99,6 +99,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func clearStagedCaptureAndCropState(discardStagedMediaFiles: Bool = false) {
+        cancelAllVisualCaptureWork()
         cancelActiveCropTask()
         operationState.removeAllRequiredGalleryCrops()
         let discardedMediaPaths = discardStagedMediaFiles

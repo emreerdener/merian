@@ -15,12 +15,14 @@ authority.
   and playback preparation, WAV extraction, and temporary-artifact leases have
   separate owners.
 - `ViewModels/` contains photo/video actions, semantic zoom feedback, and the
-  generation-fenced recording/progress task owner. Replaced or cancelled video
-  work cannot commit stale progress or media, cancel a replacement recording, or
-  surface obsolete failure feedback.
+  generation-fenced still, pre-recording, recording, and progress task owner.
+  Replaced or cancelled work cannot commit stale progress or media, cancel a
+  replacement capture, or surface obsolete failure feedback.
 - `Views/`, `Components/`, and `Modifiers/` own viewfinder presentation,
   view-local focus/zoom timing, the system photo picker, and camera gestures.
-  They contain no networking or global service resolution.
+  They contain no networking or global service resolution. The preview receives
+  the same environment-injected `CameraManager` that owns its session, zoom, and
+  lens-transition state.
 
 `CaptureWorkspaceDependencies.scan` injects the live adapters from the existing
 workspace container. Do not add a Scan singleton, a broad service protocol, or
@@ -44,6 +46,14 @@ and cancel UI finish before the optional Camera Roll save completes. The save
 still retains the original recording until its PhotoKit write returns, while a
 late cancel action cannot discard media that has already crossed the staging
 boundary.
+
+Shell interrupts visual work when the scene becomes inactive, the user leaves
+Scan, a root or feature presentation takes ownership, the workspace disappears,
+or capture state is cleared. A still shutter or pre-recording admission request
+is cancelled and generation-fenced, so a non-cooperative late response cannot
+newly save, prepare, stage, or auto-submit media. A video that has already begun
+recording retains the established graceful-stop path and may stage its partial
+clip; only work that has not reached recording is discarded.
 
 The original-recording and PhotoKit lifetime contract is documented in
 [`27-camera-roll-media-export.md`](../../../../../../docs/features-and-hardware/27-camera-roll-media-export.md).
@@ -76,12 +86,14 @@ tentative metadata and never replaces the full inference image.
 ## Verification
 
 `MerianTests/Features/Capture/Scan` mirrors this owner. The focused suites cover
-frame-sampling and playback presentation, recording/progress generation fences,
-temporary-file lease transfer/cleanup, detached-work cancellation propagation,
-semantic dependency routing, and architecture constraints. The architecture
-guard keeps every production Scan Swift file at or below 600 lines, requires the
-ownership folders, rejects the removed aggregate `Capture.swift`, forbids global
-service resolution, and keeps Models platform-neutral.
+frame-sampling and playback presentation, still/pre-recording/recording/progress
+generation fences, lifecycle overlap rejection, temporary-file lease transfer/
+cleanup, detached-work cancellation propagation, semantic dependency routing,
+and architecture constraints. The architecture guard keeps every production Scan
+Swift file at or below 600 lines, requires the ownership folders, rejects the
+removed aggregate `Capture.swift`, forbids global service resolution, including
+direct `CameraManager.shared` lookup, and keeps Models independent of UI
+frameworks.
 
 The canonical hardware and media contracts remain in
 [`01-camera-and-hardware.md`](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md)

@@ -34,9 +34,9 @@ struct ActiveScanToolbar: View {
                 HStack(spacing: 16) {
                     ForEach(orderedNodes) { node in
                         switch node {
-                        case .image(let uiImage, let index, _):
+                        case .image(let index, let stagedImage):
                             Button(action: { onThumbnailTap(index) }, label: {
-                                Image(uiImage: uiImage)
+                                Image(uiImage: stagedImage.uiImage)
                                     .resizable()
                                     .scaledToFill()
                                     .frame(width: 48, height: 48)
@@ -59,26 +59,28 @@ struct ActiveScanToolbar: View {
                             .accessibilityLabel("Review audio recording")
                             .accessibilityIdentifier("StagedAudioBadge_\(index)")
 
-                        case .video(let uiImage, let index, _):
-                            Button(action: { onVideoTap(index) }) {
-                                ZStack(alignment: .bottomTrailing) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 48, height: 48)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
+                        case .video(let index, let stagedVideo):
+                            if let coverImage = stagedVideo.coverImage {
+                                Button(action: { onVideoTap(index) }) {
+                                    ZStack(alignment: .bottomTrailing) {
+                                        Image(uiImage: coverImage.uiImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 48, height: 48)
+                                            .clipShape(Circle())
+                                            .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1))
 
-                                    Image(systemName: "play.fill")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .frame(width: 18, height: 18)
-                                        .background(Color.black.opacity(0.62))
-                                        .clipShape(Circle())
-                                        .offset(x: 1, y: 1)
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .frame(width: 18, height: 18)
+                                            .background(Color.black.opacity(0.62))
+                                            .clipShape(Circle())
+                                            .offset(x: 1, y: 1)
+                                    }
                                 }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
 
@@ -311,51 +313,17 @@ extension ActiveScanToolbar {
     }
 }
 
-// MARK: - Extracted Private Subviews
-
-private enum StagedNode: Identifiable {
-    case image(uiImage: UIImage, index: Int, addedAt: Date)
-    case description(index: Int, addedAt: Date)
-    case audio(index: Int, addedAt: Date)
-    case video(uiImage: UIImage, index: Int, addedAt: Date)
-
-    var id: String {
-        switch self {
-        case .image(_, let index, _): return "img_\(index)"
-        case .description(let index, _): return "desc_\(index)"
-        case .audio(let index, _): return "audio_\(index)"
-        case .video(_, let index, _): return "video_\(index)"
-        }
-    }
-    
-    var addedAt: Date {
-        switch self {
-        case .image(_, _, let d): return d
-        case .description(_, let d): return d
-        case .audio(_, let d): return d
-        case .video(_, _, let d): return d
-        }
-    }
-}
-
 extension ActiveScanToolbar {
-    private var orderedNodes: [StagedNode] {
-        var nodes: [StagedNode] = []
-        for node in stagedCapture.orderedNodes {
-            switch node {
-            case .image(let index, let stagedImage):
-                nodes.append(.image(uiImage: stagedImage.uiImage, index: index, addedAt: stagedImage.addedAt))
-            case .audio(let index, let stagedAudio):
-                nodes.append(.audio(index: index, addedAt: stagedAudio.addedAt))
-            case .video(let index, let stagedVideo):
-                if let coverImage = stagedVideo.coverImage {
-                    nodes.append(.video(uiImage: coverImage.uiImage, index: index, addedAt: stagedVideo.addedAt))
-                }
-            case .description(let index, let stagedObservationContext):
-                nodes.append(.description(index: index, addedAt: stagedObservationContext.addedAt))
+    /// A video without a sampled cover remains absent from the tray, matching
+    /// the established presentation behavior. Chronological ordering itself is
+    /// owned by `StagedCapture` and is not recomputed here.
+    private var orderedNodes: [StagedCaptureNode] {
+        stagedCapture.orderedNodes.filter { node in
+            if case .video(_, let stagedVideo) = node {
+                return stagedVideo.coverImage != nil
             }
+            return true
         }
-        return nodes.sorted { $0.addedAt < $1.addedAt }
     }
 }
 

@@ -160,19 +160,44 @@ assert_suite_has_passed_test_case \
   "queueBackedAttemptRequiresForegroundGenerationForAllMedia"
 assert_suite_has_passed_test_case \
   "Pre-queue admission connectivity handoff" \
-  "StagedCaptureTests" \
-  "StagedCapture" \
-  "connectivityUnavailableAdmissionSelectsQueueOnlyRoute"
+  "ScanConnectivityFailurePolicyTests" \
+  "Scan connectivity failure policy" \
+  "connectivityFailuresSelectQueueOnlyAdmission"
+assert_suite_has_passed_test_case \
+  "Pre-queue admission authentication and trust fence" \
+  "ScanConnectivityFailurePolicyTests" \
+  "Scan connectivity failure policy" \
+  "authenticationAndTrustFailuresRemainFailClosed"
+assert_suite_has_passed_test_case \
+  "Post-durable secure-transport recovery boundary" \
+  "ScanConnectivityFailurePolicyTests" \
+  "Scan connectivity failure policy" \
+  "secureTransportFailuresUseOnlyDurableRecovery"
 assert_suite_has_passed_test_case \
   "Pre-import scan admission" \
-  "StagedCaptureTests" \
-  "StagedCapture" \
+  "CaptureWorkspaceStagingTests" \
+  "Capture workspace staging" \
   "exhaustedImageImportAdmissionBlocksBeforePickerAndCrop"
 assert_suite_has_passed_test_case \
   "Automatic single-capture toolbar suppression" \
-  "StagedCaptureTests" \
-  "StagedCapture" \
-  "automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission"
+  "CaptureWorkspaceStagingTests" \
+  "Capture workspace staging" \
+  "automaticSingleCaptureFencesTheIdentifyTray"
+assert_suite_has_passed_test_case \
+  "Required-crop capture chrome suppression" \
+  "CaptureWorkspaceStagingTests" \
+  "Capture workspace staging" \
+  "requiredCropStateFencesCaptureChromeBeforePresentation"
+assert_suite_has_passed_test_case \
+  "Still-capture lifecycle generation fence" \
+  "CaptureScanDependenciesTests" \
+  "Capture scan dependencies" \
+  "testLifecycleInterruptionFencesOverlappingStillCapture"
+assert_suite_has_passed_test_case \
+  "Pre-recording lifecycle generation fence" \
+  "CaptureScanDependenciesTests" \
+  "Capture scan dependencies" \
+  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission"
 assert_suite_has_passed_test_case \
   "Retired queue owner response handoff" \
   "InferenceEngineTests" \

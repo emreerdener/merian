@@ -306,12 +306,12 @@ Local construction evidence is deliberately split by source state:
 - strict no-cache lint reports zero violations across all seven changed Swift
   production and test files;
 - the critical-result and focused-result validator harnesses plus the iOS
-  build/workflow contract pass, with all 95 protected unit declarations,
-  including exact durable scan-ID/generation pairing for both engine pipelines,
-  automatic single-capture suppression of the manual **Identify** toolbar,
-  pre-import paywall admission before picker/crop work, and the exact two-case
-  UI result requirement retained at that review point; the current four-case set
-  still contains both incident regressions; and
+  build/workflow contract pass, with all then-current 95 protected unit
+  declarations, including exact durable scan-ID/generation pairing for both
+  engine pipelines, automatic single-capture suppression of the manual
+  **Identify** toolbar, pre-import paywall admission before picker/crop work,
+  and the exact two-case UI result requirement retained at that review point;
+  the current four-case set still contains both incident regressions; and
 - `git diff --check` passes.
 
 The full current app module cannot be reconstructed again inside this sandbox:
@@ -336,13 +336,19 @@ the visual/nonvisual durable scan-ID/generation ownership fence. The staged-
 toolbar presentation follow-up extends it to 94 by protecting automatic
 single-capture suppression and failure recovery. The pre-import admission
 follow-up extends it to 95 by protecting paywall denial before picker/crop work.
-The complete local candidate/tooling gate now passes: 186 standard TypeScript
-tooling tests, 16 isolated DTO tests, executable Identify contract tests, every
-shell/tooling check, and all 18 documentation contracts. All 262 migration
-source assertions pass across 39 discovered test files, including the
-caller-scoped read-only scan-admission RPC. These source results repair the
-reported contract failure but do not substitute for the workflow's fresh
-disposable-database replay on one committed exact SHA.
+The later Capture Staging hygiene pass rehomed and split three consolidated
+declarations into six ownership-aligned cases under Core Utilities and Capture
+Shell. The Capture-wide integration audit adds two exact lifecycle cases that
+resume controlled still-capture and video-admission work after cancellation and
+prove stale generations cannot publish. The current validator therefore protects
+100 exact cases without broadening the behaviors established here. The complete
+local candidate/tooling gate now passes: 186 standard TypeScript tooling tests,
+16 isolated DTO tests, executable Identify contract tests, every shell/tooling
+check, and all 18 documentation contracts. All 262 migration source assertions
+pass across 39 discovered test files, including the caller-scoped read-only
+scan-admission RPC. These source results repair the reported contract failure
+but do not substitute for the workflow's fresh disposable-database replay on one
+committed exact SHA.
 
 The sandbox cannot reliably connect to CoreSimulatorService or apply SwiftPM's
 nested build sandbox, so it cannot run the Xcode test bundle locally. Direct

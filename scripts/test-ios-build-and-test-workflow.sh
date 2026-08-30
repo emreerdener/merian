@@ -1014,9 +1014,9 @@ done < <(
     }
   ' "$critical_results_check"
 )
-[[ "$protected_case_count" == "95" ]] \
+[[ "$protected_case_count" == "100" ]] \
   || fail \
-    "Expected 95 exact protected iOS test cases; found $protected_case_count."
+    "Expected 100 exact protected iOS test cases; found $protected_case_count."
 
 for exact_scan_regression in \
   "consentRequiredFailuresStayOutOfNetworkCircuitForVisualAndNonVisual" \
@@ -1052,6 +1052,8 @@ for exact_scan_regression in \
   "uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork" \
   "testMediaStagingContractRejectsEmptyFilesBeforeUpload" \
   "testRetryQueuedScanNowRejectsLegacyExternalImport" \
+  "testLifecycleInterruptionFencesOverlappingStillCapture" \
+  "testLifecycleInterruptionCancelsVideoWaitingOnAdmission" \
   "cloudDeletionRequiresExplicitNetworkConfirmation" \
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState" \
   "cloudDeletionDrainIsProcessSingleFlight" \

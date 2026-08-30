@@ -4,6 +4,58 @@ import XCTest
 
 @MainActor
 final class CaptureScanOperationStateTests: XCTestCase {
+    func testStillReplacementCancelsPriorGenerationAndFencesItsCompletion() {
+        let state = CaptureScanOperationState()
+        let firstGeneration = state.beginStillCapture()
+        let firstTask = Task {
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+        }
+        XCTAssertTrue(state.installStillCaptureTask(
+            firstTask,
+            for: firstGeneration
+        ))
+
+        let secondGeneration = state.beginStillCapture()
+        let secondTask = Task {
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+        }
+        XCTAssertTrue(state.installStillCaptureTask(
+            secondTask,
+            for: secondGeneration
+        ))
+
+        XCTAssertTrue(firstTask.isCancelled)
+        XCTAssertFalse(state.finishStillCapture(firstGeneration))
+        XCTAssertTrue(state.isCurrent(secondGeneration))
+        XCTAssertTrue(state.finishStillCapture(secondGeneration))
+
+        secondTask.cancel()
+    }
+
+    func testStillStaleTaskInstallationCancelsTheTask() {
+        let state = CaptureScanOperationState()
+        let generation = state.beginStillCapture()
+        XCTAssertTrue(state.cancelStillCapture())
+
+        let task = Task {
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+        }
+
+        XCTAssertFalse(state.installStillCaptureTask(
+            task,
+            for: generation
+        ))
+        XCTAssertTrue(task.isCancelled)
+        XCTAssertFalse(state.isCurrent(generation))
+        XCTAssertFalse(state.cancelStillCapture())
+    }
+
     func testReplacementCancelsPriorGenerationAndFencesItsCompletion() {
         let state = CaptureScanOperationState()
         let firstGeneration = state.beginVideoRecording()
@@ -82,5 +134,6 @@ final class CaptureScanOperationStateTests: XCTestCase {
         XCTAssertFalse(secondProgressTask.isCancelled)
         XCTAssertTrue(state.finishVideoRecording(generation))
         XCTAssertTrue(secondProgressTask.isCancelled)
+        XCTAssertFalse(state.hasActiveVideoCapture)
     }
 }

@@ -5449,6 +5449,16 @@ ordered compositions of images, audio, and descriptive context.
 
 ### The JSON Request Payload (From Swift `OfflineQueueManager`)
 
+On iOS, the hand-written `IdentifyVisualMediaItem`, `IdentifyAudioMediaItem`,
+and `IdentifyOwnerMediaTimelineItem` request/replay descriptors live in
+`Capture/Submission/Models/IdentifyMediaDescriptors.swift`.
+`CaptureSubmissionMediaProjection.swift` is the single aligned projection from
+the ordered Capture timeline into audio paths/descriptors, video paths,
+observation contexts, and `ownerMediaTimeline`. `Capture/Staging` owns only the
+ephemeral draft and chronological nodes. These request descriptors are separate
+from the generated response DTOs in `Core/AI/InferenceEdgeDTOs.swift`; moving
+their owner does not change the payload below or the executable Deno contract.
+
 ```json
 {
   "r2ObjectKeys": [

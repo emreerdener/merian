@@ -56,6 +56,7 @@ final class CaptureScanArchitectureTests: XCTestCase {
         let forbiddenTokens = [
             "AppDIContainer.shared",
             "MerianNetworkClient.shared",
+            "CameraManager.shared",
             "SupabaseManager.shared",
             "RevenueCatManager.shared",
             "HapticManager.shared",

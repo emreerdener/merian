@@ -12,7 +12,9 @@ hardware. Its Models define platform-neutral preparation values; Services adapt
 the injected camera, context, Photo Library, media, entitlement, and feedback
 owners; ViewModels coordinate photo/video lifecycle with generation-fenced task
 state; and Views/Components/Modifiers retain viewfinder interaction timing. Scan
-views do not perform networking or resolve global services.
+views do not perform networking or resolve global services. The preview receives
+the environment-injected `CameraManager` as its single session, zoom, and lens-
+transition owner.
 
 Still, sampled-frame, playback-video, and companion-WAV work have separate
 bounded service owners. Generic crop encoding is shared from `Core/Media`, while
@@ -138,12 +140,17 @@ The lowest-level integration, interfacing directly with the iPhone optics.
 - Guards `AVFoundation` shutter callbacks against race conditions using
   `withCheckedThrowingContinuation`, synchronizing on the `@MainActor` before
   delegating `capturePhoto` to the background queue.
-  `CaptureWorkspaceViewModel.executeCapture` wraps an
-  `@Published var isCapturing: Bool` lock to prevent rapid double-tap crashes.
-  To prevent `.paywall` overrides from `AVCaptureEventInteraction` false
-  positives during inference, `handleInferenceProcessingChange` defers
-  `.insight` assignment into `DispatchQueue.main.async`, allowing the `UIWindow`
-  to stabilize the hardware shutter button state.
+  `CaptureWorkspaceViewModel.executeCapture` uses its observable `isCapturing`
+  gate to prevent rapid double taps and a separately owned still-capture
+  generation to reject non-cooperative completion after lifecycle cancellation.
+  Scene inactivity, a mode or presentation handoff, and workspace teardown also
+  cancel video work that has not reached recording; an active video retains
+  graceful stop-and-stage behavior. Explicit workspace/reset clearing cancels
+  both pending and active visual work so cleared state cannot be repopulated. To
+  prevent `.paywall` overrides from `AVCaptureEventInteraction` false positives
+  during inference, `handleInferenceProcessingChange` defers `.insight`
+  assignment into `DispatchQueue.main.async`, allowing the `UIWindow` to
+  stabilize the hardware shutter button state.
 - Reads the LiDAR depth vector `subjectDistanceInMeters` at the exact moment of
   shutter capture. Deferring this read to `handleCropCompletion` would return
   floor data or `nil` after the user pans away, so `capturedDistance` is
@@ -621,6 +628,15 @@ dismissal timing. The composing-center environment contract belongs to
 the cross-feature immutable image transport belongs to `Core/Media` because
 Insights consumes it as well.
 
+`Capture/Staging/Models` owns the ephemeral aggregate, typed modality wrappers,
+image bundle, capacity policy, and single chronological node sequence. Shell
+mutates that aggregate and owns local-file cleanup; `ActiveScanToolbar` filters
+the canonical sequence for renderable video covers without sorting it again.
+`Capture/Submission/Models` owns the submission timeline, aligned projection,
+and exact `Identify*` request/replay descriptors. Staging views issue no
+endpoint or persistence calls; crop presentation retains its cancellable
+image-processing task and required-crop callback timing.
+
 Describe's 350 ms tag-selection auto-advance is keyed to a lightweight request
 identity with SwiftUI `.task(id:)`. A newer tag replaces it and page unmount
 cancels it, so delayed navigation cannot advance a replacement prompt or retain
@@ -1016,27 +1032,27 @@ A dedicated `PHPhotoLibrary` handler.
   prevents post-commit cancellation without shortening source-file lifetime.
   Scan lists, widgets, sharing previews, and Explore compact surfaces use that
   poster thumbnail; the Insight carousel opens the video item itself.
-  `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem` metadata travel with
-  the sampled frames/audio so `/identify-multimodal` can label still photos,
-  ordered video frames, and accompanying video audio accurately for AI. Offline
-  queue persistence keeps sampled video frames in `inferenceImagePaths` and
-  stores only the playback video item plus thumbnail in the captured-media
-  timeline, so UI/share surfaces never treat inference frames as user-selected
-  photos. `handlePhotoPickerSelection` skips any actor-prepared still image
-  whose encoded payloads fail the byte or dimension budgets, rather than
-  appending empty `Data()`, which would base64-encode to an empty string and
-  cause Gemini to reject the request with an opaque AI processing error.
-  `CaptureScanStillMediaPreparer` and `CaptureScanVideoMediaPreparer` apply the
-  matching camera/video-frame guard. Cancel, remove, replace, and
-  queue-rejection paths call the discard helper so temporary playback `.mp4`
-  files and companion WAV files are deleted through `FileIOActor`; submit paths
-  use reference-only clearing after queue acceptance so durable queue/live
-  persistence keeps ownership. All per-image copies inside each `StagedImage`
-  (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail,
-  and crop/metadata bundle) are released with the same value reset — index
-  mismatches between parallel arrays are impossible because media stays
-  co-located in typed staging models. `submitStagedCapture(...)` extracts
-  `historicalContext` from `stagedCapture.images[0]` (via the
+  Submission-owned `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem`
+  metadata travel with the sampled frames/audio so `/identify-multimodal` can
+  label still photos, ordered video frames, and accompanying video audio
+  accurately for AI. Offline queue persistence keeps sampled video frames in
+  `inferenceImagePaths` and stores only the playback video item plus thumbnail
+  in the captured-media timeline, so UI/share surfaces never treat inference
+  frames as user-selected photos. `handlePhotoPickerSelection` skips any
+  actor-prepared still image whose encoded payloads fail the byte or dimension
+  budgets, rather than appending empty `Data()`, which would base64-encode to an
+  empty string and cause Gemini to reject the request with an opaque AI
+  processing error. `CaptureScanStillMediaPreparer` and
+  `CaptureScanVideoMediaPreparer` apply the matching camera/video-frame guard.
+  Cancel, remove, replace, and queue-rejection paths call the discard helper so
+  temporary playback `.mp4` files and companion WAV files are deleted through
+  `FileIOActor`; submit paths use reference-only clearing after queue acceptance
+  so durable queue/live persistence keeps ownership. All per-image copies inside
+  each `StagedImage` (compressed inference data, 2048 px display data, bounded
+  `UIImage` thumbnail, and crop/metadata bundle) are released with the same
+  value reset — index mismatches between parallel arrays are impossible because
+  media stays co-located in typed staging models. `submitStagedCapture(...)`
+  extracts `historicalContext` from `stagedCapture.images[0]` (via the
   `StagedImage.original` bundle) before reference-only staging reset to preserve
   EXIF location data from library uploads.
 - **Video Upload Signing Shape**: One video scan signs six staged media files:

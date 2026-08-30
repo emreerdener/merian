@@ -4,240 +4,8 @@ import UIKit
 
 @testable import Merian
 
-@Suite("StagedCapture", .serialized)
+@Suite("StagedCapture")
 struct StagedCaptureTests {
-
-    @Test func connectivityUnavailableAdmissionSelectsQueueOnlyRoute() {
-        func wrapped(_ error: Error, layers: Int) -> Error {
-            (0..<layers).reduce(error) { underlyingError, layer in
-                NSError(
-                    domain: "ScanAdmissionTransportWrapper.\(layer)",
-                    code: layer,
-                    userInfo: [NSUnderlyingErrorKey: underlyingError]
-                )
-            }
-        }
-
-        let reviewedConnectivityCodes: [URLError.Code] = [
-            .timedOut,
-            .cannotFindHost,
-            .cannotConnectToHost,
-            .networkConnectionLost,
-            .dnsLookupFailed,
-            .notConnectedToInternet,
-            .internationalRoamingOff,
-            .callIsActive,
-            .dataNotAllowed,
-            .backgroundSessionWasDisconnected,
-            .cannotLoadFromNetwork
-        ]
-        for code in reviewedConnectivityCodes {
-            #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-                URLError(code)
-            ))
-        }
-
-        let wrappedOfflineError = NSError(
-            domain: "ScanAdmissionTransportWrapper",
-            code: 1,
-            userInfo: [
-                NSUnderlyingErrorKey: URLError(.notConnectedToInternet)
-            ]
-        )
-        #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-            wrappedOfflineError
-        ))
-        #expect(ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-            wrapped(URLError(.notConnectedToInternet), layers: 3)
-        ))
-        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-            wrapped(URLError(.notConnectedToInternet), layers: 4)
-        ))
-
-        let policyFailureCodes: [URLError.Code] = [
-            .userCancelledAuthentication,
-            .userAuthenticationRequired,
-            .appTransportSecurityRequiresSecureConnection,
-            .serverCertificateHasBadDate,
-            .serverCertificateUntrusted,
-            .serverCertificateHasUnknownRoot,
-            .serverCertificateNotYetValid,
-            .clientCertificateRejected,
-            .clientCertificateRequired
-        ]
-        let admissionVetoCodes: [URLError.Code] = [
-            .cancelled,
-            .secureConnectionFailed
-        ] + policyFailureCodes
-        for failClosedCode in admissionVetoCodes {
-            #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-                URLError(failClosedCode)
-            ))
-        }
-        #expect(ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-            URLError(.secureConnectionFailed)
-        ))
-        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-            URLError(.serverCertificateUntrusted)
-        ))
-
-        let wrappedAdmissionTLSFailure = NSError(
-            domain: NSURLErrorDomain,
-            code: URLError.Code.secureConnectionFailed.rawValue,
-            userInfo: [
-                NSUnderlyingErrorKey: URLError(.notConnectedToInternet)
-            ]
-        )
-        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-            wrappedAdmissionTLSFailure
-        ))
-        #expect(ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-            wrappedAdmissionTLSFailure
-        ))
-
-        for policyCode in policyFailureCodes {
-            let wrappedPolicyFailure = NSError(
-                domain: NSURLErrorDomain,
-                code: URLError.Code.timedOut.rawValue,
-                userInfo: [NSUnderlyingErrorKey: URLError(policyCode)]
-            )
-            #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-                wrappedPolicyFailure
-            ))
-            #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-                wrappedPolicyFailure
-            ))
-        }
-
-        let deepestInspectedPolicyFailure = NSError(
-            domain: NSURLErrorDomain,
-            code: URLError.Code.timedOut.rawValue,
-            userInfo: [
-                NSUnderlyingErrorKey: wrapped(
-                    URLError(.serverCertificateUntrusted),
-                    layers: 2
-                )
-            ]
-        )
-        #expect(!ScanConnectivityFailurePolicy.isQueueOnlyAdmissionFailure(
-            deepestInspectedPolicyFailure
-        ))
-        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-            deepestInspectedPolicyFailure
-        ))
-
-        let wrappedCertificateFailure = NSError(
-            domain: NSURLErrorDomain,
-            code: URLError.Code.secureConnectionFailed.rawValue,
-            userInfo: [
-                NSUnderlyingErrorKey: URLError(.serverCertificateUntrusted)
-            ]
-        )
-        #expect(!ScanConnectivityFailurePolicy.isDurableRecoveryFailure(
-            wrappedCertificateFailure
-        ))
-
-    }
-
-    @Test func exhaustedImageImportAdmissionBlocksBeforePickerAndCrop() async {
-        await Task { @MainActor in
-            let admissionManager = ScanAdmissionManager.shared
-            let queueManager = OfflineQueueManager.shared
-            let previousOnlineState = queueManager.isOnline
-            var receivedFlashEligibility: Bool?
-            admissionManager.overridingPreview = { flashFallbackEligible in
-                receivedFlashEligibility = flashFallbackEligible
-                return ScanAdmissionPreview(
-                    decision: .dailyQuotaExhausted,
-                    effectivePlan: "free",
-                    dailyLimit: 1,
-                    dailyRemaining: 0
-                )
-            }
-            queueManager.isOnline = true
-            defer {
-                admissionManager.resetForTesting()
-                queueManager.isOnline = previousOnlineState
-            }
-
-            let viewModel = CaptureWorkspaceViewModel(
-                diContainer: .preview,
-                preparedImageLoader: { _ in nil },
-                prewarmHeadersOnInit: false
-            )
-            let shouldPresentPicker = await viewModel.requestImageImportEntryAdmission(
-                prospectiveImageCount: 1
-            )
-
-            #expect(!shouldPresentPicker)
-            #expect(receivedFlashEligibility == true)
-            #expect(viewModel.activeSheet == .paywall)
-            #expect(viewModel.stagedCapture.isEmpty)
-            #expect(viewModel.imageToCrop == nil)
-            #expect(!viewModel.isCheckingScanAdmission)
-        }.value
-    }
-
-    @Test func automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission() async {
-        await MainActor.run {
-            let diContainer = AppDIContainer.preview
-            let previousConfirmation = diContainer.appSettings.requiresScanConfirmation
-            let previousMultiCapture = diContainer.appSettings.isMultiCaptureEnabled
-            defer {
-                diContainer.appSettings.requiresScanConfirmation = previousConfirmation
-                diContainer.appSettings.isMultiCaptureEnabled = previousMultiCapture
-            }
-
-            diContainer.appSettings.requiresScanConfirmation = false
-            diContainer.appSettings.isMultiCaptureEnabled = false
-
-            let viewModel = CaptureWorkspaceViewModel(
-                diContainer: diContainer,
-                preparedImageLoader: { _ in nil },
-                prewarmHeadersOnInit: false
-            )
-            viewModel.stagedCapture.images = [StagedImage(
-                compressedData: Data([0x01]),
-                displayData: Data([0x02]),
-                uiImage: UIImage(),
-                original: IdentifiableImage(image: UIImage())
-            )]
-
-            #expect(viewModel.beginAutomaticStagedSubmissionIfEligible())
-            #expect(viewModel.isAutomaticStagedSubmissionPending)
-            #expect(!viewModel.shouldPresentActiveScanToolbar)
-
-            viewModel.finishAutomaticStagedSubmissionAttempt()
-
-            #expect(!viewModel.isAutomaticStagedSubmissionPending)
-            #expect(viewModel.shouldPresentActiveScanToolbar)
-
-            diContainer.appSettings.requiresScanConfirmation = true
-            #expect(!viewModel.beginAutomaticStagedSubmissionIfEligible())
-            #expect(viewModel.shouldPresentActiveScanToolbar)
-
-            viewModel.clearStagedCaptureAndCropState()
-            #expect(!viewModel.isAutomaticStagedSubmissionPending)
-            #expect(!viewModel.shouldPresentActiveScanToolbar)
-
-            // Required gallery media is staged before SwiftUI mounts the crop
-            // cover. That pending state must suppress the capture chrome even
-            // in the render before imageToCrop becomes visible.
-            #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-                hasPendingRequiredGalleryCrop: true,
-                isCropPresented: false
-            ))
-            #expect(CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-                hasPendingRequiredGalleryCrop: false,
-                isCropPresented: true
-            ))
-            #expect(!CaptureWorkspaceViewModel.shouldSuppressCaptureChromeForCrop(
-                hasPendingRequiredGalleryCrop: false,
-                isCropPresented: false
-            ))
-        }
-    }
-
     // MARK: - isEmpty
 
     @Test func isEmptyWhenAllModalitiesAreEmpty() {
@@ -404,36 +172,6 @@ struct StagedCaptureTests {
             ],
             "Cancel cleanup must include standalone audio, playback video, and extracted video audio"
         )
-        #expect(
-            Set(capture.submissionMediaTimeline.discardableLocalMediaFilePaths) == [
-                "standalone.wav",
-                "/tmp/video-playback.mp4",
-                "video-audio.wav"
-            ],
-            "Submission snapshots need the same cleanup list when queue ownership fails"
-        )
-    }
-
-    @Test func removeStagedAudioRemovesOnlyTheSelectedRecording() async {
-        await MainActor.run {
-            let firstPath = "staged_audio_remove_\(UUID().uuidString).wav"
-            let secondPath = "staged_audio_keep_\(UUID().uuidString).wav"
-            let viewModel = CaptureWorkspaceViewModel(
-                diContainer: .preview,
-                preparedImageLoader: { _ in nil },
-                prewarmHeadersOnInit: false
-            )
-            viewModel.stagedCapture.audios = [
-                StagedAudio(filePath: firstPath),
-                StagedAudio(filePath: secondPath)
-            ]
-
-            viewModel.removeStagedAudio(at: 0)
-
-            #expect(viewModel.stagedCapture.audios.map(\.filePath) == [secondPath])
-            viewModel.removeStagedAudio(at: 4)
-            #expect(viewModel.stagedCapture.audios.map(\.filePath) == [secondPath])
-        }
     }
 
     @Test func availableSlotsUsesTotalMixedItemCount() {
@@ -448,7 +186,7 @@ struct StagedCaptureTests {
         #expect(capture.isAtCapacity(limit: stagedCaptureCapacity))
     }
 
-    @Test func submissionMediaTimelinePreservesChronologicalMixedOrder() {
+    @Test func orderedNodesPreserveChronologicalMixedOrderAndCollectionIndexes() {
         var capture = StagedCapture()
 
         let image = StagedImage(
@@ -469,25 +207,30 @@ struct StagedCaptureTests {
             )
         )
 
-        let timeline = capture.submissionMediaTimeline
-        #expect(timeline.count == 3)
+        let nodes = capture.orderedNodes
+        #expect(nodes.count == 3)
 
-        if case .audio(let audioPath) = timeline[0] {
-            #expect(audioPath == "call.wav")
-        } else {
-            Issue.record("First timeline item must preserve the staged audio clip")
-        }
-
-        if case .image(let index) = timeline[1] {
+        if case .audio(let index, let audio) = nodes[0] {
             #expect(index == 0)
+            #expect(audio.filePath == "call.wav")
+            #expect(nodes[0].id == "audio_0")
         } else {
-            Issue.record("Second timeline item must preserve the staged image")
+            Issue.record("First node must preserve the staged audio clip")
         }
 
-        if case .description(let context) = timeline[2] {
-            #expect(context.freeText == "Bright yellow body")
+        if case .image(let index, _) = nodes[1] {
+            #expect(index == 0)
+            #expect(nodes[1].id == "img_0")
         } else {
-            Issue.record("Third timeline item must preserve the staged description")
+            Issue.record("Second node must preserve the staged image")
+        }
+
+        if case .description(let index, let description) = nodes[2] {
+            #expect(index == 0)
+            #expect(description.context.freeText == "Bright yellow body")
+            #expect(nodes[2].id == "desc_0")
+        } else {
+            Issue.record("Third node must preserve the staged description")
         }
     }
 
@@ -533,7 +276,7 @@ struct StagedCaptureTests {
         #expect(replacement.original.environmentContext?.location?.coordinate.longitude == -87.6298)
     }
 
-    @Test func submissionMediaTimelineSupportsAllowedCombinationMatrix() {
+    @Test func stagingSupportsAllowedCombinationMatrix() {
         func makeImage(addedAt: TimeInterval) -> StagedImage {
             StagedImage(
                 compressedData: Data([0x00]),
@@ -664,8 +407,8 @@ struct StagedCaptureTests {
                 "\(scenario.name) must count every staged item"
             )
             #expect(
-                scenario.capture.submissionMediaTimeline.count == scenario.expectedCount,
-                "\(scenario.name) must produce the expected submission timeline size"
+                scenario.capture.orderedNodes.count == scenario.expectedCount,
+                "\(scenario.name) must produce the expected ordered node count"
             )
             #expect(
                 scenario.capture.availableSlots(limit: stagedCaptureCapacity) == stagedCaptureCapacity - scenario.expectedCount,
