@@ -878,9 +878,12 @@ an Edge API response or opened offline via the Scans library.
     `OverviewCard`, `ExploreOverviewCard`, `HabitatAndDistributionCard`, and
     `ExploreHabitatDistributionCard` still keep their own data sourcing,
     online/loading behavior, and privacy gates.
-  - Insight presentation primitives now live under
-    `Features/Insights/Shell/Models`: `InsightPresentation` owns
-    `ScanInsightRoute` and sheet/embedded presentation style.
+  - Insight presentation primitives live under `Features/Insights/Shell/Models`:
+    `InsightPresentation` owns `ScanInsightRoute` and sheet/embedded
+    presentation style; `InsightContentPresentation` serializes content-owned
+    destinations; `InsightShellPresentation` serializes root follow-ups; and
+    `InsightDisplayModels` owns deterministic recommendation and toolbar-reveal
+    values.
     `Features/Insights/Toolbars/Models/InsightToolbarRecordSnapshot.swift`
     preserves value-type toolbar data across SwiftData deletion/dismissal
     boundaries, and share feedback/candidate-review state is kept out of SwiftUI
@@ -890,12 +893,18 @@ an Edge API response or opened offline via the Scans library.
     gallery through one typed presentation value. One item-based sheet owns the
     modal cases; a mutually exclusive full-screen binding owns the gallery. No
     destination adds a sibling sheet host to the same Insight content root.
-  - `InsightSheetViewModel` keeps its root state in
-    `Features/Insights/Shell/ViewModels/`, while behavior extensions live beside
-    their owning product areas: field-note behavior in `FieldNotes/ViewModels/`,
-    Explore sharing in `Sharing/ViewModels/`, media export in
-    `Media/Utilities/`, and name preferences in
-    `Content/NamePreferences/ViewModels/`.
+  - `InsightSheetViewModel` keeps stored state, initialization, and reset in its
+    Shell root. Named Shell extensions own lifecycle, local records,
+    capabilities, content presentation, media presentation, and presentation
+    identity. Behavior that belongs to another product area stays beside that
+    owner: field-note behavior in `FieldNotes/ViewModels/`, Explore sharing in
+    `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name
+    preferences in `Content/NamePreferences/ViewModels/`.
+  - `Shell/Services/InsightShellDependencies.swift` is the only Shell source
+    that resolves the live network client, authentication, repositories, feature
+    access, app routing, badge updates, or haptic feedback. The root view and
+    view model accept the same small closure-based value; existing callers omit
+    its optional trailing initializer argument and receive `.live`.
   - `InsightChatViewModel` is intentionally separate from
     `InsightSheetViewModel`. It owns the Field chat lifecycle for completed
     biological insights, including `/check-scan-status` presentation preflight,
@@ -908,20 +917,24 @@ an Edge API response or opened offline via the Scans library.
     recheck/reanalysis requests. `InsightSheetView` passes only
     presentation/action hooks for toasts, append-only field-note writes,
     candidate review, reanalysis, and sheet dismissal.
-  - `InsightSheetView` keeps presentation and lifecycle wiring while toolbar
-    assembly lives in `Shell/Views/InsightSheetView+Toolbar.swift`, and embedded
-    navigation helpers live in `Features/Insights/Shell/Modifiers/`.
+  - `InsightSheetView` and `InsightContentView` remain the stable roots. Their
+    focused extensions own content/toast routing, chat actions, lifecycle
+    attachment, toolbar assembly, Explore composition, typed presentation hosts,
+    and binding adapters. Embedded navigation helpers remain in
+    `Features/Insights/Shell/Modifiers/`; the first-render UIKit probe is a
+    Shell-only Component. Views and view models issue no endpoint calls, and no
+    production Shell Swift file exceeds the 600-line review guard.
   - `BiologicalView` owns the persistent `FieldTripProgressCard` after
     toxicity/identification review and before Field notes.
-    `InsightSheetViewModel` loads its private server rows for saved biological
-    scans, includes standard and Event rows, rejects stale scan-change
-    responses, and silently hides empty/error states. The adaptive card is
-    visibly titled **Field trips**; undivided rows use an uppercase completion
-    eyebrow, standalone goal name, enlarged goal art/check badge, and a
-    prominent trailing `GoalProgressRing` without a redundant chevron. Full-row
-    taps forward typed destinations through the shell so embedded Explore and
-    root modal navigation remain distinct. The card is not a celebration surface
-    and is not cached locally.
+    `InsightSheetViewModel` loads its private server rows through the injected
+    Shell dependency for saved biological scans, includes standard and Event
+    rows, rejects stale scan-change responses, and silently hides empty/error
+    states. The adaptive card is visibly titled **Field trips**; undivided rows
+    use an uppercase completion eyebrow, standalone goal name, enlarged goal
+    art/check badge, and a prominent trailing `GoalProgressRing` without a
+    redundant chevron. Full-row taps forward typed destinations through the
+    shell so embedded Explore and root modal navigation remain distinct. The
+    card is not a celebration surface and is not cached locally.
   - The `SwiftUI` `@ViewBuilder` layout blocks previously hardcoded in
     `InsightLayout.swift` were decoupled. `InsightHeader` recouples the
     `Description` text into the localized semantic `VStack` tracking Scientific

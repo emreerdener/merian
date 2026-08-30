@@ -1417,8 +1417,9 @@ The focused regression inventory includes:
   races;
 - `MerianNetworkClientTests`, including queue-backed no-inline-replay request
   count and bounded timing;
-- `InsightSheetViewModelTests`, including exact-ID queued binding and **Analysis
-  delayed** placeholder routing;
+- `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, and
+  `InsightQueuedRetryPresentationTests`, including exact-ID queued binding and
+  **Analysis delayed** placeholder routing;
 - `InsightChatTests`; and
 - the deterministic progressive-analyzing, live-Insight-to-queue, queued-retry,
   and queued-scan-completion UI smokes, followed by the exact-SHA Release
@@ -1503,11 +1504,13 @@ promotion reject a changed queued subject; a direct parent `queuedScan` A → B
 replacement invalidates A before binding B, accepted refresh updates its media
 snapshot, and Retry indicator release is scoped to its captured scan.
 Completion-handoff single-flight can replace an obsolete scan rather than
-dropping the new handoff. Delayed same-scan share detail refreshes are
-additionally revision-fenced against newer user edits. That follow-up is part of
-immutable SHA `cc664a20d`. Neither this source follow-up nor the documentation
-converts local checks into hosted PostgreSQL, Xcode, deployment, or TestFlight
-evidence.
+dropping the new handoff. Its poller also checks task cancellation before every
+attempt, and cancellation of the 350 ms delay terminates the loop; a dismissed
+or replaced destination cannot resume sleeping work against newer Shell state.
+Delayed same-scan share detail refreshes are additionally revision-fenced
+against newer user edits. That follow-up is part of immutable SHA `cc664a20d`.
+Neither this source follow-up nor the documentation converts local checks into
+hosted PostgreSQL, Xcode, deployment, or TestFlight evidence.
 
 The current descendant also treats satisfied-path constrained/expensive changes
 as recovery transitions. Low Data Mode disarms automatic durable wakes and
@@ -1777,12 +1780,13 @@ dead native lookup plus a weaker element-class fallback.
 Two new exact protected unit regressions cover completed-record precedence and
 the no-completion queued fallback. The completed-record case also proves
 promotion advances generation, leaves processing state, preserves biological
-subject identity, and passes the result-toolbar identity fence. The complete
-`InsightSheetViewModelTests` suite passed 89/89 on Xcode 26.6 with the
-strengthened toolbar assertions. That runtime result predates the first
-animation-bounds correction. Run 105 supplies current cross-file compilation,
-complete-unit runtime, and Release evidence through `6ed0f557b3`, but its UI
-acceptance remains red because the native Button lookup failed. The committed
+subject identity, and passes the result-toolbar identity fence. The former
+aggregate `InsightSheetViewModelTests` suite passed 89/89 on Xcode 26.6 with the
+strengthened toolbar assertions; those cases now live in mirrored Insights
+product-area suites. That runtime result predates the first animation-bounds
+correction. Run 105 supplies current cross-file compilation, complete-unit
+runtime, and Release evidence through `6ed0f557b3`, but its UI acceptance
+remains red because the native Button lookup failed. The committed
 accessibility-node correction at `c7eac9c8f3` passes portable workflow contracts
 and diff validation. A local exact-SHA Xcode 26.6 generic-Simulator
 `build-for-testing` compiled and linked the app, complete unit bundle, and UI

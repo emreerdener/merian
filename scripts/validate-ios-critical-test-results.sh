@@ -460,83 +460,83 @@ assert_suite_has_passed_test_case \
   "testFieldChatCloudPreflightRejectsMismatchedRecordIdentity"
 assert_suite_has_passed_test_case \
   "Presented record stale-binding invalidation" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightShellRecordTests" \
+  "InsightShellRecordTests" \
   "testMissingDifferentRecordClearsStaleScanBoundState"
 assert_suite_has_passed_test_case \
   "Presented record action-generation invalidation" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightShellRecordTests" \
+  "InsightShellRecordTests" \
   "testRecordSwitchInvalidatesPriorActionGeneration"
 assert_suite_has_passed_test_case \
   "Insight reset monotonic request invalidation" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightShellPresentationTests" \
+  "InsightShellPresentationTests" \
   "testResetMonotonicallyInvalidatesScanBoundRequests"
 assert_suite_has_passed_test_case \
   "Field-notes presentation identity" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightFieldNotesStateTests" \
+  "InsightFieldNotesStateTests" \
   "testFieldNotesRejectChangedPresentationIdentity"
 assert_suite_has_passed_test_case \
   "Strong noncompetitive candidate toolbar policy" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightShellCapabilitiesTests" \
+  "InsightShellCapabilitiesTests" \
   "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates"
 assert_suite_has_passed_test_case \
   "Competitive candidate toolbar policy" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightShellCapabilitiesTests" \
+  "InsightShellCapabilitiesTests" \
   "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
 assert_suite_has_passed_test_case \
   "Published Explore Field Notes promotion" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightFieldNotesStateTests" \
+  "InsightFieldNotesStateTests" \
   "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty"
 assert_suite_has_passed_test_case \
   "Private local Field Notes preservation" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightFieldNotesStateTests" \
+  "InsightFieldNotesStateTests" \
   "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes"
 assert_suite_has_passed_test_case \
   "Explore composer Field Notes synchronization" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightFieldNotesStateTests" \
+  "InsightFieldNotesStateTests" \
   "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
 assert_suite_has_passed_test_case \
   "Preferred-name presentation-generation identity" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightSharingPresentationTests" \
+  "InsightSharingPresentationTests" \
   "testPreferredNameRejectsStalePresentationGeneration"
 assert_suite_has_passed_test_case \
   "Queued scan refresh presentation identity" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightQueuedHandoffTests" \
+  "InsightQueuedHandoffTests" \
   "testQueuedRefreshRejectsChangedPresentationIdentity"
 assert_suite_has_passed_test_case \
   "Queued scan parent presentation switch identity" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightQueuedHandoffTests" \
+  "InsightQueuedHandoffTests" \
   "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity"
 assert_suite_has_passed_test_case \
   "Queued scan completion presentation identity" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightQueuedHandoffTests" \
+  "InsightQueuedHandoffTests" \
   "testQueuedPromotionRejectsChangedPresentationIdentity"
 assert_suite_has_passed_test_case \
   "Persisted completion wins over stale queued route" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightQueuedHandoffTests" \
+  "InsightQueuedHandoffTests" \
   "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute"
 assert_suite_has_passed_test_case \
   "Absent completion preserves queued presentation" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightQueuedRetryPresentationTests" \
+  "InsightQueuedRetryPresentationTests" \
   "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent"
 assert_suite_has_passed_test_case \
   "Explore presented-record identity fence" \
-  "InsightSheetViewModelTests" \
-  "Insight Sheet View Model Tests" \
+  "InsightSharingPresentationTests" \
+  "InsightSharingPresentationTests" \
   "testExploreSharingRequiresExactEngineAndRecordIdentity"
 assert_suite_has_passed_test_case \
   "Single scan-status response integrity" \

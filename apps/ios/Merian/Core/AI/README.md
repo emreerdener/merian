@@ -57,8 +57,9 @@ while preserving later permitted URLs in source order. Direct GBIF hydration
 must use this same boundary; do not write a provider URL straight into
 `referenceImageUrl`.
 
-`InsightSheetView` closes the user-perceived measurement with a one-shot UIKit
-draw probe after the first result frame participates in a display pass. Do not
+`Insights/Shell/Components/InsightFirstRenderProbe.swift` closes the
+user-perceived measurement for `InsightSheetView` with a one-shot UIKit draw
+probe after the first result frame participates in a display pass. Do not
 replace that boundary with only a SwiftUI state assignment or `onAppear`; those
 measure scheduling, not pixels presented.
 

@@ -35,7 +35,7 @@ extension InsightSheetViewModel {
 
         if let data = inferenceEngine.speciesData,
            !data.isInferenceErrorPlaceholder {
-            HapticManager.shared.triggerHeavyImpact(source: "insight.analysis.completed")
+            dependencies.completionFeedback()
         }
 
         markRecordViewedIfAppropriate(modelContext: modelContext)
@@ -72,10 +72,7 @@ extension InsightSheetViewModel {
                               ) else {
                             return
                         }
-                        AppDIContainer.shared.appRouteCoordinator.request(
-                            .nonBiologicalScans,
-                            source: .internalUserAction
-                        )
+                        self.dependencies.requestNonBiologicalScans()
                     }
                 }
             }

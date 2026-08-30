@@ -1392,7 +1392,7 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \
   -only-testing:merianTests/FieldTripFeaturedMediaTests \
-  -only-testing:merianTests/InsightSheetViewModelTests \
+  -only-testing:merianTests/InsightFieldTripContributionTests \
   -only-testing:merianTests/MigrationPlanTests \
   -only-testing:merianTests/AppTelemetryTests test
 xcodebuild -scheme Merian -project Merian.xcodeproj \

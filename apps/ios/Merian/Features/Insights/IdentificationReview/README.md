@@ -28,6 +28,12 @@ override or confirming the original result is therefore deferred until UIKit has
 released the sheet anchor and the owner has revalidated the captured scan and
 generation.
 
+The Insight content host wraps that request in
+`InsightCandidateSwipeDismissalRequest` and serializes it through
+`InsightContentPresentation`; both value types live in `Shell/Models`, while the
+candidate feature retains its review policy and UI. This boundary prevents the
+Shell from absorbing candidate-domain behavior merely because it owns the modal.
+
 Confidence explanation uses the same pattern for community and refinement
 handoffs: nested candidate actions resolve first; actions that leave the
 explanation are staged as `ConfidenceExplanationDismissalAction` and executed by

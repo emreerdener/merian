@@ -72,17 +72,13 @@ extension InsightSheetView {
                       ) else {
                     return
                 }
-                if RevenueCatManager.shared.isProActive {
+                if dependencies.isProActive() {
                     if let record = viewModel.activeLocalRecord,
                        record.id.caseInsensitiveCompare(scanId) == .orderedSame {
-                        HapticManager.shared.triggerSelectionPulse()
-                        AppDIContainer.shared.appRouteCoordinator.request(
-                            .refinement(
-                                scanId: record.id,
-                                initialDescription: viewModel.shareableFieldNotes,
-                                entryPoint: .standard
-                            ),
-                            source: .internalUserAction
+                        dependencies.selectionFeedback()
+                        dependencies.requestRefinement(
+                            record.id,
+                            viewModel.shareableFieldNotes
                         )
                     }
                 } else {
@@ -104,7 +100,7 @@ extension InsightSheetView {
                       ) else {
                     return
                 }
-                HapticManager.shared.triggerSuccessPulse()
+                dependencies.successFeedback()
                 Task { @MainActor in
                     guard viewModel.isPresentingLocalRecord(
                         scanId: scanId,
@@ -188,7 +184,7 @@ extension InsightSheetView {
             },
             showsQueuedDeleteAction: toolbarQueuedScanId != nil,
             isAnalyzing: viewModel.isProcessing,
-            isProActive: RevenueCatManager.shared.isProActive
+            isProActive: dependencies.isProActive()
         )
 
         InsightBottomToolbar(
@@ -205,7 +201,7 @@ extension InsightSheetView {
                         .caseInsensitiveCompare(scanId) == .orderedSame else {
                     return
                 }
-                if RevenueCatManager.shared.isProActive {
+                if dependencies.isProActive() {
                     // Present the interaction shell synchronously. The sheet owns
                     // readiness and transcript loading so network retry backoff never
                     // makes a successful tap appear unresponsive. Bind the subject
@@ -214,10 +210,10 @@ extension InsightSheetView {
                     _ = chatViewModel.activateSubject(scanId: scanId)
                     selectedInsightChatScanId = scanId
                     selectedInsightChatGeneration = toolbarGeneration
-                    HapticManager.shared.triggerSheetSpring()
+                    dependencies.sheetFeedback()
                     viewModel.state.isInsightChatSheetPresented = true
                 } else {
-                    HapticManager.shared.triggerSelectionPulse()
+                    dependencies.selectionFeedback()
                     viewModel.state.showPaywall = true
                 }
             },
@@ -380,10 +376,10 @@ extension InsightSheetView {
                 }
 
                 do {
-                    let isAvailable = try await MerianNetworkClient.shared
+                    let isAvailable = try await dependencies
                         .ensureCloudScanAvailableForFieldChat(
-                            scan: record,
-                            expectedScanId: expectedScanId
+                            record,
+                            expectedScanId
                         )
                     guard isPresentingFieldChatScan(
                         scanId: expectedScanId,
@@ -522,7 +518,7 @@ extension InsightSheetView {
                 .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
             return
         }
-        HapticManager.shared.triggerErrorThump()
+        dependencies.errorFeedback()
         viewModel.state.toastMessage = .error(message)
     }
 }

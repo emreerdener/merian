@@ -35,14 +35,14 @@ extension InsightSheetViewModel {
 
         if let record = fetchLocalRecord(scanId: expectedScanId, modelContext: modelContext),
            record.id.caseInsensitiveCompare(targetId) == .orderedSame {
-            HapticManager.shared.triggerErrorThump()
+            dependencies.errorFeedback()
             activeLocalRecord = nil
             activeLocalRecordId = nil
             toolbarRecordSnapshot = nil
             state.showBottomBarTools = false
             state.showDeleteConfirmation = false
             state.showNewCollectionAlert = false
-            ScanRepository.shared.eradicateScan(record: record, modelContext: modelContext)
+            dependencies.eradicateScan(record, modelContext)
             dismiss()
         }
     }
@@ -83,15 +83,15 @@ extension InsightSheetViewModel {
             failureMessage: "Could not update collection. Please try again.",
             logContext: "toggle scan collection"
         ) else {
-            HapticManager.shared.triggerErrorThump()
+            dependencies.errorFeedback()
             return
         }
 
         state.toastMessage = .success(actionMessage)
         activeLocalRecord = record
         toolbarRecordSnapshot = InsightToolbarRecordSnapshot(record: record)
-        OfflineQueueManager.shared.enqueueCollectionSync()
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.enqueueCollectionSync()
+        dependencies.selectionFeedback()
     }
 
     @discardableResult

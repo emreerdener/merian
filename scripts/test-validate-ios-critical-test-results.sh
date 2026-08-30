@@ -192,23 +192,35 @@ write_test_tree() {
               "testMissingOwnerShareStateClearsStaleLocalPublication",
               "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
             ]),
-            suite("InsightSheetViewModelTests"; [
+            suite("InsightShellRecordTests"; [
               "testMissingDifferentRecordClearsStaleScanBoundState",
-              "testRecordSwitchInvalidatesPriorActionGeneration",
-              "testResetMonotonicallyInvalidatesScanBoundRequests",
+              "testRecordSwitchInvalidatesPriorActionGeneration"
+            ]),
+            suite("InsightShellPresentationTests"; [
+              "testResetMonotonicallyInvalidatesScanBoundRequests"
+            ]),
+            suite("InsightFieldNotesStateTests"; [
               "testFieldNotesRejectChangedPresentationIdentity",
-              "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates",
-              "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates",
               "testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty",
               "testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes",
-              "testShareComposerFieldNotesSyncImmediatelyIntoInsightState",
+              "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
+            ]),
+            suite("InsightShellCapabilitiesTests"; [
+              "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates",
+              "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
+            ]),
+            suite("InsightSharingPresentationTests"; [
               "testPreferredNameRejectsStalePresentationGeneration",
+              "testExploreSharingRequiresExactEngineAndRecordIdentity"
+            ]),
+            suite("InsightQueuedHandoffTests"; [
               "testQueuedRefreshRejectsChangedPresentationIdentity",
               "testQueuedPresentationSwitchInvalidatesPriorQueueIdentity",
               "testQueuedPromotionRejectsChangedPresentationIdentity",
-              "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute",
-              "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent",
-              "testExploreSharingRequiresExactEngineAndRecordIdentity"
+              "testQueuedPresentationPrefersPersistedCompletionOverStaleRoute"
+            ]),
+            suite("InsightQueuedRetryPresentationTests"; [
+              "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent"
             ]),
             suite("InsightChatTests"; [
               "explorePostRequestUsesPostIdentifierContract",

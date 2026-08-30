@@ -11,6 +11,62 @@ assembly of the various insight components (`Media`, `Content`,
 handles the lifecycle and presentation state of the sheet without embedding deep
 domain logic.
 
+The canonical product and lifecycle contract is
+[Insight Sheet](../../../../../../docs/features-and-hardware/05-insight-sheet.md);
+typed cross-feature presentation ownership is documented in
+[Event and Presentation Routing](../../../../../../docs/system-architecture/10-event-and-presentation-routing.md).
+
+## Ownership
+
+The Shell uses responsibility-specific implementation folders:
+
+- `Models` owns deterministic presentation identities, binding keys, and display
+  values. It does not import SwiftUI or UIKit.
+- `Services` owns `InsightShellDependencies`, the only Shell declaration that
+  resolves live network clients, repositories, app routing, authentication,
+  feature access, badge updates, or haptic feedback. The dependency value uses
+  narrow initializer-injected closures rather than a feature-wide protocol or
+  singleton.
+- `ViewModels` owns scan-bound state and lifecycle, record, capability, media,
+  content, and presentation projections. View-model files consume injected
+  dependencies and make no direct endpoint calls.
+- `Views` owns the root composition, content and Shell presentation hosts,
+  presentation bindings, lifecycle attachment, toolbar assembly, content/toast
+  routing, and UI-only dismissal timing.
+- `Components` owns Shell-only leaf presentation such as the first-render probe.
+- `Modifiers` owns embedded navigation behavior shared by Shell views.
+
+The responsibility splits are explicit rather than another aggregate:
+
+- `InsightSheetViewModel.swift` owns stored scan-bound state, initialization,
+  reset, and `UIState`.
+- `InsightSheetViewModel+Lifecycle.swift` and `+Records.swift` own lifecycle and
+  local-record mutation/handoff behavior.
+- `+Capabilities.swift`, `+ContentPresentation.swift`,
+  `+MediaPresentation.swift`, and `+PresentationIdentity.swift` own pure or
+  state-derived capability, display, media, and identity projections.
+- `InsightSheetView.swift` and `InsightContentView.swift` remain the stable root
+  compositions. Their `+Presentations`, `+PresentationHost`, and
+  `+PresentationBindings` extensions serialize modal ownership; `+Lifecycle`,
+  `+Toolbar`, `+ChatActions`, `+Content`, and `+ExploreComposer` retain the
+  corresponding view-owned timing and action adapters.
+
+`InsightSheetView` and `InsightContentView` retain their existing initializer
+and presentation contracts. Their source is split into focused extensions so no
+production Shell Swift file exceeds the 600-line review guard. Views retain
+gallery selection, sheet ownership, scroll state, and dismissal timing; those
+states must not move into the view model merely to reduce file size.
+`InsightSheetView` and `InsightSheetViewModel` accept an optional trailing
+`InsightShellDependencies`; `nil` resolves `.live`, preserving every existing
+call site while focused tests inject deterministic closures.
+
+Tests mirror these owners under `MerianTests/Features/Insights/Shell`, with
+presentation-specific suites retained under `Content`, `FieldNotes`, `Media`,
+and `Sharing`. `InsightShellArchitectureTests` enforces the folder shape,
+deterministic Models boundary, live-resolution boundary, absence of direct
+network clients in views/view models, removal of the former source and test
+aggregates, and the 600-line ceiling.
+
 ## Presentation Modes
 
 `InsightPresentationStyle.sheet` is the ordinary modal presentation.
@@ -41,6 +97,12 @@ analyzing pill likewise receives the engine's ephemeral contextual phrase deck,
 with its current phrase first and every unseen phrase before any repeat; queue
 state changes do not restart that rotation. Ordinary queued and historical
 presentations still use durable media and queue-aware copy.
+
+Queued completion polling is cancellation-aware. The poller checks task
+cancellation, its generation, and the exact queued scan before every promotion
+attempt; cancellation of the 350 ms delay exits immediately. Dismissing or
+replacing the destination therefore cannot let a sleeping poller resume and
+mutate a newer presentation.
 
 `InsightContentView` resolves the carousel overlay independently through
 `isCarouselAnalysisActive(for:)`. An exact visual owner remains active across
@@ -125,3 +187,30 @@ and fences Vision, deterministic trait extraction, future Foundation work, and
 phrase cadence, then removes any contextual phrase/live-media exposure. It does
 not cancel the durable Gemini request, upload, persistence, or queued result
 recovery, so a completed result can still appear in Scans later.
+
+## Focused verification
+
+Tests mirror the final owners:
+
+- `Shell/`: architecture, capabilities, lifecycle, records, typed presentations,
+  toolbar snapshots, queued handoff, and Field-trip contributions;
+- `Content/`: queued retry presentation;
+- `FieldNotes/`: local/cloud and presentation-identity state;
+- `Media/`: availability, gallery, deduplication, and suppression; and
+- `Sharing/`: Explore and preferred-name presentation identity.
+
+Run the generated-project, ownership, and routing guards whenever this folder
+changes:
+
+```bash
+make xcodegen
+make validate-ios-project
+bash scripts/test-ios-project-source-membership.sh
+make validate-ios-event-routing
+make test-ios-event-routing
+```
+
+The focused suites do not replace the complete `merianTests` target. Manual
+parity covers modal and embedded presentation, queued-to-completed promotion,
+toolbar actions, Field Chat handoffs, Field-trip contribution routing, media and
+gallery continuity, VoiceOver, large Dynamic Type, and light/dark appearance.

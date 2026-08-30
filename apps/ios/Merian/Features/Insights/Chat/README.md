@@ -98,16 +98,19 @@ and chat-provided toast callbacks. A callback owned by an older sheet therefore
 cannot close, toast over, or reroute a newer observation's Field Chat.
 
 Chat-to-alternatives, chat-to-reanalysis, and Pro-paywall follow-ups are typed
-`InsightChatDismissalAction` values. `InsightSheetView` records the action,
-closes Field Chat, and resumes it only from the chat sheet's exact `onDismiss`.
-The captured scan ID and presentation generation are checked again before the
-candidate modal, refinement route, or paywall can mount. Field-note confirmation
-and copy acknowledgement timers are identity-keyed SwiftUI `.task` work, so
-unmounting the chat cancels them. Copy acknowledgement stays inside
-`InsightChatAnswerControls` as the transient `Copied` badge and never calls the
-parent `onToast`; this shared rule covers Insight, Explore, and Species
-Dictionary threads. The separate field-note confirmation toast cannot block
-underlying controls.
+`InsightChatDismissalAction` values declared in
+`Shell/Models/InsightShellPresentation.swift`. `InsightSheetView` records the
+action, closes Field Chat, and resumes it only from the chat sheet's exact
+`onDismiss`. Cloud-readiness work enters the Shell through the narrow
+`InsightShellDependencies.ensureCloudScanAvailableForFieldChat` closure rather
+than a network client resolved by the view. The captured scan ID and
+presentation generation are checked again before the candidate modal, refinement
+route, or paywall can mount. Field-note confirmation and copy acknowledgement
+timers are identity-keyed SwiftUI `.task` work, so unmounting the chat cancels
+them. Copy acknowledgement stays inside `InsightChatAnswerControls` as the
+transient `Copied` badge and never calls the parent `onToast`; this shared rule
+covers Insight, Explore, and Species Dictionary threads. The separate field-note
+confirmation toast cannot block underlying controls.
 
 The preflight:
 

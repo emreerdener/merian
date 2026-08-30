@@ -336,6 +336,13 @@ compete through one untyped state channel.
 | `UserProfile`               | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | `UserProfileAvatarCoordinator` stores and request/account-fences selection/upload tasks and checks the view's live slot before commit    |
 | `SpeciesDictionaryPageView` | `SpeciesDictionaryPresentation` | Gallery, author, Field Chat, paywall                                                           | Chat commit requires the current canonical species UUID, no cancellation, and an empty slot                                              |
 
+The two Insight presentation values live in `Features/Insights/Shell/Models`.
+Their item hosts and binding adapters live in focused Shell view extensions;
+destination side effects enter through `InsightShellDependencies` or the owning
+product-area view model. Moving a presenter into an extension does not create a
+second owner: `InsightContentView` and `InsightSheetView` remain the only modal
+roots for their respective slots.
+
 `UserProfileAvatarCoordinator` may retain one bounded prepared crop preview if
 image preparation completes before the Photos picker binding dismisses. The view
 commits it only after that binding is false and the typed slot is empty;

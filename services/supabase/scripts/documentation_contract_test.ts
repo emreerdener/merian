@@ -1205,7 +1205,8 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     shareButtonImplementationSource,
     chatViewModelImplementationSource,
     queuedContentImplementationSource,
-    displayImplementationSource,
+    mediaPresentationImplementationSource,
+    presentationIdentityImplementationSource,
     toolbarImplementationSource,
     biologicalImplementationSource,
     confidenceBadgeImplementationSource,
@@ -1262,9 +1263,26 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExploreSharing.swift",
     ),
-    read(
-      "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift",
-    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+ChatActions.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Content.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Lifecycle.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Presentations.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Toolbar.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
     read(
       "apps/ios/Merian/Features/Scans/Collections/Components/Alerts/CollectionActionAlertModifier.swift",
     ),
@@ -1278,9 +1296,20 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "apps/ios/Merian/Features/Insights/Reporting/ViewModels/ReportInsightViewModel.swift",
     ),
     read("apps/ios/Merian/Core/AI/InferenceEngine.swift"),
-    read(
-      "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView.swift",
-    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView+ExploreComposer.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView+PresentationBindings.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Shell/Views/InsightContentView+PresentationHost.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
     read(
       "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Views/CandidateSwipeModal.swift",
     ),
@@ -1294,7 +1323,10 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
       "apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift",
     ),
     read(
-      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Display.swift",
+      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+MediaPresentation.swift",
+    ),
+    read(
+      "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+PresentationIdentity.swift",
     ),
     read(
       "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Toolbar.swift",
@@ -1982,19 +2014,19 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     "retryingScanId? .caseInsensitiveCompare(scanId) == .orderedSame",
   );
   assertStringIncludes(
-    compact(displayImplementationSource),
+    compact(mediaPresentationImplementationSource),
     "queuedContext?.id .caseInsensitiveCompare(expectedScanId) == .orderedSame",
   );
   assertStringIncludes(
-    compact(displayImplementationSource),
+    compact(mediaPresentationImplementationSource),
     "cachedActiveMedia = refreshedContext.activeScanMedia",
   );
   assertStringIncludes(
-    compact(displayImplementationSource),
+    compact(mediaPresentationImplementationSource),
     "func audioBoostBinding( expectedScanId: String, expectedGeneration: UInt64 ) -> Binding<Bool>",
   );
   assertStringIncludes(
-    compact(displayImplementationSource),
+    compact(presentationIdentityImplementationSource),
     "func isPresentingMedia( scanId: String, generation: UInt64 ) -> Bool",
   );
   assertStringIncludes(
@@ -2212,15 +2244,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "The current validator protects 95 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
+    "The current validator protects 100 exact cases. Twenty-seven were added by the joined scan-reliability follow-up. Eleven more form the live-connectivity follow-up: nine engine-level ownership, presentation, and exact-generation recovery fences plus two network-client replay-policy controls.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "One additional case protects the pre-queue admission connectivity handoff: a path-satisfied transport failure plus local eligibility selects queue-only, while local ineligibility still paywalls and a non-connectivity preview failure still requires retry.",
+    "The former consolidated pre-queue admission declaration is now three exact Core Utilities cases: `connectivityFailuresSelectQueueOnlyAdmission`, `authenticationAndTrustFailuresRemainFailClosed`, and `secureTransportFailuresUseOnlyDurableRecovery`.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "`automaticSingleCaptureNeverPresentsIdentifyBeforeSubmission` requires pending automatic ownership to suppress `ActiveScanToolbar`, requires a failed attempt to restore the staged retry toolbar, preserves the toolbar when explicit confirmation is enabled, and clears the suppression with the staged buffer.",
+    "Capture Shell protects automatic single-capture chrome with `automaticSingleCaptureFencesTheIdentifyTray`: pending automatic ownership suppresses `ActiveScanToolbar`, a failed attempt restores the staged retry toolbar, explicit confirmation preserves the toolbar, and clearing the staged buffer clears the suppression.",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2264,11 +2296,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "extracts all 95 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
+    "extracts all 100 exact allowlist entries, requires every Swift function name to resolve to exactly one declaration bound to `@Test` in `MerianTests`, and binds the two explicit Swift Testing display-name aliases to their corresponding declarations",
   );
   assertStringIncludes(
     compact(testingStrategySource),
-    "`connectivityUnavailableAdmissionSelectsQueueOnlyRoute` locks every reviewed offline/data-path URL code, bounded underlying-error recognition, TLS/auth fail-closed exclusions at every wrapper depth, the broader post-durability secure-connection recovery boundary, certificate-policy veto precedence over a broad outer transport error, fail-closed over-depth handling, and the pure route policy without mutating process-wide connectivity state",
+    "`connectivityFailuresSelectQueueOnlyAdmission` locks every reviewed offline/data-path URL code and the bounded underlying-error traversal; `authenticationAndTrustFailuresRemainFailClosed` locks TLS/auth exclusions, certificate-policy veto precedence over broad outer transport errors, and fail-closed over-depth handling; and `secureTransportFailuresUseOnlyDurableRecovery` locks the broader post-durability secure-connection recovery boundary",
   );
   assertStringIncludes(
     compact(testingStrategySource),
@@ -2913,8 +2945,8 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
       "testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
       "testLiveInsightConnectivityFailureTransitionsToDurableQueue",
       "testQueuedAudioScanRetainsAudioAcrossCompletionHandoff",
-      "workflow harness requires all 95 protected declarations to resolve uniquely",
-      "including the pre-queue admission connectivity handoff, pre-import paywall admission, automatic single-capture toolbar suppression, and exact durable scan-ID/generation pairing",
+      "workflow harness requires all 100 protected declarations to resolve uniquely",
+      "including the three ownership-aligned connectivity-policy cases, pre-import paywall admission, automatic single-capture toolbar suppression, the separate required-crop chrome fence, and exact durable scan-ID/generation pairing",
       "exact three-case set: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`, `testLiveInsightConnectivityFailureTransitionsToDurableQueue`, and `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff`",
       "a valid Documents PCM WAV",
       "preventing filename-only media evidence",

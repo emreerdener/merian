@@ -522,18 +522,20 @@ HTTP request is dispatched. See the
    `scripts/test-validate-ios-critical-test-results.sh`; failed-suite,
    duplicate-suite, and duplicate-case fixtures prevent contradictory or
    ambiguous structured evidence from passing. Renaming a protected test
-   requires updating both files in the same change.
-   `scripts/test-ios-build-and-test-workflow.sh` additionally extracts all 100
-   exact allowlist entries, requires every Swift function name to resolve to
-   exactly one declaration bound to `@Test` in `MerianTests`, and binds the two
-   explicit Swift Testing display-name aliases to their corresponding
-   declarations. This prevents a duplicate declaration, helper method, or stale
-   evidence name from surviving portable checks. The exact-case allowlist
-   validates evidence after the complete target runs; it must never replace the
-   complete-target selector with a focused test invocation. A successful
-   validation is recorded as `Critical scan-flow regressions:
-   passed` in the
-   hosted job summary.
+   requires updating both files in the same change. Rehoming a protected test
+   also requires replacing its exact structured suite name in both files; the
+   validator must never keep accepting a retired aggregate merely because the
+   case function name survived. `scripts/test-ios-build-and-test-workflow.sh`
+   additionally extracts all 100 exact allowlist entries, requires every Swift
+   function name to resolve to exactly one declaration bound to `@Test` in
+   `MerianTests`, and binds the two explicit Swift Testing display-name aliases
+   to their corresponding declarations. This prevents a duplicate declaration,
+   helper method, or stale evidence name from surviving portable checks. The
+   exact-case allowlist validates evidence after the complete target runs; it
+   must never replace the complete-target selector with a focused test
+   invocation. A successful validation is recorded as
+   `Critical scan-flow regressions:
+   passed` in the hosted job summary.
 
    After the complete unit target passes, the same checkout, simulator
    destination, locked packages, and `build-for-testing` output execute four
@@ -1192,21 +1194,33 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   current supported path shapes: bare Documents filename, bare temp filename,
   and absolute temp path. This is the regression suite for "audio disappears
   after identification" class bugs.
-- **`InsightSheetViewModelTests.swift`**: Verifies carousel handoff integrity
-  across queued/analyzing/result states, including mixed media. The key
-  regression is that an audio page present during analysis remains present, with
-  the same ordering, after `speciesData` arrives. It also proves a lookup miss
-  for a different presented scan clears stale scan-bound state and that Explore
-  cannot combine mismatched engine, local-record, and toolbar-snapshot IDs. A
-  direct record switch also proves the prior action generation and all
-  scan-bound busy/editor state—including exact post/request, Safari, candidate,
-  and delayed-toolbar presentation targets—is invalidated. Queued presentation
-  regressions prove a delayed scan-A poll cannot replace scan B's context and
-  completion promotion requires the exact queued subject before releasing queued
-  routing. The delayed Explore-onboarding regression proves the retained timer
-  is bound to scan ID plus presentation generation and is cancelled by reset.
-  Field Notes tests cover the same ID-plus-generation boundary while preserving
-  editing for queued/offline scans.
+- **Insights Shell and product-area suites**: The Shell owner contains
+  `InsightShellArchitectureTests`, `InsightShellCapabilitiesTests`,
+  `InsightShellLifecycleTests`, `InsightShellPresentationTests`,
+  `InsightShellRecordTests`, `InsightToolbarRecordSnapshotTests`,
+  `InsightQueuedHandoffTests`, and `InsightFieldTripContributionTests`.
+  Product-area mirrors contain `InsightQueuedRetryPresentationTests` in Content,
+  `InsightFieldNotesStateTests` in FieldNotes, `InsightMediaAvailabilityTests`,
+  `InsightMediaGalleryTests`, and `InsightMediaSuppressionTests` in Media, and
+  `InsightSharingPresentationTests` in Sharing. Together they verify carousel
+  handoff integrity across queued/analyzing/result states, including mixed
+  media. The key regression is that an audio page present during analysis
+  remains present, with the same ordering, after `speciesData` arrives. They
+  also prove a lookup miss for a different presented scan clears stale
+  scan-bound state and that Explore cannot combine mismatched engine,
+  local-record, and toolbar-snapshot IDs. A direct record switch proves the
+  prior action generation and all scan-bound busy/editor state—including exact
+  post/request, Safari, candidate, and delayed-toolbar presentation targets—is
+  invalidated. Queued presentation regressions prove a delayed scan-A poll
+  cannot replace scan B's context and promotion requires the exact queued
+  subject before releasing queued routing. The mounted view additionally exits a
+  canceled completion delay rather than continuing the poll. The delayed
+  Explore-onboarding regression proves the retained timer is bound to scan ID
+  plus presentation generation and is cancelled by reset. Field Notes tests
+  cover the same ID-plus-generation boundary while preserving editing for
+  queued/offline scans. The architecture suite locks the six ownership folders,
+  platform-neutral Models, live resolution in Services, absence of direct
+  networking in views/view models, aggregate removal, and the 600-line ceiling.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
@@ -2724,11 +2738,11 @@ iOS regression coverage is intentionally joined as well:
   late optional context merge. Its staging-transition cases assert committed,
   already-advanced, retry-required, and discarded outcomes so an HTTP callback
   cannot treat a rolled-back local write as inference readiness.
-- `SpeciesDataTests`, `InferenceEngineTests`, `InsightSheetViewModelTests`,
-  `InsightChatTests`, and `ScanRepositoryTests` cover Human canonical
-  presentation/safeguards, unresolved-audio confidence and reference
-  suppression, historical placeholder reanalysis, direct-chat gating, and
-  preservation of cloud `is_biological_subject` during historical sync.
+- `SpeciesDataTests`, `InferenceEngineTests`, `InsightShellCapabilitiesTests`,
+  `InsightMediaSuppressionTests`, `InsightChatTests`, and `ScanRepositoryTests`
+  cover Human canonical presentation/safeguards, unresolved-audio confidence and
+  reference suppression, historical placeholder reanalysis, direct-chat gating,
+  and preservation of cloud `is_biological_subject` during historical sync.
 
 Do not replace the executable SQL fixtures with source inspection. Static
 migration contracts are useful when Docker is unavailable, but only a disposable
@@ -3696,12 +3710,13 @@ snapshot buffering, duplicate and unsafe cue rejection, runtime
 power/thermal/lifecycle eligibility, provider errors, replacement fences,
 app-deactivation cancellation without visible-copy regression, phrase rotation
 and Foundation streams, and cancellation of a permanently hung stream at
-simulated Gemini response arrival. `InsightSheetViewModelTests` separately prove
-that an exact active-visual live-to-queue handoff carries contextual phrases and
-in-memory carousel media, that save plus offline/online changes preserve its
-cursor, and that the carousel overlay remains active for the exact handoff in
-pending, uploading, staged, and inferencing. The same matrix rejects mismatched
-IDs, failed/external-import/attention states, and ordinary queued states before
+simulated Gemini response arrival. `InsightQueuedHandoffTests` and
+`InsightMediaSuppressionTests` separately prove that an exact active-visual
+live-to-queue handoff carries contextual phrases and in-memory carousel media,
+that save plus offline/online changes preserve its cursor, and that the carousel
+overlay remains active for the exact handoff in pending, uploading, staged, and
+inferencing. The same matrix rejects mismatched IDs,
+failed/external-import/attention states, and ordinary queued states before
 inferencing. `ImageFocusRegionDetectorTests` lock the time-derived sweep, Reduce
 Motion midpoint, same-scan animation-session continuity, and resets for a
 different scan or a later analysis after completion. Engine tests cover prepared
@@ -3895,7 +3910,7 @@ lifetime/effect ownership. The Field Trips Deno `referenceMedia_test.ts` suite
 locks all 20 current goal-to-illustrative-species mappings, target extraction,
 one-per-source Naturebook/Wikipedia/GBIF ordering, and item-scoped payload
 attachment; `db_test.ts` also executes the bounded species/reference hydration
-projection. `InsightSheetViewModelTests` covers contribution loading,
+projection. `InsightFieldTripContributionTests` covers contribution loading,
 scan-change race rejection, silent error/empty states,
 queued/unauthenticated/non-biological gates, public Event rows, invalidation
 reload, and root/embedded routing in addition to the dictionary eligibility
@@ -4111,9 +4126,9 @@ account and verifies Events are absent from the feature-flag registry.
 `FieldTripAPIModelsTests`, `FieldTripPresentationTests`, the profile
 presentation suites in `FieldTripProfilePresentationTests.swift`, the Field
 Trips view-model suites, `ActiveCaptureGoalStoreTests`,
-`AchievementToastPresenterTests`, and `InsightSheetViewModelTests` verify that
-Event sections, badges, progress, typed routes, publications, profiles, and scan
-contributions are part of the normal client path. Manually test a physical
+`AchievementToastPresenterTests`, and `InsightFieldTripContributionTests` verify
+that Event sections, badges, progress, typed routes, publications, profiles, and
+scan contributions are part of the normal client path. Manually test a physical
 signed-in account, a physical ghost account, and a simulator build; all must see
 the Events segment and be able to exercise the server-authorized flow.
 
@@ -4498,7 +4513,7 @@ and detail seeking still behaves as documented.
   `_shared/publicSpeciesProjection_test.ts` covers normalized, legacy, and
   first-image promotion; and `refresh-species-content/db.test.ts` verifies
   neither cache nor normalized RPC writes receive the denied media.
-- **Current-scan reference-image exclusion**: `InsightSheetViewModelTests`
+- **Current-scan reference-image exclusion**: `InsightMediaGalleryTests`
   verifies Naturebook host/object-path matching, strict external URL identity,
   corrected page counts, shared inline/fullscreen ordering, preservation of
   other-scan and Wikipedia references, and `.loaded`-to-`.empty` normalization

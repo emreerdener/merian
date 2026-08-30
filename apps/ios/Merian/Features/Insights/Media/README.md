@@ -19,11 +19,12 @@ behavior; it never creates a censored placeholder page for the blocked URL.
 
 Reference images also pass through the shared
 `ReferenceImageDeduplicationPolicy` before the Insight page model is exposed.
-`InsightSheetViewModel.displayMedia(_:)` excludes every visual identifier owned
-by the current scan: image and video paths in `ActiveScanMedia`, persisted or
-queued thumbnail paths, and the toolbar cover path. Naturebook URL variants for
-the same storage object match even when their scheme, query, or fragment
-differs; external URLs retain strict full-URL identity.
+`Shell/ViewModels/InsightSheetViewModel+MediaPresentation.swift` owns
+`displayMedia(_:)` and excludes every visual identifier owned by the current
+scan: image and video paths in `ActiveScanMedia`, persisted or queued thumbnail
+paths, and the toolbar cover path. Naturebook URL variants for the same storage
+object match even when their scheme, query, or fragment differs; external URLs
+retain strict full-URL identity.
 
 Filtering happens before `refUrls`, `totalImages`, inline carousel pages, and
 fullscreen gallery items are derived. Consequently, inline and fullscreen views

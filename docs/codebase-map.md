@@ -325,6 +325,24 @@ renderable video covers without a second sort. Mirrored Staging, Shell,
 Submission, and Core Utilities suites own state, presentation, wire/replay, and
 connectivity-policy assertions respectively.
 
+Within Insight Shell, `Models/` owns deterministic presentation identities,
+binding keys, and display projections; `Services/` owns the sole live network,
+authentication, repository, routing, feature-access, badge, and feedback
+resolution boundary; `ViewModels/` owns scan-bound state plus focused lifecycle,
+record, capability, media, content, and presentation projections; and `Views/`,
+`Components/`, and `Modifiers/` retain composition, navigation, presentation,
+focus, scrolling, animation, and dismissal timing. `InsightContentPresentation`
+and `InsightShellPresentation` are the two typed modal slots.
+`InsightSheetViewModel+MediaPresentation.swift` and
+`+PresentationIdentity.swift` own the former display aggregate's media and
+identity seams; `InsightSheetView+Content.swift` owns root content/toast
+routing, not Field-trip domain policy. Shell views and view models issue no
+endpoint calls. Mirrored Shell, Content, FieldNotes, Media, and Sharing suites
+enforce these boundaries, removal of both aggregate files, and the 600-line
+ceiling for production files. The optional dependency parameter defaults to
+`.live`, and queued completion polling is subject-, generation-, and
+cancellation-fenced.
+
 Within Capture Record, feature files own only immutable presentation, narrow
 manager/haptic projection, UI-only artwork and scrubbing state, and mounted
 rendering. Core Hardware owns `AudioCaptureManager`, its initializer-injected

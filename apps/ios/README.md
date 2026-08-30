@@ -242,6 +242,32 @@ replacement may enter the shared manager, avoiding concurrent configuration and
 teardown. Focused tests mirror these boundaries and enforce the 600-line
 production-file guard.
 
+## Insight Shell Ownership
+
+[Insight Shell](Merian/Features/Insights/Shell/README.md) owns the root result
+presentation, embedded navigation, completed/queued scan handoff, root
+presentation hosts, and scan-bound state owner. Its `Models`, `Services`,
+`ViewModels`, `Views`, `Components`, and `Modifiers` separate deterministic
+presentation policy, live adapters, observable state, and UI-only timing.
+
+`InsightShellDependencies` is the only Shell declaration that resolves live
+network clients, authentication, repositories, feature access, app routing,
+badge updates, or haptic feedback. Views and view-model extensions consume its
+narrow initializer-injected closures and issue no endpoint calls. Presentation,
+gallery, scrolling, focus, and dismissal timing remain view-owned. Mirrored
+Insights tests enforce deterministic Models, the live-resolution boundary,
+removal of aggregate source/test files, and a 600-line ceiling for production
+Shell Swift files.
+
+The root view-model extensions are split into lifecycle, records, capabilities,
+content presentation, media presentation, and presentation identity. Root view
+extensions separately own content routing, chat actions, lifecycle attachment,
+toolbar assembly, typed presentation hosts/bindings, and Explore composition.
+Queued-completion polling is generation-, subject-, and cancellation-fenced, so
+a dismissed or replaced destination cannot publish after its delay. Existing
+call sites retain their initializer signatures; the optional trailing Shell
+dependency defaults to the live adapter.
+
 ## AI And Foreground Analysis
 
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local

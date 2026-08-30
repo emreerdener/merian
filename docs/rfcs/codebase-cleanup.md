@@ -389,6 +389,21 @@ Implemented Profile slice:
   its injected `CameraManager` instead of resolving the singleton. Active video
   keeps its established graceful stop-and-stage semantics. Deterministic overlap
   and architecture guards lock these contracts.
+- `Insights/Shell` now separates deterministic presentation values, narrow live
+  dependencies, scan-bound state projections, root composition, Shell-only
+  components, and embedded-navigation modifiers. The former display and test
+  aggregates were removed; the view model, sheet, and content sources are split
+  by responsibility while preserving their initializer, route, copy, layout,
+  media, lifecycle, accessibility, queued-handoff, and Field-trip contracts.
+  Shell Services are the only live network/auth/repository/routing/feedback
+  owner, views and view models issue no endpoint calls, mirrored tests lock the
+  same behavior, and every production Shell Swift file remains below 600 lines.
+  The final audit preserved all 108 former test cases across suites named for
+  their responsibilities, rekeyed the critical-result and documentation-contract
+  guards to those owners, and made queued-completion polling exit immediately on
+  task cancellation. `InsightSheetView+Content.swift` now names its mixed
+  root-content responsibility accurately; the largest production Shell file is
+  524 lines.
 
 ### Completed Scans Collections Persistence Repair
 

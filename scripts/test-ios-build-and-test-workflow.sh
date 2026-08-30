@@ -18,9 +18,9 @@ environment_context_source="$repo_root/apps/ios/Merian/Core/Hardware/Environment
 scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
 confidence_badge_source="$repo_root/apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift"
 queued_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift"
-insight_sheet_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift"
+insight_sheet_lifecycle_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Lifecycle.swift"
 insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift"
-insight_display_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Display.swift"
+insight_presentation_identity_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+PresentationIdentity.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
 field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
 top_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift"
@@ -693,21 +693,21 @@ assert_file_before \
   "isPresentingLocalRecord(scanId: queuedScan.id)" \
   "bindQueuedPresentation(queuedScan)"
 assert_file_count \
-  "$insight_sheet_source" \
+  "$insight_sheet_lifecycle_source" \
   2 \
   "viewModel.bindQueuedPresentationPreferringCompletedRecord("
 assert_file_contains \
-  "$insight_sheet_source" \
+  "$insight_sheet_lifecycle_source" \
   ".task(id: viewModel.scanBoundActionGeneration)"
 assert_file_count \
-  "$insight_sheet_source" \
+  "$insight_sheet_lifecycle_source" \
   0 \
   ".task(id: viewModel.persistentScanId)"
 assert_file_contains \
-  "$insight_sheet_source" \
+  "$insight_sheet_lifecycle_source" \
   "viewModel.revealBottomBarTools("
 assert_file_contains \
-  "$insight_display_source" \
+  "$insight_presentation_identity_source" \
   "func revealBottomBarTools("
 assert_file_contains \
   "$network_client_test_source" \

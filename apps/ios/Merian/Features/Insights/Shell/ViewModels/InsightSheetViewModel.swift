@@ -26,22 +26,24 @@ final class InsightSheetViewModel {
         queuedContext: QueuedScanContext? = nil,
         inferenceEngine: InferenceEngine? = nil,
         appSettings: AppSettings? = nil,
-        fieldTripContributionLoader: @escaping (String) async throws -> [FieldTripScanContribution] = {
-            try await MerianNetworkClient.shared.getFieldTripScanContributions(scanId: $0)
-        },
-        fieldTripAuthenticationResolver: @MainActor @escaping () -> Bool = {
-            SupabaseManager.shared.isAuthenticated
-        },
-        fieldTripAvailabilityResolver: @MainActor @escaping () -> Bool = {
-            FeatureFlags.isEnabled(.fieldTrips)
-        }
+        fieldTripContributionLoader: ((String) async throws -> [FieldTripScanContribution])? = nil,
+        fieldTripAuthenticationResolver: (@MainActor () -> Bool)? = nil,
+        fieldTripAvailabilityResolver: (@MainActor () -> Bool)? = nil,
+        dependencies: InsightShellDependencies? = nil
     ) {
+        let dependencies = dependencies ?? .live
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
-        self.appSettings = appSettings ?? AppSettings.shared
-        self.fieldTripContributionLoader = fieldTripContributionLoader
-        self.fieldTripAuthenticationResolver = fieldTripAuthenticationResolver
-        self.fieldTripAvailabilityResolver = fieldTripAvailabilityResolver
+        self.appSettings = appSettings ?? dependencies.defaultAppSettings()
+        self.dependencies = dependencies
+        self.fieldTripContributionLoader =
+            fieldTripContributionLoader ?? dependencies.loadFieldTripContributions
+        self.fieldTripAuthenticationResolver =
+            fieldTripAuthenticationResolver ?? {
+                dependencies.authenticationSnapshot().isAuthenticated
+            }
+        self.fieldTripAvailabilityResolver =
+            fieldTripAvailabilityResolver ?? dependencies.isFieldTripsAvailable
         self.cachedActiveMedia = queuedContext?.activeScanMedia
     }
 
@@ -86,6 +88,7 @@ final class InsightSheetViewModel {
     @ObservationIgnored var exploreOnboardingPresentationScanID: String?
     @ObservationIgnored var exploreOnboardingPresentationGeneration: UInt64?
     @ObservationIgnored var appSettings: AppSettings
+    @ObservationIgnored let dependencies: InsightShellDependencies
     @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
     @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
     @ObservationIgnored private var fieldTripAvailabilityResolver: @MainActor () -> Bool

@@ -10,7 +10,7 @@ struct InsightContentRouterView: View {
     private var presentationQueuedScan: QueuedScanContext? {
         viewModel.queuedContext ?? (viewModel.activeLocalRecord == nil ? queuedScan : nil)
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ZStack(alignment: .top) {
