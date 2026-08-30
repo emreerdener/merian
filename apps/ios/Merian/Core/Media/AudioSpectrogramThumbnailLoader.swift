@@ -129,7 +129,7 @@ actor AudioSpectrogramThumbnailLoader {
 
         let dimension = max(64, maxDimension)
         let size = CGSize(width: dimension, height: dimension)
-        return SpectrogramRenderer.image(
+        return AudioSpectrogramRenderer.image(
             columns: columns,
             layout: .fitToData,
             targetSize: size,

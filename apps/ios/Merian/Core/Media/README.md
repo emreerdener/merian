@@ -28,6 +28,11 @@ up a player. A new playback surface must retain this owner and explicitly call
   or uploading the canonical recording.
 - `AudioSpectrogramSeekingPolicy` normalizes non-finite seeking inputs and
   clamps display progress before geometry is derived.
+- `AudioSpectrogramRenderer` owns the shared perceptual palette, bounded RGBA
+  raster construction, and live-horizon versus fit-to-data layout used by
+  Capture Record, Insight playback, and saved thumbnails. The renderer has no
+  feature lifecycle or interaction state; the shared SwiftUI surface lives in
+  `Core/UI/Components/AudioSpectrogramView.swift`.
 - `AudioSpectrogramThumbnailLoader` coalesces and caches bounded spectrogram
   decodes for Scans and Explore. Feature components receive it through their
   owning dependency boundary instead of resolving it directly.

@@ -172,9 +172,9 @@ cross-feature immutable `CGImage` concurrency wrapper lives in `Core/Media`
 because Insights also consumes it.
 
 The modality folders remain independent: `Scan` owns camera and video input,
-`Record` owns audio capture, `Describe` owns typed and dictated observations,
-`Staging` owns the mixed-media draft and crop presentation, and `Submission`
-owns the shared live/offline analysis pipeline.
+`Record` owns audio presentation and interaction, `Describe` owns typed and
+dictated observations, `Staging` owns the mixed-media draft and crop
+presentation, and `Submission` owns the shared live/offline analysis pipeline.
 
 [Capture Submission](Merian/Features/Capture/Submission/README.md) separates
 deterministic admission/media/goal policy and normalized payload values in
@@ -204,6 +204,35 @@ UI, and presentation-only flash control live in `Core/Media` and `Core/UI`
 because Profile or the shared Capture bar also consume them. Capture-specific
 editable image context remains in `Capture/Shared`; Profile owns its own
 avatar-crop presentation value.
+
+[Capture Record](Merian/Features/Capture/Record/README.md) separates immutable
+audio presentation and layout policy, narrow manager/haptic adapters, idle and
+scrub state, a thin full-screen view, and focused components. Only Record
+Services reference the concrete `AudioCaptureManager` or shared haptic manager;
+the Shell resolves those live dependencies and supplies the view with an
+immutable snapshot plus closure actions. Audio-engine, WAV, playback, FFT, and
+generation-fenced audio-session lifecycle remain in `Core/Hardware`; shared
+raster construction and the SwiftUI spectrogram surface live in `Core/Media` and
+`Core/UI`; and the audio/video countdown badge lives in `Capture/Shared`.
+Capture controls retain permission, record/pause/resume/stop/review actions,
+while Submission retains queue-before-inference orchestration. Record views
+issue no endpoint calls, and focused tests enforce the ownership boundary and
+600-line production-file guard.
+
+[Capture Describe](Merian/Features/Capture/Describe/README.md) separates pure
+prompt, subject, tag-ranking, and text-composition Models; narrow live
+preference/feedback/keyboard/speech Services; generation-fenced prompt and
+lifecycle ViewModels; workspace-scoped Views; and layout-focused Components.
+Describe views and components resolve no singleton or platform action, and view
+models do not construct concrete hardware adapters. Focus, scrolling,
+questions-sheet presentation, and tag auto-advance timing remain UI-owned. The
+cross-feature `SpeechManager` lives in `Core/Hardware`, while the Describe
+lifecycle observer crosses the composition boundary explicitly and the Services
+layer converts that manager into initializer-injected speech, delay, and subject
+inference closures. Pending speech startup is canceled and awaited before a
+replacement may enter the shared manager, avoiding concurrent configuration and
+teardown. Focused tests mirror these boundaries and enforce the 600-line
+production-file guard.
 
 ## AI And Foreground Analysis
 

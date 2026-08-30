@@ -330,6 +330,46 @@ Implemented Profile slice:
   deterministic policy, context-race and cancellation, retry behavior, existing
   submission parity, ownership boundaries, removal of the three former aggregate
   files, and the 600-line production-file ceiling.
+- `Capture/Describe` now separates deterministic prompt, subject, tag-ranking,
+  and text-composition Models; narrow preference, feedback, keyboard, subject
+  delay, and speech-manager Services; observable prompt and lifecycle
+  ViewModels; workspace-scoped Views; and layout-focused Components. The former
+  aggregate input view, Managers folder, Manager label, and tag-tracker
+  singleton were removed. Cross-feature `SpeechManager` moved to `Core/Hardware`
+  without changing its AppDI, permission, audio-session, or teardown contract.
+  Delayed subject inference is text- and prompt-flow-generation-fenced;
+  dictation startup, stop/restart, and partial-result delivery share a separate
+  session generation so stale non-cooperative completion cannot mutate
+  replacement state. Replacement dictation also cancels without invoking shared
+  teardown while startup is configuring, waits for that startup before entering
+  the shared speech manager, and stops a cancellation-ignoring stale success
+  before replacement. Verified-start status clears a request when the shared
+  manager is busy or never reaches recording. UI-only focus, UIKit scrolling,
+  sheet presentation, and tag auto-advance timing remain in Views/Components.
+  Mirrored tests lock prompt behavior, exact text composition, stable tag
+  ordering, inference and dictation overlaps, Core speech lifecycle, ownership
+  boundaries, platform-neutral Models, concrete-hardware-free ViewModels, and
+  the 600-line ceiling.
+- `Capture/Record` now separates immutable audio presentation and layout policy,
+  the only concrete audio-manager/haptic adapter, UI-only idle and scrub state,
+  a thin full-screen view, and focused components. Shell resolves the live
+  manager snapshot and retains permission and record/pause/resume/stop/review
+  controls; Submission retains queue-before-inference orchestration. The shared
+  audio-session coordinator has its own `Core/Hardware` owner, and
+  `AudioCaptureManager` receives maximum-duration feedback from AppDI instead of
+  resolving haptics. Manager-owned start/resume handles plus a generation fence
+  reject late activation, DSP, and countdown commits across lifecycle changes;
+  duplicate resume requests coalesce. The coordinator commits one-shot lease
+  ownership only after successful activation. Failed replacement restores the
+  prior configuration; failed rollback or first activation deactivates partial
+  state instead of publishing unknown ownership. Reusable palette/raster/layout
+  policy moved to `Core/Media`, the SwiftUI spectrogram moved to `Core/UI`, and
+  the audio/video countdown badge moved to `Capture/Shared`. Mirrored feature,
+  hardware, and media suites lock presentation, scrubbing, feedback injection,
+  DSP/noise-floor and raster behavior, transition/lease concurrency, ownership
+  boundaries, platform-neutral Models, and the 600-line production-file ceiling
+  without changing the 15-second WAV, confirmation, staging, submission, copy,
+  accessibility, or audio-session contracts.
 
 ### Completed Scans Collections Persistence Repair
 

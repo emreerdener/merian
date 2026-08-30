@@ -23,12 +23,29 @@ It is the value type that carries the user's input from the UI to
 
 `@State private var observationContext = ObservationContext()` lives in
 **`CaptureWorkspaceView`**, not in `DescribeInputView`. This lift is required
-because `SpeechManager` writes `observationContext.freeText` from outside
-`DescribeInputView` during live dictation. `DescribeInputView` receives the
-context as `@Binding var context: ObservationContext`.
+because workspace-scoped dictation writes `observationContext.freeText` from
+outside `DescribeInputView`. `DescribeInputViewModel` receives transcription
+through an injected `SpeechManager` adapter, generation-fences it, and returns a
+composed string to `DescribeInputLifecycleObserver`; the observer alone mutates
+the binding. `DescribeInputView` receives the context as
+`@Binding var context: ObservationContext`.
 
 The context is intentionally not reset after submission, so users can swipe back
 to the Describe page and refine their input without losing their text.
+
+Describe is organized by responsibility:
+
+- `Models/` owns prompt/subject values, deterministic text composition, and tag
+  ranking.
+- `Services/` owns live `UserDefaults`, haptic, UIKit keyboard, subject-delay,
+  and speech-manager adapters.
+- `ViewModels/` owns prompt state plus delayed-inference and dictation session
+  generations.
+- `Views/` owns the page, workspace observer, focus, and sheet presentation.
+- `Components/` owns the UIKit scroll host, prompt navigation/tags, and editor.
+
+Presentation files resolve no singleton or platform action. Cross-feature speech
+hardware lives in `Core/Hardware`, not under Capture Describe.
 
 ### Submission Routing (`CaptureWorkspaceViewModel.submitDescribe`)
 
@@ -78,14 +95,14 @@ question has a `prompt: String` and a `tags: [Tag]` array. A `Tag` carries:
 | `defaultWeight` | `Int`     | Sort priority within the question                                                  |
 | `imageName`     | `String?` | Asset catalog name for image-tile rendering (non-nil on the subject question only) |
 
-Tags with a non-nil `imageName` render as 96×104 pt
+Tags with a non-nil `imageName` render as 96×112 pt
 `RoundedRectangle(cornerRadius: 16)` tiles (image above label). All others
 render as `Capsule` text chips. The subject question (index 0) uses image tiles
 for all 9 entries (Bird, Insect, Spider, Reptile, Plant, Mushroom, Mammal, Fish,
 Other). The `Other` tag has `aiText: ""` — selecting it appends nothing to
 `freeText`, leaving the AI prompt unchanged.
 
-The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
+The global `guidedQuestions: [GuidedQuestion]` array has 10 entries:
 
 | Index | Prompt                                                                          |
 | ----- | ------------------------------------------------------------------------------- |
@@ -105,26 +122,27 @@ The global `guidedQuestions: [GuidedQuestion]` array has 9 entries:
 ### `SubjectFunnels` (`Features/Capture/Describe/Models/SubjectFunnels.swift`)
 
 `let subjectFunnels: [String: [GuidedQuestion]]` maps each subject `tagId` to a
-4–5 question species-specific funnel. When a subject is selected,
-`DescribePromptManager.activateFunnel(for:)` prepends the subject question
+4–6 question subject-specific funnel. When a subject is selected,
+`DescribePromptViewModel.activateFunnel(for:)` prepends the subject question
 (index 0), inserts the funnel, and appends three shared telemetry questions
 (environment, location, open-ended) to form the `activeQuestions` array.
 
 Defined funnels:
 
-| `tagId`      | Subject  | Funnel questions                                        |
-| ------------ | -------- | ------------------------------------------------------- |
-| `subj_bird`  | Bird     | Type of bird · Size · Beak shape · Plumage · Behavior   |
-| `subj_insec` | Insect   | Insect type · Wing visibility · Body texture · Markings |
-| `subj_plan`  | Plant    | Plant type · Leaf shape · Flower presence · Habitat     |
-| `subj_mush`  | Mushroom | Cap shape · Color · Habitat · Stalk                     |
-| `subj_spid`  | Spider   | Body size · Web presence · Color · Leg count            |
-| `subj_rept`  | Reptile  | Type · Scale pattern · Limb presence · Behavior         |
-| `subj_mamm`  | Mammal   | Size · Fur color · Tail · Behavior                      |
-| `subj_fish`  | Fish     | Body shape · Fin pattern · Scale color · Habitat        |
+| `tagId`      | Subject  | Funnel questions                                          |
+| ------------ | -------- | --------------------------------------------------------- |
+| `subj_bird`  | Bird     | Type of bird · Size · Beak shape · Plumage · Behavior     |
+| `subj_insec` | Insect   | Insect type · Wing visibility · Body texture · Markings   |
+| `subj_plan`  | Plant    | Plant type · Leaf shape · Flower presence · Habitat       |
+| `subj_mush`  | Mushroom | Cap shape · Color · Habitat · Stalk                       |
+| `subj_spid`  | Spider   | Body size · Web presence · Color · Leg count              |
+| `subj_rept`  | Reptile  | Type · Scale pattern · Limb presence · Behavior           |
+| `subj_mamm`  | Mammal   | Size · Fur color · Tail · Behavior                        |
+| `subj_fish`  | Fish     | Body shape · Fin pattern · Scale color · Habitat          |
+| `subj_othr`  | Other    | Size · Shape · Details · Colors · Action · Social context |
 
-(`subj_othr` has no entry in `subjectFunnels` —
-`activateFunnel(for: "subj_othr")` silently no-ops.)
+The `subj_othr` fallback reuses six general morphology and behavior questions
+instead of a taxon-specific prompt set.
 
 ---
 
@@ -134,12 +152,12 @@ A pure static struct. `infer(from: String) -> String?` lowercases and tokenizes
 the input, then looks each word up in a static `[String: String]` keyword table.
 Returns the first matching subject `tagId` or `nil`. Covers ~50 common-name
 keywords across all 8 subject types (e.g. `"hawk"` → `"subj_bird"`, `"beetle"` →
-`"subj_insec"`, `"frog"` → `"subj_rept"`). Used by `DescribeInputView` to
+`"subj_insec"`, `"frog"` → `"subj_rept"`). Used by `DescribeInputViewModel` to
 auto-activate a funnel from typed or dictated text.
 
 ---
 
-### `DescribePromptManager` — Funnel State (`Features/Capture/Describe/Managers/DescribePromptManager.swift`)
+### `DescribePromptViewModel` — Funnel State (`Features/Capture/Describe/ViewModels/DescribePromptViewModel.swift`)
 
 New funnel-state properties added alongside the existing `activeQuestionIndex`
 and `interactedQuestionIndices`:
@@ -177,8 +195,10 @@ interactive — no content above `safeAreaInsets.top + 64` pt.
   `CaptureWorkspaceView`'s lifted state.
 - `@FocusState private var isTextFieldFocused: Bool` — drives the text area
   border highlight.
-- `let promptManager: DescribePromptManager` — workspace-owned prompt state used
-  to render and edit the guided question funnel.
+- `let promptViewModel: DescribePromptViewModel` — workspace-owned prompt state
+  used to render and edit the guided question funnel.
+- `DescribePresentationDependencies` — narrow tag-frequency, selection feedback,
+  and keyboard-dismiss actions constructed by Describe Services.
 
 The multiline `TextField` binds to `$context.freeText` and exposes the stable
 `DescribeTextInput` UI-test identifier. Its intrinsic content sits at the top of
@@ -188,66 +208,84 @@ below the field remains a typing target instead of becoming a dead zone.
 
 `DescribeInputView` is deliberately render-only. Its full-page vertical content
 uses `DescribeVerticalScrollView`, a UIKit `UIScrollView` containing a
-`UIHostingController`. That boundary preserves vertical scrolling and drag-to-
+`UIHostingController`. That boundary preserves vertical scrolling and drag to
 dismiss keyboard behavior without putting a nested SwiftUI vertical scroll graph
 inside the workspace's horizontal SwiftUI pager. Replacing it requires strict
 AttributeGraph cold-launch testing for all three configurable first modes.
 
+The former aggregate view is split without changing layout ownership:
+
+- `DescribeQuestionNavigationView` owns dots and previous/next controls.
+- `DescribePromptTagsView` owns prompt/tag rendering and the UI-only 350 ms
+  auto-advance task.
+- `DescribeTextEditorView` owns the flexible rounded text region and receives a
+  focus binding from the page.
+- `DescribeVerticalScrollView` owns the existing UIKit hosting controller and
+  exact constraint topology.
+
 ### Tag Rendering
 
-The tag strip iterates `promptManager.activeQuestions` (not the static
+The tag strip iterates `promptViewModel.activeQuestions` (not the static
 `guidedQuestions`). Each tag is rendered conditionally:
 
-- **Non-nil `imageName`** → 96×104 pt tile
-  (`RoundedRectangle(cornerRadius: 16)`): `Image(imageName)` (56×56 pt
+- **Non-nil `imageName`** → 96×112 pt tile
+  (`RoundedRectangle(cornerRadius: 16)`): `Image(imageName)` (64×64 pt
   `.scaledToFit`) above the label. Background is `.primary` / foreground
   `.systemBackground` when selected as the active funnel subject; otherwise
   `.secondarySystemBackground` / `.primary`.
 - **Nil `imageName`** → standard `Capsule` chip. Same selection-state colour
   logic applies.
 
-The tag scroll view carries
-`.id("tags_scroll_\(promptManager.activeQuestionIndex)")` so `ScrollViewReader`
-can snap to the correct tag row when the question advances.
+`DescribeTagRanking` orders tags by persisted frequency, then default weight,
+then original source order. `DescribePresentationDependencies` performs the
+preference read and records each tap; the component receives only closures.
+`DescribeTextComposer` owns exact append, removal, capitalization, punctuation,
+and dictation-baseline composition instead of embedding string mutation in the
+view.
 
 ### Funnel Lifecycle
 
 **Subject tap → funnel activation**: On the subject question (index 0), tapping
-a tag checks `promptManager.activeSubjectId == tag.tagId`. If the tag is already
-the active subject (toggle-off), `promptManager.resetFunnel()` is called and the
-tags are re-sorted. Otherwise, the normal `appendTag` path runs, then
-`promptManager.activateFunnel(for: tag.tagId)` is called, advancing to the first
-funnel question. Auto-advance is suppressed when `isSelectedFunnel == true` to
-prevent double-stepping.
+a tag checks `promptViewModel.activeSubjectId == tag.tagId`. If the tag is
+already the active subject (toggle-off), `DescribeTextComposer` removes its
+prior fragment and `promptViewModel.clearSubjectSelection()` restores the
+general questions. Otherwise, the composer appends the fragment and
+`promptViewModel.applySubjectSelection(for:)` activates the matching funnel,
+advancing to its first question. Auto-advance is suppressed when the subject was
+already selected to prevent double-stepping.
 
 **Text-driven auto-activation (1.5s debounce)** is owned by the zero-sized
 `DescribeInputLifecycleObserver` mounted in `CaptureWorkspaceView`, outside the
 pager:
 
-1. If `freeText` is empty → `promptManager.resetFunnel()` and early return.
+1. If `freeText` is empty → `promptViewModel.resetFunnel()` and early return.
 2. If `isFunnelActive` → no-op (funnel already running).
-3. Otherwise: the text-keyed SwiftUI task sleeps 1.5 seconds, then calls
-   `SubjectKeywordMatcher.infer(from: freeText)`. If a subject is inferred,
-   `promptManager.activateFunnel(for: subjectId)` activates the funnel. Useful
-   when the user dictates "I saw a hawk" before tapping any tags — the funnel
-   activates automatically after typing settles.
+3. Otherwise, `DescribeInputViewModel` starts its injected 1.5-second delay,
+   then calls `SubjectKeywordMatcher.infer(from:)`. If a subject is inferred and
+   no manual funnel has become active, the observer asks the prompt view model
+   to activate it. This supports text such as "I saw a hawk" before any tag tap.
 
-SwiftUI automatically cancels the keyed task when the text changes again. The
-same observer configures reanalysis prompt flow, owns dictation start/stop, and
-requests the questions sheet. `CaptureWorkspaceView` owns the prompt manager and
-sheet presentation so those state transitions do not occur inside the pager's
-layout graph.
+Every text or prompt-flow change cancels and invalidates the previous inference
+generation. Even if the older delay ignores cancellation and later returns, it
+cannot publish into the replacement text or reanalysis flow. Leaving Describe
+stops only dictation and preserves the established off-page prompt-inference
+behavior; removing the workspace cancels both. `CaptureWorkspaceView` owns the
+prompt view model and sheet presentation so these transitions do not enter the
+pager's layout graph.
 
 ---
 
 ## 4. `SpeechManager`
 
-Lives at
-`apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`.
-Registered as `var speechManager = SpeechManager()` in `AppDIContainer` and
-distributed via `.environment(container.speechManager)` in
-`DIContainerModifier.body()`. `DescribeInputLifecycleObserver` reads it through
-`@Environment(SpeechManager.self)` outside the horizontal pager.
+Lives at `apps/ios/Merian/Core/Hardware/SpeechManager.swift`. Registered as
+`var speechManager = SpeechManager()` in `AppDIContainer` and distributed via
+`.environment(container.speechManager)` in `DIContainerModifier.body()`. The
+manager is Core-owned because Capture Describe, Insight Field Notes, Insight
+media coordination, and the shared capture bar consume it.
+`CaptureWorkspaceView` reads the environment-owned instance and explicitly
+passes it to `DescribeInputLifecycleObserver`; that observer constructs
+`DescribeInputViewModel.Dependencies.live` rather than letting the paged
+Describe view resolve hardware.
 
 ### Class declaration
 
@@ -279,12 +317,12 @@ distinct from permission denial and remains retryable without changing Settings.
 ### `startDictation` lifecycle
 
 ```
+AVAudioApplication.requestRecordPermission() (async continuation)
+    ↓ Task.isCancelled check
 SFSpeechRecognizer.requestAuthorization (async continuation)
     ↓ Task.isCancelled check
 availableSpeechRecognizer() (bounded availability retry)
     ↓
-AVAudioApplication.requestRecordPermission() (async continuation)
-    ↓ Task.isCancelled check
 teardownAudioEngine()          ← clears any prior session
 AudioSessionCoordinator.activate(.recordMeasurement) in detached setup
     ↓ lease stored on SpeechManager
@@ -313,10 +351,11 @@ audioSessionLease = nil
 Task { await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease) }
 ```
 
-Both `stop()` and `removeTap(onBus:)` are called **unconditionally**. This
-prevents an `NSException` crash when `audioEngine.start()` throws after
-`installTap` was already called — a subsequent `startDictation` call would
-otherwise attempt to install a second tap on a node that still holds the first.
+Whenever an audio engine exists, both `stop()` and `removeTap(onBus:)` run
+during teardown. This prevents an `NSException` crash when `audioEngine.start()`
+throws after `installTap` was already called — a subsequent `startDictation`
+call would otherwise attempt to install a second tap on a node that still holds
+the first.
 
 ### Auto-termination
 
@@ -335,13 +374,21 @@ and Describe lifecycle state:
 - `CaptureControlBar` toggles `isDictationRequested` and assigns a new
   `tocRequestID`; it does not own speech tasks or sheet presentation.
 - `DescribeInputLifecycleObserver` observes those intents outside the pager. It
-  captures the existing text as a baseline, starts `SpeechManager`, appends live
-  cumulative transcription, and mirrors automatic speech termination back to the
-  coordinator.
+  captures the existing text as a baseline and forwards the intent to
+  `DescribeInputViewModel`. The view model starts the injected speech action,
+  generation-fences cumulative transcription, composes it against that baseline,
+  and mirrors startup failure or automatic termination back to the coordinator.
 - Leaving Describe, removing the workspace, or toggling dictation off calls the
-  shared stop path. It stops the speech engine, cancels setup, clears task
-  state, and resets the coordinator flag, including the mid-permission-dialog
-  case.
+  dictation stop path. It invalidates the generation before stopping the speech
+  engine, cancels startup, clears task state, and resets the coordinator flag,
+  including the mid-permission-dialog case. An engine still being configured is
+  not torn down concurrently: its canceled startup owns cleanup, and a
+  cancellation-ignoring successful return is stopped before the serialized
+  replacement enters `SpeechManager`. The manager's `isStarting` guard therefore
+  cannot silently discard the replacement. The live adapter also reports whether
+  startup actually reached recording; a busy shared manager or an inactive
+  return clears the request instead of leaving the control active. Removing the
+  workspace additionally invalidates delayed subject inference.
 - `CaptureWorkspaceView` owns `isDescribeQuestionsSheetPresented` and applies
   `DescribeQuestionsSheet` at workspace scope. Reanalysis suppresses that sheet.
 
@@ -364,7 +411,8 @@ Permission requests happen inside `startDictation` — not at app launch or
 onboarding. First-time users see both iOS system permission dialogs on their
 first mic tap. Subsequent taps skip the dialogs (already authorized). Denial on
 either dialog causes `startDictation` to throw `PermissionError`; the lifecycle
-observer clears the dictation request so the control returns to its idle state.
+view model clears the dictation request through the observer so the control
+returns to its idle state.
 
 ---
 
@@ -374,12 +422,17 @@ observer clears the dictation request so the control returns to its idle state.
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `startDictation` called                            | Acquires a `.recordMeasurement` lease from `AudioSessionCoordinator`                              |
 | `stopDictation()` called                           | Tears down recognition and asks the coordinator to deactivate only if this lease is still current |
+| Describe request canceled during pending startup   | Cancels and retains startup; does not call shared teardown concurrently                           |
+| Replacement requested after canceled startup       | Awaits prior completion; stops a stale successful session before starting                         |
 | Task cancelled mid-setup (after session activated) | `handleCancelledStartup()` tears down and releases the owned lease                                |
 | `SFSpeechRecognitionTask` auto-terminates          | `stopDictation()` → `teardownAudioEngine()` → token-aware deactivation                            |
 
 The lease prevents delayed teardown from one mode from deactivating a newer
 audio owner. This lets `AudioCaptureManager` acquire its own recording lease
-cleanly after the user leaves Describe, even when stop/start work overlaps.
+cleanly after the user leaves Describe, even when stop/start work overlaps. The
+coordinator publishes no lease for a failed first activation, restores the prior
+configuration after a failed replacement, and deactivates the partial session if
+that restoration also fails.
 
 ---
 
@@ -388,10 +441,10 @@ cleanly after the user leaves Describe, even when stop/start work overlaps.
 `SpeechManager` is `@MainActor`. All stored properties (`isRecording`,
 `audioEngine`, `recognitionRequest`, `recognitionTask`) are
 `@MainActor`-isolated. The `onResult` callback is typed
-`@MainActor @escaping (String) -> Void` — this guarantees the closure (which
-captures `@MainActor`-isolated `@State` from `CaptureWorkspaceView`) executes on
-`@MainActor` without a `@Sendable` actor-crossing, eliminating Swift 6 strict
-concurrency warnings at the capture site.
+`@MainActor @escaping (String) -> Void`. The live dependency wraps it in a
+`DescribeInputViewModel.DictationResultSink`, so session validation and text
+composition execute on `@MainActor` before the observer mutates workspace state.
+No `@Sendable` closure carries SwiftUI bindings across actors.
 
 The `AVAudioEngine` tap callback (`installTap`) fires on a private audio thread
 and appends buffers to `recognitionRequest` — this is safe because
@@ -434,3 +487,31 @@ The recognition result handler dispatches back to `@MainActor` via
 - `merianUITests.testDescribeTextAreaFocusesFromLowerRegion` taps below the
   multiline field's intrinsic frame and types through the newly focused input,
   locking the full rounded editor as the interaction target.
+
+## 2026-08 Ownership and Session Hardening
+
+- Describe now has explicit Models, Services, ViewModels, Views, and Components
+  owners. The former `Managers` directory, aggregate input view, and
+  `DescribeTagTracker.shared` were removed.
+- Shared `SpeechManager` moved to `Core/Hardware` with its lifecycle tests under
+  `MerianTests/Core/Hardware`; its API, environment injection, permission order,
+  audio-session lease, and media behavior did not change.
+- `DescribePromptViewModel` replaces the Manager label for feature presentation
+  state. `DescribeInputViewModel` owns private inference and dictation tasks
+  plus generation tokens.
+- Text and prompt-flow replacement fence delayed inference even when injected
+  work ignores cooperative cancellation. Stop/restart overlap fences old
+  transcription callbacks, avoids shared teardown while startup is configuring,
+  and serializes replacement startup behind canceled startup cleanup. A stale
+  cancellation-ignoring success is stopped before a replacement enters the
+  manager. Verified-start status also fails closed when another speech consumer
+  is busy.
+- `DescribeTextComposer` and `DescribeTagRanking` make exact text mutation and
+  ordering deterministic. Live preferences, haptics, keyboard dismissal,
+  subject-inference delay, and the speech-manager adapter are confined to
+  Describe Services.
+- `CaptureDescribeArchitectureTests` enforces the ownership tree, presentation
+  dependency boundary, platform-neutral Models, concrete-hardware-free
+  ViewModels, Core speech location, and a 600-line production-file ceiling.
+  Focused view-model and composition suites cover cancellation, stale
+  completion, overlap, and exact output behavior.

@@ -69,11 +69,11 @@ extension CaptureWorkspaceViewModel {
                 cameraManager.startSession()
             }
         }
-        if newPhase == .inactive && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-            audioCaptureManager.pauseRecording()
-        }
-        if newPhase == .background && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-            audioCaptureManager.pauseRecording()
+        if newPhase == .inactive || newPhase == .background {
+            audioCaptureManager.cancelPendingRecordingTransition()
+            if audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+                audioCaptureManager.pauseRecording()
+            }
         }
         if newPhase == .background {
             diContainer.offlineQueueManager.releaseAllDeferredLiveUploads(
@@ -96,8 +96,11 @@ extension CaptureWorkspaceViewModel {
     ) {
         triggerSheetFeedback()
 
-        if newMode != .audio && audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
-            audioCaptureManager.pauseRecording()
+        if newMode != .audio {
+            audioCaptureManager.cancelPendingRecordingTransition()
+            if audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
+                audioCaptureManager.pauseRecording()
+            }
         }
         if newMode != .visual, isVideoRecording {
             stopVideoCapture()

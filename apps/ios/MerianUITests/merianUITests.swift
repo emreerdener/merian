@@ -790,7 +790,9 @@ final class merianUITests: XCTestCase {
         )
 
         let textArea = app.descendants(matching: .any)["DescribeTextArea"]
-        let textInput = app.textFields["DescribeTextInput"]
+        // A multiline SwiftUI TextField may bridge to either a TextField or
+        // TextView accessibility role depending on the simulator runtime.
+        let textInput = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(textArea.waitForExistence(timeout: 8.0), "Describe text area did not render")
         XCTAssertTrue(textInput.waitForExistence(timeout: 4.0), "Describe text input did not render")
 

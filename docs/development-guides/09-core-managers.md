@@ -9,28 +9,36 @@ triggering excessive SwiftUI view rebuilds.
 ### `SpeechManager`
 
 - `@MainActor @Observable final class` living at
-  `apps/ios/Merian/Features/Capture/Describe/Managers/SpeechManager.swift`,
-  registered in `AppDIContainer` and distributed to the view hierarchy via
+  `apps/ios/Merian/Core/Hardware/SpeechManager.swift`, registered in
+  `AppDIContainer` and distributed to the view hierarchy via
   `DIContainerModifier`.
-- Owns the full `AVAudioEngine` + `SFSpeechRecognizer` pipeline for live voice
-  dictation on the Describe page.
+- Owns the cross-feature `AVAudioEngine` + `SFSpeechRecognizer` pipeline used by
+  Capture Describe, Insight Field Notes, Insight media coordination, and the
+  shared capture bar.
 - **`isRecording: Bool`** — the single source of truth for dictation state.
-  `DescribeInputLifecycleObserver` mirrors it into
-  `CaptureActionCoordinator.isDictationRequested`, which drives the capture-bar
-  pulse. Never set to `true` until `audioEngine.start()` succeeds; reset to
+  `DescribeInputLifecycleObserver` forwards changes to the generation-fenced
+  `DescribeInputViewModel`, which clears
+  `CaptureActionCoordinator.isDictationRequested` after automatic termination.
+  Never set it to `true` until `audioEngine.start()` succeeds; reset it to
   `false` in all failure and teardown paths.
 - **`isStarting: Bool`** — prevents overlapping permission/session startup and
-  lets the lifecycle observer tear down a dictation request that is still
-  negotiating permissions or audio hardware.
+  exposes a request that is still negotiating permissions or audio hardware.
+  Capture Describe uses that state to end the UI request while letting the
+  canceled startup own its cleanup; it does not call shared teardown
+  concurrently with configuration.
 - **`startDictation(onResult: @MainActor @escaping (String) -> Void) async throws`**:
-  - Requests speech authorization, then retries recognizer availability five
-    times at 200 ms intervals. If no recognizer becomes available, throws
-    `DictationUnavailableError` instead of leaving the button in a starting
-    state.
+  - Returns without opening another session when `isStarting` or `isRecording`
+    is already true. Callers must verify the post-await recording state instead
+    of treating a non-throwing return as proof that they own speech input;
+    Capture Describe's injected adapter does this and clears a rejected request.
   - Requests microphone permission with
     `AVAudioApplication.requestRecordPermission()`. Throws `PermissionError` on
     denial; the lifecycle observer clears the requested-recording state so the
     control returns idle.
+  - Requests speech authorization, then retries recognizer availability five
+    times at 200 ms intervals. If no recognizer becomes available, throws
+    `DictationUnavailableError` instead of leaving the button in a starting
+    state.
   - Checks `Task.isCancelled` after each `await` suspension point. If cancelled
     after the `AVAudioSession` was already activated, releases the current
     `AudioSessionCoordinator.Lease` before returning — preventing stale
@@ -42,14 +50,22 @@ triggering excessive SwiftUI view rebuilds.
     token-aware.
   - `isRecording = true` is assigned as the **absolute final line** — only after
     `try audioEngine.start()` confirms the engine is live.
+- **Capture Describe adapter boundary**: The Services-owned
+  `DescribeInputViewModel.Dependencies.live(speechManager:)` factory is the only
+  Describe state-layer code that references the concrete manager. The view model
+  stores closure dependencies, generation-fences partial results, and retains a
+  canceled startup handle. A replacement start awaits that handle; if a
+  cancellation-ignoring dependency returns `true`, the stale session is stopped
+  before the replacement calls the manager. This prevents `stopDictation()` from
+  racing detached audio configuration while preserving deterministic cleanup.
 - **`stopDictation()`** — delegates entirely to `teardownAudioEngine()` then
   sets `isRecording = false`. Safe to call when the engine was never started.
-- **`teardownAudioEngine()` (private)** — calls `audioEngine.stop()` and
-  `audioEngine.inputNode.removeTap(onBus: 0)` **unconditionally** (both are
-  no-ops if not running / no tap installed). This prevents an orphaned tap crash
-  when `start()` throws after `installTap` has already been called. Ends and
-  nils the recognition request and task, then releases the leased audio session
-  through `AudioSessionCoordinator.shared.deactivate(ifCurrent:)`.
+- **`teardownAudioEngine()` (private)** — whenever an engine exists, calls
+  `audioEngine.stop()` and `audioEngine.inputNode.removeTap(onBus: 0)`. This
+  prevents an orphaned tap crash when `start()` throws after `installTap` has
+  already been called. Ends and nils the recognition request and task, then
+  releases the leased audio session through
+  `AudioSessionCoordinator.shared.deactivate(ifCurrent:)`.
 - **Auto-termination**: The `SFSpeechRecognitionTask` result handler dispatches
   back to `@MainActor` via `Task { @MainActor [weak self] in ... }`. When
   `error != nil || result.isFinal == true`, it calls `stopDictation()`
@@ -57,16 +73,35 @@ triggering excessive SwiftUI view rebuilds.
   that the system ended (e.g. 60-second silence timeout).
 - **`PermissionError`** — a `LocalizedError` struct defined in the same file.
   Thrown on permission denial or an unusable zero-Hz input format. The lifecycle
-  observer catches startup failures and clears the requested-recording flag so
-  the control returns idle; no mode-specific error handling lives inside the
-  paged Describe view.
+  view model catches startup failures through its injected adapter and clears
+  the requested-recording flag so the control returns idle; no mode-specific
+  error handling lives inside the paged Describe view.
+
+### `AudioSessionCoordinator`
+
+- Swift actor at `apps/ios/Merian/Core/Hardware/AudioSessionCoordinator.swift`
+  that serializes process-wide recording and playback session ownership.
+- `activate(_:)` returns a monotonically tokened `Lease`; teardown calls
+  `deactivate(ifCurrent:)`, so an obsolete Speech, Record, or playback owner
+  cannot deactivate a newer session.
+- Ownership advances only after the complete configuration and activation
+  operation succeeds. A failed replacement restores the prior configuration
+  before leaving its lease current. If that rollback fails, the coordinator
+  deactivates the partial session and invalidates prior ownership. Successful
+  deactivation consumes the current lease so repeated teardown is a no-op. A
+  failed first activation also deactivates any partial session and publishes no
+  lease.
+- `MediaPlaybackAudioSession` remains beside the coordinator because Explore and
+  Insight playback use the same process-wide activation contract. Feature views
+  do not call `AVAudioSession.sharedInstance()` directly.
 
 ### `AudioCaptureManager`
 
 - `@MainActor @Observable final class` at
-  `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`, registered as
-  `var audioCaptureManager = AudioCaptureManager()` in `AppDIContainer` and
-  distributed via `DIContainerModifier`.
+  `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`. `AppDIContainer`
+  constructs it with an injected maximum-duration heavy-feedback closure and
+  distributes it via `DIContainerModifier`; the manager does not resolve the
+  haptic singleton.
 - Owns the full `AVAudioEngine` bioacoustic recording pipeline for the `.audio`
   capture page.
 - **`isRecording: Bool`** — single source of truth for recording state. Set to
@@ -77,53 +112,68 @@ triggering excessive SwiftUI view rebuilds.
   100-tick countdown Task (150 ms per tick).
 - **`spectrogramColumns: [SpectrogramColumn]`** — rolling 360-column display
   buffer fed by `SpectrogramActor` from each 2048-frame FFT window.
-- **`snrLevel: SNRLevel`** — most recent SNR classification from
-  `SpectrogramActor.snrLevel(from:)`.
+- **`snrLevel: SNRLevel`** — most recent legacy-named ambient-noise/clipping
+  classification from `SpectrogramActor.snrLevel(from:)`.
 - **`pendingPlaybackPath: String?`** — non-nil after recording finishes, before
   the user confirms or discards. Drives the review state UI.
 - **`playbackProgress: Double`** — 0.0 → 1.0 playhead position; preserved across
   play/stop cycles so `playPendingRecording()` resumes from the scrubbed
   position.
-- **`audioFilePath: String?`** — set to the WAV filename only when the user
-  confirms via review UI; consumed and cleared by
+- **`audioFilePath: String?`** — set to the WAV filename when the user confirms
+  via review UI, or when a maximum-duration recording auto-confirms because
+  confirmation is disabled; consumed and cleared by
   `CaptureWorkspaceOrchestrationModifier.onChange`, which either stages the clip
   into `stagedCapture.audios` for the shared mixed-media toolbar flow or routes
   it through `submitAudio` for the audio-only flow, then calls `reset()`.
+- **`requestMicrophonePermissionForRecording() async throws`**: called only from
+  the explicit Audio red-button action, before camera handoff. This keeps the
+  system prompt tied to the user action.
 - **`startRecording() async throws`**: guards with
   `!isRecording && !isStartingRecording` (the `isStartingRecording` flag is set
-  before any `await` to prevent a second call from slipping through the guard
-  during the async permission + engine-setup window — this was the source of the
-  `nullptr == Tap()` AVAudioEngine crash). Session activation now flows through
-  the shared `AudioSessionCoordinator`, which returns a lease token stored on
-  `AudioCaptureManager`; teardown deactivates only if that lease is still
-  current, eliminating stale stop-work from interrupting a newer record/playback
-  cycle. Writes **Int16 PCM WAV** via an explicit
+  before detached engine setup to prevent a second call from slipping through
+  the guard during the asynchronous setup window — this was the source of the
+  `nullptr == Tap()` AVAudioEngine crash). It never prompts and fails closed
+  unless microphone permission is already granted. Session activation flows
+  through the shared `AudioSessionCoordinator`, which returns a lease token
+  stored on `AudioCaptureManager`; teardown deactivates only if that lease is
+  still current, eliminating stale stop-work from interrupting a newer
+  record/playback cycle. Writes **Int16 PCM WAV** via an explicit
   `AVAudioFormat(commonFormat: .pcmFormatInt16, ...)` to avoid the
   WAVEFORMATEXTENSIBLE (`audioFormat = 0xFFFE`) variant that the edge audio
   parsers do not support. The tap now copies each `AVAudioPCMBuffer`
   synchronously into a bounded `AsyncStream(bufferingNewest: 2)` before handing
   it to `SpectrogramActor`, preventing tap-owned buffers from crossing the async
   boundary and capping DSP backlog.
+- **Recording-transition fence** — startup, resume, DSP publication, and the
+  countdown carry an `AudioCaptureTransitionToken`. The manager retains startup
+  and resume task handles, invalidates their generation on lifecycle exit,
+  pause, stop, cancel, reset, or replacement, and releases a late lease without
+  starting its engine. `cancelPendingRecordingTransition()` is the narrow Shell
+  hook used before pausing on mode/background changes.
 - **Camera handoff contract** — `CaptureControlBar` owns one cancellable audio
   startup task and awaits `CameraManager.stopSessionAndWait()` before calling
-  `startRecording()`. Leaving Audio cancels that task without a toast. This
-  prevents rapid Camera → Audio → Record and Audio → Camera reversals from
-  overlapping camera and audio hardware ownership. Cancellation is explicitly
-  forwarded to the detached AVFoundation setup task, which checks it after
-  session activation and before engine start so normal failure cleanup can
-  release any partially acquired resources.
+  `startRecording()`. Leaving Audio, backgrounding, or removing the control bar
+  cancels that outer task and invalidates the manager-owned transition without a
+  toast. This prevents rapid Camera → Audio → Record and Audio → Camera
+  reversals from overlapping camera and audio hardware ownership. Cancellation
+  is explicitly forwarded to the detached AVFoundation setup task, which checks
+  it after session activation and before engine start; the generation fence also
+  rejects a dependency that returns despite cancellation.
 - **Transient input-route recovery** — after the recording audio session is
   active, a zero-rate or zero-channel input format is retried four times at 75
   ms intervals with `audioEngine.reset()`. A route that remains invalid after
   the bounded 300 ms window still throws
   `AudioCaptureError.hardwareSampleRateZero`.
-- **`pauseRecording()`** — cancels countdown, calls `audioEngine.pause()`, sets
-  `isPaused = true`.
-- **`resumeRecording()`** — reacquires a fresh `AudioSessionCoordinator.Lease`,
-  calls `audioEngine.start()`, and rebuilds the countdown from current
-  `recordingProgress`.
-- **`stopRecordingEarly()`** — cancels countdown, calls `finishRecording()` —
-  same end state as timer completion.
+- **`pauseRecording()`** — invalidates pending transition work, cancels the
+  countdown, calls `audioEngine.pause()`, and sets `isPaused = true`.
+- **`resumeRecording()`** — retains one manager-owned task, coalesces duplicate
+  taps while activation is pending, reacquires a fresh
+  `AudioSessionCoordinator.Lease`, and verifies its transition and engine
+  identity before calling `audioEngine.start()` and rebuilding the countdown
+  from current `recordingProgress`.
+- **`stopRecordingEarly()`** — cancels the countdown and always routes the
+  partial clip to review. Only reaching the 15-second maximum may bypass review
+  when confirmation is disabled.
 - **`seekPlayback(to:)`** — seeks `AVAudioPlayer.currentTime` and updates
   `playbackProgress`; works while playing or stopped.
 - **`cancelRecording()`** — cancels countdown task, tears down engine, deletes
@@ -141,6 +191,11 @@ triggering excessive SwiftUI view rebuilds.
   cancelled by `stopPlayback()` and `reset()`. This prevents an orphaned sleep
   task from retaining `AVAudioPlayer` and from clearing a newer playback session
   after the user has already stopped or restarted audio.
+- **Record presentation adapter**: Capture Shell resolves the environment-owned
+  manager, while `Capture/Record/Services/AudioRecordingDependencies.swift` is
+  the only Record file that projects its state and actions. The Record view
+  model receives closure dependencies and owns only idle artwork and review
+  scrubbing.
 - **Strict Requirement**: Never call `AVAudioSession.sharedInstance()` directly
   on `@MainActor`. Route all activation/deactivation through
   `AudioSessionCoordinator`.
@@ -161,8 +216,9 @@ triggering excessive SwiftUI view rebuilds.
 - **`process(buffer:) -> SpectrogramColumn?`** — compatibility helper that
   returns the first processed column.
 - **`snrLevel(from:) -> SNRLevel`** — rolling 48-entry noise floor history (~2
-  s). Thresholds: `.clipping` (peak > 0.95), `.warning` (SNR < 10 dB),
-  `.caution` (10–20 dB), `.clear` (≥ 20 dB).
+  s). Despite the historical type name, non-clipping levels use the absolute
+  rolling minimum RMS floor: `.clipping` (peak > 0.95), `.warning` (floor >
+  0.08), `.caution` (floor > 0.015), `.clear` (floor ≤ 0.015).
 - **`reset()`** — clears the noise floor history. Called by
   `AudioCaptureManager.reset()` between sessions.
 
@@ -1926,7 +1982,15 @@ consults that Keychain entry.
 - `AudioCaptureManager` owns full startup failure cleanup. Cancellation after
   `AVAudioSession` activation now still removes the input tap, stops the engine,
   cancels DSP work, finishes the spectrogram stream, and clears pending temp
-  files.
+  files. Startup/resume handles and one shared generation fence prevent a late
+  activation, DSP update, or countdown tick from publishing after mode change,
+  backgrounding, reset, or replacement.
+- `AudioSessionCoordinator` publishes a new one-shot lease only after complete
+  configuration and activation succeeds. Failed replacement restores the prior
+  configuration; failed rollback deactivates and invalidates the partial
+  session, and failed first activation deactivates partial state without
+  publishing ownership. Duplicate teardown cannot deactivate the same lease
+  twice.
 - `SpeechManager` now routes every startup failure and cancellation path through
   `teardownAudioEngine()`, leaving no live tap, task, or stale `audioLevel`
   state behind, and uses the same leased `AudioSessionCoordinator` teardown

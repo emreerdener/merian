@@ -1,21 +1,26 @@
 # Audio Listen Mode — Bioacoustic Capture Pipeline
 
 The Audio page is the second page of `CaptureWorkspaceView`'s horizontal pager.
-It records a 15-second ambient audio clip, runs a live spectrogram and SNR
-analysis on-device in real time, and submits the clip for bioacoustic species
-identification via the unified `/identify-multimodal` Supabase Edge Function.
+It records a 15-second ambient audio clip, runs a live spectrogram plus
+ambient-noise and clipping guidance on-device in real time, and submits the clip
+for bioacoustic species identification via the unified `/identify-multimodal`
+Supabase Edge Function.
 
 ---
 
 ## 1. Architecture Overview
 
-The audio pipeline is split across three isolation boundaries:
+The audio pipeline is split across explicit ownership and isolation boundaries:
 
-| Layer             | Class                                                   | Thread                 |
-| ----------------- | ------------------------------------------------------- | ---------------------- |
-| DSP / FFT         | `SpectrogramActor`                                      | Background actor       |
-| Recording & state | `AudioCaptureManager`                                   | `@MainActor`           |
-| UI rendering      | `AudioRecordingView`, `SpectrogramView`, `SNRGaugeView` | `@MainActor` (SwiftUI) |
+| Layer                  | Owner                                                                                   | Isolation                           |
+| ---------------------- | --------------------------------------------------------------------------------------- | ----------------------------------- |
+| DSP / FFT              | `Core/Hardware/SpectrogramActor`                                                        | Swift actor                         |
+| Recording and playback | `Core/Hardware/AudioCaptureManager`                                                     | `@MainActor` observable state       |
+| Audio-session leases   | `Core/Hardware/AudioSessionCoordinator`                                                 | Swift actor                         |
+| Raster policy          | `Core/Media/AudioSpectrogramRenderer`                                                   | Deterministic value operations      |
+| Shared rendering       | `Core/UI/Components/AudioSpectrogramView`                                               | `@MainActor` SwiftUI                |
+| Record presentation    | `Capture/Record/{Models,Services,ViewModels,Views,Components}`                          | Value Models; `@MainActor` UI/state |
+| Controls and submit    | `Capture/Shell`, `Core/UI/Components/CaptureControlBar.swift`, and `Capture/Submission` | `@MainActor` orchestration          |
 
 This matches the camera pipeline's `CameraManager` → `ViewfinderIntelligence` →
 `CameraPreviewView` separation and avoids the IPC deadlock pattern that would
@@ -65,24 +70,28 @@ columns instead of dropping half of the buffer. The returned `SpectrogramColumn`
 values carry:
 
 - `magnitudes: [Float]` — 128 mel-scaled bins, 0.0–1.0 normalized
-- `rms: Float` — pre-window RMS (used for SNR estimation)
+- `rms: Float` — pre-window RMS (used for ambient-noise classification)
 - `peak: Float` — pre-window peak (used for clipping detection)
 
 `process(buffer:) -> SpectrogramColumn?` remains as a compatibility helper that
 returns the first processed column.
 
-### SNR Estimation
+### Ambient-Noise Classification (Legacy SNR Naming)
 
 **`snrLevel(from:) -> SNRLevel`** maintains a rolling history of the last 48 RMS
 values (~2 seconds at 4096-sample tap buffers). The minimum of this window is
 used as the estimated noise floor.
 
-| Level       | Condition     | Meaning                            |
-| ----------- | ------------- | ---------------------------------- |
-| `.clipping` | `peak > 0.95` | Mic overloaded — move away         |
-| `.warning`  | SNR < 10 dB   | High background noise — shield mic |
-| `.caution`  | 10 – 20 dB    | Some noise present                 |
-| `.clear`    | SNR ≥ 20 dB   | Clean signal                       |
+Despite the historical `SNRLevel` name, the non-clipping cases classify an
+absolute rolling noise floor rather than a computed signal-to-noise ratio in
+decibels:
+
+| Level       | Condition                     | Meaning                            |
+| ----------- | ----------------------------- | ---------------------------------- |
+| `.clipping` | `peak > 0.95`                 | Mic overloaded — move away         |
+| `.warning`  | rolling minimum RMS `> 0.08`  | High background noise — shield mic |
+| `.caution`  | rolling minimum RMS `> 0.015` | Some ambient noise                 |
+| `.clear`    | rolling minimum RMS `≤ 0.015` | Environment is quiet enough        |
 
 **`reset()`** clears the noise floor history. Called by
 `AudioCaptureManager.reset()` between sessions to prevent prior noise estimates
@@ -94,40 +103,45 @@ from contaminating the next recording.
 
 **File**: `apps/ios/Merian/Core/Hardware/AudioCaptureManager.swift`
 
-`@MainActor @Observable` class. Registered in
-`AppDIContainer.shared.audioCaptureManager` and injected via
-`DIContainerModifier`.
+`@MainActor @Observable` class. `AppDIContainer` constructs the long-lived
+instance with an injected maximum-duration feedback closure and distributes it
+through `DIContainerModifier`. The manager does not resolve the haptic singleton
+itself.
 
 ### Published State
 
-| Property              | Type                  | Description                                                                                                                                                                                                                                                                            |
-| --------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after `audioEngine.start()` succeeds)                                                                                                                                                                                           |
-| `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                           |
-| `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                    |
-| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                            |
-| `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                 |
-| `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                |
-| `isPlaying`           | `Bool`                | Whether `AVAudioPlayer` is currently playing back a pending recording                                                                                                                                                                                                                  |
-| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; preserved across play/stop cycles for scrub-resume                                                                                                                                                                                 |
-| `audioFilePath`       | `String?`             | Non-nil only when the user explicitly confirms via the review UI. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
+| Property              | Type                  | Description                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after `audioEngine.start()` succeeds)                                                                                                                                                                                                                                                                  |
+| `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                                                                                                  |
+| `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                                                                                           |
+| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                                                                                                   |
+| `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                                                                                        |
+| `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                                                                                       |
+| `isPlaying`           | `Bool`                | Whether `AVAudioPlayer` is currently playing back a pending recording                                                                                                                                                                                                                                                                                         |
+| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; preserved across play/stop cycles for scrub-resume                                                                                                                                                                                                                                                        |
+| `audioFilePath`       | `String?`             | Non-nil after the user explicitly confirms in review, or after a maximum-duration recording auto-confirms when confirmation is disabled. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
 
 ### `startRecording() async throws`
 
-Mirrors `SpeechManager.startDictation`'s `Task.detached` pattern to prevent
-`@MainActor` IPC deadlock against `mediaserverd`:
+The explicit red-button action first calls
+`requestMicrophonePermissionForRecording()`. `startRecording()` then fails
+closed unless permission is already granted and uses a detached setup task plus
+the token-aware audio-session coordinator to prevent `@MainActor` IPC deadlock
+against `mediaserverd`:
 
 ```
 guard !isRecording, !isStartingRecording   ← re-entry guard (set before any await)
     ↓
 discardPending()            ← clears leftover review state
-requestRecordPermission()   ← async, off main actor
-    ↓ Task.isCancelled check
+verify permission already granted  ← never opens a prompt
+    ↓ cancellation check
 teardownEngine()            ← clears any prior engine session
     ↓
+transition = transitionState.begin()  ← generation fence for all async commits
 Task.detached {
-    AVAudioSession.setCategory(.record, mode: .measurement)
-    AVAudioSession.setActive(true)
+    AudioSessionCoordinator.activate(.recordMeasurement(...))
+    accept lease only if transition + engine identity still match
     inputNode.outputFormat(forBus: 0)     ← IPC: never call on @MainActor
     if zero-rate/zero-channel:
         retry 4 × 75 ms with engine.reset()  ← bounded route-settle recovery
@@ -137,16 +151,16 @@ Task.detached {
     inputNode.installTap(...)             ← file write + DSP dispatch per buffer
     audioEngine.start()
 }.value
-    ↓
+    ↓ verify task, transition, and engine are still current
 isRecording = true
-recordingTask = Task { 100 ticks × 0.15 s → finishRecording() }
+recordingTask = Task { 100 generation-checked ticks × 0.15 s → finishRecording() }
 ```
 
-**Re-entry guard**: `isStartingRecording` is set to `true` before the first
-`await` (permission request) and cleared in `defer`. This prevents a second
+**Re-entry guard**: `isStartingRecording` is set to `true` before detached
+session/engine setup and cleared in `defer`. This prevents a second
 `startRecording()` call from slipping through the `!isRecording` guard during
-the async setup window — the condition that triggered the `nullptr == Tap()`
-AVAudioEngine crash.
+the asynchronous setup window — the condition that triggered the
+`nullptr == Tap()` AVAudioEngine crash.
 
 **Camera-to-audio handoff**: the center-button action owns one cancellable
 audio-start task. Before calling `startRecording()`, it awaits
@@ -159,8 +173,11 @@ does not show an error toast. The task is not cleared until its `defer` runs, so
 a rapid Audio → Camera → Audio sequence cannot overlap two startup tasks.
 Cancellation is forwarded into the detached AVFoundation setup task; that task
 checks cancellation after session activation and again before engine start, and
-the manager's existing failure cleanup removes the tap, stops the engine,
-deletes the partial file, and releases the audio-session lease.
+the manager also invalidates the operation's generation. A late or
+cancellation-ignoring activation releases its newly acquired lease without
+starting the engine or publishing DSP/countdown state. Normal failure cleanup
+then removes the tap, stops the engine, deletes the partial file, and releases
+any accepted audio-session lease.
 
 **Input-route recovery**: even after `AVAudioSession.setActive(true)`, iOS can
 briefly expose an input format with a zero sample rate or zero channels while
@@ -185,9 +202,9 @@ automatically on each write.
    yields it into a bounded `AsyncStream(bufferingNewest: 2)` so reused engine
    buffers never cross the async boundary.
 3. A detached DSP consumer drains that bounded stream, calls
-   `SpectrogramActor.processColumns(buffer:)`, derives the SNR level for each
-   emitted 2048-frame column, and hops back to `@MainActor` only for the small
-   UI update.
+   `SpectrogramActor.processColumns(buffer:)`, derives the legacy-named
+   `SNRLevel` ambient-noise/clipping classification for each emitted 2048-frame
+   column, and hops back to `@MainActor` only for the small UI update.
 
 The `[weak manager]` capture in the inner `@MainActor` task breaks the retain
 cycle: `AudioCaptureManager → audioEngine → inputNode → tap closure → manager`.
@@ -197,54 +214,62 @@ cycle: `AudioCaptureManager → audioEngine → inputNode → tap closure → ma
 `teardownEngine()` calls `inputNode.removeTap(onBus: 0)` **first**, then
 `audioEngine.stop()` — both are no-ops if already stopped/untapped. Removing the
 tap before stopping prevents the audio thread from writing into a stopped engine
-and avoids AVAudioEngine assertion failures. The `AVAudioSession` is deactivated
-asynchronously via `Task.detached` to avoid `mediaserverd` IPC blocking
-`@MainActor`.
+and avoids AVAudioEngine assertion failures. Lease release is scheduled in a
+short inherited task that awaits `AudioSessionCoordinator`; the actor performs
+the `AVAudioSession` work outside the main actor and ignores stale or already
+consumed leases.
 
 ### Recording Lifecycle
 
-| Method                        | Effect                                                                                                                                                                                                                                                                                                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `startRecording()`            | Guards with `!isRecording && !isStartingRecording`. Acquires permission, calls `discardPending()` to clear leftover review state, spins up engine, starts 15 s countdown                                                                                                                                                                                                        |
-| `stopRecordingEarly()`        | Cancels countdown task, calls `finishRecording()` — same end state as timer completion                                                                                                                                                                                                                                                                                          |
-| `pauseRecording()`            | Cancels countdown task, calls `audioEngine.pause()`, sets `isPaused = true`, resets `snrLevel`                                                                                                                                                                                                                                                                                  |
-| `resumeRecording()`           | Re-activates `AVAudioSession` in `Task.detached`, calls `audioEngine.start()`, sets `isPaused = false`, rebuilds countdown from `recordingProgress`                                                                                                                                                                                                                             |
-| `cancelRecording()`           | Cancels countdown task, tears down engine, deletes partial file from `tmp/`, calls `discardPending()` to also clear review state                                                                                                                                                                                                                                                |
-| `finishRecording()` (private) | Tears down engine, sets `pendingPlaybackPath = pendingFileName` — routes to review state instead of direct submission                                                                                                                                                                                                                                                           |
-| `playPendingRecording()`      | Saves `resumeProgress = playbackProgress` (preserves scrubbed position), creates `AVAudioPlayer`, seeks to `duration * resumeProgress`, activates `.playback` session in `Task.detached`, sets `isPlaying = true`. Duration-based sleep (`remaining = duration * (1 - resumeProgress)`) clears `isPlaying` at end-of-file; reference equality guards against stop→replay races. |
-| `stopPlayback()`              | Stops `AVAudioPlayer`, clears `isPlaying` and `playbackProgress`                                                                                                                                                                                                                                                                                                                |
-| `seekPlayback(to:)`           | Sets `audioPlayer.currentTime = duration * clamped` and updates `playbackProgress` — works while playing or stopped                                                                                                                                                                                                                                                             |
-| `confirmAndSubmit()`          | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                                                                                                        |
-| `discardPending()`            | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                                                                                                      |
-| `reset()`                     | Calls `stopPlayback()`, cancels tasks, tears down the engine/tap/session lease, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()`                                                                                                                                                              |
+| Method                                      | Effect                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requestMicrophonePermissionForRecording()` | Requests permission only from the explicit red-button action; throws on denial before camera handoff                                                                                                                                                                                                  |
+| `startRecording()`                          | Guards with `!isRecording && !isStartingRecording`, fails closed unless permission is already granted, calls `discardPending()`, spins up the engine, and starts the 15-second countdown. The caller selects whether reaching the cap enters review or auto-confirms when confirmation is disabled.   |
+| `stopRecordingEarly()`                      | Cancels the countdown and always routes the partial clip to review; only a maximum-duration capture may auto-confirm when confirmation is disabled                                                                                                                                                    |
+| `pauseRecording()`                          | Invalidates transition work, cancels countdown, calls `audioEngine.pause()`, sets `isPaused = true`, resets `snrLevel`                                                                                                                                                                                |
+| `resumeRecording()`                         | Retains one manager-owned task, coalesces duplicate taps, awaits a new coordinator lease, generation-checks the late result, then starts the engine and rebuilds the countdown from `recordingProgress`                                                                                               |
+| `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                               |
+| `cancelRecording()`                         | Cancels countdown task, tears down engine, deletes partial file from `tmp/`, calls `discardPending()` to also clear review state                                                                                                                                                                      |
+| `finishRecording()` (private)               | Tears down the engine. Early completion or confirmation-enabled capture sets `pendingPlaybackPath`; a maximum-duration capture with confirmation disabled sets `audioFilePath` for the established Shell handoff.                                                                                     |
+| `playPendingRecording()`                    | Saves `resumeProgress = playbackProgress` (preserves scrubbed position), creates `AVAudioPlayer`, and uses one stored task to await a `.playback` coordinator lease, seek, play, and clear `isPlaying` after the remaining duration; cancellation and player-reference checks guard stop→replay races |
+| `stopPlayback()`                            | Stops `AVAudioPlayer`, clears `isPlaying` and `playbackProgress`                                                                                                                                                                                                                                      |
+| `seekPlayback(to:)`                         | Sets `audioPlayer.currentTime = duration * clamped` and updates `playbackProgress` — works while playing or stopped                                                                                                                                                                                   |
+| `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                              |
+| `discardPending()`                          | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                            |
+| `reset()`                                   | Calls `stopPlayback()`, cancels tasks, tears down the engine/tap/session lease, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, calls `spectrogram.reset()`                                                                                    |
 
 **`discardPending()` clears display state unconditionally**: The spectrogram
-column clear and SNR reset run outside the `if let pendingPlaybackPath` branch
-so that calling `discardPending()` during an active recording (e.g. immediately
-before `startRecording()`) also wipes the previous session's visual state. The
-prior `guard let name = pendingPlaybackPath else { return }` early-exit pattern
-leaked these columns into the next recording's UI.
+column and noise-guidance reset run outside the `if let pendingPlaybackPath`
+branch so that calling `discardPending()` during an active recording (e.g.
+immediately before `startRecording()`) also wipes the previous session's visual
+state. The prior `guard let name = pendingPlaybackPath else { return }`
+early-exit pattern leaked these columns into the next recording's UI.
 
 **Submission state machine:**
 
 ```
-startRecording() → [recording] ──────────────────────────────────────── pauseRecording()
-                       ↓ timer / stopRecordingEarly()                          ↓
-                  finishRecording()                                       [paused] ── resumeRecording() → [recording]
-                       ↓
-                  [review: pendingPlaybackPath set]
-                       ↓ confirmAndSubmit()
-                  [submitted: audioFilePath set]
-                       ↓ CaptureWorkspaceOrchestrationModifier.onChange
-                  [stage into toolbar OR submitAudio] → reset()
+startRecording() → [recording] ─────────────────────────────────────── pauseRecording()
+                       │                                                     ↓
+                       │                                        [paused] ── resumeRecording()
+                       │                                                     ↓
+                       ├─ stopRecordingEarly() ─────────────────────────→ [review]
+                       │                                                        ↓ confirmAndSubmit()
+                       └─ 15-second maximum                                     │
+                            ├─ confirmation enabled ───────────────────────→ [review]
+                            └─ confirmation disabled ─────────────────────→ [submitted]
+                                                                                 ↓
+                                               CaptureWorkspaceOrchestrationModifier.onChange
+                                                                                 ↓
+                                                    [stage into toolbar OR submitAudio] → reset()
 
                   [review] → discardPending() → [idle]
 ```
 
 `CaptureWorkspaceOrchestrationModifier.onChange(of:
 audioCaptureManager.audioFilePath)`
-fires only when the user explicitly confirms; this replaces the previous
-auto-submit that fired immediately when recording finished. If the user already
+fires after the user explicitly confirms a reviewed clip, or after a recording
+reaches the 15-second maximum while confirmation is disabled. Early completion
+and every confirmation-enabled recording enter review first. If the user already
 has staged images, videos, or descriptions, if multi-capture mode is enabled, or
 if explicit confirmation is required, the confirmed clip is appended to
 `stagedCapture.audios` and shares the same 2-item total mixed-media cap as
@@ -424,8 +449,8 @@ Full-screen content view for the `.audio` pager page. All persistent controls
 | State     | Condition                                    | Content                                                                                                              |
 | --------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Idle      | `!isRecording && pendingPlaybackPath == nil` | Rotating animal illustration carousel · persistent **Record nearby sounds** material badge above the capture control |
-| Recording | `isRecording`                                | Live `SpectrogramView` · `SNRGaugeView` below the spectrogram                                                        |
-| Review    | `pendingPlaybackPath != nil`                 | Static, seekable `SpectrogramView` · no lower guidance badge                                                         |
+| Recording | `isRecording`                                | Shared live `AudioSpectrogramView` · `AudioSNRGuidanceView` below the spectrogram                                    |
+| Review    | `pendingPlaybackPath != nil`                 | Shared static, seekable `AudioSpectrogramView` · no lower guidance badge                                             |
 
 **Spectrogram sizing**: The spectrogram height is computed symmetrically from
 `composingCenter` (the vertical center of the composing area between
@@ -479,19 +504,24 @@ the temporary recording through `FileIOActor`. The cover is included in the
 workspace presentation-occupancy fence, so camera or route restoration cannot
 race its dismissal.
 
-The countdown ring uses `Circle.trim(from: 0, to: recordingProgress)` with
-`.animation(.linear(duration: 0.15))` matching the 150 ms tick interval of the
-`recordingTask`.
+The `RecordingCountdownBadge` above the spectrogram is owned by
+`Capture/Shared/Components` because Scan video uses the same finite-duration
+treatment. Record supplies recording or playback progress, the 15-second
+duration, and state-specific accessibility copy.
 
-### `SpectrogramView`
+### `AudioSpectrogramView`
 
-**File**: `apps/ios/Merian/Features/Capture/Record/Views/SpectrogramView.swift`
+**Files**:
 
-Raster-backed 2D spectrogram. `SpectrogramRenderer` builds a tiny RGBA bitmap
-from `SpectrogramColumn` values, then `SpectrogramView` scales that image with
+- `apps/ios/Merian/Core/UI/Components/AudioSpectrogramView.swift`
+- `apps/ios/Merian/Core/Media/AudioSpectrogramRenderer.swift`
+
+The domain-neutral renderer builds a compact RGBA bitmap from
+`SpectrogramColumn` values, then the shared SwiftUI view scales that image with
 high-quality interpolation so the display reads as a continuous spectrogram
 instead of a grid of large rectangles. Frequency still increases bottom-to-top
-(bin 0 = 80 Hz at bottom, bin 127 = 16 kHz at top).
+(bin 0 = 80 Hz at bottom, bin 127 = 16 kHz at top). Record owns the review drag
+gesture and playhead overlay, not the shared view.
 
 **Display layouts**:
 
@@ -505,28 +535,33 @@ through deep blue, cyan, green, warm yellow, and pale highlights. The same
 palette is used for live capture, review, Insight audio playback, and scan
 thumbnails.
 
-### `SNRGaugeView`
+### `AudioSNRGuidanceView`
 
-**File**: `apps/ios/Merian/Features/Capture/Record/Views/SNRGaugeView.swift`
+**File**:
+`apps/ios/Merian/Features/Capture/Record/Components/AudioSNRGuidanceView.swift`
 
 Passive material capsule for recording guidance. It shows **Record 15 seconds**
-once per process session for 3.5 seconds, then exposes the current non-clear SNR
-label when audio hints are enabled. The stored prompt task is cancelled on
-unmount, the surface disables hit testing, and no delayed dispatch chain or
-keyframe shake survives view teardown.
+once per process session for 3.5 seconds, then exposes the current non-clear
+ambient-noise label when audio hints are enabled. The stored prompt task is
+cancelled on unmount, the surface disables hit testing, and no delayed dispatch
+chain or keyframe shake survives view teardown.
 
-`AudioRecordingView` mounts `SNRGaugeView` only after recording starts, so the
-initial guidance timer cannot expire invisibly while the page is idle. Before
-recording, the same lower guidance slot instead shows the persistent,
+`AudioRecordingView` mounts `AudioSNRGuidanceView` only after recording starts,
+so the initial guidance timer cannot expire invisibly while the page is idle.
+Before recording, the same lower guidance slot instead shows the persistent,
 non-interactive **Record nearby sounds** badge regardless of the Audio Hints
 preference. Review hides the lower guidance slot.
 
-| `SNRLevel`  | Color            | Label           |
-| ----------- | ---------------- | --------------- |
-| `.clear`    | Green            | "Clear"         |
-| `.caution`  | Yellow           | "Some noise"    |
-| `.warning`  | Orange           | "Shield mic"    |
-| `.clipping` | Material capsule | "Move mic away" |
+All visible guidance uses the existing white text on a dark material capsule;
+the level changes copy rather than color. `.clear` has stable **Clear** mapping
+for deterministic presentation tests but is hidden after the initial prompt.
+
+| `SNRLevel`  | Visible label after the initial prompt |
+| ----------- | -------------------------------------- |
+| `.clear`    | Hidden                                 |
+| `.caution`  | **Some noise**                         |
+| `.warning`  | **Shield mic**                         |
+| `.clipping` | **Move mic away**                      |
 
 ---
 
@@ -547,15 +582,26 @@ case .audio:
         } else {
             audioCaptureManager.pauseRecording()       // recording → paused
         }
-    } else {
-        guard audioRecordingStartTask == nil else { return }
-        audioRecordingStartTask = Task {
-            defer { audioRecordingStartTask = nil }
-            do {
-                await cameraManager.stopSessionAndWait()
-                try Task.checkCancellation()
-                try await audioCaptureManager.startRecording()
-            }
+                            } else {
+                                guard audioRecordingStartTask == nil else { return }
+                                audioRecordingStartTask = Task {
+                                    defer { audioRecordingStartTask = nil }
+                                    do {
+                                        guard await viewModel.requestScanAdmission(...) != nil else {
+                                            return
+                                        }
+                                        guard scenePhase == .active else { return }
+                                        try await audioCaptureManager
+                                            .requestMicrophonePermissionForRecording()
+                                        try Task.checkCancellation()
+                                        await cameraManager.stopSessionAndWait()
+                                        try Task.checkCancellation()
+                                        guard scenePhase == .active else { return }
+                                        try await audioCaptureManager.startRecording(
+                                            autoSubmitOnMaxDuration:
+                                                !appSettings.requiresScanConfirmation
+                                        )
+                                    }
             catch is CancellationError { /* expected mode transition */ }
             catch { viewModel.offlineToastMessage = error.localizedDescription }
         }
@@ -602,20 +648,20 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 ## 9. Session Lifecycle
 
-| Trigger                                                 | Action                                                                                                                                       |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| User taps Record immediately after entering `.audio`    | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
-| User leaves `.audio` while recording startup is pending | Cancel the owned startup task; do not activate audio and do not show a cancellation toast                                                    |
-| Swipe from `.audio` to another mode                     | `cancelRecording()` if active or paused — clears engine, file, and review state                                                              |
-| App backgrounds while `.audio` active                   | Same: `cancelRecording()` if recording or paused                                                                                             |
-| 15 s countdown completes                                | `finishRecording()` → sets `pendingPlaybackPath` → transitions to review state                                                               |
-| User taps `AudioDoneButton` (checkmark) while recording | `stopRecordingEarly()` → same end state as countdown completion                                                                              |
-| User taps center button while recording                 | `pauseRecording()` → engine paused, countdown halted                                                                                         |
-| User taps center button while paused                    | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
-| User taps `AudioDeleteButton` while recording/paused    | `cancelRecording()` → returns to idle                                                                                                        |
-| User taps center button in review                       | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
-| User taps `AudioDeleteButton` in review                 | `discardPending()` → returns to idle                                                                                                         |
-| User taps `AudioReviewPlayButton` in review             | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
+| Trigger                                                   | Action                                                                                                                                       |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| User taps Record immediately after entering `.audio`      | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
+| User leaves `.audio` while recording startup is pending   | Cancel the outer task and manager transition; reject late activation and do not show a cancellation toast                                    |
+| Swipe from `.audio` to another mode                       | Invalidate pending startup/resume; pause an active unpaused recording so its clip and progress remain recoverable                            |
+| App becomes inactive or backgrounds while `.audio` active | Apply the same transition invalidation and non-destructive pause contract                                                                    |
+| 15 s countdown completes                                  | Heavy feedback, then review when confirmation is enabled or the established `audioFilePath` Shell handoff when confirmation is disabled      |
+| User taps `AudioDoneButton` (checkmark) while recording   | `stopRecordingEarly()` → always enters review, including when a maximum-duration clip would auto-submit                                      |
+| User taps center button while recording                   | `pauseRecording()` → engine paused, countdown halted                                                                                         |
+| User taps center button while paused                      | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
+| User taps `AudioDeleteButton` while recording/paused      | `cancelRecording()` → returns to idle                                                                                                        |
+| User taps center button in review                         | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
+| User taps `AudioDeleteButton` in review                   | `discardPending()` → returns to idle                                                                                                         |
+| User taps `AudioReviewPlayButton` in review               | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
 
 The camera session is **not** started when the user is on `.audio`. The mode
 change still requests an eager stop, and the Record path independently awaits
@@ -625,12 +671,14 @@ change still requests an eager stop, and the Record path independently awaits
 
 ## 10. AVAudioSession Lifecycle
 
-| Event                                      | Action                                                                                   |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session    |
-| `startRecording` called                    | `.setCategory(.record, mode: .measurement)` + `.setActive(true)` — in `Task.detached`    |
-| `cancelRecording()` or `finishRecording()` | `.setActive(false, options: .notifyOthersOnDeactivation)` — in `Task.detached`           |
-| Task cancelled mid-setup                   | Startup cleanup stops the engine, removes the tap/file, and schedules lease deactivation |
+| Event                                      | Action                                                                                                                  |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Camera → Audio record handoff              | Await camera-queue `stopRunning()` completion before activating the recording session                                   |
+| `startRecording` called                    | `AudioSessionCoordinator.activate(.recordMeasurement(...))` from detached setup                                         |
+| `cancelRecording()` or `finishRecording()` | Coordinator deactivates only the matching current lease with `notifyOthersOnDeactivation`                               |
+| Task cancelled mid-setup                   | Startup cleanup stops the engine, removes the tap/file, and schedules lease deactivation                                |
+| First activation fails                     | Coordinator deactivates any partial session and publishes no lease                                                      |
+| Replacement activation fails               | Coordinator restores the prior configuration and lease; failed rollback deactivates and invalidates the partial session |
 
 `notifyOthersOnDeactivation` signals the OS to restore ducked audio and ensures
 `SpeechManager` can cleanly acquire its own session when the user swipes to
@@ -641,11 +689,24 @@ change still requests an eager stop, and the Record path independently awaits
 ## 11. Permissions
 
 `NSMicrophoneUsageDescription` is already declared in `Info.plist` (shared with
-`SpeechManager`). `AudioCaptureManager.startRecording()` calls
-`AVAudioApplication.requestRecordPermission()` at runtime — not at app launch.
-First-time users on the `.audio` page see the iOS microphone permission dialog.
-Denial throws `AudioCaptureError.microphonePermissionDenied`, which is surfaced
-as a toast via `viewModel.offlineToastMessage`.
+`SpeechManager`). The red-button action calls
+`AudioCaptureManager.requestMicrophonePermissionForRecording()` before waiting
+for camera shutdown, so the first prompt remains visibly tied to the user tap.
+`startRecording()` never prompts; it verifies the current authorization and
+fails closed if permission is not granted. Denial throws
+`AudioCaptureError.microphonePermissionDenied`, which is surfaced as a toast via
+`viewModel.offlineToastMessage`.
+
+### Physical-device acceptance
+
+The focused simulator suites validate presentation, deterministic DSP policy,
+state transitions, cancellation, and injected audio-session behavior. They do
+not validate a real microphone input route, OS permission sheet, haptic, or
+process-wide `AVAudioSession` handoff. Before release, use a signed
+physical-device build to verify first-use permission, Camera-to-Audio startup,
+record/pause/resume, early-stop review, mode/background preservation, the review
+and auto-handoff maximum-duration branches, feedback, review playback/scrubbing,
+and the Audio-to-Describe transition.
 
 ---
 
@@ -970,3 +1031,35 @@ decision valid for that request.
   stalls on Apple Watch.
 - `AudioCaptureManager` now centralizes spectrogram reset through one helper so
   cancellation, discard, and full reset all clear identical UI/audio state.
+
+## 2026-08 Record Ownership Pass
+
+- `Capture/Record` now has explicit `Models`, `Services`, `ViewModels`, `Views`,
+  and `Components` owners. Only Services reference the concrete audio and haptic
+  managers; Shell supplies the immutable presentation and narrow actions.
+- The token-aware `AudioSessionCoordinator` moved out of the recording manager
+  aggregate into its own Core Hardware file. Maximum-duration feedback is
+  initializer-injected from `AppDIContainer`.
+- Manager-owned startup/resume handles and `AudioCaptureTransitionState` now
+  generation-fence lease acceptance, engine start, DSP publication, and
+  countdown completion. Mode/background/reset invalidation rejects late
+  non-cooperative completion; duplicate resume taps coalesce. Coordinator leases
+  advance only after successful activation and are consumed on deactivation, so
+  failed replacement restores the prior configuration and preserves its owner.
+  Failed rollback deactivates the partial session and invalidates that
+  ownership; failed first activation likewise deactivates partial state without
+  publishing a lease.
+- Palette, raster, and display-layout policy moved to
+  `Core/Media/AudioSpectrogramRenderer.swift`; the shared SwiftUI surface moved
+  to `Core/UI/Components/AudioSpectrogramView.swift`. Record retains its mounted
+  review gesture and playhead timing.
+- `RecordingCountdownBadge` moved to `Capture/Shared/Components` because Record
+  audio and Scan video both consume it. The obsolete Record-local spectrogram
+  and signal-guidance aggregate files were removed.
+- Focused verification is mirrored under `Features/Capture/Record`,
+  `Core/Hardware`, and `Core/Media`. It covers deterministic presentation,
+  scrubbing and feedback boundaries, maximum-duration feedback injection, FFT
+  and ambient-noise policy, transition invalidation, duplicate/stale resume,
+  successful session-lease replacement, failed-activation restoration,
+  rollback-failure invalidation, first-activation cleanup, raster construction,
+  shared-owner placement, and the 600-line production-file review guard.

@@ -11,7 +11,7 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
     let messageShareCacheSignature: String
     let feedbackPromptSignature: String
     @Binding var observationContext: ObservationContext
-    let describePromptManager: DescribePromptManager
+    let describePromptViewModel: DescribePromptViewModel
     @Binding var isDescribeQuestionsSheetPresented: Bool
     @Binding var stagedDescriptionEditIndex: Int?
     @Binding var stagedAudioReviewIndex: Int?
@@ -115,15 +115,15 @@ struct CaptureWorkspacePresentationModifier: ViewModifier {
                 onDismiss: onFeaturePresentationDismissed
             ) {
                 DescribeQuestionsSheet(
-                    promptManager: describePromptManager,
+                    promptViewModel: describePromptViewModel,
                     hasInputs: !observationContext.freeText
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                         .isEmpty,
                     onReset: {
                         viewModel.triggerMediumFeedback()
                         observationContext.freeText = ""
-                        describePromptManager.resetFunnel()
-                        describePromptManager.activeQuestionIndex = 0
+                        describePromptViewModel.resetFunnel()
+                        describePromptViewModel.activeQuestionIndex = 0
                         viewModel.offlineToastMessage = .information("Draft discarded")
                     }
                 )

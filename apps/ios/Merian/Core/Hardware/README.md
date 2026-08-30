@@ -11,6 +11,74 @@ resource intensity (such as capping framerates to 24fps or dropping heavy
 shaders) under thermal pressure to ensure the app remains stable during intense
 camera and AI usage.
 
+## Speech recognition ownership
+
+`SpeechManager` is cross-feature hardware infrastructure. It owns Speech
+authorization, microphone permission, `AVAudioEngine`, recognition requests,
+live audio level, and the token-aware `AudioSessionCoordinator` lease used by
+Capture Describe, Insight Field Notes, Insight audio playback coordination, and
+the shared capture bar. `AppDIContainer` creates the long-lived observable
+instance; feature views receive it through the established environment and pass
+narrow actions into feature state owners.
+
+Do not move dictation tasks or audio-session teardown into a paged feature view.
+`SpeechManager` remains responsible for activating late, tearing down every
+failure/cancellation path, and deactivating only its current audio-session
+lease. Its overlap guard may return without opening a new session when another
+consumer is starting or recording, so feature adapters must verify `isRecording`
+before treating startup as successful.
+
+Capture Describe is the hardened reference consumer. Its Services layer builds
+the live manager adapter, while its view model owns text/session generations. A
+stop during pending startup cancels and retains that startup task instead of
+calling shared teardown concurrently with audio configuration. A replacement
+waits for the canceled startup to finish; if an injected, cancellation-ignoring
+startup nevertheless reports success, the stale session is stopped before the
+replacement enters `SpeechManager`. Shared manager lifecycle tests live in
+`apps/ios/MerianTests/Core/Hardware/SpeechManagerTests.swift`; Describe overlap
+coverage remains in its feature view-model suite.
+
+## Audio capture and session ownership
+
+`AudioCaptureManager` owns the long-lived bioacoustic engine, bounded PCM-to-DSP
+stream, 15-second Int16 WAV lifecycle, review playback, and observable capture
+state. Its maximum-duration feedback is initializer-injected; `AppDIContainer`
+supplies the live heavy-impact closure so the manager does not resolve haptics.
+Record views receive an immutable presentation projection and never access the
+manager directly. Manager-owned startup and resume task handles share a
+generation fence with DSP and countdown publication. Leaving Audio,
+backgrounding, reset, pause, stop, and replacement invalidate that fence; a late
+or cancellation-ignoring activation releases its lease without starting the
+engine or mutating a newer session.
+
+`AudioSessionCoordinator` is the cross-feature, token-aware lease owner for
+recording and playback audio sessions. `AudioCaptureManager` and `SpeechManager`
+release only their current lease, so delayed teardown from an older operation
+cannot deactivate a replacement session. Keep this owner separate from either
+feature and do not call `AVAudioSession.sharedInstance()` from a paged view. A
+lease becomes current only after configuration and activation both succeed, and
+successful deactivation consumes it. A failed replacement restores the prior
+configuration before leaving that lease current. If restoration also fails, the
+coordinator deactivates the partial session and invalidates prior ownership
+rather than publishing a lease for an unknown configuration. A failed first
+activation likewise deactivates any partially activated session before returning
+the error.
+
+`SpectrogramActor` owns the off-main FFT, mel-scale projection, and bounded
+rolling ambient-noise floor. Its guidance policy classifies clipping by peak and
+the remaining levels by the rolling minimum RMS floor; it is not a calculated
+signal-to-noise ratio in decibels. Rendering belongs to `Core/Media` and
+`Core/UI`, while Record owns only the mounted guidance and scrub interaction.
+
+Manager and DSP tests live in
+`apps/ios/MerianTests/Core/Hardware/AudioCaptureManagerTests.swift` and
+`SpectrogramActorTests.swift`. Transition-token and audio-session lease tests
+live beside them in `AudioCaptureTransitionStateTests.swift` and
+`AudioSessionCoordinatorTests.swift`. Record presentation tests remain with the
+feature, and reusable raster tests live in `Core/Media` test ownership. The
+coordinator suite covers successful replacement, failed-replacement restoration,
+failed-rollback invalidation, and failed-first-activation cleanup.
+
 ## Location authorization and deterministic UI tests
 
 `EnvironmentContextManager` owns the runtime location-authorization request gate

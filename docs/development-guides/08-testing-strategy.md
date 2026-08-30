@@ -1660,6 +1660,23 @@ Dynamic Type; and light/dark appearance.
   lines. Build-for-testing typechecks these suites without camera hardware;
   actual execution still requires a functioning simulator or device test
   destination.
+- **`apps/ios/MerianTests/Features/Capture/Describe/`**: Mirrors typed/dictated
+  observation presentation. `DescribePromptViewModelTests` locks standard,
+  funnel, Insight, and reanalysis prompt state plus taxonomy-to-subject mapping.
+  `DescribeTextCompositionTests` locks append/removal punctuation, dictation
+  baselines, blank transcripts, and stable frequency/default/source-order tag
+  ranking. `DescribeInputViewModelTests` proves text and prompt-flow replacement
+  generation-fence stale inference, manual funnel selection wins an overlap,
+  stale speech callbacks cannot mutate a replacement session, startup failure
+  clears only its request, replacement startup waits for non-cooperative
+  canceled startup teardown without concurrently stopping its configuring audio
+  engine, an inactive/busy speech start ends cleanly, and overlapping starts
+  remain single-owner. `CaptureDescribeArchitectureTests` requires Models/
+  Services/ViewModels/Views/Components, rejects the retired Managers owner and
+  direct live-service resolution in presentation, keeps Models platform-neutral,
+  keeps concrete hardware adapter construction out of ViewModels, verifies Core
+  speech ownership, and caps production files at 600 lines. Shared
+  `SpeechManagerTests` remain under `Core/Hardware`.
 - **`apps/ios/MerianTests/Features/Capture/Submission/`**: Mirrors the durable
   admission/dispatch owner. `CaptureSubmissionPolicyTests` locks deterministic
   media, goal-preference, admission, and latency mapping.
@@ -1746,6 +1763,57 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CaptureWorkspaceViewModelRefinementTests test
 ```
 
+Run the focused Capture Record matrix after changing Audio Listen Mode
+presentation, session/task ownership, lifecycle transitions, DSP policy, or
+shared spectrogram rendering:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/AudioRecordingPresentationTests \
+  -only-testing:merianTests/AudioRecordingViewModelTests \
+  -only-testing:merianTests/CaptureRecordArchitectureTests \
+  -only-testing:merianTests/AudioCaptureManagerTests \
+  -only-testing:merianTests/AudioCaptureTransitionStateTests \
+  -only-testing:merianTests/AudioSessionCoordinatorTests \
+  -only-testing:merianTests/SpectrogramActorTests \
+  -only-testing:merianTests/AudioSpectrogramRendererTests test
+```
+
+For mounted Record selection or accessibility changes, also keep
+`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the simulator matrix.
+Simulator success does not replace Record's physical-device acceptance pass:
+verify first-use microphone permission, Camera-to-Audio startup, real input,
+record/pause/resume and early-stop review, mode/background preservation, both
+15-second confirmation branches, feedback, review playback/scrubbing, and the
+Audio-to-Describe handoff on a signed build.
+
+Run the focused Capture Describe matrix after changing prompts, subject
+inference, text/tag composition, dictation orchestration, the UIKit scroll host,
+or speech-manager ownership:
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/CaptureDescribeArchitectureTests \
+  -only-testing:merianTests/DescribePromptViewModelTests \
+  -only-testing:merianTests/DescribeTextCompositionTests \
+  -only-testing:merianTests/DescribeInputViewModelTests \
+  -only-testing:merianTests/SpeechManagerTests test
+```
+
+For Describe layout, focus, accessibility, or workspace-presentation changes,
+also run the paired UI selectors. The lower-region test locates the multiline
+control by its stable identifier because simulator runtimes may expose the same
+SwiftUI field with either a TextField or TextView accessibility role.
+
+```bash
+xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianUITests/merianUITests/testDescribeFirstLaunchRendersAndOpensPrompts \
+  -only-testing:merianUITests/merianUITests/testDescribeTextAreaFocusesFromLowerRegion test
+```
+
 Run the focused Capture Submission matrix after changing admission, staged
 payload normalization, context acquisition, deferred-context delivery, or
 visual/nonvisual/Describe submission orchestration:
@@ -1770,6 +1838,10 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   thresholds to lock to 24fps and remove glass modifiers. To avoid Swift runtime
   crashes in asynchronous CI containers, calls `AppTelemetry.initialize()` at
   `HardwareOrchestratorTests.init()` using a stub `TEST_MOCK_ID` configuration.
+- **`SpeechManagerTests.swift`**: Lives under `Core/Hardware` and locks that
+  preflight cleanup does not initialize the microphone plus cancellation resets
+  recording and level state. Describe session fencing remains in the
+  feature-owned view-model suite.
 - **`EnvironmentContextManagerTests.swift`**: Asserts safe async handling over
   simulated `CLLocationManager` outputs for offline contexts.
 - **`HapticManagerTests.swift`**: Confirms safe initialization of
@@ -3813,6 +3885,27 @@ preference tests cover visible selected-goal priority across automatic,
 crop-confirmed, and manual camera-still submission. `StagedCaptureTests` locks
 the camera-only media gate so gallery, mixed camera/gallery, audio, video,
 Describe, Record, refinement, and missing selections cannot persist a hint.
+
+The Capture Record organization matrix is split by owner. Run
+`AudioRecordingPresentationTests`, `AudioRecordingViewModelTests`, and
+`CaptureRecordArchitectureTests` for deterministic display/layout policy,
+artwork and scrub interaction, Services-only concrete-manager resolution, shared
+component placement, and the 600-line production-file guard. Run
+`AudioCaptureManagerTests` and `SpectrogramActorTests` for hardware lifecycle,
+injected maximum-duration feedback, bounded FFT/noise-floor behavior, and reset
+semantics. The manager suite also holds activation open to prove duplicate
+resume requests coalesce and lifecycle cancellation fences the late result. Run
+`AudioCaptureTransitionStateTests` for generation replacement/invalidation,
+`AudioSessionCoordinatorTests` for successful replacement, failed-activation
+configuration restoration, first-activation cleanup, and rollback-failure
+invalidation, and `AudioSpectrogramRendererTests` for reusable palette, raster
+orientation, live-horizon, and fit-to-data behavior. These suites live under
+mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test
+paths; do not move hardware or reusable renderer assertions back into an
+aggregate manager suite. Keep
+`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
+the real pager selection and mounted Audio presentation.
+
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
 cold-launch with `AG_PRINT_CYCLES=3`, leave the default page idle long enough
@@ -3831,7 +3924,10 @@ upper bound ensures the flexible editor fills the available page height instead
 of leaving a blank band above the controls. The question navigation must also
 begin 8...32 pt below the mode selector; this upper bound catches a duplicated
 top-safe-area reservation. Strict cycle tracing remains a separate diagnostic
-requirement.
+requirement. `testDescribeTextAreaFocusesFromLowerRegion` uses the stable input
+identifier independent of its runtime accessibility role, taps below the
+multiline control's intrinsic frame, and proves the rounded editor still
+forwards focus.
 
 `MediaModeToggleTests` locks the selector's exact Scan/Record/Describe titles,
 the `viewfinder`/`waveform`/`text.bubble` mapping, SF Symbol resolution and

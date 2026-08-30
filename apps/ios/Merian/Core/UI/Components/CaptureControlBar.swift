@@ -259,10 +259,18 @@ struct CaptureControlBar: View {
         .onChange(of: captureMode) { _, newMode in
             if newMode != .audio {
                 audioRecordingStartTask?.cancel()
+                audioCaptureManager.cancelPendingRecordingTransition()
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                audioRecordingStartTask?.cancel()
+                audioCaptureManager.cancelPendingRecordingTransition()
             }
         }
         .onDisappear {
             audioRecordingStartTask?.cancel()
+            audioCaptureManager.cancelPendingRecordingTransition()
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: viewModel.stagedCapture.images.count)

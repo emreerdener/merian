@@ -3,63 +3,6 @@ import Foundation
 
 // MARK: - Error
 
-actor AudioSessionCoordinator {
-    enum Configuration: Sendable {
-        case recordMeasurement(preferredSampleRate: Double?)
-        case playback
-    }
-
-    struct Lease: Sendable {
-        fileprivate let token: UInt64
-    }
-
-    static let shared = AudioSessionCoordinator()
-
-    private var activeToken: UInt64 = 0
-
-    func activate(_ configuration: Configuration) throws -> Lease {
-        activeToken &+= 1
-        let lease = Lease(token: activeToken)
-        let session = AVAudioSession.sharedInstance()
-
-        switch configuration {
-        case .recordMeasurement(let preferredSampleRate):
-            try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-            try session.setAllowHapticsAndSystemSoundsDuringRecording(true)
-            if let preferredSampleRate {
-                try? session.setPreferredSampleRate(preferredSampleRate)
-            }
-        case .playback:
-            try session.setCategory(.playback, mode: .default)
-        }
-
-        try session.setActive(true)
-        return lease
-    }
-
-    func deactivate(ifCurrent lease: Lease?) {
-        guard let lease, lease.token == activeToken else { return }
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-}
-
-enum MediaPlaybackAudioSession {
-    /// AVPlayer does not reliably reactivate output after capture leaves the shared session
-    /// inactive or configured for recording. Call this before starting audible media.
-    @discardableResult
-    static func activate(source: String) async -> Bool {
-        do {
-            _ = try await AudioSessionCoordinator.shared.activate(.playback)
-            return true
-        } catch {
-            MerianLog.general.error(
-                "Media playback audio-session activation failed: source=\(source, privacy: .public) error=\(error, privacy: .private)"
-            )
-            return false
-        }
-    }
-}
-
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
     case hardwareSampleRateZero
@@ -74,7 +17,7 @@ enum AudioCaptureError: LocalizedError {
 
 // MARK: - Manager
 
-/// Off-main-thread AVAudioEngine recording with live spectrogram and SNR feedback.
+/// Off-main-thread AVAudioEngine recording with live spectrogram and ambient-noise feedback.
 /// Mirrors the Task.detached AVAudioSession setup pattern from SpeechManager to prevent
 /// MainActor IPC deadlock against mediaserverd.
 @MainActor
@@ -120,8 +63,13 @@ final class AudioCaptureManager {
     private var spectrogramHistory = CircularBuffer<SpectrogramColumn>(capacity: AudioCaptureManager.columnCap)
     private var snrHoldTicks: Int = 0
     private var isStartingRecording: Bool = false
+    private var startupSetupTask: Task<Void, Error>?
+    private var resumeTask: Task<Void, Never>?
+    private var transitionState = AudioCaptureTransitionState()
     private var audioSessionLease: AudioSessionCoordinator.Lease?
     private var autoSubmitOnMaxDuration: Bool = false
+    private let maxDurationFeedback: @MainActor () -> Void
+    private let dependencies: Dependencies
     private static let snrHoldTickCount = 48
     nonisolated private static let inputFormatRecoveryAttempts = 4
     nonisolated private static let inputFormatRecoveryDelayNanoseconds: UInt64 = 75_000_000
@@ -131,6 +79,14 @@ final class AudioCaptureManager {
     #else
     private static let preferredRecordSampleRate: Double? = nil
     #endif
+
+    init(
+        maxDurationFeedback: @escaping @MainActor () -> Void = {},
+        dependencies: Dependencies = .live
+    ) {
+        self.maxDurationFeedback = maxDurationFeedback
+        self.dependencies = dependencies
+    }
 
     nonisolated private static func copyPCMBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
         guard let copy = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: buffer.frameCapacity) else {
@@ -170,7 +126,10 @@ final class AudioCaptureManager {
         guard !isRecording, !isStartingRecording else { return }
         isStartingRecording = true
         self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
-        defer { isStartingRecording = false }
+        defer {
+            startupSetupTask = nil
+            isStartingRecording = false
+        }
         // Clear any leftover review state before a fresh recording session.
         discardPending()
 
@@ -186,6 +145,7 @@ final class AudioCaptureManager {
         }
 
         teardownEngine()
+        let transition = transitionState.begin()
         let engine = AVAudioEngine()
         audioEngine = engine
 
@@ -195,14 +155,27 @@ final class AudioCaptureManager {
 
         let actor = spectrogram
         let manager = self
+        let dependencies = self.dependencies
 
         do {
             let setupTask = Task.detached { [manager] in
-                let lease = try await AudioSessionCoordinator.shared.activate(
-                    .recordMeasurement(preferredSampleRate: AudioCaptureManager.preferredRecordSampleRate)
+                let lease = try await dependencies.activateRecordingSession(
+                    AudioCaptureManager.preferredRecordSampleRate
                 )
-                await MainActor.run { [weak manager] in
-                    manager?.audioSessionLease = lease
+
+                let acceptedLease = await MainActor.run {
+                    guard manager.isCurrentRecordingTransition(
+                        transition,
+                        engine: engine
+                    ) else {
+                        return false
+                    }
+                    manager.audioSessionLease = lease
+                    return true
+                }
+                guard acceptedLease else {
+                    await dependencies.deactivateAudioSession(lease)
+                    throw CancellationError()
                 }
                 try Task.checkCancellation()
 
@@ -245,10 +218,16 @@ final class AudioCaptureManager {
                     bufferingPolicy: .bufferingNewest(2)
                 )
 
-                await MainActor.run { [weak manager] in
-                    manager?.spectrogramContinuation = continuation
-                    manager?.dspTask?.cancel()
-                    manager?.dspTask = Task.detached { [weak manager] in
+                let acceptedStream = await MainActor.run {
+                    guard manager.isCurrentRecordingTransition(
+                        transition,
+                        engine: engine
+                    ) else {
+                        return false
+                    }
+                    manager.spectrogramContinuation = continuation
+                    manager.dspTask?.cancel()
+                    manager.dspTask = Task.detached { [weak manager] in
                         for await buffer in stream {
                             if Task.isCancelled { break }
                             let columns = await actor.processColumns(buffer: buffer)
@@ -263,7 +242,11 @@ final class AudioCaptureManager {
                             let evaluatedColumns = columnEvaluations
 
                             await MainActor.run { [weak manager] in
-                                guard let manager else { return }
+                                guard let manager,
+                                      manager.isCurrentRecordingTransition(
+                                          transition,
+                                          engine: engine
+                                      ) else { return }
                                 for evaluatedColumn in evaluatedColumns {
                                     manager.spectrogramHistory.append(evaluatedColumn.column)
 
@@ -286,6 +269,11 @@ final class AudioCaptureManager {
                             }
                         }
                     }
+                    return true
+                }
+                guard acceptedStream else {
+                    continuation.finish()
+                    throw CancellationError()
                 }
 
                 // Defensive removal: prevents the crash if a tap is somehow still installed
@@ -302,8 +290,9 @@ final class AudioCaptureManager {
 
                 try Task.checkCancellation()
                 engine.prepare()
-                try engine.start()
+                try dependencies.startEngine(engine)
             }
+            startupSetupTask = setupTask
             try await withTaskCancellationHandler {
                 try await setupTask.value
             } onCancel: {
@@ -314,29 +303,24 @@ final class AudioCaptureManager {
             throw error
         }
 
-        if Task.isCancelled {
+        guard !Task.isCancelled,
+              isCurrentRecordingTransition(
+                  transition,
+                  engine: engine
+              ) else {
             handleCancelledOrFailedStartup()
-            return
+            throw CancellationError()
         }
 
         isRecording = true
         recordingProgress = 0
-
-        // 100 ticks × 0.15 s = 15 s countdown
-        recordingTask = Task { [weak self] in
-            for i in 1...100 {
-                try? await Task.sleep(nanoseconds: 150_000_000)
-                if Task.isCancelled { return }
-                await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
-            }
-            await MainActor.run { 
-                HapticManager.shared.triggerHeavyImpact()
-                self?.finishRecording(reachedMaxDuration: true)
-            }
-        }
+        scheduleRecordingCountdown(
+            startingAfterTick: 0,
+            transition: transition
+        )
     }
 
-    /// Stops the recording early and routes directly to review state, same as timer completion.
+    /// Stops the recording early and always routes the partial clip to review.
     func stopRecordingEarly() {
         guard isRecording else { return }
         recordingTask?.cancel()
@@ -347,6 +331,7 @@ final class AudioCaptureManager {
     /// Pauses an active recording without discarding audio. Engine tap stays installed.
     func pauseRecording() {
         guard isRecording, !isPaused, let audioEngine else { return }
+        invalidateRecordingTransitions()
         recordingTask?.cancel()
         recordingTask = nil
         audioEngine.pause()
@@ -357,43 +342,88 @@ final class AudioCaptureManager {
 
     /// Resumes a paused recording, rebuilding the countdown from current progress.
     func resumeRecording() {
-        guard isRecording, isPaused, let audioEngine else { return }
-        Task { [weak self] in
+        guard isRecording,
+              isPaused,
+              resumeTask == nil,
+              let audioEngine else { return }
+
+        let transition = transitionState.begin()
+        let dependencies = self.dependencies
+        resumeTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            defer { self.resumeTask = nil }
+
+            let lease: AudioSessionCoordinator.Lease
             do {
-                let lease = try await AudioSessionCoordinator.shared.activate(
-                    .recordMeasurement(preferredSampleRate: Self.preferredRecordSampleRate)
+                lease = try await dependencies.activateRecordingSession(
+                    Self.preferredRecordSampleRate
                 )
-                self.audioSessionLease = lease
-                try audioEngine.start()
             } catch {
-                cancelRecording()
+                guard !Task.isCancelled,
+                      self.isCurrentRecordingTransition(
+                          transition,
+                          engine: audioEngine
+                      ) else { return }
+                self.cancelRecording()
                 return
             }
-            isPaused = false
-            let startTick = Int((recordingProgress * 100).rounded())
+
+            guard !Task.isCancelled,
+                  self.isCurrentRecordingTransition(
+                      transition,
+                      engine: audioEngine
+                  ),
+                  self.isRecording,
+                  self.isPaused else {
+                await dependencies.deactivateAudioSession(lease)
+                return
+            }
+
+            self.audioSessionLease = lease
+            do {
+                try dependencies.startEngine(audioEngine)
+            } catch {
+                self.cancelRecording()
+                return
+            }
+
+            self.isPaused = false
+            let startTick = Int((self.recordingProgress * 100).rounded())
             guard startTick < 100 else {
-                finishRecording(reachedMaxDuration: true)
+                self.finishRecording(reachedMaxDuration: true)
                 return
             }
-            recordingTask = Task { [weak self] in
-                for i in (startTick + 1)...100 {
-                    try? await Task.sleep(nanoseconds: 150_000_000)
-                    if Task.isCancelled { return }
-                    await MainActor.run { self?.recordingProgress = Double(i) / 100.0 }
-                }
-                await MainActor.run { 
-                    HapticManager.shared.triggerHeavyImpact()
-                    self?.finishRecording(reachedMaxDuration: true)
-                }
-            }
+            self.scheduleRecordingCountdown(
+                startingAfterTick: startTick,
+                transition: transition
+            )
         }
+    }
+
+    /// Invalidates asynchronous start/resume work without touching an active
+    /// engine. The owner of a pending startup performs teardown after its task
+    /// exits, avoiding concurrent AVAudioEngine mutation.
+    func cancelPendingRecordingTransition() {
+        guard isStartingRecording || resumeTask != nil else { return }
+        invalidateRecordingTransitions()
     }
 
     /// Cancels an active recording and discards all audio state including any pending review.
     func cancelRecording() {
+        let startupWasInProgress = isStartingRecording
+        invalidateRecordingTransitions()
         recordingTask?.cancel()
         recordingTask = nil
+
+        guard !startupWasInProgress else {
+            isRecording = false
+            isPaused = false
+            recordingProgress = 0
+            autoSubmitOnMaxDuration = false
+            resetSpectrogramState()
+            return
+        }
+
         teardownEngine()
         cleanupPendingFile()
         isRecording = false
@@ -405,13 +435,19 @@ final class AudioCaptureManager {
 
     /// Resets all state. Call after submission completes or when leaving audio mode entirely.
     func reset() {
-        stopPlayback()
+        let startupWasInProgress = isStartingRecording
+        invalidateRecordingTransitions()
+        if !startupWasInProgress {
+            stopPlayback()
+        }
         recordingTask?.cancel()
         recordingTask = nil
         playbackCompletionTask?.cancel()
         playbackCompletionTask = nil
-        teardownEngine()
-        cleanupPendingFile()
+        if !startupWasInProgress {
+            teardownEngine()
+            cleanupPendingFile()
+        }
         if let name = pendingPlaybackPath {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
             try? FileManager.default.removeItem(at: url)
@@ -422,7 +458,9 @@ final class AudioCaptureManager {
         resetSpectrogramState()
         audioFilePath = nil
         pendingPlaybackPath = nil
-        pendingFileName = nil
+        if !startupWasInProgress {
+            pendingFileName = nil
+        }
         autoSubmitOnMaxDuration = false
         Task { await spectrogram.reset() }
     }
@@ -550,7 +588,55 @@ final class AudioCaptureManager {
 
     // MARK: - Private
 
+    private func scheduleRecordingCountdown(
+        startingAfterTick startTick: Int,
+        transition: AudioCaptureTransitionToken
+    ) {
+        guard startTick < 100 else { return }
+        recordingTask?.cancel()
+        recordingTask = Task { @MainActor [weak self] in
+            for tick in (startTick + 1)...100 {
+                do {
+                    try await Task.sleep(nanoseconds: 150_000_000)
+                } catch {
+                    return
+                }
+                guard let self,
+                      self.isRecording,
+                      !self.isPaused,
+                      self.transitionState.isCurrent(transition) else {
+                    return
+                }
+                self.recordingProgress = Double(tick) / 100.0
+            }
+
+            guard let self,
+                  self.isRecording,
+                  !self.isPaused,
+                  self.transitionState.isCurrent(transition) else {
+                return
+            }
+            self.completeMaximumDurationRecording()
+        }
+    }
+
+    private func isCurrentRecordingTransition(
+        _ transition: AudioCaptureTransitionToken,
+        engine: AVAudioEngine
+    ) -> Bool {
+        transitionState.isCurrent(transition)
+            && audioEngine === engine
+    }
+
+    private func invalidateRecordingTransitions() {
+        transitionState.invalidate()
+        startupSetupTask?.cancel()
+        resumeTask?.cancel()
+    }
+
     private func finishRecording(reachedMaxDuration: Bool) {
+        invalidateRecordingTransitions()
+        recordingTask?.cancel()
         teardownEngine()
         if reachedMaxDuration, autoSubmitOnMaxDuration {
             audioFilePath = pendingFileName
@@ -563,6 +649,11 @@ final class AudioCaptureManager {
         isPaused = false
         recordingTask = nil
         autoSubmitOnMaxDuration = false
+    }
+
+    private func completeMaximumDurationRecording() {
+        maxDurationFeedback()
+        finishRecording(reachedMaxDuration: true)
     }
 
     private func teardownEngine() {
@@ -584,8 +675,10 @@ final class AudioCaptureManager {
     private func releaseAudioSessionLease() {
         let lease = audioSessionLease
         audioSessionLease = nil
+        let deactivateAudioSession =
+            dependencies.deactivateAudioSession
         Task {
-            await AudioSessionCoordinator.shared.deactivate(ifCurrent: lease)
+            await deactivateAudioSession(lease)
         }
     }
 
@@ -597,6 +690,7 @@ final class AudioCaptureManager {
     }
 
     private func handleCancelledOrFailedStartup() {
+        invalidateRecordingTransitions()
         teardownEngine()
         cleanupPendingFile()
         isRecording = false
@@ -627,6 +721,17 @@ final class AudioCaptureManager {
     var debugHasDSPTask: Bool { dspTask != nil }
     var debugPendingFileName: String? { pendingFileName }
     var debugHasAudioEngine: Bool { audioEngine != nil }
+    var debugHasResumeTask: Bool { resumeTask != nil }
+
+    func debugStagePausedRecording(
+        engine: AVAudioEngine = AVAudioEngine(),
+        progress: Double = 0
+    ) {
+        audioEngine = engine
+        isRecording = true
+        isPaused = true
+        recordingProgress = progress
+    }
 
     func debugStageRecordingForFinish(fileName: String, autoSubmitOnMaxDuration: Bool) {
         pendingFileName = fileName
@@ -636,6 +741,10 @@ final class AudioCaptureManager {
 
     func debugFinishRecording(reachedMaxDuration: Bool) {
         finishRecording(reachedMaxDuration: reachedMaxDuration)
+    }
+
+    func debugCompleteMaximumDurationRecording() {
+        completeMaximumDurationRecording()
     }
 #endif
 }

@@ -645,14 +645,16 @@ as their permanent engineering identity.
   — watchOS companion target: acoustic capture pipeline, WatchConnectivity
   delivery, and iOS receiver status.
 - **[`/features-and-hardware/11-describe-and-voice-dictation.md`](./features-and-hardware/11-describe-and-voice-dictation.md)**
-  — Describe capture mode: `ObservationContext` state ownership, `SpeechManager`
-  AVAudioEngine + SFSpeechRecognizer pipeline, dictation task lifecycle, and
-  Swift 6 concurrency guarantees.
+  — Describe capture mode: product-area ownership, `ObservationContext` state,
+  deterministic prompt/text policy, generation-fenced subject and dictation
+  lifecycle, serialized startup cancellation, Core `SpeechManager` AVAudioEngine
+  and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees.
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,
-  `AudioCaptureManager` 15-second recording pipeline, live `SpectrogramView`
-  Canvas UI, SNR gauge, coordinated camera-to-microphone hardware handoff, and
-  the shared non-visual durability path.
+  `AudioCaptureManager` 15-second recording pipeline, shared raster-backed
+  spectrogram, ambient-noise guidance, generation-fenced start/resume lifecycle,
+  token-aware audio-session leases, coordinated camera-to-microphone hardware
+  handoff, and the shared non-visual durability path.
 - **[`/features-and-hardware/13-explore-home-screen-widget.md`](./features-and-hardware/13-explore-home-screen-widget.md)**
   — Explore Home Screen widget: image-only WidgetKit extension, App Group cache
   contract, timeline carousel behavior, and deep-link routing.

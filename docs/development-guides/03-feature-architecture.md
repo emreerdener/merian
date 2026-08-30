@@ -56,18 +56,24 @@ Features/
     │   ├── Services/
     │   ├── ViewModels/
     │   └── Views/
-    ├── Record/             # Audio-specific recording and visualization views
+    ├── Record/             # Audio presentation and interaction; hardware stays in Core
+    │   ├── Components/
+    │   ├── Models/
+    │   ├── Services/
+    │   ├── ViewModels/
     │   └── Views/
     ├── Describe/           # Text/dictation input, prompts, subject matching
-    │   ├── Managers/
+    │   ├── Components/
     │   ├── Models/
+    │   ├── Services/
+    │   ├── ViewModels/
     │   └── Views/
     ├── Staging/            # Multi-capture staging and pre-submit review
     │   ├── Models/
     │   └── Views/
     ├── Submission/         # Live/offline analysis submission paths
     │   └── ViewModels/
-    └── Shared/             # Capture-only shared models or coordination helpers
+    └── Shared/             # Capture-only components, models, coordination, utilities
         ├── Models/
         ├── Utilities/
         └── ViewModels/
@@ -87,10 +93,15 @@ Features/
   in `apps/ios/Merian/Models/`).
 - `Modifiers/` implement `ViewModifier` or provide `.modifier(...)` call-site
   helpers.
-- `Managers/` hold `@Observable @MainActor final class` service objects that own
-  a hardware or OS resource scoped to the feature (e.g. `SpeechManager` owns
-  `AVAudioEngine`). Managers that must be shared across multiple features belong
-  in `AppDIContainer` instead.
+- `Services/` own feature-scoped I/O and narrow adapters for hardware, OS, SDK,
+  or preference actions. Observable presentation and lifecycle state belongs in
+  `ViewModels/`, not an ambiguous `Managers/` bucket.
+- Cross-feature hardware or OS resource owners belong in the matching `Core/`
+  domain and are constructed by `AppDIContainer` when long-lived. For example,
+  `Core/Hardware/SpeechManager` owns `AVAudioEngine`, while Capture Describe
+  constructs the live closure adapter in `Describe/Services` and injects those
+  actions into a feature view model that does not reference the concrete
+  hardware owner.
 - `Shared/` means shared within one feature. Promote to `Core/` only when the
   code is reused across features or represents app infrastructure.
 

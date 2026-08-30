@@ -401,10 +401,10 @@ tokens keep playback paused until the final covering view is actually gone.
 - Non-biological bulk deletion likewise disables only its mutation grid and
   destructive toolbar action while the background actor owns the deletion
   snapshot. The compact progress badge does not intercept navigation.
-- Capture hints, SNR guidance, focus indicators, startup recovery notices
-  without diagnostics, and passive loading badges explicitly opt out of hit
-  testing. Their delays are view-lifecycle-owned tasks that cancel on unmount;
-  they do not leave timers retaining an obsolete SwiftUI state box.
+- Capture hints, ambient-noise guidance, focus indicators, startup recovery
+  notices without diagnostics, and passive loading badges explicitly opt out of
+  hit testing. Their delays are view-lifecycle-owned tasks that cancel on
+  unmount; they do not leave timers retaining an obsolete SwiftUI state box.
 - Feedback payloads remain lightweight. Heavy images, model objects, and scan
   arrays stay in durable stores or bounded loaders, never in global visual
   presenters.

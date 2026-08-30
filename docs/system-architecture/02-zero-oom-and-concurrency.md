@@ -428,11 +428,11 @@ This prevents duplicate UIKit presentation requests and avoids briefly retaining
 two heavy modal view graphs.
 
 Transient visual delays are lifecycle-owned as well. Zoom labels, viewfinder and
-SNR prompts, focus indicators, back-swipe rearming, Field Chat preparation, and
-delayed Explore onboarding use structured or explicitly stored cancellable tasks
-with identity checks. Unmount/reset cancels retained tasks, and passive surfaces
-disable hit testing so neither timers nor invisible layout layers keep obsolete
-UI graphs alive or block interaction.
+ambient-noise prompts, focus indicators, back-swipe rearming, Field Chat
+preparation, and delayed Explore onboarding use structured or explicitly stored
+cancellable tasks with identity checks. Unmount/reset cancels retained tasks,
+and passive surfaces disable hit testing so neither timers nor invisible layout
+layers keep obsolete UI graphs alive or block interaction.
 
 ### Capture Startup AttributeGraph Isolation
 
@@ -2810,9 +2810,16 @@ This ensures:
   cancellation, stream finishing, and session deactivation all happen on every
   exit path. `AudioSessionCoordinator` serializes activation/deactivation with
   lease tokens so stale teardown work cannot deactivate a newer session.
-- The spectrogram and SNR hot paths no longer use repeated `removeFirst()` array
-  shifts. They now keep bounded circular buffers for visible spectrogram history
-  and trailing noise-floor history.
+- Audio recording startup, resume, DSP, and countdown work share a manager-owned
+  generation fence. Mode/background/reset invalidation cancels retained task
+  handles and rejects cancellation-ignoring activation before engine start or UI
+  publication. The coordinator commits a one-shot lease only after activation
+  succeeds. Failed replacement restores the prior configuration; failed rollback
+  deactivates the partial session and invalidates prior ownership, while failed
+  first activation deactivates partial state without publishing a lease.
+- The spectrogram and ambient-noise guidance hot paths no longer use repeated
+  `removeFirst()` array shifts. They now keep bounded circular buffers for
+  visible spectrogram history and trailing noise-floor history.
 - Non-biological bulk deletion now commits SwiftData and
   `PendingCloudDeletionTask` state before file removal, eliminating the broken
   "DB row survives but media is already gone" failure mode.
@@ -2858,3 +2865,17 @@ This ensures:
 - **Typed settings boundary**: settings-first UI surfaces now read and mutate
   `AppSettings` rather than owning `@AppStorage` strings directly. Storage keys
   remain centralized, while the view layer binds to typed state.
+
+## 2026-08 Capture Describe Session Hardening
+
+- `DescribeInputViewModel` generation-fences delayed subject inference and
+  cumulative speech results so cancellation-ignoring work cannot publish into a
+  replacement text or dictation session.
+- A Describe stop during pending `SpeechManager` startup cancels and retains the
+  startup task instead of invoking shared audio teardown concurrently with
+  detached configuration. A replacement awaits that task, and a stale startup
+  that nevertheless reports success is stopped before the replacement enters the
+  shared manager.
+- The feature's Services layer constructs the concrete `SpeechManager` adapter;
+  the view model stores only narrow closures. Architecture tests enforce that
+  hardware boundary alongside the feature's 600-line production-file ceiling.

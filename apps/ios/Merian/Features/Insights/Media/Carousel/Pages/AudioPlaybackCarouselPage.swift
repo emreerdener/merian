@@ -221,7 +221,10 @@ struct AudioPlaybackCarouselPage: View {
             } else {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
-                        SpectrogramView(columns: columns, layout: .fitToData)
+                        AudioSpectrogramView(
+                            columns: columns,
+                            layout: .fitToData
+                        )
                             .equatable()
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .allowsHitTesting(false)

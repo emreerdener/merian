@@ -1638,28 +1638,34 @@ dependency composition.
   composition, focus/zoom/photo/video actions, Pro video preparation, in-app
   photo-library import, and viewfinder hints. It consumes the shared crop editor
   and passive `CaptureFlashButton` from `Core/UI`, while `Core/Media` owns crop
-  encoding. `Record/` owns the audio page, spectrogram, SNR gauge, and shared
-  `RecordingCountdownBadge`; `Describe/` owns text input, guided questions,
-  prompt managers, subject matching, and dictation; `Staging/` owns
-  `StagedCapture`, staged video, audio, image, and description editing, plus
-  crop sheet presentation; `Submission/` owns shared live/offline analysis paths
-  for visual and non-visual captures. **Camera Session Pause During Analysis**:
-  When routed or feature-local presentation becomes occupied,
-  `CaptureWorkspaceView` stops `cameraManager`, conserving thermal budget and
-  battery. Clearing a binding is not enough to restart it: the exact dismissal
-  callback rechecks visual mode, active scene phase, all presentation occupancy,
-  and pending/in-flight routes before starting the session. **Active Scan
-  Dismissal**: Users can manually dismiss the `InsightSheetView` entirely while
-  it is still in the `AnalyzingContentView` processing state. Every Insight
-  dismissal route invokes `InferenceEngine.dismissAnalyzingPresentation()`,
-  which fences Vision, deterministic trait extraction, future Foundation work,
-  and phrase cadence, then clears presentation-owned contextual copy and
-  in-memory media. The already-durable Gemini request, upload, persistence, and
-  queue recovery remain active; dismissal never creates a second queue insertion
-  or inference request. A completed result can therefore appear in Scans later
-  (and trigger the `hasUnseenScan` notification dot) without forcing the user to
-  wait on-screen. **Offline Submission Intercept**: To optimize UX and preserve
-  computing power, `CaptureWorkspaceViewModel.submitStagedCapture` gates
+  encoding. `Record/` owns immutable audio presentation, the manager/haptic
+  adapter, idle/scrub state, its page, and focused interaction components.
+  `Core/Hardware` owns the audio engine, playback, FFT, noise-floor policy, and
+  audio-session leases; `Core/Media` and `Core/UI` own the shared spectrogram
+  renderer/view; `Capture/Shared` owns `RecordingCountdownBadge` for Record and
+  Scan video. `Describe/` owns text input, guided questions, deterministic
+  prompt/text Models, live dependency adapters, prompt/lifecycle view models,
+  subject matching, and dictation presentation, while the shared speech engine
+  stays in `Core/Hardware`; `Staging/` owns `StagedCapture`, staged video,
+  audio, image, and description editing, plus crop sheet presentation;
+  `Submission/` owns shared live/offline analysis paths for visual and nonvisual
+  captures. **Camera Session Pause During Analysis**: When routed or
+  feature-local presentation becomes occupied, `CaptureWorkspaceView` stops
+  `cameraManager`, conserving thermal budget and battery. Clearing a binding is
+  not enough to restart it: the exact dismissal callback rechecks visual mode,
+  active scene phase, all presentation occupancy, and pending/in-flight routes
+  before starting the session. **Active Scan Dismissal**: Users can manually
+  dismiss the `InsightSheetView` entirely while it is still in the
+  `AnalyzingContentView` processing state. Every Insight dismissal route invokes
+  `InferenceEngine.dismissAnalyzingPresentation()`, which fences Vision,
+  deterministic trait extraction, future Foundation work, and phrase cadence,
+  then clears presentation-owned contextual copy and in-memory media. The
+  already-durable Gemini request, upload, persistence, and queue recovery remain
+  active; dismissal never creates a second queue insertion or inference request.
+  A completed result can therefore appear in Scans later (and trigger the
+  `hasUnseenScan` notification dot) without forcing the user to wait on-screen.
+  **Offline Submission Intercept**: To optimize UX and preserve computing power,
+  `CaptureWorkspaceViewModel.submitStagedCapture` gates
   `activeSheet = .insight`, `InferenceEngine.prepareForNewScan()`, and the live
   `InferenceEngine.analyze` Task behind durable `enqueueCapture` acceptance plus
   `OfflineQueueManager.isOnline`. If the queue rejects the durable write, the UI

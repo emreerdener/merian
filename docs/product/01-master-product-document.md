@@ -316,8 +316,10 @@ original recording.
 ## 4.7 Audio capture - Implemented on iPhone
 
 The iPhone Listen flow records up to 15 seconds of audio as PCM Int16 WAV,
-presents waveform or spectrogram feedback, calculates signal-to-noise
-information, and preprocesses inference input to mono 16 kHz audio. Audio
+presents a live and review spectrogram, classifies clipping and the rolling
+ambient-noise floor, and preprocesses inference input to mono 16 kHz audio.
+Stopping early always opens review. At the 15-second maximum, the confirmation
+setting selects review or the established automatic submission handoff. Audio
 consumes one item in the shared two-item submission cap.
 
 The legacy `/audio-spec` route exists for compatibility; new mixed-media work
@@ -1534,7 +1536,7 @@ repository-relative.
 - `project.yml`
 - `README.md`
 - `apps/ios/Merian/Models/Aliases.swift`
-- `apps/ios/Merian/Config/MerianConfig.swift`
+- `apps/ios/Merian/Core/Utilities/MerianConfig.swift`
 
 ## iOS application and capture
 
@@ -1554,12 +1556,12 @@ repository-relative.
 ## Product surfaces
 
 - `apps/ios/Merian/Features/Explore/`
-- `apps/ios/Merian/Features/FieldTrips/`
+- `apps/ios/Merian/Features/Explore/FieldTrips/`
 - `apps/ios/Merian/Features/Profile/`
 - `apps/ios/Merian/Features/Onboarding/`
-- `apps/ios/MerianWatch/`
-- `apps/ios/MerianExploreWidget/`
-- `apps/ios/MerianMessages/`
+- `apps/watch/MerianWatch/`
+- `apps/ios/widgets/Explore/`
+- `apps/ios/messages/MerianMessagesExtension/`
 - `apps/web/`
 - `apps/admin/`
 

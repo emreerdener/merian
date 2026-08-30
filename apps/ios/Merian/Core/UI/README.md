@@ -84,6 +84,15 @@ the user's Haptics preference and Expedition mode suppression authoritative.
 Keep the `CaptureModeToggle` automation identifier and never restore an app-wide
 `UISegmentedControl.appearance()` mutation.
 
+## Shared audio spectrogram
+
+`Components/AudioSpectrogramView.swift` is the presentation-only raster surface
+shared by Capture Record and Insight audio playback. It receives prepared
+`SpectrogramColumn` values plus a display layout and contains no audio engine,
+DSP, seeking, lifecycle, or network state. Palette and bitmap construction stay
+in `Core/Media/AudioSpectrogramRenderer.swift`; Record retains its review
+gesture and playhead timing.
+
 ## Shared Goal Progress
 
 `Components/GoalProgressRing.swift` renders the compact circular

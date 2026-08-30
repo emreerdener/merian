@@ -1,51 +1,14 @@
 import Foundation
 import Observation
 
-enum DescribePromptFlow: Equatable {
-    case standard
-    case reanalysis(subjectId: String?)
-
-    var isReanalysis: Bool {
-        if case .reanalysis = self { return true }
-        return false
-    }
-
-    var inputPlaceholder: String {
-        switch self {
-        case .standard:
-            return DescribePromptCopy.standardInputPlaceholder
-        case .reanalysis:
-            return DescribePromptCopy.reanalysisInputPlaceholder
-        }
-    }
-}
-
-enum DescribePromptMediaContext: Equatable {
-    case none
-    case photo
-    case audio
-    case description
-    case mixed
-}
-
-enum DescribePromptCopy {
-    static let standardInputPlaceholder = "e.g., A bright green beetle with gold stripes resting on an oak leaf..."
-    static let reanalysisHeading = "What would you like to reanalyze?"
-    static let reanalysisSubheading = "Tell the AI what to reconsider: the likely species, visible traits, behavior, habitat, or anything the first result missed."
-    static let reanalysisInputPlaceholder = "e.g., Recheck this as a houseplant. Focus on leaf shape, growth habit, variegation, and the potting environment."
-}
-
-/// State container for the Describe identification interview.
-///
-/// Stored as @Observable so that DescribeInputView re-renders directly when any
-/// property changes — no parent re-render chain, no @Binding intermediary.
-/// CaptureWorkspaceView owns the single instance via @State and passes it by
-/// reference; mutations propagate instantly to every observing view.
-@Observable final class DescribePromptManager {
-    var activeQuestionIndex: Int = 0
+/// State owner for the Describe identification interview.
+@MainActor
+@Observable
+final class DescribePromptViewModel {
+    var activeQuestionIndex = 0
     var interactedQuestionIndices: Set<Int> = []
     var activeSubjectId: String?
-    var activeQuestions: [GuidedQuestion] = guidedQuestions
+    var activeQuestions = guidedQuestions
 
     private var promptFlow: DescribePromptFlow = .standard
     private static let reanalysisQuestion = GuidedQuestion(
@@ -86,7 +49,11 @@ enum DescribePromptCopy {
         activeSubjectId = subjectId
         switch promptFlow {
         case .standard:
-            let generalTelemetry = [guidedQuestions[1], guidedQuestions[2], guidedQuestions.last!]
+            let generalTelemetry = [
+                guidedQuestions[1],
+                guidedQuestions[2],
+                guidedQuestions.last!
+            ]
             activeQuestions = [guidedQuestions[0]] + funnel + generalTelemetry
             activeQuestionIndex = 1
         case .reanalysis:
@@ -128,14 +95,35 @@ enum DescribePromptCopy {
         case .reanalysis(let subjectId):
             if let subjectId, subjectFunnels[subjectId] != nil {
                 activeSubjectId = subjectId
-                activeQuestions = [Self.reanalysisQuestion]
             } else {
                 activeSubjectId = nil
-                activeQuestions = [Self.reanalysisQuestion]
             }
+            activeQuestions = [Self.reanalysisQuestion]
         }
         interactedQuestionIndices = []
         activeQuestionIndex = 0
+    }
+
+    func advanceQuestion() {
+        guard !activeQuestions.isEmpty else { return }
+        activeQuestionIndex = (activeQuestionIndex + 1) % activeQuestions.count
+    }
+
+    func moveToPreviousQuestion() {
+        guard !activeQuestions.isEmpty else { return }
+        activeQuestionIndex = (
+            activeQuestionIndex - 1 + activeQuestions.count
+        ) % activeQuestions.count
+    }
+
+    func applySubjectSelection(for tag: GuidedQuestion.Tag) {
+        guard activeQuestionIndex == 0 else { return }
+        if subjectFunnels[tag.tagId] != nil {
+            resetFunnel()
+            activateFunnel(for: tag.tagId)
+        } else if isFunnelActive {
+            resetFunnel()
+        }
     }
 
     private var insightTelemetryQuestions: [GuidedQuestion] {

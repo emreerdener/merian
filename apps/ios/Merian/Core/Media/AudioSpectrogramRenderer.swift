@@ -1,7 +1,7 @@
-import SwiftUI
+import Foundation
 import UIKit
 
-enum SpectrogramPalette {
+enum AudioSpectrogramPalette {
     struct RGBComponents {
         let red: Double
         let green: Double
@@ -15,28 +15,18 @@ enum SpectrogramPalette {
         let alpha: UInt8
     }
 
-    static let backgroundRGBA = RGBAComponents(red: 5, green: 7, blue: 13, alpha: 255)
-    static let background = Color(
-        red: Double(backgroundRGBA.red) / 255,
-        green: Double(backgroundRGBA.green) / 255,
-        blue: Double(backgroundRGBA.blue) / 255
+    static let backgroundRGBA = RGBAComponents(
+        red: 5,
+        green: 7,
+        blue: 13,
+        alpha: 255
     )
     static let backgroundUIColor = UIColor(
         red: CGFloat(backgroundRGBA.red) / 255,
         green: CGFloat(backgroundRGBA.green) / 255,
         blue: CGFloat(backgroundRGBA.blue) / 255,
-        alpha: 1.0
+        alpha: 1
     )
-
-    static func color(for value: Float) -> Color {
-        let components = rgb(for: value)
-        return Color(red: components.red, green: components.green, blue: components.blue)
-    }
-
-    static func uiColor(for value: Float) -> UIColor {
-        let components = rgb(for: value)
-        return UIColor(red: components.red, green: components.green, blue: components.blue, alpha: 1.0)
-    }
 
     static func rgba(for value: Float) -> RGBAComponents {
         let components = rgb(for: value)
@@ -49,7 +39,7 @@ enum SpectrogramPalette {
     }
 
     private static func rgb(for value: Float) -> RGBComponents {
-        let v = powf(max(0, min(1, value)), 0.85)
+        let normalizedValue = powf(max(0, min(1, value)), 0.85)
         let stops: [(value: Float, color: RGBComponents)] = [
             (0.00, RGBComponents(red: 0.02, green: 0.027, blue: 0.051)),
             (0.18, RGBComponents(red: 0.02, green: 0.075, blue: 0.27)),
@@ -60,23 +50,27 @@ enum SpectrogramPalette {
             (1.00, RGBComponents(red: 1.00, green: 0.98, blue: 0.82))
         ]
 
-        guard let upperIndex = stops.firstIndex(where: { v <= $0.value }) else {
+        guard let upperIndex = stops.firstIndex(
+            where: { normalizedValue <= $0.value }
+        ) else {
             return stops[stops.count - 1].color
         }
-
-        if upperIndex == 0 {
-            return stops[0].color
-        }
+        guard upperIndex > 0 else { return stops[0].color }
 
         let lower = stops[upperIndex - 1]
         let upper = stops[upperIndex]
         let span = max(upper.value - lower.value, .ulpOfOne)
-        let t = Double((v - lower.value) / span)
+        let interpolation = Double(
+            (normalizedValue - lower.value) / span
+        )
 
         return RGBComponents(
-            red: lower.color.red + (upper.color.red - lower.color.red) * t,
-            green: lower.color.green + (upper.color.green - lower.color.green) * t,
-            blue: lower.color.blue + (upper.color.blue - lower.color.blue) * t
+            red: lower.color.red
+                + (upper.color.red - lower.color.red) * interpolation,
+            green: lower.color.green
+                + (upper.color.green - lower.color.green) * interpolation,
+            blue: lower.color.blue
+                + (upper.color.blue - lower.color.blue) * interpolation
         )
     }
 
@@ -85,39 +79,42 @@ enum SpectrogramPalette {
     }
 }
 
-// MARK: - Spectrogram Raster
-
-enum SpectrogramDisplayLayout: Equatable {
+enum AudioSpectrogramDisplayLayout: Equatable {
     case liveHorizon(capacity: Int)
     case fitToData
 }
 
-struct SpectrogramRaster {
+struct AudioSpectrogramRaster {
     let width: Int
     let height: Int
     let pixels: [UInt8]
 }
 
-enum SpectrogramRenderer {
+enum AudioSpectrogramRenderer {
     static func raster(
         columns: [SpectrogramColumn],
-        layout: SpectrogramDisplayLayout
-    ) -> SpectrogramRaster? {
+        layout: AudioSpectrogramDisplayLayout
+    ) -> AudioSpectrogramRaster? {
         let visibleColumns = visibleColumns(from: columns, layout: layout)
-        let width = rasterWidth(for: visibleColumns.count, layout: layout)
-        let height = visibleColumns.map(\.magnitudes.count).max() ?? SpectrogramActor.outputBinCount
+        let width = rasterWidth(
+            for: visibleColumns.count,
+            layout: layout
+        )
+        let height = visibleColumns.map(\.magnitudes.count).max()
+            ?? SpectrogramActor.outputBinCount
 
         guard width > 0, height > 0 else { return nil }
 
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
-        fill(&pixels, with: SpectrogramPalette.backgroundRGBA)
+        fill(&pixels, with: AudioSpectrogramPalette.backgroundRGBA)
 
         for (columnIndex, column) in visibleColumns.enumerated() {
             guard columnIndex < width else { break }
-            for (binIndex, magnitude) in column.magnitudes.enumerated() where binIndex < height {
+            for (binIndex, magnitude) in column.magnitudes.enumerated()
+                where binIndex < height {
                 let y = height - binIndex - 1
                 let offset = ((y * width) + columnIndex) * 4
-                let color = SpectrogramPalette.rgba(for: magnitude)
+                let color = AudioSpectrogramPalette.rgba(for: magnitude)
                 pixels[offset] = color.red
                 pixels[offset + 1] = color.green
                 pixels[offset + 2] = color.blue
@@ -125,20 +122,28 @@ enum SpectrogramRenderer {
             }
         }
 
-        return SpectrogramRaster(width: width, height: height, pixels: pixels)
+        return AudioSpectrogramRaster(
+            width: width,
+            height: height,
+            pixels: pixels
+        )
     }
 
     static func cgImage(
         columns: [SpectrogramColumn],
-        layout: SpectrogramDisplayLayout
+        layout: AudioSpectrogramDisplayLayout
     ) -> CGImage? {
-        guard let raster = raster(columns: columns, layout: layout) else { return nil }
+        guard let raster = raster(columns: columns, layout: layout) else {
+            return nil
+        }
 
         let data = Data(raster.pixels)
-        guard let provider = CGDataProvider(data: data as CFData) else { return nil }
-
+        guard let provider = CGDataProvider(data: data as CFData) else {
+            return nil
+        }
         let bitmapInfo = CGBitmapInfo(
-            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+            rawValue: CGImageAlphaInfo.premultipliedLast.rawValue
+                | CGBitmapInfo.byteOrder32Big.rawValue
         )
 
         return CGImage(
@@ -158,39 +163,53 @@ enum SpectrogramRenderer {
 
     static func image(
         columns: [SpectrogramColumn],
-        layout: SpectrogramDisplayLayout,
+        layout: AudioSpectrogramDisplayLayout,
         targetSize: CGSize,
         scale: CGFloat = 1
     ) -> UIImage? {
-        guard let cgImage = cgImage(columns: columns, layout: layout) else { return nil }
+        guard let cgImage = cgImage(columns: columns, layout: layout) else {
+            return nil
+        }
 
         let format = UIGraphicsImageRendererFormat.default()
         format.opaque = true
         format.scale = scale
 
-        return UIGraphicsImageRenderer(size: targetSize, format: format).image { rendererContext in
+        return UIGraphicsImageRenderer(
+            size: targetSize,
+            format: format
+        ).image { rendererContext in
             let context = rendererContext.cgContext
             context.interpolationQuality = .high
-            context.setFillColor(SpectrogramPalette.backgroundUIColor.cgColor)
+            context.setFillColor(
+                AudioSpectrogramPalette.backgroundUIColor.cgColor
+            )
             context.fill(CGRect(origin: .zero, size: targetSize))
-            UIImage(cgImage: cgImage).draw(in: CGRect(origin: .zero, size: targetSize))
+            UIImage(cgImage: cgImage).draw(
+                in: CGRect(origin: .zero, size: targetSize)
+            )
         }
     }
 
     private static func visibleColumns(
         from columns: [SpectrogramColumn],
-        layout: SpectrogramDisplayLayout
+        layout: AudioSpectrogramDisplayLayout
     ) -> [SpectrogramColumn] {
         switch layout {
         case .fitToData:
             return columns
         case .liveHorizon(let capacity):
-            guard capacity > 0, columns.count > capacity else { return columns }
+            guard capacity > 0, columns.count > capacity else {
+                return columns
+            }
             return Array(columns.suffix(capacity))
         }
     }
 
-    private static func rasterWidth(for visibleColumnCount: Int, layout: SpectrogramDisplayLayout) -> Int {
+    private static func rasterWidth(
+        for visibleColumnCount: Int,
+        layout: AudioSpectrogramDisplayLayout
+    ) -> Int {
         switch layout {
         case .fitToData:
             return visibleColumnCount
@@ -199,37 +218,16 @@ enum SpectrogramRenderer {
         }
     }
 
-    private static func fill(_ pixels: inout [UInt8], with color: SpectrogramPalette.RGBAComponents) {
+    private static func fill(
+        _ pixels: inout [UInt8],
+        with color: AudioSpectrogramPalette.RGBAComponents
+    ) {
         guard !pixels.isEmpty else { return }
         for index in stride(from: 0, to: pixels.count, by: 4) {
             pixels[index] = color.red
             pixels[index + 1] = color.green
             pixels[index + 2] = color.blue
             pixels[index + 3] = color.alpha
-        }
-    }
-}
-
-/// Raster-backed 2D scrolling spectrogram. Renders a tiny image from the FFT
-/// columns, then scales it smoothly to the available frame.
-struct SpectrogramView: View, Equatable {
-    let columns: [SpectrogramColumn]
-    let layout: SpectrogramDisplayLayout
-
-    static func == (lhs: SpectrogramView, rhs: SpectrogramView) -> Bool {
-        lhs.columns.count == rhs.columns.count &&
-        lhs.columns.last == rhs.columns.last &&
-        lhs.layout == rhs.layout
-    }
-
-    var body: some View {
-        ZStack {
-            SpectrogramPalette.background
-            if let image = SpectrogramRenderer.cgImage(columns: columns, layout: layout) {
-                Image(decorative: image, scale: 1)
-                    .resizable()
-                    .interpolation(.high)
-            }
         }
     }
 }

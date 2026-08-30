@@ -573,16 +573,23 @@ Full-screen content view for the audio capture mode. All persistent controls
 (capture button, `MediaModeToggle`, tab bar) live in `CaptureWorkspaceView`'s
 fixed overlay.
 
-Shows two states based on `AudioCaptureManager.isRecording`:
+The Shell projects `AudioCaptureManager` into an immutable Record presentation;
+only Record Services reference the concrete manager. Core Hardware retains and
+generation-fences asynchronous startup/resume work so mode/background changes
+cannot let a late audio activation publish into the next Capture state. The view
+shows three states:
 
-- **Idle**: centered `waveform.circle` icon + instructional label.
-- **Recording**: `SNRGaugeView` pill (top) · `SpectrogramView` Canvas (middle,
-  240 pt) · circular countdown ring + second counter (bottom, above
-  `CaptureControlBar`).
+- **Idle**: centered rotating animal artwork plus the persistent **Record nearby
+  sounds** material badge.
+- **Recording or paused**: shared countdown badge, raster-backed live
+  spectrogram sized around the composing center, and non-interactive
+  signal-quality guidance.
+- **Review**: fit-to-data spectrogram with a scrub gesture and playhead; the
+  lower guidance slot is hidden.
 
-See [Audio Listen Mode](./12-audio-listen-mode.md) for the full
-`SpectrogramActor`, `AudioCaptureManager`, and `OfflineQueueManager+AudioQueue`
-pipeline documentation.
+See [Audio Listen Mode](./12-audio-listen-mode.md) for the full Record/Core
+ownership, `SpectrogramActor`, `AudioCaptureManager`, and
+`OfflineQueueManager+AudioQueue` pipeline documentation.
 
 ---
 
@@ -594,7 +601,7 @@ user-orderable full-screen modes driven by `captureMode: CaptureMode`:
 | `CaptureMode` ID | Content                                                                                                                                                                                                           |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.visual`        | `CameraPreviewView` on device or `SimulatorCameraSurfaceView` in simulator + focus indicator + flash overlay + `ThermalWarningView` + `CameraControlsLayer` (hints + zoom slider on zoom-capable device sessions) |
-| `.audio`         | `AudioRecordingView` (spectrogram + SNR gauge + countdown ring)                                                                                                                                                   |
+| `.audio`         | `AudioRecordingView` (idle artwork, shared raster spectrogram, signal guidance, countdown badge, and review scrubbing)                                                                                            |
 | `.describe`      | `DescribeInputView` (text + tag strip + voice dictation)                                                                                                                                                          |
 
 The root view is deliberately a composition surface. Deterministic layout, goal,
@@ -698,20 +705,22 @@ haptic fires when recording actually starts and again once recording has
 finished, the circular progress ring switches into the 5-second video duration,
 release does not stop the recording, and a follow-up tap stops early before the
 cap auto-stops it. Non-Pro long-presses do not open the paywall and resolve back
-to the normal photo capture on release. Taps on `.audio` start recording via
-`AudioCaptureManager.startRecording()` if idle, or call `cancelRecording()` if
-already recording. Permission and hardware errors surface via
+to the normal photo capture on release. In Audio, an idle tap runs admission,
+requests microphone permission while the user action is visible, awaits camera
+shutdown, and starts recording. A recording tap pauses or resumes; review
+confirms the clip after admission. The flanking trash and checkmark controls own
+cancel/discard and early completion. Permission and hardware errors surface via
 `viewModel.offlineToastMessage`.
 
 **Active video recording UI**: `ViewfinderHints` receives `isVideoRecording` and
 `videoRecordingProgress` from `VisualCaptureView` / `MainOverlayView`. While
 recording is active, it hides the normal VUI hint text and initial prompt, then
-renders `RecordingCountdownBadge` in the same viewfinder pill position. The
-shared badge is also used by `AudioRecordingView`, so both audio and video
-countdowns use monospaced semibold subheadline digits, white text, ultra-thin
-material, dark color scheme, and capsule chrome. Video uses
-`CaptureWorkspaceViewModel.videoMaxDuration` to count down from the 5-second cap
-while the shutter progress ring and stop icon continue to come from
+renders `RecordingCountdownBadge` in the same viewfinder pill position.
+`Capture/Shared/Components` owns the badge because `AudioRecordingView` also
+uses it, so both audio and video countdowns use monospaced semibold subheadline
+digits, white text, ultra-thin material, dark color scheme, and capsule chrome.
+Video uses `CaptureWorkspaceViewModel.videoMaxDuration` to count down from the
+5-second cap while the shutter progress ring and stop icon continue to come from
 `CaptureButton`.
 
 **Video capture preparation**: `CameraManager.setupSession()` attaches

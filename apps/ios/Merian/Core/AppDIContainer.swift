@@ -25,7 +25,11 @@ import SwiftUI
     var inferenceEngine: InferenceEngine
     var viewfinderIntelligence = ViewfinderIntelligence.shared
     var speechManager = SpeechManager()
-    var audioCaptureManager = AudioCaptureManager()
+    var audioCaptureManager = AudioCaptureManager(
+        maxDurationFeedback: {
+            HapticManager.shared.triggerHeavyImpact()
+        }
+    )
     
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored

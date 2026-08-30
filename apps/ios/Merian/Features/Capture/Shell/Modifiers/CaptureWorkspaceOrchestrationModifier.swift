@@ -26,7 +26,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
     let viewModel: CaptureWorkspaceViewModel
     @Binding var captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
-    let describePromptManager: DescribePromptManager
+    let describePromptViewModel: DescribePromptViewModel
     @Binding var isDescribeQuestionsSheetPresented: Bool
     @Binding var isKeyboardVisible: Bool
     @Binding var captureGoalIndicatorExpansionState:
@@ -77,7 +77,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 messageShareCacheSignature: messageShareCacheSignature,
                 feedbackPromptSignature: feedbackPromptSignature,
                 observationContext: $observationContext,
-                describePromptManager: describePromptManager,
+                describePromptViewModel: describePromptViewModel,
                 isDescribeQuestionsSheetPresented:
                     $isDescribeQuestionsSheetPresented,
                 stagedDescriptionEditIndex: $stagedDescriptionEditIndex,

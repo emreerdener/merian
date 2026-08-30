@@ -7,6 +7,8 @@ struct CaptureWorkspaceView: View {
     @Environment(CameraManager.self) private var cameraManager
     @Environment(AppSettings.self) private var appSettings
     @Environment(ActiveCaptureGoalStore.self) private var activeCaptureGoalStore
+    @Environment(SpeechManager.self) private var speechManager
+    @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
 
     // MARK: - View Model & State
@@ -15,7 +17,7 @@ struct CaptureWorkspaceView: View {
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
     @State private var observationContext = ObservationContext()
-    @State private var describePromptManager = DescribePromptManager()
+    @State private var describePromptViewModel = DescribePromptViewModel()
     @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
     @State private var captureGoalIndicatorExpansionState:
@@ -92,7 +94,7 @@ struct CaptureWorkspaceView: View {
                 viewModel: viewModel,
                 captureMode: $captureMode,
                 observationContext: $observationContext,
-                describePromptManager: describePromptManager,
+                describePromptViewModel: describePromptViewModel,
                 isDescribeQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
                 isKeyboardVisible: $isKeyboardVisible,
                 captureGoalIndicatorExpansionState: $captureGoalIndicatorExpansionState,
@@ -142,7 +144,18 @@ struct CaptureWorkspaceView: View {
 
                                     case .audio:
                                         // MARK: Audio page — Recording
-                                        AudioRecordingView()
+                                        AudioRecordingView(
+                                            presentation: .live(
+                                                audioCaptureManager:
+                                                    audioCaptureManager,
+                                                audioHintsEnabled:
+                                                    appSettings.audioHintsEnabled
+                                            ),
+                                            dependencies: .live(
+                                                audioCaptureManager:
+                                                    audioCaptureManager
+                                            )
+                                        )
                                             .frame(width: proxy.size.width, height: proxy.size.height)
                                             .clipped()
                                             .id(CaptureMode.audio)
@@ -152,7 +165,7 @@ struct CaptureWorkspaceView: View {
                                         DescribeInputView(
                                             promptFlow: viewModel.describePromptFlow,
                                             context: $observationContext,
-                                            promptManager: describePromptManager
+                                            promptViewModel: describePromptViewModel
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
@@ -224,9 +237,10 @@ struct CaptureWorkspaceView: View {
                     captureMode: captureMode,
                     promptFlow: viewModel.describePromptFlow,
                     context: $observationContext,
-                    promptManager: describePromptManager,
+                    promptViewModel: describePromptViewModel,
                     isQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
-                    coordinator: coordinator
+                    coordinator: coordinator,
+                    speechManager: speechManager
                 )
                 .frame(width: 0, height: 0)
 

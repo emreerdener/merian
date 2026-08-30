@@ -1,44 +1,89 @@
 # Capture Describe
 
-The `Describe` directory contains the logic and UI for text-based ecological
-observation.
+`Capture/Describe` owns typed and dictated ecological observations. It prepares
+an `ObservationContext` for Capture staging or submission; it does not own
+network dispatch, persistence, or offline recovery.
 
-## Purpose
+## Ownership
 
-This area allows users to describe an organism using text when a photo or audio
-recording isn't viable (e.g., the bird flew away). It supports both manual typed
-input and live voice dictation through `SpeechManager`. These text descriptions
-can be submitted for identification or staged alongside visual/audio media.
+- `Models/` owns guided-question values, curated funnels, prompt copy and flow,
+  taxonomy-to-subject resolution, deterministic tag ranking, and exact text
+  composition.
+- `Services/` is the only Describe owner that constructs live adapters for tag
+  frequency preferences, haptic feedback, the UIKit keyboard action, subject
+  inference delay, or `SpeechManager`. Views and components receive narrow
+  closures and do not resolve global services; view models remain independent of
+  concrete hardware owners.
+- `ViewModels/` owns prompt/funnel state and asynchronous Describe lifecycle
+  state. `DescribeInputViewModel` generation-fences delayed subject inference
+  and dictation callbacks so an older text or speech session cannot mutate a
+  replacement session, and serializes a replacement dictation start behind
+  canceled startup teardown.
+- `Views/` owns the page, workspace-scoped lifecycle observer, prompt sheet,
+  focus, and exact presentation timing.
+- `Components/` owns the UIKit vertical-scroll host, prompt navigation, tag
+  presentation, and flexible text editor.
 
-`DescribeInputView` is intentionally render-only inside the horizontal capture
-pager. `DescribeInputLifecycleObserver`, the shared `DescribePromptManager`, and
-the questions-sheet presentation state are owned by `CaptureWorkspaceView`
-outside that pager. The page's vertical content is hosted in a UIKit
-`UIScrollView`; do not replace it with a nested SwiftUI vertical `ScrollView`
-without rerunning strict AttributeGraph traces for Camera-, Audio-, and
-Description-first cold launches.
+Shared speech recognition is not feature-owned. `Core/Hardware/SpeechManager`
+owns the `AVAudioEngine`, Speech framework, permission, audio-session lease, and
+teardown lifecycle consumed by Describe, Field Notes, Insight media, and the
+shared capture bar. `AppDIContainer` supplies that one manager to
+`CaptureWorkspaceView`, which passes it explicitly to the workspace observer.
+The Services-owned `DescribeInputViewModel.Dependencies.live` factory converts
+it into narrow closures; the view model never stores or constructs the concrete
+hardware owner.
 
-That scroll view disables UIKit's automatic content-inset adjustment, and its
-hosted page reserves a fixed 60 pt top band for the overlaid mode selector. The
-hosted page already begins in safe-area coordinates: do not add the window's top
-safe-area inset to this spacer or the Description screen gains a second, roughly
-59 pt empty band. `CaptureModeToggle` and `DescribeQuestionNavigation` are
-stable UI-test identifiers; rendered spacing between them must remain within
-8...32 pt.
+## Layout and presentation invariants
 
-The scroll content reserves
-`CaptureControlBarLayout.describeContentBottomClearance` (204 pt) below the
-rounded editor, matching the fixed capture row's actual reserved height. The
-editor is the flexible child and absorbs the remaining viewport height inside
-its rounded background; its 24 pt bottom padding supplies the intended visual
-gap instead of exposing blank page space. Keep the editor's `DescribeTextArea`
-accessibility identifier and the input's `DescribeTextInput` identifier. The
-entire rounded editor is an explicit interaction shape that forwards taps to the
-input's focus state, including the flexible space below the multiline field.
-Keep the UI assertions covering that lower-region focus behavior and the
-required 8...32 pt between the editor's rendered bottom and the control row.
+`DescribeInputView` remains render-only inside the horizontal capture pager.
+`DescribeInputLifecycleObserver`, `DescribePromptViewModel`, and questions-sheet
+presentation remain owned by `CaptureWorkspaceView` outside the pager.
 
-The lifecycle observer stops dictation when the user leaves Describe or the
-workspace disappears, including while permissions or audio-session startup are
-still pending. Permission failures and temporary recognizer unavailability both
-clear the coordinator request so the capture control returns to idle.
+The page's vertical content must stay inside the UIKit `UIScrollView` hosting
+boundary. Do not replace it with a nested SwiftUI vertical `ScrollView` without
+rerunning strict AttributeGraph traces for Camera-, Audio-, and
+Description-first cold launches. UIKit automatic content-inset adjustment stays
+disabled. The hosted page begins in safe-area coordinates and reserves only
+`CaptureModeSelectorStyle.describeContentClearance`; adding another top safe
+area recreates the duplicated empty band.
+
+The flexible rounded editor retains the stable `DescribeTextArea` and
+`DescribeTextInput` accessibility identifiers and reserves
+`CaptureControlBarLayout.describeContentBottomClearance` beneath it. Its entire
+rounded region remains tappable, including the space below the multiline field.
+`DescribeQuestionNavigation` and `CaptureModeToggle` remain stable UI-test
+identifiers with their documented 8...32 pt rendered spacing.
+
+## Lifecycle and cancellation
+
+- Each text change invalidates the previous 1.5-second subject-inference
+  generation. Empty standard text resets the funnel immediately; reanalysis and
+  an already active funnel do not schedule inference.
+- A prompt-flow change invalidates pending standard inference. Leaving Describe
+  stops dictation but preserves off-page prompt inference, matching the existing
+  pager behavior. Removing the workspace cancels both.
+- Each requested dictation owns a generation across permission negotiation,
+  audio startup, partial results, automatic recognition termination, and
+  teardown. Stop/restart overlap invalidates the old generation without tearing
+  down an engine that is still being configured, then serializes replacement
+  startup behind the canceled startup task. If cancellation-ignoring startup
+  reports success, the stale session is stopped before the replacement enters
+  `SpeechManager`. The live adapter returns a verified-start result; a busy
+  shared manager or a start that never reaches recording ends the request
+  instead of leaving the control active.
+- Presentation-only 350 ms tag auto-advance and text focus remain view-owned so
+  animation and keyboard timing are unchanged.
+
+## Verification
+
+`MerianTests/Features/Capture/Describe` mirrors this owner with prompt-state,
+text-composition, ranking, delayed-inference, stale-transcription, overlap, and
+architecture suites. `MerianTests/Core/Hardware/SpeechManagerTests.swift` owns
+shared speech lifecycle coverage. The architecture guard requires
+Models/Services/ViewModels/Views/Components, rejects the retired `Managers`
+folder and direct live-service resolution in presentation files, keeps Models
+platform-neutral, forbids concrete hardware-adapter construction in ViewModels,
+and caps every production Describe Swift file at 600 lines.
+
+The canonical behavior contract is
+[`11-describe-and-voice-dictation.md`](../../../../../../docs/features-and-hardware/11-describe-and-voice-dictation.md).

@@ -6,14 +6,14 @@ import Foundation
 
 struct SpectrogramColumn: Sendable, Equatable {
     let magnitudes: [Float]  // outputBinCount mel-scaled bins, 0.0–1.0 normalized
-    let rms: Float           // pre-window RMS for SNR calculation
+    let rms: Float           // pre-window RMS for ambient-noise classification
     let peak: Float          // pre-window peak for clipping detection
 }
 
 enum SNRLevel: Sendable, Equatable {
-    case clear       // SNR > 20 dB — clean signal
-    case caution     // 10–20 dB — some background noise
-    case warning     // < 10 dB — shield microphone
+    case clear       // rolling minimum RMS <= 0.015 — quiet environment
+    case caution     // rolling minimum RMS > 0.015 — noticeable ambient noise
+    case warning     // rolling minimum RMS > 0.08 — severe ambient noise
     case clipping    // peak > 0.95 — move mic away
 }
 
