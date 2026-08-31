@@ -22,6 +22,8 @@ insight_sheet_lifecycle_source="$repo_root/apps/ios/Merian/Features/Insights/She
 insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift"
 insight_presentation_identity_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+PresentationIdentity.swift"
 audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
+audio_components_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Components/AudioPlaybackCarouselComponents.swift"
+audio_presentation_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Models/InsightAudioPlaybackPresentation.swift"
 field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
 top_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
@@ -313,6 +315,10 @@ assert_no_runner_context_in_job_env() {
 [[ -f "$ui_test_source" ]] || fail "Missing iOS UI-test source: $ui_test_source"
 [[ -f "$ui_seed_source" ]] || fail "Missing iOS UI seed source: $ui_seed_source"
 [[ -f "$audio_page_source" ]] || fail "Missing Insight audio page: $audio_page_source"
+[[ -f "$audio_components_source" ]] \
+  || fail "Missing Insight audio components: $audio_components_source"
+[[ -f "$audio_presentation_source" ]] \
+  || fail "Missing Insight audio presentation: $audio_presentation_source"
 [[ -f "$field_chat_toolbar_source" ]] \
   || fail "Missing Field Chat toolbar source: $field_chat_toolbar_source"
 [[ -f "$insight_share_button_source" ]] \
@@ -809,7 +815,15 @@ assert_file_count "$ui_seed_source" 2 "enum UITestSeedCoordinator {"
 assert_file_contains \
   "$ui_seed_source" \
   "static func prepareIfNeeded(container _: ModelContainer) {}"
-assert_file_contains "$audio_page_source" '"AudioPlaybackControl_'
+assert_file_contains \
+  "$audio_presentation_source" \
+  'controlAccessibilityIdentifier = "AudioPlaybackControl_'
+assert_file_contains \
+  "$audio_page_source" \
+  "presentation.controlAccessibilityIdentifier"
+assert_file_contains \
+  "$audio_components_source" \
+  ".accessibilityIdentifier(accessibilityIdentifier)"
 assert_file_contains \
   "$field_chat_toolbar_source" \
   '.accessibilityIdentifier("FieldChatToolbarButton")'
