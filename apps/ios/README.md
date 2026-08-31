@@ -323,6 +323,31 @@ Services-only live resolution, legacy-owner removal, and the 600-line
 production-file ceiling. The display-only `NamePickerSheet` is shared from
 `Core/UI/Components`; each feature retains persistence and feedback.
 
+## Insight Identification Review Ownership
+
+[Insight Identification Review](Merian/Features/Insights/IdentificationReview/README.md)
+owns completed-result candidate confirmation and confidence explanation.
+Candidate and Confidence each separate platform-neutral Models, Services-only
+live effects, observable ViewModels, composition Views, and interaction-grouped
+Components; `Shared` contains only their subject identity, haptic adapter, and
+narrow SwiftData snapshot actor. Views retain gesture, animation, detent,
+paywall, and actual dismissal timing, while all engine mutations, persistence
+fetches, routing, Settings access, action-time entitlement checks, and
+candidate-image live dependencies cross injected service boundaries. The
+explanation view observes the environment-provided entitlement state only to
+keep Pro presentation reactive.
+
+Every nested action carries scan ID plus presentation generation and resumes
+only from the owning sheet's real `onDismiss`; state owners refuse to vend a
+pending action while its source sheet is still presented and clear it when the
+current scan disappears. Generation-fenced refinement loads, modal ownership,
+and cancellation/generation checks around local thumbnail decoding prevent stale
+work or bindings from affecting a replacement scan. Dependency values are inert
+by default for tests and previews, while the stable public view initializers
+explicitly compose `.live`. Mirrored Identification Review tests lock those
+lifecycles, presentation copy, Services-only live resolution, platform-neutral
+Models, retired paths, and the 600-line production-file ceiling.
+
 ## Insight Species Reference Ownership
 
 [Insight Species Reference](Merian/Features/Insights/SpeciesReference/README.md)

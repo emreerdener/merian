@@ -1248,9 +1248,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   platform-neutral Models, live effect resolution in Services, private
   co-located playback state, extracted root composition, absence of
   SwiftUI-backed page types from Models, and the same file-size ceiling.
-- **Insights focused feature tests**: `CandidateSwipeSessionTests.swift` covers
-  skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
-  state. The mirrored
+- **Insights focused feature tests**: Mirrored
+  `Features/Insights/IdentificationReview` suites cover candidate visibility,
+  skip/reject/confirm/restart/exhausted transitions, scan/generation-owned modal
+  state, rejection of pre-dismissal consumption, one-time nested and outer
+  dismissal-action consumption, inert default dependencies, confidence bands and
+  copy fallbacks, injected refinement routing, and overlapping or invalidated
+  refinement snapshot loads. `IdentificationReviewArchitectureTests` locks
+  Candidate/Confidence/Shared ownership, platform-neutral Models, Services-only
+  live effects, retired component locations, absence of unchecked sendability,
+  and the 600-line production-file ceiling. The mirrored
   `Features/Insights/SpeciesReference/SpeciesObservationStatsReducerTests.swift`
   suite covers projected SwiftData aggregation, reducer normalization,
   empty-bucket behavior, and seasonality presentation.

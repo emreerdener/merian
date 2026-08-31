@@ -6,6 +6,7 @@ struct CandidateSwipeIndicator: View {
     let iconName: String
     let color: Color
     let progress: Double
+    let feedback: IdentificationReviewFeedbackDependencies
 
     // Delays the indicator progression until the user reaches 20% of the drag threshold
     private var adjustedProgress: Double {
@@ -49,7 +50,7 @@ struct CandidateSwipeIndicator: View {
         }
         .onChange(of: adjustedProgress >= 1.0) { _, isFullyActivated in
             if isFullyActivated {
-                HapticManager.shared.triggerSelectionPulse()
+                feedback.selection()
             }
         }
     }

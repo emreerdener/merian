@@ -7,9 +7,9 @@ struct CandidateVerificationView: View {
     let confirmButtonTitle: String
     let onConfirm: () -> Void
     var onAskCommunity: (() -> Void)?
-    var onRefineScan: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
+    let feedback: IdentificationReviewFeedbackDependencies
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -39,7 +39,7 @@ struct CandidateVerificationView: View {
                     
                     if let onAskCommunity {
                         Button {
-                            HapticManager.shared.triggerMediumPulse()
+                            feedback.mediumPulse()
                             onAskCommunity()
                         } label: {
                             Text("Ask the community")
@@ -57,7 +57,7 @@ struct CandidateVerificationView: View {
             
             if showDismissButton {
                 Button {
-                    HapticManager.shared.triggerLightImpact()
+                    feedback.lightImpact()
                     onDismiss()
                 } label: {
                     Image(systemName: "xmark")
@@ -89,7 +89,8 @@ struct CandidateVerificationView: View {
         confirmButtonTitle: "Confirm viceroy",
         onConfirm: {},
         onAskCommunity: {},
-        onDismiss: {}
+        onDismiss: {},
+        feedback: .init()
     )
     .padding()
 }

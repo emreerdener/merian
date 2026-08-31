@@ -862,8 +862,10 @@ an Edge API response or opened offline via the Scans library.
   phrase policy, Services alone resolve live effects, ViewModels own mutation
   and operation state, and Views/Components perform no networking; `Media/` owns
   the carousel, fullscreen gallery, and photo/video export utilities;
-  `IdentificationReview/` owns candidates, swipe review, candidate state models,
-  and confidence explanation UI; and `SpeciesReference/` owns the reusable
+  `IdentificationReview/` owns candidates, swipe review, and confidence
+  explanation through platform-neutral Models, Services-only live effects,
+  scan/generation-fenced observable ViewModels, composition Views, and
+  interaction-grouped Components; and `SpeciesReference/` owns the reusable
   observation charts, habitat/GBIF map, taxonomy, lookalikes, and fallback
   reference imagery shared with Species Dictionary, Explore detail, and
   identification review. Species Reference separates platform-neutral Models,
@@ -1134,7 +1136,16 @@ an Edge API response or opened offline via the Scans library.
   permanently hides the action. Explore-post Field Chat is unaffected because it
   is keyed to an already-visible public post.
 - **Insight Reducers & Mutation State**: Candidate review stack decisions live
-  in `CandidateSwipeSession`, species observation local aggregation lives in
+  in `CandidateSwipeSession`; `CandidateReviewViewModel` owns modal identity and
+  review mutation guards; `ConfidencePresentationViewModel` owns outer-sheet
+  action staging; and `ConfidenceExplanationViewModel` fences refinement
+  snapshots by load generation. Their Services adapters alone resolve haptics,
+  entitlements, Settings, routes, SwiftData reads, image dependencies, and
+  `InferenceEngine` mutations. Pending candidate and confidence actions remain
+  unavailable until their source sheet's real dismissal and are cleared when the
+  captured scan disappears. Plain dependency values use inert defaults for tests
+  and previews; stable feature-view initializers are the explicit live
+  composition boundary. Species observation local aggregation lives in
   `SpeciesObservationStatsReducer`, and Content splits custom tags across
   `UserTagValidation`, `UserTagsViewModel`, and `UserTagsDependencies`. The view
   model restores the previous local tag list on save failure; its Services

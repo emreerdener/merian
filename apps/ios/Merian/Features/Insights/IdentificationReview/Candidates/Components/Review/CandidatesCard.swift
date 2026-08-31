@@ -6,8 +6,6 @@ import SwiftUI
 /// user review (Was the AI correct? / Not sure → opens swipe modal).
 struct CandidatesCard: View {
     let candidates: [IdentificationCandidate]
-    /// The AI's original scientific name — shown in the "overridden" state as "AI suggested X".
-    let aiScientificName: String
     let inferenceTier: String?
     let confirmButtonTitle: String
     /// Called when the user wants human help because the AI/candidates did not resolve the ID.
@@ -18,15 +16,32 @@ struct CandidatesCard: View {
 
     @Environment(InferenceEngine.self) private var inferenceEngine
     @Environment(\.modelContext) private var modelContext
-    @State private var isSwipeModalPresented = false
-    @State private var swipeModalScanId: String?
-    @State private var swipeModalGeneration: UInt64?
-    @State private var pendingSwipeDismissalRequest: CandidateSwipeDismissalRequest?
-    @State private var dismissedScanId: String?
+    @State private var viewModel: CandidateReviewViewModel
 
-    private var displayCommonName: String {
-        let name = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return name.isEmpty ? aiScientificName : name.capitalized
+    init(
+        candidates: [IdentificationCandidate],
+        aiScientificName: String,
+        inferenceTier: String?,
+        confirmButtonTitle: String,
+        onAskCommunity: (() -> Void)? = nil,
+        onMatchConfirmed: (() -> Void)? = nil,
+        onRefineScan: (() -> Void)? = nil,
+        showDismissButton: Bool = true,
+        dependencies: CandidateReviewDependencies = .live
+    ) {
+        self.candidates = candidates
+        // Retain the established call-site label while name presentation remains
+        // sourced from the current engine result and candidate values.
+        _ = aiScientificName
+        self.inferenceTier = inferenceTier
+        self.confirmButtonTitle = confirmButtonTitle
+        self.onAskCommunity = onAskCommunity
+        self.onMatchConfirmed = onMatchConfirmed
+        self.onRefineScan = onRefineScan
+        self.showDismissButton = showDismissButton
+        self._viewModel = State(
+            initialValue: CandidateReviewViewModel(dependencies: dependencies)
+        )
     }
 
     private var isWeakMatch: Bool {
@@ -39,9 +54,13 @@ struct CandidatesCard: View {
         scanId: String,
         generation: UInt64
     ) -> Bool {
-        inferenceEngine.scanPresentationGeneration == generation &&
-            inferenceEngine.speciesData?.scanId?
-                .caseInsensitiveCompare(scanId) == .orderedSame
+        viewModel.isCurrent(
+            IdentificationReviewSubject(
+                scanId: scanId,
+                presentationGeneration: generation
+            ),
+            in: inferenceEngine
+        )
     }
 
     private func guardedAction(
@@ -68,24 +87,17 @@ struct CandidatesCard: View {
         ) else {
             return
         }
-        HapticManager.shared.triggerSuccessPulse()
+        let subject = IdentificationReviewSubject(
+            scanId: scanId,
+            presentationGeneration: generation
+        )
+        viewModel.feedback.successPulse()
         Task { @MainActor in
-            guard isSubjectPresentationCurrent(
-                scanId: scanId,
-                generation: generation
-            ) else {
-                return
-            }
-            await inferenceEngine.confirmAIIdentification(
-                expectedScanId: scanId,
+            guard await viewModel.confirmOriginal(
+                subject: subject,
+                inferenceEngine: inferenceEngine,
                 modelContext: modelContext
-            )
-            guard isSubjectPresentationCurrent(
-                scanId: scanId,
-                generation: generation
-            ) else {
-                return
-            }
+            ) else { return }
             onMatchConfirmed?()
         }
     }
@@ -98,14 +110,8 @@ struct CandidatesCard: View {
             scanId: presentedScanId,
             generation: presentedGeneration
         )
-        let guardedRefineScan = guardedAction(
-            onRefineScan,
-            scanId: presentedScanId,
-            generation: presentedGeneration
-        )
-
         Group {
-            if let presentedScanId, dismissedScanId == presentedScanId {
+            if viewModel.shouldHideCard(scanId: presentedScanId) {
                 EmptyView()
             } else if candidates.isEmpty {
                 CandidateVerificationView(
@@ -119,7 +125,6 @@ struct CandidatesCard: View {
                         )
                     },
                     onAskCommunity: guardedAskCommunity,
-                    onRefineScan: guardedRefineScan,
                     onDismiss: {
                         guard let presentedScanId,
                               isSubjectPresentationCurrent(
@@ -128,9 +133,15 @@ struct CandidatesCard: View {
                               ) else {
                             return
                         }
-                        dismissedScanId = presentedScanId
+                        viewModel.dismissCard(
+                            subject: IdentificationReviewSubject(
+                                scanId: presentedScanId,
+                                presentationGeneration: presentedGeneration
+                            )
+                        )
                     },
-                    showDismissButton: showDismissButton
+                    showDismissButton: showDismissButton,
+                    feedback: viewModel.feedback
                 )
             } else {
                 CandidateAlternativesView(
@@ -145,9 +156,12 @@ struct CandidatesCard: View {
                               ) else {
                             return
                         }
-                        swipeModalScanId = presentedScanId
-                        swipeModalGeneration = presentedGeneration
-                        isSwipeModalPresented = true
+                        viewModel.presentSwipeModal(
+                            subject: IdentificationReviewSubject(
+                                scanId: presentedScanId,
+                                presentationGeneration: presentedGeneration
+                            )
+                        )
                     },
                     onConfirm: {
                         guard let presentedScanId else { return }
@@ -156,7 +170,6 @@ struct CandidatesCard: View {
                             generation: presentedGeneration
                         )
                     },
-                    onRefineScan: guardedRefineScan,
                     onDismiss: {
                         guard let presentedScanId,
                               isSubjectPresentationCurrent(
@@ -165,9 +178,16 @@ struct CandidatesCard: View {
                               ) else {
                             return
                         }
-                        dismissedScanId = presentedScanId
+                        viewModel.dismissCard(
+                            subject: IdentificationReviewSubject(
+                                scanId: presentedScanId,
+                                presentationGeneration: presentedGeneration
+                            )
+                        )
                     },
-                    showDismissButton: showDismissButton
+                    showDismissButton: showDismissButton,
+                    imageDependencies: viewModel.imageDependencies,
+                    feedback: viewModel.feedback
                 )
             }
         }
@@ -175,97 +195,76 @@ struct CandidatesCard: View {
             isPresented: swipeModalPresentedBinding,
             onDismiss: resumePendingSwipeDismissalRequest
         ) {
-            if let swipeModalScanId,
-               let swipeModalGeneration,
+            if let subject = viewModel.swipeModalSubject,
                isSubjectPresentationCurrent(
-                   scanId: swipeModalScanId,
-                   generation: swipeModalGeneration
+                   scanId: subject.scanId,
+                   generation: subject.presentationGeneration
                ) {
                 CandidateSwipeModal(
                     isPresented: swipeModalPresentedBinding,
-                    scanId: swipeModalScanId,
-                    presentationGeneration: swipeModalGeneration,
+                    scanId: subject.scanId,
+                    presentationGeneration: subject.presentationGeneration,
                     candidates: candidates,
                     confirmButtonTitle: confirmButtonTitle,
                     allowsAskCommunity: onAskCommunity != nil,
                     allowsRefinement: onRefineScan != nil,
                     onRequestDismissalAction: { request in
-                        pendingSwipeDismissalRequest = request
-                    }
+                        viewModel.stageDismissalRequest(request)
+                    },
+                    dependencies: viewModel.childDependencies
                 )
             }
         }
         .onChange(of: presentedScanId) {
-            isSwipeModalPresented = false
-            swipeModalScanId = nil
-            swipeModalGeneration = nil
-            pendingSwipeDismissalRequest = nil
+            viewModel.invalidateSwipeModal()
         }
         .onChange(of: inferenceEngine.scanPresentationGeneration) {
-            isSwipeModalPresented = false
-            swipeModalScanId = nil
-            swipeModalGeneration = nil
-            pendingSwipeDismissalRequest = nil
+            viewModel.invalidateSwipeModal()
         }
     }
 
     private var swipeModalPresentedBinding: Binding<Bool> {
-        let expectedScanId = swipeModalScanId
-        let expectedGeneration = swipeModalGeneration
+        let expectedSubject = viewModel.swipeModalSubject
         return Binding(
             get: {
-                guard isSwipeModalPresented,
-                      let expectedScanId,
-                      let expectedGeneration,
-                      swipeModalScanId?
-                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
-                      swipeModalGeneration == expectedGeneration else {
+                guard viewModel.isSwipeModalPresented,
+                      let expectedSubject,
+                      expectedSubject.matches(viewModel.swipeModalSubject) else {
                     return false
                 }
-                return isSubjectPresentationCurrent(
-                    scanId: expectedScanId,
-                    generation: expectedGeneration
+                return viewModel.isCurrent(
+                    expectedSubject,
+                    in: inferenceEngine
                 )
             },
             set: { isPresented in
                 guard !isPresented else { return }
-                guard let expectedScanId,
-                      let expectedGeneration,
-                      swipeModalScanId?
-                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
-                      swipeModalGeneration == expectedGeneration else {
-                    return
-                }
-                isSwipeModalPresented = false
-                swipeModalScanId = nil
-                swipeModalGeneration = nil
+                guard let expectedSubject else { return }
+                viewModel.dismissSwipeModal(ownedBy: expectedSubject)
             }
         )
     }
 
     private func resumePendingSwipeDismissalRequest() {
-        guard let request = pendingSwipeDismissalRequest else { return }
-        pendingSwipeDismissalRequest = nil
-
-        guard isSubjectPresentationCurrent(
-            scanId: request.scanId,
-            generation: request.presentationGeneration
-        ) else {
+        guard let currentScanId = inferenceEngine.speciesData?.scanId else {
+            viewModel.invalidateSwipeModal()
             return
         }
+        let currentSubject = IdentificationReviewSubject(
+            scanId: currentScanId,
+            presentationGeneration: inferenceEngine.scanPresentationGeneration
+        )
+        guard let request = viewModel.takePendingDismissalRequest(
+            matching: currentSubject
+        ) else { return }
 
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard isSubjectPresentationCurrent(
-                    scanId: request.scanId,
-                    generation: request.presentationGeneration
-                ) else {
-                    return
-                }
-                await inferenceEngine.applyIdentificationOverride(
+                await viewModel.applyOverride(
                     scientificName: scientificName,
-                    expectedScanId: request.scanId,
+                    subject: request.subject,
+                    inferenceEngine: inferenceEngine,
                     modelContext: modelContext
                 )
             }
@@ -292,7 +291,8 @@ struct CandidatesCard: View {
         ],
         aiScientificName: "Danaus plexippus",
         inferenceTier: "flash",
-        confirmButtonTitle: "Confirm Monarch"
+        confirmButtonTitle: "Confirm Monarch",
+        dependencies: CandidateReviewDependencies()
     )
     .environment(InferenceEngine())
     .padding()
@@ -306,7 +306,8 @@ struct CandidatesCard: View {
         ],
         aiScientificName: "Danaus plexippus",
         inferenceTier: "flash",
-        confirmButtonTitle: "Confirm Monarch"
+        confirmButtonTitle: "Confirm Monarch",
+        dependencies: CandidateReviewDependencies()
     )
     .environment(InferenceEngine())
     .padding()

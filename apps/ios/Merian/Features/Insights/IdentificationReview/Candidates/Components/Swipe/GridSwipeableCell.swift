@@ -1,14 +1,10 @@
 import SwiftUI
 
-// MARK: - Swipe Direction
-enum CandidateSwipeDirection {
-    case left
-    case right
-}
-
 // MARK: - Grid Swipeable Cell
 struct GridSwipeableCell: View {
     let candidate: IdentificationCandidate
+    let imageDependencies: SimilarSpeciesImageDependencies
+    let feedback: IdentificationReviewFeedbackDependencies
     let onConfirm: () -> Void
     let onReject: () -> Void
 
@@ -26,7 +22,9 @@ struct GridSwipeableCell: View {
             isDragging: isDragging,
             dragPercentage: dragPercentage,
             isSwipingRight: isSwipingRight,
-            isSwipingLeft: isSwipingLeft
+            isSwipingLeft: isSwipingLeft,
+            imageDependencies: imageDependencies,
+            feedback: feedback
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .offset(x: offset.width, y: 0)
@@ -39,10 +37,10 @@ struct GridSwipeableCell: View {
                 }
                 .onEnded { value in
                     if abs(value.translation.width) >= swipeThreshold {
-                        HapticManager.shared.triggerMediumPulse()
+                        feedback.mediumPulse()
                         animateSwipe(direction: value.translation.width > 0 ? .right : .left)
                     } else {
-                        HapticManager.shared.triggerLightImpact()
+                        feedback.lightImpact()
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
                             offset = .zero
                             isDragging = false

@@ -2,19 +2,6 @@ import SwiftUI
 
 // MARK: - Candidate Swipe Modal
 
-enum CandidateSwipeDismissalAction: Sendable, Equatable {
-    case applyOverride(scientificName: String)
-    case confirmOriginal
-    case askCommunity
-    case refineScan
-}
-
-struct CandidateSwipeDismissalRequest: Sendable, Equatable {
-    let action: CandidateSwipeDismissalAction
-    let scanId: String
-    let presentationGeneration: UInt64
-}
-
 struct CandidateSwipeModal: View {
     
     // MARK: - Properties
@@ -44,6 +31,7 @@ struct CandidateSwipeModal: View {
     @State private var isDismissing = false
     @State private var showPaywall = false
     @State private var delayedDismissalAction: CandidateSwipeDismissalAction?
+    @State private var viewModel: CandidateReviewViewModel
 
     // MARK: - Constants
     
@@ -59,7 +47,8 @@ struct CandidateSwipeModal: View {
         confirmButtonTitle: String,
         allowsAskCommunity: Bool,
         allowsRefinement: Bool,
-        onRequestDismissalAction: @escaping (CandidateSwipeDismissalRequest) -> Void
+        onRequestDismissalAction: @escaping (CandidateSwipeDismissalRequest) -> Void,
+        dependencies: CandidateReviewDependencies = .live
     ) {
         self._isPresented = isPresented
         self.scanId = scanId
@@ -69,6 +58,9 @@ struct CandidateSwipeModal: View {
         self.allowsRefinement = allowsRefinement
         self.onRequestDismissalAction = onRequestDismissalAction
         self._session = State(initialValue: CandidateSwipeSession(candidates: candidates))
+        self._viewModel = State(
+            initialValue: CandidateReviewViewModel(dependencies: dependencies)
+        )
     }
 
     // MARK: - Computed Properties
@@ -80,10 +72,14 @@ struct CandidateSwipeModal: View {
 
     private var isSwipingRight: Bool { topCardIsDragging && topCardOffset.width > 10 }
     private var isSwipingLeft: Bool { topCardIsDragging && topCardOffset.width < -10 }
+    private var subject: IdentificationReviewSubject {
+        IdentificationReviewSubject(
+            scanId: scanId,
+            presentationGeneration: presentationGeneration
+        )
+    }
     private var isSubjectPresentationCurrent: Bool {
-        inferenceEngine.scanPresentationGeneration == presentationGeneration &&
-            inferenceEngine.speciesData?.scanId?
-                .caseInsensitiveCompare(scanId) == .orderedSame
+        viewModel.isCurrent(subject, in: inferenceEngine)
     }
 
     // MARK: - Body
@@ -118,7 +114,7 @@ struct CandidateSwipeModal: View {
                 if session.remainingCandidates.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            HapticManager.shared.triggerSelectionPulse()
+                            viewModel.feedback.selection()
                             withAnimation(.spring(response: 0.3)) {
                                 isGridMode.toggle()
                                 topCardOffset = .zero
@@ -131,7 +127,7 @@ struct CandidateSwipeModal: View {
                 } else if session.isExhausted && !isDismissing {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Restart") {
-                            HapticManager.shared.triggerLightImpact()
+                            viewModel.feedback.lightImpact()
                             withAnimation(.spring(response: 0.35)) {
                                 session.restart()
                                 topCardOffset = .zero
@@ -146,7 +142,10 @@ struct CandidateSwipeModal: View {
             if session.isExhausted,
                !isDismissing,
                isSubjectPresentationCurrent {
-                inferenceEngine.markAlternativesExhausted(expectedScanId: scanId)
+                viewModel.markAlternativesExhausted(
+                    subject: subject,
+                    inferenceEngine: inferenceEngine
+                )
             }
         }
         .sheet(isPresented: $showPaywall) {
@@ -203,7 +202,9 @@ extension CandidateSwipeModal {
                         isDragging: isTop ? topCardIsDragging : false,
                         dragPercentage: isTop ? dragPercentage : 0,
                         isSwipingRight: isTop ? isSwipingRight : false,
-                        isSwipingLeft: isTop ? isSwipingLeft : false
+                        isSwipingLeft: isTop ? isSwipingLeft : false,
+                        imageDependencies: viewModel.imageDependencies,
+                        feedback: viewModel.feedback
                     )
                     .scaleEffect(currentScale)
                     .offset(
@@ -222,7 +223,7 @@ extension CandidateSwipeModal {
             // Skip Button
             if session.remainingCandidates.count > 1 {
                 Button(action: {
-                    HapticManager.shared.triggerLightImpact()
+                    viewModel.feedback.lightImpact()
                     skipTopCard()
                 }) {
                     Text("Skip")
@@ -253,8 +254,10 @@ extension CandidateSwipeModal {
             ForEach(session.remainingCandidates, id: \.scientificName) { candidate in
                 GridSwipeableCell(
                     candidate: candidate,
+                    imageDependencies: viewModel.imageDependencies,
+                    feedback: viewModel.feedback,
                     onConfirm: {
-                        HapticManager.shared.triggerSuccessPulse()
+                        viewModel.feedback.successPulse()
                         withAnimation(.spring(response: 0.3)) {
                             session.confirm(candidate)
                         }
@@ -263,7 +266,7 @@ extension CandidateSwipeModal {
                         )
                     },
                     onReject: {
-                        HapticManager.shared.triggerLightImpact()
+                        viewModel.feedback.lightImpact()
                         withAnimation(.spring(response: 0.25)) {
                             session.reject(scientificName: candidate.scientificName)
                         }
@@ -298,7 +301,7 @@ extension CandidateSwipeModal {
                     SlideToConfirm(
                         label: "Reanalyze species",
                         onConfirm: {
-                            if RevenueCatManager.shared.isProActive {
+                            if viewModel.isProActive {
                                 requestDismissal(action: .refineScan)
                             } else {
                                 showPaywall = true
@@ -376,34 +379,6 @@ extension CandidateSwipeModal {
     }
 }
 
-private struct CandidateSwipeLiveThumbnail: View {
-    let imageData: Data
-
-    @State private var uiImage: UIImage?
-
-    var body: some View {
-        Group {
-            if let uiImage {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ProgressView()
-            }
-        }
-        .task(id: imageData) {
-            uiImage = await Task.detached(priority: .userInitiated) {
-                autoreleasepool {
-                    guard let cgImage = ImageDownsampler.downsample(data: imageData, maxSize: 512) else {
-                        return nil
-                    }
-                    return UIImage(cgImage: cgImage)
-                }
-            }.value
-        }
-    }
-}
-
 // MARK: - Gestures & Actions
 
 extension CandidateSwipeModal {
@@ -420,7 +395,7 @@ extension CandidateSwipeModal {
                 if abs(value.translation.width) >= swipeThreshold {
                     animateSwipe(value.translation.width > 0 ? .right : .left)
                 } else {
-                    HapticManager.shared.triggerLightImpact()
+                    viewModel.feedback.lightImpact()
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
                         topCardOffset = .zero
                         topCardIsDragging = false
@@ -434,7 +409,7 @@ extension CandidateSwipeModal {
     /// Triggers a programmatic swipe animation off-screen to the given direction.
     private func animateSwipe(_ direction: CandidateSwipeDirection) {
         let targetX: CGFloat = direction == .right ? 700 : -700
-        HapticManager.shared.triggerMediumPulse()
+        viewModel.feedback.mediumPulse()
         withAnimation(.easeInOut(duration: 0.3)) {
             topCardOffset = CGSize(width: targetX, height: 60)
         } completion: {

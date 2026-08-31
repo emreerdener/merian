@@ -14,21 +14,39 @@ struct ConfidenceBadge: View {
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
     var onAnalyzingTap: (() -> Void)?
+    @State private var viewModel: ConfidencePresentationViewModel
     @State private var shimmerPhase: CGFloat = -1.0
-    @State private var isShowingExplanation = false
-    @State private var explanationScanId: String?
-    @State private var explanationGeneration: UInt64?
-    @State private var pendingExplanationDismissalAction:
-        ConfidenceExplanationDismissalAction?
     @State private var activeDetent: PresentationDetent = .fraction(0.65)
     @State private var allowedDetents: Set<PresentationDetent> = [.fraction(0.65), .large]
     @State private var iconRotation: Double = 0.0
     @State private var textHuePhase: Double = 0.0
 
-    private struct BadgePayload {
-        let label: String
-        let color: Color
-        let icon: String
+    init(
+        confidenceScore: Double?,
+        inferenceTier: String?,
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false,
+        isFlagged: Bool = false,
+        aiScientificName: String? = nil,
+        onAskCommunity: (() -> Void)? = nil,
+        analyzingPhrase: String? = nil,
+        onAnalyzingTap: (() -> Void)? = nil,
+        dependencies: ConfidenceReviewDependencies = .live
+    ) {
+        self.confidenceScore = confidenceScore
+        self.inferenceTier = inferenceTier
+        self.userIdentificationOverride = userIdentificationOverride
+        self.userConfirmedIdentification = userConfirmedIdentification
+        self.isFlagged = isFlagged
+        self.aiScientificName = aiScientificName
+        self.onAskCommunity = onAskCommunity
+        self.analyzingPhrase = analyzingPhrase
+        self.onAnalyzingTap = onAnalyzingTap
+        self._viewModel = State(
+            initialValue: ConfidencePresentationViewModel(
+                dependencies: dependencies
+            )
+        )
     }
 
     // A rich, mesmerizing primary gradient for the AI inference state
@@ -44,30 +62,36 @@ struct ConfidenceBadge: View {
         )
     }
 
-    private var badgeData: BadgePayload {
-        if let phrase = analyzingPhrase {
-            let label = phrase.hasSuffix("...") ? phrase : phrase + "..."
-            return BadgePayload(label: label, color: .blue, icon: "sparkle")
-        }
-        if userIdentificationOverride != nil || userConfirmedIdentification {
-            return BadgePayload(label: "Confirmed", color: .green, icon: "checkmark.circle.fill")
-        }
-        guard let score = confidenceScore else { return BadgePayload(label: "Unknown", color: .gray, icon: "questionmark") }
-        let bands = MerianConfig.confidenceBands(forInferenceTier: inferenceTier)
-        switch score {
-        case bands.strong...:
-            return BadgePayload(label: "Strong match", color: .green, icon: "sparkles")
-        case bands.possible..<bands.strong:
-            return BadgePayload(label: "Possible match", color: .orange, icon: "sparkles")
-        default:
-            return BadgePayload(label: "Weak match", color: .gray, icon: "sparkles")
+    private var presentation: ConfidenceBadgePresentation {
+        ConfidenceBadgePresentation.resolve(
+            confidenceScore: confidenceScore,
+            inferenceTier: inferenceTier,
+            hasUserOverride: userIdentificationOverride != nil,
+            isUserConfirmed: userConfirmedIdentification,
+            analyzingPhrase: analyzingPhrase
+        )
+    }
+
+    private func color(
+        for style: ConfidenceBadgePresentation.Style
+    ) -> Color {
+        switch style {
+        case .analyzing:
+            return .blue
+        case .confirmed, .strong:
+            return .green
+        case .possible:
+            return .orange
+        case .weak, .unknown:
+            return .gray
         }
     }
     
     var body: some View {
-        if analyzingPhrase != nil || userIdentificationOverride != nil || userConfirmedIdentification || (confidenceScore ?? 0) > 0 {
-            let data = badgeData
-            let isAnalyzing = analyzingPhrase != nil
+        if presentation.isVisible {
+            let data = presentation
+            let dataColor = color(for: data.style)
+            let isAnalyzing = data.isAnalyzing
             let presentedScanId = inferenceEngine.speciesData?.scanId
             let presentedGeneration = inferenceEngine.scanPresentationGeneration
             
@@ -77,17 +101,17 @@ struct ConfidenceBadge: View {
                     return
                 }
                 guard let presentedScanId,
-                      inferenceEngine.scanPresentationGeneration == presentedGeneration,
-                      inferenceEngine.speciesData?.scanId?
-                        .caseInsensitiveCompare(presentedScanId) == .orderedSame else {
+                      viewModel.presentExplanation(
+                          subject: IdentificationReviewSubject(
+                              scanId: presentedScanId,
+                              presentationGeneration: presentedGeneration
+                          ),
+                          in: inferenceEngine
+                      ) else {
                     return
                 }
-                HapticManager.shared.triggerHeavyImpact(intensity: 1.0)
                 activeDetent = .fraction(0.65)
                 allowedDetents = [.fraction(0.65), .large]
-                explanationScanId = presentedScanId
-                explanationGeneration = presentedGeneration
-                isShowingExplanation = true
             }) {
                 HStack(spacing: 6) {
                     Image(systemName: data.icon)
@@ -118,7 +142,7 @@ struct ConfidenceBadge: View {
                         Capsule()
                             .fill(
                                 LinearGradient(
-                                    colors: [data.color.opacity(0.9), data.color.opacity(0.8)],
+                                    colors: [dataColor.opacity(0.9), dataColor.opacity(0.8)],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
@@ -141,7 +165,7 @@ struct ConfidenceBadge: View {
                 // Ambient Static Glass Boundary
                 .overlay(
                     Capsule()
-                        .strokeBorder(isAnalyzing ? Color.primary.opacity(0.2) : data.color.opacity(0.2), lineWidth: 1)
+                        .strokeBorder(isAnalyzing ? Color.primary.opacity(0.2) : dataColor.opacity(0.2), lineWidth: 1)
                 )
                 // Canvas keeps the animated glare inside one fixed render surface. A translated
                 // SwiftUI child can enlarge its ancestor's accessibility frame even when clipped.
@@ -203,11 +227,10 @@ struct ConfidenceBadge: View {
                 isPresented: explanationPresentedBinding,
                 onDismiss: resumePendingExplanationDismissalAction
             ) {
-                if let explanationScanId,
-                   let explanationGeneration {
+                if let subject = viewModel.explanationSubject {
                     ConfidenceExplanationSheet(
-                        scanId: explanationScanId,
-                        presentationGeneration: explanationGeneration,
+                        scanId: subject.scanId,
+                        presentationGeneration: subject.presentationGeneration,
                         confidenceScore: confidenceScore,
                         inferenceTier: inferenceTier,
                         userIdentificationOverride: userIdentificationOverride,
@@ -216,8 +239,9 @@ struct ConfidenceBadge: View {
                         aiScientificName: aiScientificName,
                         onAskCommunity: onAskCommunity,
                         onRequestDismissalAction: { action in
-                            pendingExplanationDismissalAction = action
-                        }
+                            viewModel.stageDismissalAction(action)
+                        },
+                        dependencies: viewModel.childDependencies
                     )
                     .presentationDetents(allowedDetents, selection: $activeDetent)
                         .presentationCornerRadius(32)
@@ -235,62 +259,47 @@ struct ConfidenceBadge: View {
     }
 
     private var explanationPresentedBinding: Binding<Bool> {
-        let expectedScanId = explanationScanId
-        let expectedGeneration = explanationGeneration
+        let expectedSubject = viewModel.explanationSubject
         return Binding(
             get: {
-                guard isShowingExplanation,
-                      let expectedScanId,
-                      let expectedGeneration,
-                      explanationScanId?
-                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
-                      explanationGeneration == expectedGeneration else {
+                guard viewModel.isExplanationPresented,
+                      let expectedSubject,
+                      expectedSubject.matches(viewModel.explanationSubject) else {
                     return false
                 }
-                return inferenceEngine.scanPresentationGeneration ==
-                    expectedGeneration &&
-                    inferenceEngine.speciesData?.scanId?
-                        .caseInsensitiveCompare(expectedScanId) == .orderedSame
+                return viewModel.isCurrent(
+                    expectedSubject,
+                    in: inferenceEngine
+                )
             },
             set: { isPresented in
                 guard !isPresented else { return }
-                guard let expectedScanId,
-                      let expectedGeneration,
-                      explanationScanId?
-                        .caseInsensitiveCompare(expectedScanId) == .orderedSame,
-                      explanationGeneration == expectedGeneration else {
-                    return
-                }
-                isShowingExplanation = false
-                explanationScanId = nil
-                explanationGeneration = nil
+                guard let expectedSubject else { return }
+                viewModel.dismissExplanation(ownedBy: expectedSubject)
             }
         )
     }
 
     private func resumePendingExplanationDismissalAction() {
-        guard let action = pendingExplanationDismissalAction else { return }
-        pendingExplanationDismissalAction = nil
-
-        let context = action.context
-        guard inferenceEngine.scanPresentationGeneration == context.presentationGeneration,
-              inferenceEngine.speciesData?.scanId?
-                .caseInsensitiveCompare(context.scanId) == .orderedSame else {
+        guard let currentScanId = inferenceEngine.speciesData?.scanId else {
+            viewModel.invalidateExplanation()
             return
         }
+        let currentSubject = IdentificationReviewSubject(
+            scanId: currentScanId,
+            presentationGeneration: inferenceEngine.scanPresentationGeneration
+        )
+        guard let action = viewModel.takePendingDismissalAction(
+            matching: currentSubject
+        ) else { return }
 
         switch action {
         case .askCommunity:
             onAskCommunity?()
         case .refineScan(_, let initialDescription):
-            HapticManager.shared.triggerSelectionPulse()
-            AppDIContainer.shared.appRouteCoordinator.request(
-                .refinement(
-                    scanId: context.scanId,
-                    initialDescription: initialDescription,
-                    entryPoint: .standard
-                ),
-                source: .internalUserAction
+            viewModel.requestRefinementRoute(
+                scanId: action.context.scanId,
+                initialDescription: initialDescription
             )
         }
     }

@@ -288,11 +288,16 @@ callback and no longer guesses sheet teardown with a fixed sleep.
 
 Nested feature handoffs follow the same rule even when they do not use the root
 route queue. Candidate review records a typed `CandidateSwipeDismissalRequest`;
-confidence review and the owning Insight surface resume it only from the
-candidate sheet's real `onDismiss` and revalidate both scan ID and presentation
-generation before mutation. The Insight Field Chat host records a typed
-follow-up action for alternatives, refinement, or paywall and resumes it from
-chat dismissal. Explore activity records the selected
+`CandidateReviewViewModel` stages it, and confidence review or the owning
+Insight surface consumes it only from the candidate sheet's real `onDismiss`
+after revalidating both scan ID and presentation generation. The state owner
+refuses consumption while the sheet is still presented and clears queued work
+when the current scan disappears. Actions leaving the confidence explanation are
+staged separately by `ConfidencePresentationViewModel`, governed by the same
+pre-dismissal and missing-subject guards, and routed only after that outer
+sheet's real `onDismiss`. The Insight Field Chat host records a typed follow-up
+action for alternatives, refinement, or paywall and resumes it from chat
+dismissal. Explore activity records the selected
 post/thread/community/Field-trip target and pushes it only after
 `ExploreNotificationsSheet` dismisses. Post handoffs retain only the post ID and
 re-resolve the bounded feed-store value after dismissal. Async notification

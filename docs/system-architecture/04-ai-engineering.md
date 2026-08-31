@@ -871,10 +871,14 @@ provider dispatch:
     Ask the Community routing. The scan insight top menu uses the same
     policy-filtered candidate list for `Confirm species` and
     `Review alternatives`, while `Reanalyze species` and `Ask the community`
-    remain separately gated.
+    remain separately gated. Within `IdentificationReview`, Services are the
+    only layer that invokes the engine review mutations. Their view models
+    revalidate the captured scan and presentation generation, then pass the
+    expected scan ID into the engine so a replaced result cannot receive the
+    deferred mutation.
     - `InferenceEngine` exposes three methods for this flow:
-    - `applyIdentificationOverride(scientificName:modelContext:)`: Immediately
-      wipes all stale contextual fields (`wikipediaOverview`,
+    - `applyIdentificationOverride(scientificName:expectedScanId:modelContext:)`:
+      Immediately wipes all stale contextual fields (`wikipediaOverview`,
       `referenceImageUrl`, `habitatDescription`, `gbifTaxonKey`,
       `similarSpecies`, etc.) and sets `userIdentificationOverride` and
       `scientificName` to the chosen species name in a **single full-value
@@ -885,13 +889,13 @@ provider dispatch:
       `BackgroundDatabaseActor.updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)`
       (passing `.userOverridden`), and syncs to `public.scans` via
       `syncIdentificationReviewToCloud`.
-    - `confirmAIIdentification(modelContext:)`: Sets
+    - `confirmAIIdentification(expectedScanId:modelContext:)`: Sets
       `speciesData.userConfirmedIdentification = true`. Securely fetches the
       immutable native UUID from SwiftData via a localized `FetchDescriptor`,
       avoiding corrupted view states. Persists to `LocalScanRecord` via
       `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
       review variables to `public.scans` via `syncIdentificationReviewToCloud`.
-    - `resetIdentificationReview(modelContext:)`: Clears
+    - `resetIdentificationReview(expectedScanId:modelContext:)`: Clears
       `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
       `isFlagged` bit, and `alternativesExhausted`, reverts
       `speciesData.scientificName` to `aiScientificName`, persists locally

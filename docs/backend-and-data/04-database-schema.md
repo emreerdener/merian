@@ -5467,7 +5467,8 @@ Tracks locally synchronized species scans for the Scans library.
   `resetIdentificationReview` on another device) does not overwrite a local
   `true`. Full bidirectional review-state sync across devices is deferred. Used
   to trigger the `ConfidenceBadge` "Confirmed" state and to render
-  `ConfirmedView` in `CandidatesCard`.)
+  `ConfirmedView` in `ConfidenceExplanationSheet`; `CandidatesCard` unmounts
+  after confirmation.)
 - `userReviewStateRaw`: String (Added in `MerianSchemaV36`, defaults to
   `"unreviewed"`. Replaces the boolean/string combinator logic and maps cleanly
   to the `UserReviewState` Swift enum and the `public.user_review_state`

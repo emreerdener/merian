@@ -8,9 +8,10 @@ struct CandidateAlternativesView: View {
     let isWeakMatch: Bool
     let onReviewAlternatives: () -> Void
     let onConfirm: () -> Void
-    var onRefineScan: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
+    let imageDependencies: SimilarSpeciesImageDependencies
+    let feedback: IdentificationReviewFeedbackDependencies
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -61,7 +62,10 @@ struct CandidateAlternativesView: View {
         let offsetX: CGFloat = isPairDisplay ? (index == 0 ? -16 : 16) : 0
         let offsetY: CGFloat = isPairDisplay ? (index == 0 ? 0 : 12) : 0
 
-        return FlayedCandidateThumbnail(candidate: candidate)
+        return FlayedCandidateThumbnail(
+            candidate: candidate,
+            imageDependencies: imageDependencies
+        )
             .rotationEffect(.degrees(rotation))
             .offset(x: offsetX, y: offsetY)
             .zIndex(-Double(index))
@@ -101,7 +105,7 @@ struct CandidateAlternativesView: View {
 
     private var reviewAlternativesButton: some View {
         Button {
-            HapticManager.shared.triggerSelectionPulse()
+            feedback.selection()
             onReviewAlternatives()
         } label: {
             Text("Review alternatives")
@@ -132,7 +136,7 @@ struct CandidateAlternativesView: View {
 
     private var dismissButton: some View {
         Button {
-            HapticManager.shared.triggerLightImpact()
+            feedback.lightImpact()
             onDismiss()
         } label: {
             Image(systemName: "xmark")
@@ -166,7 +170,9 @@ struct CandidateAlternativesView: View {
         isWeakMatch: true,
         onReviewAlternatives: {},
         onConfirm: {},
-        onDismiss: {}
+        onDismiss: {},
+        imageDependencies: CandidateReviewDependencies().imageDependencies,
+        feedback: .init()
     )
     .padding()
 }

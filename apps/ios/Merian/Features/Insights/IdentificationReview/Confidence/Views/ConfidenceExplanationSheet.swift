@@ -2,26 +2,6 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 
-struct ConfidenceExplanationActionContext: Sendable, Equatable {
-    let scanId: String
-    let presentationGeneration: UInt64
-}
-
-enum ConfidenceExplanationDismissalAction: Sendable, Equatable {
-    case askCommunity(ConfidenceExplanationActionContext)
-    case refineScan(
-        ConfidenceExplanationActionContext,
-        initialDescription: String?
-    )
-
-    var context: ConfidenceExplanationActionContext {
-        switch self {
-        case .askCommunity(let context), .refineScan(let context, _):
-            context
-        }
-    }
-}
-
 struct ConfidenceExplanationSheet: View {
     let scanId: String
     let presentationGeneration: UInt64
@@ -40,10 +20,40 @@ struct ConfidenceExplanationSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var isSwipeModalPresented = false
+    @State private var viewModel: ConfidenceExplanationViewModel
     @State private var showPaywall = false
-    @State private var localRefinementRecord: LocalScanRecord?
-    @State private var pendingSwipeDismissalRequest: CandidateSwipeDismissalRequest?
+
+    init(
+        scanId: String,
+        presentationGeneration: UInt64,
+        confidenceScore: Double?,
+        inferenceTier: String?,
+        userIdentificationOverride: String? = nil,
+        userConfirmedIdentification: Bool = false,
+        isFlagged: Bool = false,
+        aiScientificName: String? = nil,
+        onAskCommunity: (() -> Void)? = nil,
+        onRequestDismissalAction: @escaping (
+            ConfidenceExplanationDismissalAction
+        ) -> Void,
+        dependencies: ConfidenceReviewDependencies = .live
+    ) {
+        self.scanId = scanId
+        self.presentationGeneration = presentationGeneration
+        self.confidenceScore = confidenceScore
+        self.inferenceTier = inferenceTier
+        self.userIdentificationOverride = userIdentificationOverride
+        self.userConfirmedIdentification = userConfirmedIdentification
+        self.isFlagged = isFlagged
+        self.aiScientificName = aiScientificName
+        self.onAskCommunity = onAskCommunity
+        self.onRequestDismissalAction = onRequestDismissalAction
+        self._viewModel = State(
+            initialValue: ConfidenceExplanationViewModel(
+                dependencies: dependencies
+            )
+        )
+    }
 
     private var showLocationPrompt: Bool {
         let status = environmentContext.locationAuthorizationStatus
@@ -51,18 +61,18 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var refinementAction: (() -> Void)? {
-        guard let record = localRefinementRecord else { return nil }
+        guard let snapshot = viewModel.refinementSnapshot else { return nil }
 
         return {
             guard isSubjectPresentationCurrent,
-                  record.id.caseInsensitiveCompare(scanId) == .orderedSame else {
+                  snapshot.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
                 return
             }
             if revenueCatManager.isProActive {
                 requestDismissalAction(
                     .refineScan(
                         actionContext,
-                        initialDescription: record.fieldNotes
+                        initialDescription: snapshot.initialDescription
                     )
                 )
             } else {
@@ -72,25 +82,18 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var headerTitle: String {
-        if userIdentificationOverride != nil || userConfirmedIdentification { return "Confirmed" }
-        guard let score = confidenceScore else { return "Analysis" }
-        let pct = Int(round(score * 100))
-        return "\(pct)% confident"
+        ConfidenceExplanationPresentation.headerTitle(
+            confidenceScore: confidenceScore,
+            hasUserOverride: userIdentificationOverride != nil,
+            isUserConfirmed: userConfirmedIdentification
+        )
     }
 
     private var confirmButtonTitle: String {
-        let cName = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let isCommonNameValid = !cName.isEmpty && cName.lowercased() != "unknown subject"
-        let aiSciName = aiScientificName ?? "Unknown"
-        let isScientificNameValid = !aiSciName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && aiSciName.lowercased() != "unknown subject"
-        
-        if isCommonNameValid {
-            return "Confirm \(cName.capitalized)"
-        } else if isScientificNameValid {
-            return "Confirm \(aiSciName)"
-        } else {
-            return "Confirm initial match"
-        }
+        ConfidenceExplanationPresentation.confirmButtonTitle(
+            commonName: inferenceEngine.speciesData?.commonName,
+            aiScientificName: aiScientificName
+        )
     }
 
     private var storedCandidates: [IdentificationCandidate] {
@@ -109,9 +112,7 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var isSubjectPresentationCurrent: Bool {
-        inferenceEngine.scanPresentationGeneration == presentationGeneration &&
-            inferenceEngine.speciesData?.scanId?
-                .caseInsensitiveCompare(scanId) == .orderedSame
+        viewModel.candidateReview.isCurrent(subject, in: inferenceEngine)
     }
 
     private var communityRequestAction: (() -> Void)? {
@@ -123,6 +124,13 @@ struct ConfidenceExplanationSheet: View {
 
     private var actionContext: ConfidenceExplanationActionContext {
         ConfidenceExplanationActionContext(
+            scanId: scanId,
+            presentationGeneration: presentationGeneration
+        )
+    }
+
+    private var subject: IdentificationReviewSubject {
+        IdentificationReviewSubject(
             scanId: scanId,
             presentationGeneration: presentationGeneration
         )
@@ -142,35 +150,41 @@ struct ConfidenceExplanationSheet: View {
                         candidatesCount: storedCandidateCount,
                         onReviewAgain: {
                             guard isSubjectPresentationCurrent else { return }
-                            isSwipeModalPresented = true
+                            viewModel.candidateReview.presentSwipeModal(
+                                subject: subject
+                            )
                         },
                         onReset: {
                             guard isSubjectPresentationCurrent else { return }
-                            HapticManager.shared.triggerLightImpact()
+                            viewModel.feedback.lightImpact()
                             Task { @MainActor in
-                                guard isSubjectPresentationCurrent else { return }
-                                await inferenceEngine.resetIdentificationReview(
-                                    expectedScanId: scanId,
+                                await viewModel.candidateReview.resetReview(
+                                    subject: subject,
+                                    inferenceEngine: inferenceEngine,
                                     modelContext: modelContext
                                 )
                             }
-                        }
+                        },
+                        feedback: viewModel.feedback
                     )
                     .padding(.horizontal, 16)
                 } else if let override = userIdentificationOverride {
-                    let newCommon = inferenceEngine.speciesData?.commonName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    let displayOverride = (newCommon.isEmpty || newCommon.lowercased() == "unknown subject") ? override : "\(newCommon.capitalized) (\(override))"
+                    let displayOverride = ConfidenceExplanationPresentation
+                        .overrideDisplayName(
+                            overrideScientificName: override,
+                            commonName: inferenceEngine.speciesData?.commonName
+                        )
 
                     OverriddenView(
                         overrideName: displayOverride,
                         aiScientificName: aiScientificName ?? "Unknown",
                         onUndo: {
                             guard isSubjectPresentationCurrent else { return }
-                            HapticManager.shared.triggerLightImpact()
+                            viewModel.feedback.lightImpact()
                             Task { @MainActor in
-                                guard isSubjectPresentationCurrent else { return }
-                                await inferenceEngine.resetIdentificationReview(
-                                    expectedScanId: scanId,
+                                await viewModel.candidateReview.resetReview(
+                                    subject: subject,
+                                    inferenceEngine: inferenceEngine,
                                     modelContext: modelContext
                                 )
                             }
@@ -181,11 +195,11 @@ struct ConfidenceExplanationSheet: View {
                     ConfirmedView(
                         onReset: {
                             guard isSubjectPresentationCurrent else { return }
-                            HapticManager.shared.triggerLightImpact()
+                            viewModel.feedback.lightImpact()
                             Task { @MainActor in
-                                guard isSubjectPresentationCurrent else { return }
-                                await inferenceEngine.resetIdentificationReview(
-                                    expectedScanId: scanId,
+                                await viewModel.candidateReview.resetReview(
+                                    subject: subject,
+                                    inferenceEngine: inferenceEngine,
                                     modelContext: modelContext
                                 )
                             }
@@ -202,7 +216,8 @@ struct ConfidenceExplanationSheet: View {
                         onAskCommunity: communityRequestAction,
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
-                        showDismissButton: false
+                        showDismissButton: false,
+                        dependencies: viewModel.candidateDependencies
                     )
                     .padding(.horizontal, 16)
                 }
@@ -213,7 +228,8 @@ struct ConfidenceExplanationSheet: View {
                     ConfidenceSheetActionButtons(
                         isReanalyzeLocked: !revenueCatManager.canStartProScan,
                         onReanalyze: onReanalyze,
-                        onAskCommunity: onAskCommunity
+                        onAskCommunity: onAskCommunity,
+                        feedback: viewModel.feedback
                     )
                     .padding(.horizontal, 16)
                 }
@@ -230,7 +246,11 @@ struct ConfidenceExplanationSheet: View {
                         .padding(.horizontal, 16)
                 }
 
-                ProTips(showLocationPrompt: showLocationPrompt)
+                ProTips(
+                    showLocationPrompt: showLocationPrompt,
+                    isProActive: revenueCatManager.isProActive,
+                    onOpenSettings: viewModel.openSettings
+                )
             }
             .padding(.top, 32)
             .padding(.bottom, 48)
@@ -248,8 +268,9 @@ struct ConfidenceExplanationSheet: View {
                 allowsAskCommunity: communityRequestAction != nil,
                 allowsRefinement: refinementAction != nil,
                 onRequestDismissalAction: { request in
-                    pendingSwipeDismissalRequest = request
-                }
+                    viewModel.candidateReview.stageDismissalRequest(request)
+                },
+                dependencies: viewModel.candidateDependencies
             )
         }
         .sheet(isPresented: $showPaywall) {
@@ -257,25 +278,20 @@ struct ConfidenceExplanationSheet: View {
         }
         .onChange(of: inferenceEngine.scanPresentationGeneration) {
             guard !isSubjectPresentationCurrent else { return }
-            isSwipeModalPresented = false
             showPaywall = false
-            localRefinementRecord = nil
-            pendingSwipeDismissalRequest = nil
+            viewModel.invalidate()
         }
         .task(id: presentationGeneration) {
             guard isSubjectPresentationCurrent else {
-                localRefinementRecord = nil
+                viewModel.invalidate()
                 return
             }
-            let descriptor = FetchDescriptor<LocalScanRecord>(
-                predicate: #Predicate { $0.id == scanId }
+            await viewModel.loadRefinementSnapshot(
+                subject: subject,
+                modelContainer: modelContext.container
             )
-            if let record = try? modelContext.fetch(descriptor).first,
-               isSubjectPresentationCurrent,
-               record.id.caseInsensitiveCompare(scanId) == .orderedSame {
-                localRefinementRecord = record
-            } else {
-                localRefinementRecord = nil
+            if !isSubjectPresentationCurrent {
+                viewModel.invalidate()
             }
         }
     }
@@ -291,29 +307,25 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private func resumePendingSwipeDismissalRequest() {
-        guard let request = pendingSwipeDismissalRequest else { return }
-        pendingSwipeDismissalRequest = nil
-        guard request.scanId.caseInsensitiveCompare(scanId) == .orderedSame,
-              request.presentationGeneration == presentationGeneration,
-              isSubjectPresentationCurrent else {
-            return
-        }
+        guard let request = viewModel.candidateReview
+            .takePendingDismissalRequest(matching: subject),
+            isSubjectPresentationCurrent else { return }
 
         switch request.action {
         case .applyOverride(let scientificName):
             Task { @MainActor in
-                guard isSubjectPresentationCurrent else { return }
-                await inferenceEngine.applyIdentificationOverride(
+                await viewModel.candidateReview.applyOverride(
                     scientificName: scientificName,
-                    expectedScanId: scanId,
+                    subject: subject,
+                    inferenceEngine: inferenceEngine,
                     modelContext: modelContext
                 )
             }
         case .confirmOriginal:
             Task { @MainActor in
-                guard isSubjectPresentationCurrent else { return }
-                await inferenceEngine.confirmAIIdentification(
-                    expectedScanId: scanId,
+                _ = await viewModel.candidateReview.confirmOriginal(
+                    subject: subject,
+                    inferenceEngine: inferenceEngine,
                     modelContext: modelContext
                 )
             }
@@ -325,57 +337,25 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var swipeModalPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { isSwipeModalPresented && isSubjectPresentationCurrent },
+        let expectedSubject = viewModel.candidateReview.swipeModalSubject
+        return Binding(
+            get: {
+                guard viewModel.candidateReview.isSwipeModalPresented,
+                      let expectedSubject,
+                      expectedSubject.matches(
+                          viewModel.candidateReview.swipeModalSubject
+                      ) else { return false }
+                return viewModel.candidateReview.isCurrent(
+                    expectedSubject,
+                    in: inferenceEngine
+                )
+            },
             set: { isPresented in
-                guard !isPresented || isSubjectPresentationCurrent else { return }
-                isSwipeModalPresented = isPresented
+                guard !isPresented, let expectedSubject else { return }
+                viewModel.candidateReview.dismissSwipeModal(
+                    ownedBy: expectedSubject
+                )
             }
         )
-    }
-}
-
-private struct ConfidenceSheetActionButtons: View {
-    let isReanalyzeLocked: Bool
-    var onReanalyze: (() -> Void)?
-    var onAskCommunity: (() -> Void)?
-
-    var body: some View {
-        VStack(spacing: 12) {
-            if let onReanalyze {
-                Button(action: onReanalyze) {
-                    Label(
-                        "Reanalyze species",
-                        systemImage: isReanalyzeLocked ? "lock.fill" : "arrow.2.circlepath"
-                    )
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(Color.orange.opacity(0.14))
-                    .foregroundColor(.orange)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("ConfidenceSheetReanalyzeButton")
-            }
-
-            if let onAskCommunity {
-                Button {
-                    HapticManager.shared.triggerMediumPulse()
-                    onAskCommunity()
-                } label: {
-                    Label("Ask the community", systemImage: "person.2")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.blue.opacity(0.14))
-                        .foregroundColor(.blue)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("ConfidenceSheetAskCommunityButton")
-            }
-        }
-        .frame(maxWidth: .infinity)
     }
 }

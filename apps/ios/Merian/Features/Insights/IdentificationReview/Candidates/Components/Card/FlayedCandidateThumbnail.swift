@@ -2,7 +2,19 @@ import SwiftUI
 
 struct FlayedCandidateThumbnail: View {
     let candidate: IdentificationCandidate
-    @State private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var imageFetcher: SimilarSpeciesImageFetcher
+
+    init(
+        candidate: IdentificationCandidate,
+        imageDependencies: SimilarSpeciesImageDependencies
+    ) {
+        self.candidate = candidate
+        self._imageFetcher = State(
+            initialValue: SimilarSpeciesImageFetcher(
+                dependencies: imageDependencies
+            )
+        )
+    }
     
     var body: some View {
         ZStack {

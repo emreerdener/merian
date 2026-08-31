@@ -1,13 +1,5 @@
 import SwiftUI
 
-enum CandidateCardPresentation: String, Identifiable {
-    case originalImage
-    case candidateImages
-    case distinguishingFeature
-
-    var id: String { rawValue }
-}
-
 // MARK: - Swipeable Candidate Card
 struct SwipeableCandidateCard: View {
     let candidate: IdentificationCandidate
@@ -15,12 +7,35 @@ struct SwipeableCandidateCard: View {
     let dragPercentage: Double
     let isSwipingRight: Bool
     let isSwipingLeft: Bool
+    let feedback: IdentificationReviewFeedbackDependencies
 
     // Uses the Species Reference fallback loader for ordered Wikipedia/GBIF imagery.
-    @State private var imageFetcher = SimilarSpeciesImageFetcher()
+    @State private var imageFetcher: SimilarSpeciesImageFetcher
     @State private var activePresentation: CandidateCardPresentation?
     @State private var candidateSelectedImage: UIImage?
     @Environment(InferenceEngine.self) private var inferenceEngine
+
+    init(
+        candidate: IdentificationCandidate,
+        isDragging: Bool,
+        dragPercentage: Double,
+        isSwipingRight: Bool,
+        isSwipingLeft: Bool,
+        imageDependencies: SimilarSpeciesImageDependencies,
+        feedback: IdentificationReviewFeedbackDependencies
+    ) {
+        self.candidate = candidate
+        self.isDragging = isDragging
+        self.dragPercentage = dragPercentage
+        self.isSwipingRight = isSwipingRight
+        self.isSwipingLeft = isSwipingLeft
+        self.feedback = feedback
+        self._imageFetcher = State(
+            initialValue: SimilarSpeciesImageFetcher(
+                dependencies: imageDependencies
+            )
+        )
+    }
 
     private var hasAdditionalCandidateImages: Bool {
         imageFetcher.images.count > 1
@@ -74,7 +89,13 @@ struct SwipeableCandidateCard: View {
             if isSwipingRight {
                 VStack {
                     HStack {
-                        CandidateSwipeIndicator(label: "Confirm", iconName: "checkmark", color: .green, progress: dragPercentage)
+                        CandidateSwipeIndicator(
+                            label: "Confirm",
+                            iconName: "checkmark",
+                            color: .green,
+                            progress: dragPercentage,
+                            feedback: feedback
+                        )
                             .padding([.top, .leading], 18)
                         Spacer()
                     }
@@ -87,7 +108,13 @@ struct SwipeableCandidateCard: View {
                 VStack {
                     HStack {
                         Spacer()
-                        CandidateSwipeIndicator(label: "Reject", iconName: "xmark", color: .red, progress: dragPercentage)
+                        CandidateSwipeIndicator(
+                            label: "Reject",
+                            iconName: "xmark",
+                            color: .red,
+                            progress: dragPercentage,
+                            feedback: feedback
+                        )
                             .padding([.top, .trailing], 18)
                     }
                     Spacer()

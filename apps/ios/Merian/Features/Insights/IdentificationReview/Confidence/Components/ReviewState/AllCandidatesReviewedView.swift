@@ -6,6 +6,7 @@ struct AllCandidatesReviewedView: View {
     let candidatesCount: Int
     let onReviewAgain: () -> Void
     let onReset: () -> Void
+    let feedback: IdentificationReviewFeedbackDependencies
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -28,7 +29,7 @@ struct AllCandidatesReviewedView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Button {
-                HapticManager.shared.triggerLightImpact()
+                feedback.lightImpact()
                 onReviewAgain()
             } label: {
                 HStack(spacing: 6) {

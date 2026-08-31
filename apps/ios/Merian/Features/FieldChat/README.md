@@ -305,10 +305,10 @@ punctuation, combining marks, non-BMP input, U+FEFF, and U+0085.
 
 See:
 
-- [`insight-chat` route contract](../../../../../../services/supabase/functions/insight-chat/README.md)
-- [`species-dictionary-chat` route contract](../../../../../../services/supabase/functions/species-dictionary-chat/README.md)
-- [Scan ingestion reliability and recovery](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness)
-- [Insight sheet architecture](../../../../../../docs/features-and-hardware/05-insight-sheet.md)
+- [`insight-chat` route contract](../../../../../services/supabase/functions/insight-chat/README.md)
+- [`species-dictionary-chat` route contract](../../../../../services/supabase/functions/species-dictionary-chat/README.md)
+- [Scan ingestion reliability and recovery](../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness)
+- [Insight sheet architecture](../../../../../docs/features-and-hardware/05-insight-sheet.md)
 
 ## Verification Ownership
 
@@ -323,5 +323,5 @@ See:
   production-file ceiling.
 
 The canonical endpoint and privacy contract remains
-[`05-api-contracts.md`](../../../../../../docs/backend-and-data/05-api-contracts.md);
+[`05-api-contracts.md`](../../../../../docs/backend-and-data/05-api-contracts.md);
 this README documents iOS ownership rather than redefining that wire contract.

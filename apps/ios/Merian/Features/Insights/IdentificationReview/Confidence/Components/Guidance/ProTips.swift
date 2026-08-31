@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ProTips: View {
     let showLocationPrompt: Bool
+    let isProActive: Bool
+    let onOpenSettings: () -> Void
     @State private var showPaywall = false
     
     var body: some View {
@@ -12,11 +14,7 @@ struct ProTips: View {
             
             VStack(alignment: .leading, spacing: 16) {
                 if showLocationPrompt {
-                    Button {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    } label: {
+                    Button(action: onOpenSettings) {
                         HStack(alignment: .top, spacing: 16) {
                             ZStack {
                                 Circle()
@@ -59,7 +57,7 @@ struct ProTips: View {
                         .padding(.vertical, 4)
                 }
                 
-                if !RevenueCatManager.shared.isProActive {
+                if !isProActive {
                     Button {
                         showPaywall = true
                     } label: {

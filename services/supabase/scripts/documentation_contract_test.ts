@@ -10,6 +10,28 @@ async function read(relativePath: string): Promise<string> {
   return await Deno.readTextFile(repositoryFile(relativePath));
 }
 
+async function readExactlyOneExisting(
+  relativePaths: readonly string[],
+): Promise<string> {
+  const existing: Array<{ path: string; source: string }> = [];
+  for (const relativePath of relativePaths) {
+    try {
+      existing.push({ path: relativePath, source: await read(relativePath) });
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
+
+  assertEquals(
+    existing.length,
+    1,
+    `Expected exactly one current implementation path; found: ${
+      existing.map(({ path }) => path).join(", ") || "none"
+    }`,
+  );
+  return existing[0].source;
+}
+
 function compact(value: string): string {
   return value
     .replaceAll(/^\s*>\s?/gm, "")
@@ -1253,7 +1275,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read("apps/ios/Merian/Core/Data/README.md"),
     read("apps/ios/Merian/Core/Network/README.md"),
     read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
-    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
+    read("apps/ios/Merian/Features/FieldChat/README.md"),
     read("apps/ios/Merian/Core/Network/MerianNetworkClient.swift"),
     read(
       "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel.swift",
@@ -1261,9 +1283,26 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift",
     ),
-    read(
-      "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExploreSharing.swift",
-    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/Services/InsightSharingDependencies.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSharingOperationState.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+CommunityIdentification.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExplorePresentation.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExplorePublication.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Sharing/ViewModels/InsightSheetViewModel+ExploreShareState.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
     Promise.all([
       read(
         "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift",
@@ -1287,11 +1326,12 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "apps/ios/Merian/Features/Scans/Collections/Components/Alerts/CollectionActionAlertModifier.swift",
     ),
-    read(
+    readExactlyOneExisting([
       "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Components/CandidatesCard.swift",
-    ),
+      "apps/ios/Merian/Features/Insights/IdentificationReview/Candidates/Components/Review/CandidatesCard.swift",
+    ]),
     read(
-      "apps/ios/Merian/Features/Insights/Content/NamePreferences/ViewModels/InsightSheetViewModel+NamePreferences.swift",
+      "apps/ios/Merian/Features/Insights/Content/ViewModels/InsightSheetViewModel+NamePreferences.swift",
     ),
     read(
       "apps/ios/Merian/Features/Insights/Reporting/ViewModels/ReportInsightViewModel.swift",
@@ -1317,12 +1357,22 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
     read(
       "apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift",
     ),
-    read(
-      "apps/ios/Merian/Features/Insights/Chat/ViewModels/InsightChatViewModel.swift",
-    ),
-    read(
-      "apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift",
-    ),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Features/FieldChat/ViewModels/FieldChatOperationState.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/FieldChat/ViewModels/InsightChatViewModel+Response.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
+    Promise.all([
+      read(
+        "apps/ios/Merian/Features/Insights/Content/ViewModels/QueuedContentViewModel.swift",
+      ),
+      read(
+        "apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift",
+      ),
+    ]).then((sources) => sources.join("\n")),
     read(
       "apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+MediaPresentation.swift",
     ),
@@ -1976,7 +2026,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(candidateSwipeImplementationSource),
-    "inferenceEngine.scanPresentationGeneration == presentationGeneration",
+    "viewModel.isCurrent(subject, in: inferenceEngine)",
   );
   assertStringIncludes(
     compact(shareButtonImplementationSource),
@@ -2012,7 +2062,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(queuedContentImplementationSource),
-    "retryingScanId? .caseInsensitiveCompare(scanId) == .orderedSame",
+    "retryingScanID?.caseInsensitiveCompare(scanID) == .orderedSame",
   );
   assertStringIncludes(
     compact(mediaPresentationImplementationSource),
@@ -2056,7 +2106,7 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(confidenceBadgeImplementationSource),
-    "inferenceEngine.scanPresentationGeneration == expectedGeneration",
+    "viewModel.isCurrent( expectedSubject, in: inferenceEngine )",
   );
   assertStringIncludes(
     compact(confidenceBadgeImplementationSource),
@@ -2109,11 +2159,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(insightViewModelImplementationSource),
-    "sharedExploreStateRevision &+= 1",
+    "sharingOperations.invalidate()",
   );
   assertStringIncludes(
-    compact(insightViewModelImplementationSource),
-    "sharedExploreStateRequestToken &+= 1",
+    compact(exploreSharingImplementationSource),
+    "func beginShareStateRequest() -> ShareStateRequest { requestToken &+= 1",
+  );
+  assertStringIncludes(
+    compact(exploreSharingImplementationSource),
+    "func invalidate() { requestToken &+= 1 revision &+= 1",
   );
   assertStringIncludes(
     compact(insightSheetImplementationSource),
@@ -2125,11 +2179,11 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(candidateCardImplementationSource),
-    "inferenceEngine.scanPresentationGeneration == generation",
+    "viewModel.isCurrent( IdentificationReviewSubject( scanId: scanId, presentationGeneration: generation ), in: inferenceEngine )",
   );
   assertStringIncludes(
     compact(candidateCardImplementationSource),
-    "swipeModalGeneration = presentedGeneration",
+    "viewModel.presentSwipeModal( subject: IdentificationReviewSubject( scanId: presentedScanId, presentationGeneration: presentedGeneration ) )",
   );
   assertStringIncludes(
     compact(namePreferencesImplementationSource),
@@ -2827,7 +2881,7 @@ Deno.test("joined scan reliability documentation preserves critical contracts", 
     ),
     read("services/supabase/functions/insight-chat/README.md"),
     read("apps/ios/Merian/Core/Data/README.md"),
-    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
+    read("apps/ios/Merian/Features/FieldChat/README.md"),
     read("apps/ios/Merian/Features/Insights/Sharing/README.md"),
     read("apps/ios/Merian/Features/Explore/Feed/README.md"),
     read(
@@ -3538,7 +3592,7 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
     read("docs/system-architecture/04-ai-engineering.md"),
     read("docs/codebase-map.md"),
     read("apps/ios/Merian/Core/Network/README.md"),
-    read("apps/ios/Merian/Features/Insights/Chat/README.md"),
+    read("apps/ios/Merian/Features/FieldChat/README.md"),
     read("docs/backend-and-data/06-supabase-deployment-runbook.md"),
   ]);
 
@@ -4947,7 +5001,7 @@ Deno.test("maintained contract documentation has no unresolved local file links"
     "apps/ios/Merian/Features/Onboarding/Steps/README.md",
     "apps/ios/Merian/Features/Capture/Submission/README.md",
     "apps/ios/Merian/Features/Explore/Feed/README.md",
-    "apps/ios/Merian/Features/Insights/Chat/README.md",
+    "apps/ios/Merian/Features/FieldChat/README.md",
     "apps/ios/Merian/Features/SpeciesDictionary/Detail/README.md",
     "apps/ios/Merian/Features/Insights/IdentificationReview/README.md",
     "apps/ios/Merian/Features/Insights/Sharing/README.md",

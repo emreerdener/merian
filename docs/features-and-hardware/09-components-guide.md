@@ -107,10 +107,10 @@ scan.
   (including zero for historical scans). Tapping opens the explanation sheet
   where users can undo their review decision.
 - **Band logic**: When no review state is active, derives label, color, and icon
-  dynamically from `confidenceScore` against
-  `MerianConfig.confidenceBands(for: isPro)`. High constraints for Free tier (≥
-  96%), relaxed bounds for Pro (≥ 85%). Three bands exist: Strong (green),
-  Possible (orange), Weak (gray).
+  through the platform-neutral `ConfidenceBadgePresentation`, dynamically from
+  `confidenceScore` against `MerianConfig.confidenceBands(for: isPro)`. High
+  constraints for Free tier (≥ 96%), relaxed bounds for Pro (≥ 85%). Three bands
+  exist: Strong (green), Possible (orange), Weak (gray).
 - **Liquid glass aesthetic**: Layered `ZStack` — `ultraThickMaterial` base,
   volumetric color tint, glossy inner rim gradient, ambient border, and an
   animated holographic glare painted inside a fixed `Canvas`.
@@ -142,11 +142,18 @@ scan.
   unobstructed. The `candidateCount: Int` prop that previously threaded
   `BiologicalView → InsightHeader → ConfidenceBadge → ConfidenceExplanationSheet`
   has been removed.
+- **State and effects**: `ConfidencePresentationViewModel` owns the captured
+  scan/generation, pending outer dismissal action, and one-time resumption. It
+  does not release that action while the explanation is still presented and
+  invalidates it when the current scan disappears.
+  `ConfidenceReviewDependencies` is the sole owner of refinement routing,
+  Settings opening, and refinement-snapshot loading; the badge retains only
+  shimmer, icon rotation, and detent UI state.
 
 ## 7. Confidence Spectrum: `ConfidenceSpectrum`
 
 **Location**:
-`Features/Insights/IdentificationReview/Confidence/Views/ConfidenceSpectrum.swift`
+`Features/Insights/IdentificationReview/Confidence/Components/Scale/ConfidenceSpectrum.swift`
 
 A vertical timeline of `SpectrumNode` items inside `ConfidenceExplanationSheet`,
 explaining what each band means.
@@ -296,13 +303,14 @@ A reusable Swift Charts card for species-level observation patterns.
 ## 13. Identification Candidates: `CandidatesCard`
 
 **Location**:
-`Features/Insights/IdentificationReview/Candidates/Components/CandidatesCard.swift`
+`Features/Insights/IdentificationReview/Candidates/Components/Review/CandidatesCard.swift`
 
 A diagnostic card surfacing alternative species the AI genuinely considered,
 with a full approve/deny UX for the user's identification review. The card
 receives only policy-visible candidates; raw persisted candidate presence is not
-enough to mount the card. Manages a local `ReviewState` enum: `.pending`,
-`.confirmed`, `.overridden(to:)`.
+enough to mount the card. `CandidateReviewViewModel` owns modal identity,
+pending dismissal requests, local card dismissal, and generation-fenced review
+mutation orchestration; SwiftUI retains animation and sheet timing.
 
 - **Display gate**: `BiologicalView` obtains candidates from
   `CandidateReviewVisibilityPolicy.visibleCandidates(for:)`. The policy requires
@@ -324,9 +332,9 @@ enough to mount the card. Manages a local `ReviewState` enum: `.pending`,
   asynchronously load species reference imagery. The view presents two
   full-width capsule action buttons beneath the stack: "Review alternatives"
   (triggers the dedicated `CandidateSwipeModal` via `.sheet`) and "Confirm
-  species" (calls `InferenceEngine.confirmAIIdentification` natively). The
-  legacy inline list expansion and localized "Not sure" toggles have been
-  completely deprecated in favor of this dedicated swipe routing.
+  species" (invokes the injected candidate review mutation). The legacy inline
+  list expansion and localized "Not sure" toggles have been completely
+  deprecated in favor of this dedicated swipe routing.
 - **`.confirmed` state**: Emits `EmptyView()` — the card disappears.
   `ConfirmedView` in `ConfidenceExplanationSheet` handles the confirmed state
   display instead.
@@ -451,6 +459,12 @@ feature-local `CandidateSwipeSession` model:
   `remainingCandidates`, `confirmedCandidate`, `isExhausted`, and
   skip/reject/confirm/restart transitions. Unit tests cover the state
   transitions without SwiftUI animation concerns.
+- **`CandidateReviewViewModel`**: Observable owner for scan/generation identity,
+  modal ownership, staged dismissal requests, local card dismissal, and review
+  mutation guards. It releases a request only after the modal is no longer
+  presented and consumes it at most once. Older modal bindings and requests
+  cannot clear or resume against a replacement subject, and a missing current
+  scan invalidates queued state.
 - **`SwipeableCandidateCard`**: The core structural view for the individual
   species cards. Integrates `SimilarSpeciesImageFetcher`, backed by
   `SimilarSpeciesImageService`, to asynchronously load up to 5 progressively
@@ -467,7 +481,10 @@ feature-local `CandidateSwipeSession` model:
   `ZoomableScrollView`.
 - **`OriginalCapturePiPView`**: A 58×76 pt picture-in-picture thumbnail embedded
   inside `SwipeableCandidateCard`. Tapping it triggers
-  `OriginalCaptureExpandedView`.
+  `OriginalCaptureExpandedView`. Its off-main decode is keyed to the current
+  presentation generation and checks both cancellation and generation again
+  before publishing. `CandidateSwipeLiveThumbnail` applies the same
+  cancellation-before-publication rule to live payloads.
 - **`DistinguishingFeatureSheetView`**: Shows the full untruncated text of the
   `distinguishingFeature` that separates the candidate mathematically from the
   core ID inside a bottom sheet.
@@ -485,7 +502,7 @@ feature-local `CandidateSwipeSession` model:
 ## 16. Model Info Section: `ModelInfoSection`
 
 **Location**:
-`Features/Insights/IdentificationReview/Confidence/Views/ModelInfoSection.swift`
+`Features/Insights/IdentificationReview/Confidence/Components/Scale/ModelInfoSection.swift`
 
 An informational card rendered inside `ConfidenceExplanationSheet`, positioned
 between `ConfidenceSpectrum` and `AIMistakesBanner`. Communicates which
