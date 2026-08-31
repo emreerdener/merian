@@ -299,6 +299,30 @@ a dismissed or replaced destination cannot publish after its delay. Existing
 call sites retain their initializer signatures; the optional trailing Shell
 dependency defaults to the live adapter.
 
+## Insight Content Ownership
+
+[Insight Content](Merian/Features/Insights/Content/README.md) separates
+platform-neutral fact, user-tag, queued-retry, and phrase policy Models; narrow
+live repository, Supabase, scheduler, event, and feedback Services; contained
+fact, tag, queue-operation, name-preference, and Content-action ViewModels;
+composition Views; and grouped render-only Components. The Shell-owned
+`InsightSheetViewModel` accepts an optional trailing Content dependency while
+retaining its existing initializer call sites.
+
+Views and components issue no endpoint calls or direct SDK writes. Queue polling
+and the 350-millisecond delayed refresh remain view-owned, while the observable
+queue state owner fences retry completion by request identity. Tag mutations
+enforce the server's count, byte, and control-character bounds plus the iOS
+64-character display limit. They restore their prior local value on save failure
+and publish neither Supabase nor search-index effects before commit. Committed
+cloud snapshots are serialized in mutation order and retain the authoring
+account ID for the exact Auth work lease, preventing an older add from
+overwriting a newer removal or crossing an account transition. Mirrored Content
+tests enforce these contracts, rehomed presentation and mutation behavior,
+Services-only live resolution, legacy-owner removal, and the 600-line
+production-file ceiling. The display-only `NamePickerSheet` is shared from
+`Core/UI/Components`; each feature retains persistence and feedback.
+
 ## Insight Sharing Ownership
 
 [Insight Sharing](Merian/Features/Insights/Sharing/README.md) separates

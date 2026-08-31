@@ -505,8 +505,8 @@ assert_suite_has_passed_test_case \
   "testShareComposerFieldNotesSyncImmediatelyIntoInsightState"
 assert_suite_has_passed_test_case \
   "Preferred-name presentation-generation identity" \
-  "InsightSharingPresentationTests" \
-  "InsightSharingPresentationTests" \
+  "InsightContentActionsTests" \
+  "InsightContentActionsTests" \
   "testPreferredNameRejectsStalePresentationGeneration"
 assert_suite_has_passed_test_case \
   "Queued scan refresh presentation identity" \

@@ -40,46 +40,4 @@ struct InsightSharingPresentationTests {
         #expect(viewModel.persistentScanId == scanId)
     }
 
-    @Test func testPreferredNameRejectsStalePresentationGeneration() async throws {
-        let context = try InsightSheetTestSupport.createIsolatedContext()
-        let first = LocalScanRecord(
-            speciesId: "preferred_name_generation_1",
-            scientificName: "Danaus plexippus",
-            commonName: "Monarch"
-        )
-        let second = LocalScanRecord(
-            speciesId: "preferred_name_generation_2",
-            scientificName: "Danaus plexippus",
-            commonName: "Monarch"
-        )
-        context.insert(first)
-        context.insert(second)
-        try context.save()
-        let viewModel = InsightSheetViewModel()
-        viewModel.inferenceEngine = InsightSheetTestSupport.biologicalEngine(scanId: first.id)
-        #expect(viewModel.fetchLocalRecord(for: first.id, modelContext: context))
-        let staleGeneration = viewModel.scanBoundActionGeneration
-
-        viewModel.inferenceEngine = InsightSheetTestSupport.biologicalEngine(scanId: second.id)
-        #expect(viewModel.fetchLocalRecord(for: second.id, modelContext: context))
-        viewModel.inferenceEngine = InsightSheetTestSupport.biologicalEngine(scanId: first.id)
-        #expect(viewModel.fetchLocalRecord(for: first.id, modelContext: context))
-
-        viewModel.setPreferredCommonName(
-            "Stale Monarch Name",
-            for: "Danaus plexippus",
-            expectedScanId: first.id,
-            expectedGeneration: staleGeneration,
-            modelContext: context
-        )
-
-        #expect(
-            SpeciesPreferredNameRepository.preferredName(
-                for: "Danaus plexippus",
-                modelContext: context
-            ) == nil
-        )
-        #expect(viewModel.state.toastMessage == nil)
-    }
-
 }

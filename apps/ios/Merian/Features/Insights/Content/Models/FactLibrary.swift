@@ -1,4 +1,4 @@
-import SwiftUI
+import Foundation
 
 /// Defines a structured fun fact displayed during analysis or loading states.
 struct InsightFact {
@@ -137,61 +137,4 @@ struct FactLibrary {
 
     // Pre-computed for the invisible height anchor to avoid runtime max() calculations in the view.
     static let longestFact: String = facts.max(by: { $0.text.count < $1.text.count })?.text ?? ""
-}
-
-// MARK: - Fact Manager
-
-/// Manages a shuffled deck of facts that persists across app launches to prevent repeats.
-class FactManager: ObservableObject {
-    static let shared = FactManager()
-
-    @AppStorage("merian_fact_deck_indices") private var deckIndicesData: Data = Data()
-    @AppStorage("merian_fact_deck_position") private var currentPosition: Int = 0
-    
-    @Published var currentIndex: Int = 0
-    private var deck: [Int] = []
-
-    private init() {
-        // Initialization is completely free; heavy work is deferred
-    }
-
-    @MainActor
-    func prepareIfNeeded() async {
-        guard deck.isEmpty else { return }
-        
-        // Yield to ensure the view has completely finished its layout and render pass
-        await Task.yield()
-        
-        loadOrShuffleDeck()
-        self.currentIndex = currentPosition
-    }
-
-    private func loadOrShuffleDeck() {
-        let expectedCount = FactLibrary.facts.count
-        if let decoded = try? JSONDecoder().decode([Int].self, from: deckIndicesData), decoded.count == expectedCount {
-            self.deck = decoded
-        } else {
-            self.deck = Array(0..<expectedCount).shuffled()
-            if let encoded = try? JSONEncoder().encode(self.deck) {
-                deckIndicesData = encoded
-            }
-            currentPosition = 0
-        }
-    }
-
-    var currentFact: InsightFact {
-        let safeIndex = deck.indices.contains(currentIndex) ? deck[currentIndex] : 0
-        guard FactLibrary.facts.indices.contains(safeIndex) else { return FactLibrary.facts[0] }
-        return FactLibrary.facts[safeIndex]
-    }
-
-    func advance() {
-        currentIndex = (currentIndex + 1) % deck.count
-        currentPosition = currentIndex
-    }
-
-    func retreat() {
-        currentIndex = (currentIndex - 1 + deck.count) % deck.count
-        currentPosition = currentIndex
-    }
 }

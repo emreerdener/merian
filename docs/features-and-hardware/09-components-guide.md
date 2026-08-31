@@ -160,7 +160,7 @@ explaining what each band means.
 
 ## 8. Overview: `OverviewCard`
 
-**Location**: `Features/Insights/Content/Cards/OverviewCard.swift`
+**Location**: `Features/Insights/Content/Components/Cards/OverviewCard.swift`
 
 An informational liquid-glass component displaying AI-enriched encyclopedic
 extracts (`wikipediaOverview`), alongside a suite of dynamic biological
@@ -613,6 +613,7 @@ camera pipeline and the offline queued-scan path:
 
 **Locations**:
 
+- `Features/Insights/Content/Components/Scanning/ScanningExperienceView.swift`
 - `Features/Insights/Content/Views/AnalyzingContentView.swift`
 - `Features/Insights/Content/Views/QueuedContentView.swift`
 
@@ -660,7 +661,10 @@ reintroduce translated label geometry or a second foreground scanning component.
 Audio-only and Describe analysis, plus active queued inference, retain their
 existing cloud-analysis phrase sources.
 
-Queued lifecycle polling and retry scheduling remain in `QueuedContentView`.
+Queued lifecycle polling and the exact one-second/350-millisecond task timing
+remain in `QueuedContentView`. `QueuedContentViewModel` owns retry single-flight
+and refresh request identity; `QueuedContentDependencies` owns scheduling,
+durable re-fetch, retry mutation, event, and feedback effects.
 `QueuedRetryPresentation` alone maps stable codes to safe reason text,
 countdowns, and actions; raw stored errors never render. Future online deadlines
 may show **Retry now**, offline deadlines show no countdown or retry action, and
@@ -795,3 +799,21 @@ pass-through badge, not `ToastBanner` as domain state. The affected mutation
 controls are disabled for the operation snapshot while scrolling and unrelated
 navigation remain available. See the canonical
 [Event and Presentation Routing contract](../system-architecture/10-event-and-presentation-routing.md).
+
+## 22. Personal Scan Labels: `UserTagsCard`
+
+**Location**: `Features/Insights/Content/Components/Tags/UserTagsCard.swift`
+
+`UserTagsCard` renders the horizontal capsule collection and add-tag alert for a
+saved biological or non-biological scan. It owns draft, layout, animation, and
+accessibility wiring only. `UserTagValidation` owns the 50-label, 64-character,
+256-byte, and control-character policy; `UserTagsViewModel` owns the local
+mutation and rollback; and `UserTagsDependencies` owns persistence, ordered
+account-fenced Supabase synchronization, and typed search invalidation. No
+networking or shared-manager resolution belongs in the component.
+
+The local SwiftData save is the effect boundary. Failed saves restore the prior
+tag list and emit no cloud or search effect. Successful saves enqueue immutable
+cloud snapshots behind prior mutations so stale completion cannot overwrite the
+latest tag array. Remote synchronization remains best-effort and cannot roll
+back the committed local/search state.

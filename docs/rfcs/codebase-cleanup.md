@@ -222,6 +222,20 @@ Implemented Insights slices:
   below 600 lines. Deterministic tests lock dependency routing, presentation
   copy, same-scan mutation versus reconciliation, replacement-request fencing,
   Services-only live resolution, and the new ownership map.
+- `Insights/Content` now separates platform-neutral fact, custom-tag,
+  queued-retry, and phrase policy Models; preferred-name, Supabase tag, queue,
+  event, and feedback Services; contained fact, tag-transaction, queued retry,
+  name-preference, and Content-action ViewModels; focused Views; and grouped
+  Components. The former `Cards/` and `NamePreferences/` paths and mixed
+  `UserTagsMutationController` owner were removed. Queue animation and exact
+  one-second/350-millisecond task timing remain view-local; retry completion is
+  request-fenced, tag persistence rolls back before suppressing external
+  effects, committed tag snapshots are ordered and account-fenced, and render
+  layers perform no networking. Mirrored Content tests lock bounded/control-free
+  validation, dependency routing, rollback/effect ordering, cloud-snapshot
+  ordering and account attribution, queued copy and phrase policy, Services-only
+  live resolution, shared name-picker ownership, and the 600-line
+  production-file ceiling.
 
 Implemented cross-feature slices:
 

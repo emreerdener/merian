@@ -742,8 +742,8 @@ reconciliation must not continue with failed pending updates or inserts still
 attached to its context. On failure, call `modelContext.rollback()`, log an
 `.error`, and keep external side effects untouched.
 `InsightSheetViewModel.toggleScanInCollection(...)`,
-`InsightSheetViewModel.markRecordViewedIfAppropriate(...)`,
-`UserTagsMutationController`, `OfflineQueueManager.flushOfflineQueuedScan(...)`,
+`InsightSheetViewModel.markRecordViewedIfAppropriate(...)`, `UserTagsViewModel`
+with `UserTagsDependencies`, `OfflineQueueManager.flushOfflineQueuedScan(...)`,
 `OfflineQueueManager.softDeleteQueuedScan(...)`,
 `OfflineQueueManager.deleteQueuedScan(...)`,
 `OfflineQueueManager.enqueueCapture(...)`,
@@ -752,12 +752,18 @@ attached to its context. On failure, call `modelContext.rollback()`, log an
 custom saves, `ScanRepository.eradicateScan(...)`,
 `ScanRepository.purgeAllData(modelContext:resetDerivedState:)`, and historical
 `updateExistingScans` / `ingestScans` / `syncCollections` follow this
-containment pattern. The all-data purge additionally requires its
-`resetDerivedState` closure. Callers must pass the app-owned private-map
-sensitive reset so exact-coordinate snapshots, actor indexes, and preview
-renders are detached and the active-map presentation reset generation advances
-before the destructive SwiftData transaction begins; an eventual library event
-is not the erasure boundary.
+containment pattern. For custom tags, each successful local commit enqueues an
+immutable cloud snapshot behind its predecessor; do not restore independent
+fire-and-forget RPC tasks, because an older add may otherwise finish after a
+newer removal. The snapshot must retain the authoring account ID and acquire an
+exact `beginUnownedAccountBoundWork(expectedUserID:)` lease before using the
+Supabase client. A remote failure is best-effort and does not roll back the
+already committed local tag or search-index invalidation. The all-data purge
+additionally requires its `resetDerivedState` closure. Callers must pass the
+app-owned private-map sensitive reset so exact-coordinate snapshots, actor
+indexes, and preview renders are detached and the active-map presentation reset
+generation advances before the destructive SwiftData transaction begins; an
+eventual library event is not the erasure boundary.
 
 That video-aware signature is shorthand for media adoption. Any inference-owned
 finalization must additionally supply its exact foreground or background

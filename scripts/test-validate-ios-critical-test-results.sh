@@ -209,8 +209,10 @@ write_test_tree() {
               "testTopMenuHidesConfirmAndReviewForStrongNonCompetitiveCandidates",
               "testTopMenuShowsConfirmAndReviewForVisibleCompetitiveCandidates"
             ]),
+            suite("InsightContentActionsTests"; [
+              "testPreferredNameRejectsStalePresentationGeneration"
+            ]),
             suite("InsightSharingPresentationTests"; [
-              "testPreferredNameRejectsStalePresentationGeneration",
               "testExploreSharingRequiresExactEngineAndRecordIdentity"
             ]),
             suite("InsightQueuedHandoffTests"; [

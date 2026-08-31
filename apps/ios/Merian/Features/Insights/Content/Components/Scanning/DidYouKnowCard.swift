@@ -1,11 +1,19 @@
 import SwiftUI
 
 /// A rotating curiosity card shown during inference to give users something to read while waiting.
-/// Starts at a random fact, auto-advances every 8.5 seconds, and responds to taps for manual advance.
+/// Resumes a persisted shuffled deck, auto-advances every 8.5 seconds, and
+/// responds to taps for manual advance.
 struct DidYouKnowCard: View {
+    @StateObject private var factManager: FactManager
+    let onSelectionFeedback: () -> Void
 
-    @StateObject private var factManager = FactManager.shared
-    @State private var isAnimating = false
+    init(
+        factManager: FactManager,
+        onSelectionFeedback: @escaping () -> Void = {}
+    ) {
+        _factManager = StateObject(wrappedValue: factManager)
+        self.onSelectionFeedback = onSelectionFeedback
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -74,7 +82,8 @@ struct DidYouKnowCard: View {
                 }
         )
         .task(id: factManager.currentIndex) {
-            // Defers the actual JSON decoding and array shuffling to a background thread after the view renders
+            // Defer decoding and deck preparation until the first layout has
+            // completed.
             await factManager.prepareIfNeeded()
             
             // Modern iOS clock API prevents runaway ms loops
@@ -86,14 +95,14 @@ struct DidYouKnowCard: View {
     }
 
     private func advance() {
-        HapticManager.shared.triggerSelectionPulse()
+        onSelectionFeedback()
         withAnimation(.easeInOut(duration: 0.35)) {
             factManager.advance()
         }
     }
 
     private func retreat() {
-        HapticManager.shared.triggerSelectionPulse()
+        onSelectionFeedback()
         withAnimation(.easeInOut(duration: 0.35)) {
             factManager.retreat()
         }

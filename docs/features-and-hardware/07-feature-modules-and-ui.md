@@ -858,8 +858,10 @@ an Edge API response or opened offline via the Scans library.
   type. `Shell/` owns the root presentation, routes, embedded navigation
   helpers, and the main `InsightSheetViewModel`; `Content/` owns
   biological/non-biological results, queued lifecycle presentation, foreground
-  analysis, and their shared `ScanningExperienceView`; `Media/` owns the
-  carousel, fullscreen gallery, and photo/video export utilities;
+  analysis, and their shared scanning composition. Content Models own retry and
+  phrase policy, Services alone resolve live effects, ViewModels own mutation
+  and operation state, and Views/Components perform no networking; `Media/` owns
+  the carousel, fullscreen gallery, and photo/video export utilities;
   `IdentificationReview/` owns candidates, swipe review, candidate state models,
   and confidence explanation UI.
   - Foreground and queued processing use one visible scanning contract: dynamic
@@ -900,11 +902,11 @@ an Edge API response or opened offline via the Scans library.
     capabilities, content presentation, media presentation, and presentation
     identity. Behavior that belongs to another product area stays beside that
     owner: field-note behavior in `FieldNotes/ViewModels/`, Explore sharing in
-    `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name
-    preferences in `Content/NamePreferences/ViewModels/`.
+    `Sharing/ViewModels/`, media export in `Media/Utilities/`, and result
+    actions plus name preferences in `Content/ViewModels/`.
   - `Sharing/Models/` owns platform-neutral Share copy and action projection;
     `Sharing/Services/` alone resolves live publication, Community request,
-    detail, share-state, cache, event, preferred-name, and feedback effects; and
+    detail, share-state, cache, event, and feedback effects; and
     `Sharing/ViewModels/` owns the focused root-state extensions, contained
     reconciliation clocks, and observable Community request draft. Its `Views/`
     and `Components/` retain only rendering plus sheet, selection, focus, and
@@ -933,7 +935,8 @@ an Edge API response or opened offline via the Scans library.
     `Features/Insights/Shell/Modifiers/`; the first-render UIKit probe is a
     Shell-only Component. Views and view models issue no endpoint calls, and no
     production Shell Swift file exceeds the 600-line review guard.
-  - `BiologicalView` owns the persistent `FieldTripProgressCard` after
+  - `BiologicalView` composes the persistent
+    `Content/Components/FieldTrips/FieldTripProgressCard` after
     toxicity/identification review and before Field notes.
     `InsightSheetViewModel` loads its private server rows through the injected
     Shell dependency for saved biological scans, includes standard and Event
@@ -1125,12 +1128,16 @@ an Edge API response or opened offline via the Scans library.
   still-syncing result shows retryable customer-facing feedback and never
   permanently hides the action. Explore-post Field Chat is unaffected because it
   is keyed to an already-visible public post.
-- **Insight Reducers & Mutation Controllers**: Candidate review stack decisions
-  live in `CandidateSwipeSession`, species observation local aggregation lives
-  in `SpeciesObservationStatsReducer`, and custom tag add/remove/save/sync work
-  lives in `UserTagsMutationController`. SwiftUI components keep animation,
-  layout, and user interaction wiring while these helpers own deterministic
-  state transitions and persistence side effects.
+- **Insight Reducers & Mutation State**: Candidate review stack decisions live
+  in `CandidateSwipeSession`, species observation local aggregation lives in
+  `SpeciesObservationStatsReducer`, and Content splits custom tags across
+  `UserTagValidation`, `UserTagsViewModel`, and `UserTagsDependencies`. The view
+  model restores the previous local tag list on save failure; its Services
+  adapter starts ordered, account-fenced Supabase synchronization and typed
+  search-index invalidation only after the SwiftData commit. Immutable snapshots
+  retain the authoring account ID, so an older mutation cannot overwrite newer
+  state or cross an Auth transition. SwiftUI components keep animation, layout,
+  alert drafts, and interaction wiring.
 - **Decoupled Asynchronous Validations**: All asynchronous `FileManager` fetches
   identifying historic local payloads are removed from the `ImagesCarousel` and
   isolated into the background `load` pipeline inside `InferenceEngine`.
@@ -1177,9 +1184,12 @@ an Edge API response or opened offline via the Scans library.
   (Biological and NonBiological formats). The interactive element surfaces a
   horizontal, scrolling `.capsule` array of active tags alongside an
   alert-driven text field securely bound to `LocalScanRecord.customTags`. Tag
-  edits now commit locally before cloud sync or search-index notifications; save
-  failures rollback the context, log an error, and leave the remote/search side
-  effects untouched.
+  input is limited to 50 control-free labels, 64 displayed characters, and 256
+  UTF-8 bytes per label. Edits commit locally before cloud sync or search-index
+  notifications; save failures roll back the context, log an error, and leave
+  the remote/search side effects untouched. Successful snapshots are serialized
+  in mutation order and bound to the authoring account. A cloud failure remains
+  best-effort and does not undo the committed local/search state.
 
 ### External API Enrichment
 

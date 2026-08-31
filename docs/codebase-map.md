@@ -277,12 +277,27 @@ remain in `SchemaVersions.swift`.
 
 Within Insights Sharing, `Models` owns platform-neutral Share copy and action
 projection; `Services` alone resolves publication, Community, detail,
-share-state, cache, event, preferred-name, and feedback effects; `ViewModels`
-owns the focused root-state extensions, contained reconciliation clocks, and
-observable Community request draft; and `Views` plus `Components` retain
-rendering and UI-only timing. Sharing views/components contain no networking,
-the former Explore-sharing aggregate and nested Community view path are absent,
-and every production Sharing Swift file stays below the 600-line review guard.
+share-state, cache, event, and feedback effects; `ViewModels` owns the focused
+root-state extensions, contained reconciliation clocks, and observable Community
+request draft; and `Views` plus `Components` retain rendering and UI-only
+timing. Sharing views/components contain no networking, the former
+Explore-sharing aggregate and nested Community view path are absent, and every
+production Sharing Swift file stays below the 600-line review guard.
+
+Within Insights Content, `Models` owns fact data, custom-tag validation,
+queued-retry copy, and queued phrase/rotation policy; `Services` alone resolves
+preferred-name persistence, ordered and account-bound Supabase tag
+synchronization, queue scheduling/mutation, durable queue snapshots, app events,
+and haptic feedback; and `ViewModels` owns fact-deck, tag-transaction, queued
+retry, name-preference, and Content action state. `Views` retains lifecycle
+tasks, bindings, selection, animation, and Debug fixture timing; grouped
+`Components` renders cards, Field-trip progress, header, queue recovery,
+scanning, and tags without direct networking.
+`Core/UI/Components/NamePickerSheet.swift` is the cross-feature display-only
+name chooser. Mirrored tests under `MerianTests/Features/Insights/Content` lock
+these boundaries, rollback and effect ordering, ordered tag synchronization,
+queue request identity, legacy-owner removal, and the 600-line production-file
+ceiling.
 
 Within Insights Media, `Carousel/Models` owns platform-neutral gallery,
 selection, focus, and audio-presentation policy. Its

@@ -1346,7 +1346,12 @@ The transaction log for every successful identification.
   of at most 256 UTF-8 bytes each; iOS additionally limits visible tag length to
   64 characters. Current clients call
   `update_owned_scan_custom_tags(scan_id, tags)`, which derives ownership from
-  `auth.uid()` and updates no other column. Added in
+  `auth.uid()` and updates no other column. Insight Content validates the same
+  durable bounds before its local SwiftData commit, then serializes immutable
+  cloud snapshots in mutation order. Each snapshot retains the authoring account
+  ID and must acquire an exact account-bound Auth lease before the RPC; the
+  account ID is never sent as a parameter. A failed remote mirror does not roll
+  back the already committed local tag. Added in
   `20260328221000_add_custom_tags_to_scans.sql` and hardened in
   `20260728035237_harden_dwca_downloads_and_scan_finalization.sql`.
 - `candidates` (JSONB, nullable): Per-scan array of 2 alternative species

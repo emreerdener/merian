@@ -1601,7 +1601,11 @@ entries onto `@MainActor`.
   main-actor invalidation and asks its contained coordinator to isolate the
   single durable scan ID and hot-swap only that scan's indexed search payload
   through `SearchDatabaseActor`. SwiftData remains authoritative; no
-  application-defined `Notification.Name` is involved.
+  application-defined `Notification.Name` is involved. The invalidation and
+  Supabase mirror begin only after the local save commits. Cloud snapshots run
+  serially behind their predecessor and retain the authoring account ID for an
+  exact Auth work lease, preventing out-of-order completion or account crossing
+  without blocking the main actor during network suspension.
 - **Initial Rebuild Double-Fetch Elimination**: The full-rebuild branch in
   `updateSearchableData` previously performed two sequential SwiftData fetches —
   one on `@MainActor` (via `allScans`) and one inside `SearchDatabaseActor` to

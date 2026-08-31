@@ -6,14 +6,19 @@ struct UserTagsCard: View {
     
     @Environment(\.modelContext) private var modelContext
     @Query private var records: [LocalScanRecord]
+    @State private var viewModel: UserTagsViewModel
     
     @State private var showingAddTagAlert = false
     @State private var newTagText = ""
-    @State private var tagMutationErrorMessage: String?
-    
-    init(scanId: String) {
+    init(
+        scanId: String,
+        dependencies: UserTagsDependencies? = nil
+    ) {
         self.scanId = scanId
         self._records = Query(filter: #Predicate<LocalScanRecord> { $0.id == scanId })
+        _viewModel = State(
+            initialValue: UserTagsViewModel(dependencies: dependencies)
+        )
     }
     
     var record: LocalScanRecord? {
@@ -24,7 +29,7 @@ struct UserTagsCard: View {
         if let record = record {
             UserTagsCardContent(
                 tags: record.customTags,
-                errorMessage: tagMutationErrorMessage,
+                errorMessage: viewModel.errorMessage,
                 onAddTapped: presentAddTagAlert,
                 onRemoveTag: { removeTag($0, from: record) }
             )
@@ -49,19 +54,19 @@ struct UserTagsCard: View {
 
     // MARK: - Mutable Logic
     private func addTag(_ tag: String, to record: LocalScanRecord) {
-        tagMutationErrorMessage = UserTagsMutationController.addTag(
+        viewModel.addTag(
             tag,
             to: record,
             modelContext: modelContext
-        ) ? nil : "Tags are limited to 50 labels and 64 characters each."
+        )
     }
     
     private func removeTag(_ tag: String, from record: LocalScanRecord) {
-        tagMutationErrorMessage = UserTagsMutationController.removeTag(
+        viewModel.removeTag(
             tag,
             from: record,
             modelContext: modelContext
-        ) ? nil : "Tag changes could not be saved."
+        )
     }
 }
 

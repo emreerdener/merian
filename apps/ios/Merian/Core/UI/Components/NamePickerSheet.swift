@@ -3,8 +3,7 @@ import SwiftUI
 /// A bottom sheet letting the user choose their preferred display name for a species
 /// from all known English common names (GBIF vernacular names + AI primary name).
 ///
-/// Selection is persisted via `InsightSheetViewModel.setPreferredCommonName`.
-/// "Use default" resets to the canonical DB common name.
+/// The caller owns persistence and reset semantics through `onSelect`.
 struct NamePickerSheet: View {
     let allNames: [String]
     let activeName: String

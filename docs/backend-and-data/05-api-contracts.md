@@ -8397,7 +8397,13 @@ contract for all three endpoints is
 Current iOS clients do not PATCH `public.scans` directly:
 
 - `update_owned_scan_custom_tags(p_scan_id, p_custom_tags)` accepts at most 50
-  control-free tags of at most 256 UTF-8 bytes each.
+  control-free tags of at most 256 UTF-8 bytes each. iOS applies an additional
+  64-character display limit, commits the local SwiftData mutation first, and
+  serializes immutable RPC snapshots in mutation order. Every snapshot retains
+  the authoring account ID and must acquire an exact account-bound Auth lease;
+  that identity is not part of the RPC payload. A remote failure is a
+  best-effort mirror failure and does not undo the committed local tag or local
+  search-index invalidation.
 - `update_owned_scan_identification_review(p_scan_id, p_override, p_confirmed,
   p_confirmed_species_id, p_user_review_state)`
   validates one coherent `unreviewed`, `ai_confirmed`, or `user_overridden`

@@ -30,7 +30,8 @@ final class InsightSheetViewModel {
         fieldTripAuthenticationResolver: (@MainActor () -> Bool)? = nil,
         fieldTripAvailabilityResolver: (@MainActor () -> Bool)? = nil,
         dependencies: InsightShellDependencies? = nil,
-        sharingDependencies: InsightSharingDependencies? = nil
+        sharingDependencies: InsightSharingDependencies? = nil,
+        contentDependencies: InsightContentDependencies? = nil
     ) {
         let dependencies = dependencies ?? .live
         self.queuedContext = queuedContext
@@ -38,6 +39,7 @@ final class InsightSheetViewModel {
         self.appSettings = appSettings ?? dependencies.defaultAppSettings()
         self.dependencies = dependencies
         self.sharingDependencies = sharingDependencies ?? .live
+        self.contentDependencies = contentDependencies ?? .live
         self.fieldTripContributionLoader =
             fieldTripContributionLoader ?? dependencies.loadFieldTripContributions
         self.fieldTripAuthenticationResolver =
@@ -90,6 +92,7 @@ final class InsightSheetViewModel {
     @ObservationIgnored var appSettings: AppSettings
     @ObservationIgnored let dependencies: InsightShellDependencies
     @ObservationIgnored let sharingDependencies: InsightSharingDependencies
+    @ObservationIgnored let contentDependencies: InsightContentDependencies
     @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
     @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
     @ObservationIgnored private var fieldTripAvailabilityResolver: @MainActor () -> Bool

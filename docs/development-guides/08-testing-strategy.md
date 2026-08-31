@@ -1199,11 +1199,14 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `InsightShellLifecycleTests`, `InsightShellPresentationTests`,
   `InsightShellRecordTests`, `InsightToolbarRecordSnapshotTests`,
   `InsightQueuedHandoffTests`, and `InsightFieldTripContributionTests`.
-  Product-area mirrors contain `InsightQueuedRetryPresentationTests` in Content,
-  `InsightFieldNotesStateTests` in FieldNotes, `InsightMediaAvailabilityTests`,
-  `InsightMediaGalleryTests`, `InsightMediaSuppressionTests`,
-  `InsightMediaFocusPresentationTests`, `InsightAudioPlaybackPresentationTests`,
-  and `InsightMediaCarouselArchitectureTests` in Media. Sharing owns
+  Product-area mirrors contain `InsightContentActionsTests`,
+  `UserTagsViewModelTests`, `QueuedContentViewModelTests`,
+  `QueuedScanningPresentationTests`, `InsightQueuedRetryPresentationTests`, and
+  `InsightContentArchitectureTests` in Content, `InsightFieldNotesStateTests` in
+  FieldNotes, `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
+  `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
+  `InsightAudioPlaybackPresentationTests`, and
+  `InsightMediaCarouselArchitectureTests` in Media. Sharing owns
   `InsightSharingPresentationTests`, `InsightSharePresentationModelTests`,
   `InsightSharingOperationStateTests`,
   `CommunityIdentificationRequestViewModelTests`,
@@ -1288,8 +1291,14 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   unknown-category prompt suggestions. Safety fixtures distinguish direct action
   requests such as harvesting/handling from ordinary educational species names
   and behavior questions such as poison ivy habitat or animal foraging.
-  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
-  before external cloud/search side effects can run.
+  `Features/Insights/Content/UserTagsViewModelTests.swift` verifies bounded,
+  control-free validation, deduplication, rollback, local commit before external
+  cloud/search effects, and ordered account-attributed cloud snapshots. The same
+  Content suite owns injected name-preference/refinement routing, queued retry
+  single-flight and stale completion fencing, queued phrase/rotation policy,
+  safe retry copy, and an architecture guard for Services-only live resolution,
+  render-layer network isolation, legacy-owner removal, and the 600-line
+  ceiling.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.

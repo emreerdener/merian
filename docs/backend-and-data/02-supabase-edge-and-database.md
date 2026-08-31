@@ -2439,13 +2439,17 @@ dispatch.
 Authenticated API roles cannot insert/delete scans or mutate owner, media,
 privacy, or inference columns. Current clients write tags and identification
 review through fixed-search-path SECURITY DEFINER routines that derive the owner
-from `auth.uid()`. A narrow five-column UPDATE grant is retained only as a
-rolling-compatibility bridge for already-installed clients; remove it after the
-minimum supported iOS release uses the RPCs. Database cardinality and
-element-byte constraints bound every still/video/audio URL array, custom tags,
-and identification override before any service-role fetch or deletion path.
-Migration `20260728151927_declare_scan_data_api_privileges.sql` reconstructs
-this ACL explicitly for new and existing Supabase privilege modes: `anon` and
+from `auth.uid()`. The iOS Content adapter commits tag state locally before
+external effects, serializes immutable mutation snapshots, and admits each RPC
+through an exact account-bound Auth lease captured from the authoring session;
+the account ID is never a request parameter. A narrow five-column UPDATE grant
+is retained only as a rolling-compatibility bridge for already-installed
+clients; remove it after the minimum supported iOS release uses the RPCs.
+Database cardinality and element-byte constraints bound every still/video/audio
+URL array, custom tags, and identification override before any service-role
+fetch or deletion path. Migration
+`20260728151927_declare_scan_data_api_privileges.sql` reconstructs this ACL
+explicitly for new and existing Supabase privilege modes: `anon` and
 `authenticated` receive RLS-governed reads, `service_role` receives canonical
 CRUD, `PUBLIC` receives nothing, and no API role receives
 truncate/reference/trigger/maintain authority.

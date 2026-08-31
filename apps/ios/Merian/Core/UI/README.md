@@ -135,6 +135,14 @@ owns its bounded avatar-crop preview. Pixel cropping and encoding remain in
 used by the shared Capture control bar. The Capture owner supplies feedback and
 the `CameraManager` mutation through its action closure.
 
+## Shared name selection
+
+`Components/NamePickerSheet.swift` owns the reusable navigation-list treatment
+for choosing one display name from a caller-provided set. It renders selection
+rows and the active-name checkmark but owns no species repository, persistence,
+route, feedback, or feature state. Insight Content and Explore Feed retain those
+effects in their own feature owners.
+
 ## Shared media carousel presentation
 
 `Components/MediaCarousel/` owns the domain-neutral native pager used by

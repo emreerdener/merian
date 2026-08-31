@@ -15,9 +15,12 @@ failure_diagnostics_extractor="$repo_root/scripts/extract-ios-test-failure-diagn
 ui_test_source="$repo_root/apps/ios/MerianUITests/merianUITests.swift"
 ui_seed_source="$repo_root/apps/ios/Merian/App/MerianApp.swift"
 environment_context_source="$repo_root/apps/ios/Merian/Core/Hardware/EnvironmentContextManager.swift"
-scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
+analyzing_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/AnalyzingContentView.swift"
+scanning_experience_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Components/Scanning/ScanningExperienceView.swift"
 confidence_badge_source="$repo_root/apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Views/ConfidenceBadge.swift"
 queued_content_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Views/QueuedContentView.swift"
+queued_dependencies_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Services/QueuedContentDependencies.swift"
+queued_scanning_presentation_source="$repo_root/apps/ios/Merian/Features/Insights/Content/Models/QueuedScanningPresentation.swift"
 insight_sheet_lifecycle_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Lifecycle.swift"
 insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift"
 insight_presentation_identity_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+PresentationIdentity.swift"
@@ -617,12 +620,12 @@ assert_file_contains \
   "$scanning_experience_source" \
   ".fixedSize(horizontal: true, vertical: true)"
 assert_file_contains \
-  "$scanning_experience_source" \
+  "$analyzing_content_source" \
   "UITestSeedCoordinator.performLiveQueueHandoffIfNeeded("
 assert_file_before \
   "$scanning_experience_source" \
   "            supplementalContent" \
-  "            DidYouKnowCard()"
+  "            DidYouKnowCard("
 assert_file_contains "$confidence_badge_source" "private struct BadgeGlareSweep: View"
 assert_file_contains "$confidence_badge_source" "Canvas { context, size in"
 assert_file_count "$confidence_badge_source" 0 "GeometryReader"
@@ -670,7 +673,10 @@ assert_file_count "$queued_content_source" 0 '"Continuing automatically"'
 assert_file_count "$queued_content_source" 0 '"Saved to Scans'
 assert_file_contains \
   "$queued_content_source" \
-  '? InferenceEngine.genericScanningPhasePhrases'
+  'genericPhrases: InferenceEngine.genericScanningPhasePhrases'
+assert_file_contains \
+  "$queued_scanning_presentation_source" \
+  '? genericPhrases'
 assert_file_contains "$queued_content_source" "modelContext: modelContext"
 assert_file_count "$queued_content_source" 0 "container: modelContext.container"
 assert_file_contains \
@@ -679,15 +685,18 @@ assert_file_contains \
 assert_file_count \
   "$queued_content_source" \
   1 \
+  "operationViewModel.publishSeededHandoffCompletion()"
+assert_file_contains \
+  "$queued_dependencies_source" \
   "appEventPublisher.send(.scanLibraryChanged)"
 assert_file_before \
   "$queued_content_source" \
   "let didPromoteQueuedScan = viewModel.promoteQueuedScanIfLocalRecordExists(" \
-  "appEventPublisher.send(.scanLibraryChanged)"
+  "operationViewModel.publishSeededHandoffCompletion()"
 assert_file_before \
   "$queued_content_source" \
   "guard didPromoteQueuedScan else {" \
-  "appEventPublisher.send(.scanLibraryChanged)"
+  "operationViewModel.publishSeededHandoffCompletion()"
 assert_file_contains \
   "$insight_records_source" \
   "func bindQueuedPresentationPreferringCompletedRecord("

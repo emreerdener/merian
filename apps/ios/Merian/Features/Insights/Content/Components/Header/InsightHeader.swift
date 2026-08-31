@@ -17,6 +17,7 @@ struct InsightHeader: View {
     var alternativeCommonNames: [String]?
     /// Called when the user taps the alternative names line to open the name picker.
     var onAlternativeNamesTap: (() -> Void)?
+    var onRevealFeedback: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .center, spacing: 24) {
@@ -103,8 +104,7 @@ struct InsightHeader: View {
         }
         .frame(maxWidth: .infinity)
         .onAppear {
-            // Haptic punch on reveal
-            HapticManager.shared.triggerLightImpact(intensity: 0.5)
+            onRevealFeedback()
         }
 
         // MARK: - Model Tier Badge

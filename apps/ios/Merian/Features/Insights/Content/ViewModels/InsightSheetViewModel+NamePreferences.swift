@@ -7,9 +7,9 @@ extension InsightSheetViewModel {
     /// Loads the user's preferred common name for the given scientific name.
     /// Call this whenever a new species is presented so `resolvedHeaderTitle` reflects the preference.
     func loadPreferredCommonName(for scientificName: String, modelContext: ModelContext) {
-        state.preferredCommonName = SpeciesPreferredNameRepository.preferredName(
-            for: scientificName,
-            modelContext: modelContext
+        state.preferredCommonName = contentDependencies.loadPreferredCommonName(
+            scientificName,
+            modelContext
         )
     }
 
@@ -30,23 +30,23 @@ extension InsightSheetViewModel {
                 .caseInsensitiveCompare(scientificName) == .orderedSame else {
             return
         }
-        let didSave = SpeciesPreferredNameRepository.setPreferredName(
+        let didSave = contentDependencies.setPreferredCommonName(
             name,
-            for: scientificName,
-            modelContext: modelContext
+            scientificName,
+            modelContext
         )
         guard didSave else {
             state.toastMessage = .error("Could not save preferred name")
-            HapticManager.shared.triggerErrorThump()
+            dependencies.errorFeedback()
             return
         }
 
-        state.preferredCommonName = SpeciesPreferredNameRepository.preferredName(
-            for: scientificName,
-            modelContext: modelContext
+        state.preferredCommonName = contentDependencies.loadPreferredCommonName(
+            scientificName,
+            modelContext
         )
         state.toastMessage = .success("Preferred name set to \"\(name)\"")
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.selectionFeedback()
     }
 
     /// Removes the stored preference, reverting the headline to the canonical DB common name.
@@ -64,18 +64,18 @@ extension InsightSheetViewModel {
                 .caseInsensitiveCompare(scientificName) == .orderedSame else {
             return
         }
-        let didClear = SpeciesPreferredNameRepository.clearPreferredName(
-            for: scientificName,
-            modelContext: modelContext
+        let didClear = contentDependencies.clearPreferredCommonName(
+            scientificName,
+            modelContext
         )
         guard didClear else {
             state.toastMessage = .error("Could not clear preferred name")
-            HapticManager.shared.triggerErrorThump()
+            dependencies.errorFeedback()
             return
         }
 
         state.preferredCommonName = nil
         state.toastMessage = .success("Reverted to default name")
-        HapticManager.shared.triggerSelectionPulse()
+        dependencies.selectionFeedback()
     }
 }

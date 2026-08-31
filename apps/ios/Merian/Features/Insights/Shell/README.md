@@ -199,10 +199,13 @@ Tests mirror the final owners:
 
 - `Shell/`: architecture, capabilities, lifecycle, records, typed presentations,
   toolbar snapshots, queued handoff, and Field-trip contributions;
-- `Content/`: queued retry presentation;
+- `Content/`: actions and name preferences, bounded tag transactions with
+  ordered account-fenced cloud snapshots, queue operation state, phrase/rotation
+  and retry presentation policy, plus architecture;
 - `FieldNotes/`: local/cloud and presentation-identity state;
 - `Media/`: availability, gallery, deduplication, and suppression; and
-- `Sharing/`: Explore and preferred-name presentation identity.
+- `Sharing/`: Explore publication, Community requests, and presentation
+  identity.
 
 Run the generated-project, ownership, and routing guards whenever this folder
 changes:
