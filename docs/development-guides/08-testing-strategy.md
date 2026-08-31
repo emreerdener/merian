@@ -1203,29 +1203,47 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `InsightFieldNotesStateTests` in FieldNotes, `InsightMediaAvailabilityTests`,
   `InsightMediaGalleryTests`, `InsightMediaSuppressionTests`,
   `InsightMediaFocusPresentationTests`, `InsightAudioPlaybackPresentationTests`,
-  and `InsightMediaCarouselArchitectureTests` in Media, and
-  `InsightSharingPresentationTests` in Sharing. Together they verify carousel
-  handoff integrity across queued/analyzing/result states, including mixed
-  media. The key regression is that an audio page present during analysis
-  remains present, with the same ordering, after `speciesData` arrives. They
-  also prove a lookup miss for a different presented scan clears stale
-  scan-bound state and that Explore cannot combine mismatched engine,
-  local-record, and toolbar-snapshot IDs. A direct record switch proves the
-  prior action generation and all scan-bound busy/editor state—including exact
-  post/request, Safari, candidate, and delayed-toolbar presentation targets—is
-  invalidated. Queued presentation regressions prove a delayed scan-A poll
-  cannot replace scan B's context and promotion requires the exact queued
+  and `InsightMediaCarouselArchitectureTests` in Media. Sharing owns
+  `InsightSharingPresentationTests`, `InsightSharePresentationModelTests`,
+  `InsightSharingOperationStateTests`,
+  `CommunityIdentificationRequestViewModelTests`,
+  `InsightExploreSharingViewModelTests`, and `InsightSharingArchitectureTests`.
+
+  Together they verify carousel handoff integrity across queued/analyzing/result
+  states, including mixed media. The key regression is that an audio page
+  present during analysis remains present, with the same ordering, after
+  `speciesData` arrives. They also prove a lookup miss for a different presented
+  scan clears stale scan-bound state and that Explore cannot combine mismatched
+  engine, local-record, and toolbar-snapshot IDs. A direct record switch proves
+  the prior action generation and all scan-bound busy/editor state—including
+  exact post/request, Safari, candidate, and delayed-toolbar presentation
+  targets—is invalidated. Queued presentation regressions prove a delayed scan-A
+  poll cannot replace scan B's context and promotion requires the exact queued
   subject before releasing queued routing. The mounted view additionally exits a
   canceled completion delay rather than continuing the poll. The delayed
   Explore-onboarding regression proves the retained timer is bound to scan ID
   plus presentation generation and is cancelled by reset. Field Notes tests
   cover the same ID-plus-generation boundary while preserving editing for
-  queued/offline scans. The Shell architecture suite locks its six ownership
-  folders, platform-neutral Models, live resolution in Services, absence of
-  direct networking in views/view models, aggregate removal, and the 600-line
-  ceiling. The Media architecture suite independently locks Carousel folder
-  ownership, platform-neutral Models, live effect resolution in Services,
-  private co-located playback state, extracted root composition, absence of
+  queued/offline scans.
+
+  Sharing tests separately lock exact Share copy/action projection,
+  dependency-routed publication, cache/event/feedback commits, stale
+  authoritative-refresh rejection after a same-scan mutation,
+  replacement-request fencing for the Community editor, and reset/replacement
+  invalidation of request tokens. Detail-identity regressions prove a mismatched
+  Community request cannot replace the editor draft and a mismatched advisory
+  post detail cannot overwrite confirmed Share metadata. The Sharing
+  architecture suite requires `Models`, `Services`, `ViewModels`, `Views`, and
+  `Components`; platform-neutral Models; Services-only live resolution; no
+  network client in Views or Components; removal of the former aggregate
+  locations; and the 600-line production-file ceiling.
+
+  The Shell architecture suite locks its six ownership folders, platform-neutral
+  Models, live resolution in Services, absence of direct networking in
+  views/view models, aggregate removal, and the 600-line ceiling. The Media
+  architecture suite independently locks Carousel folder ownership,
+  platform-neutral Models, live effect resolution in Services, private
+  co-located playback state, extracted root composition, absence of
   SwiftUI-backed page types from Models, and the same file-size ceiling.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation

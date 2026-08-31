@@ -1,17 +1,6 @@
 import SwiftUI
 
 struct InsightShareButton: View {
-    enum PendingAction {
-        case externalShare
-        case askCommunity
-        case composeExplorePost
-        case publishExploreAnyway
-        case editExplorePost
-        case editCommunityRequest
-        case viewCommunityRequest
-        case viewInExplore
-    }
-
     let shareExternally: () -> Void
     let onShareToExplore: ((ExplorePostComposerDraft) async -> Bool)?
     let onEditExplorePost: ((ExplorePostComposerDraft) -> Void)?
@@ -37,6 +26,7 @@ struct InsightShareButton: View {
     var fieldNotesArePublicOnExplore: Bool
     var onViewInExplore: (() -> Void)?
     var onViewCommunityRequest: (() -> Void)?
+    var dependencies: InsightShareButtonDependencies = .live
 
     @Environment(\.colorScheme) var colorScheme
     @State var showingOptions = false
@@ -44,7 +34,7 @@ struct InsightShareButton: View {
     @State var showingExplorePublishConfirmation = false
     @State private var isAwaitingExploreShareResult = false
     @State private var showingExploreShareFailure = false
-    @State var pendingAction: PendingAction?
+    @State var pendingAction: InsightSharePendingAction?
     @State var actionScanId: String?
     @State var actionPresentationGeneration: UInt64?
     @State var actionGeneration: UInt64 = 0
@@ -64,80 +54,36 @@ struct InsightShareButton: View {
             || onViewInExplore != nil
     }
 
-    var exploreHeadline: String {
-        if sharedExplorePostId != nil {
-            return "Published"
-        }
+    var sharePresentation: InsightSharePresentation {
+        InsightSharePresentation(
+            sharedExplorePostID: sharedExplorePostId,
+            recommendation: shareRecommendation
+        )
+    }
 
-        switch shareRecommendation {
-        case .askCommunity:
-            return "Ask the community"
-        case .communityPending:
-            return "Identify request"
-        case .communityResolvedNeedsPublish:
-            return "Ready to publish"
-        case .publishToExplore:
-            return "Share with community"
-        }
+    var exploreHeadline: String {
+        sharePresentation.headline
     }
 
     // BUTTONS TEXT
     var exploreActionTitle: String {
-        if sharedExplorePostId != nil {
-            return "View post"
-        }
-
-        switch shareRecommendation {
-        case .askCommunity:
-            return "Ask for ID"
-        case .communityPending:
-            return "Edit request"
-        case .communityResolvedNeedsPublish, .publishToExplore:
-            return "Share discovery"
-        }
+        sharePresentation.actionTitle
     }
 
     var exploreActionSystemImage: String {
-        switch shareRecommendation {
-        case .askCommunity:
-            return "person.crop.badge.magnifyingglass"
-        case .communityPending:
-            return "square.and.pencil"
-        case .communityResolvedNeedsPublish, .publishToExplore:
-            return "safari"
-        }
+        sharePresentation.actionSystemImage
     }
 
     var exploreDescription: String {
-        if sharedExplorePostId != nil {
-            return "This discovery is visible to the community."
-        }
-
-        switch shareRecommendation {
-        case .askCommunity:
-            return "Get help from other Naturebook explorers before adding this discovery to Explore observations."
-        case .communityPending:
-            return "This scan is public in Identify while the community reviews the ID."
-        case .communityResolvedNeedsPublish:
-            return "The community identified this request. Publish it to Explore when you are ready."
-        case .publishToExplore:
-            return "Publish this discovery so others can learn and explore."
-        }
+        sharePresentation.description
     }
 
     var pendingCommunityPublishDisclaimer: String {
-        "The community is still reviewing this ID. Publish only if you are comfortable making it visible in Explore now."
+        InsightSharePresentation.pendingCommunityPublishDisclaimer
     }
 
     var explorePublishConfirmationMessage: String {
-        switch shareRecommendation {
-        case .communityPending:
-            return pendingCommunityPublishDisclaimer
-        case .askCommunity:
-            return "This ID has not been confirmed yet. Ask the community first if you want help verifying it before publishing."
-        case .communityResolvedNeedsPublish, .publishToExplore:
-            return "Publish this discovery so others can learn and explore."
-        }
+        sharePresentation.publishConfirmationMessage
     }
 
     var primaryBlue: Color {
@@ -494,8 +440,8 @@ struct InsightShareButton: View {
         }
 
         do {
-            let hashtags = try await MerianNetworkClient.shared
-                .getFieldTripChallengeHashtags(scanId: scanId)
+            let hashtags = try await dependencies
+                .loadChallengeEventHashtags(scanId)
             guard !Task.isCancelled,
                   presentationGeneration == expectedPresentationGeneration,
                   self.scanId?.caseInsensitiveCompare(scanId) == .orderedSame else {

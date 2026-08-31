@@ -902,6 +902,13 @@ an Edge API response or opened offline via the Scans library.
     owner: field-note behavior in `FieldNotes/ViewModels/`, Explore sharing in
     `Sharing/ViewModels/`, media export in `Media/Utilities/`, and name
     preferences in `Content/NamePreferences/ViewModels/`.
+  - `Sharing/Models/` owns platform-neutral Share copy and action projection;
+    `Sharing/Services/` alone resolves live publication, Community request,
+    detail, share-state, cache, event, preferred-name, and feedback effects; and
+    `Sharing/ViewModels/` owns the focused root-state extensions, contained
+    reconciliation clocks, and observable Community request draft. Its `Views/`
+    and `Components/` retain only rendering plus sheet, selection, focus, and
+    action-generation timing, with no direct networking or singleton resolution.
   - `Shell/Services/InsightShellDependencies.swift` is the only Shell source
     that resolves the live network client, authentication, repositories, feature
     access, app routing, badge updates, or haptic feedback. The root view and

@@ -211,6 +211,17 @@ Implemented Insights slices:
   equal ID/reuse keys and invalidates the native data-source cache for sequence
   or key changes; the extracted audio render surface reads live player progress
   through a closure without widening player ownership.
+- `Insights/Sharing` now separates platform-neutral Share presentation values,
+  Services-only publication, Community, detail, cache, event, repository, and
+  feedback adapters; focused root-view-model extensions; a contained share-state
+  request/revision owner; an observable Community request draft; thin Views; and
+  stable Share Components. The 773-line Explore-sharing aggregate and old nested
+  Community sheet path were removed. Existing component, route, root action,
+  copy, accessibility, and endpoint contracts remain stable; views and
+  components perform no networking; and every production Sharing Swift file is
+  below 600 lines. Deterministic tests lock dependency routing, presentation
+  copy, same-scan mutation versus reconciliation, replacement-request fencing,
+  Services-only live resolution, and the new ownership map.
 
 Implemented cross-feature slices:
 

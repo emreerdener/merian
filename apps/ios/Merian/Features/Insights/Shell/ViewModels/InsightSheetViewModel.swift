@@ -29,13 +29,15 @@ final class InsightSheetViewModel {
         fieldTripContributionLoader: ((String) async throws -> [FieldTripScanContribution])? = nil,
         fieldTripAuthenticationResolver: (@MainActor () -> Bool)? = nil,
         fieldTripAvailabilityResolver: (@MainActor () -> Bool)? = nil,
-        dependencies: InsightShellDependencies? = nil
+        dependencies: InsightShellDependencies? = nil,
+        sharingDependencies: InsightSharingDependencies? = nil
     ) {
         let dependencies = dependencies ?? .live
         self.queuedContext = queuedContext
         self.inferenceEngine = inferenceEngine
         self.appSettings = appSettings ?? dependencies.defaultAppSettings()
         self.dependencies = dependencies
+        self.sharingDependencies = sharingDependencies ?? .live
         self.fieldTripContributionLoader =
             fieldTripContributionLoader ?? dependencies.loadFieldTripContributions
         self.fieldTripAuthenticationResolver =
@@ -53,8 +55,7 @@ final class InsightSheetViewModel {
     func reset() {
         cancelDelayedExploreOnboardingPresentation()
         scanBoundActionGeneration &+= 1
-        sharedExploreStateRevision &+= 1
-        sharedExploreStateRequestToken &+= 1
+        sharingOperations.invalidate()
         fieldTripContributionRequestToken &+= 1
         boundFieldNotesScanId = nil
         state = UIState()
@@ -79,8 +80,7 @@ final class InsightSheetViewModel {
     /// generations and is cleared when the sheet view model resets.
     var focusOverlayInteractionState = FocusOverlayInteractionState()
     @ObservationIgnored var scanBoundActionGeneration: UInt64 = 0
-    @ObservationIgnored var sharedExploreStateRevision: UInt64 = 0
-    @ObservationIgnored var sharedExploreStateRequestToken: UInt64 = 0
+    @ObservationIgnored let sharingOperations = InsightSharingOperationState()
     @ObservationIgnored var boundFieldNotesScanId: String?
     @ObservationIgnored var fieldTripContributionRequestToken: UInt64 = 0
     @ObservationIgnored var exploreOnboardingPresentationTask: Task<Void, Never>?
@@ -89,6 +89,7 @@ final class InsightSheetViewModel {
     @ObservationIgnored var exploreOnboardingPresentationGeneration: UInt64?
     @ObservationIgnored var appSettings: AppSettings
     @ObservationIgnored let dependencies: InsightShellDependencies
+    @ObservationIgnored let sharingDependencies: InsightSharingDependencies
     @ObservationIgnored private var fieldTripContributionLoader: (String) async throws -> [FieldTripScanContribution]
     @ObservationIgnored private var fieldTripAuthenticationResolver: @MainActor () -> Bool
     @ObservationIgnored private var fieldTripAvailabilityResolver: @MainActor () -> Bool

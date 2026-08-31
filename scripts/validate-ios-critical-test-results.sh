@@ -600,28 +600,28 @@ assert_suite_has_passed_test_case \
   "testGetExploreShareStateAcceptsServerHiddenPostWithoutCommunityRequest"
 assert_suite_has_passed_test_case \
   "Explore Field Chat identifier routing" \
-  "InsightChatTests" \
-  "Insight Chat Tests" \
+  "FieldChatAPIModelsTests" \
+  "Field Chat API Models Tests" \
   "explorePostRequestUsesPostIdentifierContract"
 assert_suite_has_passed_test_case \
   "Field Chat transient-readiness recovery" \
-  "InsightChatTests" \
-  "Insight Chat Tests" \
+  "FieldChatViewModelStateTests" \
+  "Field Chat ViewModel State Tests" \
   "testTransientOwnedScanReadinessKeepsChatEntryRetryable"
 assert_suite_has_passed_test_case \
   "Field Chat single-flight preparation" \
-  "InsightChatTests" \
-  "Insight Chat Tests" \
+  "FieldChatPresentationPreparationTests" \
+  "Field Chat Presentation Preparation Tests" \
   "testConcurrentPresentationRequestsSharePreparationResult"
 assert_suite_has_passed_test_case \
   "Field Chat stale-subject completion fence" \
-  "InsightChatTests" \
-  "Insight Chat Tests" \
+  "FieldChatViewModelStateTests" \
+  "Field Chat ViewModel State Tests" \
   "testFieldChatRejectsStaleSubjectCompletion"
 assert_suite_has_passed_test_case \
   "Field Chat changed-subject preparation replacement" \
-  "InsightChatTests" \
-  "Insight Chat Tests" \
+  "FieldChatPresentationPreparationTests" \
+  "Field Chat Presentation Preparation Tests" \
   "testFieldChatReplacesPreparationForChangedSubject"
 assert_suite_has_passed_test_case \
   "Issue-reporting presented-scan identity fence" \

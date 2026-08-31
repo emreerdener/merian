@@ -299,6 +299,26 @@ a dismissed or replaced destination cannot publish after its delay. Existing
 call sites retain their initializer signatures; the optional trailing Shell
 dependency defaults to the live adapter.
 
+## Insight Sharing Ownership
+
+[Insight Sharing](Merian/Features/Insights/Sharing/README.md) separates
+platform-neutral Share copy/action models; Services-only endpoint, cache, event,
+repository, and feedback adapters; focused root-view-model extensions; a
+contained share-state request/revision owner; the observable Community request
+draft; and thin Views and Components. The Shell-owned `InsightSheetViewModel`
+remains the single root state owner and accepts an optional trailing Sharing
+dependency for deterministic tests.
+
+Sharing views and components issue no endpoint calls and resolve no live
+singleton. Async share-state hydration, publication, editing, and Community
+request work retain the existing scan/generation fences; same-scan mutations
+invalidate older reconciliation, and a replacement Community request rejects a
+late detail response from its predecessor. Existing screen and component
+initializers, visible copy, accessibility labels, routes, and endpoint contracts
+remain stable. Mirrored Sharing tests enforce those races, deterministic
+presentation, ownership folders, aggregate removal, Services-only live
+resolution, and the 600-line production-file ceiling.
+
 ## AI And Foreground Analysis
 
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local

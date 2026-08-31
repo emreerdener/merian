@@ -117,6 +117,14 @@ The bus itself performs no coalescing and stores no replay. â€œLogical identityâ
 defines why duplicate delivery is safe and how a future consumer may bound its
 own refresh work; it is not permission to treat the event as authoritative.
 
+For Insight-originated `exploreShareStateChanged`, the mutation decision and
+scan/generation fence belong to `Features/Insights/Sharing/ViewModels`; the live
+event-publisher adapter belongs to `Features/Insights/Sharing/Services`. Neither
+the Share component nor the Community request sheet resolves the app container
+or emits the event directly. The event remains a loss-tolerant cache
+invalidation hint; the local cache and authoritative cloud share-state response
+remain recovery sources.
+
 Do not put arrays of scans, images, SwiftData models, view instances, closures,
 or navigation destinations in an event. IDs and small scalar invalidation hints
 are the upper bound.

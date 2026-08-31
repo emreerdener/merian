@@ -114,15 +114,18 @@ struct InsightShellPresentationTests {
     @Test func testResetMonotonicallyInvalidatesScanBoundRequests() {
         let viewModel = InsightSheetViewModel()
         viewModel.scanBoundActionGeneration = 7
-        viewModel.sharedExploreStateRevision = 11
-        viewModel.sharedExploreStateRequestToken = 13
         viewModel.fieldTripContributionRequestToken = 17
+        let sharingRevision = viewModel.sharingOperations.revision
+        let sharingRequestToken = viewModel.sharingOperations.requestToken
 
         viewModel.reset()
 
         #expect(viewModel.scanBoundActionGeneration == 8)
-        #expect(viewModel.sharedExploreStateRevision == 12)
-        #expect(viewModel.sharedExploreStateRequestToken == 14)
+        #expect(viewModel.sharingOperations.revision == sharingRevision + 1)
+        #expect(
+            viewModel.sharingOperations.requestToken ==
+                sharingRequestToken + 1
+        )
         #expect(viewModel.fieldTripContributionRequestToken == 18)
     }
 

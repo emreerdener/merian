@@ -10,17 +10,40 @@ iOS share sheet (Messages, Mail, etc.) and handles the specialized flow for
 publishing a private scan to the public Naturebook `Explore` feed, including the
 attachment of public hashtags and common-name snapshots.
 
+## Ownership
+
+- `Models/` owns platform-neutral Share action and copy projection.
+- `Services/` is the only Sharing owner allowed to resolve live network,
+  application-event, cache, repository, and haptic dependencies. Its small
+  initializer-injected closure values adapt those effects for the root Insight
+  state owner, the Share component, and the Community request editor.
+- `ViewModels/` owns Explore publication and editing actions, authoritative
+  share-state reconciliation, Community request mutation, generation/revision
+  fencing, and the observable Community request draft. The root
+  `InsightSheetViewModel` remains Shell-owned; Sharing extends it without
+  creating another root state owner.
+- `Views/` owns Community request composition and sheet presentation.
+- `Components/` owns the stable `InsightShareButton` entry and its nested
+  options, warning, and Explore composer presentations. Selection, sheet, focus,
+  and component action-generation state remain view-local.
+
+Views and components perform no networking or live singleton resolution. Every
+production Swift file in this directory remains below the 600-line review guard.
+Wire DTOs, strict response validation, and recovery transport remain in
+`Core/Network`; this refactor does not change an endpoint, payload, persistence,
+feature flag, or navigation contract.
+
 ## Explore Publication Contract
 
-`InsightSheetViewModel+ExploreSharing` owns presentation state, while
-`MerianNetworkClient.shareScanToExplore(scan:...)` owns the authenticated
-publication and guarded recovery sequence. One user action always targets the
-stable scan UUID. Explore actions remain disabled unless the completed engine
-result, active local-record model and ID, and immutable toolbar snapshot all
-identify that same scan. A failed lookup for a newly presented scan clears stale
-scan-bound post, Community, notes, media, and action state from the previous
-record; a transient lookup miss for the same scan preserves its snapshot while
-SwiftData contexts propagate.
+The focused `Sharing/ViewModels` extensions own presentation and mutation state,
+while the injected closures in `Sharing/Services` adapt
+`MerianNetworkClient.shareScanToExplore(scan:...)` and the guarded recovery
+sequence. One user action always targets the stable scan UUID. Explore actions
+remain disabled unless the completed engine result, active local-record model
+and ID, and immutable toolbar snapshot all identify that same scan. A failed
+lookup for a newly presented scan clears stale scan-bound post, Community,
+notes, media, and action state from the previous record; a transient lookup miss
+for the same scan preserves its snapshot while SwiftData contexts propagate.
 
 Both direct Explore and Ask the Community additionally require a resolved,
 non-Human biological subject in the live `SpeciesData` and persisted-record
@@ -43,6 +66,12 @@ revision so an older detail refresh cannot restore stale hashtags, privacy, or
 field-note visibility. Post and Community mutations additionally retain the
 exact post or request UUID they addressed; a same-scan topology change cannot
 let an older response update the replacement publication.
+
+Detail hydration also requires the decoded response to echo the exact requested
+post or Community request UUID. A mismatched Community response leaves the
+editor draft intact and reports the normal invalid-response error; a mismatched
+advisory post detail is ignored without weakening the already confirmed Share
+state.
 
 `InsightShareButton` has an independent action generation for its nested
 options, warning, and composer sheets. Opening Share captures the scan ID and
@@ -283,6 +312,28 @@ Insight. The follow-up post-detail read is advisory: transport or availability
 failure preserves the last confirmed or optimistic hashtags, privacy, and
 field-note visibility rather than treating a failed read as proof that public
 notes became private.
+
+## Verification
+
+Run the focused Sharing and affected Shell suites after regenerating the
+project:
+
+```bash
+make xcodegen
+xcodebuild -project merian.xcodeproj -scheme Merian \
+  -destination 'id=<BOOTED_SIMULATOR_ID>' \
+  -only-testing:merianTests/InsightSharingPresentationTests \
+  -only-testing:merianTests/InsightSharePresentationModelTests \
+  -only-testing:merianTests/InsightSharingOperationStateTests \
+  -only-testing:merianTests/CommunityIdentificationRequestViewModelTests \
+  -only-testing:merianTests/InsightExploreSharingViewModelTests \
+  -only-testing:merianTests/InsightSharingArchitectureTests \
+  -only-testing:merianTests/InsightShellPresentationTests test
+```
+
+`InsightSharingArchitectureTests` enforces folder ownership, platform-neutral
+Models, Services-only live resolution, the Views/Components networking ban,
+aggregate removal, and the 600-line production-file ceiling.
 
 ## Privacy and Security
 

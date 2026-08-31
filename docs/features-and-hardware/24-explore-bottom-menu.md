@@ -218,10 +218,14 @@ the same request sheet in edit mode, prefills the current note and location
 sharing from request detail, and saves through
 `/update-community-identification-request`. Opening **Edit request** from the
 community request detail menu uses that same
-`CommunityIdentificationRequestSheet` component, so Insight-originated edits and
-request-detail edits share the same toolbar Save action and form layout. Pending
-requests render horizontal **Edit** and **View** actions first, followed by a
-separate **Publish to Explore** action with a visible disclaimer that the
+`Features/Insights/Sharing/Views/Community/CommunityIdentificationRequestSheet`
+component, so Insight-originated edits and request-detail edits share the same
+toolbar Save action and form layout. The sheet's observable Sharing view model
+owns only draft/loading state and exact-request generation fencing; its injected
+Sharing Service closure performs the existing-detail endpoint call, while the
+Insight or Identify host retains the typed create/update completion action.
+Pending requests render horizontal **Edit** and **View** actions first, followed
+by a separate **Publish to Explore** action with a visible disclaimer that the
 community is still reviewing the ID. New scans continue to use the sheet in
 create mode and call `/request-community-identification`.
 

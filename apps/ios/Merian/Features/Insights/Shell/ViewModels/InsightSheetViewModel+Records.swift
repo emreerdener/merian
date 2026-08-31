@@ -305,8 +305,7 @@ extension InsightSheetViewModel {
     private func invalidateScanBoundPresentationState() {
         cancelDelayedExploreOnboardingPresentation()
         scanBoundActionGeneration &+= 1
-        sharedExploreStateRequestToken &+= 1
-        sharedExploreStateRevision &+= 1
+        sharingOperations.invalidate()
         invalidateFieldTripScanContributions()
         activeLocalRecord = nil
         activeLocalRecordId = nil

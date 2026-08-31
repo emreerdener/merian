@@ -1927,6 +1927,12 @@ Example `suggested_taxa` shape:
 ]
 ```
 
+The shared iOS Community request editor treats this detail as candidate input.
+Its generation-fenced state owner requires the returned `request_id` to
+case-insensitively match the exact requested UUID before hydrating the note or
+location choice. Replacement loads and mismatched responses preserve the newer
+draft; a current mismatched response follows the normal invalid-response path.
+
 ### `/update-community-identification-request`
 
 Updates the authenticated request owner’s editable request info. Accepts
@@ -3792,6 +3798,13 @@ Current response shape:
 }
 ```
 
+For Insight Share-state hydration, this response is advisory. The Sharing state
+owner accepts its hashtags, location choice, and Field Notes visibility only
+when the returned `post_id` case-insensitively matches the exact requested post
+UUID and the same scan/generation/reconciliation request still owns the open
+Insight. A foreign or stale detail cannot clear or replace already confirmed or
+optimistic Share metadata.
+
 This endpoint exists so Explore can render public species cards on the detail
 page without loading private scan state or the Insight `InferenceEngine`.
 
@@ -5316,12 +5329,27 @@ The Explore iOS mapping, state, and presentation layers are:
   the staged-to-pending dismiss handoff
 - `apps/ios/Merian/Features/Explore/Shell/Views/` plus `Components/` for the
   network-free root navigation, lifecycle, presentation, and chrome
+- `apps/ios/Merian/Features/Insights/Sharing/Services/` for the live direct
+  publication, Community request, detail, authoritative share-state, cache,
+  app-event, preferred-name, and feedback adapters
+- `apps/ios/Merian/Features/Insights/Sharing/ViewModels/` for generation-fenced
+  Explore publication and editing, share-state reconciliation, Community
+  mutation, and the observable request draft
+- `apps/ios/Merian/Features/Insights/Sharing/Views/` plus `Components/` for the
+  stable network-free Share and Community request presentations
 
 Feed views and components do not resolve endpoint clients. The Feed state owners
 invoke small initializer-injected closure groups; only their live
 implementations under `Feed/Services` bridge to `MerianNetworkClient`, Supabase
 realtime, identity/entitlement services, telemetry, or image loading. Wire DTOs
 and JSON contracts remain in `Core/Network/ExploreAPIModels.swift`.
+
+Insights Sharing follows the same boundary. Its views and components invoke
+initializer-injected closure values; only the live implementations under
+`Sharing/Services` bridge to `MerianNetworkClient`, the local Share-state cache,
+the typed app-event publisher, preferred-name persistence, or haptic feedback.
+The focused Sharing view-model extensions remain attached to the Shell-owned
+`InsightSheetViewModel` rather than introducing a second root state owner.
 
 Notifications uses the same rule: only live closures under
 `Notifications/Services` bridge to `MerianNetworkClient` or viewer identity. The

@@ -299,19 +299,15 @@ extension InsightShareButton {
         }
     }
 
-    private var primaryExplorePanelAction: PendingAction {
-        switch shareRecommendation {
-        case .askCommunity:
-            onAskCommunity == nil ? .composeExplorePost : .askCommunity
-        case .communityPending:
-            onEditCommunityRequest == nil ? .viewCommunityRequest : .editCommunityRequest
-        case .communityResolvedNeedsPublish, .publishToExplore:
-            .composeExplorePost
-        }
+    private var primaryExplorePanelAction: InsightSharePendingAction {
+        sharePresentation.primaryAction(
+            canAskCommunity: onAskCommunity != nil,
+            canEditCommunityRequest: onEditCommunityRequest != nil
+        )
     }
 
     private func selectPendingAction(
-        _ action: PendingAction,
+        _ action: InsightSharePendingAction,
         expectedScanId: String?,
         expectedGeneration: UInt64?
     ) {
@@ -396,9 +392,8 @@ extension InsightShareButton {
         Task {
             let serverItems: [ExplorePostComposerMediaDraft]?
             do {
-                let payload = try await MerianNetworkClient.shared
-                    .getExploreComposerMedia(scanId: targetScanId)
-                serverItems = ExplorePostComposerMediaDraft.sourceItems(from: payload.mediaItems)
+                serverItems = try await dependencies
+                    .loadComposerMedia(targetScanId)
             } catch {
                 serverItems = nil
             }

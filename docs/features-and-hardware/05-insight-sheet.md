@@ -113,6 +113,17 @@ queued handoff, and Explore-composer responsibilities while the views retain
 gallery, scrolling, focus, animation, and dismissal timing. Every production
 Shell Swift file remains below the 600-line review guard.
 
+`Sharing/` mirrors that boundary below the Shell. Platform-neutral Models own
+Share copy and action projection; Services alone adapt the live publication,
+Community request, detail, share-state, cache, app-event, preferred-name, and
+feedback effects; focused root-view-model extensions own mutations and
+reconciliation; and the observable Community request view model owns only its
+draft/load state. Views and Components retain sheet, focus, selection, and
+action-generation timing and perform no networking. The existing
+`InsightShareButton`, Community request sheet, root view-model action, and route
+signatures remain stable, and every production Sharing Swift file stays below
+the 600-line guard.
+
 Mirrored tests live under `MerianTests/Features/Insights/Shell`, `Content`,
 `FieldNotes`, `Media`, and `Sharing`. `InsightShellArchitectureTests` enforces
 the folder shape, deterministic Models, live-service confinement, no networking
@@ -462,6 +473,15 @@ Open, Obscured, or Private without mutating the underlying scan. This keeps the
 toolbar fast on-device while also correcting stale cache after reinstall,
 cross-device share/unshare, failed media publish, or remote visibility changes.
 
+The reconciliation state belongs to
+`Sharing/ViewModels/InsightSharingOperationState.swift`. Each authoritative read
+captures one request token and the current same-scan mutation revision.
+Replacement reads, sheet reset, record replacement, and successful publication
+or Community mutations invalidate an older read before it can update the open
+Insight. `Sharing/Services/InsightSharingDependencies.swift` is the only Sharing
+declaration that resolves the live endpoint, local share-state cache, app-event
+publisher, preferred-name repository, or haptic feedback.
+
 The completed `InferenceEngine.speciesData.scanId` is the action presentation
 authority. `presentedSpeciesScanId` returns a value only when any active
 local-record ID and toolbar snapshot identify that same scan. Explore requires
@@ -504,7 +524,10 @@ matching captured target, never an editor, gallery, Safari page, candidate
 review, or chat opened by a newer render. Same-scan Explore and Community
 mutations also retain the exact post/request UUID across their await. The
 advisory post-detail projection preserves the last confirmed or optimistic Field
-Notes visibility when that read is unavailable.
+Notes visibility when that read is unavailable or echoes a different post UUID.
+Community editor hydration likewise requires the decoded detail to echo the
+requested request UUID; a mismatch preserves the current draft and follows the
+normal invalid-response feedback path.
 
 `InsightContentView` maps its independently-owned destination state into one
 typed `InsightContentPresentation`. Safari, report, Community request, Explore
@@ -557,15 +580,17 @@ route, independently repeats that owner-row eligibility check.
 
 `TopToolbar` also exposes **Ask the Community** beside the identification
 actions when `canRequestCommunityIdentification` is true. The CTA opens
-`CommunityIdentificationRequestSheet`, where the user can add an optional note
-and choose the same Open/Obscured/Private post-level location sharing used by
-Explore sharing. Submission calls `/request-community-identification`, creating
-or reusing the scan's Explore post and flagging it as a `needs_id` community
-request. That post is then marked `community_needs_id` in
-`explore_observation_projection` and hidden from the normal Explore
-feed/map/author/hashtag projections. Resolved community requests remain public
-inside Identify, but they do not enter normal Explore surfaces until the owner
-explicitly publishes them afterward.
+`Sharing/Views/Community/CommunityIdentificationRequestSheet`, where the user
+can add an optional note and choose the same Open/Obscured/Private post-level
+location sharing used by Explore sharing. The sheet delegates existing-request
+detail hydration to its generation-fenced Sharing view model, whose injected
+Service closure owns the endpoint call. Submission calls
+`/request-community-identification`, creating or reusing the scan's Explore post
+and flagging it as a `needs_id` community request. That post is then marked
+`community_needs_id` in `explore_observation_projection` and hidden from the
+normal Explore feed/map/author/hashtag projections. Resolved community requests
+remain public inside Identify, but they do not enter normal Explore surfaces
+until the owner explicitly publishes them afterward.
 
 Taxonomy resolution and audible-media moderation complete before one final
 `request_community_identification_atomically(...)` mutation. The post/media

@@ -222,11 +222,15 @@ write_test_tree() {
             suite("InsightQueuedRetryPresentationTests"; [
               "testQueuedPresentationRemainsQueuedWhenCompletionIsAbsent"
             ]),
-            suite("InsightChatTests"; [
-              "explorePostRequestUsesPostIdentifierContract",
+            suite("FieldChatAPIModelsTests"; [
+              "explorePostRequestUsesPostIdentifierContract"
+            ]),
+            suite("FieldChatViewModelStateTests"; [
               "testTransientOwnedScanReadinessKeepsChatEntryRetryable",
+              "testFieldChatRejectsStaleSubjectCompletion"
+            ]),
+            suite("FieldChatPresentationPreparationTests"; [
               "testConcurrentPresentationRequestsSharePreparationResult",
-              "testFieldChatRejectsStaleSubjectCompletion",
               "testFieldChatReplacesPreparationForChangedSubject"
             ]),
             suite("ReportInsightViewModel Tests"; [

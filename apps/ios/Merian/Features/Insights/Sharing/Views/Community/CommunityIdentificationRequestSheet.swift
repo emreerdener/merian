@@ -12,13 +12,44 @@ struct CommunityIdentificationRequestSheet: View {
     let onSubmit: (String?, ExplorePostLocationSharing) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var note = ""
-    @State private var locationSharing: ExplorePostLocationSharing = .obscured
-    @State private var hasLoadedExistingRequest = false
-    @State private var isLoadingExistingRequest = false
-    @State private var loadErrorMessage: String?
+    @State private var viewModel: CommunityIdentificationRequestViewModel
+
+    init(
+        speciesName: String,
+        scientificName: String,
+        existingRequestId: String?,
+        initialNote: String?,
+        initialLocationSharing: ExplorePostLocationSharing?,
+        shouldLoadExistingRequestDetail: Bool,
+        isSubmitting: Bool,
+        onLoadFailed: @escaping (String) -> Void,
+        onSubmit: @escaping (
+            String?,
+            ExplorePostLocationSharing
+        ) -> Void,
+        dependencies: CommunityRequestDependencies? = nil
+    ) {
+        self.speciesName = speciesName
+        self.scientificName = scientificName
+        self.existingRequestId = existingRequestId
+        self.initialNote = initialNote
+        self.initialLocationSharing = initialLocationSharing
+        self.shouldLoadExistingRequestDetail = shouldLoadExistingRequestDetail
+        self.isSubmitting = isSubmitting
+        self.onLoadFailed = onLoadFailed
+        self.onSubmit = onSubmit
+        _viewModel = State(
+            initialValue: CommunityIdentificationRequestViewModel(
+                initialNote: initialNote,
+                initialLocationSharing: initialLocationSharing,
+                dependencies: dependencies
+            )
+        )
+    }
 
     var body: some View {
+        @Bindable var viewModel = viewModel
+
         NavigationStack {
             Form {
                 Section {
@@ -33,10 +64,10 @@ struct CommunityIdentificationRequestSheet: View {
                 }
 
                 Section("Request") {
-                    TextEditor(text: $note)
+                    TextEditor(text: $viewModel.note)
                         .frame(minHeight: 120)
                         .overlay(alignment: .topLeading) {
-                            if note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            if viewModel.trimmedNote == nil {
                                 Text("What should identifiers know?")
                                     .foregroundStyle(.secondary)
                                     .padding(.top, 8)
@@ -47,14 +78,17 @@ struct CommunityIdentificationRequestSheet: View {
                 }
 
                 Section("Location") {
-                    Picker("Location Sharing", selection: $locationSharing) {
+                    Picker(
+                        "Location Sharing",
+                        selection: $viewModel.locationSharing
+                    ) {
                         ForEach(ExplorePostLocationSharing.allCases) { option in
                             Text(option.title).tag(option)
                         }
                     }
                 }
 
-                if isLoadingExistingRequest {
+                if viewModel.isLoading {
                     Section {
                         HStack {
                             Spacer()
@@ -62,7 +96,7 @@ struct CommunityIdentificationRequestSheet: View {
                             Spacer()
                         }
                     }
-                } else if let loadErrorMessage {
+                } else if let loadErrorMessage = viewModel.loadErrorMessage {
                     Section {
                         Text(loadErrorMessage)
                             .font(.footnote)
@@ -70,7 +104,7 @@ struct CommunityIdentificationRequestSheet: View {
                     }
                 }
             }
-            .disabled(isLoadingExistingRequest || isSubmitting)
+            .disabled(viewModel.isLoading || isSubmitting)
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -81,17 +115,26 @@ struct CommunityIdentificationRequestSheet: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .bold))
                             .imageOverlayToolbarIconChrome(
-                                isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground,
+                                isFallbackActive:
+                                    ImageOverlayToolbarChrome
+                                        .shouldUseContainedBackground,
                                 foregroundColor: .primary
                             )
                     }
                     .accessibilityLabel("Close")
-                    .imageOverlayToolbarButtonChrome(isFallbackActive: ImageOverlayToolbarChrome.shouldUseContainedBackground)
+                    .imageOverlayToolbarButtonChrome(
+                        isFallbackActive:
+                            ImageOverlayToolbarChrome
+                                .shouldUseContainedBackground
+                    )
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        onSubmit(trimmedNote, locationSharing)
+                        onSubmit(
+                            viewModel.trimmedNote,
+                            viewModel.locationSharing
+                        )
                     } label: {
                         if isSubmitting {
                             ProgressView()
@@ -102,19 +145,30 @@ struct CommunityIdentificationRequestSheet: View {
                         }
                     }
                     .tint(.blue)
-                    .disabled(isSubmitting || isLoadingExistingRequest)
-                    .accessibilityLabel(isSubmitting ? submissionProgressLabel : actionTitle)
+                    .disabled(isSubmitting || viewModel.isLoading)
+                    .accessibilityLabel(
+                        isSubmitting ? submissionProgressLabel : actionTitle
+                    )
                 }
             }
             .task(id: existingRequestId) {
-                await loadExistingRequestIfNeeded()
+                if let message = await viewModel.loadExistingRequestIfNeeded(
+                    requestID: existingRequestId,
+                    initialNote: initialNote,
+                    initialLocationSharing: initialLocationSharing,
+                    shouldLoadDetail: shouldLoadExistingRequestDetail
+                ) {
+                    onLoadFailed(message)
+                }
             }
         }
         .presentationDetents([.medium, .large])
     }
 
     private var isEditingExistingRequest: Bool {
-        existingRequestId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        existingRequestId?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
     }
 
     private var navigationTitle: String {
@@ -127,50 +181,5 @@ struct CommunityIdentificationRequestSheet: View {
 
     private var submissionProgressLabel: String {
         isEditingExistingRequest ? "Saving" : "Sending"
-    }
-
-    private var trimmedNote: String? {
-        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func loadExistingRequestIfNeeded() async {
-        guard let existingRequestId,
-              existingRequestId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            note = initialNote ?? ""
-            locationSharing = initialLocationSharing ?? .obscured
-            hasLoadedExistingRequest = false
-            loadErrorMessage = nil
-            return
-        }
-        guard !hasLoadedExistingRequest else { return }
-
-        if let initialNote {
-            note = initialNote
-        }
-        if let initialLocationSharing {
-            locationSharing = initialLocationSharing
-        }
-        guard shouldLoadExistingRequestDetail else {
-            hasLoadedExistingRequest = true
-            loadErrorMessage = nil
-            return
-        }
-
-        isLoadingExistingRequest = true
-        defer { isLoadingExistingRequest = false }
-
-        do {
-            let detail = try await MerianNetworkClient.shared.getCommunityIdentificationDetail(requestId: existingRequestId)
-            guard !Task.isCancelled else { return }
-            note = detail.note ?? ""
-            locationSharing = detail.locationSharing ?? initialLocationSharing ?? .obscured
-            hasLoadedExistingRequest = true
-            loadErrorMessage = nil
-        } catch {
-            let message = ExploreErrorFormatter.message(for: error)
-            loadErrorMessage = message
-            onLoadFailed(message)
-        }
     }
 }

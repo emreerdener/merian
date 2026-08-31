@@ -146,14 +146,19 @@ withholds location fields without hiding an otherwise visible tagged post.
   `Features/Explore/Feed/Views/ExploreHashtagPostsView.swift` and
   `Features/Explore/Feed/ViewModels/ExploreHashtagPostsViewModel.swift`
 - Root navigation registration: `Features/Explore/Shell/Views/ExploreView.swift`
-- Share input: `Features/Insights/Sharing/Components/InsightShareButton.swift`
+- Share input UI:
+  `Features/Insights/Sharing/Components/InsightShareButton.swift`
+- Share input endpoint adapter:
+  `Features/Insights/Sharing/Services/InsightSharingDependencies.swift`
 - Composer UI: `Features/Explore/Feed/Components/ExplorePostComposerView.swift`
 - Suggestion context and ranking:
   `Features/Explore/Feed/Models/ExploreHashtagSuggestion.swift`
 - Context assembly from scan/identification metadata:
   `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift`
-- Field trip Challenge hashtag lookup:
-  `MerianNetworkClient.shared.getFieldTripChallengeHashtags(scanId:)`
+- Field trip Challenge hashtag lookup: the Share component calls the injected
+  `InsightShareButtonDependencies.loadChallengeEventHashtags` closure; its live
+  Services adapter delegates to
+  `MerianNetworkClient.getFieldTripChallengeHashtags(scanId:)`.
 - Regression tests:
   `MerianTests/Features/Explore/Feed/ExploreHashtagSuggestionTests.swift` and
   `MerianTests/Features/Explore/Feed/ExploreHashtagPostsViewModelTests.swift`
