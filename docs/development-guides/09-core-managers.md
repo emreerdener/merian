@@ -19,8 +19,11 @@ triggering excessive SwiftUI view rebuilds.
   `DescribeInputLifecycleObserver` forwards changes to the generation-fenced
   `DescribeInputViewModel`, which clears
   `CaptureActionCoordinator.isDictationRequested` after automatic termination.
-  Never set it to `true` until `audioEngine.start()` succeeds; reset it to
-  `false` in all failure and teardown paths.
+  `FieldNotesEditorView` forwards the same transition to
+  `FieldNotesEditorViewModel`, which clears editor ownership and rejects late
+  transcription without repeating shared teardown. Never set it to `true` until
+  `audioEngine.start()` succeeds; reset it to `false` in all failure and
+  teardown paths.
 - **`isStarting: Bool`** — prevents overlapping permission/session startup and
   exposes a request that is still negotiating permissions or audio hardware.
   Capture Describe uses that state to end the UI request while letting the
@@ -58,6 +61,13 @@ triggering excessive SwiftUI view rebuilds.
   cancellation-ignoring dependency returns `true`, the stale session is stopped
   before the replacement calls the manager. This prevents `stopDictation()` from
   racing detached audio configuration while preserving deterministic cleanup.
+- **Insight Field Notes adapter boundary**: `FieldNotesSheet` reads the
+  environment-owned manager and constructs the Services-owned
+  `FieldNotesEditorDependencies.live(speechManager:)` adapter.
+  `FieldNotesEditorViewModel` owns the session generation, serializes
+  replacement startup behind canceled teardown, and rejects callbacks after
+  explicit stop or automatic termination. Its focused tests also prove automatic
+  termination does not call shared teardown a second time.
 - **`stopDictation()`** — delegates entirely to `teardownAudioEngine()` then
   sets `isRecording = false`. Safe to call when the engine was never started.
 - **`teardownAudioEngine()` (private)** — whenever an engine exists, calls
@@ -73,9 +83,10 @@ triggering excessive SwiftUI view rebuilds.
   that the system ended (e.g. 60-second silence timeout).
 - **`PermissionError`** — a `LocalizedError` struct defined in the same file.
   Thrown on permission denial or an unusable zero-Hz input format. The lifecycle
-  view model catches startup failures through its injected adapter and clears
-  the requested-recording flag so the control returns idle; no mode-specific
-  error handling lives inside the paged Describe view.
+  view models catch startup failures through injected adapters: Describe clears
+  the requested-recording flag, while Field Notes clears editor ownership and
+  presents the localized inline error. No mode-specific error handling lives in
+  the shared manager.
 
 ### `AudioSessionCoordinator`
 
@@ -1095,8 +1106,12 @@ consults that Keychain entry.
   `promoteExternalFieldNotesIfLocalMissing(...)`. Public Explore notes are
   accepted only when every local/private store is empty, so publishing or hiding
   Explore notes cannot erase private scan-library notes.
-- UI code in Insights and Explore should call this repository instead of
-  directly mutating `LocalScanRecord.fieldNotes` or `FieldNotesStore`.
+- Feature effect boundaries in Insights and Explore should call this repository
+  instead of directly mutating `LocalScanRecord.fieldNotes` or
+  `FieldNotesStore`. Insight Field Notes confines those calls to
+  `FieldNotes/Services/InsightFieldNotesDependencies.swift`; its views and view
+  models consume injected closures. Repository reconciliation tests live under
+  `MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift`.
 
 ### `SpeciesPreferredNameRepository`
 

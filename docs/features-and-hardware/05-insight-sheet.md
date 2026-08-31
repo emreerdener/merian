@@ -125,8 +125,13 @@ production Sharing Swift file stays below the 600-line guard.
 
 Mirrored tests live under `MerianTests/Features/Insights/Shell`, `Content`,
 `FieldNotes`, `Media`, and `Sharing`. `InsightShellArchitectureTests` enforces
-the folder shape, deterministic Models, live-service confinement, no networking
-in views/view models, aggregate-file removal, and the file-size ceiling.
+the Shell folder shape and boundaries. `FieldNotesArchitectureTests` separately
+requires Field Notes Models, Services, ViewModels, Views, and Card/Editor
+Components; platform-neutral Models; Services-only live persistence, speech, and
+feedback resolution; no networking in Views or Components; retired aggregate
+paths; and the 600-line production-file ceiling. Core repository reconciliation
+and Share-cache refresh assertions live with their Core and Sharing owners
+rather than in the Field Notes state suite.
 
 ## Progressive Analyzing Pill
 
@@ -781,9 +786,15 @@ completion cannot release B's indicator. Its 350 ms follow-up refresh is an
 identity-keyed SwiftUI task rather than a fire-and-forget callback, so view
 teardown cancels it before it can retain or mutate a replaced queued
 presentation. Queued Field Notes remain editable: their sheet captures the
-queued scan ID and presentation generation, writes through
-`FieldNotesRepository`, and rejects any callback after the queue presentation
-changes.
+queued scan ID and presentation generation, writes through the injected Field
+Notes repository adapter, and rejects any callback after the queue presentation
+changes. The editor's own observable state separates draft/save/dictation logic
+from SwiftUI focus and dismissal timing. Interactive disappearance cannot
+duplicate an active explicit save, and a rapid dictation stop/restart waits for
+the canceled startup to finish teardown before the replacement enters the shared
+speech manager. Explicit stop or automatic speech termination invalidates the
+editor's generation before a late transcript can mutate the draft; automatic
+termination does not redundantly stop the already-ended shared session.
 
 ---
 

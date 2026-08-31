@@ -323,6 +323,31 @@ Services-only live resolution, legacy-owner removal, and the 600-line
 production-file ceiling. The display-only `NamePickerSheet` is shared from
 `Core/UI/Components`; each feature retains persistence and feedback.
 
+## Insight Field Notes Ownership
+
+[Insight Field Notes](Merian/Features/Insights/FieldNotes/README.md) separates
+platform-neutral prompt, edit, visibility-request, and feedback Models;
+Services-only persistence, speech, visibility-action, and haptic adapters; an
+observable editor plus the focused root-state extension in ViewModels;
+composition Views; and Card/Editor Components. The Core-owned
+`FieldNotesRepository` remains the shared local reconciliation boundary, while
+the Shell-owned `InsightSheetViewModel` accepts an optional trailing Field Notes
+dependency for deterministic persistence and feedback tests.
+
+The editor view model owns draft, save, validation, and generation-fenced
+dictation state. Views retain focus, keyboard, confirmation animation, actual
+dismissal, and interactive-dismissal task timing. Explicit stop or automatic
+speech termination invalidates the editor's session before a late transcript can
+mutate the draft; automatic termination does not repeat shared teardown. A
+replacement dictation waits for canceled startup teardown before entering the
+shared `SpeechManager`, and a disappearing editor neither duplicates an active
+save nor commits an unchanged draft. Existing screen and initializer signatures,
+copy, accessibility, navigation, queued-scan identity, persistence, and Explore
+visibility contracts remain stable. Mirrored Field Notes tests enforce those
+lifecycle fences, Services-only live effects, the view networking ban, retired
+aggregate paths, and the 600-line production-file ceiling; Core repository and
+Sharing cache behavior remain in their domain test suites.
+
 ## Insight Identification Review Ownership
 
 [Insight Identification Review](Merian/Features/Insights/IdentificationReview/README.md)

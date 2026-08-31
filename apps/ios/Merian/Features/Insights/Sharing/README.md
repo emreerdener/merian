@@ -327,6 +327,7 @@ xcodebuild -project merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/InsightSharingOperationStateTests \
   -only-testing:merianTests/CommunityIdentificationRequestViewModelTests \
   -only-testing:merianTests/InsightExploreSharingViewModelTests \
+  -only-testing:merianTests/InsightSharingCacheRefreshTests \
   -only-testing:merianTests/InsightSharingArchitectureTests \
   -only-testing:merianTests/InsightShellPresentationTests test
 ```
@@ -334,6 +335,9 @@ xcodebuild -project merian.xcodeproj -scheme Merian \
 `InsightSharingArchitectureTests` enforces folder ownership, platform-neutral
 Models, Services-only live resolution, the Views/Components networking ban,
 aggregate removal, and the 600-line production-file ceiling.
+`InsightSharingCacheRefreshTests` owns missing-cache clearing and preservation
+of a restored Community request; those assertions no longer live in the Field
+Notes state suite.
 
 ## Privacy and Security
 

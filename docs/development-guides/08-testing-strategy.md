@@ -1202,15 +1202,19 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Product-area mirrors contain `InsightContentActionsTests`,
   `UserTagsViewModelTests`, `QueuedContentViewModelTests`,
   `QueuedScanningPresentationTests`, `InsightQueuedRetryPresentationTests`, and
-  `InsightContentArchitectureTests` in Content, `InsightFieldNotesStateTests` in
-  FieldNotes, `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
+  `InsightContentArchitectureTests` in Content. FieldNotes owns
+  `FieldNotesEditPolicyTests`, `FieldNotesEditorViewModelTests`,
+  `InsightFieldNotesStateTests`, and `FieldNotesArchitectureTests`; Core
+  Utilities owns `FieldNotesRepositoryTests`. Media owns
+  `InsightMediaAvailabilityTests`, `InsightMediaGalleryTests`,
   `InsightMediaSuppressionTests`, `InsightMediaFocusPresentationTests`,
   `InsightAudioPlaybackPresentationTests`, and
   `InsightMediaCarouselArchitectureTests` in Media. Sharing owns
   `InsightSharingPresentationTests`, `InsightSharePresentationModelTests`,
   `InsightSharingOperationStateTests`,
   `CommunityIdentificationRequestViewModelTests`,
-  `InsightExploreSharingViewModelTests`, and `InsightSharingArchitectureTests`.
+  `InsightExploreSharingViewModelTests`, `InsightSharingCacheRefreshTests`, and
+  `InsightSharingArchitectureTests`.
 
   Together they verify carousel handoff integrity across queued/analyzing/result
   states, including mixed media. The key regression is that an audio page
@@ -1227,7 +1231,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Explore-onboarding regression proves the retained timer is bound to scan ID
   plus presentation generation and is cancelled by reset. Field Notes tests
   cover the same ID-plus-generation boundary while preserving editing for
-  queued/offline scans.
+  queued/offline scans. The focused editor suite additionally locks no-op and
+  failed saves, disappearance during an active save, effective visibility,
+  stable-baseline transcription, late-result rejection after automatic
+  termination, pending-start cancellation, serialized replacement startup, and
+  ownership-safe stop. Its architecture suite requires the final folder tree,
+  platform-neutral Models, Services-only live effects, no networking in Views or
+  Components, retired aggregate paths, and the 600-line ceiling.
 
   Sharing tests separately lock exact Share copy/action projection,
   dependency-routed publication, cache/event/feedback commits, stale
@@ -4251,18 +4261,32 @@ published case shows the green globe badge; VoiceOver must distinguish a public
 snapshot from a private outing, and long titles must wrap without compressing
 the fixed-size badge.
 
-Field Notes editor policy coverage lives in
-`MerianTests/Features/Insights/FieldNotesEditPolicyTests.swift`. It locks
+Field Notes coverage mirrors the source owners under
+`MerianTests/Features/Insights/FieldNotes/`. `FieldNotesEditPolicyTests` locks
 unchanged public/private drafts as no-ops, distinguishes content edits from
 effective visibility transitions, covers clearing public notes, and keeps
-content-only feedback separate from public/private transition feedback. Run the
-focused suite after changing `FieldNotesSheet`, Explore detail field-note saves,
-or shared field-note feedback:
+content-only feedback separate from public/private transition feedback.
+`FieldNotesEditorViewModelTests` locks commit/autosave/error behavior and
+stable-baseline dictation composition, ownership-safe stop, serialized
+replacement, and late-result rejection after automatic termination;
+`InsightFieldNotesStateTests` locks queued/completed identity and injected
+persistence forwarding; and `FieldNotesArchitectureTests` locks the ownership
+boundary. Storage reconciliation lives in
+`MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift`, while the rehomed
+Share-cache refresh behavior lives in
+`MerianTests/Features/Insights/Sharing/InsightSharingCacheRefreshTests.swift`.
+Run the focused matrix after changing `FieldNotesSheet`, the editor state owner,
+Insight/Explore field-note saves, or shared field-note feedback:
 
 ```bash
-xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
+xcodebuild -quiet -scheme Merian -project merian.xcodeproj \
   -destination 'id=<BOOTED_SIMULATOR_ID>' \
-  -only-testing:merianTests/FieldNotesEditPolicyTests test
+  -only-testing:merianTests/FieldNotesEditPolicyTests \
+  -only-testing:merianTests/FieldNotesEditorViewModelTests \
+  -only-testing:merianTests/InsightFieldNotesStateTests \
+  -only-testing:merianTests/FieldNotesArchitectureTests \
+  -only-testing:merianTests/FieldNotesRepositoryTests \
+  -only-testing:merianTests/InsightSharingCacheRefreshTests test
 ```
 
 Manual QA must cover owned Explore posts with both Published and Private notes.
@@ -4271,7 +4295,12 @@ show a toast, invoke the public update, clear/reload detail content, or move the
 detail scroll position. Editing text without changing visibility must autosave
 and show `Field notes updated`; changing visibility must show only the matching
 public/private transition message. Clearing notes and a failed public save must
-retain their existing confirmation and inline-error behavior.
+retain their existing confirmation and inline-error behavior. Start dictation,
+stop during permission/startup, and immediately restart; only the replacement
+transcript may update the draft, no control may remain falsely active, and
+leaving the sheet must not stop unrelated speech work. Let recognition terminate
+automatically and confirm that the dictation control returns to idle. Repeat
+with VoiceOver and large Dynamic Type.
 
 Explore audio poster coverage is split by contract seam:
 `_shared/audioSpectrogram_test.ts` validates PCM WAV decoding, iOS-compatible

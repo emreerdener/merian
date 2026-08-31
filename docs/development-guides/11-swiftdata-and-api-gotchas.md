@@ -1175,7 +1175,10 @@ toggling visibility or reopening the insight sheet.
 ### The Pattern: `FieldNotesRepository`
 
 Use `FieldNotesRepository` for all local/private note reads, writes, clears, and
-Explore repair:
+Explore repair. Resolve it at a feature effect boundary rather than directly in
+a SwiftUI view. Insight Field Notes adapts it through
+`InsightFieldNotesDependencies`, whose initializer-injected closures keep the
+editor and Shell state deterministic:
 
 ```swift
 let notes = FieldNotesRepository.fieldNotes(

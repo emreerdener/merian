@@ -8,6 +8,18 @@ by the shared scan-thumbnail projection, renderer, and reference-image backfill
 pipeline. Keep that mechanical normalization here instead of recreating
 file-private variants across those layers.
 
+## Field Notes reconciliation
+
+`FieldNotesRepository.swift` is the shared `@MainActor` boundary for private
+note reads, writes, clears, and public-to-local repair. It resolves active
+`LocalScanRecord` state, queued `OfflineQueuedScan` state, and the legacy
+`FieldNotesStore` bridge in durability order; public Explore notes may fill only
+an entirely empty local/private state. Consumers use this repository rather than
+mutating those stores directly. Insight Field Notes narrows that boundary
+further through an injected adapter in `Features/Insights/FieldNotes/Services`,
+while repository behavior is tested under
+`MerianTests/Core/Utilities/FieldNotesRepositoryTests.swift`.
+
 ## Scan transport classification
 
 `MerianError.swift` owns `ScanConnectivityFailurePolicy`, the shared bounded

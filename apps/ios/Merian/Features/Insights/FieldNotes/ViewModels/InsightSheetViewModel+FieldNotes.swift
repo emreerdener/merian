@@ -1,5 +1,4 @@
 import SwiftData
-import SwiftUI
 
 extension InsightSheetViewModel {
     func presentFieldNotes(
@@ -7,10 +6,9 @@ extension InsightSheetViewModel {
         expectedGeneration: UInt64? = nil
     ) {
         guard let scanId = currentFieldNotesScanId,
-              expectedGeneration == nil ||
-                expectedGeneration == scanBoundActionGeneration,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            expectedGeneration == nil || expectedGeneration == scanBoundActionGeneration,
+            expectedScanId == nil || expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame
+        else {
             return
         }
         state.fieldNotesPresentationScanId = scanId
@@ -25,10 +23,9 @@ extension InsightSheetViewModel {
         modelContext: ModelContext
     ) {
         guard let scanId = currentFieldNotesScanId,
-              expectedGeneration == nil ||
-                expectedGeneration == scanBoundActionGeneration,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame else {
+            expectedGeneration == nil || expectedGeneration == scanBoundActionGeneration,
+            expectedScanId == nil || expectedScanId?.caseInsensitiveCompare(scanId) == .orderedSame
+        else {
             return
         }
         state.fieldNotesText = text
@@ -43,13 +40,13 @@ extension InsightSheetViewModel {
         expectedGeneration: UInt64? = nil
     ) {
         guard let currentFieldNotesScanId,
-              expectedGeneration == nil ||
-                expectedGeneration == scanBoundActionGeneration,
-              expectedScanId == nil ||
-                expectedScanId?.caseInsensitiveCompare(currentFieldNotesScanId) == .orderedSame else {
+            expectedGeneration == nil || expectedGeneration == scanBoundActionGeneration,
+            expectedScanId == nil
+                || expectedScanId?.caseInsensitiveCompare(currentFieldNotesScanId) == .orderedSame
+        else {
             return
         }
-        HapticManager.shared.triggerLightImpact()
+        fieldNotesDependencies.cardDismissFeedback()
         state.dismissedFieldNotesCardScanId = currentFieldNotesScanId
     }
 
@@ -60,10 +57,12 @@ extension InsightSheetViewModel {
         guard currentScanId != boundFieldNotesScanId else {
             guard let currentScanId else { return }
 
-            let persistedFieldNotes = persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
+            let persistedFieldNotes =
+                persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
             if let currentRecord = fetchLocalRecord(scanId: currentScanId, modelContext: modelContext),
-               currentRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
-                let promotableFieldNotes = existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                currentRecord.fieldNotes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                let promotableFieldNotes =
+                    existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? persistedFieldNotes
                     : existingDraft
                 if !promotableFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -74,10 +73,10 @@ extension InsightSheetViewModel {
             }
 
             if persistedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               !existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                !existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 persistFieldNotes(existingDraft, modelContext: modelContext)
             } else if existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      !persistedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                !persistedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 state.fieldNotesText = persistedFieldNotes
             }
             return
@@ -95,7 +94,8 @@ extension InsightSheetViewModel {
 
         let storedFieldNotes = persistedFieldNotes(for: currentScanId, modelContext: modelContext) ?? ""
         let hasExistingDraft = !existingDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let hasStoredFieldNotes = !storedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasStoredFieldNotes = !storedFieldNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
 
         if previousScanId == nil, hasExistingDraft, !hasStoredFieldNotes {
             persistFieldNotes(existingDraft, modelContext: modelContext)
@@ -108,10 +108,10 @@ extension InsightSheetViewModel {
         guard let scanId = currentFieldNotesScanId else { return false }
         boundFieldNotesScanId = scanId
 
-        return FieldNotesRepository.setFieldNotes(
+        return fieldNotesDependencies.setFieldNotes(
             text,
-            for: scanId,
-            modelContext: modelContext
+            scanId,
+            modelContext
         )
     }
 
@@ -125,23 +125,26 @@ extension InsightSheetViewModel {
     }
 
     private func persistedFieldNotes(for scanId: String, modelContext: ModelContext) -> String? {
-        FieldNotesRepository.fieldNotes(
-            for: scanId,
-            modelContext: modelContext
+        fieldNotesDependencies.fieldNotes(
+            scanId,
+            modelContext
         )
     }
 
     func promotePublishedExploreFieldNotesIfLocalMissing(_ notes: String, modelContext: ModelContext) {
         guard let scanId = currentFieldNotesScanId,
-              state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            state.fieldNotesText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
             return
         }
 
-        if let resolvedNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
-            notes,
-            for: scanId,
-            modelContext: modelContext
-        ) {
+        if let resolvedNotes =
+            fieldNotesDependencies
+            .promoteExternalFieldNotesIfLocalMissing(
+                notes,
+                scanId,
+                modelContext
+            ) {
             state.fieldNotesText = resolvedNotes
         }
     }
@@ -157,10 +160,10 @@ extension InsightSheetViewModel {
         guard let scanId = currentFieldNotesScanId else { return }
         boundFieldNotesScanId = scanId
 
-        _ = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
+        _ = fieldNotesDependencies.promoteExternalFieldNotesIfLocalMissing(
             notes,
-            for: scanId,
-            modelContext: modelContext
+            scanId,
+            modelContext
         )
     }
 }

@@ -28,15 +28,19 @@ lease. Its overlap guard may return without opening a new session when another
 consumer is starting or recording, so feature adapters must verify `isRecording`
 before treating startup as successful.
 
-Capture Describe is the hardened reference consumer. Its Services layer builds
-the live manager adapter, while its view model owns text/session generations. A
-stop during pending startup cancels and retains that startup task instead of
-calling shared teardown concurrently with audio configuration. A replacement
-waits for the canceled startup to finish; if an injected, cancellation-ignoring
-startup nevertheless reports success, the stale session is stopped before the
-replacement enters `SpeechManager`. Shared manager lifecycle tests live in
-`apps/ios/MerianTests/Core/Hardware/SpeechManagerTests.swift`; Describe overlap
-coverage remains in its feature view-model suite.
+Capture Describe and Insight Field Notes are the hardened feature consumers.
+Their Services layers build live manager adapters, while their view models own
+text/session generations. A stop during pending startup cancels and retains that
+startup task instead of calling shared teardown concurrently with audio
+configuration. A replacement waits for the canceled startup to finish; if an
+injected, cancellation-ignoring startup nevertheless reports success, the stale
+session is stopped before the replacement enters `SpeechManager`. When the
+manager ends recognition automatically, Field Notes invalidates its generation
+and rejects late transcription without calling shared teardown again.
+
+Shared manager lifecycle tests live in
+`apps/ios/MerianTests/Core/Hardware/SpeechManagerTests.swift`; consumer overlap
+coverage remains in the Describe and Field Notes feature view-model suites.
 
 ## Audio capture and session ownership
 

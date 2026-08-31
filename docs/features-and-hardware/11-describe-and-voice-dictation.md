@@ -285,7 +285,10 @@ media coordination, and the shared capture bar consume it.
 `CaptureWorkspaceView` reads the environment-owned instance and explicitly
 passes it to `DescribeInputLifecycleObserver`; that observer constructs
 `DescribeInputViewModel.Dependencies.live` rather than letting the paged
-Describe view resolve hardware.
+Describe view resolve hardware. `FieldNotesSheet` follows the same boundary: its
+thin wrapper reads the shared environment instance and constructs
+`FieldNotesEditorDependencies.live`, while Field Notes Views, Components, and
+the editor view model resolve no hardware singleton.
 
 ### Class declaration
 
@@ -395,6 +398,27 @@ and Describe lifecycle state:
 This split is part of the startup stability contract: the Describe page renders
 prompt state but does not attach reactive tasks or sheet hosts to the nested
 page hierarchy.
+
+### Field Notes editor wiring
+
+`FieldNotesEditorViewModel` owns the Insight editor's draft, save state, inline
+errors, and dictation generation. It composes cumulative transcription against
+the stable note text captured when the session starts. Stop, automatic speech
+termination, clear, save, and dismissal all invalidate that generation before an
+older result can mutate the draft.
+
+If the user stops while permission or audio setup is pending and immediately
+starts again, the replacement awaits the canceled startup's teardown before it
+calls the injected start action. A cancellation-ignoring predecessor that
+reaches recording is stopped before it releases the serialized slot. The live
+adapter reports whether recording actually started, so a busy shared manager or
+inactive return clears the Field Notes session rather than leaving its control
+active. Stop calls shared teardown only when the editor owns the active session;
+it cannot terminate unrelated speech work.
+
+`FieldNotesEditorView` retains focus, keyboard dismissal, confirmation
+animation, actual sheet dismissal, and interactive-disappearance task timing.
+This keeps extraction from changing SwiftUI cancellation or focus behavior.
 
 ---
 
@@ -515,3 +539,9 @@ The recognition result handler dispatches back to `@MainActor` via
   ViewModels, Core speech location, and a 600-line production-file ceiling.
   Focused view-model and composition suites cover cancellation, stale
   completion, overlap, and exact output behavior.
+- Insight Field Notes now applies the same serialized stop/restart and stale-
+  result fencing through `FieldNotesEditorViewModel` and a Services-only speech
+  adapter. Its focused suite covers pending-start cancellation, replacement
+  ordering, ownership-safe stop, automatic-termination late-result rejection,
+  stable-baseline composition, and retryable startup failure without changing
+  `SpeechManager`'s public contract.

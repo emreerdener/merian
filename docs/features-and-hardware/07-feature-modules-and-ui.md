@@ -908,9 +908,13 @@ an Edge API response or opened offline via the Scans library.
     Shell root. Named Shell extensions own lifecycle, local records,
     capabilities, content presentation, media presentation, and presentation
     identity. Behavior that belongs to another product area stays beside that
-    owner: field-note behavior in `FieldNotes/ViewModels/`, Explore sharing in
+    owner: Field Notes separates Models, Services, ViewModels, Views, and
+    Card/Editor Components under `FieldNotes/`; Explore sharing stays in
     `Sharing/ViewModels/`, media export in `Media/Utilities/`, and result
-    actions plus name preferences in `Content/ViewModels/`.
+    actions plus name preferences in `Content/ViewModels/`. Field Notes Services
+    alone resolve its Core repository, shared speech, Explore visibility action,
+    and haptic effects; its views retain focus, confirmation, dismissal, and
+    autosave task timing.
   - `Sharing/Models/` owns platform-neutral Share copy and action projection;
     `Sharing/Services/` alone resolves live publication, Community request,
     detail, share-state, cache, event, and feedback effects; and
@@ -1075,18 +1079,26 @@ an Edge API response or opened offline via the Scans library.
   notes are promoted through the repository. Existing local/private notes are
   never overwritten by the public Explore copy. Shared field-note cards surface
   Published or Private badges, and the Field notes edit sheet saves text and
-  Explore visibility together so edited public notes do not go stale. The editor
+  Explore visibility together so edited public notes do not go stale.
+  `FieldNotesEditorViewModel` owns the draft, effective visibility, save and
+  inline-error state, and one generation-fenced dictation session. Focus,
+  keyboard dismissal, confirmation animation, actual dismissal, and the
+  interactive-dismissal save task remain in `FieldNotesEditorView`. The editor
   snapshots its initial text and effective visibility: closing with X or an
-  interactive dismissal autosaves real changes, but an unchanged draft dismisses
-  without committing the binding or calling the visibility save closure. Explore
-  detail independently compares normalized local text and the desired public
-  payload as a defensive no-op boundary. Private content-only edits remain
-  local; public text or visibility changes call `/update-explore-field-notes`
-  only when the public payload differs. Successful content-only edits show
-  `Field notes updated`, while `Field notes are now public on Explore` and
-  `Field notes are now private` are reserved for actual visibility transitions.
-  The detail card and badge update from returned/local state without clearing
-  and refetching the page, preserving the user's scroll position.
+  interactive dismissal autosaves real changes, an active explicit save is not
+  duplicated by disappearance, and an unchanged draft dismisses without
+  committing the binding or calling the visibility save closure. A stopped or
+  automatically terminated dictation session rejects stale results; automatic
+  termination does not repeat shared teardown, and a rapid replacement waits for
+  canceled startup to finish teardown before re-entering the shared
+  `SpeechManager`. Explore detail independently compares normalized local text
+  and the desired public payload as a defensive no-op boundary. Private
+  content-only edits remain local; public text or visibility changes call
+  `/update-explore-field-notes` only when the public payload differs. Successful
+  content-only edits show `Field notes updated`. The public and private messages
+  are reserved for actual visibility transitions. The detail card and badge
+  update from returned/local state without clearing and refetching the page,
+  preserving the user's scroll position.
 - **Field Chat**: The Insight bottom toolbar shows a Chat action for completed
   biological, non-human insights. Every visible Explore post detail, including a
   post authored by the viewer, reuses the same floating `FieldChatToolbarButton`

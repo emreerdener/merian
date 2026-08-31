@@ -403,6 +403,20 @@ ceiling for production files. The optional dependency parameter defaults to
 `.live`, and queued completion polling is subject-, generation-, and
 cancellation-fenced.
 
+Within Insight Field Notes, `Models/` owns platform-neutral prompt, edit,
+visibility-request, and feedback values; `Services/` alone adapts the Core
+repository, shared speech manager, Explore visibility action, and haptic
+feedback; `ViewModels/` owns editor state plus scan/generation-fenced mutations
+on the Shell root; `Views/` owns composition, focus, dismissal, and autosave
+task timing; and `Components/Card/` plus `Components/Editor/` own render-only
+leaves. `FieldNotesRepository` remains in `Core/Utilities` as the shared
+SwiftData and legacy-bridge reconciliation boundary. Mirrored Field Notes tests
+own edit, visibility, identity, and architecture coverage plus stable-baseline,
+overlap, ownership, and automatic-termination dictation fences; repository tests
+live under `Core/Utilities`, while Share-cache refresh tests live under
+`Insights/Sharing`. The former component and root-level test aggregates are
+retired, and every production Field Notes Swift file stays below 600 lines.
+
 Within Capture Record, feature files own only immutable presentation, narrow
 manager/haptic projection, UI-only artwork and scrubbing state, and mounted
 rendering. Core Hardware owns `AudioCaptureManager`, its initializer-injected

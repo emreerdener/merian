@@ -56,25 +56,29 @@ struct FieldNotesEditPolicyTests {
     }
 
     @Test func contentAndVisibilityFeedbackAreDistinct() {
-        #expect(FieldNotesEditPolicy.successMessage(
-            wasPublic: true,
-            isPublic: true,
-            contentChanged: true
-        ) == "Field notes updated")
-        #expect(FieldNotesEditPolicy.successMessage(
-            wasPublic: false,
-            isPublic: true,
-            contentChanged: true
-        ) == "Field notes are now public on Explore")
-        #expect(FieldNotesEditPolicy.successMessage(
-            wasPublic: true,
-            isPublic: false,
-            contentChanged: true
-        ) == "Field notes are now private")
-        #expect(FieldNotesEditPolicy.successMessage(
-            wasPublic: true,
-            isPublic: true,
-            contentChanged: false
-        ) == nil)
+        #expect(
+            FieldNotesEditPolicy.successMessage(
+                wasPublic: true,
+                isPublic: true,
+                contentChanged: true
+            ) == "Field notes updated")
+        #expect(
+            FieldNotesEditPolicy.successMessage(
+                wasPublic: false,
+                isPublic: true,
+                contentChanged: true
+            ) == "Field notes are now public on Explore")
+        #expect(
+            FieldNotesEditPolicy.successMessage(
+                wasPublic: true,
+                isPublic: false,
+                contentChanged: true
+            ) == "Field notes are now private")
+        #expect(
+            FieldNotesEditPolicy.successMessage(
+                wasPublic: true,
+                isPublic: true,
+                contentChanged: false
+            ) == nil)
     }
 }

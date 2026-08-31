@@ -7,9 +7,9 @@ for the Insight sheet.
 
 Following the Merian architecture guidelines, the `Shell` orchestrates the
 assembly of the various insight components (`Media`, `Content`,
-`IdentificationReview`, `Toolbars`) into a single cohesive scrollable view. It
-handles the lifecycle and presentation state of the sheet without embedding deep
-domain logic.
+`IdentificationReview`, `FieldNotes`, `Sharing`, `Toolbars`) into a single
+cohesive scrollable view. It handles the lifecycle and presentation state of the
+sheet without embedding deep domain logic.
 
 The canonical product and lifecycle contract is
 [Insight Sheet](../../../../../../docs/features-and-hardware/05-insight-sheet.md);
@@ -58,7 +58,10 @@ gallery selection, sheet ownership, scroll state, and dismissal timing; those
 states must not move into the view model merely to reduce file size.
 `InsightSheetView` and `InsightSheetViewModel` accept an optional trailing
 `InsightShellDependencies`; `nil` resolves `.live`, preserving every existing
-call site while focused tests inject deterministic closures.
+call site while focused tests inject deterministic closures. The view model's
+existing product-area dependency slots now also include
+`InsightFieldNotesDependencies`; Field Notes owns that closure value and its
+live repository/haptic resolution under `FieldNotes/Services`, not in Shell.
 
 Tests mirror these owners under `MerianTests/Features/Insights/Shell`, with
 presentation-specific suites retained under `Content`, `FieldNotes`, `Media`,
@@ -202,7 +205,9 @@ Tests mirror the final owners:
 - `Content/`: actions and name preferences, bounded tag transactions with
   ordered account-fenced cloud snapshots, queue operation state, phrase/rotation
   and retry presentation policy, plus architecture;
-- `FieldNotes/`: local/cloud and presentation-identity state;
+- `FieldNotes/`: edit policy, editor save/dictation state, injected persistence
+  and feedback forwarding, local/public reconciliation, queued presentation
+  identity, and architecture;
 - `Media/`: availability, gallery, deduplication, and suppression; and
 - `Sharing/`: Explore publication, Community requests, and presentation
   identity.

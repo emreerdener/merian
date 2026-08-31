@@ -4606,7 +4606,11 @@ Updates public share options on an already-shared Explore post owned by the
 current viewer. Despite the legacy endpoint name, this includes field notes,
 hashtags, the public common-name snapshot, and post-level `location_sharing`.
 This endpoint does not mutate the private local notes stored in SwiftData; iOS
-continues to treat `FieldNotesRepository` as the local source of truth.
+continues to treat `FieldNotesRepository` as the local source of truth. The
+Insight editor receives this endpoint as the caller-supplied
+`FieldNotesVisibilityConfiguration` action, while its local repository and
+speech effects cross the Field Notes `Services/` boundary; Views and Components
+do not invoke transport directly.
 
 Request body:
 
