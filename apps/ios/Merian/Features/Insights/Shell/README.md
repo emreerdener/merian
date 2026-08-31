@@ -166,6 +166,11 @@ route rechecks the stable scan ID plus the applicable engine/local presentation
 generation. The shell must not mount a sibling sheet or use a fixed teardown
 sleep to bridge these workflows.
 
+Shell owns scan eligibility, readiness handoff, navigation, and the outer
+presentation slot. The shared conversation sheet, endpoint adapter, and
+subject-fenced state live under `Features/FieldChat`; the retained
+`InsightChat...` names are compatibility names rather than Shell ownership.
+
 `InsightContentView` enforces that rule with one resolved
 `InsightContentPresentation` value. Safari, report, Community, Explore composer,
 candidate review, Field Notes, and description share one item-based sheet host;

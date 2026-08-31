@@ -6129,6 +6129,23 @@ then the original species. This guard never reads `ai_reasoning`. Each provider
 action then reserves its operation in the database, which repeats entitlement
 verification atomically with quota and model selection.
 
+### iOS Ownership and Application Boundary
+
+Core Network owns the Codable wire DTOs, strict response validation, request
+construction, and `MerianNetworkClient` transport for all Field Chat sources.
+`Features/FieldChat/Services/FieldChatEndpoint.swift` adapts `FieldChatSource`
+to the exact Insight, Explore-post, or Species Dictionary route, while the
+feature's narrow dependency value owns its live effects.
+`Features/FieldChat/ViewModels` owns main-actor conversation state and the
+subject, request, prompt, and preparation generations. Host features retain
+eligibility, entitlement, navigation, and their typed presentation slots; Field
+Chat views and components call no endpoints.
+
+These client boundaries do not change the JSON contract. They ensure a canceled
+send leaves the exact current pending bubble failed and retryable under its
+original UUID, the newest prompt trigger wins even when task scheduling is
+reordered, and canceled readiness work cannot commit into a replacement subject.
+
 ### Request Payload
 
 ```json

@@ -282,17 +282,18 @@ Nested feature handoffs follow the same rule even when they do not use the root
 route queue. Candidate review records a typed `CandidateSwipeDismissalRequest`;
 confidence review and the owning Insight surface resume it only from the
 candidate sheet's real `onDismiss` and revalidate both scan ID and presentation
-generation before mutation. Insight Chat records a typed follow-up action for
-alternatives, refinement, or paywall and resumes it from chat dismissal. Explore
-activity records the selected post/thread/community/Field-trip target and pushes
-it only after `ExploreNotificationsSheet` dismisses. Post handoffs retain only
-the post ID and re-resolve the bounded feed-store value after dismissal. Async
-notification opens carry a latest-wins token; a newer tap, manual dismissal, or
-sheet replacement invalidates late fetch completion. A prepared destination or
-failure must commit with that same token before the Shell dismisses the sheet or
-reports an error; dismissal discards uncommitted state. No path uses a fixed
-animation delay to guess that UIKit has released its presentation slot. The
-Shell's `ExploreNotificationNavigationCoordinator` owns the lightweight
+generation before mutation. The Insight Field Chat host records a typed
+follow-up action for alternatives, refinement, or paywall and resumes it from
+chat dismissal. Explore activity records the selected
+post/thread/community/Field-trip target and pushes it only after
+`ExploreNotificationsSheet` dismisses. Post handoffs retain only the post ID and
+re-resolve the bounded feed-store value after dismissal. Async notification
+opens carry a latest-wins token; a newer tap, manual dismissal, or sheet
+replacement invalidates late fetch completion. A prepared destination or failure
+must commit with that same token before the Shell dismisses the sheet or reports
+an error; dismissal discards uncommitted state. No path uses a fixed animation
+delay to guess that UIKit has released its presentation slot. The Shell's
+`ExploreNotificationNavigationCoordinator` owns the lightweight
 `ExploreNotificationDismissalDestination`, latest-open token, asynchronous post
 preparation fence, token-checked success/failure commits, separated staged and
 pending destination state, and one-time pending-destination consumption.
@@ -312,6 +313,15 @@ pushing detail.
 
 Feature-local hosts that expose several UIKit-backed destinations still own one
 typed presentation slot:
+
+`Features/FieldChat` owns the shared sheet implementation and subject-fenced
+operation state, but it owns no host presentation slot. Each host captures an
+immutable subject identity and commits the prepared sheet only while that
+identity is current, the request is not canceled, and its typed slot is empty.
+The shared operation state prevents late preparation, prompt, load, or send work
+from crossing into a replacement host subject. Retained `InsightChat...` type
+names are source-compatibility labels, not evidence that Insights owns the
+cross-feature implementation.
 
 Explore Feed navigation values live in
 `Features/Explore/Feed/Models/ExploreFeedRoutes.swift`. The Shell registers and

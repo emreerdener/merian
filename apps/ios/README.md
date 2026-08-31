@@ -80,6 +80,21 @@ Examples:
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
   feature-specific scan screen.
 
+## Field Chat Ownership
+
+[Field Chat](Merian/Features/FieldChat/README.md) is a cross-feature product
+owner because Insights, Explore, and Species Dictionary all present the same
+private conversation experience. Its Models, Services, ViewModels, Views, and
+grouped Components separate deterministic presentation, live endpoint/effect
+adapters, asynchronous state, and rendering.
+
+Only Field Chat Services resolve the live network client, haptics, telemetry,
+clipboard, clock, or request-ID factory. Host features own eligibility,
+entitlement, navigation, and their presentation slot; Core Network owns Codable
+DTOs, strict wire validation, and transport. Stable `InsightChat...` type names
+remain compatibility names and do not place the shared implementation under
+Insights.
+
 ## Scans Ownership
 
 Scans is composed from product-area owners rather than one root implementation:

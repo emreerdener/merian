@@ -67,7 +67,7 @@ struct DescribeInputViewModelTests {
         await waitUntil { waiter.waitCount == 1 }
         canApply = false
         waiter.resumeWait(at: 0)
-        await Task.yield()
+        await waitUntil { viewModel.pendingSubjectInferenceText == nil }
 
         #expect(inferredSubjects.isEmpty)
         #expect(viewModel.pendingSubjectInferenceText == nil)

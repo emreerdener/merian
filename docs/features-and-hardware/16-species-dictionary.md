@@ -82,8 +82,9 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
-- `apps/ios/Merian/Features/Insights/Chat/ViewModels/InsightChatViewModel.swift`
-- `apps/ios/Merian/Features/Insights/Chat/Views/InsightChatSheet.swift`
+- `apps/ios/Merian/Features/FieldChat/Services/FieldChatEndpoint.swift`
+- `apps/ios/Merian/Features/FieldChat/ViewModels/InsightChatViewModel.swift`
+- `apps/ios/Merian/Features/FieldChat/Views/InsightChatSheet.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
@@ -208,6 +209,12 @@ summary, sheet-level feature feedback, candidate review, and reanalysis—remain
 disabled. Answer feedback, delete, retry/edit, and deterministic prompt chips
 remain available. A thread already loaded in memory stays readable offline;
 network mutations remain unavailable.
+
+The shared implementation is owned by `Features/FieldChat`, not Insights.
+`FieldChatEndpoint` selects the Dictionary adapter, and `InsightChatViewModel`
+consumes its injected dependencies. Dictionary Detail retains only eligibility,
+entitlement, loaded-species identity, and typed presentation ownership. Codable
+DTOs and strict response validation remain in Core Network.
 
 The detail host serializes gallery, author profile, Field Chat, and paywall as
 cases of one `SpeciesDictionaryPresentation` value. Its sheet and full-screen

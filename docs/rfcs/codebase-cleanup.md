@@ -212,6 +212,21 @@ Implemented Insights slices:
   or key changes; the extracted audio render surface reads live player progress
   through a closure without widening player ownership.
 
+Implemented cross-feature slices:
+
+- `Features/FieldChat` now owns the private Pro conversation experience shared
+  by Insights, Explore posts, and Species Dictionary pages. The historical
+  `Insights/Chat` aggregate files were replaced by platform-neutral Models,
+  Services-only live adapters, subject-generation-fenced observable state,
+  focused Views, and grouped Components. Existing `InsightChat...` public and
+  host-facing names remain source-compatible. Wire DTOs and strict response
+  validation remain in Core Network, while feature and wire tests now mirror
+  their respective owners. Architecture coverage enforces the cross-feature
+  location, Services-only singleton resolution, platform-neutral Models, and a
+  600-line production-file ceiling. Follow-up audit work centralized readiness
+  task ownership, made prompt trigger ordering deterministic, restored canceled
+  sends to same-UUID retry state, and re-privatized file-local helpers.
+
 Implemented Scans slices:
 
 - `Scans/Library` now separates sort/filter and Sendable search models, ad-hoc

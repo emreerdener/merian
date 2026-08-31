@@ -34,6 +34,11 @@ delete, feedback, and prompt suggestions. A transcript already loaded in memory
 remains readable offline; sending and other mutations remain disabled until the
 network returns.
 
+The shared sheet, state owner, source model, and endpoint adapter live in
+`Features/FieldChat`. Dictionary Detail owns the loaded-species identity,
+eligibility, paywall routing, and typed presentation slot; it does not resolve a
+Field Chat endpoint directly.
+
 Gallery, author profile, Field Chat, and paywall share one typed
 `SpeciesDictionaryPresentation` value. Sheet and full-screen bindings filter
 that same slot, so they cannot mount together. A late Field Chat preflight must

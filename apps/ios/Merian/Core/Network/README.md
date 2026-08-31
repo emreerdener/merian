@@ -490,12 +490,17 @@ server limits. Field Chat JSON is rejected above the reviewed 1 MiB decode
 ceiling. A send response must also contain exactly one user message and one
 assistant message carrying the requested `client_message_id`, and the
 acknowledged user row must contain the exact trimmed text that was sent.
-Invalid, contradictory, or incomplete envelopes never reach
-`InsightChatViewModel.apply`; failed sends remain retryable under the same
-canonical lowercase idempotency UUID rather than clearing the pending question
-or creating a duplicate on manual retry. A backend
+Invalid, contradictory, or incomplete envelopes never reach the Field Chat
+feature's `InsightChatViewModel.apply`; failed sends remain retryable under the
+same canonical lowercase idempotency UUID rather than clearing the pending
+question or creating a duplicate on manual retry. A backend
 `field_chat_idempotency_conflict` means that UUID was reused for edited text and
 is never treated as confirmation of either send.
+
+Core Network owns those wire contracts and validation rules. The source-specific
+presentation adapter lives in
+`Features/FieldChat/Services/FieldChatEndpoint.swift`; host views do not select
+or call these routes directly.
 
 Species Dictionary Field Chat calls `/species-dictionary-chat`; the app sends
 only the canonical dictionary UUID as `species_id`. The route's stable

@@ -1231,39 +1231,47 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
   aggregation plus reducer normalization and empty-bucket behavior.
-  `InsightChatTests.swift` covers Field chat request/response decoding,
-  feedback/summary/prompt-suggestion DTO decoding, local fallback and
-  AI-generated quick prompt merging/filtering, including reserved uncertainty
-  context below 70% confidence and server-provided confidence-category
-  preservation, failed outgoing recovery state, deterministic unavailable-state
-  hiding, identification-concern action buckets plus negative examples, the copy
-  action's clipboard-only side effect while the sheet-local control owns its
-  acknowledgement, and the 600-character draft cap. It additionally proves a
-  changed chat subject clears the private draft and rejects the old generation's
-  completion, a different-subject preparation replaces obsolete work, and
-  same-subject preparation remains single-flight.
-  `MerianNetworkClientTests.swift` exercises the candidate-success boundary:
-  malformed Community enums become `MerianError.invalidResponse`, and Field Chat
-  rejects cross-subject, missing-subject, cross-conversation, unknown-role,
-  non-UUID-message, or invalid-limit envelopes before the view model can apply
-  them, including an otherwise valid empty thread from the wrong subject. Send
-  cases additionally reject an incomplete or mismatched `client_message_id`
-  pair, padded/empty or over-4,000-character message text, and a JSON body over
-  1 MiB; manual retry retains the failed send UUID. Species Dictionary cases
-  additionally pin the `species_id` request body and idempotency header, strict
-  species subject echo, cross-subject rejection, source-specific
-  `species_not_available` handling, and identifier-free product telemetry. The
-  foreground identify boundary also proves an exact handler-owned
-  `403 ai_consent_required` becomes `MerianError.aiConsentRequired`, so the app
-  can enter disclosure recovery instead of exposing a generic HTTP retry.
-  Backend source/helper tests lock bounded same-UUID quota replay coalescing.
-  Action-response cases reject false/mismatched answer and feature feedback,
-  empty or internal-ID-leaking note summaries, and malformed, duplicate, unsafe,
-  oversized, or unknown-category prompt suggestions. Safety fixtures distinguish
-  direct action requests such as harvesting/handling from ordinary educational
-  species names and behavior questions such as poison ivy habitat or animal
-  foraging. `UserTagsMutationControllerTests.swift` verifies tag saves commit
-  locally before external cloud/search side effects can run.
+- **Cross-feature Field Chat tests**:
+  `Core/Network/FieldChatAPIModelsTests.swift` owns request/response,
+  feedback/summary, and prompt-suggestion wire decoding.
+  `Features/FieldChat/FieldChatPresentationTests.swift`,
+  `FieldChatViewModelStateTests.swift`, and
+  `FieldChatPresentationPreparationTests.swift` cover fallback/generated prompt
+  policy, uncertainty-category preservation, failed-send recovery,
+  unavailable-state policy, identification-review buckets, clipboard-only copy,
+  the draft cap, subject replacement, preparation single-flight behavior,
+  activation/clear invalidation, and canceled-waiter fencing.
+  `FieldChatEndpointTests.swift` replaces every source/effect dependency and
+  proves stale load/send completions cannot mutate a replacement subject,
+  canceled current-subject sends remain retryable with their original UUID,
+  prompt refresh triggers are latest-wins even when responses finish out of
+  order, and a pre-execution connectivity change clears prompt loading state.
+  `FieldChatArchitectureTests.swift` enforces the cross-feature owner,
+  Services-only live resolution, platform-neutral Models, aggregate removal, and
+  the 600-line production-file ceiling.
+- **Network Field Chat validation**: `MerianNetworkClientTests.swift` exercises
+  the candidate-success boundary: malformed Community enums become
+  `MerianError.invalidResponse`, and Field Chat rejects cross-subject,
+  missing-subject, cross-conversation, unknown-role, non-UUID-message, or
+  invalid-limit envelopes before the view model can apply them, including an
+  otherwise valid empty thread from the wrong subject. Send cases additionally
+  reject an incomplete or mismatched `client_message_id` pair, padded/empty or
+  over-4,000-character message text, and a JSON body over 1 MiB; manual retry
+  retains the failed send UUID. Species Dictionary cases additionally pin the
+  `species_id` request body and idempotency header, strict species subject echo,
+  cross-subject rejection, source-specific `species_not_available` handling, and
+  identifier-free product telemetry. The foreground identify boundary also
+  proves an exact handler-owned `403 ai_consent_required` becomes
+  `MerianError.aiConsentRequired`, so the app can enter disclosure recovery
+  instead of exposing a generic HTTP retry. Backend source/helper tests lock
+  bounded same-UUID quota replay coalescing. Action-response cases reject
+  false/mismatched answer and feature feedback, empty or internal-ID-leaking
+  note summaries, and malformed, duplicate, unsafe, oversized, or
+  unknown-category prompt suggestions. Safety fixtures distinguish direct action
+  requests such as harvesting/handling from ordinary educational species names
+  and behavior questions such as poison ivy habitat or animal foraging.
+  `UserTagsMutationControllerTests.swift` verifies tag saves commit locally
+  before external cloud/search side effects can run.
 - **`CaptureTelemetryTests.swift`**: Directly validates that offline/historic
   captures explicitly decouple live sensor leakage (like LiDAR distance vectors
   or view-finder zoom scopes) away from EXIF bounds.
@@ -2745,10 +2753,11 @@ iOS regression coverage is intentionally joined as well:
   already-advanced, retry-required, and discarded outcomes so an HTTP callback
   cannot treat a rolled-back local write as inference readiness.
 - `SpeciesDataTests`, `InferenceEngineTests`, `InsightShellCapabilitiesTests`,
-  `InsightMediaSuppressionTests`, `InsightChatTests`, and `ScanRepositoryTests`
-  cover Human canonical presentation/safeguards, unresolved-audio confidence and
-  reference suppression, historical placeholder reanalysis, direct-chat gating,
-  and preservation of cloud `is_biological_subject` during historical sync.
+  `InsightMediaSuppressionTests`, `FieldChatViewModelStateTests`, and
+  `ScanRepositoryTests` cover Human canonical presentation/safeguards,
+  unresolved-audio confidence and reference suppression, historical placeholder
+  reanalysis, direct-chat gating, and preservation of cloud
+  `is_biological_subject` during historical sync.
 
 Do not replace the executable SQL fixtures with source inspection. Static
 migration contracts are useful when Docker is unavailable, but only a disposable
@@ -3565,7 +3574,7 @@ Identification latency has focused contract coverage at each boundary:
   simulator. The test must still assert an exact count of one immediately before
   cancellation and again after canonical `CancellationError` exits the retry
   delay. `MerianConfigTests` locks customer-facing Explore error translation;
-  `InsightChatTests` locks retryable still-syncing feedback.
+  `FieldChatViewModelStateTests` locks retryable still-syncing feedback.
 
 Before production percentage increases, run a device/simulator lifecycle matrix
 for slow WeatherKit, reverse geocoding, awards, Field trips, Wikipedia, and

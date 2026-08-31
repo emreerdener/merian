@@ -1420,7 +1420,8 @@ The focused regression inventory includes:
 - `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, and
   `InsightQueuedRetryPresentationTests`, including exact-ID queued binding and
   **Analysis delayed** placeholder routing;
-- `InsightChatTests`; and
+- `FieldChatViewModelStateTests` and `FieldChatPresentationPreparationTests`;
+  and
 - the deterministic progressive-analyzing, live-Insight-to-queue, queued-retry,
   and queued-scan-completion UI smokes, followed by the exact-SHA Release
   archive.

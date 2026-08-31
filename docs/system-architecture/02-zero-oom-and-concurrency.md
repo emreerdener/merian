@@ -436,6 +436,25 @@ cancellable tasks with identity checks. Unmount/reset cancels retained tasks,
 and passive surfaces disable hit testing so neither timers nor invisible layout
 layers keep obsolete UI graphs alive or block interaction.
 
+### Field Chat Operation Ownership
+
+`@MainActor FieldChatOperationState` is the sole owner of Field Chat's mutable
+subject, load, prompt, request, and availability-preparation generations. It
+retains at most one preparation task: concurrent requests for the same subject
+join that task, while subject replacement, clearing, or reactivating the current
+subject against a different preparation cancels and invalidates obsolete work.
+Every waiter rechecks cancellation, subject identity, and generation before a
+successful readiness result can commit.
+
+Prompt refresh allocates its generation synchronously before creating
+asynchronous work, so the latest user or lifecycle trigger owns the visible
+result even when executors start tasks out of order. Its cleanup is generation
+fenced and clears loading when connectivity disappears before the task starts.
+Send cleanup is fenced to the exact subject and request generation: cancellation
+after a pending bubble enters `sending` changes that same bubble to failed and
+retryable without replacing its UUID, while stale cleanup cannot mutate a new
+subject. Views and components retain no network or long-lived operation tasks.
+
 ### Capture Startup AttributeGraph Isolation
 
 The user may configure Scan, Record, or Describe as the first capture page, so

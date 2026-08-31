@@ -171,6 +171,11 @@ When a parent Explore shell supplies an author-route callback, that parent keeps
 the author profile in its navigation stack; the local author case is the
 standalone fallback. Do not add a sibling sheet modifier to this host.
 
+The reusable conversation implementation belongs to `Features/FieldChat`. Feed
+owns post eligibility, the captured post identity, menu/button admission, and
+its typed sheet slot; `FieldChatEndpoint` owns source-specific network
+adaptation and the shared view model owns subject-fenced conversation state.
+
 ## Video Playback
 
 `ExplorePublicMediaView` is the shared media host for feed cards, post detail,

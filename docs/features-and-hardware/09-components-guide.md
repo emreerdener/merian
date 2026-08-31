@@ -711,9 +711,8 @@ identification confirmations behind intentional gesture input.
 
 **Location**:
 `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift` and
-`Features/Insights/Chat/Views/InsightChatSheet.swift`, with Dictionary
-presentation in
-`Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+`Features/FieldChat/Views/InsightChatSheet.swift`, with Dictionary presentation
+in `Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 
 The floating Field chat button and sheet are shared by eligible Insight scans
 and every visible Explore post detail, including the viewer's own posts. The

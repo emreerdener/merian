@@ -1,7 +1,35 @@
-# Insight Chat
+# Field Chat
 
-The `Chat` directory contains the logic and UI for the Pro-tier Field Chat
-feature.
+`Features/FieldChat` is the cross-feature iOS owner for the Pro-tier Field Chat
+experience used by Insights, Explore posts, and Species Dictionary pages.
+
+## Ownership and Boundaries
+
+- `Models/` owns deterministic source and presentation values. It must remain
+  independent of SwiftUI, UIKit, networking, and live service resolution.
+- `Services/` owns the configurable source endpoint and the narrow live
+  dependency adapter. This is the only Field Chat layer that may resolve
+  `MerianNetworkClient`, haptics, telemetry, the clipboard, or other process
+  services.
+- `ViewModels/` owns `@MainActor @Observable` conversation, prompt, feedback,
+  availability, and identification-review state. `FieldChatOperationState`
+  contains mutable task and generation bookkeeping so late work cannot cross a
+  subject boundary.
+- `Views/` composes the shared sheet and retains UI-only focus, scrolling,
+  keyboard/composer, confirmation, and dismissal timing.
+- `Components/` owns focused conversation, feedback, notes, and shared visual
+  pieces. Components issue no endpoint calls.
+
+The three host features remain responsible for their own eligibility,
+entitlement, navigation, and mutually exclusive presentation slots. Core Network
+retains the Codable wire DTOs, strict response validation, request construction,
+and transport. The Supabase functions remain the authorization, context, quota,
+persistence, and provider owners.
+
+`InsightChatSheet`, `InsightChatViewModel`, `InsightChatReplyAction`, and
+`InsightChatFieldNotesAppendKind` keep their existing names and initializer
+signatures for source compatibility. The historical names do not imply Insights
+ownership; new shared Field Chat implementation belongs here.
 
 ## Purpose
 
@@ -30,6 +58,12 @@ capped at 64 Unicode scalars, the contract enumerates normalized whitespace and
 punctuation, U+2013 EN DASH is accepted, U+0085 NEXT LINE collapses to one ASCII
 space, and U+FEFF BYTE ORDER MARK is rejected. Unsupported input falls back to
 `this species` in both runtimes.
+
+Prompt refresh generations are allocated synchronously when refresh is
+requested, before asynchronous work is scheduled. The newest trigger therefore
+owns the visible result even when tasks start or finish out of order. A
+connectivity change before scheduled work begins still clears the loading state
+instead of leaving the prompt spinner active.
 
 For Explore posts, the empty state uses the concise trust message
 `This Field chat is private and visible only to you.` The conversation is never
@@ -90,12 +124,15 @@ Cross-subject availability preparation cancels and replaces the older request
 instead of making the new chat fail merely because an obsolete preflight is
 still running; same-subject requests remain single-flight. Even a
 network-validated response is applied only when its exact `subject_id` also
-matches the active generation. A late completion can therefore never replace
-another observation's thread or copy its private draft into the new composer.
-The parent Insight sheet applies the same scan/generation check to readiness
-failure toasts, paywall routing, unavailable-state dismissal, explicit close,
-and chat-provided toast callbacks. A callback owned by an older sheet therefore
-cannot close, toast over, or reroute a newer observation's Field Chat.
+matches the active generation. Activating the current subject also invalidates
+preparation for any different subject, clearing the chat cancels preparation,
+and a canceled caller cannot commit a successful readiness result. A late
+completion can therefore never replace another observation's thread or copy its
+private draft into the new composer. The parent Insight sheet applies the same
+scan/generation check to readiness failure toasts, paywall routing,
+unavailable-state dismissal, explicit close, and chat-provided toast callbacks.
+A callback owned by an older sheet therefore cannot close, toast over, or
+reroute a newer observation's Field Chat.
 
 Chat-to-alternatives, chat-to-reanalysis, and Pro-paywall follow-ups are typed
 `InsightChatDismissalAction` values declared in
@@ -177,10 +214,13 @@ another thread.
 `PendingInsightChatMessage.id` is the send's durable idempotency UUID. Automatic
 network replay and `retryFailedMessage` must reuse it in canonical lowercase
 form; a manual retry must never allocate a new UUID and insert a duplicate
-question. Insight, Explore, and Species Dictionary are in the audited
-automatic-replay allowlist. The Dictionary regression loses the first retryable
-response and proves the automatic retry carries the exact same UUID and returns
-one saved pair. Reusing the UUID for edited text is a server-confirmed
+question. If a caller is canceled after the pending bubble enters its sending
+state, the exact current-subject bubble becomes failed and retryable with that
+same UUID; stale-subject cleanup cannot rewrite a replacement chat. Insight,
+Explore, and Species Dictionary are in the audited automatic-replay allowlist.
+The Dictionary regression loses the first retryable response and proves the
+automatic retry carries the exact same UUID and returns one saved pair. Reusing
+the UUID for edited text is a server-confirmed
 `field_chat_idempotency_conflict`, so Edit intentionally starts a new send UUID.
 The backend coalesces an in-flight quota replay into the exact saved pair or
 returns retryable `field_chat_send_in_progress`. It reserves both persisted rows
@@ -269,3 +309,19 @@ See:
 - [`species-dictionary-chat` route contract](../../../../../../services/supabase/functions/species-dictionary-chat/README.md)
 - [Scan ingestion reliability and recovery](../../../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#field-chat-readiness)
 - [Insight sheet architecture](../../../../../../docs/features-and-hardware/05-insight-sheet.md)
+
+## Verification Ownership
+
+- Wire request/response decoding stays in
+  `MerianTests/Core/Network/FieldChatAPIModelsTests.swift` beside the Codable
+  contracts.
+- Presentation, view-model state, preparation, dependency routing, stale-work
+  fencing, and architecture coverage live under
+  `MerianTests/Features/FieldChat/`.
+- `FieldChatArchitectureTests` enforces the cross-feature owner,
+  platform-neutral Models, Services-only live resolution, and the 600-line
+  production-file ceiling.
+
+The canonical endpoint and privacy contract remains
+[`05-api-contracts.md`](../../../../../../docs/backend-and-data/05-api-contracts.md);
+this README documents iOS ownership rather than redefining that wire contract.

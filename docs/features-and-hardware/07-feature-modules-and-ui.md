@@ -1076,7 +1076,13 @@ an Edge API response or opened offline via the Scans library.
   and `InsightChatSheet`, backed by an
   `InsightChatViewModel(source: .explorePost)`. Eligibility is independent of
   ownership and whether the post contains images, video, audio, or mixed media.
-  The source candidate also uses
+  The cross-feature sheet, source adapters, and subject-fenced state live under
+  `Features/FieldChat`; Insights, Explore, and Dictionary retain their own
+  eligibility, navigation, and typed presentation ownership. Core Network
+  retains wire DTOs, strict validation, and transport. The shared state owner
+  allocates request generations before scheduling work, cancels obsolete
+  readiness on subject activation or clearing, and returns canceled current
+  sends to same-UUID retry state. The source candidate also uses
   `InsightChatViewModel(source: .speciesDictionary)` from every loaded canonical
   Dictionary detail: Field Chat stays bottom-right, Share stays in the top bar,
   and loading/error/invalid-ID states hide the bottom bar. Direct, deep-linked,

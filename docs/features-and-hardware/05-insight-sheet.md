@@ -19,6 +19,19 @@ verified `pro_complimentary` functional tier also satisfies the server chat gate
 while an available credit or active hold remains; it does not create a
 RevenueCat entitlement or paid badge.
 
+The shared iOS conversation implementation is owned by
+`apps/ios/Merian/Features/FieldChat/`. Insight Shell owns scan eligibility,
+owner-row readiness, dismissal handoffs, and its typed presentation slot;
+`FieldChatEndpoint` and `InsightChatViewModel` own source adaptation and
+subject-fenced conversation state. Core Network retains the Codable wire
+contracts, strict validation, and transport.
+
+Availability preparation is same-subject single-flight; subject replacement or
+clearing invalidates older readiness. Prompt refresh is latest-trigger-wins, and
+a canceled in-flight send returns the exact current pending bubble to retryable
+state under its original UUID. These shared rules apply equally to Insight,
+Explore-post, and Species Dictionary hosts.
+
 The Species Dictionary source is a release-held candidate. Its shared sheet and
 entitlement wiring do not authorize product promotion until the Ghost merge and
 three-family admission contracts, explicit post-deploy cutover activation,
