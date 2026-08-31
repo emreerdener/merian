@@ -833,12 +833,14 @@ production Shell and Library file remains below the 600-line review guard.
 - **Historical Payload Override**: The hydration engine
   (`ScanRepository.syncHistoricalScansDown`) restores historical Cloudflare R2
   URLs into the scan's media payload while keeping `.referenceImageUrl` bound to
-  Wikipedia/GBIF. `ScansThumbnailView` and `AsyncLocalImageView` resolve those
-  paths through `LocalImageLoader`. For an eligible durable URL, the loader
-  first checks exact/rescue/high-confidence timestamp mappings to a surviving
-  Documents file, then performs the bounded network fetch when no local match
-  exists. A recovered local file can queue owner-authenticated cloud repair, but
-  local rendering does not by itself prove that R2 or Explore was restored.
+  Wikipedia/GBIF. `ScanThumbnail` and the cross-feature
+  `Core/UI/Components/AsyncLocalImageView` resolve those paths through narrow
+  Core UI service adapters backed by `LocalImageLoader`. For an eligible durable
+  URL, the loader first checks exact/rescue/high-confidence timestamp mappings
+  to a surviving Documents file, then performs the bounded network fetch when no
+  local match exists. A recovered local file can queue owner-authenticated cloud
+  repair, but local rendering does not by itself prove that R2 or Explore was
+  restored.
 - **Sandbox Resiliency**: File references drop absolute path prefixes before
   parsing (via `.lastPathComponent`). This prevents broken thumbnails when the
   OS shifts active container mount paths (e.g. during Xcode Simulator rebuilds
@@ -1000,15 +1002,15 @@ an Edge API response or opened offline via the Scans library.
   shift the background upward (`offset(y: -scrollY)`) to prevent rubber-band
   bounce tearing. The primary `VStack` is clamped horizontally to screen
   geometries, discarding phantom horizontal swipe capabilities.
-- **Overscroll Bleed Buffer & TabView Resilience**: iOS 17 pure `ScrollView`
-  horizontal paging introduces a bug inside `.sheet` layouts where rapid swipes
-  leave elements frozen halfway between boundaries. The `ImagesCarousel` uses
-  the `UIPageViewController`-backed `TabView(.page)` to work around this. To
-  prevent a 1-frame cross-framework gesture tearing bug that opens a white gap
-  when pulling the `TabView` vertically, the parallax geometry renders a rigid
-  "Overscroll Bleed Buffer" — 50px of hidden image data forced upward out of the
-  viewport — guaranteeing visual immunity against frame clipping lag during
-  bouncy sheet interactions.
+- **Native pager and sheet-gesture resilience**: iOS 17 pure `ScrollView`
+  horizontal paging can freeze midway inside `.sheet` layouts, while
+  `TabView(.page)` lazily mounts media and competes with sheet dismissal.
+  `ImagesCarousel` instead uses the shared `NativePageCarousel`, which wraps
+  `UIPageViewController` directly, eagerly mounts its feature-supplied pages,
+  clips its native view, and lets the internal `UIScrollView` arbitrate with the
+  sheet pan. The top-edge underlap is handled by the shared hero scroll-edge
+  modifier; the current implementation does not use a hidden bleed buffer or a
+  `TabView` shim.
 - **Dynamic Contextual Header**: To replace the `ConfidenceBadge` with the
   truncated Common Name during active scrolling, the layout maps an invisible
   `GeometryReader` onto a native `ScrollView` coordinate tracking axis

@@ -188,6 +188,30 @@ Implemented Explore slices:
   pass's 600-line guard. Cross-surface Field-trip route values moved unchanged
   to `Explore/FieldTrips/Models`.
 
+Implemented Insights slices:
+
+- `Insights/Media/Carousel` now separates platform-neutral gallery, focus,
+  selection, interaction, animation, and audio-presentation Models; ordered page
+  and transient availability Builders; narrow live audio-session, boost,
+  telemetry, and haptic Services; contained AVPlayer playback/observation
+  owners; render-only Components; and focused Pages. The two root carousel views
+  remain stable composition entries, direct live resolution is Services-only,
+  mutable playback/seek/observer state remains private and co-located, and no
+  carousel view performs networking. Focus, animation, gallery, availability,
+  audio-policy, dependency-routing, and architecture tests now mirror the Media
+  owner. Every production Carousel Swift file stays below the pass's 600-line
+  guard. Cross-feature `AsyncLocalImageView` moved from the Carousel to
+  `Core/UI/Components`; its live loader resolution now belongs to a narrow
+  `Core/UI/Services` dependency adapter. The pager, domain-neutral page value,
+  zoom host, pagination dots, and hero scroll-edge treatment used by Insights
+  and Field Trips moved to `Core/UI/Components/MediaCarousel`; each feature
+  retains its own ordering and reuse-key projection. The platform-neutral
+  selection resolver consumes a model-owned candidate contract rather than the
+  SwiftUI-backed Insight page value. The shared pager preserves controllers for
+  equal ID/reuse keys and invalidates the native data-source cache for sequence
+  or key changes; the extracted audio render surface reads live player progress
+  through a closure without widening player ownership.
+
 Implemented Scans slices:
 
 - `Scans/Library` now separates sort/filter and Sendable search models, ad-hoc

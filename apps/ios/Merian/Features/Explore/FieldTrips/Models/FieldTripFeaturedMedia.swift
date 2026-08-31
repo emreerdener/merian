@@ -1,4 +1,5 @@
-import SwiftUI
+import CoreGraphics
+import Foundation
 
 enum FieldTripFeaturedMediaSource: Equatable {
     case userImage(path: String)
@@ -24,10 +25,6 @@ enum FieldTripFeaturedMediaSource: Equatable {
     var isReference: Bool {
         if case .reference = self { return true }
         return false
-    }
-
-    var imageOrigin: CarouselImageOrigin {
-        isReference ? .reference : .user
     }
 
     var inlineAttributionLabel: String? {
@@ -66,6 +63,11 @@ enum FieldTripFeaturedMediaSource: Equatable {
     }
 }
 
+struct FieldTripFeaturedMediaPageReuseIdentity: Hashable {
+    let id: String
+    let isReference: Bool
+}
+
 struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
     let id: String
     let scanId: String?
@@ -77,6 +79,13 @@ struct FieldTripFeaturedMediaItem: Identifiable, Equatable {
     let completedCommonName: String?
     let referenceSpecies: FieldTripReferenceSpecies?
     let source: FieldTripFeaturedMediaSource
+
+    var pageReuseIdentity: FieldTripFeaturedMediaPageReuseIdentity {
+        FieldTripFeaturedMediaPageReuseIdentity(
+            id: id,
+            isReference: source.isReference
+        )
+    }
 
     var accessibilityLabel: String {
         var parts = [levelTitle, goalTitle]

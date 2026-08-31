@@ -1,13 +1,74 @@
 # Insight Media
 
-The `Media` directory manages the rich visual assets associated with a scan.
+The `Media` directory manages the mixed-media presentation associated with a
+scan.
 
 ## Purpose
 
-This area drives the interactive image carousel at the top of an Insight sheet.
-It is responsible for seamlessly combining the user's live capture images, any
-additional staged media, and reference imagery (like GBIF or Wikipedia photos)
-into a unified viewing experience.
+This area drives the interactive mixed-media carousel at the top of an Insight
+sheet. It combines live capture images, persisted image/video/audio/description
+pages, and reference imagery such as GBIF or Wikipedia photos into one ordered
+viewing experience.
+
+The canonical behavior and product contract remains
+[`docs/features-and-hardware/05-insight-sheet.md`](../../../../../../docs/features-and-hardware/05-insight-sheet.md).
+
+## Ownership
+
+`Carousel/ImagesCarousel.swift` and
+`Carousel/InsightFullscreenImageCarousel.swift` are stable composition entry
+points. Their collaborators are organized by responsibility:
+
+- `Carousel/Models/` owns deterministic gallery, media-interaction, focus,
+  selection, audio-control, and presentation values. The model-owned
+  `CarouselSelectionCandidate` contract lets selection policy consume only IDs,
+  image identifiers, and source families rather than the SwiftUI-backed page
+  value. Models do not import SwiftUI or UIKit or name view-backed page types.
+- `Carousel/Builders/` converts `ActiveScanMedia` into ordered inline and
+  fullscreen page values and applies transient availability policy.
+- `Carousel/Services/` is the only carousel owner that resolves live audio
+  sessions, audio boost processing, telemetry, or haptic feedback. The small
+  `InsightCarouselDependencies` closure bundle is initializer-injected; views
+  and components do not resolve those collaborators directly.
+- `Carousel/Playback/` owns AVPlayer surfaces, observation lifetimes, playback
+  coordination, and the contained playback-control cancellation task.
+- `Carousel/Pages/` owns individual audio, image, description, and live-capture
+  pages. Mutable player, pending-source, seek, boost, and observer state remains
+  private and co-located with its mounted playback page. The render-only audio
+  spectrogram receives a live progress provider, so each timeline tick reads
+  current player time without taking ownership of the player.
+- `Carousel/Components/` owns render-only chrome, controls, analysis overlays,
+  and focus gestures. `Carousel/Animation/` owns the time-derived analysis
+  session and sweep policy.
+
+The domain-neutral pager, page value, zoom host, pagination dots, and hero
+scroll-edge treatment shared with Field Trips live in
+`Core/UI/Components/MediaCarousel`. `CarouselPageItem` remains Insight-owned and
+projects its existing image-origin, still-source, and focus identity into the
+Core page reuse key. Presentation-only view changes keep the mounted controller;
+an image-origin, source-index, or focus-identity change remounts that page and
+forces the native pager to discard cached neighbors.
+
+The carousel performs no networking. Remote reference images continue through
+the cross-feature `Core/UI/Components/AsyncLocalImageView` boundary, whose live
+`LocalImageLoader` adapter is isolated in `Core/UI/Services`. Existing
+entry-point initializers retain their arguments; an optional trailing dependency
+seam defaults to the live adapter. Every production Swift file under `Carousel/`
+stays at or below the 600-line review guard.
+
+## Regression ownership
+
+`InsightMediaAvailabilityTests` owns availability ordering and selection
+fallback. `InsightMediaGalleryTests` owns mixed-media/fullscreen mapping, the
+Insight reuse-key projection, the Core page's ID-only default, and data-source
+reset when a reuse key changes. `InsightMediaFocusPresentationTests` owns focus
+and animation policy; `InsightAudioPlaybackPresentationTests` owns audio
+presentation, source handoff, live-playhead, and injected-effect routing; and
+`InsightMediaCarouselArchitectureTests` locks the directory boundary, private
+playback state, Core UI extraction, and 600-line ceiling. Pair those suites with
+`FieldTripFeaturedMediaTests` whenever the shared pager or reuse contract
+changes. `AsyncLocalImageDependenciesTests` remains under Core UI because it
+tests the cross-feature loader seam rather than Insight behavior.
 
 External reference URLs are normalized through
 `ExternalReferenceImagePolicy.allowedURLStrings(from:)` before carousel pages

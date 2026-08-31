@@ -8,16 +8,12 @@ struct FieldTripFeaturedMediaCarousel: View {
     @State private var selectedIndex = 0
     @State private var selectedItemId: String?
 
-    private var carouselPages: [CarouselPageItem] {
+    private var carouselPages: [NativePageCarouselPage] {
         items.map { item in
-            CarouselPageItem(
+            NativePageCarouselPage(
                 id: item.id,
-                mediaKind: .visual,
-                view: AnyView(page(for: item)),
-                imageIdentifier: item.source.posterPath,
-                imageOrigin: item.source.imageOrigin,
-                referenceAttributionLabel: item.source.fullscreenAttributionLabel,
-                galleryItem: item.galleryItem
+                reuseKey: AnyHashable(item.pageReuseIdentity),
+                view: AnyView(page(for: item))
             )
         }
     }

@@ -496,13 +496,25 @@ against model changes.
   `.white.opacity(0.1)` border stroke, and 24 pt inner padding — identical to
   `ConfidenceSpectrum` and `ProTips`.
 
-## 17. Image Carousel: `ImagesCarousel`
+## 17. Mixed-Media Carousel: `ImagesCarousel`
 
 **Location**: `Features/Insights/Media/Carousel/ImagesCarousel.swift`
 
-The full-width image carousel at the top of the Insight Sheet, combining live
-captures, on-disk paths, and reference images into a horizontally scrolling
-full-screen strip with per-page pinch-to-zoom and pan.
+The full-width mixed-media carousel at the top of the Insight Sheet combines
+live captures, persisted images, videos, standalone audio, descriptions, and
+reference images in one horizontally scrolling strip. Visual pages retain
+per-page pinch-to-zoom and pan.
+
+Its local-path/remote-fallback renderer is the cross-feature
+`Core/UI/Components/AsyncLocalImageView.swift`. The corresponding
+`Core/UI/Services/AsyncLocalImageDependencies.swift` adapter is the only shared
+UI owner that resolves `LocalImageLoader`; the Carousel supplies source values
+and availability callbacks.
+
+The domain-neutral pager, page identity value, zoom host, pagination dots, and
+hero scroll-edge treatment shared with Field Trips live under
+`Core/UI/Components/MediaCarousel`. Insight retains mixed-media assembly and
+projects its feature-owned page identity into that Core UI boundary.
 
 `ImagesCarousel` has **no direct `InferenceEngine` dependency**. All data is
 injected as plain parameters, making the component reusable across both the live
@@ -516,12 +528,12 @@ camera pipeline and the offline queued-scan path:
 | `isProcessing`          | `Bool`            | `viewModel.isCarouselAnalysisActive(for:)` — exact non-attention visual handoffs stay active through pending/uploading/staged/inferencing; ordinary queued scans are active only while inferencing                                 |
 
 - **`NativePageCarousel`**: A shared `UIViewControllerRepresentable` used by
-  both Insight and the private Field-trip Goals hero. It wraps
-  `UIPageViewController`; `Coordinator.controllers: [ZoomPageViewController]` is
-  populated eagerly so `AsyncLocalImageView.task` fires for all pages
-  immediately, before the user swipes to them. `UIPageViewController`'s internal
-  `UIScrollView` defers to the sheet's pan gesture without manual workarounds
-  (unlike `TabView(.page)`).
+  both Insight and the private Field-trip Goals hero, located in
+  `Core/UI/Components/MediaCarousel`. It wraps `UIPageViewController`;
+  `Coordinator.controllers: [ZoomPageViewController]` is populated eagerly so
+  `AsyncLocalImageView.task` fires for all pages immediately, before the user
+  swipes to them. `UIPageViewController`'s internal `UIScrollView` defers to the
+  sheet's pan gesture without manual workarounds (unlike `TabView(.page)`).
 - **`MediaCarouselPaginationDots`**: The shared bottom material capsule used by
   Insight and Field trips. It hides for a single page, clamps transient index
   changes safely, animates selection, and announces the current page count.
@@ -531,11 +543,10 @@ camera pipeline and the offline queued-scan path:
   is present; the modifier hides the native top scroll-edge effect over the
   image and restores it after the hero clears the toolbar.
 - **`ZoomPageViewController`**: Each page controller. Embeds its SwiftUI content
-  (`AsyncLocalImageView` or `LiveCapturePageView`) inside a `ZoomScrollView`.
-  Exposes `rootView: AnyView` as a computed property proxying into the inner
-  `UIHostingController`, so `updateUIViewController`'s existing
-  `controller.rootView = pages[i]` state-push pattern works without
-  modification.
+  (image, video, audio, description, loading, or terminal state) inside a
+  `ZoomScrollView`. Exposes `rootView: AnyView` as a computed property proxying
+  into the inner `UIHostingController`, so equal ID/reuse-key pages receive
+  presentation updates without discarding the mounted controller.
 - **`ZoomScrollView`**: A `UIScrollView` subclass (`minimumZoomScale: 1.0`,
   `maximumZoomScale: 4.0`) that overrides `gestureRecognizerShouldBegin(_:)` to
   suppress its `panGestureRecognizer` when
@@ -549,10 +560,13 @@ camera pipeline and the offline queued-scan path:
   `snapBackToIdentity`: pending deceleration is cancelled first, then
   `UIView.animate(usingSpringWithDamping: 0.72)` restores `zoomScale → 1.0` and
   `contentOffset → .zero` simultaneously.
-- **Async page growth**: `updateUIViewController` handles the user-media page
-  model resolving asynchronously after `makeCoordinator`. New controllers are
-  appended and `UIPageViewController.dataSource` is nil-reset to force neighbor
-  re-queries.
+- **Async page and reuse updates**: `updateUIViewController` handles the
+  user-media page model resolving asynchronously after `makeCoordinator`. Equal
+  ID/reuse-key pages preserve their controllers; insertions, removals, reorders,
+  or reuse-key changes reconstruct only the affected controller list and
+  nil-reset `UIPageViewController.dataSource` before reinstalling the selected
+  page. This forces neighbor re-queries and prevents a source-family replacement
+  from leaving a stale cached page visible.
 - **Image failure handling**: `AsyncLocalImageView` reports success or failure
   to `ImagesCarousel`. The carousel keeps that status in a scan-scoped transient
   set and stably moves unavailable image pages behind available image pages

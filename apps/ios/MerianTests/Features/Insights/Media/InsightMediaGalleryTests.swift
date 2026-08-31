@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftData
+import SwiftUI
 import Testing
 
 @testable import Merian
@@ -109,7 +110,84 @@ struct InsightMediaGalleryTests {
 
         #expect(audioOnlyPages.map(\.id) == ["audio-\(audioPath)"])
         #expect(withReferencePages.map(\.id) == ["audio-\(audioPath)", "reference-https://example.com/field-sparrow.jpg"])
-        #expect(NativePageCarousel.Coordinator.requiresDataSourceReset(previousPages: audioOnlyPages, nextPages: withReferencePages))
+        #expect(NativePageCarousel.Coordinator.requiresDataSourceReset(
+            previousPages: audioOnlyPages.map(\.nativePage),
+            nextPages: withReferencePages.map(\.nativePage)
+        ))
+    }
+
+    @Test func testInsightNativePageProjectionPreservesExistingReuseIdentity() {
+        let focusRegion = NormalizedImageFocusRegion(
+            x: 0.1,
+            y: 0.2,
+            width: 0.3,
+            height: 0.4
+        )
+        let baseline = carouselPage(
+            mediaKind: .visual,
+            imageOrigin: .user,
+            stillImageSourceIndex: 2,
+            focusRegion: focusRegion
+        )
+        let presentationOnlyChange = carouselPage(
+            mediaKind: .description,
+            imageOrigin: .user,
+            stillImageSourceIndex: 2,
+            focusRegion: focusRegion
+        )
+
+        #expect(baseline == presentationOnlyChange)
+        #expect(baseline.nativePage == presentationOnlyChange.nativePage)
+        #expect(baseline.nativePage != carouselPage(
+            imageOrigin: .reference,
+            stillImageSourceIndex: 2,
+            focusRegion: focusRegion
+        ).nativePage)
+        #expect(baseline.nativePage != carouselPage(
+            imageOrigin: .user,
+            stillImageSourceIndex: 3,
+            focusRegion: focusRegion
+        ).nativePage)
+        #expect(baseline.nativePage != carouselPage(
+            imageOrigin: .user,
+            stillImageSourceIndex: 2,
+            focusRegion: nil
+        ).nativePage)
+    }
+
+    @Test func testCoreNativePageDefaultsToIDOnlyReuseIdentity() {
+        let first = NativePageCarouselPage(
+            id: "field-trip-goal",
+            view: AnyView(Color.red)
+        )
+        let updated = NativePageCarouselPage(
+            id: "field-trip-goal",
+            view: AnyView(Color.blue)
+        )
+
+        #expect(first == updated)
+        #expect(!NativePageCarousel.Coordinator.requiresDataSourceReset(
+            previousPages: [first],
+            nextPages: [updated]
+        ))
+    }
+
+    @Test func testNativeCarouselResetsDataSourceWhenReuseIdentityChanges() {
+        let first = NativePageCarouselPage(
+            id: "field-trip-goal",
+            reuseKey: AnyHashable("reference"),
+            view: AnyView(Color.red)
+        )
+        let updated = NativePageCarouselPage(
+            id: "field-trip-goal",
+            reuseKey: AnyHashable("user"),
+            view: AnyView(Color.blue)
+        )
+
+        #expect(NativePageCarousel.Coordinator.requiresDataSourceReset(
+            previousPages: [first],
+            nextPages: [updated]
+        ))
     }
 
     @Test func testInsightImageGalleryIncludesOnlyVisualLoadedPages() {
@@ -142,6 +220,22 @@ struct InsightMediaGalleryTests {
             "reference-https://static.inaturalist.org/photos/1/original.jpg"
         ])
         #expect(items.map(\.referenceAttributionLabel) == [nil, nil, "Naturebook", "Wikipedia", "GBIF"])
+    }
+
+    private func carouselPage(
+        mediaKind: CarouselMediaKind = .visual,
+        imageOrigin: CarouselImageOrigin,
+        stillImageSourceIndex: Int?,
+        focusRegion: NormalizedImageFocusRegion?
+    ) -> CarouselPageItem {
+        CarouselPageItem(
+            id: "stable-page",
+            mediaKind: mediaKind,
+            view: AnyView(EmptyView()),
+            imageOrigin: imageOrigin,
+            stillImageSourceIndex: stillImageSourceIndex,
+            focusRegion: focusRegion
+        )
     }
 
     @Test func testInsightImageGalleryExcludesReferenceLoadingPlaceholder() {

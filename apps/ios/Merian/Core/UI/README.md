@@ -135,6 +135,35 @@ owns its bounded avatar-crop preview. Pixel cropping and encoding remain in
 used by the shared Capture control bar. The Capture owner supplies feedback and
 the `CameraManager` mutation through its action closure.
 
+## Shared media carousel presentation
+
+`Components/MediaCarousel/` owns the domain-neutral native pager used by
+Insights and the Field Trips featured-media hero. `NativePageCarouselPage`
+contains only stable page identity, a controller-reuse key that defaults to the
+page ID, and rendered SwiftUI content. A stable ID/reuse-key pair updates the
+mounted controller's root view without discarding its state. A changed ordered
+page sequence or reuse key invalidates `UIPageViewController`'s cached data
+source before the selected controller is reinstalled, preventing a stale
+neighbor from surviving a feature-owned source-family change.
+`NativePageCarousel` and its coordinator otherwise own eager mounting and
+selection synchronization; `ZoomPageViewController` owns pinch, pan, and
+snap-back behavior. The same Core UI directory owns the shared pagination dots
+and iOS 26 top scroll-edge treatment. Feature owners remain responsible for
+media ordering, source and attribution policy, availability state, navigation,
+and their reuse-key projection.
+
+## Shared local and remote image presentation
+
+`Components/AsyncLocalImageView.swift` owns the local-path/remote-fallback image
+surface shared by Insights, Explore, Field Trips, and Species Dictionary. It
+retains task-identity cancellation, online retry identity, archived and
+unavailable presentation, content-mode layout, and success/failure callbacks.
+`Services/AsyncLocalImageDependencies.swift` is the only UI-layer owner that
+resolves the live `LocalImageLoader`; the view accepts its loader closure
+through a defaulted dependency value so tests and future hosts do not resolve
+the actor directly. Feature callers continue to own source selection,
+attribution, availability state, and navigation.
+
 ## Shared scan and empty-state presentation
 
 `Components/ScanThumbnail.swift` owns cross-feature scan-thumbnail rendering for

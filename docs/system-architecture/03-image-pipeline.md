@@ -572,20 +572,26 @@ FileIOActor.shared.deleteImages(at: [String])
 and remote.
 
 ```swift
-// Scan library thumbnail (ScanThumbnail) — small decode for grid cells
-LocalImageLoader.shared.loadImage(
+// Core UI ScanThumbnailLoader adapter — small decode for grid cells
+await LocalImageLoader.shared.loadImage(
     fromPath: record.localImagePath,
     fallbackUrl: record.referenceImageUrl,
     maxDimension: 600   // default; ScansGrid passes a computed cell-pixel value
 )
 
-// Insight sheet carousel (AsyncLocalImageView) — full display-quality decode
-LocalImageLoader.shared.loadImage(
+// Core UI live adapter behind AsyncLocalImageView — display-quality decode
+await LocalImageLoader.shared.loadImage(
     fromPath: record.localImagePath,
     fallbackUrl: record.referenceImageUrl,
     maxDimension: Int(MerianConfig.displayImageMaxSize)  // 2048
 )
 ```
+
+These are service-adapter calls, not view-owned lookups. `ScanThumbnail`
+receives its loader sequence through `Core/UI/Services/ScanThumbnailLoader`,
+while `AsyncLocalImageView` receives the second closure through
+`Core/UI/Services/AsyncLocalImageDependencies.live`. The components retain only
+load identity, cancellation, retry, fallback, and rendering state.
 
 **Resolution order:**
 
@@ -770,12 +776,12 @@ the internal `Reference pending` state.
 - **`maxDimension` by caller**:
   - `ScanThumbnail`: `600` default (ScansGrid overrides with a computed
     cell-pixel size).
-  - `AsyncLocalImageView` (insight sheet carousel):
-    `Int(MerianConfig.displayImageMaxSize)` = 2048. The 2048 px files are stored
-    on disk; decoding them at full resolution ensures crisp display on Pro Max
-    (1290 px native width) and iPad Pro (2048 px native width). Previously
-    defaulted to 1024, producing visibly soft full-screen images on large
-    devices.
+  - `AsyncLocalImageView` (cross-feature Core UI renderer; the Insight carousel
+    requests display-sized media): `Int(MerianConfig.displayImageMaxSize)`
+    = 2048. The 2048 px files are stored on disk; decoding them at full
+    resolution ensures crisp display on Pro Max (1290 px native width) and iPad
+    Pro (2048 px native width). Previously defaulted to 1024, producing visibly
+    soft full-screen images on large devices.
 
 ### Display lifetime and feedback isolation
 

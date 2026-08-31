@@ -488,11 +488,15 @@ playhead disappears. A `DragGesture` on the spectrogram image drives
 `seekPlayback(to:)`, enabling scrub-to-any-position with live playhead tracking.
 
 **Insight carousel playback**: Persisted audio pages use
-`AudioPlaybackCarouselPage`. The page does not mount a 60 Hz Combine timer.
-Progress updates run inside `.task(id: isPlaying)` only while the
-`AVAudioPlayer` is actively playing, polling every 100 ms and stopping when
-playback stops, completes, or the page disappears. This keeps idle insight
-carousels from burning battery just because an audio page is visible.
+`Media/Carousel/Pages/AudioPlaybackCarouselPage`. The page does not mount a 60
+Hz Combine timer. Its generation-keyed playback monitor publishes durable
+progress every 100 ms only while the concrete `AVAudioPlayer` remains active and
+stops when playback stops, completes, is replaced, or the page disappears. The
+render-only `AudioPlaybackCarouselContent` receives a live progress provider;
+its `TimelineView` reads current player time for the thin playmarker on each
+display tick without owning the player or mutating the raster-backed
+spectrogram. This keeps idle Insight carousels from burning battery and prevents
+the extracted component from freezing the playmarker at a parent snapshot.
 
 **Staged multi-scan playback**: `ActiveScanToolbar` routes a waveform-badge tap
 to a selected staged-audio index. `CaptureWorkspaceView` presents that clip in

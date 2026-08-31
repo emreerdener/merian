@@ -6,26 +6,29 @@ struct AsyncLocalImageView: View {
     let path: String?
     var fallbackImageUrl: String?
     var contentMode: ContentMode = .fill
-    var fillHeight: Bool = false
-    var isArchivedVisual: Bool = false
+    var fillHeight = false
+    var isArchivedVisual = false
     var unavailableContext: UnavailableVisualContext = .generic
     var onImageLoaded: (() -> Void)?
     var onImageLoadFailed: (() -> Void)?
+    var dependencies: AsyncLocalImageDependencies = .live
 
     @State private var loadedImage: UIImage?
-    @State private var hasFailedToLoad: Bool = false
+    @State private var hasFailedToLoad = false
 
     var body: some View {
         GeometryReader { proxy in
             Group {
-                if let img = loadedImage {
-                    imageView(for: img, in: proxy.size)
+                if let loadedImage {
+                    imageView(for: loadedImage, in: proxy.size)
                 } else if hasFailedToLoad {
                     if isArchivedVisual {
                         ArchivedVisualsView()
                     } else {
                         UnavailableVisualsView(
-                            isOffline: hasRemoteVisualSource && !offlineQueueManager.isOnline,
+                            isOffline:
+                                hasRemoteVisualSource
+                                    && !offlineQueueManager.isOnline,
                             context: unavailableContext
                         )
                     }
@@ -39,15 +42,17 @@ struct AsyncLocalImageView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: loadedImage != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // task(id:) cancels the in-flight load when the view disappears during a fast swipe,
-        // preventing multiple concurrent decode tasks from racing and stalling the main thread.
         .task(id: loadTaskID) {
             loadedImage = nil
             hasFailedToLoad = false
-            let img = await LocalImageLoader.shared.loadImage(fromPath: path, fallbackUrl: fallbackImageUrl, maxDimension: Int(MerianConfig.displayImageMaxSize))
+            let image = await dependencies.loadImage(
+                path,
+                fallbackImageUrl,
+                Int(MerianConfig.displayImageMaxSize)
+            )
             guard !Task.isCancelled else { return }
-            if let img {
-                loadedImage = img
+            if let image {
+                loadedImage = image
                 onImageLoaded?()
             } else {
                 hasFailedToLoad = true
@@ -67,20 +72,33 @@ struct AsyncLocalImageView: View {
 
     private var hasRemoteVisualSource: Bool {
         [path, fallbackImageUrl]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .contains { $0.hasPrefix("http://") || $0.hasPrefix("https://") }
+            .compactMap {
+                $0?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+            }
+            .contains {
+                $0.hasPrefix("http://") || $0.hasPrefix("https://")
+            }
     }
 
     @ViewBuilder
-    private func imageView(for image: UIImage, in containerSize: CGSize) -> some View {
+    private func imageView(
+        for image: UIImage,
+        in containerSize: CGSize
+    ) -> some View {
         if fillHeight {
             let safeImageHeight = max(image.size.height, 1)
-            let width = containerSize.height * (image.size.width / safeImageHeight)
+            let width = containerSize.height
+                * (image.size.width / safeImageHeight)
 
             Image(uiImage: image)
                 .resizable()
                 .frame(width: width, height: containerSize.height)
-                .frame(width: containerSize.width, height: containerSize.height, alignment: .center)
+                .frame(
+                    width: containerSize.width,
+                    height: containerSize.height,
+                    alignment: .center
+                )
                 .transition(.opacity)
         } else if contentMode == .fill {
             Image(uiImage: image)

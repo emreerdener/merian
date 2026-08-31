@@ -259,6 +259,22 @@ Insights tests enforce deterministic Models, the live-resolution boundary,
 removal of aggregate source/test files, and a 600-line ceiling for production
 Shell Swift files.
 
+`Insights/Media/Carousel` applies the same product-area boundary below the
+Shell: platform-neutral Models own presentation policy, Builders own page
+assembly and availability, Services alone resolve audio/boost/telemetry/haptic
+effects, and Playback owns AVPlayer observation lifetimes. Pages and Components
+retain private mounted UI state. Carousel views perform no networking, stable
+call-site initializers keep an optional trailing live dependency default, and
+mirrored Media tests enforce folder ownership and the 600-line ceiling. The
+cross-feature `AsyncLocalImageView` renderer lives in `Core/UI/Components`, with
+its live loader adapter isolated in `Core/UI/Services`. The native pager, page
+identity value, zoom host, pagination dots, and hero scroll-edge treatment used
+by Insights and Field Trips also live in `Core/UI/Components/MediaCarousel`;
+each feature supplies its own page ordering and reuse-key projection. Models
+depend only on a platform-neutral selection-candidate contract, while the Core
+pager preserves controllers for equal ID/reuse keys and invalidates its native
+data-source cache when either identity changes.
+
 The root view-model extensions are split into lifecycle, records, capabilities,
 content presentation, media presentation, and presentation identity. Root view
 extensions separately own content routing, chat actions, lifecycle attachment,

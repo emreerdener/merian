@@ -35,7 +35,10 @@ the canonical
   Event-entry requests plus their typed completion values.
 - Featured-media source selection, fallback, and layout policy live in
   `Models/FieldTripFeaturedMedia.swift`; the carousel owns rendering and
-  view-local page/failure state only.
+  view-local page/failure state only. It projects the stable goal-derived ID and
+  existing reference/user source-family boundary into the domain-neutral pager
+  in `Core/UI/Components/MediaCarousel`; Field Trips does not depend on the
+  Insight-specific carousel page model.
 - Profile ordering, visibility, patch, and cover decisions live in
   `Models/FieldTripProfilePresentation.swift`. Profile components render those
   decisions and do not reconstruct them.
@@ -59,3 +62,8 @@ Add presentation, policy, dependency-adapter, and view-model tests under
 `MerianTests/Features/Explore/FieldTrips`. Shared fixtures belong in
 `FieldTripTestFixtures.swift`. Keep only JSON decoding and wire-contract
 compatibility coverage in `FieldTripAPIModelsTests`.
+`FieldTripFeaturedMediaTests` owns featured-source ordering, fallback, stable
+goal identity, and the reference/user reuse boundary. Pair it with
+`InsightMediaGalleryTests` and `InsightMediaCarouselArchitectureTests` whenever
+the shared Core pager, page identity, zoom host, pagination, or top-edge
+treatment changes.

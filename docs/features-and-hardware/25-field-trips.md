@@ -1121,24 +1121,28 @@ the current active level, sorts them by checklist order and stable ID, then
 takes up to six. Completed earlier levels and locked later levels never enter
 the carousel. Failed source identifiers advance within the same goal before a
 source-exhausted goal is removed and a same-level reserve candidate refills the
-selection; reconnecting clears transient failures. Rendering reuses Insight's
-`NativePageCarousel`, `CarouselPageItem`, `ZoomPageViewController`, and shared
-pagination treatment, and the hero takes the full scroll-container width without
-horizontal content insets. It also extends to the sheet's top edge beneath
-transparent navigation chrome; the toolbar floats over the image just as it does
-in Insight. No-media states retain the normal navigation-bar inset and
-background. All selected posters begin resolving immediately, horizontal paging
-cooperates with sheet dismissal, controller identity survives progress-driven
-updates, and photo pages inherit the same pinch-and-snap-back behavior. The
-inline carousel remains poster-only for video; tapping any page opens a
-full-screen presentation containing exactly the currently featured order with
-video muted initially. Reference pages use the shared reference gallery source,
-display their provider badge against the visible bottom edge, and retain
-license/attribution text in the full-screen viewer. Every source badge uses the
-bottom-trailing corner. A Naturebook reference with a public author username
-also displays `@username` in the bottom-leading corner; the Naturebook source
-badge remains bottom-trailing. VoiceOver distinguishes an illustrative reference
-and its provider from the user's own photo or video.
+selection; reconnecting clears transient failures. Rendering uses the
+domain-neutral Core UI `NativePageCarousel`, `NativePageCarouselPage`,
+`ZoomPageViewController`, and shared pagination treatment. Field Trips supplies
+stable goal-derived page IDs plus its existing reference/user source-family
+boundary rather than depending on Insight's mixed-media `CarouselPageItem`. The
+hero takes the full scroll-container width without horizontal content insets. It
+also extends to the sheet's top edge beneath transparent navigation chrome; the
+toolbar floats over the image just as it does in Insight. No-media states retain
+the normal navigation-bar inset and background. All selected posters begin
+resolving immediately, horizontal paging cooperates with sheet dismissal,
+controller identity survives progress-driven updates within the same source
+family, and a reference-to-user handoff remounts only that page as before. Photo
+pages inherit the same pinch-and-snap-back behavior. The inline carousel remains
+poster-only for video; tapping any page opens a full-screen presentation
+containing exactly the currently featured order with video muted initially.
+Reference pages use the shared reference gallery source, display their provider
+badge against the visible bottom edge, and retain license/attribution text in
+the full-screen viewer. Every source badge uses the bottom-trailing corner. A
+Naturebook reference with a public author username also displays `@username` in
+the bottom-leading corner; the Naturebook source badge remains bottom-trailing.
+VoiceOver distinguishes an illustrative reference and its provider from the
+user's own photo or video.
 
 While standard outing detail is loading, its skeleton preserves the same visual
 hierarchy: a square edge-to-edge media placeholder under transparent toolbar
@@ -1392,6 +1396,8 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/OfflineQueuedScanDeletionTests \
   -only-testing:merianTests/AchievementToastPresenterTests \
   -only-testing:merianTests/FieldTripFeaturedMediaTests \
+  -only-testing:merianTests/InsightMediaGalleryTests \
+  -only-testing:merianTests/InsightMediaCarouselArchitectureTests \
   -only-testing:merianTests/InsightFieldTripContributionTests \
   -only-testing:merianTests/MigrationPlanTests \
   -only-testing:merianTests/AppTelemetryTests test
@@ -1495,7 +1501,9 @@ later-level pages, and must cap that level at six in checklist order. Advancing
 the outing must replace the carousel contents with the new active level. Verify
 each reference tries Naturebook, Wikipedia, then GBIF; source badges and
 full-screen rights attribution remain legible; completing that exact goal
-replaces the same stable page with the user's visual; video pages show a
+replaces the same stable page with the user's visual. Repeat that replacement
+while an adjacent page is visible, then swipe back and confirm the newly mounted
+user visual appears instead of a cached reference neighbor. Video pages show a
 poster/play badge and open muted playable video; and photos open the swipe/zoom
 viewer. Failed user media must fall back to the goal reference, a
 source-exhausted goal must refill from a reserve, and exhausting every

@@ -23,7 +23,11 @@ struct MediaCarouselPaginationDots: View {
                                     : Color.white.opacity(0.4)
                             )
                             .frame(width: 6, height: 6)
-                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                            .shadow(
+                                color: .black.opacity(0.3),
+                                radius: 2,
+                                y: 1
+                            )
                     }
                 }
                 .padding(.horizontal, 12)
@@ -34,7 +38,8 @@ struct MediaCarouselPaginationDots: View {
                 .allowsHitTesting(false)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    "\(accessibilityNoun) \(resolvedSelectedIndex + 1) of \(pageCount)"
+                    "\(accessibilityNoun) " +
+                        "\(resolvedSelectedIndex + 1) of \(pageCount)"
                 )
                 .animation(
                     .spring(response: 0.3, dampingFraction: 0.8),
@@ -46,6 +51,9 @@ struct MediaCarouselPaginationDots: View {
                 ))
             }
         }
-        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: pageCount)
+        .animation(
+            .spring(response: 0.6, dampingFraction: 0.8),
+            value: pageCount
+        )
     }
 }

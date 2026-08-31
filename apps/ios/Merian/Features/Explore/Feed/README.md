@@ -334,8 +334,10 @@ Focused tests mirror their production owners:
   route, location-privacy, store-merge, and share-copy suites cover their
   Feed-owned pure policies.
 - `MerianTests/Features/Explore/ExploreAudioBoostTests.swift` remains one level
-  higher because it exercises shared Core policy and both Explore and Insight
-  playback surfaces.
+  higher because it exercises Explore preferences and playback policy together
+  with the shared Core boost/seeking implementation. Insight-specific pill,
+  source-handoff, live-playhead, and injected-effect coverage lives with
+  `MerianTests/Features/Insights/Media/InsightAudioPlaybackPresentationTests.swift`.
 
 After building the test bundle, run the focused XCTest suites with the canonical
 simulator destination:

@@ -330,6 +330,43 @@ struct FieldTripFeaturedMediaTests {
         #expect(userImage.inlineAttributionLabel == nil)
     }
 
+    @Test func pageReuseIdentityPreservesTheExistingSourceFamilyBoundary() {
+        let firstReference = makeFeaturedItem(
+            id: "stable-goal",
+            level: 1,
+            order: 0,
+            source: .reference(referenceImage(source: .wikipedia))
+        )
+        let replacementReference = makeFeaturedItem(
+            id: "stable-goal",
+            level: 1,
+            order: 0,
+            source: .reference(referenceImage(source: .gbif))
+        )
+        let userImage = makeFeaturedItem(
+            id: "stable-goal",
+            level: 1,
+            order: 0,
+            source: .userImage(path: "image.webp")
+        )
+        let userVideo = makeFeaturedItem(
+            id: "stable-goal",
+            level: 1,
+            order: 0,
+            source: .userVideo(
+                path: "video.mp4",
+                posterPath: "poster.webp"
+            )
+        )
+
+        #expect(
+            firstReference.pageReuseIdentity ==
+                replacementReference.pageReuseIdentity
+        )
+        #expect(userImage.pageReuseIdentity == userVideo.pageReuseIdentity)
+        #expect(firstReference.pageReuseIdentity != userImage.pageReuseIdentity)
+    }
+
     @Test func loadingSkeletonUsesTheFeaturedHeroUntilTemplateContentArrives() {
         #expect(FieldTripDetailLoadingPresentation.showsFeaturedMediaHero(
             isLoading: true,

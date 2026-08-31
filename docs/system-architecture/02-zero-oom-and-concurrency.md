@@ -38,17 +38,19 @@ immediately on each loop iteration and preserving a clean RAM ceiling.
 This identical RAM ceiling violation exists during Apple Vision AI inferences,
 detached image decoding, manual cropping, and metadata scrubbing. Executing
 `VNImageRequestHandler` classifications (e.g., `InferenceEngine.swift` and
-`SizeEstimator.swift`), uncompressing raw blobs via `UIImage(data:)` off the
-main thread (`ImagesCarousel.swift` and `CropSheetModifier.swift`), or actively
-parsing EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s
-`executePhotoLibraryWrite`) inside detached closures leaves enormous
-multi-megabyte allocations cached until the CPU rotates out the `Task.detached`
-context. Merian enforces `autoreleasepool { ... }` wrappers around these entire
-isolated blocks and explicitly deprecates raw `UIImage(data:)` inflations in
-favor of constrained `ImageDownsampler.downsample(data:maxSize:)` extractions.
-This guarantees that unmanaged ImageIO formats immediately relinquish memory
-back to the system, dropping transient spikes completely and averting JetSam OOM
-kills during rapid captures, exports, or swipes.
+`SizeEstimator.swift`), decoding live/fullscreen carousel blobs in
+`Media/Carousel/Pages/LiveCapturePageView.swift` and
+`Media/Carousel/Components/FullscreenLiveImageView.swift`, or actively parsing
+EXIF properties during GPS stripping (`PhotoLibraryManager.swift`'s
+`executePhotoLibraryWrite`) inside detached closures can leave enormous
+multi-megabyte allocations cached until the CPU rotates out the detached
+context. Merian routes the carousel decode owners through `DetachedWork`, wraps
+their ImageIO blocks in `autoreleasepool { ... }`, and explicitly deprecates raw
+`UIImage(data:)` inflations in favor of constrained
+`ImageDownsampler.downsample(data:maxSize:)` extractions. This guarantees that
+unmanaged ImageIO formats immediately relinquish memory back to the system,
+dropping transient spikes and averting JetSam OOM kills during rapid captures,
+exports, or swipes.
 
 The candidate-review "original capture" expansion follows the same rule.
 `OriginalCaptureExpandedView` must not call `UIImage(data:)` on

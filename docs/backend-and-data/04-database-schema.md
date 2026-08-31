@@ -5414,7 +5414,7 @@ Tracks locally synchronized species scans for the Scans library.
   `BackgroundDatabaseActor.updateScanWithWikipedia`.)
 - `referenceImageUrl`: String? (Stores Wikipedia/GBIF biological reference
   images only. Kept separate from scan images to prevent duplication in the UI
-  Image Carousel).
+  Insight mixed-media carousel).
 - `isLocallyArchived`: Bool (Legacy/backward-compatible flag for records whose
   visual payload was previously copied into local Documents storage. This local
   presentation flag is unrelated to `store-rescue` directories and does not mean

@@ -1201,7 +1201,9 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `InsightQueuedHandoffTests`, and `InsightFieldTripContributionTests`.
   Product-area mirrors contain `InsightQueuedRetryPresentationTests` in Content,
   `InsightFieldNotesStateTests` in FieldNotes, `InsightMediaAvailabilityTests`,
-  `InsightMediaGalleryTests`, and `InsightMediaSuppressionTests` in Media, and
+  `InsightMediaGalleryTests`, `InsightMediaSuppressionTests`,
+  `InsightMediaFocusPresentationTests`, `InsightAudioPlaybackPresentationTests`,
+  and `InsightMediaCarouselArchitectureTests` in Media, and
   `InsightSharingPresentationTests` in Sharing. Together they verify carousel
   handoff integrity across queued/analyzing/result states, including mixed
   media. The key regression is that an audio page present during analysis
@@ -1218,9 +1220,13 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   Explore-onboarding regression proves the retained timer is bound to scan ID
   plus presentation generation and is cancelled by reset. Field Notes tests
   cover the same ID-plus-generation boundary while preserving editing for
-  queued/offline scans. The architecture suite locks the six ownership folders,
-  platform-neutral Models, live resolution in Services, absence of direct
-  networking in views/view models, aggregate removal, and the 600-line ceiling.
+  queued/offline scans. The Shell architecture suite locks its six ownership
+  folders, platform-neutral Models, live resolution in Services, absence of
+  direct networking in views/view models, aggregate removal, and the 600-line
+  ceiling. The Media architecture suite independently locks Carousel folder
+  ownership, platform-neutral Models, live effect resolution in Services,
+  private co-located playback state, extracted root composition, absence of
+  SwiftUI-backed page types from Models, and the same file-size ceiling.
 - **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
   state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
@@ -3717,14 +3723,16 @@ that save plus offline/online changes preserve its cursor, and that the carousel
 overlay remains active for the exact handoff in pending, uploading, staged, and
 inferencing. The same matrix rejects mismatched IDs,
 failed/external-import/attention states, and ordinary queued states before
-inferencing. `ImageFocusRegionDetectorTests` lock the time-derived sweep, Reduce
-Motion midpoint, same-scan animation-session continuity, and resets for a
-different scan or a later analysis after completion. Engine tests cover prepared
-generic handoff, stale-ID rejection, audio/Describe isolation, dismissal with a
-late producer completion, visual-only reactivation, and atomic Auth cleanup of
-both phrase and media state. Separate non-cooperative trait-extractor cases
-prove Gemini completion returns immediately, replacement clears task ownership,
-and either boundary rejects the eventual stale cue.
+inferencing. `ImageFocusRegionDetectorTests` retain Core Vision candidate and
+geometry resolution coverage. `InsightMediaFocusPresentationTests` lock the
+carousel focus geometry, time-derived sweep, Reduce Motion midpoint, same-scan
+animation-session continuity, and resets for a different scan or a later
+analysis after completion. Engine tests cover prepared generic handoff, stale-ID
+rejection, audio/Describe isolation, dismissal with a late producer completion,
+visual-only reactivation, and atomic Auth cleanup of both phrase and media
+state. Separate non-cooperative trait-extractor cases prove Gemini completion
+returns immediately, replacement clears task ownership, and either boundary
+rejects the eventual stale cue.
 
 Retry presentation tests cover every safe reason category, live countdown,
 elapsed-deadline silence, offline behavior, action eligibility, and a sentinel
@@ -4372,9 +4380,25 @@ Ownership-only moves are code parity work: keep focused tests with their
 production owner, update XcodeGen source grouping, and do not change visible
 copy, accessibility, image-loading, playback, or navigation behavior.
 
-iOS audio playback policy coverage lives in
-`MerianTests/Features/Explore/ExploreAudioBoostTests.swift` because the focused
-suite exercises the shared Core policy and both playback surfaces. The
+iOS audio playback policy coverage is split by production owner.
+`MerianTests/Features/Insights/Media/InsightAudioPlaybackPresentationTests.swift`
+owns Insight pill, presentation, source-handoff, recovery, seeking,
+accessibility, and injected side-effect routing coverage.
+`MerianTests/Features/Explore/ExploreAudioBoostTests.swift` owns Explore
+preferences, pill presentation, video-mute reset, and the shared processor
+integration exercised by Explore.
+`MerianTests/Core/UI/AsyncLocalImageDependenciesTests.swift` locks the injected
+loader handoff for the cross-feature image renderer, while the Carousel
+architecture suite prevents that renderer or its live singleton lookup from
+returning to Insights. The same architecture suite requires the native pager,
+page identity value, zoom host, pagination dots, and hero scroll-edge treatment
+shared by Insight and Field Trips to remain in
+`Core/UI/Components/MediaCarousel` without feature-owned duplicate files. The
+`InsightMediaGalleryTests` suite proves the Core page defaults to ID-only reuse,
+Insight projects its existing image-origin/source-index/focus identity, and a
+changed reuse key resets the native data-source cache rather than retaining a
+stale neighbor. `InsightMediaAvailabilityTests` keeps selection fallback behind
+the platform-neutral `CarouselSelectionCandidate` contract. The
 `insightAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` and
 `exploreAudioPlayheadUsesLivePlayerTimeOnlyDuringPlayback` tests require live
 player time only when UI intent and the concrete player are both playing, and
@@ -4392,7 +4416,14 @@ audio boost rendering, or source handoff:
 ```bash
 xcodebuild -scheme Merian -project Merian.xcodeproj \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
-  -only-testing:merianTests/ExploreAudioBoostTests test
+  -only-testing:merianTests/ExploreAudioBoostTests \
+  -only-testing:merianTests/FieldTripFeaturedMediaTests \
+  -only-testing:merianTests/AsyncLocalImageDependenciesTests \
+  -only-testing:merianTests/InsightMediaAvailabilityTests \
+  -only-testing:merianTests/InsightMediaGalleryTests \
+  -only-testing:merianTests/InsightAudioPlaybackPresentationTests \
+  -only-testing:merianTests/InsightMediaFocusPresentationTests \
+  -only-testing:merianTests/InsightMediaCarouselArchitectureTests test
 ```
 
 Device QA must cold-open an audio-backed Insight with boost enabled and play the
