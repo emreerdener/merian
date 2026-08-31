@@ -1222,10 +1222,11 @@ consults that Keychain entry.
   over-subscription JetSam panics and priority-inversion hang warnings.
 - **Isolated media session**: `mediaSession` uses
   `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`,
-  `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`.
-  This prevents remote thumbnail fetches from bloating the shared URL cache or
-  starving the decode pool with a wider connection fan-out than the downsampler
-  can sustain.
+  `requestCachePolicy = .useProtocolCachePolicy`, and a dedicated `URLCache`
+  bounded to 24 MB in memory and 256 MB on disk. This keeps immutable, versioned
+  thumbnail responses out of the shared cache while allowing reuse across view
+  reconstruction and app launches; connection fan-out remains aligned with
+  decode capacity.
 - Supports fallback fetching: loops natively through comma-separated URLs via
   Zero-OOM `ImageDownsampler` bounds.
 - I/O helpers (`loadLocal`, `fetchRemote`) are `static nonisolated` — prevents
@@ -1235,11 +1236,14 @@ consults that Keychain entry.
 
 ### `SimilarSpeciesImageFetcher`
 
-- `@Observable` decoupled worker for resolving Wikipedia and GBIF encyclopedic
-  image assets.
-- Explicitly delegates stream rendering to `LocalImageLoader` using standard
-  string URLs, rather than directly inflating raw `UIImage(data:)` blobs,
-  protecting the JetSam boundaries and unifying the global caching layer.
+- `@MainActor @Observable` generation-fenced state owner for Wikipedia/GBIF
+  fallback imagery and a resolved fallback name.
+- Receives `SimilarSpeciesImageDependencies`; it owns no network session or
+  image-loader singleton.
+- `SimilarSpeciesImageService` concurrently resolves permitted external URL
+  metadata, restores candidate order after concurrent downloads, and delegates
+  bitmap work to `LocalImageLoader` rather than inflating raw `UIImage(data:)`
+  blobs.
 
 ## Networking
 
@@ -1301,9 +1305,9 @@ consults that Keychain entry.
   `LocalImageLoader`, `ArchiveManager`, and
   `InsightMediaExportManager`/`ExportProcessingActor` each declare a
   `private static let mediaSession` (30 s / 300 s timeouts);
-  `SimilarSpeciesImageFetcher`, `InferenceEngine`, and `GBIFHeatmapMapView`
-  declare a `private static let externalAPISession` (10 s / 30 s timeouts) for
-  Wikipedia/GBIF best-effort enrichment fetches.
+  `SimilarSpeciesImageService`, `InferenceEngine`, and `GBIFHeatmapTileService`
+  declare isolated external sessions (10 s / 30 s timeouts) for Wikipedia/GBIF
+  best-effort enrichment fetches. Their SwiftUI consumers own no `URLSession`.
 - **TLS certificate pinning (`MerianTLSDelegate`)**: A private
   `URLSessionDelegate` validates the server certificate chain for
   `*.supabase.co`. The check walks the full chain (leaf → intermediate → root):

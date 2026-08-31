@@ -16,8 +16,7 @@ struct SwipeableCandidateCard: View {
     let isSwipingRight: Bool
     let isSwipingLeft: Bool
 
-    // NOTE: Uses SimilarSpeciesImageFetcher — dual-source Wikipedia/GBIF async image loading
-    // with in-memory NSCache. See Features/Insights/SpeciesReference/Utilities/SimilarSpeciesImageFetcher.swift
+    // Uses the Species Reference fallback loader for ordered Wikipedia/GBIF imagery.
     @State private var imageFetcher = SimilarSpeciesImageFetcher()
     @State private var activePresentation: CandidateCardPresentation?
     @State private var candidateSelectedImage: UIImage?

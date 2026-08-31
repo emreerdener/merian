@@ -1248,10 +1248,26 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   platform-neutral Models, live effect resolution in Services, private
   co-located playback state, extracted root composition, absence of
   SwiftUI-backed page types from Models, and the same file-size ceiling.
-- **Insights focused model tests**: `CandidateSwipeSessionTests.swift` covers
+- **Insights focused feature tests**: `CandidateSwipeSessionTests.swift` covers
   skip/reject/confirm/restart/exhausted transitions without SwiftUI animation
-  state. `SpeciesObservationStatsViewModelTests.swift` covers actor/reducer
-  aggregation plus reducer normalization and empty-bucket behavior.
+  state. The mirrored
+  `Features/Insights/SpeciesReference/SpeciesObservationStatsReducerTests.swift`
+  suite covers projected SwiftData aggregation, reducer normalization,
+  empty-bucket behavior, and seasonality presentation.
+  `SpeciesObservationStatsViewModelTests.swift` covers injected local/public
+  adapters, failure independence, identity normalization, missing-public-ID
+  behavior, cross-species presentation reset, pre-entry cancellation,
+  cancellation after uncooperative dependencies, and late-response fencing.
+  `GBIFHeatmapViewModelTests.swift` covers endpoint construction, response
+  classification, presentation states, pre-entry cancellation, and overlapping
+  taxon loads. `SimilarSpeciesImageFetcherTests.swift` covers endpoint
+  construction, service-owned image ordering, fallback naming, empty output,
+  cleared identities, pre-entry cancellation, and overlapping species loads.
+  `SpeciesReferenceArchitectureTests` locks
+  Models/Services/ViewModels/Views/domain-Component ownership, platform-neutral
+  Models, Services-only live effects, the absence of feature-owned
+  `@unchecked Sendable` conformance, retired aggregate paths, and the 600-line
+  production-file ceiling.
 - **Cross-feature Field Chat tests**:
   `Core/Network/FieldChatAPIModelsTests.swift` owns request/response,
   feedback/summary, and prompt-suggestion wire decoding.
@@ -2413,7 +2429,8 @@ wraps each into a `SimilarSpeciesEntry` with `nil` enrichment fields:
 ```
 
 `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` for image
-lookup when `referenceImageUrl == nil`.
+state when `referenceImageUrl == nil`; its injected `SimilarSpeciesImageService`
+owns external lookup and bounded bitmap loading.
 
 A historical cached `SimilarSpeciesEntry.referenceImageUrl` is also normalized
 during decode. If it matches the exact external-media denylist, it becomes `nil`
@@ -2437,8 +2454,9 @@ occurrence `5938154750`. iOS coverage must prove:
 - blocked-only/all-failed dictionary galleries use the leaf placeholder.
 
 These assertions live in `LocalImageLoaderTests.swift`,
-`SpeciesDataTests.swift`, and `SpeciesDictionaryTests.swift`. Do not replace
-them with a brittle assertion that merely skips array index zero.
+`SpeciesDataTests.swift`, `SpeciesDictionaryTests.swift`, and
+`Features/Insights/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do
+not replace them with a brittle assertion that merely skips array index zero.
 
 ### Backwards-compat accessor
 
@@ -3017,7 +3035,8 @@ production checks:
   exact key from another valid source, never becomes a candidate itself, and
   still fails configuration when no valid key matches. An exhaustive 243-state
   matrix covers every absent, valid, and malformed combination across the five
-  server-key sources and locks both inbound authorization and outbound
+  server-key sources. It locks inbound requests to the configured copy of their
+  exact match while independently locking standalone environment selection
   precedence. The publishable-key and web-admin resolver suites apply the same
   exhaustive state-combination check to their smaller source sets.
 - `_shared/serviceRoleClient_test.ts` executes PostgREST, Storage, Functions,
@@ -3025,9 +3044,11 @@ production checks:
   `sb_secret_...` keys are sent only as `apikey`, legacy service-role JWTs
   retain their required Bearer header, and `fetch(Request)` metadata or
   unrelated user access tokens are not discarded. It also proves the final SDK
-  transport attaches a hard request deadline. Function-invocation regressions
-  prove non-2xx responses retain only status, bounded failure class, and fixed
-  handler-marker presence while the body and credential stay private.
+  transport attaches a hard request deadline. A rotation-split regression proves
+  that an exact current named-key match reaches PostgREST even when a different
+  stale deploy-synchronized key remains configured. Function-invocation
+  regressions prove non-2xx responses retain only status, bounded failure class,
+  and fixed handler-marker presence while the body and credential stay private.
 - `scripts/monitor_scan_media_health_test.ts` proves the read-only production
   monitor retries only reviewed transient Function failures, caps attempts at
   six, and uses bounded 2/4/6/8/10-second backoff.

@@ -620,8 +620,9 @@ The policy is applied at both normalization and loading boundaries:
   lookalike cache;
 - `LocalImageLoader` sanitizes a remote primary path and every fallback before
   cache lookup, then rejects a denied URL again immediately before download;
-- `SimilarSpeciesImageFetcher` filters candidates before concurrent downloads
-  and sorts successful results by their original candidate index afterward.
+- `SimilarSpeciesImageService` filters candidates before concurrent downloads
+  and sorts successful results by their original candidate index before the
+  generation-fenced `SimilarSpeciesImageFetcher` publishes them.
 
 The last rule is important: task completion order must never decide which image
 becomes the card thumbnail. If the first candidate is denied or fails, the next
@@ -754,11 +755,13 @@ the internal `Reference pending` state.
   image rather than a poisoned `nil` result.
 - **Bounded remote session**: `LocalImageLoader.mediaSession` uses
   `httpMaximumConnectionsPerHost = 4`, `httpShouldSetCookies = false`,
-  `requestCachePolicy = .reloadIgnoringLocalCacheData`, and `urlCache = nil`.
-  This keeps remote thumbnail fetch pressure aligned with the four-slot
-  asynchronous decode pool and avoids filling the shared URL cache with one-off
-  media responses. Permit waiters suspend rather than blocking an OS thread,
-  while admitted ImageIO work uses an explicitly QoS-tagged decode queue.
+  `requestCachePolicy = .useProtocolCachePolicy`, and an isolated `URLCache`
+  bounded to 24 MB in memory and 256 MB on disk. This keeps remote thumbnail
+  fetch pressure aligned with the four-slot asynchronous decode pool, keeps
+  media responses out of the shared cache, and reuses immutable assets across
+  view reconstruction and app launches. Permit waiters suspend rather than
+  blocking an OS thread, while admitted ImageIO work uses an explicitly
+  QoS-tagged decode queue.
 - **OOM risk during scroll**: Loading full-resolution images for every visible
   grid cell would exhaust RAM on large libraries.
 - **Adaptive `maxDimension`**: `ScansGrid` computes the actual cell pixel size

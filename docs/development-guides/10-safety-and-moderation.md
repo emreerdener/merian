@@ -20,8 +20,8 @@ Naturebook prevents the most authoritative-looking public handle claims without
 treating text as authorization. Current usernames reserve exact product
 namespaces, exact official/system roles such as `admin`, `security`, `support`,
 and `verified`, and every exact product-role combination in both orders. The
-policy is not a broad prefix rule, so ordinary handles such as
-`naturebook_fan` and `security_researcher` remain available.
+policy is not a broad prefix rule, so ordinary handles such as `naturebook_fan`
+and `security_researcher` remain available.
 
 PostgreSQL's profile CHECK is authoritative. Edge and iOS mirror the policy for
 early feedback, and a static contract rejects cross-layer drift. Existing
@@ -30,14 +30,14 @@ comment mentions retain the original token that appears in immutable comment
 text and continue routing through the durable mentioned-user ID.
 
 This control does not make usernames or display names trustworthy credentials.
-Public display names remain duplicable, and no client may infer staff, moderator,
-verified, or support authority from visible identity text. Any future trusted
-badge must be driven by a server-owned role/claim and a separately reviewed
-projection. Remaining profile impersonation is reportable through
+Public display names remain duplicable, and no client may infer staff,
+moderator, verified, or support authority from visible identity text. Any future
+trusted badge must be driven by a server-owned role/claim and a separately
+reviewed projection. Remaining profile impersonation is reportable through
 `/report-user` with reason `Impersonation`; reservation does not replace review,
 appeal, or enforcement operations. See
-[Public Usernames](../features-and-hardware/21-public-usernames.md) for the exact
-sets and migration behavior.
+[Public Usernames](../features-and-hardware/21-public-usernames.md) for the
+exact sets and migration behavior.
 
 ## Exact External Reference Image Suppression
 
@@ -74,10 +74,11 @@ Suppression is enforced in depth:
 - iOS mirrors the rule in `ExternalReferenceImagePolicy`. The loader checks it
   before cache lookup and again at the network boundary; DTO normalization and
   cached `SimilarSpeciesEntry` decoding treat a denied URL as absent.
-- `SimilarSpeciesImageFetcher` removes denied candidates before download and
-  restores source order after concurrent work. A blocked first result therefore
-  promotes the next successful image deterministically; an empty result uses the
-  existing leaf placeholder.
+- `SimilarSpeciesImageService` removes denied candidates before download and
+  restores source order after concurrent work. The observable
+  `SimilarSpeciesImageFetcher` only publishes the prepared output. A blocked
+  first result therefore promotes the next successful image deterministically;
+  an empty result uses the existing leaf placeholder.
 
 The API payload shape is unchanged. Suppression removes a value from an existing
 image field or array; it does not introduce moderation metadata into a public
@@ -118,10 +119,10 @@ Explore post or public-media snapshot is created or reactivated, the function:
 Rejected classifications and any fetch, provider, configuration, or
 response-shape failure return an error and leave the prior Explore state
 unchanged; nothing is shared. Transcripts and non-speech descriptions are not
-persisted or logged. This path reuses the paid-project `GEMINI_PAID_API_KEY` Edge secret.
-Manual reports remain necessary because model moderation cannot guarantee
-complete detection. The immutable publication policy is a Gemini system
-instruction so speech or lyrics inside untrusted media cannot replace it.
+persisted or logged. This path reuses the paid-project `GEMINI_PAID_API_KEY`
+Edge secret. Manual reports remain necessary because model moderation cannot
+guarantee complete detection. The immutable publication policy is a Gemini
+system instruction so speech or lyrics inside untrusted media cannot replace it.
 Standalone audio preserves its supported audio MIME type; audio-bearing MP4 uses
 `video/mp4` so Gemini evaluates the actual container instead of relabeling video
 bytes as WAV. Public web post pages include a support-email report action
@@ -236,8 +237,8 @@ failed.
 `is_shadowbanned` is a boolean column on the `users` table (default `false`).
 Shadowbanned users are not informed of that account state. Public Explore,
 Community Identification, notification, and related projections exclude
-shadowbanned authors server-side. Identify Activity also omits requests owned
-by a shadowbanned user. Its suggestion counts and recent public usernames are
+shadowbanned authors server-side. Identify Activity also omits requests owned by
+a shadowbanned user. Its suggestion counts and recent public usernames are
 resolved at read time and exclude shadowbanned actors without storing actor
 names in the internal projection. Profile/display names are not returned for
 Activity attribution.
@@ -305,8 +306,8 @@ the critical path.
 are promoted by `/update-public-avatar` after a user-owned staged upload and are
 deleted only by the avatar replacement helper for the same user. Scan purge,
 moderation rollback, and storage lifecycle jobs must not target `avatars/`. The
-explicit account-deletion state machine is the only owner-prefix exception: after
-relational cleanup, its fenced five-prefix job also removes that owner's
+explicit account-deletion state machine is the only owner-prefix exception:
+after relational cleanup, its fenced five-prefix job also removes that owner's
 avatars. Neither `public_uploads/free/`, `public_uploads/pro/`, nor `avatars/`
 may have an age-based expiration lifecycle rule.
 

@@ -4,7 +4,7 @@ import Testing
 @testable import Merian
 
 @MainActor
-struct SpeciesObservationStatsViewModelTests {
+struct SpeciesObservationStatsReducerTests {
     private func createIsolatedContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")

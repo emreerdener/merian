@@ -72,9 +72,10 @@ queued waiters without consuming a later permit. Admitted ImageIO work runs on
 an explicitly user-initiated concurrent decode queue. This preserves the
 four-decode memory valve without `DispatchSemaphore.wait()` priority inversions
 or cooperative-executor blocking. The remote loader's dedicated `mediaSession`
-is also capped to `httpMaximumConnectionsPerHost = 4` with `urlCache = nil`,
-aligning network fan-out with decode capacity and preventing the shared URL
-cache from ballooning with thumbnail responses.
+is also capped to `httpMaximumConnectionsPerHost = 4` and uses a dedicated,
+bounded `URLCache` (24 MB memory and 256 MB disk). This aligns network fan-out
+with decode capacity, keeps thumbnail responses out of the shared cache, and
+allows immutable media reuse across view reconstruction and app launches.
 
 ### TaskGroup Retain Cycles (`InferenceEngine`)
 
@@ -165,14 +166,14 @@ separately page-bounded, and stale lookalike cache clearing still loops with a
 biological/cache-present predicate plus `fetchLimit`.
 
 Species Observation Charts also obey the "no full library fetch on `@MainActor`"
-rule. `SpeciesObservationStatsViewModel` creates
+rule. `SpeciesObservationStatsViewModel` invokes an injected
+`SpeciesObservationStatsDependencies` closure; the live Services adapter creates
 `SpeciesObservationStatsDatabaseActor` and awaits filtered candidate fetches for
 `speciesId` / `confirmedSpeciesId` plus exact scientific-name fallback. The
-actor projects only the fields needed by the reducer, merges candidates by
-record ID, and delegates normalization/bucketing to
-`SpeciesObservationStatsReducer`. It returns a `Sendable` aggregate to the main
-actor. Chart rendering must not call `modelContext.fetch` for every biological
-`LocalScanRecord` from the view model.
+actor projects only reducer fields, merges candidates by record ID, and
+delegates normalization/bucketing to `SpeciesObservationStatsReducer`. It
+returns a `Sendable` aggregate to the main actor. Chart rendering and the view
+model must not call `modelContext.fetch` for every biological `LocalScanRecord`.
 
 ### Deno Edge Stream Caps
 
@@ -1889,7 +1890,7 @@ the SSD, which is passed directly to
 a `defer` block, preventing JetSam memory spikes and ensuring no raw image data
 touches RAM before downsampling.
 
-### Unbounded RAM Blob Accumulation (`SimilarSpeciesImageFetcher`)
+### Unbounded RAM Blob Accumulation (`SimilarSpeciesImageService`)
 
 When querying encyclopedia assets for the Similar Species/Candidate gallery,
 relying on raw `URLSession.shared.data` loops inside detached utility tasks
@@ -1899,14 +1900,14 @@ bypassed all Zero-OOM guardrails. Passing raw network `data` arrays into
 terminations. Also, retaining these large uncompressed bitmaps through
 `NSCache<NSString, UIImage>` generated permanent unbounded memory leaks.
 
-**The Refactor**: The layer strips custom parsing and cache dictionaries. After
-extracting dynamic Wikipedia and GBIF remote URLs off-thread,
-`SimilarSpeciesImageFetcher` explicitly pipes an array of fallback URL strings
-concurrently via `TaskGroup` into
-`LocalImageLoader.shared.loadImage(fallbackUrl:)`. This offloads the heavy
-lifting natively, forcing OS APFS caching limits and bounding `CGImageSource`
-instantiations dynamically inside `ImageDownsampler`, appending images
-dynamically into an array.
+**The Refactor**: The layer strips custom parsing and cache dictionaries.
+`SimilarSpeciesImageService` resolves and filters dynamic Wikipedia/GBIF URLs,
+then pipes fallback URL strings concurrently through a `TaskGroup` into
+`LocalImageLoader.loadImage(fallbackUrl:)`. It restores source order before
+returning a bounded output to the generation-fenced
+`SimilarSpeciesImageFetcher`. Heavy lifting therefore stays within APFS/cache
+limits and bounded `CGImageSource` instantiation inside `ImageDownsampler`; the
+observable state owner holds no session or loader singleton.
 
 ### Swift 6 Primitive Extraction (`ImageCropProcessor`)
 

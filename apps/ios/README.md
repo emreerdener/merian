@@ -323,6 +323,27 @@ Services-only live resolution, legacy-owner removal, and the 600-line
 production-file ceiling. The display-only `NamePickerSheet` is shared from
 `Core/UI/Components`; each feature retains persistence and feedback.
 
+## Insight Species Reference Ownership
+
+[Insight Species Reference](Merian/Features/Insights/SpeciesReference/README.md)
+owns the reusable observation charts, habitat and GBIF map, taxonomy,
+lookalikes, and fallback reference imagery presented by Insight, Species
+Dictionary, Explore detail, and identification review. Its platform-neutral
+Models contain chart and heatmap presentation policy; Services alone resolve
+SwiftData, network, image-loader, haptic, and enrichment effects; generation-
+fenced ViewModels publish asynchronous state; the chart composition root lives
+in Views; and domain-grouped Components retain rendering and UI-only timing.
+
+Changing or clearing a species or taxon identity invalidates older work, while
+an already-cancelled valid load cannot claim generation ownership or clear valid
+presentation. The observation-stat owner clears cross-species values before
+awaiting replacements but retains the current values during a same-species
+refresh. Immutable GBIF artwork crosses the service boundary through the shared
+`Core/Media` `SendableCGImage`; the feature declares no unchecked sendability.
+Mirrored Species Reference tests enforce those lifecycle rules, Services-only
+live resolution, platform-neutral Models, retired aggregate paths, and the
+600-line production-file ceiling.
+
 ## Insight Sharing Ownership
 
 [Insight Sharing](Merian/Features/Insights/Sharing/README.md) separates

@@ -1135,11 +1135,17 @@ supabase --workdir services test db --local \
 
 xcrun swiftc -frontend -parse \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/Models/*.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/Services/*.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/*.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/Views/*.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/*.swift \
+  apps/ios/MerianTests/Features/Insights/SpeciesReference/*.swift \
   apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
 swiftlint lint --strict \
   apps/ios/Merian/Core/Network/MerianNetworkClient.swift \
-  apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift \
+  apps/ios/Merian/Features/Insights/SpeciesReference \
+  apps/ios/MerianTests/Features/Insights/SpeciesReference \
   apps/ios/MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift
 ```
 
@@ -6715,6 +6721,14 @@ acceptable. The workflow uploads a JSON/Markdown summary artifact for every run
 and, when `update_checklist = true`, commits
 `docs/backend-and-data/07-community-taxonomy-import-checklist.md` after real
 imports. Use `page_count = 10...20` only after several successful smaller runs.
+
+A final import `HTTP 500` with `X-Merian-Handler: 1` means the request reached
+Merian code; it does not by itself identify a database, GBIF, annotation,
+checkpoint, or coverage-refresh failure. Inspect the restricted structured Edge
+event and confirm the deployed request-key binding before replaying. After a
+credential-boundary correction is deployed, start with the one-page dry run
+above. Do not blindly rerun the mutating 20-page schedule: the import workflow
+intentionally does not automatically replay a failed live invocation.
 
 ## Local Emergency Fallback
 

@@ -4,7 +4,7 @@ Running checklist for Merian's bounded GBIF-backed Community Taxonomy Index
 imports. Update this file whenever we run another import batch, change the
 worker, or promote coverage information into product surfaces.
 
-Contract updated: 2026-08-03. Production snapshot last verified: 2026-07-20.
+Contract updated: 2026-08-31. Production snapshot last verified: 2026-07-20.
 
 ## Current Policy
 
@@ -17,16 +17,15 @@ Contract updated: 2026-08-03. Production snapshot last verified: 2026-07-20.
 - Prefer the **Import Community Taxonomy** GitHub Actions workflow for
   production imports. It resolves a current secret key (or the exact legacy
   service-role fallback) at runtime from Supabase using the existing
-  `SUPABASE_ACCESS_TOKEN` secret and constructs the Supabase URL from the project
-  ref, so no local key or URL export is required.
+  `SUPABASE_ACCESS_TOKEN` secret and constructs the Supabase URL from the
+  project ref, so no local key or URL export is required.
 - Use the local operator script only when GitHub Actions is unavailable or when
   intentionally updating this checklist from a trusted local environment.
 - Keep batches bounded. `limit = 100`, `page_count = 1...20` is the supported
   range; use smaller batches when recovering from failures.
 - Treat the raw GBIF page as the cursor unit. Every successfully fetched live
   page must checkpoint its `next_offset`, including a nonempty page where every
-  row normalizes out. Never stop a run merely because normalized taxa are
-  empty.
+  row normalizes out. Never stop a run merely because normalized taxa are empty.
 - Stop only when GBIF reports `endOfRecords`, the raw page is empty, or the
   requested `page_count` is reached. A later failure must resume after the last
   per-page checkpoint.
@@ -42,13 +41,17 @@ Contract updated: 2026-08-03. Production snapshot last verified: 2026-07-20.
 
 ## Production Status
 
-Last verified remote status: 2026-07-20 after Birds offset 6750.
-Coverage values below still reflect the last captured status snapshot; refresh
+Last verified remote status: 2026-07-20 after Birds offset 6750. Coverage values
+below still reflect the last captured status snapshot; refresh
 `community-taxonomy-status` coverage view before exposing any progress claim.
+
+<!-- deno-fmt-ignore-start -->
 
 | Target         | GBIF Root | Imported Offsets | Imported Rows | Next Offset | Indexed Species | Dictionary Species |   Coverage |
 | -------------- | --------- | ---------------- | ------------: | ----------: | --------------: | -----------------: | ---------: |
 | Birds (`Aves`) | `212`     | `0`, `50`, `100`, `150`, `350`, `450`, `550`, `650`, `750`, `850`, `950`, `1050`, `1150`, `1250`, `1350`, `1450`, `1550`, `1650`, `1750`, `1850`, `1950`, `2050`, `2150`, `2250`, `2350`, `2450`, `2550`, `2650`, `2750`, `2850`, `2950`, `3050`, `3150`, `3250`, `3350`, `3450`, `3550`, `3650`, `3750`, `3850`, `3950`, `4050`, `4150`, `4250`, `4350`, `4450`, `4550`, `4650`, `4750`, `4850`, `4950`, `5050`, `5150`, `5250`, `5350`, `5450`, `5550`, `5650`, `5750`, `5850`, `5950`, `6050`, `6150`, `6250`, `6350`, `6450`, `6550`, `6650`, `6750`, `6850`, `6950`, `7050`, `7150`, `7250`, `7350`, `7450`, `7550`, `7650`, `7750`, `7850`, `7950`, `8050`, `8150`, `8250`, `8350`, `8450`, `8550`, `8650` |         `8650` |       `8750` |           `8772` |               `69` | `0.007866` |
+
+<!-- deno-fmt-ignore-end -->
 
 GBIF reported `14,641` accepted bird species under Aves during the first import
 run. This is the expected rough denominator for completing the Birds target over
@@ -60,6 +63,8 @@ taxa. `taxonomy_coverage_targets.next_import_offset` is the machine cursor used
 when the import worker is called without an explicit `offset`.
 
 ## Completed Import Batches
+
+<!-- deno-fmt-ignore-start -->
 
 | Date       | Target | Offset | Limit | Normalized | Imported | Import Scope         | Result                      |
 | ---------- | ------ | -----: | ----: | ---------: | -------: | -------------------- | --------------------------- |
@@ -158,6 +163,8 @@ when the import worker is called without an explicit `offset`.
 | 2026-07-20 | Birds  |  `8550` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 | 2026-07-20 | Birds  |  `8650` | `100` |       `100` |     `100` | `gbif_bounded_birds` | Complete, `error_count = 0` |
 
+<!-- deno-fmt-ignore-end -->
+
 ## Next Import Batches
 
 - [ ] Birds offset `8750`, limit `100`.
@@ -222,8 +229,15 @@ After importing:
       the sole scoped `contents: write` job without local credential handling.
 - [x] Schedule weekly bounded Birds imports now that manual `page_count = 3`
       runs have succeeded.
-- [x] Speed up Birds import throughput to weekly `page_count = 20` while
-      keeping the bounded target, summaries, and checklist commits.
+- [x] Speed up Birds import throughput to weekly `page_count = 20` while keeping
+      the bounded target, summaries, and checklist commits.
+- [x] Bind request-authenticated downstream work to the configured copy of the
+      exact matching server key. Focused authorization and transport tests cover
+      a current workflow key overlapping a stale deploy-synchronized key.
+- [ ] Deploy that request-key binding correction, then remotely verify it with
+      `target = birds`, `limit = 100`, `page_count = 1`, and `dry_run = true`.
+      If the handler still returns `500`, inspect the restricted structured
+      Function event before attempting a live import.
 - [ ] Add more coverage targets only after Birds import behavior is stable.
 
 ## Commands

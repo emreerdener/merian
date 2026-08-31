@@ -863,7 +863,12 @@ an Edge API response or opened offline via the Scans library.
   and operation state, and Views/Components perform no networking; `Media/` owns
   the carousel, fullscreen gallery, and photo/video export utilities;
   `IdentificationReview/` owns candidates, swipe review, candidate state models,
-  and confidence explanation UI.
+  and confidence explanation UI; and `SpeciesReference/` owns the reusable
+  observation charts, habitat/GBIF map, taxonomy, lookalikes, and fallback
+  reference imagery shared with Species Dictionary, Explore detail, and
+  identification review. Species Reference separates platform-neutral Models,
+  Services-only live effects, generation-fenced ViewModels, chart composition
+  Views, and domain-grouped render Components.
   - Foreground and queued processing use one visible scanning contract: dynamic
     status pill, `DidYouKnowCard`, Field notes, and `ScanInformationCard`.
     Foreground text comes from `InferenceEngine.scanningPhaseText`; queued text
@@ -960,10 +965,10 @@ an Edge API response or opened offline via the Scans library.
     `LocalScanRecord.lookalikesData` in Insight and from
     `/get-explore-post-detail.similar_species` in Explore detail. Each
     `SimilarSpeciesCard` prefers a pre-resolved `referenceImageUrl`, falls back
-    through `SimilarSpeciesImageFetcher`, and can receive a `routeForSpecies`
-    builder to push the public species dictionary page in the current navigation
-    stack by `speciesId` when available or scientific name as the compatibility
-    fallback.
+    through the generation-fenced `SimilarSpeciesImageFetcher` and its injected
+    image service, and can receive a `routeForSpecies` builder to push the
+    public species dictionary page in the current navigation stack by
+    `speciesId` when available or scientific name as the compatibility fallback.
   - Structural sub-elements sit with their owning product areas:
     `ImagesCarousel` in `Media/Carousel/`, `ToxicityBanner` in
     `Shared/Banners/`, specialized confidence/status UI in

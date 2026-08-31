@@ -3377,16 +3377,19 @@ Every error response is `private, no-store`.
 Swift mapping:
 
 ```swift
-MerianNetworkClient.shared.getSpeciesObservationStats(
-    speciesId:scientificName:
-)
+SpeciesObservationStatsDependencies.live
+// Services adapts MerianNetworkClient.getSpeciesObservationStats(
+//     speciesId:scientificName:
+// ) for the feature ViewModel.
 ```
 
 decodes into `SpeciesObservationStatsResponse` / `SpeciesObservationStatsEntry`
-in `SpeciesObservationStatsAPIModels.swift`. `SpeciesObservationStatsViewModel`
-combines that public baseline with local SwiftData aggregates for
-`SpeciesObservationChartsCard`, which currently renders seasonality, history,
-and life-stage series.
+in `SpeciesObservationStatsAPIModels.swift`.
+`Services/SpeciesObservationStatsDependencies.swift` is the live endpoint
+adapter; `SpeciesObservationStatsViewModel` never resolves the network client
+directly. The view model combines that public baseline with local SwiftData
+aggregates for `SpeciesObservationChartsCard`, which currently renders
+seasonality, history, and life-stage series.
 
 ---
 
@@ -9026,7 +9029,8 @@ imports or Community ID publish flows.
   keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer
   transport. Conflicting headers fail closed. Taxonomy table reachability and
   RLS-filtered results are never authorization evidence. Database reads use the
-  server environment key, not the accepted request value.
+  configured copy of the exact matching environment key, not the raw request
+  value or a different preferred overlap key.
 - Non-POST requests return `405`.
 
 ### Request Payload
@@ -9122,7 +9126,8 @@ in v1.
   keys use `apikey` only; legacy JWTs use matching `apikey` and Bearer
   transport. Conflicting headers fail closed. Taxonomy table reachability and
   RLS-filtered results are never authorization evidence. Privileged database
-  work uses the server environment key, not the accepted request value.
+  work uses the configured copy of the exact matching environment key, not the
+  raw request value or a different preferred overlap key.
 - Non-POST requests return `405`.
 
 ### Request Payload

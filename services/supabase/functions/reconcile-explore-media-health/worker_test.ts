@@ -217,7 +217,7 @@ Deno.test("handler accepts an exact configured project secret", async () => {
   );
 
   assertEquals(response.status, 200);
-  assertEquals(acceptedToken, DEFAULT_SECRET_KEY);
+  assertEquals(acceptedToken, WORKFLOW_SECRET_KEY);
   assertEquals(receivedOptions, { limit: 1, leaseSeconds: 300 });
   assertEquals(await response.json(), { success: true, ...result });
 });

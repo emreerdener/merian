@@ -423,10 +423,10 @@ is null but Flash returned results:
 ```
 
 The `SimilarSpeciesGallery` renders these entries immediately (scientific +
-common names visible); `SimilarSpeciesImageFetcher` fills in card images via the
-Wikipedia/GBIF waterfall. On the next `enrich-scan` call for the same species
-(once the row is visible on the replica), `speciesId` resolves normally and the
-join table is populated with full data.
+common names visible); `SimilarSpeciesImageFetcher` publishes card images from
+the injected Wikipedia/GBIF image service. On the next `enrich-scan` call for
+the same species (once the row is visible on the replica), `speciesId` resolves
+normally and the join table is populated with full data.
 
 **`resolveLookalikesToJoinTable` Null Kingdom Early-Exit:** If `primaryKingdom`
 is `null` or `undefined` when `resolveLookalikesToJoinTable` is called, the
@@ -518,10 +518,10 @@ pairs in one call at negligible extra token cost. The common name flows through
    been scanned and have no `species_dictionary` row,
    `resolveLookalikesToJoinTable` now appends them as `LookalikeSummary` stubs
    with `common_name` from Flash and `reference_image_url: null`. The client
-   falls back to the `SimilarSpeciesImageFetcher` (Wikipedia / iNaturalist REST)
-   for thumbnail images when `referenceImageUrl` is null. Previously these
-   species were silently dropped, causing common names to disappear for any
-   lookalike not yet in the dictionary.
+   falls back to `SimilarSpeciesImageFetcher` and its injected Wikipedia/GBIF
+   service for thumbnail images when `referenceImageUrl` is null. Previously
+   these species were silently dropped, causing common names to disappear for
+   any lookalike not yet in the dictionary.
 
 The migration path in `index.ts` converts legacy `TEXT[]` entries to
 `SimilarSpeciesEntry[]` with `common_name: null` before calling

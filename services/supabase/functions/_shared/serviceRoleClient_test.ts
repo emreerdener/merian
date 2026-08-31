@@ -18,6 +18,12 @@ const CURRENT_SECRET_KEY = [
   "worker",
   "a".repeat(20),
 ].join("_");
+const STALE_SYNCHRONIZED_SECRET_KEY = [
+  "sb",
+  "secret",
+  "stale-synchronized",
+  "a".repeat(20),
+].join("_");
 const LEGACY_SERVICE_ROLE_KEY = [
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
   "eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUifQ",
@@ -183,6 +189,23 @@ Deno.test("privileged transports reject public or malformed configured keys", ()
 Deno.test("createServiceRoleClient keeps opaque keys out of database Bearer transport", async () => {
   const headers = await databaseRequestHeaders(CURRENT_SECRET_KEY);
 
+  assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
+  assertEquals(headers.get("Authorization"), null);
+});
+
+Deno.test("request authorization preserves the matching key at the database transport", async () => {
+  const auth = authorizeServiceRoleRequest(
+    new Request("https://project.supabase.co/functions/v1/internal-worker", {
+      headers: { apikey: CURRENT_SECRET_KEY },
+    }),
+    {
+      envSynchronizedServerApiKey: STALE_SYNCHRONIZED_SECRET_KEY,
+      envSecretKeys: JSON.stringify({ default: CURRENT_SECRET_KEY }),
+    },
+  );
+  if (!auth.ok) throw new Error(`unexpected auth failure: ${auth.reason}`);
+
+  const headers = await databaseRequestHeaders(auth.serverApiKey);
   assertEquals(headers.get("apikey"), CURRENT_SECRET_KEY);
   assertEquals(headers.get("Authorization"), null);
 });

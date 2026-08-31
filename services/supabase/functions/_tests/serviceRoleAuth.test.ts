@@ -49,7 +49,7 @@ Deno.test("authorizeServiceRoleRequest accepts the exact legacy service-role key
 
   assertEquals(result, {
     ok: true,
-    serverApiKey: DEFAULT_SECRET_KEY,
+    serverApiKey: LEGACY_SERVICE_ROLE_KEY,
   });
 });
 
@@ -65,9 +65,22 @@ Deno.test("authorizeServiceRoleRequest accepts every exact named secret key", ()
 
     assertEquals(result, {
       ok: true,
-      serverApiKey: DEFAULT_SECRET_KEY,
+      serverApiKey: secretKey,
     });
   }
+});
+
+Deno.test("request authorization keeps the exact configured match during key rotation", () => {
+  assertEquals(
+    authorizeServiceRoleRequest(
+      request({ apikey: DEFAULT_SECRET_KEY }),
+      {
+        envSynchronizedServerApiKey: SYNCHRONIZED_SECRET_KEY,
+        envSecretKeys: SECRET_KEYS,
+      },
+    ),
+    { ok: true, serverApiKey: DEFAULT_SECRET_KEY },
+  );
 });
 
 Deno.test("authorizeServiceRoleRequest rejects public API credentials", () => {
@@ -267,7 +280,7 @@ Deno.test("authorizeServiceRoleRequest supports named-secret-only server configu
 
   assertEquals(result, {
     ok: true,
-    serverApiKey: DEFAULT_SECRET_KEY,
+    serverApiKey: WORKER_SECRET_KEY,
   });
 });
 
@@ -558,10 +571,6 @@ Deno.test("server-key sources preserve authorization and outbound invariants acr
               state === "valid" ? [index] : []
             );
             const hasInvalidSource = states.includes("invalid");
-            const preferredValidKey = validIndexes.length > 0
-              ? validSourceKeys[validIndexes[0]]
-              : null;
-
             for (const validIndex of validIndexes) {
               const key = validSourceKeys[validIndex];
               const headers: Record<string, string> = key.startsWith(
@@ -576,7 +585,7 @@ Deno.test("server-key sources preserve authorization and outbound invariants acr
                 authorizeServiceRoleRequest(request(headers), options),
                 {
                   ok: true,
-                  serverApiKey: preferredValidKey as string,
+                  serverApiKey: key,
                 },
                 `Exact valid source ${validIndex} failed for ${
                   states.join("/")

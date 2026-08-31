@@ -82,10 +82,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   classified independently: malformed values never become candidates or veto an
   exact inbound key from another valid source, while an unmatched request still
   fails as invalid configuration. Legacy JWT keys may use Bearer transport;
-  non-JWT secret keys belong only in `apikey`. Callers must use the
-  server-managed environment key—not the accepted request value—for privileged
-  database clients and internal function calls. The shared request-header helper
-  applies the same current/legacy key transport to operational scripts.
+  non-JWT secret keys belong only in `apikey`. Request-authenticated routes bind
+  privileged database clients and internal calls to the exact matching
+  server-managed environment value, never the caller-owned header string or an
+  unrelated higher-priority fallback. Environment-originated callers with no
+  inbound credential continue to use the documented selection precedence. The
+  shared request-header helper applies the same current/legacy key transport to
+  operational scripts.
 - **`dwcaReleaseState.ts`**: Strict parser and service-only RPC client for the
   canonical default-off DwC-A launch gate. Processing and capability-download
   routes accept only an explicit database Boolean; missing state, query errors,

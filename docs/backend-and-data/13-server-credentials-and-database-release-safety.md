@@ -126,7 +126,12 @@ Outbound selection keeps strict precedence. A configured malformed scalar
 encountered at its priority point fails rather than silently selecting a lower
 source; a valid higher-priority source is not vetoed by a malformed lower
 migration fallback. A malformed hosted dictionary may use a separately valid
-scalar fallback.
+scalar fallback. That precedence applies to environment-originated work with no
+inbound service credential. After an inbound request exactly matches a valid
+configured key, downstream work uses that matching configured copy rather than
+an unrelated preferred source. This keeps gateway revocation authoritative and
+prevents a stale deploy-synchronized overlap key from replacing the current key
+that authenticated the request.
 
 `functions/_shared/publishableKey.ts` separately resolves user-client project
 keys from the hosted `SUPABASE_PUBLISHABLE_KEYS` JSON dictionary, preferring
@@ -207,6 +212,10 @@ For a server-only worker or status route, the handler:
 4. compares the candidate exactly against configured server keys; and
 5. creates downstream clients from the environment-resolved key, never from the
    accepted request value.
+
+For step 5, "environment-resolved" means the configured copy that exactly
+matched the request. It does not mean re-running standalone outbound precedence
+after authorization, and it never reflects the caller-owned header string.
 
 `functions/_shared/serviceRoleClient.ts` is the only privileged SDK factory. Its
 final fetch adapter removes only supabase-js's exact inherited

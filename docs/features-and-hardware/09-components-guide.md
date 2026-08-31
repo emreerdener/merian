@@ -237,7 +237,7 @@ disabled state, accessibility labels, and action semantics.
 ## 11. Habitat Map: `HabitatAndDistributionCard`
 
 **Location**:
-`Features/Insights/SpeciesReference/Cards/HabitatAndDistributionCard.swift`
+`Features/Insights/SpeciesReference/Components/Habitat/HabitatAndDistributionCard.swift`
 
 An edge-to-edge structural presentation component for the `gbifTaxonKey` density
 map and LLM `habitatDescription`.
@@ -255,28 +255,36 @@ map and LLM `habitatDescription`.
 - **Loading continuity**: While habitat copy is still hydrating, the card keeps
   the same map chrome mounted and renders a compact pulsing text placeholder
   below the header. The retry loop stays local to `HabitatAndDistributionCard`;
-  the shared chrome does not own any enrichment behavior.
+  the live enrichment action is injected through
+  `HabitatDistributionDependencies`, and the shared chrome does not own any
+  enrichment behavior.
 - **Null Fallbacks**: Wraps the map in a `ZStack` so that if
   `isEnrichmentLoading` completes but the GBIF occurrence dataset yields no
   result (nil `gbifTaxonKey`), `GBIFHeatmapMapView` still renders its
   world-level base map snapshot and drops a distinct "No distribution data
   available" pill directly atop it.
+- **Tile ownership**: `GBIFHeatmapTileService` owns the bounded `URLSession`
+  request and response decoding. `GBIFHeatmapViewModel` owns generation-fenced
+  load state. `GBIFHeatmapMapView` retains only map composition, overlay copy,
+  and two-finger zoom/pan state.
 
 ## 12. Observation Charts: `SpeciesObservationChartsCard`
 
 **Location**:
-`Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
+`Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
 
 A reusable Swift Charts card for species-level observation patterns.
 
 - **Shared surface**: Rendered inside Insight biological results and Species
   Dictionary pages. Both surfaces pass a species ID when available and the
   canonical scientific name.
-- **Data ownership**: `SpeciesObservationStatsViewModel` owns loading and public
-  baseline coordination. `SpeciesObservationStatsDatabaseActor` fetches local
-  SwiftData projections off the main actor, and `SpeciesObservationStatsReducer`
-  owns normalization and bucket aggregation. Local scan data stays on-device;
-  the network request contains only species identity.
+- **Data ownership**: `SpeciesObservationStatsViewModel` owns generation-fenced
+  loading and public-baseline coordination through injected dependencies.
+  `Services/SpeciesObservationStatsDatabaseActor` fetches local SwiftData
+  projections off the main actor, `Services/SpeciesObservationStatsDependencies`
+  adapts the public client, and `Models/SpeciesObservationStatsReducer` owns
+  normalization and bucket aggregation. Local scan data stays on-device; the
+  network request contains only species identity.
 - **Tabs**: Seasonality, History, and Life Stage. Sex is treated as per-scan
   Overview metadata rather than a species-level chart dimension.
 - **Normalized compare scale**: Local and public series normalize independently
@@ -342,7 +350,7 @@ enough to mount the card. Manages a local `ReviewState` enum: `.pending`,
 ## 14. Similar Species Gallery: `SimilarSpeciesGallery`
 
 **Location**:
-`Features/Insights/SpeciesReference/Cards/SimilarSpeciesGallery.swift`
+`Features/Insights/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
 
 A horizontally scrolling carousel of ecologically similar lookalike species,
 rendered in `BiologicalView` at card entrance index 4. Sourced from
@@ -369,6 +377,12 @@ rendered in `BiologicalView` at card entrance index 4. Sourced from
   `scientificName`; each route also carries a zero-PII species dictionary
   analytics entry point. The older `onSpeciesSelected` callback remains
   available for non-navigation hosts.
+- **Effect ownership**: The gallery keeps horizontal scroll, placeholder, and
+  tap routing in SwiftUI. `SimilarSpeciesGalleryDependencies` supplies selection
+  feedback and fallback image dependencies. `SimilarSpeciesImageFetcher` owns
+  generation-fenced observable state, while `SimilarSpeciesImageService` alone
+  resolves Wikipedia/GBIF metadata and delegates bitmap loading to
+  `LocalImageLoader`.
 - **Relation explanation**: Relation metadata (`reason`, `visualTraits`,
   confidence, source, review status) remains in the model/API for curation and
   future UI, but the shipped card does not display rationale text. The visible
@@ -380,8 +394,9 @@ rendered in `BiologicalView` at card entrance index 4. Sourced from
      the card falls through to the leaf-icon placeholder. The card stays
      visible.
   2. **Fallback path** (`referenceImageUrl == nil`): A `.task` spawns
-     `SimilarSpeciesImageFetcher`, which runs a Wikipedia → GBIF image waterfall
-     lookup. If both fail, the card shows the leaf-icon placeholder.
+     `SimilarSpeciesImageFetcher`, whose injected `SimilarSpeciesImageService`
+     runs the Wikipedia → GBIF image waterfall. If both fail, the card shows the
+     leaf-icon placeholder.
 - **Fixed geometry**: Cards are locked to `width: 200, height: 260`. This
   prevents extreme image aspect ratios from breaking the horizontal row layout.
 - **Label**: Always "Similar species" — no confidence-gated label switching.
@@ -437,12 +452,13 @@ feature-local `CandidateSwipeSession` model:
   skip/reject/confirm/restart transitions. Unit tests cover the state
   transitions without SwiftUI animation concerns.
 - **`SwipeableCandidateCard`**: The core structural view for the individual
-  species cards. Integrates `SimilarSpeciesImageFetcher` to asynchronously load
-  up to 5 progressively loaded Wikipedia/GBIF visuals under a 3-stop vertical
-  gradient that defaults to the `.images.first` thumb. Original capture,
-  candidate gallery, and distinguishing feature are cases of one
-  `CandidateCardPresentation` value and share one `.sheet(item:)`; the card must
-  not add independent Boolean presenters for those destinations.
+  species cards. Integrates `SimilarSpeciesImageFetcher`, backed by
+  `SimilarSpeciesImageService`, to asynchronously load up to 5 progressively
+  loaded Wikipedia/GBIF visuals under a 3-stop vertical gradient that defaults
+  to the `.images.first` thumb. Original capture, candidate gallery, and
+  distinguishing feature are cases of one `CandidateCardPresentation` value and
+  share one `.sheet(item:)`; the card must not add independent Boolean
+  presenters for those destinations.
 - **`CandidateImageExpandedView`**: Natively loads the `imageFetcher.images`
   array iteratively into a `.page` TabView carousel embedding the custom
   `ZoomableScrollView`.

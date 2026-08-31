@@ -1898,16 +1898,18 @@ classification.
 Legacy service-role JWTs may use Bearer transport; named non-JWT secret keys
 must use `apikey` only. Mixed Authorization/apikey values are rejected. After
 authorization, the route creates its database client and internal calls with the
-server-managed environment key rather than reflecting the caller's credential.
-Public and webhook routes that need admin access resolve that same environment
-key through `serviceRoleClient.ts`; production modules may not construct a
-legacy-key admin client directly. The shared fetch boundary supports PostgREST,
-Storage, Functions, and Auth Admin while keeping opaque keys out of Bearer
-transport. The deploy smoke, Community Taxonomy import, and scan-media health
-workflows use `scripts/resolve_project_api_keys.ts` to request revealed values
-from the Management API, prefer the current `default` secret key, fall back only
-to the exact legacy `service_role` key, and use the same shared transport rule.
-The shared resolver makes at most five attempts for transport failures, HTTP
+exact matching server-managed environment value, not the caller-owned header
+string or an unrelated preferred fallback. Public and webhook routes that need
+admin access have no inbound service credential, so they resolve the environment
+key through `serviceRoleClient.ts` using the documented precedence; production
+modules may not construct a legacy-key admin client directly. The shared fetch
+boundary supports PostgREST, Storage, Functions, and Auth Admin while keeping
+opaque keys out of Bearer transport. The deploy smoke, Community Taxonomy
+import, and scan-media health workflows use
+`scripts/resolve_project_api_keys.ts` to request revealed values from the
+Management API, prefer the current `default` secret key, fall back only to the
+exact legacy `service_role` key, and use the same shared transport rule. The
+shared resolver makes at most five attempts for transport failures, HTTP
 408/425/429, and HTTP 5xx with capped jitter/`Retry-After`; credentials, other
 caller errors, malformed responses, and invalid or ambiguous key lists fail
 immediately. Retry diagnostics expose no key, token, response body, or raw

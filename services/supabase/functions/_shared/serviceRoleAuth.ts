@@ -261,16 +261,16 @@ function classifyServerKeyConfiguration(
   };
 }
 
-function matchesAnyConfiguredKey(
+function matchingConfiguredServerApiKey(
   token: string,
   configuredKeys: string[],
-): boolean {
-  let matched = false;
+): string | null {
+  let matchedKey: string | null = null;
   for (const configuredKey of configuredKeys) {
     const currentMatch = timingSafeCompare(token, configuredKey);
-    matched = currentMatch || matched;
+    if (currentMatch && matchedKey === null) matchedKey = configuredKey;
   }
-  return matched;
+  return matchedKey;
 }
 
 function preferredNamedSecretKey(
@@ -282,17 +282,6 @@ function preferredNamedSecretKey(
   );
   return namedDefault?.key ||
     configuration.entries[0]?.key ||
-    null;
-}
-
-function preferredValidServerApiKey(
-  configuration: ClassifiedServerKeyConfiguration,
-): string | null {
-  return (configuration.explicit.valid ? configuration.explicit.key : "") ||
-    (configuration.synchronized.valid ? configuration.synchronized.key : "") ||
-    preferredNamedSecretKey(configuration.named) ||
-    (configuration.singular.valid ? configuration.singular.key : "") ||
-    (configuration.legacy.valid ? configuration.legacy.key : "") ||
     null;
 }
 
@@ -421,17 +410,22 @@ export function authorizeServiceRoleRequest(
 
   const configuration = classifyServerKeyConfiguration(options);
   const validKeys = validConfiguredServerKeys(configuration);
+  const matchingServerApiKey = matchingConfiguredServerApiKey(
+    credential.token,
+    validKeys,
+  );
 
   // Each environment source is an independent migration input. A malformed
   // source contributes no authorization candidate, but it must not veto an
   // exact key supplied by another independently valid source. If nothing
   // matches, any malformed source still produces a fail-closed configuration
   // error instead of degrading to a normal token mismatch.
-  if (matchesAnyConfiguredKey(credential.token, validKeys)) {
-    const serverApiKey = preferredValidServerApiKey(configuration);
-    return serverApiKey
-      ? { ok: true, serverApiKey }
-      : { ok: false, reason: "no_configured_keys" };
+  // Return the matching configured copy, never the caller-owned string. This
+  // keeps downstream gateway revocation authoritative during key overlap and
+  // prevents a stale higher-priority fallback from replacing a current key
+  // that already passed the handler's exact comparison.
+  if (matchingServerApiKey) {
+    return { ok: true, serverApiKey: matchingServerApiKey };
   }
 
   if (hasInvalidServerKeySource(configuration)) {

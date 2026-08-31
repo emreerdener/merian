@@ -36,7 +36,9 @@ The worker accepts only an exact match from the shared resolver:
 dictionary, the singular `SUPABASE_SECRET_KEY` local/manual fallback, or the
 migration-only `SUPABASE_SERVICE_ROLE_KEY` legacy fallback. It does not infer
 authority from taxonomy table reachability or an RLS-filtered result.
-Conflicting Authorization/apikey credentials fail closed.
+Conflicting Authorization/apikey credentials fail closed. After authorization,
+database work uses the configured copy of the exact matching key, not the raw
+header value or a different preferred overlap key.
 
 Body fields are optional:
 

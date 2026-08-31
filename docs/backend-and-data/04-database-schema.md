@@ -5544,12 +5544,12 @@ Tracks locally synchronized species scans for the Scans library.
   insertion. It is not AI-generated—this is GBIF's deterministic taxonomy ID.
   Forwarded to the client at the top-level of the `/identify` response for **all
   tiers** on Cache Hit, and via `/enrich-scan` for all users on the enrichment
-  path. Used by `GBIFHeatmapMapView` in `HabitatAndDistributionCard` to fetch
-  occurrence density tile overlays from
-  `api.gbif.org/v2/map/occurrence/density`, visible to free and Pro users alike.
-  `nil` when the model response predates or omits the later dictionary result,
-  when external resolution failed to find a match, or for scans captured before
-  V18.)
+  path. Passed to `GBIFHeatmapMapView` in `HabitatAndDistributionCard`; the
+  injected `GBIFHeatmapTileService` fetches occurrence density tile overlays
+  from `api.gbif.org/v2/map/occurrence/density`, visible to free and Pro users
+  alike. `nil` when the model response predates or omits the later dictionary
+  result, when external resolution failed to find a match, or for scans captured
+  before V18.)
 - `estimatedSizeCm`: Double? (Added in `MerianSchemaV20`. Physical dimension
   metric computed via LiDAR / AI context. Parsed and persistently cached
   locally.)

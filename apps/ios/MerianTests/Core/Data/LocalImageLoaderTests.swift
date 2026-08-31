@@ -322,19 +322,6 @@ struct LocalImageLoaderTests {
         #expect(LocalScanMediaRecoveryResolver.candidateFileNames(for: nonImageURL).isEmpty)
     }
 
-    @Test func similarSpeciesDownloadsAreRestoredToSourceOrder() {
-        let completionOrder: [(index: Int, value: String?)] = [
-            (index: 2, value: "third"),
-            (index: 0, value: "first"),
-            (index: 1, value: nil)
-        ]
-
-        #expect(SimilarSpeciesImageFetcher.orderedLoadedValues(from: completionOrder) == [
-            "first",
-            "third"
-        ])
-    }
-    
     @Test func testLocalImageLoader_ConcurrentDeduplication() async throws {
         let loader = LocalImageLoader.shared
         

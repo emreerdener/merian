@@ -39,23 +39,39 @@ Primary files:
 
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationLocalStats.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationChartPresentation.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/SpeciesObservationChartContent.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Charts/SpeciesObservationSeasonalityHeatmapView.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
 
-`SpeciesObservationStatsViewModel` is `@Observable @MainActor`, but local
-SwiftData fetching is delegated to `@ModelActor`
-`SpeciesObservationStatsDatabaseActor`. The actor fetches narrow local
-projections, then delegates normalization and bucket aggregation to
-`SpeciesObservationStatsReducer`. The view model creates the actor from
-`modelContext.container`, awaits the local result, then requests the public
-baseline through `MerianNetworkClient.shared.getSpeciesObservationStats(...)`.
-If the network request fails, the card still renders the local data.
+`SpeciesObservationStatsViewModel` is `@Observable @MainActor`. It receives a
+small `SpeciesObservationStatsDependencies` value rather than resolving a live
+client. `Services/` alone creates the `@ModelActor`
+`SpeciesObservationStatsDatabaseActor` from `modelContext.container` and adapts
+`MerianNetworkClient.getSpeciesObservationStats(...)`. The actor fetches narrow
+local projections, then delegates normalization and bucket aggregation to the
+platform-neutral `SpeciesObservationStatsReducer`.
 
-`SpeciesObservationChartsCard` owns the selected tab and renders Swift Charts
-for:
+Each load owns a generation token. A late local or public result cannot mutate
+state after a newer species request starts, and an empty identity invalidates an
+older in-flight request. A changed species identity clears the prior species'
+published local and public values before awaiting replacement data; a
+same-species refresh retains its current presentation. A task already cancelled
+before a valid load begins does not claim generation ownership or disturb the
+current presentation. Local and public failures remain independent: an
+unavailable local projection may still show the public baseline, and a public
+failure keeps usable local charts.
+
+`SpeciesObservationChartsCard` owns selected-tab and task identity. The
+render-only `SpeciesObservationChartContent` and seasonality heatmap component
+render Swift Charts for:
 
 - `Seasonality`
 - `History`
@@ -73,27 +89,24 @@ Local data comes from `LocalScanRecord` only. It is never uploaded.
 Matching rules:
 
 - Records must be biological.
-- If a dictionary `speciesId` is available, match
-  `confirmedSpeciesId` or `speciesId`.
-- Also match by effective scientific name, where
-  `userIdentificationOverride` wins over `scientificName`.
+- If a dictionary `speciesId` is available, match `confirmedSpeciesId` or
+  `speciesId`.
+- Also match by effective scientific name, where `userIdentificationOverride`
+  wins over `scientificName`.
 - Scientific names are trimmed, whitespace-collapsed, and compared
   case-insensitively.
 
 Fetch rules:
 
-- Species-id candidates and scientific-name candidates are fetched with
-  separate `#Predicate` descriptors so SQLite narrows the row set before Swift
-  reduction.
+- Species-id candidates and scientific-name candidates are fetched with separate
+  `#Predicate` descriptors so SQLite narrows the row set before Swift reduction.
 - Candidate rows are merged by `LocalScanRecord.id`, then sorted by
   `(timestamp, id)` for deterministic reducer input.
-- `propertiesToFetch` is limited to the reducer projection:
-  `id`, `speciesId`, `scientificName`, `userIdentificationOverride`,
-  `confirmedSpeciesId`, `captureDate`, `timestamp`, `lifeStage`, and
-  `isBiological`.
-- The legacy full-fetch reducer remains only as a compatibility helper for
-  isolated tests; production chart loads must use
-  `SpeciesObservationStatsDatabaseActor`.
+- `propertiesToFetch` is limited to the reducer projection: `id`, `speciesId`,
+  `scientificName`, `userIdentificationOverride`, `confirmedSpeciesId`,
+  `captureDate`, `timestamp`, `lifeStage`, and `isBiological`.
+- Production chart loads use `SpeciesObservationStatsDatabaseActor`; pure
+  reducer tests pass explicit record arrays and perform no imperative fetch.
 
 Date rules:
 
@@ -117,8 +130,8 @@ Primary files:
 
 The iOS client uses an authenticated GET so normal app traffic receives both
 user and IP budgets. The database-owned IP preflight occurs before optional
-token verification, preventing invalid-token traffic from amplifying Auth
-calls. The endpoint remains usable without a user session:
+token verification, preventing invalid-token traffic from amplifying Auth calls.
+The endpoint remains usable without a user session:
 
 ```text
 /functions/v1/species-observation-stats?species_id=1cf79982-e5ee-4e3d-8d65-274527e6ae01&scientific_name=Danaus%20plexippus
@@ -136,8 +149,8 @@ The Edge Function still accepts POST JSON for compatibility:
 Both values are required. The database verifies that `species_id` names the
 canonical normalized `scientific_name`; unknown/mismatched pairs never reach the
 provider. Compatibility POST bodies are stream-bounded to 4 KiB before JSON
-decoding. iOS also rejects a malformed UUID or a name outside 1...160
-characters before dispatch.
+decoding. iOS also rejects a malformed UUID or a name outside 1...160 characters
+before dispatch.
 
 The Edge Function uses `species_dictionary.inaturalist_taxon_id` when known. A
 database lease owner may resolve the exact canonical name when needed, but all
@@ -155,9 +168,9 @@ provider failure that leaves every bucket empty becomes `unavailable`.
 
 The response is wrapped in `schema_version` and `data`:
 
-Current iOS chart rendering consumes `seasonality`, `history`, and
-`life_stage`. The backend may still include `sex` for provider parity, but that
-series is intentionally not rendered as a chart tab.
+Current iOS chart rendering consumes `seasonality`, `history`, and `life_stage`.
+The backend may still include `sex` for provider parity, but that series is
+intentionally not rendered as a chart tab.
 
 ```json
 {
@@ -215,19 +228,19 @@ The public provider scope is global. The backend uses public endpoints only:
 
 Annotation IDs:
 
-| Group | `term_id` | Value | `term_value_id` |
-| --- | ---: | --- | ---: |
-| Life Stage | 1 | Adult | 2 |
-| Life Stage | 1 | Teneral | 3 |
-| Life Stage | 1 | Pupa | 4 |
-| Life Stage | 1 | Nymph | 5 |
-| Life Stage | 1 | Larva | 6 |
-| Life Stage | 1 | Egg | 7 |
-| Life Stage | 1 | Juvenile | 8 |
-| Life Stage | 1 | Subimago | 16 |
-| Sex | 9 | Female | 10 |
-| Sex | 9 | Male | 11 |
-| Sex | 9 | Cannot determine | 20 |
+| Group      | `term_id` | Value            | `term_value_id` |
+| ---------- | --------: | ---------------- | --------------: |
+| Life Stage |         1 | Adult            |               2 |
+| Life Stage |         1 | Teneral          |               3 |
+| Life Stage |         1 | Pupa             |               4 |
+| Life Stage |         1 | Nymph            |               5 |
+| Life Stage |         1 | Larva            |               6 |
+| Life Stage |         1 | Egg              |               7 |
+| Life Stage |         1 | Juvenile         |               8 |
+| Life Stage |         1 | Subimago         |              16 |
+| Sex        |         9 | Female           |              10 |
+| Sex        |         9 | Male             |              11 |
+| Sex        |         9 | Cannot determine |              20 |
 
 The Deno normalizer accepts multiple histogram shapes so provider response
 format drift does not break clients unnecessarily.
@@ -251,10 +264,10 @@ Backend cache:
 
 The backend sends a custom `User-Agent`, spaces live iNaturalist requests
 conservatively, applies five-second fetch timeouts plus 15/45-second total
-deadlines, and rejects provider bodies over 1 MiB while streaming.
-Successful response caches vary only by `Accept-Encoding`; the public body does
-not vary by user, so adding Authorization would fragment cache entries by
-token. Error responses remain private/no-store.
+deadlines, and rejects provider bodies over 1 MiB while streaming. Successful
+response caches vary only by `Accept-Encoding`; the public body does not vary by
+user, so adding Authorization would fragment cache entries by token. Error
+responses remain private/no-store.
 
 Abuse and concurrency controls:
 
@@ -324,5 +337,9 @@ iOS:
 
 ```sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO build-for-testing
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.0' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/SpeciesObservationStatsViewModelTests -only-testing:merianTests/SpeciesDictionaryTests
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<BOOTED_SIMULATOR_ID>' -derivedDataPath /tmp/merian-dd-species-observation-stats CODE_SIGNING_ALLOWED=NO test \
+  -only-testing:merianTests/SpeciesObservationStatsReducerTests \
+  -only-testing:merianTests/SpeciesObservationStatsViewModelTests \
+  -only-testing:merianTests/SpeciesReferenceArchitectureTests \
+  -only-testing:merianTests/SpeciesDictionaryTests
 ```

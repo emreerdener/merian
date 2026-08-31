@@ -115,10 +115,7 @@ enum SpeciesObservationStatsReducer {
     }
 
     static func normalizedSpeciesId(_ value: String?) -> String? {
-        value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .nilIfEmpty
+        value?.trimmedNonEmptyValue?.lowercased()
     }
 
     private static func recordMatches(
@@ -137,7 +134,7 @@ enum SpeciesObservationStatsReducer {
         }
 
         let effectiveName = normalizedScientificName(
-            record.userIdentificationOverride?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ??
+            record.userIdentificationOverride?.trimmedNonEmptyValue ??
                 record.scientificName
         )
         return effectiveName.lowercased() == targetName
@@ -148,7 +145,7 @@ enum SpeciesObservationStatsReducer {
     }
 
     private static func normalizedCategory(_ value: String?, excluding excluded: Set<String>) -> (key: String, label: String)? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty else {
+        guard let trimmed = value?.trimmedNonEmptyValue else {
             return nil
         }
 
@@ -201,10 +198,4 @@ private struct SpeciesObservationHistoryBucket {
     let year: Int
     let month: Int
     let key: String
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
-    }
 }

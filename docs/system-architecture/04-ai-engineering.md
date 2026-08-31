@@ -413,8 +413,10 @@ via a two-layer decode:
    nil, each string in `LocalScanRecord.similarSpecies: [String]?` is wrapped
    into a
    `SimilarSpeciesEntry(scientificName:, commonName: nil, referenceImageUrl: nil, iucnRedListStatus: nil)`.
-   `SimilarSpeciesGallery` falls back to `SimilarSpeciesImageFetcher` (Wikipedia
-   / iNaturalist REST) for thumbnail images when `referenceImageUrl == nil`.
+   `SimilarSpeciesGallery` falls back to the generation-fenced
+   `SimilarSpeciesImageFetcher`; its injected `SimilarSpeciesImageService` owns
+   Wikipedia/GBIF metadata and thumbnail loading when
+   `referenceImageUrl == nil`.
 
 To heal previously poisoned local rich blobs, the client also carries a one-time
 `localLookalikesCacheResetVersion`. When that version bumps, `load(from:)`

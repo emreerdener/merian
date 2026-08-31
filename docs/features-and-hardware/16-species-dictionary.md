@@ -77,7 +77,8 @@ Primary files:
 - `apps/ios/Merian/App/MerianApp.swift`
 - `apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Routing.swift`
 - `apps/ios/Merian/Features/Explore/Shell/Views/ExploreView.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Views/SpeciesObservationChartsCard.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
 - `apps/ios/Merian/Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
@@ -88,7 +89,8 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
-- `apps/ios/Merian/Features/Insights/SpeciesReference/Cards/SimilarSpeciesGallery.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
+- `apps/ios/Merian/Features/Insights/SpeciesReference/Services/SimilarSpeciesImageDependencies.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
 - `apps/ios/Merian/Features/Explore/Feed/Views/ExplorePostDetailView.swift`
 - `apps/ios/messages/ScanSharing/Shared/MessageScanShareCache.swift`
@@ -120,13 +122,15 @@ maps to `notFound`; a platform route `404` becomes the typed temporary-service
 error and cannot cache the species as missing. Other failures map to `error`.
 
 `SpeciesObservationChartsCard` is embedded in the loaded dictionary content
-after Habitat & Distribution. It owns its own
-`SpeciesObservationStatsViewModel`, fetches local scan projections through
-`SpeciesObservationStatsDatabaseActor`, aggregates them on-device through
-`SpeciesObservationStatsReducer`, and fetches the public baseline from
-`/species-observation-stats`. The dictionary page passes `species.id` and
-`species.scientificName`; the backend requires that canonical pair before it may
-resolve/store `inaturalist_taxon_id` or call the provider.
+after Habitat & Distribution. It owns its own generation-fenced
+`SpeciesObservationStatsViewModel`. Injected
+`SpeciesObservationStatsDependencies` fetch local scan projections through the
+Services-owned `SpeciesObservationStatsDatabaseActor` and adapt the public
+`/species-observation-stats` client call. The platform-neutral
+`SpeciesObservationStatsReducer` aggregates local values on-device. The
+dictionary page passes `species.id` and `species.scientificName`; the backend
+requires that canonical pair before it may resolve/store `inaturalist_taxon_id`
+or call the provider.
 
 `SpeciesCommunitySightingsSection` follows the observation charts and precedes
 similar species. It loads six square tiles, hides itself after an empty or
@@ -688,17 +692,17 @@ canvas shows a scanned-taxonomy empty state.
 Observation pattern charts use a separate public endpoint:
 
 ```swift
-MerianNetworkClient.shared.getSpeciesObservationStats(
-    speciesId:scientificName:
-)
+SpeciesObservationStatsDependencies.live
 ```
 
-That method sends an authenticated GET to the public `species-observation-stats`
-route with the dictionary `species_id` and `scientific_name`. Authentication
-supplies a per-user rate bucket; it does not personalize the global iNaturalist
-response. An IP budget is consumed before optional token verification. Local
-Merian logs are aggregated on-device and are not sent to Supabase. The client
-rejects malformed UUIDs and invalid name bounds before networking, then requires
+The Services adapter invokes
+`MerianNetworkClient.getSpeciesObservationStats(speciesId:scientificName:)`,
+which sends an authenticated GET to the public `species-observation-stats` route
+with the dictionary `species_id` and `scientific_name`. Authentication supplies
+a per-user rate bucket; it does not personalize the global iNaturalist response.
+An IP budget is consumed before optional token verification. Local Merian logs
+are aggregated on-device and are not sent to Supabase. The client rejects
+malformed UUIDs and invalid name bounds before networking, then requires
 response schema version 2 or newer plus the same canonical UUID/name pair before
 memoizing a result. See
 [`Species Observation Charts`](./18-species-observation-charts.md) for the full
@@ -964,7 +968,16 @@ iOS:
 ```sh
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build-for-testing
-xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted simulator id>' CODE_SIGNING_ALLOWED=NO test -only-testing:merianTests/LocalImageLoaderTests -only-testing:merianTests/SpeciesDataTests -only-testing:merianTests/SpeciesDictionaryTests -only-testing:merianTests/ExploreShellNavigationPolicyTests
+xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted simulator id>' CODE_SIGNING_ALLOWED=NO test \
+  -only-testing:merianTests/SpeciesObservationStatsReducerTests \
+  -only-testing:merianTests/SpeciesObservationStatsViewModelTests \
+  -only-testing:merianTests/GBIFHeatmapViewModelTests \
+  -only-testing:merianTests/SimilarSpeciesImageFetcherTests \
+  -only-testing:merianTests/SpeciesReferenceArchitectureTests \
+  -only-testing:merianTests/LocalImageLoaderTests \
+  -only-testing:merianTests/SpeciesDataTests \
+  -only-testing:merianTests/SpeciesDictionaryTests \
+  -only-testing:merianTests/ExploreShellNavigationPolicyTests
 ```
 
 Web:

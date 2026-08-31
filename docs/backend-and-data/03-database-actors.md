@@ -368,7 +368,7 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 
 ---
 
-### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`, reducer in `Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`)
+### `SpeciesObservationStatsDatabaseActor` (`Features/Insights/SpeciesReference/Services/SpeciesObservationStatsDatabaseActor.swift`, reducer in `Features/Insights/SpeciesReference/Models/SpeciesObservationStatsReducer.swift`)
 
 **Declaration**: `@ModelActor actor SpeciesObservationStatsDatabaseActor`
 
@@ -388,16 +388,14 @@ await MainActor.run { GamificationManager.shared.evaluateAchievementsForNotifica
 - Uses a narrow `propertiesToFetch` projection containing only reducer fields,
   avoiding full `LocalScanRecord` materialization for large local libraries.
 
-**When to create**: Ad-hoc per chart load from the current `ModelContainer`. Do
-not fetch the user's entire biological library from
-`SpeciesObservationStatsViewModel` on the main actor.
+**When to create**: Ad-hoc per chart load from the current `ModelContainer`,
+behind `SpeciesObservationStatsDependencies`. Do not fetch the user's entire
+biological library from `SpeciesObservationStatsViewModel` on the main actor.
 
 ```swift
-let actor = SpeciesObservationStatsDatabaseActor(modelContainer: modelContext.container)
-let localStats = await actor.fetchLocalStats(
-    scientificName: normalizedName,
-    speciesId: speciesId
-)
+SpeciesObservationStatsDependencies.live
+// Its local closure creates SpeciesObservationStatsDatabaseActor from the
+// supplied ModelContainer and awaits fetchLocalStats(...).
 ```
 
 ---

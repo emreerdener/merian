@@ -16,9 +16,9 @@ carry authority through PostgREST's protected transaction `role` setting rather
 than a JWT `role` claim.
 
 Later evidence from a brand-new scan showed an independent failure: identify
-returned success while the owner's `public.scans` row was absent, disabling
-both Explore sharing and Insight Field Chat. That owner-row durability gap is
-tracked separately in
+returned success while the owner's `public.scans` row was absent, disabling both
+Explore sharing and Insight Field Chat. That owner-row durability gap is tracked
+separately in
 [July 2026 Scan Owner-Row Durability Gap](./2026-07-scan-owner-row-durability-gap.md);
 deploying this key-boundary repair alone does not close it.
 
@@ -70,13 +70,12 @@ caused both false authorization failures and unsafe/unsupported transport.
 ### Production deploy follow-up
 
 Production deploy run 1529 reached the post-deploy smoke gate after selecting
-and deploying the complete Function fleet, but the exact Management
-API-revealed positive key received `HTTP 401` from
-`community-taxonomy-status`. The negative public-key controls still behaved
-correctly. The withheld response and lack of local hosted-log access mean the
-repository alone cannot distinguish `token_mismatch`,
-`invalid_secret_key_configuration`, a gateway denial, or stale routed code for
-that run.
+and deploying the complete Function fleet, but the exact Management API-revealed
+positive key received `HTTP 401` from `community-taxonomy-status`. The negative
+public-key controls still behaved correctly. The withheld response and lack of
+local hosted-log access mean the repository alone cannot distinguish
+`token_mismatch`, `invalid_secret_key_configuration`, a gateway denial, or stale
+routed code for that run.
 
 The gate nevertheless exposed two repository defects: it assumed the
 management-plane key and Function runtime dictionary were already synchronized,
@@ -91,11 +90,11 @@ exposing a request ID, variable header value, or body.
 Production deploy run 1530 exercised that correction. All six positive attempts
 still returned `401`, and the final response carried the fixed handler marker.
 This localized the denial to a Merian handler rather than the gateway or
-deployment router. The remaining repository failure was then reproduced
-directly in the shared resolver. It validated every scalar environment slot
-globally before comparing the request, so a stale or malformed migration
-slot—including a current opaque key copied into the legacy-only slot—could veto
-the exact synchronized key from an independently valid source.
+deployment router. The remaining repository failure was then reproduced directly
+in the shared resolver. It validated every scalar environment slot globally
+before comparing the request, so a stale or malformed migration slot—including a
+current opaque key copied into the legacy-only slot—could veto the exact
+synchronized key from an independently valid source.
 
 The durable fleet-wide correction classifies sources independently. A malformed
 source contributes no candidate but cannot veto an exact match from another
@@ -105,11 +104,31 @@ selection retains strict precedence so a malformed configured override cannot
 silently fall through. Equivalent migration-source isolation is enforced in the
 public Edge key resolver and the public web server-key resolver.
 
+### 2026-08-31 taxonomy-import follow-up
+
+The scheduled **Import Community Taxonomy** workflow later reached
+`sync-community-taxonomy-index` but received a handler-owned `HTTP 500`. The
+withheld production response and unavailable restricted Edge event mean that
+run's inner failure cannot be proven from CI output alone. Repository analysis
+did reproduce one matching rotation-split failure: request authorization could
+accept the workflow's current named key, then discard it and create the database
+client with a stale but syntactically valid deploy-synchronized key because
+standalone outbound precedence was applied a second time.
+
+The correction keeps standalone environment selection precedence for callers
+that originate work without an inbound service credential. Request-authenticated
+routes instead pass the configured copy of the exact matching key downstream;
+they never reflect the raw request header and never substitute another overlap
+key. Focused authorization and intercepted PostgREST transport tests cover the
+stale-synchronized/current-named split. Deployment and a tiny remote dry run
+remain separate, explicitly authorized follow-ups; if the handler still returns
+`500`, inspect the restricted structured event before any live replay.
+
 An overlapping Scan Media Health Monitor run then demonstrated a separate
 observability regression introduced when operational callers moved from direct
-HTTP to `supabase.functions.invoke(...)`: the SDK reduced every non-2xx
-response to `Edge Function returned a non-2xx status code`, and the wrapper
-discarded the attached response status and fixed handler marker. The shared
+HTTP to `supabase.functions.invoke(...)`: the SDK reduced every non-2xx response
+to `Edge Function returned a non-2xx status code`, and the wrapper discarded the
+attached response status and fixed handler marker. The shared
 `invokeServiceRoleJson(...)` boundary now cancels and withholds the response
 body while retaining only safe status, bounded SDK failure class, and
 `X-Merian-Handler: 1` presence. The read-only scan-media monitor makes six
@@ -118,8 +137,8 @@ the same safe diagnostics without automatic replay.
 
 ## Rejected Workarounds and Durable Lessons
 
-Several diagnostic changes proposed during the incident were not valid
-platform contracts and must not be reintroduced:
+Several diagnostic changes proposed during the incident were not valid platform
+contracts and must not be reintroduced:
 
 - replacing the platform-managed plural key dictionary with a manually copied
   raw value, or inferring that shape from a credential-length observation;
@@ -205,9 +224,9 @@ inspection all pass for the reviewed commit.
   role impersonation.
 - The read-only production audit reports any public definer routine that
   reintroduces JWT-only service dispatch.
-- The deployment tooling suite discovers production operator scripts and
-  rejects global `fetch()` calls that bypass the reviewed SDK or bounded
-  provider transport.
+- The deployment tooling suite discovers production operator scripts and rejects
+  global `fetch()` calls that bypass the reviewed SDK or bounded provider
+  transport.
 - Static workflow coverage requires fallback synchronization to precede
   hash-only digest verification and Function deployment, and requires bounded
   smoke retry plus endpoint-aware Function handler/router or Data API/PostgREST
@@ -259,8 +278,8 @@ Do not mark this incident resolved until all of the following hold:
    Confirm no `service_role authorization required` error appears.
 9. Smoke Explore comment creation, Field Trip mutation, Community request, and
    ghost-profile merge identity refresh paths.
-10. Disable the legacy key only after all runtime, SQL, web, and operator callers
-   pass with the current key.
+10. Disable the legacy key only after all runtime, SQL, web, and operator
+    callers pass with the current key.
 
 Never restore availability by granting a maintenance RPC to `authenticated`,
 placing a server key in iOS, accepting an opaque key through Bearer transport,
