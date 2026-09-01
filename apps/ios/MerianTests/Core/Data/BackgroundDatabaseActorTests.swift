@@ -1873,8 +1873,8 @@ struct BackgroundDatabaseActorTests {
             taxonomyGenus: "Procyon",
             similarSpecies: ["Nasua nasua"],
             lookalikesData: lookalikesData,
-            alternativeCommonNames: ["South American raccoon"],
-            userIdentificationOverride: "Procyon cancrivorus"
+            userIdentificationOverride: "Procyon cancrivorus",
+            alternativeCommonNames: ["South American raccoon"]
         )
         context.insert(record)
         try context.save()
