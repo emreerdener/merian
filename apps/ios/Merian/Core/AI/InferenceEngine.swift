@@ -207,6 +207,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
     @ObservationIgnored private let foundationVisualCueEligibilityChecker:
         any FoundationVisualCueEligibilityChecking
     @ObservationIgnored private let scanningPhraseSleeper: any ScanningPhraseSleeping
+    @ObservationIgnored private let requestPaywall: @MainActor () -> Void
     @ObservationIgnored private var localVisualAnalysisImage: ImageDownsampler.SendableImage?
     @ObservationIgnored private var localVisionClassification: VisionSubjectClassification?
     @ObservationIgnored private var didFinishLocalVisionClassification = false
@@ -256,13 +257,17 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
         localVisualTraitExtractor: any LocalVisualTraitExtracting = AppleImageVisualTraitExtractor(),
         foundationVisualCueProvider: any FoundationVisualCueProviding = UnavailableFoundationVisualCueProvider(),
         foundationVisualCueEligibilityChecker: any FoundationVisualCueEligibilityChecking = SystemFoundationCueEligibility(),
-        scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper()
+        scanningPhraseSleeper: any ScanningPhraseSleeping = ContinuousScanningPhraseSleeper(),
+        requestPaywall: @escaping @MainActor () -> Void = {
+            UsageManager.shared.showPaywall = true
+        }
     ) {
         self.visionSubjectClassifier = visionSubjectClassifier
         self.localVisualTraitExtractor = localVisualTraitExtractor
         self.foundationVisualCueProvider = foundationVisualCueProvider
         self.foundationVisualCueEligibilityChecker = foundationVisualCueEligibilityChecker
         self.scanningPhraseSleeper = scanningPhraseSleeper
+        self.requestPaywall = requestPaywall
     }
 
     private enum LiveReferenceHydrationPolicy: Sendable, Equatable {
@@ -2639,7 +2644,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             MerianLog.general.debug(
                 "Inference daily quota exhausted; requesting the paywall while the queued scan remains saved."
             )
-            UsageManager.shared.showPaywall = true
+            requestPaywall()
             return true
         case (429, "ai_user_rate_limit_exceeded"),
              (429, "ai_ip_rate_limit_exceeded"):

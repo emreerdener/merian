@@ -2836,11 +2836,10 @@ and causes `CaptureWorkspaceView` to prompt re-authentication instead.
 ## Public Species Dictionary Edge Node
 
 The `/species-dictionary` Edge Function returns species-level dictionary data
-for the standalone Species Dictionary Page, Explore Dictionary catalog, Tree of
-Life canvas, and server-rendered `/species/[speciesId]/[slug]` web route. The
-UUID-only web route is retained as a permanent compatibility redirect. It is
-deliberately separate from both the Insight scan and Explore post-detail
-contracts:
+for the standalone Species Dictionary Page, Explore Dictionary catalog, and
+server-rendered `/species/[speciesId]/[slug]` web route. The UUID-only web route
+is retained as a permanent compatibility redirect. It is deliberately separate
+from both the Insight scan and Explore post-detail contracts:
 
 - Insight scan data can include local media, user review state, field notes, and
   per-scan AI reasoning.
@@ -2852,18 +2851,20 @@ Related Explore cards are intentionally fetched afterward through the separate
 authenticated `/get-explore-species-posts` contract below; they are never added
 to the publicly cached dictionary payload.
 
-The function has `verify_jwt = false` in `services/supabase/config.toml`. Detail
-and catalog requests do not call `requireAuth`; they may receive normal app auth
-headers from `MerianNetworkClient`, but identity is not read and must not affect
-those responses. Tree mode does call `requireAuth` because the graph membership
-is scoped to the signed-in user's scan library, but the returned nodes still use
-only the public species projection.
+The function has `verify_jwt = false` in `services/supabase/config.toml`.
+Detail, catalog, and overview requests do not call `requireAuth`; they may
+receive normal app auth headers from `MerianNetworkClient`, but identity is not
+read and must not affect those responses.
 
-A missing dictionary row may use bounded GBIF/Wikipedia enrichment to construct
-a non-persisted public fallback. It never invokes Gemini. Model-backed habitat,
-lookalike, and group-tag refreshes belong to authenticated quota-guarded
-enrichment or service-only scheduled workers; the anonymous public route is not
-an alternate provider-cost surface.
+Only a name-only request whose normalized scientific name is absent locally may
+use bounded GBIF/Wikipedia enrichment to construct a non-persisted public
+fallback. A request that supplied a UUID never reaches external enrichment: an
+exact UUID hit wins, a dual UUID/name request may recover only to an existing
+local row with that exact normalized name, and a dual miss returns `404`. An
+existing ineligible local row also returns `404`. The fallback never invokes
+Gemini. Model-backed habitat, lookalike, and group-tag refreshes belong to
+authenticated quota-guarded enrichment or service-only scheduled workers; the
+anonymous public route is not an alternate provider-cost surface.
 
 The response is built through the shared public species projection in
 `services/supabase/functions/_shared/publicSpeciesProjection.ts`. That module
@@ -2888,11 +2889,16 @@ Compatibility POST bodies are stream-bounded to 4 KiB before JSON decoding.
 Validation rules:
 
 - Either `species_id` or `scientific_name` is required.
-- `species_id`, when present, must be a valid UUID and is preferred for lookup.
+- `species_id`, when present, must be a valid UUID. UUID lookup runs first. If
+  it misses and a scientific name was also supplied, only an exact normalized
+  local name match may recover the request; external enrichment is forbidden for
+  the complete dual-identity request.
 - `scientific_name`, when present, must be a string and non-empty after
   trimming.
 - Internal whitespace is collapsed before lookup.
 - Names longer than 160 characters return `400`.
+- The only supported explicit modes are `catalog` and `overview`. The retired
+  `tree` mode and every other unknown mode return `400`.
 
 Current response shape:
 
@@ -3011,6 +3017,12 @@ response with `count = 0` while its durable backfill is pending, allowing iOS to
 show a non-interactive coverage state instead of silently removing the card.
 Legacy English region-title matching is retained only when that country has no
 normalized occurrence coverage, for deployed-client and backfill compatibility.
+Migration `20260901180000_add_public_biological_species_eligibility.sql` makes
+`species_dictionary.is_public_biological` a stored generated invariant. It
+requires a nonblank scientific name plus either a positive GBIF taxon key or a
+non-placeholder kingdom and at least one non-placeholder downstream taxonomy
+rank. Overview rows and the country-summary routine apply that exact value
+before range reads or aggregation.
 
 Catalog mode:
 
@@ -3035,22 +3047,28 @@ Catalog mode:
   once coverage exists; broad free-text ranges are not treated as canonical
   country membership.
 - `cursor` carries the last `scientific_name` and `species_id` returned.
+- The generated `is_public_biological` predicate is applied before the query's
+  limit and cursor. Partial indexes cover both alphabetical and Recently Added
+  keysets, so a page cannot become short merely because ineligible rows occupied
+  its pre-filter window.
 - Response rows include `id`, `scientific_name`, `common_name`,
   `content_quality`, nullable `taxonomy`, status fields, `group_tags`, and one
   `reference_image_url`; full page content still requires a detail request.
 
 Caching:
 
-- `200 OK` responses include
+- Detail and catalog `200 OK` responses include
   `Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800`
   and `Vary: Accept-Encoding`.
-- Tree mode sends `Cache-Control: private, no-store` and
-  `Vary: Authorization, Accept-Encoding` because the species set depends on the
-  authenticated user's scans.
-- `400`, `401`, `404`, and `500` responses do not include public cache headers.
-- iOS adds a 10-minute, 64-key in-memory memo cache in `MerianNetworkClient`,
-  keyed by normalized `species_id` and scientific name. The cache is route-local
-  only and never persists species pages to disk.
+- Overview `200 OK` responses include `Cache-Control: no-store` and
+  `Vary: Accept-Encoding`.
+- `400`, `404`, and `500` responses do not include public cache headers.
+- iOS requires exact `schema_version = 1` and a valid request/response identity
+  before adding anything to the 10-minute, 64-key in-memory memo cache in
+  `MerianNetworkClient`. It stores only the returned canonical UUID and returned
+  normalized scientific name. It never stores a stale requested UUID alias or an
+  `external:` ID. The cache is route-local only and never persists species pages
+  to disk.
 - Refreshed dictionary rows become visible after the iOS memo TTL and public
   HTTP freshness window expire. Future public web curation flows that require
   immediate visibility should add CDN/cache purge tooling to the write path.
@@ -3152,14 +3170,14 @@ Provenance and refresh metadata:
 
 Error responses:
 
-| Status | Body                                                                       | Meaning                                                                    |
-| ------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `400`  | `{ "error": "Missing required parameter: species_id or scientific_name" }` | Missing, non-string, or blank lookup                                       |
-| `400`  | `{ "error": "species_id must be a valid UUID." }`                          | Invalid species ID                                                         |
-| `400`  | `{ "error": "scientific_name must be a string when provided." }`           | Non-string scientific name was supplied alongside a valid species ID       |
-| `400`  | `{ "error": "scientific_name is too long." }`                              | Scientific name exceeds the request bound                                  |
-| `404`  | `{ "error": "Species not found" }`                                         | No `species_dictionary` row exists for the requested ID or normalized name |
-| `500`  | `{ "error": "Internal Server Error" }`                                     | Database or unexpected function failure                                    |
+| Status | Body                                                                       | Meaning                                                                     |
+| ------ | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `400`  | `{ "error": "Missing required parameter: species_id or scientific_name" }` | Missing, non-string, or blank lookup                                        |
+| `400`  | `{ "error": "species_id must be a valid UUID." }`                          | Invalid species ID                                                          |
+| `400`  | `{ "error": "scientific_name must be a string when provided." }`           | Non-string scientific name was supplied alongside a valid species ID        |
+| `400`  | `{ "error": "scientific_name is too long." }`                              | Scientific name exceeds the request bound                                   |
+| `404`  | `{ "error": "Species not found" }`                                         | UUID-only miss, dual UUID/name local miss, or existing ineligible local row |
+| `500`  | `{ "error": "Internal Server Error" }`                                     | Database or unexpected function failure                                     |
 
 Swift mapping:
 
@@ -3169,11 +3187,19 @@ MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 ```
 
 decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in
-`SpeciesDictionaryAPIModels.swift`. `SpeciesDictionaryEntry.taxonomyData` adapts
-the response into the shared `TaxonomyCard`, and `similarSpeciesData` adapts
-hydrated lookalikes into the shared `SimilarSpeciesGallery`.
-`SpeciesDictionaryRoute` prefers `speciesId` when present and keeps
-`scientificName` as a display/fallback key.
+`Core/Network/SpeciesDictionaryAPIModels.swift`, which contains wire DTOs only.
+`Core/Network/SpeciesDictionaryIdentity.swift` owns canonical UUID/name and
+cache key normalization. `Features/SpeciesDictionary/Shared/Models` owns the
+route, entry-point, taxonomy, and cross-surface reference-image presentation
+values; Detail Models adapt hydrated lookalikes and detail-only quality policy.
+
+The client canonicalizes UUIDs and drops invalid, synthetic, or `external:`
+route IDs. A usable name then becomes a name-only request. On response, an exact
+requested UUID is accepted even if its display-name hint was stale; a changed
+UUID is accepted only for dual-identity local recovery with the same normalized
+name. A name-only response must match the requested name and return either a
+canonical UUID or an `external:` identity. Schema/identity validation occurs
+before cache insertion.
 
 ---
 

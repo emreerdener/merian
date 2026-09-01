@@ -152,6 +152,24 @@ mount the Ready approval screen before refresh completes.
   expire; the next drain repairs legacy paused job state while the backend
   independently resumes any owner-bound tombstone it already accepted.
 
+## Species Dictionary identity and cache boundary
+
+`SpeciesDictionaryAPIModels.swift` contains only Codable wire DTOs. UI
+presentation, routing, taxonomy conversion, and reference-image labels belong to
+`Features/SpeciesDictionary/Shared` or the owning Catalog/Detail module.
+`SpeciesDictionaryIdentity.swift` is the Core Network normalization owner: it
+accepts only canonical UUID species IDs, collapses scientific-name whitespace,
+enforces the 160-character name bound, and derives the case-insensitive cache
+key.
+
+`MerianNetworkClient` requires exact `schema_version = 1` for catalog, overview,
+and detail responses. A detail response must match the requested UUID or the
+exact normalized compatibility name before it can be returned. The 10-minute
+in-memory memo stores only identifiers proven by the returned entry; it never
+aliases a stale requested UUID or an `external:` identifier. Tests for wire
+decoding and this request/response/cache boundary live in
+`MerianTests/Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
+
 ## Entitlement protocol
 
 The authenticated request builders attach `X-Merian-Entitlement-Protocol: 3` and

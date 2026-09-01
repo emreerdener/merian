@@ -17,7 +17,7 @@ architecture rewrite.
   `services/supabase/`.
 - Prefer product-area-first feature folders over broad type buckets. For large
   features, start with the user-facing surface (`Feed/`, `Map/`, `Identify/`,
-  `Catalog/`, `Tree/`) and place that area's `Views`, `Components`,
+  `Catalog/`, `Detail/`) and place that area's `Views`, `Components`,
   `ViewModels`, `Models`, and helpers inside it. Use `Shared/` only for code
   that is genuinely reused by more than one product area.
 - Keep tests and docs aligned in the same change when public contracts, file
@@ -74,7 +74,7 @@ apps/ios/Merian/Features/Explore/
 apps/ios/Merian/Features/SpeciesDictionary/
   Detail/
   Catalog/
-  Tree/
+  Shared/
 
 apps/ios/Merian/Features/Scans/
   Shell/
@@ -203,6 +203,15 @@ Implemented Species Dictionary slices:
   Catalog wire/payload, presentation, asynchronous-state, and architecture tests
   now mirror that owner, while Core Network retains Codable DTOs and transport.
   Every production Catalog Swift file stays below the pass's 600-line guard.
+- `SpeciesDictionary/Detail` now separates request/presentation policy, injected
+  live dependencies, generation-fenced page and Community state, thin roots, and
+  grouped Community/Content/Gallery/Loading/Shared components. Cross-surface
+  route, taxonomy, and reference-image presentation values live in
+  `SpeciesDictionary/Shared/Models`, while Core Network retains wire DTOs,
+  normalized identity, strict schema/response validation, transport, and
+  caching. The retired Tree implementation, route, flag, DTOs, and endpoint mode
+  are removed. Mirrored Catalog, Detail, and Shared tests enforce ownership,
+  asynchronous fencing, compatibility, and the 600-line guard.
 
 Implemented Insights slices:
 

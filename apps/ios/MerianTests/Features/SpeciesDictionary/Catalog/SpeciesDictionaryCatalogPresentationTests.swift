@@ -4,7 +4,7 @@ import Testing
 @testable import Merian
 
 @Suite("Species Dictionary Catalog Presentation")
-struct SpeciesDictionaryCatalogPresentationTests {
+struct SpeciesCatalogPresentationTests {
     @Test func regionFlagNormalizesValidCountryCodes() {
         #expect(SpeciesDictionaryRegionFlag.emoji(for: "US") == "🇺🇸")
         #expect(SpeciesDictionaryRegionFlag.emoji(for: "ca") == "🇨🇦")
@@ -93,6 +93,23 @@ struct SpeciesDictionaryCatalogPresentationTests {
                     category: .recentlyAdded,
                     region: nil
                 )
+        )
+    }
+
+    @Test func legacyTaxonomyCategoryFallsBackToTheCompleteCatalog() {
+        let legacyCategory = SpeciesDictionaryCategorySummary(
+            id: .taxonomy,
+            title: "Taxonomy",
+            subtitle: nil,
+            count: 42,
+            referenceImageUrl: nil,
+            region: nil,
+            regionCode: nil
+        )
+
+        #expect(
+            SpeciesDictionaryOverviewPresentation.route(for: legacyCategory)
+                == .catalog(title: "All", category: .all, region: nil)
         )
     }
 

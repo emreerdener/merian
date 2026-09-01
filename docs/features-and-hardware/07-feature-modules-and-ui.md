@@ -570,8 +570,8 @@ production Shell and Library file remains below the 600-line review guard.
   activity** rows with a larger section gap. Stack pages for the complete feeds
   are titled **Identify requests** and **Identify activity**. Requests and
   Activity maintain independent load/error states. Index renders the existing
-  catalog overview. The taxonomy tree/galaxy work remains default-off and
-  disconnected from MVP navigation.
+  catalog overview. Taxonomy remains catalog/detail reference data and has no
+  separate visualization route or feature flag.
 - **Field trips**: `Explore/FieldTrips/` owns a separate Explore-adjacent
   checklist surface. Standard Outings and live/upcoming curated Events are
   released for every user. The area is organized into feature-owned Models,

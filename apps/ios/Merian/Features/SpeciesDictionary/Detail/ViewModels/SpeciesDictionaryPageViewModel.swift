@@ -1,34 +1,43 @@
-import Foundation
 import Observation
-
-enum SpeciesDictionaryPageState: Equatable {
-    case idle
-    case loading
-    case loaded(SpeciesDictionaryEntry)
-    case notFound
-    case error(String)
-}
 
 @MainActor
 @Observable
 final class SpeciesDictionaryPageViewModel {
+    struct Dependencies {
+        let loadSpecies: @MainActor (
+            SpeciesDictionaryDetailRequest
+        ) async throws -> SpeciesDictionaryEntry
+        let classifyLoadError: @MainActor (
+            any Error
+        ) -> SpeciesDictionaryPageLoadFailure
+        let track: @MainActor (
+            SpeciesDictionaryDetailTelemetryEvent
+        ) -> Void
+    }
+
     let scientificName: String
     let speciesId: String?
     let entryPoint: SpeciesDictionaryEntryPoint
-    var state: SpeciesDictionaryPageState = .idle
-    private let networkClient: MerianNetworkClient
-    private var hasTrackedOpen = false
+    private(set) var state: SpeciesDictionaryPageState = .idle
+
+    @ObservationIgnored private let dependencies: Dependencies
+    @ObservationIgnored private var hasTrackedOpen = false
+    @ObservationIgnored private var requestGeneration: UInt64 = 0
 
     init(
         scientificName: String,
         speciesId: String? = nil,
         entryPoint: SpeciesDictionaryEntryPoint = .unknown,
-        networkClient: MerianNetworkClient = .shared
+        dependencies: Dependencies = .live
     ) {
-        self.scientificName = scientificName
-        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let request = SpeciesDictionaryDetailRequest(
+            speciesId: speciesId,
+            scientificName: scientificName
+        )
+        self.scientificName = request.scientificName ?? ""
+        self.speciesId = request.speciesId
         self.entryPoint = entryPoint
-        self.networkClient = networkClient
+        self.dependencies = dependencies
     }
 
     var loadedSpecies: SpeciesDictionaryEntry? {
@@ -41,63 +50,59 @@ final class SpeciesDictionaryPageViewModel {
     func load() async {
         trackOpenIfNeeded()
 
-        let trimmedName = scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard speciesId != nil || !trimmedName.isEmpty else {
+        requestGeneration &+= 1
+        let generation = requestGeneration
+        let request = SpeciesDictionaryDetailRequest(
+            speciesId: speciesId,
+            scientificName: scientificName
+        )
+
+        guard request.speciesId != nil || request.scientificName != nil else {
             state = .notFound
-            AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: entryPoint.rawValue)
+            dependencies.track(.notFound(entryPoint: entryPoint.rawValue))
             return
         }
 
         state = .loading
 
         do {
-            let species: SpeciesDictionaryEntry
-            if let speciesId {
-                species = try await networkClient.getSpeciesDictionary(
-                    speciesId: speciesId,
-                    scientificName: trimmedName.nilIfEmpty
-                )
-            } else {
-                species = try await networkClient.getSpeciesDictionary(scientificName: trimmedName)
-            }
+            let species = try await dependencies.loadSpecies(request)
+            guard isCurrent(generation) else { return }
+
             state = .loaded(species)
-            AppTelemetry.trackSpeciesDictionaryLoaded(
+            dependencies.track(.loaded(
                 entryPoint: entryPoint.rawValue,
                 contentQuality: species.effectiveContentQuality.telemetryValue
-            )
-        } catch let error as MerianError {
-            if case .httpError(let statusCode, _) = error, statusCode == 404 {
-                state = .notFound
-                AppTelemetry.trackSpeciesDictionaryNotFound(entryPoint: entryPoint.rawValue)
-            } else {
-                state = .error(Self.displayMessage(for: error))
-            }
+            ))
+        } catch is CancellationError {
+            return
         } catch {
-            state = .error(Self.displayMessage(for: error))
+            guard isCurrent(generation) else { return }
+
+            switch dependencies.classifyLoadError(error) {
+            case .notFound:
+                state = .notFound
+                dependencies.track(.notFound(
+                    entryPoint: entryPoint.rawValue
+                ))
+            case .message(let message):
+                state = .error(message)
+            }
         }
     }
 
     func retry() async {
-        AppTelemetry.trackSpeciesDictionaryRetry(entryPoint: entryPoint.rawValue)
+        dependencies.track(.retry(entryPoint: entryPoint.rawValue))
         await load()
     }
 
     private func trackOpenIfNeeded() {
         guard !hasTrackedOpen else { return }
         hasTrackedOpen = true
-        AppTelemetry.trackSpeciesDictionaryOpened(entryPoint: entryPoint.rawValue)
+        dependencies.track(.opened(entryPoint: entryPoint.rawValue))
     }
 
-    private static func displayMessage(for error: Error) -> String {
-        if let localized = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
-            return localized
-        }
-        return "Unable to load this species right now."
-    }
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
+    private func isCurrent(_ generation: UInt64) -> Bool {
+        !Task.isCancelled && requestGeneration == generation
     }
 }

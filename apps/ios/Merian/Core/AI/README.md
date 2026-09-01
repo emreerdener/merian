@@ -362,7 +362,10 @@ shortly / Scan saved**. These handler-owned decisions do not advance the device
 network circuit. The durable queue retains the observation behind the paywall
 and continues to honor the server retry schedule; entitlement exhaustion becomes
 explicit attention after the server proof refresh, while temporary rate limits
-use the server's bounded retry delay.
+use the server's bounded retry delay. `InferenceEngine` receives the paywall
+request as an initializer-injected main-actor closure: production binds it to
+`UsageManager`, while tests use a private recorder so the app host cannot clear
+the assertion state while presenting the sheet.
 
 Exact `400 observation_rejected` is terminal policy feedback, not a transport
 failure. Both live pipelines present **Try another capture / Scan not

@@ -16,24 +16,30 @@ user-specific scan data.
 Validation:
 
 - Either `species_id` or `scientific_name` is required.
-- `species_id`, when present, must be a valid UUID and is preferred for lookup.
+- `species_id`, when present, must be a valid UUID. A dual UUID/name request
+  queries the UUID first, then may recover only to an existing local row whose
+  scientific name matches exactly after normalization. A dual miss returns `404`
+  and never invokes external enrichment.
 - `scientific_name`, when present, must be a non-empty string after trimming.
 - Internal whitespace is collapsed.
 - Names over 160 characters are rejected.
+- The only supported explicit modes are `catalog` and `overview`.
 
 Invalid bodies return `400`.
 
-Tree requests use one of two explicit scopes:
+Overview requests use:
 
 ```json
-{ "mode": "tree", "scope": "all_species" }
+{ "mode": "overview", "user_region": "US" }
 ```
+
+Catalog requests use:
 
 ```json
-{ "mode": "tree", "scope": "my_scans" }
+{ "mode": "catalog", "category": "all", "limit": 40 }
 ```
 
-Omitting `scope` keeps the legacy authenticated scanned-species tree behavior.
+The retired `tree` mode and every other unknown mode return `400`.
 
 ## Response
 
@@ -105,14 +111,17 @@ Vary: Accept-Encoding
 ```
 
 Overview mode returns the featured species card plus category, high-level group,
-and region summaries. It uses `Cache-Control: no-store` so randomized category
-thumbnails and featured species choices can refresh on each request. Overview,
-catalog, and the `all_species` tree scope only publish rows that look like
-biological taxa: a row must have a scientific name plus either a positive GBIF
-taxon key or usable taxonomy with a kingdom and at least one downstream rank.
-This prevents generic encyclopedia concepts from appearing as Species Dictionary
-records. The `my_scans` tree scope applies the same public species projection
-after selecting the current user's scanned species.
+and region summaries. It uses `Cache-Control: no-store` so the randomized All
+category thumbnail can refresh on each request; the featured species remains the
+newest eligible row with imagery or overview copy, falling back to the newest
+eligible row. Overview and catalog apply
+`species_dictionary.is_public_biological` in PostgreSQL before limits, ranges,
+or country aggregation. The stored generated value requires a scientific name
+plus either a positive GBIF taxon key or usable taxonomy with a non-placeholder
+kingdom and at least one non-placeholder downstream rank. The Deno projection
+uses that returned database value as authoritative. This keeps counts and every
+cursor page on one eligible set and prevents generic encyclopedia concepts from
+appearing as Species Dictionary records.
 
 `400`, `404`, and `500` responses do not include those cache headers. Missing
 rows and transient failures must be able to recover as soon as the backing
@@ -130,8 +139,10 @@ stored in `species_reference_images`. The web species mapper runs
 `_shared/publicSpeciesProjection.ts` before rendering public reference media or
 using it in metadata and omits images with missing rights metadata.
 
-If no `species_dictionary` row exists for the scientific name, the function
-returns:
+For a name-only request, a local miss may use the bounded public GBIF/Wikipedia
+fallback and return an `external:` response identity. The fallback is never used
+for a request that supplied a UUID or for an existing ineligible local row. A
+UUID-only miss, dual UUID/name local miss, or ineligible local row returns:
 
 ```json
 { "error": "Species not found" }
@@ -168,6 +179,8 @@ carry those rights fields.
 Primary row:
 
 - `public.species_dictionary`
+- `species_dictionary.is_public_biological` is the database-owned catalog,
+  overview-count, and local-detail eligibility decision.
 
 Reference images:
 
@@ -266,18 +279,19 @@ The response is public species dictionary data only. Do not add:
 verify_jwt = false
 ```
 
-The function does not call `withEdgeHandler` because most dictionary views are
-public. Catalog, overview, and the `all_species` tree scope are public. The
-`my_scans` tree scope calls `requireAuth` and uses the current user only to
-select that user's scanned species before applying the same safe public
-projection fields listed above.
+The function uses `withPublicEdgeHandler`, not the authenticated
+`withEdgeHandler`, because every supported dictionary request is public. Detail,
+catalog, and overview ignore caller identity and return only the safe public
+projection fields listed above. The import-safe handler core validates the body
+and rejects retired/unknown modes before constructing a service client.
 
 ## Local Verification
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/_shared/identify/db.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --allow-net --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts
-deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/_shared/identify/db.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts
+deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/identify/db_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts
+supabase --workdir services db push --local
+supabase --workdir services test db --local services/supabase/tests/species_dictionary_public_eligibility.sql
 ```
 
 ## Related Endpoint

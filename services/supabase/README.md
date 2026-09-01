@@ -1371,6 +1371,18 @@ only the versioned species-level projection built by
 post, location, field-note, comment, local-media, AI-reasoning, or
 preferred-name fields to that response.
 
+Migration `20260901180000_add_public_biological_species_eligibility.sql` makes
+public eligibility a stored generated database value. Catalog keysets, overview
+row ranges, and country-summary counts filter `is_public_biological` before any
+limit/aggregation; the Deno projection trusts the selected value and retains its
+matching fallback predicate only for compatibility fixtures. A dual UUID/name
+detail lookup may recover a stale UUID only to an exact local normalized-name
+match and never reaches external providers. Only a name-only local miss may use
+bounded GBIF/Wikipedia enrichment. Handler tests lock retired-mode rejection
+before service access, a static migration contract locks source shape, and
+`tests/species_dictionary_public_eligibility.sql` exercises the generated value
+in a disposable catalog.
+
 The iOS Species Dictionary and the server-rendered
 `https://naturebook.earth/species/{speciesId}/{slug}` route share this contract.
 The web server invokes the function with `species_id`; the readable slug is

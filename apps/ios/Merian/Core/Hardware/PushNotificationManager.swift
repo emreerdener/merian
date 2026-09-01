@@ -11,6 +11,9 @@ import UIKit
 final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PushNotificationManager()
 
+    @ObservationIgnored private let requestRoute:
+        @MainActor @Sendable (AppRoute, AppRouteSource) -> Void
+
     /// Scan IDs for which an inference notification has already been scheduled this session.
     /// Prevents duplicate notifications when both the live and background paths complete
     /// for the same scan in close succession (e.g. simulator re-attach or fast network).
@@ -38,6 +41,22 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
     }
 
     private override init() {
+        requestRoute = { route, source in
+            AppDIContainer.shared.appRouteCoordinator.request(
+                route,
+                source: source
+            )
+        }
+        super.init()
+    }
+
+    init(
+        requestRoute: @escaping @MainActor @Sendable (
+            AppRoute,
+            AppRouteSource
+        ) -> Void
+    ) {
+        self.requestRoute = requestRoute
         super.init()
     }
 
@@ -272,9 +291,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                     MerianLog.hardware.debug(
                         "Community push notification tapped — routing to requestId \(requestId, privacy: .private)"
                     )
-                    AppDIContainer.shared.appRouteCoordinator.request(
+                    self.requestRoute(
                         .communityIdentification(requestId: requestId),
-                        source: .pushNotification
+                        .pushNotification
                     )
                 }
                 return
@@ -287,13 +306,13 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                 MerianLog.hardware.debug(
                     "Explore push notification tapped — routing to postId \(postId, privacy: .private)"
                 )
-                AppDIContainer.shared.appRouteCoordinator.request(
+                self.requestRoute(
                     .explorePost(
                         postId: postId,
                         targetCommentId: commentId,
                         targetReplyParentCommentId: parentCommentId
                     ),
-                    source: .pushNotification
+                    .pushNotification
                 )
             }
             return
@@ -309,9 +328,9 @@ final class PushNotificationManager: NSObject, UNUserNotificationCenterDelegate 
                     }
                     // For now, route to the scan regardless of which action was tapped
                     // We can handle specific share intent dynamically within the insight sheet later.
-                    AppDIContainer.shared.appRouteCoordinator.request(
+                    self.requestRoute(
                         .scan(scanId: scanId),
-                        source: .pushNotification
+                        .pushNotification
                     )
                 }
             }

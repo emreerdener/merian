@@ -177,12 +177,11 @@ Backend ownership:
 - `services/supabase/functions/_tests/communityIdentificationActivityDb.test.ts`
 - `services/supabase/functions/_tests/communityIdentificationActivityMigrationContract.test.ts`
 
-## Deferred MVP scope
+## Dictionary scope
 
-The taxonomy Tree/galaxy map is unavailable for MVP. Its source, API support,
-and default-off `.speciesDictionaryTree` flag remain for future work, but
-Identify/Index must not expose a Tree control or route while the flag remains
-off.
+Identify/Index is the sole Species Dictionary browsing surface. Taxonomy remains
+searchable reference data within catalog and detail responses; there is no
+separate taxonomy visualization, control, or route.
 
 ## Verification
 
@@ -222,11 +221,11 @@ xcodebuild -scheme Merian -project Merian.xcodeproj \
   -only-testing:merianTests/CommunityIdentificationModelsTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogPresentationTests \
+  -only-testing:merianTests/SpeciesCatalogPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryRegionMapViewModelTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogArchitectureTests \
+  -only-testing:merianTests/SpeciesCatalogArchitectureTests \
   -only-testing:merianTests/SpeciesDictionaryTests \
   -only-testing:merianTests/MerianNetworkClientTests \
   -only-testing:merianTests/MerianConfigTests test

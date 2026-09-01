@@ -8,7 +8,7 @@ V1 appears in two places:
 
 - Insight Sheet: after Habitat & Distribution in `BiologicalView`.
 - Species Dictionary: after Habitat & Distribution in
-  `SpeciesDictionaryPageView`.
+  `SpeciesDictionaryPageContentView`.
 
 ## Product Scope
 
@@ -49,7 +49,7 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesReference/Components/Charts/SpeciesObservationChartContent.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Components/Charts/SpeciesObservationSeasonalityHeatmapView.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageContentView.swift`
 
 `SpeciesObservationStatsViewModel` is `@Observable @MainActor`. It receives a
 small `SpeciesObservationStatsDependencies` value rather than resolving a live

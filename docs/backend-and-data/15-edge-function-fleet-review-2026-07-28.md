@@ -82,7 +82,7 @@ the privileged-routine catalog audit and migration/security contract suites.
   `ingest-r2-media-events` verifies its dedicated secret before parsing;
   `revenuecat-webhook` verifies bearer and raw-body HMAC before
   provider/database work; `species-dictionary` exposes only the public
-  projection except for its authenticated `my_scans` tree; and
+  projection through detail, catalog, and overview requests; and
   `species-observation-stats` applies distributed IP/user limits and
   dictionary-bound authorization.
 

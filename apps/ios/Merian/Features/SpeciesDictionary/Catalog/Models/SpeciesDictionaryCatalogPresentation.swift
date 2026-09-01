@@ -1,5 +1,29 @@
 import Foundation
 
+extension SpeciesDictionaryCatalogItem {
+    var taxonomyData: TaxonomyData? {
+        SpeciesDictionaryTaxonomyPresentation.data(from: taxonomy)
+    }
+
+    var dictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: id,
+            entryPoint: .exploreDictionaryCatalog
+        )
+    }
+}
+
+extension SpeciesDictionaryFeaturedSpecies {
+    var dictionaryRoute: SpeciesDictionaryRoute {
+        SpeciesDictionaryRoute(
+            scientificName: scientificName,
+            speciesId: id,
+            entryPoint: .exploreDictionaryCatalog
+        )
+    }
+}
+
 enum SpeciesDictionaryRegionFlag {
     static func emoji(for countryCode: String?) -> String? {
         guard let normalizedCode = countryCode?
@@ -72,7 +96,9 @@ enum SpeciesDictionaryOverviewPresentation {
                 region: region
             )
         case .taxonomy:
-            return .taxonomy
+            // Compatibility for an older overview payload. The dedicated Tree
+            // destination is retired, so this degrades to the complete catalog.
+            return .catalog(title: "All", category: .all, region: nil)
         case .recentlyAdded:
             return .catalog(
                 title: "Recently added",

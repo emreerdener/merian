@@ -3703,7 +3703,14 @@ final class MerianNetworkClient {
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(SpeciesDictionaryCatalogResponse.self, from: data)
+        let response = try makeExploreDecoder().decode(
+            SpeciesDictionaryCatalogResponse.self,
+            from: data
+        )
+        guard response.schemaVersion == 1 else {
+            throw MerianError.invalidResponse
+        }
+        return response
     }
 
     func getSpeciesDictionaryCatalog(
@@ -3733,20 +3740,14 @@ final class MerianNetworkClient {
 
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(SpeciesDictionaryOverviewResponse.self, from: data)
-    }
-
-    func getSpeciesDictionaryTree(
-        scope: SpeciesDictionaryTreeScope = .allSpecies
-    ) async throws -> SpeciesDictionaryTreeResponse {
-        let functionUrl = try endpointURL("species-dictionary")
-        let payload: [String: Any] = [
-            "mode": "tree",
-            "scope": scope.rawValue
-        ]
-        let bodyData = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        return try makeExploreDecoder().decode(SpeciesDictionaryTreeResponse.self, from: data)
+        let response = try makeExploreDecoder().decode(
+            SpeciesDictionaryOverviewResponse.self,
+            from: data
+        )
+        guard response.schemaVersion == 1 else {
+            throw MerianError.invalidResponse
+        }
+        return response
     }
 
     func getSpeciesObservationStats(
@@ -3815,8 +3816,13 @@ final class MerianNetworkClient {
     private func performSpeciesDictionaryRequest(speciesId: String?, scientificName: String?) async throws -> SpeciesDictionaryEntry {
         let functionUrl = try endpointURL("species-dictionary")
         var payload: [String: Any] = [:]
-        let requestedSpeciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        let requestedScientificName = scientificName?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        let requestedSpeciesId = SpeciesDictionaryIdentity
+            .canonicalSpeciesID(speciesId)
+        let requestedScientificName = SpeciesDictionaryIdentity
+            .normalizedScientificName(scientificName)
+        guard requestedSpeciesId != nil || requestedScientificName != nil else {
+            throw MerianError.invalidResponse
+        }
 
         if let cached = cachedSpeciesDictionaryEntry(
             speciesId: requestedSpeciesId,
@@ -3833,12 +3839,20 @@ final class MerianNetworkClient {
         }
         let bodyData = try JSONSerialization.data(withJSONObject: payload)
         let (data, _) = try await performAuthenticatedRequest(url: functionUrl, method: "POST", body: bodyData)
-        let entry = try makeExploreDecoder().decode(SpeciesDictionaryResponse.self, from: data).data
-        cacheSpeciesDictionaryEntry(
-            entry,
-            requestedSpeciesId: requestedSpeciesId,
-            requestedScientificName: requestedScientificName
+        let response = try makeExploreDecoder().decode(
+            SpeciesDictionaryResponse.self,
+            from: data
         )
+        let entry = response.data
+        guard response.schemaVersion == 1,
+              isValidSpeciesDictionaryResponse(
+                  entry,
+                  requestedSpeciesId: requestedSpeciesId,
+                  requestedScientificName: requestedScientificName
+              ) else {
+            throw MerianError.invalidResponse
+        }
+        cacheSpeciesDictionaryEntry(entry)
         return entry
     }
 
@@ -3865,16 +3879,8 @@ final class MerianNetworkClient {
         return cached.value
     }
 
-    private func cacheSpeciesDictionaryEntry(
-        _ entry: SpeciesDictionaryEntry,
-        requestedSpeciesId: String?,
-        requestedScientificName: String?
-    ) {
-        let keys = speciesDictionaryCacheKeys(
-            for: entry,
-            requestedSpeciesId: requestedSpeciesId,
-            requestedScientificName: requestedScientificName
-        )
+    private func cacheSpeciesDictionaryEntry(_ entry: SpeciesDictionaryEntry) {
+        let keys = speciesDictionaryCacheKeys(for: entry)
         guard !keys.isEmpty else { return }
 
         let now = Date()
@@ -3998,41 +4004,61 @@ final class MerianNetworkClient {
     }
 
     private func speciesDictionaryCacheKeys(
-        for entry: SpeciesDictionaryEntry,
-        requestedSpeciesId: String?,
-        requestedScientificName: String?
+        for entry: SpeciesDictionaryEntry
     ) -> Set<String> {
         var keys = Set<String>()
-        if let requestedSpeciesId = normalizedSpeciesDictionaryId(requestedSpeciesId) {
-            keys.insert("id:\(requestedSpeciesId)")
-        }
-        if let entrySpeciesId = normalizedSpeciesDictionaryId(entry.id) {
+        let entrySpeciesId = normalizedSpeciesDictionaryId(entry.id)
+        let entryScientificName = normalizedSpeciesDictionaryName(
+            entry.scientificName
+        )
+        if let entrySpeciesId {
             keys.insert("id:\(entrySpeciesId)")
         }
-        if let requestedScientificName = normalizedSpeciesDictionaryName(requestedScientificName) {
-            keys.insert("name:\(requestedScientificName)")
-        }
-        if let entryScientificName = normalizedSpeciesDictionaryName(entry.scientificName) {
+        if let entryScientificName {
             keys.insert("name:\(entryScientificName)")
         }
         return keys
     }
 
+    private func isValidSpeciesDictionaryResponse(
+        _ entry: SpeciesDictionaryEntry,
+        requestedSpeciesId: String?,
+        requestedScientificName: String?
+    ) -> Bool {
+        let returnedSpeciesId = normalizedSpeciesDictionaryId(entry.id)
+        let returnedScientificName = normalizedSpeciesDictionaryName(
+            entry.scientificName
+        )
+        let requestedName = normalizedSpeciesDictionaryName(
+            requestedScientificName
+        )
+        guard returnedScientificName != nil else { return false }
+
+        if let requestedSpeciesId {
+            if returnedSpeciesId == requestedSpeciesId {
+                return true
+            }
+            return requestedName != nil
+                && returnedScientificName == requestedName
+                && returnedSpeciesId != nil
+        }
+
+        guard let requestedName,
+              returnedScientificName == requestedName else {
+            return false
+        }
+        return returnedSpeciesId != nil
+            || entry.id.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .hasPrefix("external:")
+    }
+
     private func normalizedSpeciesDictionaryId(_ value: String?) -> String? {
-        value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .nilIfEmpty
+        SpeciesDictionaryIdentity.canonicalSpeciesID(value)
     }
 
     private func normalizedSpeciesDictionaryName(_ value: String?) -> String? {
-        value?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-            .lowercased()
-            .nilIfEmpty
+        SpeciesDictionaryIdentity.scientificNameCacheKey(value)
     }
 
     func getExploreAuthorProfile(authorUserId: String, previewLimit: Int = 9) async throws -> ExploreAuthorProfile {

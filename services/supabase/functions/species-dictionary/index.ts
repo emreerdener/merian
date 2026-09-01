@@ -1,16 +1,16 @@
-import { requireAuth } from "../_shared/auth.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
-import { logStructuredError, serveEdge } from "../_shared/edgeHandler.ts";
+import {
+  logStructuredError,
+  withPublicEdgeHandler,
+} from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
 import { createServiceRoleClientFromEnvironment } from "../_shared/serviceRoleClient.ts";
 import {
-  fetchAllSpeciesDictionaryTree,
   fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
   fetchSpeciesDictionaryOverview,
-  fetchUserScannedSpeciesDictionaryTree,
   parseSpeciesDictionaryRequest,
-  speciesDictionaryTreeRequiresAuth,
 } from "./db.ts";
 
 const publicDictionaryCacheHeaders = {
@@ -24,12 +24,18 @@ const overviewDictionaryCacheHeaders = {
   "Vary": "Accept-Encoding",
 };
 
-const privateDictionaryCacheHeaders = {
-  "Cache-Control": "private, no-store",
-  "Vary": "Authorization, Accept-Encoding",
+export interface SpeciesDictionaryHandlerDependencies {
+  createServiceRoleClient: (supabaseUrl: string) => SupabaseClient;
+}
+
+const liveDependencies: SpeciesDictionaryHandlerDependencies = {
+  createServiceRoleClient: createServiceRoleClientFromEnvironment,
 };
 
-serveEdge(async (req: Request) => {
+export async function handleSpeciesDictionaryRequest(
+  req: Request,
+  dependencies: SpeciesDictionaryHandlerDependencies = liveDependencies,
+): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -39,7 +45,14 @@ serveEdge(async (req: Request) => {
     if (parsedBody instanceof Response) return parsedBody;
 
     const parsedRequest = parseSpeciesDictionaryRequest(parsedBody);
-    const supabaseAdmin = createServiceRoleClientFromEnvironment(
+    if (parsedRequest.error) {
+      return jsonResponse(
+        { error: parsedRequest.error },
+        parsedRequest.status ?? 400,
+      );
+    }
+
+    const supabaseAdmin = dependencies.createServiceRoleClient(
       Deno.env.get("SUPABASE_URL") ?? "",
     );
 
@@ -93,47 +106,6 @@ serveEdge(async (req: Request) => {
       );
     }
 
-    if (parsedRequest.mode === "tree") {
-      const treeScope = parsedRequest.treeScope ?? "my_scans";
-      if (!speciesDictionaryTreeRequiresAuth(treeScope)) {
-        const tree = await fetchAllSpeciesDictionaryTree(supabaseAdmin);
-
-        return jsonResponse(
-          {
-            schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
-            data: tree,
-          },
-          200,
-          publicDictionaryCacheHeaders,
-        );
-      }
-
-      const { user, response } = await requireAuth(req, supabaseAdmin);
-      if (response) return response;
-      if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-
-      const tree = await fetchUserScannedSpeciesDictionaryTree(
-        user.id,
-        supabaseAdmin,
-      );
-
-      return jsonResponse(
-        {
-          schema_version: PUBLIC_SPECIES_SCHEMA_VERSION,
-          data: tree,
-        },
-        200,
-        privateDictionaryCacheHeaders,
-      );
-    }
-
-    if (!parsedRequest.speciesId && !parsedRequest.scientificName) {
-      return jsonResponse(
-        { error: parsedRequest.error },
-        parsedRequest.status ?? 400,
-      );
-    }
-
     const data = await fetchSpeciesDictionary(parsedRequest, supabaseAdmin);
     if (!data) {
       return jsonResponse({ error: "Species not found" }, 404);
@@ -153,4 +125,18 @@ serveEdge(async (req: Request) => {
     });
     return jsonResponse({ error: "Internal Server Error" }, 500);
   }
-});
+}
+
+export function createSpeciesDictionaryHttpHandler(
+  dependencies: SpeciesDictionaryHandlerDependencies = liveDependencies,
+): (req: Request) => Promise<Response> {
+  return (req: Request) =>
+    withPublicEdgeHandler(
+      req,
+      () => handleSpeciesDictionaryRequest(req, dependencies),
+    );
+}
+
+if (import.meta.main) {
+  Deno.serve(createSpeciesDictionaryHttpHandler());
+}

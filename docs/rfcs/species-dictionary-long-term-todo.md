@@ -301,40 +301,20 @@ Why it matters: Merian's own high-quality published observations should become
 the strongest visual layer in the dictionary while preserving contributor
 visibility controls.
 
-## Scope 12 — Taxonomy Tree/Galaxy Visualization
+## Scope 12 — Retired Taxonomy Visualization
 
-Status: deferred beyond MVP; implementation preserved but all user navigation
-entry points disconnected.
+Status: removed.
 
-- [x] Keep `TaxonomyTreeCanvasView`, graph DTOs, `/species-dictionary`
-      `mode: "tree"`, and the internal taxonomy route available for future
-      iteration.
-- [x] Keep `.speciesDictionaryTree` default-off in Release.
-- [x] Remove Tree from bottom navigation, Identify/Index controls, overview
-      cards, simulator-only entry points, and deep-link policy.
-- [ ] Choose and validate the future interaction model—hierarchical Tree,
-      galaxy map, or a smaller taxonomy browser—before reconnecting navigation.
-- [ ] Prove acceptable layout/graph-query performance on supported physical
-      devices with large and sparse taxonomies.
-- [ ] Add complete VoiceOver navigation, reduced-motion behavior, Dynamic Type,
-      orientation, empty/error, and gesture-conflict acceptance coverage.
-- [ ] Define product value and success metrics that justify the complexity
-      relative to the searchable Index.
-- [ ] Complete a dedicated release checklist and enable the entry point only in
-      the same reviewed iOS release that changes the default flag.
+- [x] Remove the iOS canvas and graph model, hidden route, feature flag, Swift
+      transport and DTOs, overview category, Edge graph mode, and user-scanned
+      graph query.
+- [x] Keep ordinary taxonomy fields, catalog search/presentation, and species
+      detail taxonomy content.
+- [x] Reject the retired `mode: "tree"` request with `400` and retain an Edge
+      regression test for that boundary.
+- [x] Decode the legacy overview category ID only for rolling-deployment safety,
+      routing it to the complete catalog instead of restoring a separate
+      surface.
 
-Current rules:
-
-- The preserved feature flag is a release switch, not an authorization
-  boundary. Existing Tree API responses remain species-level public data, with
-  authentication used only for user-scoped graph membership.
-- A DEBUG override may exercise a directly routed internal implementation, but
-  it must not silently restore an Explore entry point.
-- Species deep links continue to select Identify/Index and open species detail;
-  they never route to Tree.
-- MVP documentation, screenshots, support copy, and release notes must not
-  advertise Tree or galaxy navigation as available.
-
-Why it matters: the visualization has significant interaction, performance,
-and accessibility risk. Preserving the implementation avoids throwing away
-work while keeping the MVP centered on the shippable searchable Index.
+Why it matters: Index supplies the maintained browsing path without carrying a
+second interaction, performance, accessibility, authorization, and API surface.

@@ -121,8 +121,8 @@ target carried inside `ExplorePostRoute`. Post detail converts that target to
 the Notifications-owned reply route immediately before presenting the thin reply
 sheet.
 
-The taxonomy Tree/galaxy map remains implemented behind the default-off
-`.speciesDictionaryTree` flag but is disconnected from root MVP navigation.
+Identify/Index is the sole Species Dictionary browsing surface. The Shell does
+not own or register a separate taxonomy visualization route.
 
 ## Feed route ownership
 

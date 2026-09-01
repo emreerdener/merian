@@ -173,11 +173,14 @@ the
 [canonical Sign in with Apple deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
 **Deep links and intents:** `MerianApp.handleMerianDeepLink(_:)`,
-`PushNotificationManager.handleNotificationAction(...)`, and App Intents enqueue
-typed `AppRoute` values in `AppRouteCoordinator`. `CaptureWorkspaceViewModel`
-claims each route and applies it through the single root presentation host.
-Species routes contain only the validated canonical dictionary UUID. Identify
-and recall intents use the same queue rather than a separate event subscriber.
+`PushNotificationManager.handleNotificationAction(...)`, and App Intents submit
+typed `AppRoute` values to `AppRouteCoordinator`. The notification manager
+parses its OS payload and invokes an injected route-request closure; its live
+closure targets the app-host coordinator, while tests can use an isolated
+coordinator. `CaptureWorkspaceViewModel` claims each route and applies it
+through the single root presentation host. Species routes contain only the
+validated canonical dictionary UUID. Identify and recall intents use the same
+queue rather than a separate event subscriber.
 
 **Photos document import:** `MerianApp.onOpenURL` handles Google Sign-In and
 Merian deep links before classifying file URLs, and leaves remaining URLs for
@@ -399,10 +402,12 @@ analysis.
   follows deterministic `.onChange(of:)` observation.
 - **Never bypass the free user queue cap** in `enqueueCapture`. The cap is the
   primary defence against free-tier scan hoarding — do not remove or loosen it.
-- **Never trigger the paywall from `InferenceEngine`'s catch block.** The
-  paywall is only shown from the `canPerformScan` gate in
-  `CaptureWorkspaceViewModel+PhotoCapture.swift` and the image-import admission
-  path. Network failures must never surface a paywall.
+- **Never classify transport failures as paywall requests.** Capture normally
+  presents the paywall at local and server-backed admission. `InferenceEngine`
+  retains one exact `429 ai_quota_daily_exceeded` fallback for an authoritative
+  post-preview quota race; it invokes its injected paywall request without
+  publishing synthetic Insight data. Cancellation, authentication, TLS, server,
+  and connectivity failures must never use that path.
 - **Never add direct ViewModel references** to `AppLifecycleManager`. Send a
   loss-tolerant `AppEvent` for lifecycle invalidation, or enqueue an `AppRoute`
   when delivery changes navigation. Do not encode routes as lifecycle events.

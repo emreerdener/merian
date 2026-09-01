@@ -1,5 +1,6 @@
-import Testing
 import Foundation
+import Testing
+
 @testable import Merian
 
 @MainActor
@@ -11,13 +12,14 @@ struct PushNotificationRoutingTests {
         let testScanId = "mock-scan-id-1234"
         let mockUserInfo: [AnyHashable: Any] = ["scanId": testScanId]
         
-        let coordinator = AppDIContainer.shared.appRouteCoordinator
-        coordinator.resetForTesting()
-        defer { coordinator.resetForTesting() }
+        let coordinator = AppRouteCoordinator()
+        let manager = PushNotificationManager { route, source in
+            coordinator.request(route, source: source)
+        }
         
         // Act
         // Simulate a user tapping the system push notification (default action)
-        PushNotificationManager.shared.handleNotificationAction(
+        manager.handleNotificationAction(
             userInfo: mockUserInfo,
             actionIdentifier: "com.apple.UNNotificationDefaultActionIdentifier"
         )

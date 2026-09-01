@@ -561,6 +561,13 @@ results, not dictionary taxa.
   caller-controlled name. Constraint: `NULL OR > 0`. Added in migration
   `20260517190000_add_species_observation_stats.sql`; write ownership was
   hardened in `20260724170709_harden_species_observation_stats.sql`.
+- `is_public_biological` (BOOLEAN, stored generated): Canonical eligibility for
+  public Dictionary catalog, overview counts, country summaries, and local
+  detail rows. It requires a nonblank scientific name plus either a positive
+  `gbif_taxon_key` or a non-placeholder kingdom and at least one non-placeholder
+  downstream rank. Migration
+  `20260901180000_add_public_biological_species_eligibility.sql` adds partial
+  keyset indexes for `(scientific_name, id)` and `(created_at DESC, id DESC)`.
 
 **Public dictionary projection**: `/species-dictionary` reads only safe
 species-level columns from this table: identifiers, canonical names, taxonomy,
@@ -568,6 +575,10 @@ hazard/conservation status, Wikipedia/habitat/GBIF fields, group tags, alternate
 common names, and normalized public reference imagery from
 `species_reference_images`. It must not project scan-specific or user-specific
 data other than public media attribution labels stored on reference-image rows.
+Catalog and overview SQL filter the generated `is_public_biological` value
+before pagination or aggregation. The service-only country-summary routine joins
+the same predicate, so counts and catalog pages cannot describe different
+eligible sets.
 
 **Public observation stats**: `/species-observation-stats` reads
 `species_dictionary.id`, `scientific_name`, and `inaturalist_taxon_id` only. It
@@ -628,7 +639,9 @@ species counts plus a representative species UUID for overview imagery. Both
 functions are revoked from public client roles. A GBIF taxon-key change purges
 the old rows, marks their provenance due, and enqueues a durable replacement.
 The rows mean that GBIF has recorded the species in a country; they do not
-assert that it is native there.
+assert that it is native there. The summary routine also requires the joined
+dictionary row's generated `is_public_biological` value, matching the public
+catalog boundary.
 
 ### Current-scan exclusion projection
 

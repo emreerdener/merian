@@ -1103,6 +1103,47 @@ lock and rebuilds the ledger. Never run an unlocked manual backfill, enable the
 legacy row trigger alongside the new triggers, grant API access to the ledger,
 or edit `total_species_discovered` independently.
 
+### Public Species Dictionary Eligibility Release Gate
+
+Migration `20260901180000_add_public_biological_species_eligibility.sql` must
+land before the matching `species-dictionary` bundle and strict iOS client. It
+adds the stored generated `species_dictionary.is_public_biological` value,
+partial alphabetical and Recently Added keyset indexes, and a country-summary
+function that uses the same eligibility decision. The new function bundle
+selects that column and therefore must not deploy first. This rollout changes no
+public JSON field or schema version.
+
+The migration bounds lock acquisition and execution with session `lock_timeout`
+and `statement_timeout`, then resets both settings before exit. The static
+migration contract is the source-review guard for the generated column, both
+partial indexes, the country-summary predicate, and those paired resets.
+
+Preflight:
+
+```bash
+deno test --frozen \
+  --config services/supabase/functions/deno.json \
+  --allow-env --allow-net --allow-read=. \
+  services/supabase/functions/_shared/publicSpeciesProjection_test.ts \
+  services/supabase/functions/species-dictionary/db.test.ts \
+  services/supabase/functions/species-dictionary/handler_test.ts \
+  services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts
+
+supabase --workdir services db push --local
+supabase --workdir services test db --local \
+  services/supabase/tests/species_dictionary_public_eligibility.sql
+```
+
+After migration and Function deployment, verify catalog pages are nonempty and
+cursor-stable across an ineligible-row boundary, overview All/country counts use
+the same eligible set, and `mode: "tree"` returns the marked handler-owned `400`
+without public cache headers. Verify UUID hit, UUID miss plus exact local-name
+recovery, dual local miss `404` without provider work, name-only external
+fallback, and existing ineligible local-row `404`. Only then ship the strict iOS
+consumer, which requires schema version 1 and matching response identity before
+caching. Roll back with forward migrations/functions only; do not hand-edit or
+remove the generated column from an applied environment.
+
 ### Public Species Observation Stats Release Gate
 
 Migration `20260724170709_harden_species_observation_stats.sql` must land before
@@ -5328,7 +5369,7 @@ After the iOS rollout, verify:
 - Back returns to the dashboard without exposing root chrome on the pushed page;
 - species links select Identify/Index and request links select
   Identify/Requests; and
-- no Tree/galaxy entry point is present.
+- Identify/Index has no separate taxonomy visualization entry point.
 
 Rollback is forward-only for data. Do not drop or truncate the additive
 projection after deployment and do not grant its RPC to client roles. A broken

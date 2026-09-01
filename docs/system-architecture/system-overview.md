@@ -141,8 +141,9 @@ service-role-only RPC. Projection rows store actor IDs/counts, not names.
 Suggestion bursts chain at intervals of at most 60 minutes, submission-caused
 consensus metadata folds into a burst, and resolutions are immutable separate
 milestones. Visible actors are shown by public username, never profile/display
-name. This feed is unrelated to bell unread state. The preserved taxonomy
-Tree/galaxy implementation is default-off and disconnected from MVP navigation.
+name. This feed is unrelated to bell unread state. Index is the sole Species
+Dictionary browser; taxonomy remains catalog/detail reference data and has no
+separate route or feature flag.
 
 In the native app, every visible Explore post detail can open a Pro Field chat,
 including a post authored by the viewer. This is not a public comment: each

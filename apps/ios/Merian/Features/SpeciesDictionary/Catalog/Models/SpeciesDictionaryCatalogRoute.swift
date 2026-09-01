@@ -5,6 +5,5 @@ enum SpeciesDictionaryCategoryRoute: Hashable {
         region: String?
     )
     case group(title: String, group: String)
-    case taxonomy
     case regions
 }

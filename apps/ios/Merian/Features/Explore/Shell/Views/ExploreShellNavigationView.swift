@@ -253,18 +253,6 @@ struct ExploreShellNavigationView: View {
             )
             .toolbar(.hidden, for: .tabBar)
             .toolbar {}
-        case .taxonomy:
-            if FeatureFlags.isEnabled(.speciesDictionaryTree) {
-                TaxonomyTreeCanvasView(showsNavigationTitle: true) { speciesRoute in
-                    navigationPath.append(speciesRoute)
-                }
-                .toolbar(.hidden, for: .tabBar)
-                .toolbar {}
-            } else {
-                SpeciesDictionaryOverviewView(userRegion: dictionaryUserRegionIdentifier)
-                    .toolbar(.hidden, for: .tabBar)
-                    .toolbar {}
-            }
         case .regions:
             SpeciesDictionaryRegionsView(userRegion: dictionaryUserRegionIdentifier)
                 .toolbar(.hidden, for: .tabBar)

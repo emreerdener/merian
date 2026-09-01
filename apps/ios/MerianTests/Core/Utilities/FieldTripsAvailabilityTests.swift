@@ -15,12 +15,10 @@ struct FieldTripsAvailabilityTests {
 
     @Test func registryContainsEveryReleaseGateAndItsProductionDefault() {
         #expect(FeatureFlag.allCases == [
-            .speciesDictionaryTree,
             .fieldTrips,
             .dwcaExports,
             .unlimitedFreeScans
         ])
-        #expect(!FeatureFlag.speciesDictionaryTree.defaultValue)
         #expect(FeatureFlag.fieldTrips.defaultValue)
         #expect(!FeatureFlag.dwcaExports.defaultValue)
         #expect(!FeatureFlag.unlimitedFreeScans.defaultValue)
@@ -44,27 +42,27 @@ struct FieldTripsAvailabilityTests {
         defer { userDefaults.removePersistentDomain(forName: suiteName) }
 
         #expect(!FeatureFlags.isEnabled(
-            .speciesDictionaryTree,
+            .dwcaExports,
             userDefaults: userDefaults
         ))
 
         FeatureFlags.setDebugOverride(
             true,
-            for: .speciesDictionaryTree,
+            for: .dwcaExports,
             userDefaults: userDefaults
         )
         #expect(FeatureFlags.isEnabled(
-            .speciesDictionaryTree,
+            .dwcaExports,
             userDefaults: userDefaults
         ))
 
         FeatureFlags.setDebugOverride(
             nil,
-            for: .speciesDictionaryTree,
+            for: .dwcaExports,
             userDefaults: userDefaults
         )
         #expect(!FeatureFlags.isEnabled(
-            .speciesDictionaryTree,
+            .dwcaExports,
             userDefaults: userDefaults
         ))
     }

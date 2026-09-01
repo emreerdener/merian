@@ -2,7 +2,7 @@ import Foundation
 import Testing
 
 @Suite("Species Dictionary Catalog Architecture")
-struct SpeciesDictionaryCatalogArchitectureTests {
+struct SpeciesCatalogArchitectureTests {
     @Test func ownershipDirectoriesAndLineCeilingRemainPresent() throws {
         let root = try catalogSourceRoot()
         for directory in [
@@ -107,6 +107,8 @@ struct SpeciesDictionaryCatalogArchitectureTests {
         let source = try String(contentsOf: apiModels, encoding: .utf8)
         #expect(source.contains("struct SpeciesDictionaryCatalogItem"))
         #expect(source.contains("struct SpeciesDictionaryOverview"))
+        #expect(!source.contains("var dictionaryRoute"))
+        #expect(!source.contains("var taxonomyData"))
     }
 
     @Test func rootViewsStaySeparatedAndRouteRemainsModelOwned() throws {
@@ -164,6 +166,41 @@ struct SpeciesDictionaryCatalogArchitectureTests {
         )
 
         #expect(selectionRange.lowerBound < debounceRange.lowerBound)
+    }
+
+    @Test func retiredTreeSurfaceStaysAbsent() throws {
+        let repository = try repositoryRoot()
+        let speciesDictionary = repository.appendingPathComponent(
+            "apps/ios/Merian/Features/SpeciesDictionary"
+        )
+        #expect(
+            !FileManager.default.fileExists(
+                atPath: speciesDictionary.appendingPathComponent("Tree").path
+            )
+        )
+
+        let guardedSources = [
+            "apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift",
+            "apps/ios/Merian/Core/Network/MerianNetworkClient.swift",
+            "apps/ios/Merian/Core/Utilities/FieldTripsAvailability.swift",
+            "apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellNavigationView.swift"
+        ]
+        for relativePath in guardedSources {
+            let source = try String(
+                contentsOf: repository.appendingPathComponent(relativePath),
+                encoding: .utf8
+            )
+            for retiredToken in [
+                "SpeciesDictionaryTree",
+                "TaxonomyTreeCanvasView",
+                "speciesDictionaryTree"
+            ] {
+                #expect(
+                    !source.contains(retiredToken),
+                    "\(relativePath) restored \(retiredToken)"
+                )
+            }
+        }
     }
 
     private func catalogSourceRoot() throws -> URL {

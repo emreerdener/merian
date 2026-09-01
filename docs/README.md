@@ -311,8 +311,8 @@ as their permanent engineering identity.
   under shared filters, then pushes complete **Identify requests** and
   **Identify activity** feeds. Index renders the Species Dictionary overview.
   Species and request deep links select the corresponding Identify mode before
-  push. Tree/galaxy visualization remains default-off and has no MVP entry
-  point.
+  push. Index is the sole dictionary browsing surface; taxonomy remains
+  reference data rather than a separate visualization route.
 - **Media durability safety net**: Backend deploys run a media-ingestion
   contract matrix covering image, audio, text-only, video, status, repair, and
   Explore-share seams. Production scan-media health reports include incident
@@ -671,10 +671,10 @@ as their permanent engineering identity.
   follow notifications, block cleanup, and ghost-merge repair.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)**
   — Standalone public species dictionary page, `species-dictionary` Edge
-  Function detail/catalog/user-scanned tree contracts, similar-species entry
-  points from Insight and Explore detail, release-held in-app private Field
-  Chat, cache rules, content quality, media attribution, enrichment
-  queue/backfill, and refresh provenance.
+  Function detail/catalog/overview contracts, similar-species entry points from
+  Insight and Explore detail, release-held in-app private Field Chat, cache
+  rules, content quality, media attribution, enrichment queue/backfill, and
+  refresh provenance.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `naturebook.earth`, including Explore
   posts, UUID-first readable Species Dictionary references, legacy-domain and
@@ -708,7 +708,7 @@ as their permanent engineering identity.
   — Explore launch entry points, exactly-three-item root navigation,
   Observations Feed/Map, Field trips, Identify Requests/Index, filtered request
   and Activity previews/full feeds, deep-link mode policy, stack chrome, Index
-  catalog ownership, and deferred Tree/galaxy scope.
+  catalog ownership, and the absence of a separate taxonomy browser.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**
   — Public Field trips, Outings, and Events, automatic Backyard Safari Level 1
   enrollment, guided outing detail, progress matching, the account-cached active

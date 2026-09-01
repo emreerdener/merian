@@ -738,6 +738,19 @@ fallback path it intends to verify. View-model fixtures must also set routing
 identifiers and active media rather than relying on presentation side effects
 that are absent in a unit test.
 
+Swift Testing's `.serialized` trait serializes descendants within one suite; it
+does not prevent a different suite from mutating the same process-wide resource
+at the same time. Tests that temporarily own shared network-client overrides
+must also use `.sharedProcessState(.networkClientOverrides)` from
+`MerianTests/Support/SharedProcessStateTestTrait.swift`. Apply the trait at
+suite scope when setup initializes the shared resource for every case, and at
+test scope when only individual cases claim it. The resource-keyed actor gate
+preserves parallel execution between unrelated tests while preventing
+cross-suite reset and assertion races. The trait does not restore global state;
+each owner must still capture and restore every override it changes. Route and
+paywall tests instead inject private request sinks; they must not observe app
+host singletons that active views can consume or clear.
+
 Scan-bound Insight fixtures must reproduce the production identity topology: the
 inference engine's completed `SpeciesData.scanId`, `activeLocalRecord`,
 `activeLocalRecordId`, and `toolbarRecordSnapshot` must identify the same scan
@@ -844,7 +857,8 @@ injected closure dependencies for Settings state tests:
 - `FeedbackSurveyViewModelTests` covers required ratings, exclusive choices,
   stable request ordering, success reset, submission failure, and overlapping
   submission rejection. `FeedbackSurveyTests` retains prompt policy and endpoint
-  encoding coverage.
+  encoding coverage and claims the shared network-client override gate before
+  replacing its transport.
 - `NotificationSettingsViewModelTests` covers authorization decisions, deferred
   enablement, disable behavior, stale-refresh fencing, and exact
   remote-registration reason values.
@@ -1108,6 +1122,11 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   `staleAttemptForSameScanCannotOverwriteReplacementGeneration` fixes the ABA
   contract independently of scan ID: attempt A is rejected while replacement B
   owns the same queued scan and only B may publish result state.
+  `dailyQuotaRequestsPaywallWithoutPublishingInsightPlaceholder` injects a
+  private paywall-request recorder. It proves each exact daily-quota response
+  requests the paywall for visual and nonvisual inference without publishing an
+  Insight placeholder or mutating process-wide `UsageManager` presentation
+  state.
   - **`/identify` response**: Validates `EdgeResponse` fields (`scan_id`,
     `common_name`, `confidence_score`, `taxonomy`, `insight_data`,
     `species_insights.habitat_description`). Asserts that `species_insights` is
@@ -1132,31 +1151,46 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   - **Legacy moderation state**: Asserts `isFlagged` restores from
     `LocalScanRecord` on cold boot (`testLoadFromRecordPopulatesIsFlagged`).
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
-  decoder, additive `content_quality`, legacy no-`schema_version` compatibility,
-  client-side quality fallback for old payloads, species-ID-preferred request
-  payloads, route entry-point propagation for analytics, view-model
-  success/not-found/error states, and the `MerianNetworkClient` 10-minute
-  in-memory memoization path for recently opened species pages. Test setup
-  resets the singleton cache whenever a mocked `URLSession` is injected so
-  serialized network tests do not share stale dictionary entries. Presentation
-  policy coverage also rejects a cancelled Field Chat preflight or one that
-  completes while another Dictionary destination owns the slot, while accepting
-  case-insensitive identity for the same canonical UUID.
+  decoder, additive `content_quality`, strict `schema_version = 1`, canonical
+  UUID/name request normalization, dual-identity local recovery,
+  invalid/synthetic ID name-only fallback, response-identity rejection, and the
+  `MerianNetworkClient` 10-minute in-memory memoization path without stale UUID
+  or external-ID aliases. It also retains observation-stats compatibility. Test
+  setup resets the singleton cache whenever a mocked `URLSession` is injected so
+  serialized network tests do not share stale dictionary entries.
+- **`Features/SpeciesDictionary/Detail/`**: Mirrors Detail production ownership.
+  `SpeciesDictionaryPageViewModelTests` owns normalized identity, visible state,
+  telemetry, retry, and stale success/failure fencing;
+  `SpeciesCommunitySightingsViewModelTests` owns initial loading, pagination,
+  de-duplication, species replacement, and refresh/pagination overlap;
+  `SpeciesDictionaryDetailPresentationTests` owns route, share, gallery,
+  attribution, alternate-name, Field Chat, hero-edge, and grid policies;
+  `SpeciesDictionaryDetailServiceTests` owns UUID-first and scientific-name
+  endpoint adaptation plus error classification; and
+  `SpeciesDictionaryDetailArchitectureTests` enforces Services-only live
+  resolution, platform-neutral Models, Core-owned wire DTOs, separated root
+  views, grouped components, retired aggregate-file removal, and the 600-line
+  production-file ceiling.
 - **`Features/SpeciesDictionary/Catalog/`**: Mirrors Catalog production
   ownership. `SpeciesDictionaryCatalogContractTests` owns relocated overview and
   catalog decoding plus exact endpoint-payload coverage;
-  `SpeciesDictionaryCatalogPresentationTests` owns country flags, visible
-  regions, category routing/order, and group-row policy;
+  `SpeciesCatalogPresentationTests` owns country flags, visible regions,
+  category routing/order, and group-row policy;
   `SpeciesDictionaryCatalogViewModelTests` owns normalized initial loading,
   duplicate-task suppression, pagination, refresh/search/reverted-selection
   overlap fencing, failed-replacement page suppression, and retained-content
   failures; `SpeciesDictionaryOverviewViewModelTests` owns normalized loading,
   retained-content failure, and stale completion;
   `SpeciesDictionaryRegionMapViewModelTests` owns stale completion and
-  cancellation cleanup; and `SpeciesDictionaryCatalogArchitectureTests` enforces
+  cancellation cleanup; and `SpeciesCatalogArchitectureTests` enforces
   Services-only live resolution, platform-neutral Models, Core-owned wire DTOs,
   separated root views, pre-debounce selection fencing, and the 600-line
   production-file ceiling.
+- **`Features/SpeciesDictionary/Shared/`**:
+  `SpeciesDictionarySharedPresentationTests` owns route normalization, taxonomy
+  adaptation, and reference-image source/attribution behavior;
+  `SpeciesDictionarySharedArchitectureTests` locks that cross-surface ownership
+  while rejecting networking, SwiftUI, and files above the 600-line ceiling.
 - **`Features/Explore/Feed/ExplorePostFieldChatPresentationPolicyTests.swift`**:
   Locks the post-detail async commit gate: the post identity must remain
   current, cancellation must be false, and the typed modal slot must be empty.
@@ -1394,6 +1428,11 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   cannot evict valid queued work. Capture workspace tests separately prove a
   route remains deferred during root interactive teardown and across a
   feature-local presentation until its exact `onDismiss` callback.
+- **`PushNotificationManagerTests.swift` and
+  `PushNotificationRoutingTests.swift`**: Construct `PushNotificationManager`
+  with an injected route-request closure backed by a private
+  `AppRouteCoordinator`. They validate Explore, Community, and scan tap payloads
+  without clearing or consuming the live app-host route queue.
 - **`EventDeliveryTests.swift`**: Locks synchronous and reentrant `AppEvent`
   delivery, cancellation behavior, main-actor ordering for framework publisher
   bridges, and generation-fenced media observation after player replacement and
@@ -2029,12 +2068,13 @@ import, and permission-denial UI require the physical-device checklist in
 - **`MerianNetworkClientTests.swift`, `SupabaseManagerTests.swift`**: Tests API
   routing, including `.401` retry cycles for Ghost User flows and JSON body
   payload serialization.
-  - **MockURLProtocol Contamination & `.serialized`:** Swift Testing may execute
-    suites concurrently under the current Xcode toolchain. Generic static
-    closures such as `MockURLProtocol.requestHandler` can therefore race while
-    intercepting requests and corrupt expectations. Mark network suites that
-    share those global mocks with `@Suite(.serialized)` to keep their
-    interception state isolated.
+  - **MockURLProtocol Contamination & shared-state isolation:** Swift Testing
+    may execute suites concurrently under the current Xcode toolchain. Generic
+    static closures and `MerianNetworkClient.shared` overrides can therefore
+    race while intercepting requests and corrupt expectations. Keep each such
+    suite `.serialized` for its own descendants and apply
+    `.sharedProcessState(.networkClientOverrides)` to every suite that owns the
+    same global client state; `.serialized` alone does not exclude a peer suite.
   - **`testEndpointURLPathContainsFunctionsV1Segment`**: Verifies
     `endpointURL(_:)` produces the full `/functions/v1/<endpoint>` path
     structure by capturing the outbound URL in a mock handler. Guards against
@@ -2396,8 +2436,11 @@ iOS focused coverage:
   exact three root tabs plus species-to-Index and request-to-Requests deep-link
   policy. Identify presentation and asynchronous state tests remain with
   Identify. Catalog decoding, presentation, asynchronous state, and architecture
-  tests live in `Features/SpeciesDictionary/Catalog/`; detail, Tree, share, and
-  memoization behavior remains in
+  tests live in `Features/SpeciesDictionary/Catalog/`; detail state,
+  presentation, Services, and architecture tests live in
+  `Features/SpeciesDictionary/Detail/`; cross-surface model ownership lives in
+  `Features/SpeciesDictionary/Shared/`. Wire, strict schema/identity, cache, and
+  observation-stats compatibility remain in
   `Features/SpeciesDictionary/SpeciesDictionaryTests.swift`.
 - `Core/Network/MerianNetworkClientTests.swift` decodes all Activity item fields
   and verifies `limit`, shared scope/group filters, plus paired
@@ -2445,7 +2488,8 @@ requires the fully migrated disposable catalog and the complete
 Manual root-UI acceptance requires:
 
 1. Exactly Observations, Field trips, and Identify in bottom navigation.
-2. Requests/Index at the Identify root and no Tree/galaxy entry point.
+2. Requests/Index at the Identify root and no separate taxonomy visualization
+   entry point.
 3. Index overview, catalog, and regions navigation retaining their established
    loading, empty, error, search, refresh, pagination, VoiceOver, and large
    Dynamic Type presentation.
@@ -2532,8 +2576,9 @@ occurrence `5938154750`. iOS coverage must prove:
 - blocked-only/all-failed dictionary galleries use the leaf placeholder.
 
 These assertions live in `LocalImageLoaderTests.swift`,
-`SpeciesDataTests.swift`, `SpeciesDictionaryTests.swift`, and
-`Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
+`SpeciesDataTests.swift`, `SpeciesDictionaryTests.swift`,
+`Features/SpeciesDictionary/Detail/SpeciesDictionaryDetailPresentationTests.swift`,
+and `Features/SpeciesReference/SimilarSpeciesImageFetcherTests.swift`. Do not
 replace them with a brittle assertion that merely skips array index zero.
 
 ### Backwards-compat accessor
@@ -4726,10 +4771,10 @@ and detail seeking still behaves as documented.
   lowercase ASCII slug generation, common/scientific/generic fallbacks, the
   80-character bound, canonical UUID-plus-slug paths, UUID-only and stale-slug
   redirect decisions, UUID validation, native UUID URLs, metadata, and the exact
-  AASA path list. `SpeciesDictionaryTests` locks the same canonical iOS share
-  URL and slug rules, while `MessageScanShareCacheTests` verifies canonical,
-  UUID-only, stale-slug, legacy-host, and custom-scheme parsing all produce only
-  the normalized UUID.
+  AASA path list. `SpeciesDictionaryDetailPresentationTests` locks the same
+  canonical iOS share URL and slug rules, while `MessageScanShareCacheTests`
+  verifies canonical, UUID-only, stale-slug, legacy-host, and custom-scheme
+  parsing all produce only the normalized UUID.
 - **Species content provenance contract**:
   `_shared/speciesContentProvenance_test.ts` verifies source assignment and
   refresh windows for dictionary fields, group tags, and lookalikes. It should

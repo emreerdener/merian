@@ -1,22 +1,65 @@
 # Species Dictionary Detail
 
-The `Detail` directory contains the deep-dive screens for individual species
-records within the dictionary.
+`Detail` owns the in-app public species page, its UUID-first share action,
+reference gallery, typed presentations, and the authenticated Community
+sightings preview and paginated grid. The canonical behavior, privacy, API, and
+release contract remains
+[Species Dictionary](../../../../../../docs/features-and-hardware/16-species-dictionary.md).
 
-## Structure
+## Ownership
 
-- **Views**: The main detail screen for a specific species.
-- **Components**: Reusable UI blocks such as taxonomy breakdowns, ecological
-  descriptions, and reference image galleries.
-- **ViewModels**: Handles the fetching and formatting of the specific species
-  data.
+- `Models/` owns platform-neutral request, state, share, presentation,
+  telemetry, and hero-edge policies. Cross-surface routes, taxonomy adaptation,
+  and reference-image labels/attribution live in sibling `Shared/Models`;
+  Codable response and cursor DTOs remain in `Core/Network`.
+- `Services/` is the only Detail owner that resolves `MerianNetworkClient`,
+  `AppDIContainer`, haptics, entitlement state, telemetry, the fallback Explore
+  state owner, or the Field Chat state owner. Its small closure-based dependency
+  values are injected into the feature; Detail does not add a singleton or a
+  broad protocol.
+- `ViewModels/` owns `@MainActor @Observable` page and Community loading state.
+  Views and components do not call endpoints.
+- `Views/` owns the standalone navigation shell and the shared page-content
+  host. It retains navigation, sheet/full-screen bindings, scroll-edge state,
+  lifecycle tasks, and Field Chat presentation timing.
+- `Components/Community`, `Content`, `Gallery`, `Loading`, and `Shared` own
+  their corresponding rendering only. Cross-feature observation charts,
+  taxonomy, habitat, lookalikes, media gallery, Explore post detail, and Field
+  Chat remain with their existing feature owners.
 
-## Purpose
+Every production Swift file in this directory must remain at or below the
+600-line review ceiling. `project.yml` includes this source tree recursively, so
+new groups are registered by running `make xcodegen`, not by editing the Xcode
+project directly.
 
-When a user selects a species from the catalog or taps a dictionary link
-elsewhere in the app, this area is responsible for presenting the rich
-educational content associated with that species, such as its taxonomy,
-conservation status, and visual characteristics.
+## Loading And Concurrency
+
+`SpeciesDictionaryPageViewModel` normalizes the route identity and classifies
+endpoint failures through its injected service boundary. Canonical UUIDs remain
+UUID-first; an invalid, synthetic, or `external:` route ID is discarded so a
+usable scientific name becomes a name-only request. Each load receives a request
+generation; only the latest generation may publish a species, not-found result,
+readable error, or successful-load telemetry. The page-open event remains once
+per state-owner lifetime.
+
+Core Network requires `schema_version = 1` and validates the returned identity
+before caching. An exact UUID hit may carry a stale display-name hint. A UUID
+miss may recover to another local UUID only when the supplied normalized
+scientific name matches. A name-only response must return that name and either a
+canonical UUID or an `external:` identity. Only the returned canonical UUID and
+returned normalized name become cache keys; a stale requested UUID and an
+`external:` ID never become aliases.
+
+`SpeciesCommunitySightingsViewModel` applies the same latest-request-wins rule
+to species changes, refresh, and pagination. Refresh invalidates active
+pagination before starting a replacement first page, so a late page cannot be
+merged into reset state. Initial and page failures remain supplemental and do
+not block the public dictionary content.
+
+The
+[concurrency contract](../../../../../../docs/system-architecture/02-zero-oom-and-concurrency.md#species-dictionary-detail-request-generations)
+documents why structured-task cancellation is paired with generation and
+identity checks.
 
 ## Field Chat
 
@@ -64,10 +107,34 @@ chips use fully source-specific, safely bounded labels. See the
 `ExternalReferenceImagePolicy` before choosing the initial item, building the
 carousel, or opening the fullscreen presentation. A denied first image promotes
 the next permitted item without changing its source/attribution metadata. If no
-permitted image remains, the normal leaf placeholder is shown. Catalog and Tree
+permitted image remains, the normal leaf placeholder is shown. Catalog
 thumbnails use the same policy when converting reference strings to `URL`, so
-detail, catalog, and taxonomy surfaces cannot diverge.
+detail and catalog surfaces cannot diverge.
 
 The current exact rule suppresses iNaturalist media `605615444` (GBIF occurrence
 `5938154750`) only. It must not remove the European wildcat row or its
 navigation route.
+
+## Tests
+
+Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
+
+- `SpeciesDictionaryPageViewModelTests` owns identity normalization, state,
+  telemetry, retry, and stale success/failure fencing.
+- `SpeciesCommunitySightingsViewModelTests` owns initial load, pagination,
+  de-duplication, failures, species replacement, and refresh/pagination overlap.
+- `SpeciesDictionaryDetailPresentationTests` owns share, gallery, attribution,
+  alternate-name, Field Chat, hero-edge, and grid policies. Cross-surface route
+  and reference-image behavior/ownership is guarded by
+  `SpeciesDictionarySharedPresentationTests` and the sibling Shared architecture
+  suite.
+- `SpeciesDictionaryDetailServiceTests` owns both UUID-first and scientific-name
+  endpoint-adapter paths plus failure classification.
+- `SpeciesDictionaryDetailArchitectureTests` enforces directory ownership,
+  Services-only live resolution, platform-neutral Models, Core-owned wire DTOs,
+  separated root/content views, retired aggregate-file removal, and the 600-line
+  ceiling.
+
+The aggregate `SpeciesDictionaryTests` suite retains wire decoding, strict
+schema and response-identity validation, UUID/name recovery, and cache
+compatibility.

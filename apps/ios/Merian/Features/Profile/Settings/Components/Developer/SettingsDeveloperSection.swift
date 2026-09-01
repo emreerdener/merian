@@ -203,8 +203,6 @@ private struct FeatureFlagDeveloperControls: View {
 
     private func icon(for flag: FeatureFlag) -> String {
         switch flag {
-        case .speciesDictionaryTree:
-            "tree.fill"
         case .fieldTrips:
             "map.fill"
         case .dwcaExports:
@@ -216,8 +214,6 @@ private struct FeatureFlagDeveloperControls: View {
 
     private func color(for flag: FeatureFlag) -> Color {
         switch flag {
-        case .speciesDictionaryTree:
-            .green
         case .fieldTrips:
             .indigo
         case .dwcaExports:

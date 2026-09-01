@@ -5,7 +5,6 @@ import Foundation
 /// DEBUG builds may override these values from Settings → Feature Flags. Release
 /// builds never read those local overrides.
 enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
-    case speciesDictionaryTree
     case fieldTrips
     case dwcaExports
     case unlimitedFreeScans
@@ -14,10 +13,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 
     var defaultValue: Bool {
         switch self {
-        case .speciesDictionaryTree:
-            // swiftlint:disable:next todo
-            // TODO(species-dictionary-tree-release): Enable after the Tree is ready to ship.
-            false
         case .fieldTrips:
             true
         case .dwcaExports:
@@ -32,8 +27,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .speciesDictionaryTree:
-            "Species Dictionary Tree"
         case .fieldTrips:
             "Field trips"
         case .dwcaExports:
@@ -45,8 +38,6 @@ enum FeatureFlag: String, CaseIterable, Identifiable, Sendable {
 
     var summary: String {
         switch self {
-        case .speciesDictionaryTree:
-            "Shows the unfinished Tree inside Explore’s Index."
         case .fieldTrips:
             "Shows Field trips and its supporting progress surfaces."
         case .dwcaExports:

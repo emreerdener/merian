@@ -108,7 +108,20 @@ private final class ImmediateInferenceTransportFailure: @unchecked Sendable {
 }
 
 @MainActor
-@Suite("Inference Engine Tests", .serialized)
+private final class InferencePaywallRequestRecorder {
+    private(set) var count = 0
+
+    func request() {
+        count += 1
+    }
+}
+
+@MainActor
+@Suite(
+    "Inference Engine Tests",
+    .serialized,
+    .sharedProcessState(.networkClientOverrides)
+)
 struct InferenceEngineTests {
     actor CounterBox {
         private(set) var value = 0
@@ -2083,8 +2096,7 @@ struct InferenceEngineTests {
     @Test func dailyQuotaRequestsPaywallWithoutPublishingInsightPlaceholder() async {
         let client = MerianNetworkClient.shared
         let circuitBreaker = CircuitBreakerManager.shared
-        let usageManager = UsageManager.shared
-        let previousPaywallRequest = usageManager.showPaywall
+        let paywallRequests = InferencePaywallRequestRecorder()
         client.overridingInferenceConsentCheck = {
             throw MerianError.httpError(
                 statusCode: 429,
@@ -2095,14 +2107,15 @@ struct InferenceEngineTests {
         defer {
             client.overridingInferenceConsentCheck = {}
             circuitBreaker.recordSuccess()
-            usageManager.showPaywall = previousPaywallRequest
         }
 
-        let engine = InferenceEngine()
+        let engine = InferenceEngine(requestPaywall: {
+            paywallRequests.request()
+        })
         let inferenceImage = Data([0xFF, 0xD8, 0xFF, 0xD9])
 
         for _ in 0..<3 {
-            usageManager.showPaywall = false
+            let expectedPaywallRequestCount = paywallRequests.count + 1
             engine.prepareForNewScan()
             engine.analyze(
                 imageDatas: [inferenceImage],
@@ -2113,14 +2126,14 @@ struct InferenceEngineTests {
             }
 
             #expect(!circuitBreaker.isCircuitTripped)
-            #expect(usageManager.showPaywall)
+            #expect(paywallRequests.count == expectedPaywallRequestCount)
             #expect(engine.speciesData == nil)
             #expect(!engine.isProcessing)
         }
 
         circuitBreaker.recordSuccess()
         for _ in 0..<3 {
-            usageManager.showPaywall = false
+            let expectedPaywallRequestCount = paywallRequests.count + 1
             engine.analyzeNonVisual(
                 scanId: nil,
                 observationContexts: [
@@ -2134,7 +2147,7 @@ struct InferenceEngineTests {
             }
 
             #expect(!circuitBreaker.isCircuitTripped)
-            #expect(usageManager.showPaywall)
+            #expect(paywallRequests.count == expectedPaywallRequestCount)
             #expect(engine.speciesData == nil)
             #expect(!engine.isProcessing)
         }

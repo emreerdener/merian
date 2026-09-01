@@ -558,9 +558,9 @@ as **Identify requests** and **Identify activity** pages. Index is the existing
 Species Dictionary catalog. Species links select Identify/Index and request
 links select Identify/Requests before opening detail.
 
-The taxonomy Tree/galaxy visualization is explicitly deferred beyond MVP. Its
-code, API support, and default-off release flag are preserved, but no current
-user navigation entry point may expose it.
+The retired taxonomy visualization is not a product surface. Taxonomy remains
+reference data within the Index and species detail; no separate taxonomy route,
+feature flag, or API mode is supported.
 
 ## 7.2 Social graph and engagement - Implemented
 

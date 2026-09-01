@@ -6,7 +6,7 @@ struct SpeciesCommunitySightingsSection: View {
     let exploreViewModel: ExploreFeedViewModel
 
     @Environment(\.modelContext) private var modelContext
-    @State private var viewModel = SpeciesCommunitySightingsViewModel()
+    @State private var viewModel: SpeciesCommunitySightingsViewModel
     @State private var selectedPostRoute: ExplorePostRoute?
 
     private let previewLimit = 6
@@ -14,6 +14,20 @@ struct SpeciesCommunitySightingsSection: View {
         repeating: GridItem(.flexible(), spacing: 2),
         count: 2
     )
+
+    @MainActor
+    init(
+        speciesId: String,
+        exploreViewModel: ExploreFeedViewModel,
+        dependencies: SpeciesCommunitySightingsViewModel.Dependencies? = nil
+    ) {
+        let dependencies = dependencies ?? .live
+        self.speciesId = speciesId
+        self.exploreViewModel = exploreViewModel
+        _viewModel = State(initialValue: SpeciesCommunitySightingsViewModel(
+            dependencies: dependencies
+        ))
+    }
 
     var body: some View {
         // Keep an identity-bearing container mounted even before the first page

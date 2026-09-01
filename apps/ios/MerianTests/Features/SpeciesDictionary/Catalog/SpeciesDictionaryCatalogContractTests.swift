@@ -268,9 +268,49 @@ struct SpeciesDictionaryCatalogContractTests {
         #expect(response.data.categories.isEmpty)
     }
 
+    @Test func endpointsRejectMissingOrUnsupportedSchemaVersions() async throws {
+        var requestCount = 0
+        mockTransport.register(path: "/species-dictionary") { request in
+            requestCount += 1
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(
+                JSONSerialization.jsonObject(with: body) as? [String: Any]
+            )
+            let responseData: Data
+            if payload["mode"] as? String == "catalog" {
+                responseData = Data(
+                    #"{"data":[],"next_cursor":null}"#.utf8
+                )
+            } else {
+                responseData = Data(
+                    #"{"schema_version":2,"data":{"categories":[],"regions":[]}}"#.utf8
+                )
+            }
+            return (Self.okResponse, responseData)
+        }
+
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesDictionaryCatalog()
+        }
+        await #expect(throws: MerianError.invalidResponse) {
+            try await networkClient.getSpeciesDictionaryOverview()
+        }
+
+        #expect(requestCount == 2)
+    }
+
     private static var decoder: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return decoder
+    }
+
+    private static var okResponse: HTTPURLResponse {
+        HTTPURLResponse(
+            url: URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
     }
 }

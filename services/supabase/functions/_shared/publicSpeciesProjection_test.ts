@@ -383,6 +383,25 @@ Deno.test("public species projection - non-biological encyclopedia rows are not 
   assertEquals(
     isPublicBiologicalSpeciesRow({
       ...availabilityRow,
+      scientific_name: "Placeholder taxon",
+      kingdom: "Unknown",
+      order: "Unknown",
+    }),
+    false,
+  );
+  assertEquals(
+    isPublicBiologicalSpeciesRow({
+      ...availabilityRow,
+      scientific_name: "Database rejected taxon",
+      kingdom: "Animalia",
+      order: "Lepidoptera",
+      is_public_biological: false,
+    }),
+    false,
+  );
+  assertEquals(
+    isPublicBiologicalSpeciesRow({
+      ...availabilityRow,
       scientific_name: "Danaus plexippus",
       common_names: { en: "Monarch Butterfly" },
       kingdom: "Animalia",

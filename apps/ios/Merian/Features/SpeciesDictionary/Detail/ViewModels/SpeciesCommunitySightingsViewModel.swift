@@ -4,11 +4,15 @@ import Observation
 @MainActor
 @Observable
 final class SpeciesCommunitySightingsViewModel {
-    typealias PageLoader = (
+    typealias PageLoader = @MainActor (
         _ speciesId: String,
         _ limit: Int,
         _ cursor: ExploreSpeciesPostCursor?
     ) async throws -> ExploreSpeciesPostsResponse
+
+    struct Dependencies {
+        let loadPage: PageLoader
+    }
 
     private(set) var posts: [ExplorePost] = []
     private(set) var nextCursor: ExploreSpeciesPostCursor?
@@ -16,27 +20,31 @@ final class SpeciesCommunitySightingsViewModel {
     private(set) var isLoadingMore = false
     private(set) var didFail = false
 
-    @ObservationIgnored private let loadPage: PageLoader
+    @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private var loadedSpeciesId: String?
     @ObservationIgnored private var hasLoadedInitialPage = false
     @ObservationIgnored private var requestGeneration: UInt64 = 0
 
-    init(loadPage: @escaping PageLoader = { speciesId, limit, cursor in
-        try await MerianNetworkClient.shared.getExploreSpeciesPosts(
-            speciesId: speciesId,
-            limit: limit,
-            cursor: cursor
-        )
-    }) {
-        self.loadPage = loadPage
+    init(dependencies: Dependencies = .live) {
+        self.dependencies = dependencies
+    }
+
+    convenience init(loadPage: @escaping PageLoader) {
+        self.init(dependencies: Dependencies(loadPage: loadPage))
     }
 
     var hasMore: Bool {
         nextCursor != nil
     }
 
-    func loadInitial(speciesId: String, limit: Int = 6, force: Bool = false) async {
-        let normalizedSpeciesId = speciesId.trimmingCharacters(in: .whitespacesAndNewlines)
+    func loadInitial(
+        speciesId: String,
+        limit: Int = 6,
+        force: Bool = false
+    ) async {
+        let normalizedSpeciesId = speciesId.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
         guard !normalizedSpeciesId.isEmpty else {
             reset()
             hasLoadedInitialPage = true
@@ -65,10 +73,14 @@ final class SpeciesCommunitySightingsViewModel {
         }
 
         do {
-            let response = try await loadPage(normalizedSpeciesId, limit, nil)
-            guard !Task.isCancelled,
-                  requestGeneration == generation,
-                  loadedSpeciesId == normalizedSpeciesId else { return }
+            let response = try await dependencies.loadPage(
+                normalizedSpeciesId,
+                limit,
+                nil
+            )
+            guard isCurrent(generation, speciesId: normalizedSpeciesId) else {
+                return
+            }
 
             posts = deduplicated(response.data)
             nextCursor = response.nextCursor
@@ -76,10 +88,12 @@ final class SpeciesCommunitySightingsViewModel {
             MerianLog.network.debug(
                 "Loaded \(self.posts.count, privacy: .public) community sighting(s) for species \(normalizedSpeciesId, privacy: .private)."
             )
+        } catch is CancellationError {
+            return
         } catch {
-            guard !Task.isCancelled,
-                  requestGeneration == generation,
-                  loadedSpeciesId == normalizedSpeciesId else { return }
+            guard isCurrent(generation, speciesId: normalizedSpeciesId) else {
+                return
+            }
 
             posts = []
             nextCursor = nil
@@ -93,14 +107,21 @@ final class SpeciesCommunitySightingsViewModel {
 
     func refresh(limit: Int = 30) async {
         guard let loadedSpeciesId else { return }
-        await loadInitial(speciesId: loadedSpeciesId, limit: limit, force: true)
+        await loadInitial(
+            speciesId: loadedSpeciesId,
+            limit: limit,
+            force: true
+        )
     }
 
     func loadMore(limit: Int = 30) async {
         guard !isLoadingInitial,
               !isLoadingMore,
               let loadedSpeciesId,
-              let cursor = nextCursor else { return }
+              let cursor = nextCursor
+        else {
+            return
+        }
 
         let generation = requestGeneration
         isLoadingMore = true
@@ -111,20 +132,27 @@ final class SpeciesCommunitySightingsViewModel {
         }
 
         do {
-            let response = try await loadPage(loadedSpeciesId, limit, cursor)
-            guard !Task.isCancelled,
-                  requestGeneration == generation,
-                  self.loadedSpeciesId == loadedSpeciesId else { return }
+            let response = try await dependencies.loadPage(
+                loadedSpeciesId,
+                limit,
+                cursor
+            )
+            guard isCurrent(generation, speciesId: loadedSpeciesId) else {
+                return
+            }
 
             posts = deduplicated(posts + response.data)
             nextCursor = response.nextCursor
             didFail = false
+        } catch is CancellationError {
+            return
         } catch {
-            guard !Task.isCancelled,
-                  requestGeneration == generation,
-                  self.loadedSpeciesId == loadedSpeciesId else { return }
+            guard isCurrent(generation, speciesId: loadedSpeciesId) else {
+                return
+            }
 
-            // Keep already loaded sightings useful and avoid an onAppear retry loop.
+            // Keep already loaded sightings useful and avoid an onAppear retry
+            // loop.
             nextCursor = nil
             didFail = true
         }
@@ -138,6 +166,15 @@ final class SpeciesCommunitySightingsViewModel {
         isLoadingInitial = false
         isLoadingMore = false
         didFail = false
+    }
+
+    private func isCurrent(
+        _ generation: UInt64,
+        speciesId: String
+    ) -> Bool {
+        !Task.isCancelled
+            && requestGeneration == generation
+            && loadedSpeciesId == speciesId
     }
 
     private func deduplicated(_ input: [ExplorePost]) -> [ExplorePost] {

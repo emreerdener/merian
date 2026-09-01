@@ -86,6 +86,7 @@ export interface PublicSpeciesDictionaryRow {
   group_tags: string[] | null;
   native_region?: string | null;
   created_at?: string | null;
+  is_public_biological?: boolean;
 }
 
 export interface PublicSimilarSpecies {
@@ -511,6 +512,9 @@ export function publicSpeciesProjectionForbiddenKeys(
 export function isPublicBiologicalSpeciesRow(
   row: PublicSpeciesDictionaryRow,
 ): boolean {
+  if (typeof row.is_public_biological === "boolean") {
+    return row.is_public_biological;
+  }
   if (!stringValue(row.scientific_name)) return false;
   return positiveInteger(row.gbif_taxon_key) !== null ||
     hasMeaningfulTaxonomy(row);
@@ -667,6 +671,7 @@ function usablePublicTaxonomyValue(
 
   const key = normalized.toLowerCase();
   if (
+    key === "unknown" ||
     key === "unavailable" ||
     key === "not available" ||
     key === "n/a" ||

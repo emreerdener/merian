@@ -100,6 +100,21 @@ must use a launcher that omits this argument. The Release
 `UITestSeedCoordinator` implementation always disables the fixture, and archive
 validation rejects the marker if it reaches the main executable.
 
+## Push notification routing
+
+`PushNotificationManager` owns `UNUserNotificationCenter` delegate work and
+notification payload parsing. It emits validated typed `AppRoute` requests
+through an initializer-injected main-actor closure. The private production
+initializer binds that closure to the app-host `AppRouteCoordinator`; tests
+construct the manager with a private coordinator so they do not mutate shared
+application routing state. Dismiss actions remain non-routing, and the route
+source remains `.pushNotification`.
+
+Keep payload parsing and OS delegate timing in Hardware, typed route policy in
+Core Utilities, and presentation in the Capture workspace host. Coverage lives
+in `MerianTests/Core/Hardware/PushNotificationManagerTests.swift` and
+`MerianTests/Core/Utilities/PushNotificationRoutingTests.swift`.
+
 ## Camera frame-rate observation
 
 `CameraManager` observes `HardwareOrchestrator.targetFPS` with one-shot

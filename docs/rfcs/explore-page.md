@@ -113,13 +113,13 @@ is:
   dashboard with 12 open-request cards followed by 10 recent activity groups,
   plus stack routes to each complete feed; Index renders the existing Species
   Dictionary catalog. Species links select Identify/Index before detail and
-  request links select Identify/Requests. The unfinished taxonomy tree/galaxy
-  work and its default-off `.speciesDictionaryTree` flag remain in code but have
-  no MVP root-navigation entry point. Field trips opens directly to Outings and
-  always owns the Outings/Events toggle. Completed standard-outing goals resolve
-  their private completion scan ID to a device-local photo/video-poster
-  thumbnail; tapping one pushes the existing Insight view in the same Explore
-  navigation stack and returns to the outing on back.
+  request links select Identify/Requests. Taxonomy remains catalog/detail
+  reference data and has no separate visualization route or feature flag. Field
+  trips opens directly to Outings and always owns the Outings/Events toggle.
+  Completed standard-outing goals resolve their private completion scan ID to a
+  device-local photo/video-poster thumbnail; tapping one pushes the existing
+  Insight view in the same Explore navigation stack and returns to the outing on
+  back.
 - Identify request and Activity previews load concurrently with independent
   states, share the current All/Yours/organism filter, and reload together on
   refresh or filter change. **See all requests** and **See all activity** carry

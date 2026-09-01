@@ -11,7 +11,8 @@ The canonical behavior and backend contract remain the
 
 - `Models/` owns the typed category route, normalized browse selection and page
   request, country-flag policy, overview filtering, stable category routing, and
-  group-row layout values. These are presentation models, not wire DTOs.
+  group-row layout values. These are presentation models, not wire DTOs. Shared
+  species-detail routes and taxonomy adaptation live in sibling `Shared/Models`.
 - `Services/` is the only Catalog layer that resolves live endpoint, image
   loader, geocoder, and MapKit snapshot implementations. Dependencies stay
   narrow closure values rather than a feature-wide protocol or singleton.
@@ -40,14 +41,17 @@ has not been hydrated yet; occurrence evidence is described as "recorded in" and
 must not be presented as native range.
 
 Species deep links must select Explore Identify/Index before pushing species
-detail. The taxonomy Tree/galaxy map has no MVP entry point; its preserved code
-and API contract remain owned by the sibling `Tree` area.
+detail. Index is the only dictionary browsing surface. Taxonomy remains
+reference metadata displayed in catalog rows and species detail, not a separate
+navigation mode.
 
 ## Boundaries
 
 - `Core/Network/SpeciesDictionaryAPIModels.swift` remains the owner of Codable
-  DTOs and JSON compatibility. `MerianNetworkClient` remains the transport and
-  endpoint owner; Catalog Services only adapt those calls for observable state.
+  DTOs and JSON compatibility. `SpeciesDictionaryIdentity.swift` and
+  `MerianNetworkClient` own normalized identity, strict `schema_version = 1`
+  validation, transport, and caching; Catalog Services only adapt those calls
+  for observable state.
 - Explore Shell owns the shared `NavigationPath`, Identify/Index selection, and
   route destination registration. Catalog owns the category route value and
   emits species-detail routes without creating another navigation stack.
@@ -73,8 +77,8 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
 
 - `SpeciesDictionaryCatalogContractTests` owns the relocated overview/catalog
   decoding and endpoint-payload tests.
-- `SpeciesDictionaryCatalogPresentationTests` owns country flags, region
-  visibility, category routes/order, and group-row policy.
+- `SpeciesCatalogPresentationTests` owns country flags, region visibility,
+  category routes/order, and group-row policy.
 - `SpeciesDictionaryCatalogViewModelTests` owns normalization, initial-load
   de-duplication, pagination, refresh/search/reverted-selection overlap fencing,
   retained-content errors, and stale-page suppression.
@@ -82,10 +86,12 @@ Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Catalog/`:
   retained-content errors, and stale overview completion.
 - `SpeciesDictionaryRegionMapViewModelTests` owns stale snapshot completion and
   cancellation cleanup.
-- `SpeciesDictionaryCatalogArchitectureTests` enforces directory ownership,
-  Services-only live resolution, platform-neutral Models, root-view separation,
-  pre-debounce selection fencing, Core-owned wire DTOs, and the 600-line
-  ceiling.
+- `SpeciesCatalogArchitectureTests` enforces directory ownership, Services-only
+  live resolution, platform-neutral Models, root-view separation, pre-debounce
+  selection fencing, Shared-owned cross-surface models, Core-owned wire DTOs,
+  and the 600-line ceiling.
 
-The sibling `SpeciesDictionaryTests` suite continues to own detail-page, Tree,
-share-route, cache, and other non-Catalog behavior.
+The mirrored sibling `SpeciesDictionary/Detail/` suites own detail-page state,
+presentation, endpoint adaptation, Community sightings, and architecture.
+`SpeciesDictionaryTests` retains wire decoding and validation plus endpoint and
+cache compatibility.

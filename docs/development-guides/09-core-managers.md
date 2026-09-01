@@ -389,9 +389,12 @@ triggering excessive SwiftUI view rebuilds.
   receiving two "Analysis complete" alerts when both the live inference path and
   the background URLSession path complete for the same scan in close succession.
 - **Safe Deep Linking**: Intercepts deep link taps from notification actions and
-  routes the UI directly to the relevant `InsightSheet`. It rigorously filters
-  out `UNNotificationDismissActionIdentifier` to ensure users who simply swipe
-  away a notification are not forcefully navigated when they next open the app.
+  converts validated payloads into typed `AppRoute` requests. The manager emits
+  those requests through an initializer-injected main-actor closure; its private
+  production initializer binds to the app-host `AppRouteCoordinator`, while
+  tests use a private coordinator. It rigorously filters out
+  `UNNotificationDismissActionIdentifier` to ensure users who simply swipe away
+  a notification are not forcefully navigated when they next open the app.
 - **Context-Aware Foreground Suppression**:
   `willPresent(_:withCompletionHandler:)` reads the persisted
   `suppressInferenceBanners` flag synchronously because the notification

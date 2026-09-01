@@ -5,23 +5,21 @@ import {
   buildSpeciesDictionaryCatalogItem,
   buildSpeciesDictionaryOverview,
   buildSpeciesDictionaryPayload,
-  buildSpeciesDictionaryTree,
   fetchAllPublicSpeciesDictionaryRows,
+  fetchSpeciesDictionary,
   fetchSpeciesDictionaryCatalog,
   firstReferenceImageUrl,
   firstReferenceImageUrlsBySpeciesId,
   normalizedCountryCode,
   parseSpeciesDictionaryRequest,
   PUBLIC_SPECIES_DICTIONARY_PAGE_SIZE,
-  publicSpeciesProjectionForbiddenKeys,
   referenceImageRowsWithAuthors,
   referenceImagesFrom,
   referenceImagesFromRows,
   resolveCommonName,
   sanitizeAlternativeCommonNames,
   SPECIES_DICTIONARY_RECENTLY_ADDED_OVERVIEW_LIMIT,
-  speciesDictionaryTreeRequiresAuth,
-  speciesIdsFromUserScanRows,
+  speciesDictionaryCatalogCursorFilter,
   speciesReferenceImageLookupBatches,
 } from "./db.ts";
 
@@ -76,6 +74,46 @@ function regionalCatalogSupabaseMock(hasCountryCoverage: boolean): {
   } as unknown as SupabaseClient;
 
   return { client, calls };
+}
+
+function lookupSupabaseMock(rows: ReturnType<typeof speciesRow>[]): {
+  client: SupabaseClient;
+  dictionaryLookups: Array<{ column: string; value: unknown }>;
+} {
+  const dictionaryLookups: Array<{ column: string; value: unknown }> = [];
+  const client = {
+    from(table: string) {
+      const filters = new Map<string, unknown>();
+      const query = {
+        select: () => query,
+        eq(column: string, value: unknown) {
+          filters.set(column, value);
+          if (table === "species_dictionary") {
+            dictionaryLookups.push({ column, value });
+          }
+          return query;
+        },
+        neq: () => query,
+        in: () => query,
+        is: () => query,
+        limit: () => query,
+        order: () => query,
+        then(resolve: (value: { data: unknown[]; error: null }) => unknown) {
+          const data = table === "species_dictionary"
+            ? rows.filter((row) =>
+              Array.from(filters).every(([column, value]) =>
+                row[column as keyof typeof row] === value
+              )
+            )
+            : [];
+          return Promise.resolve(resolve({ data, error: null }));
+        },
+      };
+      return query;
+    },
+  } as unknown as SupabaseClient;
+
+  return { client, dictionaryLookups };
 }
 
 Deno.test("species-dictionary helpers - resolve common name fallback order", () => {
@@ -247,33 +285,6 @@ Deno.test("species-dictionary helpers - batches reference image lookups", () => 
     [["a", "b"], ["c", "d"], ["e"]],
   );
   assertEquals(speciesReferenceImageLookupBatches(["a"], 0), [["a"]]);
-});
-
-Deno.test("species-dictionary helpers - extracts scanned tree species ids", () => {
-  assertEquals(
-    speciesIdsFromUserScanRows([
-      {
-        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-        confirmed_species_id: null,
-      },
-      {
-        species_id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-        confirmed_species_id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
-      },
-      {
-        species_id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
-        confirmed_species_id: null,
-      },
-      {
-        species_id: null,
-        confirmed_species_id: null,
-      },
-    ]),
-    [
-      "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-      "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
-    ],
-  );
 });
 
 Deno.test("species-dictionary helpers - sanitize alternative names", () => {
@@ -512,29 +523,11 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
     },
   );
   assertEquals(parseSpeciesDictionaryRequest({ mode: "tree" }), {
-    mode: "tree",
-    treeScope: "my_scans",
-  });
-  assertEquals(
-    parseSpeciesDictionaryRequest({ mode: "tree", scope: "all_species" }),
-    {
-      mode: "tree",
-      treeScope: "all_species",
-    },
-  );
-  assertEquals(
-    parseSpeciesDictionaryRequest({ mode: "tree", scope: "my_scans" }),
-    {
-      mode: "tree",
-      treeScope: "my_scans",
-    },
-  );
-  assertEquals(parseSpeciesDictionaryRequest({ mode: "tree", scope: "all" }), {
-    error: "scope must be all_species or my_scans when mode is tree.",
+    error: "mode must be catalog or overview when provided.",
     status: 400,
   });
   assertEquals(parseSpeciesDictionaryRequest({ mode: "detail" }), {
-    error: "mode must be catalog, overview, or tree when provided.",
+    error: "mode must be catalog or overview when provided.",
     status: 400,
   });
   assertEquals(
@@ -598,9 +591,145 @@ Deno.test("species-dictionary helpers - validates catalog request body", () => {
   );
 });
 
-Deno.test("species-dictionary helpers - tree scope auth policy", () => {
-  assertEquals(speciesDictionaryTreeRequiresAuth("all_species"), false);
-  assertEquals(speciesDictionaryTreeRequiresAuth("my_scans"), true);
+Deno.test("species-dictionary helpers - quotes keyset cursor values for PostgREST", () => {
+  const cursor = {
+    scientificName: 'Testus, complexus (form "A")\\variant',
+    speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    createdAt: "2026-06-01T12:00:00.000Z",
+  };
+  const ascendingFilter = speciesDictionaryCatalogCursorFilter(cursor, "all");
+
+  assertEquals(
+    ascendingFilter,
+    'scientific_name.gt."Testus, complexus (form \\"A\\")\\\\variant",and(scientific_name.eq."Testus, complexus (form \\"A\\")\\\\variant",id.gt."1cf79982-e5ee-4e3d-8d65-274527e6ae01")',
+  );
+  assertEquals(
+    speciesDictionaryCatalogCursorFilter(cursor, "region"),
+    ascendingFilter,
+  );
+  assertEquals(
+    speciesDictionaryCatalogCursorFilter(cursor, "group"),
+    ascendingFilter,
+  );
+  assertEquals(
+    speciesDictionaryCatalogCursorFilter(cursor, "recently_added"),
+    'created_at.lt."2026-06-01T12:00:00.000Z",and(created_at.eq."2026-06-01T12:00:00.000Z",id.lt."1cf79982-e5ee-4e3d-8d65-274527e6ae01")',
+  );
+});
+
+Deno.test("species-dictionary db - dual identity recovers only from a local name match", async () => {
+  const canonicalRow = speciesRow({
+    id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
+    scientific_name: "Testus floridus",
+    gbif_taxon_key: 920002,
+  });
+  const mock = lookupSupabaseMock([canonicalRow]);
+  let externalFetchCount = 0;
+
+  const payload = await fetchSpeciesDictionary(
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Testus floridus",
+    },
+    mock.client,
+    {
+      fetchExternalSpeciesDictionary: () => {
+        externalFetchCount += 1;
+        return Promise.reject(new Error("external fetch must not run"));
+      },
+    },
+  );
+
+  assertEquals(payload?.id, canonicalRow.id);
+  assertEquals(mock.dictionaryLookups, [
+    {
+      column: "id",
+      value: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+    },
+    { column: "scientific_name", value: "Testus floridus" },
+  ]);
+  assertEquals(externalFetchCount, 0);
+});
+
+Deno.test("species-dictionary db - dual identity miss never reaches external enrichment", async () => {
+  const mock = lookupSupabaseMock([]);
+  let externalFetchCount = 0;
+
+  const payload = await fetchSpeciesDictionary(
+    {
+      speciesId: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
+      scientificName: "Missing species",
+    },
+    mock.client,
+    {
+      fetchExternalSpeciesDictionary: async () => {
+        externalFetchCount += 1;
+        return buildExternalSpeciesDictionaryPayload("Missing species", {
+          wikipediaUrl: null,
+          wikiExtract: null,
+          gbifKey: null,
+          referenceImageUrl: null,
+          alternativeCommonNames: [],
+          wikiTitle: null,
+          gbifTaxonomy: null,
+        });
+      },
+    },
+  );
+
+  assertEquals(payload, null);
+  assertEquals(externalFetchCount, 0);
+});
+
+Deno.test("species-dictionary db - name-only miss retains bounded external fallback", async () => {
+  const mock = lookupSupabaseMock([]);
+  let externalFetchCount = 0;
+
+  const payload = await fetchSpeciesDictionary(
+    { scientificName: "Externalis exemplaris" },
+    mock.client,
+    {
+      fetchExternalSpeciesDictionary: async (scientificName) => {
+        externalFetchCount += 1;
+        return buildExternalSpeciesDictionaryPayload(scientificName, {
+          wikipediaUrl: null,
+          wikiExtract: null,
+          gbifKey: 920003,
+          referenceImageUrl: null,
+          alternativeCommonNames: [],
+          wikiTitle: null,
+          gbifTaxonomy: null,
+        });
+      },
+    },
+  );
+
+  assertEquals(payload?.id, "external:externalis%20exemplaris");
+  assertEquals(externalFetchCount, 1);
+});
+
+Deno.test("species-dictionary db - ineligible local name is not externalized", async () => {
+  const mock = lookupSupabaseMock([
+    speciesRow({
+      scientific_name: "Availability",
+      is_public_biological: false,
+    }),
+  ]);
+  let externalFetchCount = 0;
+
+  const payload = await fetchSpeciesDictionary(
+    { scientificName: "Availability" },
+    mock.client,
+    {
+      fetchExternalSpeciesDictionary: async () => {
+        externalFetchCount += 1;
+        throw new Error("external fetch must not run");
+      },
+    },
+  );
+
+  assertEquals(payload, null);
+  assertEquals(externalFetchCount, 0);
 });
 
 Deno.test("species-dictionary db - fetches every public row across response pages", async () => {
@@ -625,7 +754,7 @@ Deno.test("species-dictionary db - fetches every public row across response page
   const requestedRanges: Array<[number, number]> = [];
   const query = {
     select: () => query,
-    or: () => query,
+    eq: () => query,
     order: () => query,
     range: (from: number, to: number) => {
       requestedRanges.push([from, to]);
@@ -685,6 +814,18 @@ Deno.test("species-dictionary db - catalog filters canonical coverage by exact c
     ),
     false,
   );
+  const dictionaryCalls = mock.calls.filter((call) =>
+    call.table === "species_dictionary"
+  );
+  const eligibilityIndex = dictionaryCalls.findIndex((call) =>
+    call.method === "eq" && call.args[0] === "is_public_biological" &&
+    call.args[1] === true
+  );
+  const limitIndex = dictionaryCalls.findIndex((call) =>
+    call.method === "limit"
+  );
+  assertEquals(eligibilityIndex >= 0, true);
+  assertEquals(eligibilityIndex < limitIndex, true);
 });
 
 Deno.test("species-dictionary db - catalog retains a legacy rollout fallback only without country coverage", async () => {
@@ -810,7 +951,6 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
   assertEquals(overview.categories.map((category) => category.id), [
     "all",
     "your_region",
-    "taxonomy",
     "recently_added",
   ]);
   assertEquals(
@@ -828,13 +968,6 @@ Deno.test("species-dictionary helpers - builds overview categories and regions",
       ?.region_code,
     "US",
   );
-  const allReferenceImageUrl = overview.categories.find((category) =>
-    category.id === "all"
-  )?.reference_image_url;
-  const taxonomyReferenceImageUrl = overview.categories.find((category) =>
-    category.id === "taxonomy"
-  )?.reference_image_url;
-  assertEquals(allReferenceImageUrl === taxonomyReferenceImageUrl, false);
   assertEquals(overview.featured_species?.scientific_name, "Testus ignotus");
   assertEquals(overview.featured_species?.common_name, "Newest Test Species");
   assertEquals(
@@ -1020,87 +1153,6 @@ Deno.test("species-dictionary helpers - featured species can be newest image-onl
   );
 });
 
-Deno.test("species-dictionary helpers - builds taxonomy tree payload", () => {
-  const tree = buildSpeciesDictionaryTree(
-    [
-      speciesRow({
-        id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-        scientific_name: "Danaus plexippus",
-        common_names: { en: "Monarch Butterfly" },
-        family: "Nymphalidae",
-        genus: "Danaus",
-      }),
-      speciesRow({
-        id: "2cf79982-e5ee-4e3d-8d65-274527e6ae02",
-        scientific_name: "Danaus gilippus",
-        common_names: { en: "Queen Butterfly" },
-        family: "Nymphalidae",
-        genus: "Danaus",
-      }),
-      speciesRow({
-        id: "3cf79982-e5ee-4e3d-8d65-274527e6ae03",
-        scientific_name: "Mysteria incognita",
-        common_names: {},
-        kingdom: null,
-        phylum: null,
-        class: null,
-        order: null,
-        family: null,
-        genus: null,
-      }),
-    ],
-    new Map([
-      [
-        "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-        "https://example.com/monarch.jpg",
-      ],
-    ]),
-  );
-
-  const danausNode = tree.nodes.find((node) =>
-    node.id ===
-      "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
-  );
-  const monarchNode = tree.nodes.find((node) =>
-    node.id === "species:1cf79982-e5ee-4e3d-8d65-274527e6ae01"
-  );
-  const unclassifiedKingdom = tree.nodes.find((node) =>
-    node.id === "taxonomy:kingdom:unclassified"
-  );
-  const invalidSpeciesNode = tree.nodes.find((node) =>
-    node.id === "species:3cf79982-e5ee-4e3d-8d65-274527e6ae03"
-  );
-
-  assertEquals(danausNode?.species_count, 2);
-  assertEquals(danausNode?.child_count, 2);
-  assertEquals(
-    danausNode?.representative_species?.reference_image_url,
-    "https://example.com/monarch.jpg",
-  );
-  assertEquals(monarchNode?.species?.scientific_name, "Danaus plexippus");
-  assertEquals(monarchNode?.parent_id, danausNode?.id);
-  assertEquals(unclassifiedKingdom, undefined);
-  assertEquals(invalidSpeciesNode, undefined);
-  assertEquals(
-    tree.edges.some((edge) =>
-      edge.from === danausNode?.id && edge.to === monarchNode?.id
-    ),
-    true,
-  );
-});
-
-Deno.test("species-dictionary helpers - taxonomy tree omits forbidden public fields", () => {
-  const tree = buildSpeciesDictionaryTree([
-    speciesRow({
-      id: "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-      scientific_name: "Danaus plexippus",
-      common_names: { en: "Monarch Butterfly" },
-    }),
-  ]);
-
-  assertEquals(publicSpeciesProjectionForbiddenKeys(tree), []);
-});
-
 Deno.test("species-dictionary helpers - builds catalog item payload", () => {
   const item = buildSpeciesDictionaryCatalogItem(
     {
@@ -1157,6 +1209,7 @@ function speciesRow(
     group_tags: string[];
     native_region: string | null;
     created_at: string | null;
+    is_public_biological: boolean;
   }>,
 ) {
   return {
@@ -1180,5 +1233,6 @@ function speciesRow(
     group_tags: overrides.group_tags ?? [],
     native_region: overrides.native_region ?? "North America",
     created_at: overrides.created_at ?? "2026-01-01T00:00:00Z",
+    is_public_biological: overrides.is_public_biological,
   };
 }

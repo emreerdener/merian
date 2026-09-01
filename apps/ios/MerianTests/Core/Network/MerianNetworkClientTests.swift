@@ -227,7 +227,11 @@ private final class NetworkRequestProbe: @unchecked Sendable {
     }
 }
 
-@Suite("Network Client Tests", .serialized)
+@Suite(
+    "Network Client Tests",
+    .serialized,
+    .sharedProcessState(.networkClientOverrides)
+)
 @MainActor
 struct MerianNetworkClientTests {
     

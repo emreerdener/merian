@@ -1443,6 +1443,26 @@ suppression, overview/map stale completion, and map cancellation. Architecture
 tests also lock the pre-debounce selection update so moving it below the sleep
 cannot silently reopen the race.
 
+### Species Dictionary Detail Request Generations
+
+Dictionary Detail can receive overlapping root-task loads and retries, while its
+supplemental Community grid can overlap a species replacement, refresh, and
+near-end pagination. Both `@MainActor` state owners use monotonically increasing
+request generations in addition to structured-task cancellation. Only the latest
+page generation may publish loaded, not-found, or error state and
+successful-load telemetry. The once-per-owner open event is independent of those
+retries.
+
+Community refresh advances its generation before it clears the old cursor and
+starts the replacement first page. Any active pagination completion therefore
+fails the generation check and cannot merge stale rows into reset state. Species
+replacement applies the same identity-plus-generation gate; generation-checked
+`defer` blocks prevent superseded work from clearing the current loading flags.
+Focused Detail tests force late page successes, late page failures, species
+replacement, and refresh/pagination overlap. The architecture suite keeps live
+endpoint and singleton resolution in Detail Services rather than the state
+owners or rendering tree.
+
 ### Owner-Scoped Media Observation
 
 Ad hoc `AVPlayer` notification/KVO/time observers can retain a departed media

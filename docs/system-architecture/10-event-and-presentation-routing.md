@@ -348,16 +348,16 @@ post-detail modal values remain separately owned by
 `ExplorePostDetailPresentation` so stack routing and sheet occupancy cannot
 compete through one untyped state channel.
 
-| Owner                       | Typed slot                      | Serialized destinations                                                                        | Admission and teardown contract                                                                                                          |
-| --------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `ExplorePostDetailView`     | `ExplorePostDetailPresentation` | Insight, author/reply, Field Notes, post composer, Field Chat, paywall                         | Composer work is one stored replaceable task; composer/chat commits require the current request/post, no cancellation, and an empty slot |
-| `InsightContentView`        | `InsightContentPresentation`    | Gallery, Safari, Community, Explore composer, candidates, Field Notes, description             | One item-based sheet plus a gallery cover filtered from the same value; every case retains its scan/generation fence                     |
-| `InsightSheetView`          | `InsightShellPresentation`      | Paywall, Field-trip author, Field Chat, Explore onboarding, Explore                            | At most one validated follow-up waits for the active sheet's real `onDismiss`; scan and presentation generation must still match         |
-| `ProfileTabView`            | `ProfileTabPresentation`        | Paywall, Insight, Field-trip author                                                            | A request is rejected while another local sheet owns the slot                                                                            |
-| `AchievementDetailSheet`    | `AchievementDetailPresentation` | Insight, Field-trip author                                                                     | Background detail reload begins only after the exact Insight case clears                                                                 |
-| `SwipeableCandidateCard`    | `CandidateCardPresentation`     | Original capture, candidate gallery, distinguishing feature                                    | All three lightweight destinations share one item-based sheet                                                                            |
-| `UserProfile`               | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | `UserProfileAvatarCoordinator` stores and request/account-fences selection/upload tasks and checks the view's live slot before commit    |
-| `SpeciesDictionaryPageView` | `SpeciesDictionaryPresentation` | Gallery, author, Field Chat, paywall                                                           | Chat commit requires the current canonical species UUID, no cancellation, and an empty slot                                              |
+| Owner                              | Typed slot                      | Serialized destinations                                                                        | Admission and teardown contract                                                                                                          |
+| ---------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `ExplorePostDetailView`            | `ExplorePostDetailPresentation` | Insight, author/reply, Field Notes, post composer, Field Chat, paywall                         | Composer work is one stored replaceable task; composer/chat commits require the current request/post, no cancellation, and an empty slot |
+| `InsightContentView`               | `InsightContentPresentation`    | Gallery, Safari, Community, Explore composer, candidates, Field Notes, description             | One item-based sheet plus a gallery cover filtered from the same value; every case retains its scan/generation fence                     |
+| `InsightSheetView`                 | `InsightShellPresentation`      | Paywall, Field-trip author, Field Chat, Explore onboarding, Explore                            | At most one validated follow-up waits for the active sheet's real `onDismiss`; scan and presentation generation must still match         |
+| `ProfileTabView`                   | `ProfileTabPresentation`        | Paywall, Insight, Field-trip author                                                            | A request is rejected while another local sheet owns the slot                                                                            |
+| `AchievementDetailSheet`           | `AchievementDetailPresentation` | Insight, Field-trip author                                                                     | Background detail reload begins only after the exact Insight case clears                                                                 |
+| `SwipeableCandidateCard`           | `CandidateCardPresentation`     | Original capture, candidate gallery, distinguishing feature                                    | All three lightweight destinations share one item-based sheet                                                                            |
+| `UserProfile`                      | `UserProfilePresentation`       | Username editor, display-name editor, avatar crop; the system Photos picker counts as occupied | `UserProfileAvatarCoordinator` stores and request/account-fences selection/upload tasks and checks the view's live slot before commit    |
+| `SpeciesDictionaryPageContentView` | `SpeciesDictionaryPresentation` | Gallery, author, Field Chat, paywall                                                           | Chat commit requires the current canonical species UUID, no cancellation, and an empty slot                                              |
 
 The two Insight presentation values live in `Features/Insights/Shell/Models`.
 Their item hosts and binding adapters live in focused Shell view extensions;
@@ -550,6 +550,10 @@ sink owner set above is enforced by the same fail-closed scan.
   dismissal, duplicate callback identity, timeout suppression, and
   missing-target rejection. Capture tests cover routed-sheet teardown and
   feature-local cover deferral.
+- Push routing tests inject a private `AppRouteCoordinator` through
+  `PushNotificationManager`'s route-request closure. The app-host coordinator
+  may consume a live route while tests are observing it, so tests must not drain
+  that process singleton.
 - `EventDeliveryTests` covers synchronous/reentrant event delivery, cancellable
   main-actor framework delivery, and detached-player callback suppression.
 - `AchievementToastPresenterTests` proves a milestone coordinator publishes

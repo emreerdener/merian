@@ -181,15 +181,18 @@ navigation and other UI-only timing. A feature test enforces this boundary and a
 
 ## Species Dictionary Ownership
 
-Species Dictionary is split into three product areas:
+Species Dictionary has two vertical product areas and one cross-surface model
+boundary. The concise ownership map lives in
+[Species Dictionary](Merian/Features/SpeciesDictionary/README.md):
 
 - [Catalog](Merian/Features/SpeciesDictionary/Catalog/README.md) owns Explore
   Identify/Index overview, category search, pagination, and region browsing.
 - [Detail](Merian/Features/SpeciesDictionary/Detail/README.md) owns the public
   species reference page, reference gallery, share action, and Community
   sightings.
-- `SpeciesDictionary/Tree` owns the preserved default-off taxonomy canvas and
-  graph presentation.
+- `Shared/Models` owns the route/entry-point values, taxonomy bridge, and public
+  reference-image labels/attribution consumed by more than one Dictionary or
+  Explore surface.
 
 Within Catalog, Models own normalized browse selections and page requests plus
 typed routes, Services alone resolve the live endpoint, cached image loader,
@@ -198,10 +201,21 @@ catalog/overview/map loading. Views retain search, refresh, navigation, and
 presentation timing while recording a changed selection before the search
 debounce; grouped Components render without direct networking or concrete
 singleton lookup. Codable wire DTOs remain in
-`Core/Network/SpeciesDictionaryAPIModels.swift`, while Explore Shell remains the
-navigation-stack and Identify/Index selection owner. Mirrored feature tests
-enforce those boundaries, cross-selection race handling, and a 600-line
-production-file ceiling.
+`Core/Network/SpeciesDictionaryAPIModels.swift`. Core Network also owns strict
+schema/identity validation and the bounded in-memory cache, while Explore Shell
+remains the navigation-stack and Identify/Index selection owner. Mirrored
+feature tests enforce those boundaries, cross-selection race handling, and a
+600-line production-file ceiling.
+
+Within Detail, platform-neutral Models own request, state, share, presentation,
+telemetry, and hero-edge policy; Services alone resolve the live dictionary and
+Community endpoints, telemetry, entitlement, haptic, Explore, and Field Chat
+dependencies; and generation-fenced ViewModels own page and Community loading.
+The standalone shell and shared content View retain navigation, presentation,
+scroll, and lifecycle timing. Grouped Community, Content, Gallery, Loading, and
+Shared components render without direct networking. Mirrored Detail tests lock
+the latest-load and refresh/pagination contracts, endpoint adapters, ownership
+boundaries, and the same 600-line ceiling.
 
 ## Capture Ownership
 
@@ -522,6 +536,7 @@ Unit tests should mirror the production owner:
 
 ```text
 MerianTests/
+  Support/
   Core/<CoreArea>/
   Features/<Feature>/<ProductArea>/
 ```
@@ -530,6 +545,17 @@ If a test primarily exercises a Core manager, place it under `MerianTests/Core`,
 even if the behavior appears in a feature screen. If it exercises a product
 area's view model, policy, or local helper, place it under that feature product
 area.
+
+Tests that mutate a process-global resource must also claim its keyed gate from
+`MerianTests/Support/SharedProcessStateTestTrait.swift`. Swift Testing's
+`.serialized` trait orders descendants only within one suite; it does not
+exclude a peer suite. Use `.sharedProcessState(.networkClientOverrides)` for
+temporary `MerianNetworkClient` or shared request-interceptor ownership. Inject
+a private `AppRouteCoordinator` through the available route-request closure when
+testing notification routing; do not drain the app-host process singleton. Apply
+a keyed gate at suite scope when every case owns the resource and at test scope
+for isolated cases, then continue restoring the original process state during
+teardown.
 
 ## Assets
 

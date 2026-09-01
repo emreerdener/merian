@@ -1,6 +1,7 @@
-import Testing
 import Foundation
+import Testing
 import UserNotifications
+
 @testable import Merian
 
 @MainActor
@@ -8,7 +9,7 @@ struct PushNotificationManagerTests {
     
     @Test func testManagerInitialization() {
         // Assert the hardware primitive initializes safely off the singleton
-        let _ = PushNotificationManager.shared
+        _ = PushNotificationManager.shared
     }
     
     @Test func testSetupDelegateRegistersSuccessfully() {
@@ -55,10 +56,10 @@ struct PushNotificationManagerTests {
     }
 
     @Test func testExploreNotificationTapQueuesTypedRoute() async throws {
-        let manager = PushNotificationManager.shared
-        let coordinator = AppDIContainer.shared.appRouteCoordinator
-        coordinator.resetForTesting()
-        defer { coordinator.resetForTesting() }
+        let coordinator = AppRouteCoordinator()
+        let manager = PushNotificationManager { route, source in
+            coordinator.request(route, source: source)
+        }
         let expectedPostId = "explore-post-123"
 
         manager.handleNotificationAction(
@@ -85,10 +86,10 @@ struct PushNotificationManagerTests {
     }
 
     @Test func testCommunityNotificationTapQueuesTypedRoute() async throws {
-        let manager = PushNotificationManager.shared
-        let coordinator = AppDIContainer.shared.appRouteCoordinator
-        coordinator.resetForTesting()
-        defer { coordinator.resetForTesting() }
+        let coordinator = AppRouteCoordinator()
+        let manager = PushNotificationManager { route, source in
+            coordinator.request(route, source: source)
+        }
         let expectedRequestId = "community-request-123"
 
         manager.handleNotificationAction(

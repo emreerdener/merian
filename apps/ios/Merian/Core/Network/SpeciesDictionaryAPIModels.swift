@@ -22,13 +22,6 @@ struct SpeciesDictionaryOverviewResponse: Decodable {
     var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
 }
 
-struct SpeciesDictionaryTreeResponse: Decodable {
-    let schemaVersion: Int?
-    let data: SpeciesDictionaryTreePayload
-
-    var effectiveSchemaVersion: Int { schemaVersion ?? 0 }
-}
-
 enum SpeciesDictionaryCatalogCategory: String, Codable, Equatable, Hashable {
     case all
     case region
@@ -39,20 +32,10 @@ enum SpeciesDictionaryCatalogCategory: String, Codable, Equatable, Hashable {
 enum SpeciesDictionaryOverviewCategoryID: String, Decodable, Equatable, Hashable {
     case all
     case yourRegion = "your_region"
+    // Decode-only compatibility for overview responses deployed before the
+    // retired Tree surface was removed. Current servers do not emit this ID.
     case taxonomy
     case recentlyAdded = "recently_added"
-}
-
-enum SpeciesDictionaryTreeScope: String, CaseIterable, Codable, Equatable, Hashable {
-    case allSpecies = "all_species"
-    case myScans = "my_scans"
-
-    var title: String {
-        switch self {
-        case .allSpecies: "All species"
-        case .myScans: "My scans"
-        }
-    }
 }
 
 struct SpeciesDictionaryCatalogCursor: Codable, Equatable, Hashable {
@@ -81,40 +64,6 @@ struct SpeciesDictionaryCatalogItem: Decodable, Equatable, Identifiable, Hashabl
     let hazardType: String?
     let groupTags: [String]
     let referenceImageUrl: String?
-
-    var taxonomyData: TaxonomyData? {
-        guard let taxonomy else { return nil }
-        let data = TaxonomyData(
-            kingdom: taxonomy.kingdom,
-            phylum: taxonomy.phylum,
-            className: taxonomy.className,
-            order: taxonomy.order,
-            family: taxonomy.family,
-            genus: taxonomy.genus
-        )
-
-        let values = [
-            data.kingdom,
-            data.phylum,
-            data.className,
-            data.order,
-            data.family,
-            data.genus
-        ]
-
-        return values.contains { value in
-            guard let value else { return false }
-            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        } ? data : nil
-    }
-
-    var dictionaryRoute: SpeciesDictionaryRoute {
-        SpeciesDictionaryRoute(
-            scientificName: scientificName,
-            speciesId: id,
-            entryPoint: .exploreDictionaryCatalog
-        )
-    }
 }
 
 struct SpeciesDictionaryOverview: Decodable, Equatable {
@@ -145,14 +94,6 @@ struct SpeciesDictionaryFeaturedSpecies: Decodable, Equatable, Identifiable, Has
     let commonName: String
     let overview: String?
     let referenceImageUrl: String?
-
-    var dictionaryRoute: SpeciesDictionaryRoute {
-        SpeciesDictionaryRoute(
-            scientificName: scientificName,
-            speciesId: id,
-            entryPoint: .exploreDictionaryCatalog
-        )
-    }
 }
 
 struct SpeciesDictionaryCategorySummary: Decodable, Equatable, Identifiable, Hashable {
@@ -180,77 +121,6 @@ struct SpeciesDictionaryRegionSummary: Decodable, Equatable, Identifiable, Hasha
     let code: String?
 }
 
-struct SpeciesDictionaryTreePayload: Decodable, Equatable {
-    let nodes: [SpeciesDictionaryTreeNodePayload]
-    let edges: [SpeciesDictionaryTreeEdgePayload]
-}
-
-enum SpeciesDictionaryTreeRank: String, CaseIterable, Decodable, Equatable, Hashable {
-    case kingdom
-    case phylum
-    case className = "class"
-    case order
-    case family
-    case genus
-    case species
-
-    var title: String {
-        switch self {
-        case .kingdom: "Kingdom"
-        case .phylum: "Phylum"
-        case .className: "Class"
-        case .order: "Order"
-        case .family: "Family"
-        case .genus: "Genus"
-        case .species: "Species"
-        }
-    }
-
-    var sortIndex: Int {
-        Self.allCases.firstIndex(of: self) ?? 0
-    }
-}
-
-struct SpeciesDictionaryTreeNodePayload: Decodable, Equatable, Identifiable, Hashable {
-    let id: String
-    let rank: SpeciesDictionaryTreeRank
-    let title: String
-    let subtitle: String?
-    let parentId: String?
-    let speciesCount: Int
-    let childCount: Int
-    let lineage: SpeciesDictionaryTaxonomy?
-    let representativeSpecies: SpeciesDictionaryTreeSpecies?
-    let species: SpeciesDictionaryTreeSpecies?
-}
-
-struct SpeciesDictionaryTreeEdgePayload: Decodable, Equatable, Identifiable, Hashable {
-    let from: String
-    let to: String
-
-    var id: String { "\(from)->\(to)" }
-}
-
-struct SpeciesDictionaryTreeSpecies: Decodable, Equatable, Identifiable, Hashable {
-    let id: String
-    let scientificName: String
-    let commonName: String
-    let contentQuality: SpeciesDictionaryContentQuality?
-    let taxonomy: SpeciesDictionaryTaxonomy?
-    let iucnRedListStatus: String?
-    let hazardType: String?
-    let groupTags: [String]
-    let referenceImageUrl: String?
-
-    var dictionaryRoute: SpeciesDictionaryRoute {
-        SpeciesDictionaryRoute(
-            scientificName: scientificName,
-            speciesId: id,
-            entryPoint: .exploreDictionaryCatalog
-        )
-    }
-}
-
 struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     let id: String
     let scientificName: String
@@ -267,78 +137,12 @@ struct SpeciesDictionaryEntry: Decodable, Equatable, Identifiable {
     let groupTags: [String]
     let referenceImages: [SpeciesDictionaryReferenceImage]
     let similarSpecies: [SpeciesDictionarySimilarSpecies]
-
-    var effectiveContentQuality: SpeciesDictionaryContentQuality {
-        if let contentQuality { return contentQuality }
-
-        let signalCount = [
-            !referenceImages.isEmpty,
-            (wikipediaOverview?.trimmingCharacters(in: .whitespacesAndNewlines).count ?? 0) >= 60,
-            habitatDescription?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty != nil || gbifTaxonKey != nil,
-            taxonomy?.hasMeaningfulContent == true
-        ].filter { $0 }.count
-
-        if signalCount == 4 { return .complete }
-        if signalCount >= 2 { return .sparse }
-        return .needsEnrichment
-    }
-
-    var taxonomyData: TaxonomyData? {
-        guard let taxonomy else { return nil }
-        let data = TaxonomyData(
-            kingdom: taxonomy.kingdom,
-            phylum: taxonomy.phylum,
-            className: taxonomy.className,
-            order: taxonomy.order,
-            family: taxonomy.family,
-            genus: taxonomy.genus
-        )
-
-        let values = [
-            data.kingdom,
-            data.phylum,
-            data.className,
-            data.order,
-            data.family,
-            data.genus
-        ]
-
-        return values.contains { value in
-            guard let value else { return false }
-            return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        } ? data : nil
-    }
-
-    var similarSpeciesData: SimilarSpecies? {
-        let entries = similarSpecies.compactMap { item -> SimilarSpeciesEntry? in
-            let scientificName = item.scientificName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !scientificName.isEmpty else { return nil }
-            return SimilarSpeciesEntry(
-                scientificName: scientificName,
-                commonName: item.commonName,
-                referenceImageUrl: item.referenceImageUrl,
-                iucnRedListStatus: item.iucnRedListStatus,
-                speciesId: item.speciesId,
-                similarityReason: item.reason,
-                visualTraits: item.visualTraits,
-                similarityConfidence: item.confidence,
-                relationshipSource: item.source,
-                reviewStatus: item.reviewStatus,
-                isBidirectional: item.isBidirectional,
-                sortOrder: item.sortOrder
-            )
-        }
-
-        return entries.isEmpty ? nil : SimilarSpecies(entries: entries)
-    }
 }
 
 enum SpeciesDictionaryContentQuality: String, Decodable, Equatable, Hashable {
     case complete
     case sparse
     case needsEnrichment = "needs_enrichment"
-
-    var telemetryValue: String { rawValue }
 }
 
 struct SpeciesDictionaryTaxonomy: Decodable, Equatable, Hashable {
@@ -357,22 +161,9 @@ struct SpeciesDictionaryTaxonomy: Decodable, Equatable, Hashable {
         case family
         case genus
     }
-
-    var hasMeaningfulContent: Bool {
-        [
-            kingdom,
-            phylum,
-            className,
-            order,
-            family,
-            genus
-        ].compactMap { value in
-            value?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        }.count >= 2
-    }
 }
 
-struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable, Sendable {
+struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Sendable {
     enum Source: Decodable, Equatable, Sendable {
         case wikipedia
         case gbif
@@ -392,32 +183,6 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable, Send
                 self = .merian
             default:
                 self = .unknown(rawValue)
-            }
-        }
-
-        var label: String {
-            switch self {
-            case .wikipedia:
-                return "Wikipedia"
-            case .gbif:
-                return "GBIF"
-            case .merian:
-                return "Naturebook"
-            case .unknown:
-                return "Reference"
-            }
-        }
-
-        var rawValue: String {
-            switch self {
-            case .wikipedia:
-                return "wikipedia"
-            case .gbif:
-                return "gbif"
-            case .merian:
-                return "merian"
-            case .unknown(let value):
-                return value
             }
         }
     }
@@ -450,42 +215,9 @@ struct SpeciesDictionaryReferenceImage: Decodable, Equatable, Identifiable, Send
         self.width = width
         self.height = height
     }
-
-    var id: String { url }
-
-    var naturebookAuthorUsername: String? {
-        guard source == .merian else { return nil }
-        return authorUsername?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "@"))
-            .nilIfEmpty
-    }
-
-    var fullscreenAttributionLabel: String {
-        if source == .merian {
-            return naturebookAuthorUsername
-                .map { "@\($0) · \(source.label)" } ?? source.label
-        }
-
-        func displayableCredit(_ value: String?) -> String? {
-            guard let value = value?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty,
-                !value.localizedCaseInsensitiveContains("used with permission") else { return nil }
-            return value
-        }
-
-        return [
-            displayableCredit(attribution),
-            displayableCredit(license),
-            source.label
-        ]
-        .compactMap { $0 }
-        .joined(separator: " · ")
-    }
 }
 
-struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
+struct SpeciesDictionarySimilarSpecies: Decodable, Equatable {
     let speciesId: String?
     let scientificName: String
     let commonName: String?
@@ -498,8 +230,6 @@ struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
     let reviewStatus: String?
     let isBidirectional: Bool?
     let sortOrder: Int?
-
-    var id: String { speciesId ?? scientificName }
 
     private enum CodingKeys: String, CodingKey {
         case speciesId
@@ -530,41 +260,5 @@ struct SpeciesDictionarySimilarSpecies: Decodable, Equatable, Identifiable {
         reviewStatus = try container.decodeIfPresent(String.self, forKey: .reviewStatus)
         isBidirectional = try container.decodeIfPresent(Bool.self, forKey: .isBidirectional)
         sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder)
-    }
-}
-
-struct SpeciesDictionaryRoute: Identifiable, Equatable, Hashable {
-    let speciesId: String?
-    let scientificName: String
-    let entryPoint: SpeciesDictionaryEntryPoint
-
-    init(
-        scientificName: String,
-        speciesId: String? = nil,
-        entryPoint: SpeciesDictionaryEntryPoint = .unknown
-    ) {
-        self.speciesId = speciesId?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        self.scientificName = scientificName
-        self.entryPoint = entryPoint
-    }
-
-    var id: String { speciesId ?? scientificName }
-}
-
-enum SpeciesDictionaryEntryPoint: String, Equatable, Hashable {
-    case insightSimilarSpecies = "insight_similar_species"
-    case exploreDetailDictionary = "explore_detail_dictionary"
-    case exploreDetailSimilarSpecies = "explore_detail_similar_species"
-    case exploreDictionaryCatalog = "explore_dictionary_catalog"
-    case speciesDictionarySimilarSpecies = "species_dictionary_similar_species"
-    case search
-    case deepLink = "deep_link"
-    case web
-    case unknown
-}
-
-private extension String {
-    var nilIfEmpty: String? {
-        isEmpty ? nil : self
     }
 }

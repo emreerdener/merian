@@ -1,8 +1,13 @@
 import Foundation
-@testable import Merian
 import Testing
 
-@Suite("Feedback Survey Tests", .serialized)
+@testable import Merian
+
+@Suite(
+    "Feedback Survey Tests",
+    .serialized,
+    .sharedProcessState(.networkClientOverrides)
+)
 @MainActor
 struct FeedbackSurveyTests {
     init() {

@@ -68,9 +68,13 @@ Field Chat.
 Primary files:
 
 - `services/supabase/functions/_shared/publicSpeciesProjection.ts`
+- `services/supabase/functions/species-dictionary/index.ts`
+- `services/supabase/functions/species-dictionary/db.ts`
+- `services/supabase/migrations/20260901180000_add_public_biological_species_eligibility.sql`
 - `services/supabase/functions/species-dictionary-chat/index.ts`
 - `services/supabase/functions/species-dictionary-chat/db.ts`
 - `apps/ios/Merian/Core/Network/SpeciesDictionaryAPIModels.swift`
+- `apps/ios/Merian/Core/Network/SpeciesDictionaryIdentity.swift`
 - `apps/ios/Merian/Core/Network/SpeciesObservationStatsAPIModels.swift`
 - `apps/ios/Merian/Core/Network/MerianNetworkClient.swift`
 - `apps/ios/Merian/Core/Utilities/AppRouteCoordinator.swift`
@@ -81,14 +85,20 @@ Primary files:
 - `apps/ios/Merian/Features/SpeciesReference/Services/SpeciesObservationStatsDependencies.swift`
 - `apps/ios/Merian/Features/SpeciesReference/ViewModels/SpeciesObservationStatsViewModel.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesDictionaryPageViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Shared/Models/SpeciesDictionaryNavigation.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Shared/Models/SpeciesDictionaryTaxonomyPresentation.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Shared/Models/SpeciesDictionaryReferenceImagePresentation.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/ViewModels/SpeciesCommunitySightingsViewModel.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Models/SpeciesDictionaryDetailPresentation.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Services/SpeciesDictionaryDetailDependencies.swift`
 - `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageContentView.swift`
 - `apps/ios/Merian/Features/FieldChat/Services/FieldChatEndpoint.swift`
 - `apps/ios/Merian/Features/FieldChat/ViewModels/InsightChatViewModel.swift`
 - `apps/ios/Merian/Features/FieldChat/Views/InsightChatSheet.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryCards.swift`
-- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/SpeciesCommunitySightings.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/Gallery/SpeciesDictionaryReferenceGallery.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/Content/SpeciesDictionaryCards.swift`
+- `apps/ios/Merian/Features/SpeciesDictionary/Detail/Components/Community/SpeciesCommunitySightingsSection.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Components/Lookalikes/SimilarSpeciesGallery.swift`
 - `apps/ios/Merian/Features/SpeciesReference/Services/SimilarSpeciesImageDependencies.swift`
 - `apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift`
@@ -108,6 +118,20 @@ Explore, those sheet roots own the navigation stack and register
 It does not mount `InferenceEngine`, does not read SwiftData scan records, and
 does not reuse `InsightSheetViewModel`.
 
+Detail follows a feature-owned `Models`, `Services`, `ViewModels`, `Views`, and
+grouped `Components/{Community,Content,Gallery,Loading,Shared}` boundary.
+Platform-neutral Models own request, page state, share, presentation, telemetry,
+and hero-edge policy. Services alone resolve the live dictionary and Community
+endpoints, telemetry, haptics, entitlement state, fallback Explore state, and
+Field Chat state. Views and components contain no direct networking and retain
+navigation, presentation bindings, scrolling, lifecycle tasks, and rendering.
+Codable response and cursor contracts remain in `Core/Network`.
+`SpeciesDictionary/Shared/Models` owns route/entry-point values, taxonomy
+adaptation, and reference-image labels/attribution used across Detail, Catalog,
+Explore, and Field Trips. The feature-local
+[`Species Dictionary` README](../../apps/ios/Merian/Features/SpeciesDictionary/README.md)
+is the concise ownership and contributor map.
+
 `SpeciesDictionaryPageViewModel` is an `@Observable @MainActor` model with four
 user-visible states:
 
@@ -116,10 +140,14 @@ user-visible states:
 - `notFound`
 - `error(String)`
 
-The model trims the incoming scientific name before fetching and prefers a
-`speciesId` lookup when the route provides one. A marked handler-owned `404`
-maps to `notFound`; a platform route `404` becomes the typed temporary-service
-error and cannot cache the species as missing. Other failures map to `error`.
+The model canonicalizes the incoming UUID/name before fetching and consumes a
+small injected dependency value. Invalid, synthetic, and `external:` route IDs
+are removed so a usable name becomes a name-only request. Canonical UUIDs remain
+UUID-first. Each load increments a request generation, so a late success or
+failure cannot overwrite a newer route load or retry. A marked handler-owned
+`404` maps to `notFound`; a platform route `404` becomes the typed
+temporary-service error and cannot cache the species as missing. Other failures
+map to `error`.
 
 `SpeciesObservationChartsCard` is embedded in the loaded dictionary content
 after Habitat & Distribution. It owns its own generation-fenced
@@ -140,7 +168,9 @@ same three-column grid, deduplicates posts, and supports pull-to-refresh.
 Explore and Profile hosts supply their existing `ExploreFeedViewModel`;
 standalone Dictionary, Scans, and Insight routes use a local fallback so tile
 taps still push the existing Explore post detail in the current navigation
-stack.
+stack. Species changes and refreshes advance the Community request generation;
+refresh therefore invalidates active pagination before its replacement first
+page begins, and stale pages or failures cannot publish into the new state.
 
 ## Entry Point
 
@@ -159,9 +189,10 @@ SimilarSpeciesGallery(
 
 The sheet root owns the route destination, so the user sees a single navigation
 stack: Insight or Explore detail -> Species Dictionary -> another dictionary
-page if they tap a similar species again. `speciesId` is preferred for lookup
-when present; `scientificName` remains the display and backward-compatible
-lookup fallback.
+page if they tap a similar species again. A canonical `speciesId` is UUID-first;
+`scientificName` is the normalized recovery/display identity. A UUID miss may
+recover only to an exact local name match, while an invalid or synthetic route
+ID becomes a name-only compatibility request.
 
 Explore post detail uses the same route from its public
 `/get-explore-post-detail` similar-species payload. The Explore entry point is
@@ -332,7 +363,7 @@ badge uses only the primary common name.
 
 ## Backend Contract
 
-The iOS client calls:
+The Detail live service adapter delegates to the Core Network client:
 
 ```swift
 MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
@@ -426,11 +457,13 @@ and catalog paths do not require or read identity. Those responses must remain
 species-level public dictionary data only.
 
 `schema_version = 1` is the shared public species contract used by the
-dictionary page and Explore detail similar-species projection. iOS treats the
-key as optional for backward compatibility with older mocks or deployed
-functions; the web mapper requires version 1 before using the payload.
+dictionary page and Explore detail similar-species projection. Current iOS and
+web consumers both require exact version 1 before using or caching a payload.
+Missing/unsupported versions and mismatched identities are invalid responses,
+not compatibility successes.
 
-Community sightings use a separate authenticated request:
+The Community live service adapter delegates to a separate authenticated
+request:
 
 ```swift
 MerianNetworkClient.shared.getExploreSpeciesPosts(
@@ -463,9 +496,9 @@ landing view through overview mode:
 ```
 
 The response returns image-backed category summaries for `All`, `Your Region`,
-`Taxonomy`, and `Recently Added`, a Recently Added featured species card with
-overview copy, graphic-led high-level group summaries such as Birds and Plants,
-plus country summaries derived from canonical GBIF occurrence facets in
+and `Recently Added`, a Recently Added featured species card with overview copy,
+graphic-led high-level group summaries such as Birds and Plants, plus country
+summaries derived from canonical GBIF occurrence facets in
 `species_country_occurrences`. `Recently Added` is capped to the newest 40
 biological entries for its overview count and representative image so it does
 not duplicate the `All` total. iOS uses that featured card as the visible
@@ -475,24 +508,26 @@ exact country catalog when coverage exists and remains visible, non-interactive,
 with `Coverage updating` while the scheduled backfill is still filling that
 country. `All` moves into a bottom row link. Explore keeps all Dictionary
 surfaces under the Identify tab's `Index` mode; Index renders the Catalog
-overview/search content directly.
-`FeatureFlags.isEnabled(.speciesDictionaryTree)` remains the default-off release
-gate for the Tree canvas and preserved internal taxonomy destination. DEBUG
-builds can override it from Settings → Feature Flags, but the override does not
-restore a disconnected Explore entry point; Release builds always use the code
-default. The region snapshot uses the backend's country display title and falls
-back to a default United States map only when MapKit geocoding cannot resolve
-that title. If the overview has no non-empty country summaries with species
-counts, iOS hides the Region section and the "Browse all regions" row while the
-personal country card still communicates the pending refresh state. Catalog
-detail pages opened from overview cards or rows, including Birds, Mammals, All,
-Your Region, and Recently Added, keep the same paginated species row list but
-add toolbar search, matching the Scans library search presentation, that filters
-within the active category. Overview, catalog, and tree results are gated to
-public biological taxa: a row must have a scientific name plus either a positive
-GBIF taxon key or usable biological taxonomy with a kingdom and at least one
-downstream rank. Rows that only resolve to generic encyclopedia concepts are
-filtered out before they can appear as dictionary records. `user_region` may be
+overview/search content directly. Taxonomy remains searchable reference data in
+catalog and detail responses; it is not a separate overview category or route.
+The region snapshot uses the backend's country display title and falls back to a
+default United States map only when MapKit geocoding cannot resolve that title.
+If the overview has no non-empty country summaries with species counts, iOS
+hides the Region section and the "Browse all regions" row while the personal
+country card still communicates the pending refresh state. Catalog detail pages
+opened from overview cards or rows, including Birds, Mammals, All, Your Region,
+and Recently Added, keep the same paginated species row list but add toolbar
+search, matching the Scans library search presentation, that filters within the
+active category. Overview and catalog results are gated to public biological
+taxa: a row must have a scientific name plus either a positive GBIF taxon key or
+usable biological taxonomy with a kingdom and at least one downstream rank. Rows
+that only resolve to generic encyclopedia concepts are filtered out before they
+can appear as dictionary records. Migration
+`20260901180000_add_public_biological_species_eligibility.sql` stores that
+decision in `species_dictionary.is_public_biological`; catalog keysets, overview
+ranges, and country-summary aggregation apply it in PostgreSQL before limits.
+The Deno projection treats the selected database value as authoritative, so
+cursor pages and overview counts use the same eligible set. `user_region` may be
 an ISO country code from an already-authorized physical location or, when
 location is unavailable/not granted, from `Locale.current.region?.identifier`.
 The function normalizes the code and queries exact ISO-country occurrence rows;
@@ -579,7 +614,9 @@ high-level groups are `plants`, `birds`, `insects`, `fungi`, `mammals`, and
 `reptiles_amphibians`. `recently_added` sorts by
 `species_dictionary.created_at DESC, id DESC`; other catalog views sort by
 `scientific_name ASC, id ASC`. The response keeps the shared schema version and
-returns a cursor-paginated list:
+returns a cursor-paginated list. Partial indexes cover the alphabetical and
+Recently Added keysets only for eligible rows, preventing ineligible rows from
+shortening a page before application filtering:
 
 ```json
 {
@@ -629,7 +666,8 @@ Catalog implementation ownership is:
 - `Models/` owns the normalized browse selection and page request, category
   route, country-flag rendering policy, overview filtering/order, and
   category-to-route mapping. Codable overview/catalog records and cursor
-  contracts remain in `Core/Network/SpeciesDictionaryAPIModels.swift`.
+  contracts remain in `Core/Network/SpeciesDictionaryAPIModels.swift`; shared
+  detail routes and taxonomy adaptation live in `SpeciesDictionary/Shared`.
 - `Services/` adapts the live `MerianNetworkClient` calls and owns the live
   cached-image, geocoder, and MapKit snapshot implementations. Views and
   components invoke only the injected boundaries, not those concrete
@@ -651,84 +689,15 @@ The mirrored Catalog test suites cover wire/payload compatibility, presentation
 policy, request normalization, initial-load de-duplication, pagination,
 refresh/search/reverted-selection overlap, failed-replacement page suppression,
 stale overview/map completion, map cancellation, ownership boundaries, and the
-600-line production-file ceiling. Detail, Tree, share, and memoization coverage
-remains in the broader `SpeciesDictionaryTests` suite.
-
-### Tree Mode
-
-The Tree of Life/galaxy visualization is deferred beyond MVP. Its canvas,
-internal taxonomy destination, graph DTOs, and Edge contract remain implemented,
-but all Explore entry points are disconnected.
-`FeatureFlag.speciesDictionaryTree.defaultValue` remains `false`, and the same
-resolved flag guards the preserved internal taxonomy destination so a stale
-route cannot expose the unfinished canvas. The retained implementation uses the
-same Edge Function with `mode: "tree"`:
-
-```json
-{
-  "mode": "tree"
-}
-```
-
-The response keeps the shared schema version and returns a graph payload:
-
-```json
-{
-  "schema_version": 1,
-  "data": {
-    "nodes": [
-      {
-        "id": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus",
-        "rank": "genus",
-        "title": "Danaus",
-        "subtitle": "Genus",
-        "parent_id": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
-        "species_count": 2,
-        "child_count": 2,
-        "lineage": {
-          "kingdom": "Animalia",
-          "phylum": "Arthropoda",
-          "class": "Insecta",
-          "order": "Lepidoptera",
-          "family": "Nymphalidae",
-          "genus": "Danaus"
-        },
-        "representative_species": {
-          "id": "1cf79982-e5ee-4e3d-8d65-274527e6ae01",
-          "scientific_name": "Danaus plexippus",
-          "common_name": "Monarch Butterfly",
-          "content_quality": "complete",
-          "taxonomy": { "kingdom": "Animalia" },
-          "iucn_red_list_status": "least concern",
-          "hazard_type": "none",
-          "group_tags": ["animal", "insect"],
-          "reference_image_url": "https://..."
-        },
-        "species": null
-      }
-    ],
-    "edges": [
-      {
-        "from": "taxonomy:family:animalia/arthropoda/insecta/lepidoptera/nymphalidae",
-        "to": "taxonomy:genus:animalia/arthropoda/insecta/lepidoptera/nymphalidae/danaus"
-      }
-    ]
-  }
-}
-```
-
-Tree mode requires the user's auth session because the species set is scoped to
-that user's non-deleted biological scans. It reads `confirmed_species_id` first,
-then falls back to `species_id`, dedupes those IDs, and fetches matching
-`species_dictionary` rows through the same public species projection used by
-detail and catalog responses.
-
-The tree response is still species-level public data only. It adds graph-ready
-taxonomy nodes, parent/child edges, species counts, representative species, and
-preview fields so the iOS canvas can zoom, focus branches, and show species
-previews without exposing scan IDs, users, media, locations, comments, Explore
-posts, or field notes. Empty scan libraries return an empty graph and the iOS
-canvas shows a scanned-taxonomy empty state.
+600-line production-file ceiling. Mirrored Detail suites own page/Community
+state, presentation, endpoint adaptation, and architecture. The broader
+`SpeciesDictionaryTests` suite retains wire validation plus endpoint and cache
+compatibility. The retired taxonomy visualization has no iOS source, feature
+flag, route, Swift transport/DTO, overview card, or Edge mode. The endpoint
+rejects `mode: "tree"` with `400`; this explicit rejection is covered by the
+import-safe HTTP handler tests before service-client construction. Decode-only
+handling of the legacy overview category ID `taxonomy` maps old responses to the
+complete `All` catalog during rolling client/server deployment.
 
 Observation pattern charts use a separate public endpoint:
 
@@ -759,24 +728,26 @@ Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=60480
 Vary: Accept-Encoding
 ```
 
-Tree mode sends `Cache-Control: private, no-store` and
-`Vary: Authorization, Accept-Encoding` because the graph membership depends on
-the signed-in user's scan library. `400`, `401`, `404`, and `500` responses do
-not opt into public caching, so missing rows, auth failures, and transient
-errors can recover immediately after data is added or fixed.
+Overview responses send `Cache-Control: no-store` and `Vary: Accept-Encoding`.
+`400`, `404`, and `500` responses do not opt into public caching, so missing
+rows and transient errors can recover immediately after data is added or fixed.
 
 The iOS client also memoizes recently opened dictionary pages inside
 `MerianNetworkClient`. The cache is in memory only, capped at 64 keys, and
-expires entries after 10 minutes. Entries are stored under both canonical
-`species_id` keys and normalized scientific-name keys when available, so an
-Insight or Explore tap that carries a dictionary ID can warm a later
-scientific-name route for the same species. The cache is cleared in DEBUG
-whenever tests swap the injected `URLSession`.
+expires entries after 10 minutes. Exact `schema_version = 1` and response
+identity are validated first. Accepted entries are stored under the returned
+canonical `species_id` and normalized returned scientific name, so an Insight or
+Explore tap that carries a dictionary ID can warm a later scientific-name route
+for the same species. A stale requested UUID, malformed identity,
+unsupported/missing schema version, and `external:` ID never become cache
+aliases. The cache is cleared in DEBUG whenever tests swap the injected
+`URLSession`.
 
 Community sightings are not part of either cache. Their endpoint requires the
 current viewer so blocked authors and other visibility state are evaluated on
 every request; a failure remains supplemental and never blocks dictionary
-content.
+content. The Detail Services adapter owns that authenticated endpoint call;
+Community views and state owners consume only its injected page-loader closure.
 
 Invalidation is currently TTL-based: rows refreshed by the scheduled species
 workers (`refresh-species-content`, `refresh-species-model-content`, and
@@ -882,8 +853,8 @@ Exact external-media suppression:
   changing source order. If none remain, the existing leaf placeholder is shown.
 - `ExternalReferenceImagePolicy` applies the same check to iOS DTO
   normalization, persisted cache writes, historical
-  `SimilarSpeciesEntry.referenceImageUrl` decoding, catalog/tree URL creation,
-  the reference gallery, and the final loader download boundary.
+  `SimilarSpeciesEntry.referenceImageUrl` decoding, catalog URL creation, the
+  reference gallery, and the final loader download boundary.
 - The species card and navigation route remain. Suppression changes only the
   selected image and never adds a censor overlay or a new API field.
 
@@ -988,9 +959,10 @@ the SQL RPC is executable only by `service_role`.
 Backend:
 
 ```sh
-deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/index.ts
-deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/fieldChatDailyUsage_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary-chat/handler_test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/species-dictionary-chat/refusal_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts
-deno test --allow-read=services/supabase/migrations --config services/supabase/functions/deno.json services/supabase/functions/_tests/speciesContentMigrationContract.test.ts
+deno check --config services/supabase/functions/deno.json services/supabase/functions/_shared/http.ts services/supabase/functions/_shared/externalImagePolicy.ts services/supabase/functions/_shared/publicSpeciesProjection.ts services/supabase/functions/_shared/speciesContentProvenance.ts services/supabase/functions/refresh-species-content/index.ts services/supabase/functions/refresh-species-content/db.ts services/supabase/functions/refresh-species-model-content/index.ts services/supabase/functions/refresh-species-model-content/db.ts services/supabase/functions/species-dictionary/index.ts services/supabase/functions/species-dictionary/db.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts services/supabase/functions/species-dictionary-chat/index.ts
+deno test --allow-env --allow-net --allow-read=. --config services/supabase/functions/deno.json services/supabase/functions/_shared/http_test.ts services/supabase/functions/_shared/externalImagePolicy_test.ts services/supabase/functions/_shared/external_test.ts services/supabase/functions/_shared/publicSpeciesProjection_test.ts services/supabase/functions/_shared/speciesContentProvenance_test.ts services/supabase/functions/_shared/fieldChatDailyUsage_test.ts services/supabase/functions/refresh-species-content/db.test.ts services/supabase/functions/refresh-species-model-content/db.test.ts services/supabase/functions/species-dictionary/db.test.ts services/supabase/functions/species-dictionary/handler_test.ts services/supabase/functions/_tests/speciesDictionaryPublicEligibilityMigrationContract.test.ts services/supabase/functions/species-dictionary-chat/handler_test.ts services/supabase/functions/species-dictionary-chat/eligibility_test.ts services/supabase/functions/species-dictionary-chat/prompt_test.ts services/supabase/functions/species-dictionary-chat/promptSuggestions_test.ts services/supabase/functions/species-dictionary-chat/refusal_test.ts services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts
+supabase --workdir services db push --local
+supabase --workdir services test db --local services/supabase/tests/species_dictionary_public_eligibility.sql
 ```
 
 The route-contract file inspects source structure and wrapper registration.
@@ -1018,11 +990,18 @@ xcodebuild -scheme Merian -project Merian.xcodeproj -destination 'id=<booted sim
   -only-testing:merianTests/LocalImageLoaderTests \
   -only-testing:merianTests/SpeciesDataTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogContractTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogPresentationTests \
+  -only-testing:merianTests/SpeciesCatalogPresentationTests \
   -only-testing:merianTests/SpeciesDictionaryCatalogViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryOverviewViewModelTests \
   -only-testing:merianTests/SpeciesDictionaryRegionMapViewModelTests \
-  -only-testing:merianTests/SpeciesDictionaryCatalogArchitectureTests \
+  -only-testing:merianTests/SpeciesCatalogArchitectureTests \
+  -only-testing:merianTests/SpeciesDictionaryPageViewModelTests \
+  -only-testing:merianTests/SpeciesCommunitySightingsViewModelTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailPresentationTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailServiceTests \
+  -only-testing:merianTests/SpeciesDictionaryDetailArchitectureTests \
+  -only-testing:merianTests/SpeciesDictionarySharedPresentationTests \
+  -only-testing:merianTests/SpeciesDictionarySharedArchitectureTests \
   -only-testing:merianTests/SpeciesDictionaryTests \
   -only-testing:merianTests/ExploreShellNavigationPolicyTests
 ```
@@ -1080,9 +1059,9 @@ Manual acceptance:
 - Confirm the public Great Egret web page has no Field Chat change.
 - Reopen the pictured Brown Tabby scan and confirm the European wildcat card
   remains visible and navigable but media `605615444` does not appear in
-  Insight, Explore, the Dictionary catalog/tree, or the Dictionary detail
-  gallery. Confirm the next live image is used when available and the leaf
-  placeholder appears when every candidate is blocked or fails.
+  Insight, Explore, the Dictionary catalog, or the Dictionary detail gallery.
+  Confirm the next live image is used when available and the leaf placeholder
+  appears when every candidate is blocked or fails.
 - Confirm a missing dictionary row shows the not-found/retry state.
 - Share a loaded dictionary page and confirm the payload uses the canonical UUID
   HTTPS URL and common-name subject.

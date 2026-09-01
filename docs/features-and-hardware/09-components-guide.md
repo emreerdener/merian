@@ -419,7 +419,7 @@ rendered in `BiologicalView` at card entrance index 4. Sourced from
 ## Species Dictionary Reference Gallery
 
 **Location**:
-`Features/SpeciesDictionary/Detail/Components/SpeciesDictionaryReferenceGallery.swift`
+`Features/SpeciesDictionary/Detail/Components/Gallery/SpeciesDictionaryReferenceGallery.swift`
 
 Displays public species reference images from `/species-dictionary`.
 
@@ -751,7 +751,8 @@ identification confirmations behind intentional gesture input.
 **Location**:
 `Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift` and
 `Features/FieldChat/Views/InsightChatSheet.swift`, with Dictionary presentation
-in `Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageView.swift`
+in
+`Features/SpeciesDictionary/Detail/Views/SpeciesDictionaryPageContentView.swift`
 
 The floating Field chat button and sheet are shared by eligible Insight scans
 and every visible Explore post detail, including the viewer's own posts. The

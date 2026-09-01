@@ -89,10 +89,9 @@ seen.
   selection before its debounce so superseded refresh/page work cannot publish,
   while Views and Components remain free of direct endpoint or platform-service
   lookup.
-- **Tree/galaxy map** is deferred beyond MVP. Its code, `mode: "tree"` API
-  support, and default-off `.speciesDictionaryTree` feature flag remain intact
-  for future work, but no production or simulator Explore navigation entry
-  exposes it.
+- **Taxonomy** remains reference data shown and searched within Index catalog
+  rows and species detail. There is no separate taxonomy visualization, feature
+  flag, API mode, or Explore route.
 
 ## Navigation
 
@@ -200,9 +199,8 @@ for the surface they are changing:
   deterministic presentation policy; Services alone resolve endpoint, cached
   image, geocoding, and map-snapshot work; and ViewModels fence asynchronous
   browse state by normalized selection and request generation. Explore Shell
-  continues to own Index selection and the shared `NavigationPath`, while
-  `apps/ios/Merian/Features/SpeciesDictionary/Tree/` owns the Tree canvas. See
-  the feature-local
+  continues to own Index selection and the shared `NavigationPath`. See the
+  feature-local
   [`Catalog` README](../../apps/ios/Merian/Features/SpeciesDictionary/Catalog/README.md)
   for its source and test boundaries.
 
@@ -281,6 +279,7 @@ and
 [`04-database-schema.md`](../backend-and-data/04-database-schema.md#internal-community-identify-activity-projection)
 for its grouping, cursor, and authorization contracts.
 
-The preserved Tree data contract and future-release requirements are documented
-in [`16-species-dictionary.md`](16-species-dictionary.md#tree-mode) and the
-[`Species Dictionary long-term TODO`](../rfcs/species-dictionary-long-term-todo.md#scope-12--taxonomy-treegalaxy-visualization).
+The retired taxonomy-visualization boundary is documented in
+[`16-species-dictionary.md`](16-species-dictionary.md#overview-and-catalog-modes)
+and the
+[`Species Dictionary long-term TODO`](../rfcs/species-dictionary-long-term-todo.md#scope-12--retired-taxonomy-visualization).
