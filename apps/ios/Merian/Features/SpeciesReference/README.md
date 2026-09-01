@@ -68,6 +68,13 @@ cleared or replaced. An already-cancelled load cannot claim generation ownership
 or clear valid presentation. Network timing therefore cannot change the
 preferred thumbnail or restore stale content.
 
+This feature service intentionally owns the Wikipedia summary request and GBIF
+scientific-name query needed for fallback UI images. The distinct Wikipedia
+mobile-sections and GBIF taxon-key contract shared by Inference and scan-
+thumbnail recovery lives in
+`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`; do not
+duplicate that session, wire DTO, or HTML-normalization boundary here.
+
 The exact denied media path
 `inaturalist-open-data.s3.amazonaws.com/photos/605615444/` is treated as absent.
 This covers the original and resized variants for GBIF occurrence `5938154750`

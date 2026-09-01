@@ -806,18 +806,25 @@ Wikipedia hydration, enrichment/GBIF hydration). Navigating rapidly between
 scans left all prior tasks running — each decoding JSON, making network calls,
 and writing `@Observable` state for a scan no longer on screen.
 
-`InferenceEngine` now owns a single
-`@ObservationIgnored private var historicHydrationTask: Task<Void, Never>?`. At
-the start of every `load(from:)` call, the previous task is cancelled. All async
-hydration work (image-path validation → JSON blob decode → override patch →
-Wikipedia → enrichment) runs sequentially inside this one task with
-`guard !Task.isCancelled` checks between stages. The JSON blobs are decoded
-inside a nested `Task.detached` to keep `JSONDecoder` off `@MainActor`.
+`InferenceHydrationCoordinator` now owns one replaceable `.historic` task slot.
+At the start of every `load(from:)` call, the engine cancels all hydration
+slots, then registers the new historical operation through the coordinator. All
+async hydration work (JSON blob decode → override patch → Wikipedia →
+enrichment/GBIF) runs inside that operation with `guard !Task.isCancelled`
+checks between stages. The JSON blobs are decoded inside a nested
+`Task.detached` to keep `JSONDecoder` off `@MainActor`.
 
-`historicHydrationTask` is also cancelled at the start of both
-`prepareForNewScan()` and `analyze()` (see below), so a library-scan hydration
-that is still running when the user submits a new capture can never write stale
-image paths, candidates, or species data over the new scan's cleared state.
+When a persisted identification override is active, the displayed override name
+is the single Wikipedia, enrichment-cache, and GBIF identity. The Species
+Dictionary cache-miss branch leaves enrichment to the enclosing `.historic`
+operation, avoiding a duplicate request; the original AI name remains only as
+the reset target.
+
+The coordinator keeps cancelled replacement handles until they actually finish,
+so Auth-transition quiescence also covers cancellation-ignoring tails. New-scan,
+analysis, cancellation, and historical-load boundaries all cancel through the
+same owner. `InferenceEngine` exposes only narrow historic-work status, await,
+and cancel methods; raw task handles do not escape the coordinator.
 
 ### Stale Content-Router State on New Scan (`InferenceEngine.prepareForNewScan()`)
 
@@ -837,15 +844,20 @@ only when a live inference path is confirmed online and immediately before
 setting `activeSheet = .insight`. Offline queued-only submissions must not call
 it; otherwise `isProcessing` can be left true with no live task to clear it. It:
 
-- Cancels durable/result tasks: `inferenceTask`, `liveHydrationTask`,
-  `historicHydrationTask`, `gbifHydrationTask`, and `enrichmentWriteTask`.
+- Cancels `inferenceTask` and every current live, historical, and
+  identification-review hydration slot through `InferenceHydrationCoordinator`.
+  Wikipedia, enrichment, and GBIF requests are structured children of those
+  slots. The coordinator retains cancelled handles until completion for Auth
+  quiescence.
 - Calls `cancelLocalVisualAnalysis()` to cancel `localClassificationTask`,
   `foundationVisualCueTask`, and `phaseRotationTask`, then releases the bounded
   local derivative, Vision candidates, request-dispatch flag, and phrase
   coordinator state. None of this ephemeral work joins the Auth-transition
   quiescence drain or delays the next scan.
-- Nil-s the task handles for `historicHydrationTask`, `gbifHydrationTask`, and
-  `enrichmentWriteTask`.
+- Advances and cancels bounded background-write ownership through
+  `InferenceWriteCoordinator`, without exposing raw write-task handles.
+- Clears the temporary enrichment backoff so a new presentation does not inherit
+  a prior scan's fixed 60-second suppression window.
 - Resets all loading flags (`isEnrichmentLoading`, `isLookalikesLoading`) and
   `scanningPhaseText`.
 - Sets `isProcessing = true` and `speciesData = nil` atomically, so the router
@@ -855,10 +867,10 @@ it; otherwise `isProcessing` can be left true with no live task to clear it. It:
   environmental telemetry fields).
 
 `analyze()` subsequently overwrites the image and telemetry fields with the new
-scan's data once the async Task resolves. `analyze()` also cancels
-`historicHydrationTask` internally so the offline-queue reprocessing path (which
-calls `analyze()` directly without going through `submitStagedCapture(...)`)
-gets the same protection.
+scan's data once the async Task resolves. It also cancels all coordinator-owned
+hydration slots internally, so the offline-queue reprocessing path (which calls
+`analyze()` directly without going through `submitStagedCapture(...)`) gets the
+same protection.
 
 ### Camera Capture Decode Boundary
 
@@ -891,17 +903,17 @@ redundant `await MainActor.run { }` hops inside this method have also been
 removed — `InferenceEngine` is a `@MainActor` class, so all methods resume on
 the main actor after every `await`; the explicit wrappers were a no-op.
 
-### Enrichment Re-firing on Every Open (`InferenceEngine`)
+### Enrichment Re-firing on Every Open (`InferenceHydrationCoordinator`)
 
 For species that permanently lack GBIF data or habitat descriptions, the
 enrichment eligibility condition evaluated `true` on every open, firing an
 `enrich-scan` Edge Function call that returned the same empty result each time.
-`InferenceEngine` now maintains
-`@ObservationIgnored private var enrichmentAttemptedScanIds: Set<String>`. The
-gate is set **before** the call so even empty results prevent re-fires. Live
-inference scans (via `analyze()`) bypass this gate.
+`InferenceHydrationCoordinator` maintains a private bounded set of historical
+scan IDs whose enrichment has already been attempted. The gate is set **before**
+the call so even empty results prevent re-fires. Live inference scans (via
+`analyze()`) bypass this gate.
 
-### Enrichment Rate-Limit Recovery (`InferenceEngine`)
+### Enrichment Rate-Limit Recovery (`InferenceHydrationCoordinator`)
 
 `fetchAndApplyEnrichment` calls the `enrich-scan` Edge Function, which proxies
 to Gemini. When Gemini returns HTTP 429, `InferenceEngine` previously set a
@@ -909,118 +921,112 @@ permanent `isEnrichmentRateLimited: Bool = true` flag for the remainder of the
 app session — a single transient quota spike killed enrichment for all
 subsequent scans until app restart.
 
-`isEnrichmentRateLimited` has been replaced with
-`@ObservationIgnored private var enrichmentRateLimitedUntil: Date?`. On a 429
-response, `enrichmentRateLimitedUntil` is set to
-`Date.now.addingTimeInterval(60)` (60-second backoff; the `Retry-After` response
-header is used when present). The gate condition is:
-
-```swift
-guard enrichmentRateLimitedUntil.map({ $0 <= Date.now }) ?? true else { return }
-```
+`isEnrichmentRateLimited` has been replaced with a private deadline owned by
+`InferenceHydrationCoordinator`. Either enrichment scope records a fixed
+60-second backoff after HTTP 429. This client path does not inspect a
+`Retry-After` header. The coordinator's injected clock makes expiry and reset
+behavior deterministic in tests.
 
 - `nil` → passes (not rate limited)
 - Future date → blocks (backoff still active)
 - Past date → passes (backoff expired, enrichment resumes automatically)
 
-`enrichmentRateLimitedUntil` is cleared to `nil` inside `prepareForNewScan()` so
-a new scan session does not inherit a prior session's backoff window. Both the
-`enrichment` and `lookalikes` scope 429 handlers set the same
-`enrichmentRateLimitedUntil` property.
+The deadline is cleared inside `prepareForNewScan()` so a new scan presentation
+does not inherit the prior scan's backoff window. Both the `enrichment` and
+`lookalikes` scope 429 handlers update this one coordinator-owned policy.
 
-### Session-Scoped Deduplication Set Eviction (`InferenceEngine`)
+### Hydration Deduplication and TTL Ownership (`InferenceHydrationCoordinator`)
 
-`InferenceEngine` maintains three session-scoped `Set<String>` guards to prevent
-redundant network calls across an app session:
+`InferenceHydrationCoordinator` owns three private request-policy stores:
 
-- **`wikiFetchAttemptedIds`** — Wikipedia fetch attempts, keyed by scientific
-  name.
-- **`enrichedSpeciesTimestamps: [String: Double]`** — species that have
-  completed a full `enrich-scan` Edge call, keyed by scientific name, with the
+- **Wikipedia hydration successes** — scientific names whose Wikipedia hydration
+  completed successfully. Failed calls remain retryable.
+- **Enriched-species timestamps** — species that have completed a full
+  `enrich-scan` Edge call, keyed by scientific name, with the
   `timeIntervalSinceReferenceDate` of first enrichment as the value. Persisted
   to `UserDefaults` (key: `"enrichedSpeciesTimestamps"`) with a **24-hour
   rolling expiration window** — `isSpeciesEnriched(name)` returns `true` only
   when the stored timestamp is less than 86 400 seconds old. Loaded once at
-  `InferenceEngine` init from `UserDefaults`; written back lazily only when a
-  new species is first enriched via `markSpeciesEnriched(name)`. Replaces the
-  previous in-memory `Set<String>` that was session-scoped and had a hard
-  500-entry cap — the `UserDefaults` dictionary persists across app restarts,
-  preventing redundant enrichment calls for species the user has already scanned
-  within the past day.
-- **`enrichmentAttemptedScanIds`** — scan IDs for which enrichment was attempted
-  via `load(from:)`. Prevents re-firing on every historical open for species
-  that permanently lack GBIF or habitat data. Remains session-scoped with a
-  500-entry cap and 10% eviction policy.
+  coordinator initialization from `UserDefaults`; written back only after usable
+  metadata lands. Replaces the previous in-memory `Set<String>` that was
+  session-scoped and had a hard 500-entry cap — the `UserDefaults` dictionary
+  persists across app restarts, preventing redundant enrichment calls for
+  species the user has already scanned within the past day.
+- **Historical enrichment attempts** — scan IDs for which enrichment was
+  attempted via `load(from:)`. Prevents re-firing on every historical open for
+  species that permanently lack GBIF or habitat data. Remains session-scoped
+  with a 500-entry cap and 10% eviction policy.
 
-`wikiFetchAttemptedIds` and `enrichmentAttemptedScanIds` share a single
-`private let sessionSetCap = 500` ceiling. When either set reaches the cap,
-**10% of entries** (`prefix(sessionSetCap / 10)`) are evicted, preserving 90% of
-recently-used entries and bounding session RAM to ~50 KB per set.
-`enrichedSpeciesTimestamps` has no hard cap — the 24-hour TTL window naturally
-bounds growth to the number of distinct species a user scans within a day
-(practically < 200 entries for any realistic session).
+The two session histories share `InferenceResourceLimits`' 500-entry ceiling.
+When either reaches the cap, 10% of entries are evicted before insertion. The
+persisted timestamp dictionary has no hard cap. Initialization prunes the whole
+dictionary, a per-species check removes an expired requested entry, and a
+successful mark prunes the whole dictionary again.
 
-### Stale GBIF Write Prevention — Tracked `gbifHydrationTask` (`InferenceEngine`)
+### Stale and Duplicate GBIF Prevention — Structured Hydration Ownership
 
 `fetchAndApplyEnrichment` previously spawned a bare `Task { }` to call
 `fetchGBIFImagesAndHydrate` after resolving a `gbif_taxon_key` from the
 `enrich-scan` response. This task was not attached to any cancellable handle:
-when `cancelActiveRequest()` cancelled `liveHydrationTask` or
-`historicHydrationTask` (e.g. user starts a new scan), the GBIF task kept
-running. It would eventually complete and call
+when `cancelActiveRequest()` cancelled only the parent live or historical task
+(e.g. user starts a new scan), the GBIF task kept running. It would eventually
+complete and call
 `BackgroundDatabaseActor.updateScanWithWikipedia(scanId:..., imageUrl:)` —
 writing image URLs to a record that might now belong to a completely different
 species or, worse, to a record that was deleted between task spawn and
 completion.
 
-`InferenceEngine` now owns
-`@ObservationIgnored private var gbifHydrationTask: Task<Void, Never>?`. The
-property is:
+GBIF hydration now remains a structured child of the operation that resolved or
+loaded the taxon key:
 
-- **Cancelled and nil-ed** at the start of every `analyze()` call (new scan
-  starts) and inside `cancelActiveRequest()` (background rescue or explicit
-  cancel).
-- **Assigned immediately on `@MainActor`** inside `fetchAndApplyEnrichment` —
-  `gbifHydrationTask?.cancel(); gbifHydrationTask = Task { ... }` — so only one
-  GBIF hydration is ever in flight at a time. **Critical**: this assignment must
-  happen synchronously on `@MainActor`, never deferred inside an `await` or
-  another `Task`. If it were nested inside `enrichmentWriteTask` (after the
-  async DB write), a `prepareForNewScan()` call arriving during that write would
-  see `gbifHydrationTask == nil`, issue a no-op cancel, and the deferred
-  assignment would then spawn a running GBIF task that is never cancelled —
-  leaking work for the previous scan into the next scan's result.
-  `enrichmentWriteTask` is kept purely for the DB write
-  (`updateScanWithEnrichment`) and is independent of `gbifHydrationTask`.
+- live result hydration awaits GBIF inside the replaceable `.live` operation;
+- historical hydration awaits it inside `.historic`; and
+- identification override/reset hydration awaits it inside `.review` when the
+  Species Dictionary row has no usable reference URL.
 
-### GBIF Response Decoded Off `@MainActor` (`InferenceEngine`)
+`fetchAndApplyEnrichment` only applies the returned taxon key; it does not spawn
+or register another GBIF request. This prevents the enrichment scope and its
+caller from querying GBIF twice for the same result. Registration of each
+top-level operation happens synchronously on `@MainActor`, before its first
+suspension. A replaced task is cancelled but retained in the coordinator's
+active registry until completion, preventing a cancellation-ignoring request
+from escaping the Auth drain or clearing its replacement's slot.
 
-`fetchGBIFImagesAndHydrate` is a method on `@MainActor InferenceEngine`. After
-`URLSession.shared.data(for:)` suspends and resumes, execution returns to the
-main actor. Previously,
-`JSONDecoder().decode(GBIFMediaResponse.self, from: data)` ran synchronously on
-the main run loop — for common species GBIF occurrence responses this payload is
-50–200 KB. Parsing that on `@MainActor` produces a measurable jank spike
-immediately after the user receives their scan result, especially during
-`ScrollView` interactions at 120 Hz.
+The review path uses `replaceAndAwaitTask(in: .review)`, which awaits the exact
+task it registered even if a newer review replaces the slot. Apply, confirm, and
+reset also reject admission while the Auth fence is closed. Confirmation uses a
+separate per-scan action generation on the same ordered write tail: it remains
+the newest review-state writer without invalidating an unrelated live or
+historical hydration of the same species. Cancellation checks after the Species
+Dictionary request prevent a cancelled lookup from starting the fallback query.
+Reset clears override-owned taxonomy, overview, reference, habitat, GBIF,
+lookalike, and alternate-name values before reloading, so a cache miss cannot
+display the rejected species under the restored AI name. The `.unreviewed`
+SwiftData mutation clears those durable fields atomically before its
+asynchronous replacement. Apply uses the symmetric
+`beginScanIdentificationOverride` mutation to commit the override and cleared
+scientific-name placeholder together before dictionary I/O, eliminating a
+mixed-record crash window. Nil taxonomy clears previous taxonomy only at an
+interactive identity replacement; historical refresh preserves valid
+same-species taxonomy and collections.
 
-The decode now runs inside `Task.detached(priority: .utility)`. Only the
-URL-extraction loop and the final `[String]` result cross back to `@MainActor`
-after the decode completes:
+Enrichment persistence is independently queued through
+`InferenceWriteCoordinator`; there is no separate raw enrichment-write handle.
+
+### GBIF Response Decoded Off `@MainActor`
+
+`@MainActor InferenceEngine.fetchGBIFImagesAndHydrate` delegates the public
+request and wire parsing to the injected `SpeciesReferenceHydrationService`. The
+service owns its dedicated external `URLSession` and private `GBIFMediaResponse`
+DTO, then decodes common 50–200 KB occurrence responses inside
+`Task.detached(priority: .utility)`. Only the final `[String]` crosses back to
+the engine for presentation-identity validation, observable state mutation, URL
+policy, and persistence:
 
 ```swift
-let newUrls = try await Task.detached(priority: .utility) {
-    let decoded = try JSONDecoder().decode(GBIFMediaResponse.self, from: data)
-    var urls: [String] = []
-    for result in decoded.results ?? [] {
-        for mediaItem in result.media ?? [] {
-            if mediaItem.type == "StillImage", let id = mediaItem.identifier {
-                urls.append(id); break
-            }
-        }
-    }
-    return urls
-}.value
-// @MainActor UI patching continues here
+let newUrls = try await speciesReferenceService
+    .fetchGBIFImageURLs(taxonKey: taxonKey)
+// @MainActor identity checks and UI/persistence patching continue here.
 ```
 
 ### `JSONEncoder` Hoist + Consolidated Date Parse in `ingestScans` (`HistoricalDatabaseActor`)
@@ -1105,50 +1111,40 @@ Additionally, after the debounce resolves, the handler checks
 skipped. Critical user-triggered uploads are not affected — they bypass this
 path entirely.
 
-### Background Write Task Cap and Pending Queue (`InferenceEngine`)
+### Background Write Task Cap and Pending Queue (`InferenceWriteCoordinator`)
 
-After a successful identification, `InferenceEngine` can queue background
-`BackgroundDatabaseActor` write tasks for Wikipedia hydration, GBIF image
-hydration, and enrichment persistence. Identification review persistence and
-review-bound metadata use a separate serial latest-action tail. Without a
-ceiling, rapid successive scans or a heavy session opening dozens of historical
-records could accumulate an unbounded number of concurrent actor instances,
-retained closures, and associated `ModelContext` objects, eventually triggering
-JetSam OOM.
+After a successful identification, `InferenceEngine` submits best-effort
+Wikipedia, GBIF, and enrichment persistence closures to the private
+`@MainActor InferenceWriteCoordinator`. Identification review persistence and
+review-bound metadata share its serial newest-action tail. Without a ceiling,
+rapid successive scans or a heavy session opening dozens of historical records
+could retain an unbounded number of actor instances, closures, and associated
+`ModelContext` objects, eventually triggering JetSam OOM.
 
-`InferenceEngine` caps both concurrent in-flight tasks and retained pending
-closures with `backgroundWriteTaskCap = 8` and
-`pendingBackgroundWriteTaskCap = 8`. When all active slots are occupied,
-`executeTrackedBackgroundTask` appends at most eight incoming closures to
-`pendingBackgroundTasks`. Further best-effort metadata writes are dropped until
-capacity returns; the engine never creates an unbounded overflow buffer. When a
-slot frees (inside the `defer` block that removes the completed task from
-`backgroundWriteTasks`), `drainPendingBackgroundTasks()` dequeues the next
-pending closure via `removeFirst()` and dispatches it into a tracked slot. The
-result is a hard maximum of eight active and eight pending write closures per
-engine presentation.
+The coordinator permits at most eight active and eight pending best-effort
+writes. Further submissions are dropped until capacity returns. Completion
+removes the active handle and drains the next same-generation FIFO entry.
+Presentation reset increments the generation, clears pending closures, and
+cancels active work while retaining its handles until completion; this lets an
+Auth transition await even cancellation-ignoring operations before identity
+changes. Mutable task dictionaries, the pending FIFO, per-scan review,
+confirmation, and legacy-flag action histories, and the serial tail are all
+private to the coordinator.
 
-### Wikipedia Decode Offloaded from `@MainActor` (`InferenceEngine`)
+### Wikipedia Decode Offloaded from `@MainActor`
 
-After `URLSession` returns the Wikipedia mobile-sections API response,
-`fetchWikipediaAndHydrate` previously decoded the JSON and ran `stripHTML`
-synchronously on `@MainActor`. For popular species, the mobile-sections payload
-is 50–200 KB. Running `JSONDecoder` and the HTML stripping pass on the main run
-loop produces a measurable jank spike immediately after the user receives their
-scan result — especially visible during 120Hz `ScrollView` interactions.
+`InferenceEngine.fetchWikipediaAndHydrate` delegates request construction,
+transport, private mobile-sections DTOs, and parsing to
+`SpeciesReferenceHydrationService`. Popular responses can be 50–200 KB, so the
+shared service runs `JSONDecoder` and its pure `nonisolated` HTML normalization
+inside `Task.detached(priority: .utility)` rather than on the main run loop.
 
-The JSON decode and `stripHTML` now run inside
-`Task.detached(priority: .utility)`. `stripHTML` is marked `nonisolated` since
-it is a pure string transformation with no actor state dependencies. Only the
-final `(String, String, String?)` tuple crosses back to `@MainActor` once the
-detached task completes.
-
-The detached closure throws `WikiContentNotFound` (a
-`private struct WikiContentNotFound: Error {}` sentinel) when the Wikipedia
-response contains no "Description" section or the stripped text is empty. This
-is distinct from `CancellationError` — a missing description is a parse skip,
-not task cancellation — so the `catch` path can correctly distinguish between
-the two without accidentally swallowing genuine cancellations.
+Only `SpeciesWikipediaReference` crosses back to the engine. Its overview is
+optional so scan-thumbnail recovery can still use a valid article image when a
+Description section is absent; Inference requires a nonempty overview before
+applying any Wikipedia state, preserving its presentation behavior. The engine
+then checks scan, scientific-name, presentation-generation, and review-action
+identity before mutating observable state or scheduling persistence.
 
 ### `AVCaptureSession.inputs` Thread Safety (`CameraManager`)
 
@@ -2622,13 +2618,11 @@ background network requests accumulated per scan burst, with stale
 Wikipedia/enrichment/GBIF results from the previous scan able to overwrite
 `speciesData` state set by the new result.
 
-`InferenceEngine` now owns
-`@ObservationIgnored private var liveHydrationTask: Task<Void, Never>?`. At the
-top of every `analyze()` / `analyzeNonVisual()` call,
-`liveHydrationTask?.cancel()` fires alongside `inferenceTask?.cancel()`. The
-live visual and nonvisual success paths both enter
-`schedulePostInferenceHydrationIfNeeded(...)`, which creates one tracked task
-containing:
+`InferenceHydrationCoordinator` now owns a replaceable `.live` slot. At the top
+of every `analyze()` / `analyzeNonVisual()` call, the engine cancels all current
+hydration slots alongside `inferenceTask`. The live visual and nonvisual success
+paths both enter `schedulePostInferenceHydrationIfNeeded(...)`, which registers
+one tracked operation containing:
 
 - a Wikipedia child task, skipped when the identify response already included
   `wikipediaOverview`
@@ -2643,8 +2637,10 @@ imagery; describe/audio success paths keep that loading state quiet. Core result
 presentation does not wait for hydration. `commitSuccessfulResult(...)`
 owner-checks the active scan, publishes persisted media, response-provided
 references, and `SpeciesData`, then clears `isProcessing` last in the same
-main-actor turn. The tracked hydration task continues progressively in the
-background and is cancelled if the user starts another scan.
+main-actor turn. The tracked hydration operation continues progressively in the
+background and is cancelled if the user starts another scan. If an operation
+ignores cancellation while suspended, the coordinator retains its handle until
+completion so Auth transitions can still await it.
 
 ### Singleton Lifecycle Consistency in Child Tasks (`OfflineQueueManager+Sync`)
 
@@ -2726,9 +2722,9 @@ TEXT[] stubs to rich join-table lookalike entries for those scans.
 - **Live scans**: `SpeciesData.init(fromEdgeResponse:)` always initializes
   `similarSpecies = nil`, so the gate would never fire for a newly-captured scan
   anyway.
-- **Historical scans**: `enrichmentAttemptedScanIds` (scan-ID-scoped) and
-  `enrichedSpeciesTimestamps` (species-name-scoped, 24-hour UserDefaults window)
-  already guard re-fires within and across sessions.
+- **Historical scans**: the coordinator's scan-ID-scoped attempt history and
+  species-name-scoped, 24-hour `UserDefaults` timestamp cache already guard
+  re-fires within and across sessions.
 - **Cross-session deduplication**: The persistent backstop is the enrichment
   data itself. `load(from:)` computes a local `needsEnrichment` variable —
   `record.habitatDescription == nil || record.gbifTaxonKey == nil || (record.lookalikesData == nil && (record.similarSpecies?.isEmpty ?? true))`
@@ -2744,7 +2740,7 @@ data that must still flow through `enrich-scan`.
 
 ### Wikipedia Skip via `species_dictionary` Join (`InferenceEngine`)
 
-The live-inference path's `liveHydrationTask` previously always called
+The live-inference hydration operation previously always called
 `fetchWikipediaAndHydrate` for every successful scan, even if the `identify`
 Edge response already included `wikipedia_overview` from the
 `species_dictionary` embedded join.
@@ -2810,18 +2806,16 @@ calls (which write species-level fields shared across all scans) are skipped
 when already present. For users scanning the same species repeatedly in a field
 session, this eliminates all but the first enrichment calls per species.
 
-**Rule:** `enrichmentAttemptedScanIds` is scan-ID-scoped (guards re-fires on
-historic scan opens) and is session-scoped (resets on launch).
-`enrichedSpeciesTimestamps` is species-name-scoped (guards redundant Edge calls
-during live-inference bursts) and is **cross-session-persistent** via
-`UserDefaults` with a 24-hour TTL — a species enriched yesterday will not
-re-enrich today. The persistent cross-session backstop is the enrichment data
-itself: `load(from:)` computes `needsMetadata` and `needsLookalikes` from stored
-field presence — no separate `needsEnrichment: Bool` column exists on
-`LocalScanRecord`. Do not add an explicit boolean flag; the stored field
-presence is the correct signal. Do not gate on `similarSpecies` field presence
-alone; see the "Persistent Field Gate — REMOVED" section for the regression that
-approach introduced.
+**Rule:** The historical-attempt history is scan-ID-scoped and session-scoped;
+the enriched-species timestamp cache is species-name-scoped and
+**cross-session-persistent** via `UserDefaults` with a 24-hour TTL. Both belong
+to `InferenceHydrationCoordinator`, not the engine. The persistent cross-session
+backstop is the enrichment data itself: `load(from:)` computes `needsMetadata`
+and `needsLookalikes` from stored field presence — no separate
+`needsEnrichment: Bool` column exists on `LocalScanRecord`. Do not add an
+explicit boolean flag; the stored field presence is the correct signal. Do not
+gate on `similarSpecies` field presence alone; see the "Persistent Field Gate —
+REMOVED" section for the regression that approach introduced.
 
 ## 2026-05 Regression Test Anchors
 
@@ -2904,10 +2898,10 @@ This ensures:
   `default.store` + WAL/SHM siblings only after verified corruption signatures,
   writes a sanitized manifest, and fails closed on non-corruption startup
   errors.
-- `InferenceEngine` now guards background-write replay with a generation token.
-  `prepareForNewScan()` and `cancelActiveRequest()` both clear pending closures
-  and invalidate stale write tasks so cancelled work cannot mutate the next scan
-  session.
+- `InferenceWriteCoordinator` guards background-write replay with a generation
+  token. `InferenceEngine.prepareForNewScan()` and `cancelActiveRequest()` both
+  forward reset events that clear pending closures and invalidate stale write
+  tasks so cancelled work cannot mutate the next scan session.
 
 - `AudioCaptureManager` and `SpeechManager` now guarantee full teardown on
   startup cancellation and early failures: tap removal, engine stop, task

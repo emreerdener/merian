@@ -3001,6 +3001,26 @@ actor BackgroundDatabaseActor {
 
     // MARK: - Identification Override Persistence
 
+    /// Atomically admits a new local override before asynchronous dictionary
+    /// hydration. A crash can therefore leave either the prior AI identity or
+    /// a complete override placeholder, never fields from both species.
+    func beginScanIdentificationOverride(
+        scanId: String,
+        scientificName: String
+    ) {
+        mutateScan(id: scanId) { record in
+            record.userIdentificationOverride = scientificName
+            record.userConfirmedIdentification = false
+            record.confirmedSpeciesId = nil
+            record.userReviewState = .userOverridden
+            record.isFlagged = false
+            replaceIdentificationPresentation(
+                on: record,
+                commonName: scientificName
+            )
+        }
+    }
+
     /// Persists the user's identification review action to the local SwiftData store.
     /// - Parameters:
     ///   - scanId: The scan record to update.
@@ -3018,7 +3038,36 @@ actor BackgroundDatabaseActor {
             record.userConfirmedIdentification = confirmed
             record.confirmedSpeciesId = newConfirmedSpeciesId
             record.userReviewState = userReviewState
+
+            guard userReviewState == .unreviewed else { return }
+            replaceIdentificationPresentation(
+                on: record,
+                commonName: record.scientificName
+            )
         }
+    }
+
+    private func replaceIdentificationPresentation(
+        on record: LocalScanRecord,
+        commonName: String
+    ) {
+        record.commonName = commonName
+        record.hazardType = "none"
+        record.wikipediaOverview = nil
+        record.wikipediaUrl = nil
+        record.referenceImageUrl = nil
+        record.iucnRedListStatus = nil
+        record.habitatDescription = nil
+        record.gbifTaxonKey = nil
+        record.taxonomyKingdom = nil
+        record.taxonomyPhylum = nil
+        record.taxonomyClass = nil
+        record.taxonomyOrder = nil
+        record.taxonomyFamily = nil
+        record.taxonomyGenus = nil
+        record.similarSpecies = nil
+        record.lookalikesData = nil
+        record.alternativeCommonNames = nil
     }
 
     /// Persists the species-dictionary data fetched for an identification override or reset,
@@ -3027,6 +3076,8 @@ actor BackgroundDatabaseActor {
     /// `scientificName` is deliberately excluded — that column is preserved as the authoritative
     /// original-AI identifier and is reused as `aiScientificName` on `load(from:)`. This allows
     /// `resetIdentificationReview` to recover the original name without a separate schema field.
+    /// `replacingSpeciesIdentity` must be true only for an interactive override/reset; a
+    /// historical refresh of the already-active override preserves valid sparse-row fallbacks.
     func updateScanWithOverrideSpeciesData(
         scanId: String,
         commonName: String,
@@ -3037,7 +3088,8 @@ actor BackgroundDatabaseActor {
         iucnRedListStatus: String?,
         habitatDescription: String?,
         gbifTaxonKey: Int?,
-        taxonomy: TaxonomyData?
+        taxonomy: TaxonomyData?,
+        replacingSpeciesIdentity: Bool
     ) {
         mutateScan(id: scanId) { record in
             record.commonName = commonName
@@ -3050,13 +3102,25 @@ actor BackgroundDatabaseActor {
             record.iucnRedListStatus = iucnRedListStatus
             record.habitatDescription = habitatDescription
             record.gbifTaxonKey = gbifTaxonKey
-            if let tax = taxonomy {
-                record.taxonomyKingdom = tax.kingdom
-                record.taxonomyPhylum = tax.phylum
-                record.taxonomyClass = tax.className
-                record.taxonomyOrder = tax.order
-                record.taxonomyFamily = tax.family
-                record.taxonomyGenus = tax.genus
+            if let taxonomy {
+                record.taxonomyKingdom = taxonomy.kingdom
+                record.taxonomyPhylum = taxonomy.phylum
+                record.taxonomyClass = taxonomy.className
+                record.taxonomyOrder = taxonomy.order
+                record.taxonomyFamily = taxonomy.family
+                record.taxonomyGenus = taxonomy.genus
+            } else if replacingSpeciesIdentity {
+                record.taxonomyKingdom = nil
+                record.taxonomyPhylum = nil
+                record.taxonomyClass = nil
+                record.taxonomyOrder = nil
+                record.taxonomyFamily = nil
+                record.taxonomyGenus = nil
+            }
+            if replacingSpeciesIdentity {
+                record.similarSpecies = nil
+                record.lookalikesData = nil
+                record.alternativeCommonNames = nil
             }
         }
     }

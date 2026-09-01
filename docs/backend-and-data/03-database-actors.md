@@ -170,11 +170,18 @@ _Offline scan processing:_
 
 _Enrichment and metadata:_
 
+- `beginScanIdentificationOverride(scanId:scientificName:)` — atomically
+  persists the local override state, clears confirmation/legacy flag state, and
+  replaces prior-species presentation fields with a scientific-name placeholder
+  before asynchronous Species Dictionary hydration.
 - `updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)`
   — atomic persistence for user review states. Saves the explicit user
   Identification Override locally, captures truth signals, and synchronously
   persists the verified Edge taxonomy target directly into `confirmedSpeciesId`
-  bridging the `userReviewState` explicitly.
+  bridging the `userReviewState` explicitly. An `.unreviewed` mutation also
+  atomically replaces common-name, hazard, taxonomy, Wikipedia, reference,
+  conservation, habitat, GBIF, lookalike, and alternate-name values with the
+  original scientific-name placeholder.
 - `updateScanWithWikipedia(scanId:extract:url:imageUrl:)` — retroactively
   hydrates a scan with Wikipedia or GBIF data. By accepting optional `String?`
   parameters, this method permits selective patching (e.g., updating only
@@ -182,12 +189,14 @@ _Enrichment and metadata:_
   `wikipediaOverview`). Save failure rolls back the actor context, matching the
   shared `mutateScan(...)` containment used by enrichment and override
   point-updates.
-- `updateScanWithOverrideSpeciesData(scanId:commonName:hazardType:wikipediaOverview:wikipediaUrl:referenceImageUrl:iucnRedListStatus:habitatDescription:gbifTaxonKey:taxonomy:)`
+- `updateScanWithOverrideSpeciesData(scanId:commonName:hazardType:wikipediaOverview:wikipediaUrl:referenceImageUrl:iucnRedListStatus:habitatDescription:gbifTaxonKey:taxonomy:replacingSpeciesIdentity:)`
   — persists species-dictionary data fetched for an identification override or
   reset so the corrected fields survive sheet dismissal and reopen.
   Intentionally excludes `scientificName` — that column is preserved as the
   original-AI identifier and is reused as `aiScientificName` in
-  `InferenceEngine.load(from:)`.
+  `InferenceEngine.load(from:)`. Interactive replacement passes `true` to clear
+  prior taxonomy/lookalikes; historical refresh passes `false` so a sparse row
+  preserves valid same-species values.
 - `updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:alternativeCommonNames:)`
   — retroactively persists enrichment data returned by the `enrich-scan` Edge
   Function. Called by `InferenceEngine.fetchAndApplyEnrichment` after the async

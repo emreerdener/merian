@@ -9,13 +9,14 @@ billing-enabled project, with no unpaid-key fallback.
 
 ## Inference Layer Structure
 
-The AI inference layer is split across three files under
-`apps/ios/Merian/Core/AI/`:
+The iOS inference layer is split across focused owners under
+`apps/ios/Merian/Core/AI/`, shared `Core/SpeciesReference` infrastructure, and
+its capture integration:
 
 - **`InferenceEngine.swift`**: The main engine. Coordinates upload confirmation,
   triggers the Edge function, and delivers results to
   `CaptureWorkspaceViewModel`. Key `@ObservationIgnored` properties that track
-  in-flight state: `inferenceTask: Task<Void, Never>?` (the live `analyze`
+  in-flight state: `inferenceTask: Task<Void, Error>?` (the live `analyze`
   task), `activeScanId: String?` (set to the `scanId` at the start of
   `analyze(scanId:...)`), `activeLiveInferenceAttemptGeneration: UUID?` (the
   presentation owner), and `activeForegroundInferenceGeneration: UUID?` (the
@@ -58,25 +59,39 @@ The AI inference layer is split across three files under
   `self.speciesData?.scanId == capturedScanId` before mutating state. Without
   this guard, a slow enrichment Task started for scan A that completes after the
   user has already moved to scan B would overwrite scan B's `speciesData` with
-  scan A's habitat description and lookalikes. **Tracked background write
-  tasks** (`executeTrackedBackgroundTask`): Best-effort Wikipedia, GBIF, and
-  enrichment DB writes that are not tied to an identification review action are
-  dispatched via `executeTrackedBackgroundTask { }`. This method assigns each
-  task a `UUID` key in `backgroundWriteTasks: [UUID: Task<Void, Never>]` and
-  removes it on completion via `defer { removeValue(forKey: id) }`. Review-bound
-  metadata plus confirm, override, flag, unflag, and reset persistence instead
-  use the serial `identificationReviewWriteTail`, preserving newest-action
-  final-writer order. A `backgroundWriteTaskCap = 8` and
-  `pendingBackgroundWriteTaskCap = 8` guards prevent unbounded accumulation. If
-  all active slots are occupied, at most eight best-effort metadata writes wait
-  in `pendingBackgroundTasks`; further submissions are dropped until capacity
-  returns. When any tracked task completes, `drainPendingBackgroundTasks()`
-  (called on `@MainActor`) dequeues and starts the next pending write. This
-  bounds retained closures as well as live `BackgroundDatabaseActor` /
-  `ModelContext` instances. The entire dictionary and pending FIFO are cancelled
-  and cleared in both `cancelActiveRequest()` and `prepareForNewScan()`,
-  ensuring that a write task from a previous scan's review action cannot commit
-  stale data after the next scan has started.
+  scan A's habitat description and lookalikes. The engine decides whether a
+  write still matches the visible scan; it delegates task storage and ordering
+  to `InferenceWriteCoordinator`.
+- **`Inference/Hydration/InferenceHydrationCoordinator.swift`**: The private
+  `@MainActor` owner for replaceable live, historical, and identification-review
+  task slots; cancellation-ignoring task retention; Auth-transition admission
+  and quiescence; bounded Wikipedia-success and historical-attempt histories;
+  the persisted 24-hour enriched-species cache; and the temporary enrichment
+  backoff. GBIF work is a structured child of the slot that resolved or loaded
+  its taxon key. The engine supplies operations and decides presentation
+  identity, observable mutation, and persistence. Raw hydration handles do not
+  escape the coordinator.
+- **`Inference/State/InferenceWriteCoordinator.swift`**: The private
+  `@MainActor` owner for presentation generations, the Auth-transition write
+  fence, and all best-effort/review write handles. It permits at most eight
+  active and eight pending best-effort writes, drops overflow, clears pending
+  work on presentation reset, and retains active handles until
+  cancellation-ignoring work terminates. Confirm, override, flag, unflag, reset,
+  and review-bound metadata writes share an ordered tail. Species-changing
+  review work, same-species confirmation, and legacy flagging have independent
+  per-scan action generations, each bounded to 500 entries. Confirmation
+  therefore stays the newest review-state writer without invalidating live or
+  historical hydration for the same species. The engine supplies operations and
+  lifecycle events but cannot mutate these registries.
+- **`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`**:
+  The initializer-injected Wikipedia mobile-sections and GBIF taxon-key
+  transport/parsing boundary shared with scan-thumbnail recovery. Its live value
+  owns a cookie-free, cache-free public `URLSession`; private wire DTOs, HTML
+  normalization, and GBIF image selection stay inside the service and run off
+  the main actor. It returns Sendable values only. `InferenceEngine` remains
+  responsible for requiring a Wikipedia overview, scan-generation checks,
+  observable `SpeciesData` and media mutations, URL policy, and SwiftData
+  persistence.
 - **`CaptureTelemetry` abstraction
   (`Capture/Submission/Services/CaptureSubmissionTelemetry.swift`)**: Telemetry
   context creation is strictly abstracted away from UI controllers. Instead of
@@ -360,11 +375,10 @@ After a successful biological scan, `InferenceEngine` automatically fires
    result in `nil` — the field is never written with corrupt data. Persists all
    fields to `LocalScanRecord` via
    `BackgroundDatabaseActor.updateScanWithEnrichment(scanId:habitatDescription:gbifTaxonKey:similarSpeciesJsonData:taxonomy:)`
-   on a background `Task` whose handle is stored in `enrichmentWriteTask`
-   (`@ObservationIgnored private var enrichmentWriteTask: Task<Void, Never>?`).
-   The handle is cancelled in `prepareForNewScan()`, `analyze()` (reset block),
-   and `cancelActiveRequest()`, preventing a stale enrichment write from landing
-   on the wrong `LocalScanRecord` when the user rapidly navigates between scans.
+   through `InferenceWriteCoordinator`'s bounded background-write queue. A
+   presentation reset advances the write generation, drops queued operations,
+   and cancels active work, preventing a stale enrichment write from landing on
+   the wrong `LocalScanRecord` when the user rapidly navigates between scans.
    The blob lands in `LocalScanRecord.lookalikesData` (`MerianSchemaV27`). The
    backend now only persists this blob for validated lookalikes; raw Flash names
    are never cached locally.
@@ -385,19 +399,19 @@ not yet usable for validated lookalikes. Metadata scope remains
 species-cache-aware, but the lookalikes scope still fires whenever the record
 lacks rich local lookalike data. The `lookalikesData` blob is decoded once on
 `@MainActor` for the gate check and the resulting `SimilarSpecies` value is
-passed directly into the `historicHydrationTask` — no second `JSONDecoder` pass
-on the same data.
+captured by the coordinator-owned `.historic` operation — no second
+`JSONDecoder` pass on the same data.
 
-Additionally, `load(from:)` now records `recordScientificName` in
-`enrichedSpeciesTimestamps` after a successful enrichment call, matching the
-behaviour of the live inference path. This prevents a redundant `enrich-scan`
-Edge call when the user opens two different scan records of the same species
-within 24 hours. **Conditional insert guard**: the timestamp is only written
-when `speciesData?.habitatDescription != nil` — a transient enrichment failure
-that returns without populating `habitatDescription` does not add the species to
-`enrichedSpeciesTimestamps`, ensuring the 24h TTL deduplication dictionary does
-not permanently block future enrichment retries for species whose prior call
-failed transiently.
+Additionally, `load(from:)` asks `InferenceHydrationCoordinator` to record the
+displayed hydration scientific name—the active override when present, otherwise
+the original AI name—in its persisted enriched-species timestamp cache after a
+successful enrichment call, matching the live inference path. Wikipedia,
+enrichment, and GBIF use that same target so an override cannot receive the
+original species' metadata or media. This prevents a redundant `enrich-scan`
+Edge call when the user opens two different scan records of the same displayed
+species within 24 hours. **Conditional insert guard**: the timestamp is only
+written when `speciesData?.habitatDescription != nil` — a transient failure that
+returns without populating `habitatDescription` remains retryable.
 
 **Historical record load path** (`load(from:)`): When opening a scan from the
 library, `InferenceEngine.load(from:)` reconstructs `speciesData.similarSpecies`
@@ -883,27 +897,38 @@ provider dispatch:
       `similarSpecies`, etc.) and sets `userIdentificationOverride` and
       `scientificName` to the chosen species name in a **single full-value
       replacement** (`speciesData = updated`) to guarantee `@Observable` fires
-      exactly once for the entire wipe. **Resolves the confirmed UUID
-      asynchronously via `fetchAndPatchOverrideData` first**, then persists to
+      exactly once for the entire wipe. It first enqueues and awaits
+      `BackgroundDatabaseActor.beginScanIdentificationOverride`, which
+      atomically persists the override state and cleared scientific-name
+      placeholder before network suspension. It then resolves the confirmed UUID
+      asynchronously via `fetchAndPatchOverrideData` and updates
       `LocalScanRecord` via
       `BackgroundDatabaseActor.updateScanWithOverride(scanId:override:confirmed:newConfirmedSpeciesId:userReviewState:)`
       (passing `.userOverridden`), and syncs to `public.scans` via
       `syncIdentificationReviewToCloud`.
     - `confirmAIIdentification(expectedScanId:modelContext:)`: Sets
-      `speciesData.userConfirmedIdentification = true`. Securely fetches the
-      immutable native UUID from SwiftData via a localized `FetchDescriptor`,
-      avoiding corrupted view states. Persists to `LocalScanRecord` via
-      `updateScanWithOverride` (passing `.aiConfirmed`), and syncs all three
-      review variables to `public.scans` via `syncIdentificationReviewToCloud`.
+      `speciesData.userConfirmedIdentification = true` through a full-value
+      observable replacement. It advances the independent confirmation action
+      generation, leaving same-species live/historical hydration valid, and
+      rejects a stale confirmation action after an override presentation has
+      already become current. It then securely fetches the immutable native UUID
+      from SwiftData via a localized `FetchDescriptor`, avoiding corrupted view
+      states. Persists to `LocalScanRecord` via `updateScanWithOverride`
+      (passing `.aiConfirmed`), and syncs all three review variables to
+      `public.scans` via `syncIdentificationReviewToCloud`.
     - `resetIdentificationReview(expectedScanId:modelContext:)`: Clears
       `userIdentificationOverride`, `userConfirmedIdentification`, the legacy
       `isFlagged` bit, and `alternativesExhausted`, reverts
-      `speciesData.scientificName` to `aiScientificName`, persists locally
-      (passing `.unreviewed`), zeros the review columns via
-      `syncIdentificationReviewToCloud`, and re-hydrates the AI's original
-      species data via `fetchAndPatchOverrideData`. Called by Undo, Change, and
-      the alternatives-exhausted reset path.
-    - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:)`:
+      `speciesData.scientificName` to `aiScientificName`, and clears
+      override-owned presentation metadata before any suspension. It enqueues
+      the local `.unreviewed` mutation and cloud reset on the ordered
+      identification tail. The local mutation atomically clears the same stale
+      common-name, hazard, taxonomy, Wikipedia, reference, conservation,
+      habitat, GBIF, lookalike, and alternate-name fields; every later hydrated
+      metadata write is serialized behind it. The Species Dictionary request may
+      execute while that reset drains, but cannot persist its patch ahead of the
+      reset. Called by Undo, Change, and the alternatives-exhausted reset path.
+    - `fetchAndPatchOverrideData(scientificName:scanId:modelContext:restoringAiReasoning:enrichOnCacheMiss:replacingSpeciesIdentity:reviewActionGeneration:)`:
       Queries `species_dictionary` via a PostgREST array select with `.limit(1)`
       and takes `.first` (the Supabase Swift SDK does not provide a
       `.maybeSingle()` method). On cache hit, collects all field updates —
@@ -918,22 +943,30 @@ provider dispatch:
       `docs/development-guides/11-swiftdata-and-api-gotchas.md`). Also persists
       the same fields to `LocalScanRecord` via
       `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` so the data
-      survives sheet dismissal and reopen without requiring a network call.
-      `scientificName` is intentionally excluded from this write —
-      `record.scientificName` is preserved as the original-AI identifier and
-      reused as `aiScientificName`. `commonName` is resolved with locale
-      preference matching `ScanRepository.ingestScans`:
+      survives sheet dismissal and reopen without requiring a network call. For
+      interactive override/reset, nil taxonomy plus prior
+      lookalike/alternate-name values are destructive replacement inputs, not
+      “leave unchanged” signals; this prevents one durable record from combining
+      two species. Historical refresh passes `replacingSpeciesIdentity: false`,
+      so a sparse row cannot erase valid same-species taxonomy or lookalikes
+      already stored on the record. `scientificName` is intentionally excluded
+      from this write — `record.scientificName` is preserved as the original-AI
+      identifier and reused as `aiScientificName`. `commonName` is resolved with
+      locale preference matching `ScanRepository.ingestScans`:
       `names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? scientificName`.
       The `restoringAiReasoning` parameter controls the `aiReasoning` field in
       `InsightData`: pass `nil` (default) when calling from
       `applyIdentificationOverride` to wipe the AI reasoning (it was written for
       the rejected species); pass `record.aiReasoning` when calling from
       `resetIdentificationReview` so the original reasoning reappears after
-      undo. On cache miss, persists the scientific name as a `commonName`
-      placeholder (minimum viable reopen state) and calls
-      `fetchAndApplyEnrichment` (which uses the already-mutated
-      `speciesData.scientificName` as the lookup key to enrich the override
-      species).
+      undo. For interactive apply, the atomic local admission has already
+      persisted the scientific-name `commonName` placeholder. Reset has already
+      enqueued its atomic `.unreviewed` placeholder ahead of every later
+      metadata write on the same tail. On cache miss, either interactive path
+      calls `fetchAndApplyEnrichment` using the already-mutated
+      `speciesData.scientificName`; historical refresh passes
+      `enrichOnCacheMiss: false` and leaves the single enrichment/GBIF sequence
+      to its enclosing `.historic` operation.
     - `syncIdentificationReviewToCloud(scanId:override:confirmed:confirmedSpeciesId:userReviewState:)`:
       Private IDOR-guarded PATCH that sends `user_identification_override`,
       `user_confirmed_identification`, `confirmed_species_id`, and
@@ -951,9 +984,9 @@ provider dispatch:
     written for the original species and is misleading under the override name.
     `record.scientificName` is always used as `aiScientificName` — it is never
     overwritten — so `resetIdentificationReview` can recover the original name
-    across any number of reopens. `historicHydrationTask` Step 3 still fires
-    `fetchAndPatchOverrideData` asynchronously as a freshness refresh
-    (re-patching the same species data from the network), but display
+    across any number of reopens. The coordinator-owned historical operation's
+    Step 3 still fires `fetchAndPatchOverrideData` asynchronously as a freshness
+    refresh (re-patching the same species data from the network), but display
     correctness no longer depends on this call completing.
 - **Telemetry Pruning**: Legacy ephemeral fields (`cameraPitchDegrees`,
   `compassHeading`, `relativeHumidity`, `uvIndex`, `isFlashFired`) have been

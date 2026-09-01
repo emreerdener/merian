@@ -702,6 +702,15 @@ tile flips from placeholder to image without requiring a full sheet reopen.
 `Core/Data/Images`, so the Core recovery pipeline no longer depends on a
 feature-owned SwiftUI file.
 
+Wikipedia mobile-sections and GBIF taxon-key transport, private wire DTOs, and
+HTML normalization live once in
+`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`.
+`ScanThumbnailBackfillActor` injects that Sendable service and retains its own
+batching, miss cooldown, dictionary-cache lookup, URL admission, persistence,
+and prefetch policy. Inference consumes the same transport but requires an
+overview before applying Wikipedia state; thumbnail recovery may use a valid
+article image when the Description section is absent.
+
 The owner-only Scan Map opts into the same pipeline only when a rendered map
 thumbnail has no usable captured bitmap and no saved reference URL. Its shared
 map store deduplicates scan IDs, revalidates each current record in a private

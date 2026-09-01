@@ -1150,6 +1150,37 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     to Flash for safety.
   - **Legacy moderation state**: Asserts `isFlagged` restores from
     `LocalScanRecord` on cold boot (`testLoadFromRecordPopulatesIsFlagged`).
+- **`Core/AI/Inference/InferenceWriteCoordinatorTests.swift`**: Executes the
+  extracted bounded-write owner directly. It covers the eight-active/eight-
+  pending ceiling, overflow rejection, presentation-reset cancellation,
+  cancellation-ignoring Auth quiescence, ordered review writes, stale-action
+  rejection, confirmation/review generation independence, and bounded per-scan
+  action history. `BackgroundDatabaseActorTests` separately locks atomic local
+  override admission, destructive reset/identity replacement, and
+  non-destructive historical override refresh.
+- **`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift`**: Executes the
+  hydration lifecycle and request-policy owner with injected clocks and storage.
+  It covers replacement-task retention, exact-task awaiting when a review is
+  replaced, cancellation-ignoring Auth drain, closed-fence admission, stale
+  completion isolation, bounded Wikipedia and historical-attempt histories,
+  persisted TTL pruning, and enrichment-backoff expiry/reset.
+  `InferenceEngineTests` separately locks the `prepareForNewScan()` reset,
+  Auth-fenced review mutation, stale confirmation rejection after an override,
+  and rejected-override field-clearing integrations. The architecture suite
+  rejects a detached/duplicate GBIF owner and verifies that historical override
+  hydration uses the displayed species.
+- **`Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift`**:
+  Injects a deterministic data loader and locks Wikipedia/GBIF URLs, timeouts,
+  User-Agent policy, HTML/entity normalization, missing-description media
+  compatibility, first-still-image selection, and non-200 empty behavior without
+  resolving live networking. Its architecture suite ensures Inference and scan-
+  thumbnail recovery reuse this shared transport/parser instead of duplicating
+  wire DTOs or sessions.
+- **`Core/AI/Inference/InferenceArchitectureTests.swift`**: Prevents mutable
+  write/hydration registries or shared reference wire state from drifting back
+  into `InferenceEngine`, requires private coordinator state, and keeps both
+  extracted state owners below 600 lines. The Species Reference architecture
+  suite applies the same ceiling to the shared transport owner.
 - **`SpeciesDictionaryTests.swift`**: Validates the public dictionary response
   decoder, additive `content_quality`, strict `schema_version = 1`, canonical
   UUID/name request normalization, dual-identity local recovery,
@@ -1234,8 +1265,11 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   five states (`.pending`, `.uploading`, `.staged`, `.inferencing`, `.failed`)
   and asserts `fetchPendingScans` returns only the `.pending` record — directly
   validating the V33 `scanStateRaw == 0` predicate that prevents re-dispatching
-  in-flight or tombstoned scans. Also covers `updateScanWithOverride` and the
-  legacy-state cleanup path in `updateScanAsUnflagged`.
+  in-flight or tombstoned scans. Identification-review persistence coverage
+  verifies `.unreviewed` atomically clears override-owned species fields and a
+  nil override-species placeholder clears prior taxonomy, lookalikes, and
+  alternate names. The suite also covers the legacy-state cleanup path in
+  `updateScanAsUnflagged`.
 - **`FileIOActorTests.swift`**: Covers the audio persistence resolver across the
   current supported path shapes: bare Documents filename, bare temp filename,
   and absolute temp path. This is the regression suite for "audio disappears
@@ -5130,22 +5164,23 @@ The identity test matrix now has two explicit lanes:
   queue/result write is finished. Failed inference dispatch must durably return
   `.inferencing` work to pending before cancellation or return. The same suite
   must prove stale species metadata cannot overwrite a replacement
-  identification. `InferenceEngineTests.swift` must use a cancellation-ignoring
-  active write to prove an Auth transition remains blocked until that task
-  terminates and rejects newly submitted writes while the fence is closed. UI
-  tests require the competing buttons to disable and forbid both “Ghost” and
-  “guest session” presentation. `BackgroundDatabaseActorTests.swift` proves
-  collection sync neither invokes Edge when an Auth transition owns the session
-  nor removes a tombstone when a transition begins during an in-flight request.
-  RevenueCat tests admit only `verified` or `verifiedOnDevice` CustomerInfo and
-  prove stable mode rejects promotional and missing/unknown store provenance for
-  the annual alias while the explicitly approved legacy/account lane may admit
-  its account grant. Shared authenticated-request tests also prove every
-  recursive retry remains pinned to the initiating account and cannot adopt a
-  replacement session. SDK/provider log bodies are discarded. Physical-device
-  evidence remains mandatory for double taps, delayed provider sheets,
-  kill/relaunch at each persistence boundary, first-unlock Keychain failure, 401
-  recovery, deletion, and account switch.
+  identification. `InferenceEngineTests.swift` retains the engine-level Auth
+  integration proof, while `InferenceWriteCoordinatorTests.swift` directly uses
+  a cancellation-ignoring active write to prove the fence remains blocked until
+  that task terminates and rejects newly submitted writes while closed. UI tests
+  require the competing buttons to disable and forbid both “Ghost” and “guest
+  session” presentation. `BackgroundDatabaseActorTests.swift` proves collection
+  sync neither invokes Edge when an Auth transition owns the session nor removes
+  a tombstone when a transition begins during an in-flight request. RevenueCat
+  tests admit only `verified` or `verifiedOnDevice` CustomerInfo and prove
+  stable mode rejects promotional and missing/unknown store provenance for the
+  annual alias while the explicitly approved legacy/account lane may admit its
+  account grant. Shared authenticated-request tests also prove every recursive
+  retry remains pinned to the initiating account and cannot adopt a replacement
+  session. SDK/provider log bodies are discarded. Physical-device evidence
+  remains mandatory for double taps, delayed provider sheets, kill/relaunch at
+  each persistence boundary, first-unlock Keychain failure, 401 recovery,
+  deletion, and account switch.
 
 - **Legacy compatibility**: iOS seams prove prepare and verified Keychain
   persistence precede local sign-out, then bind → uppercase UUID RevenueCat link

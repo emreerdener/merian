@@ -1292,14 +1292,13 @@ While this request is in flight:
   persisted to `LocalScanRecord`
 
 **24h enrichment deduplication** (`enrichedSpeciesTimestamps`): After
-`fetchAndApplyEnrichment` completes, `InferenceEngine` records the scientific
-name with a timestamp in `enrichedSpeciesTimestamps` (a `[String: Double]`
-UserDefaults-persisted dictionary with a 24h TTL) to prevent redundant
-`enrich-scan` Edge calls for the same species within 24 hours. This write is
-**conditional on `speciesData?.habitatDescription != nil`** — if enrichment
-fails transiently and `habitatDescription` is not populated, no timestamp is
-recorded. This ensures a failed enrichment attempt does not block future
-enrichment retries for species whose prior call failed transiently.
+`fetchAndApplyEnrichment` completes, `InferenceEngine` asks
+`InferenceHydrationCoordinator` to record the scientific name in its
+`UserDefaults`-persisted timestamp dictionary. The coordinator owns its 24-hour
+TTL and pruning policy. This write is **conditional on
+`speciesData?.habitatDescription != nil`** — if enrichment fails transiently and
+`habitatDescription` is not populated, no timestamp is recorded, so the species
+remains retryable.
 
 ### Loading Flow (historical scans)
 
@@ -1640,22 +1639,26 @@ Users can confirm or override the AI's primary identification directly from
   the thumb back. On completion,
   `InferenceEngine.confirmAIIdentification(expectedScanId:modelContext:)` is
   called, setting `userConfirmedIdentification = true` locally and transitioning
-  to `.confirmed`. Refusing all alternatives lets the user ask the community for
-  help instead of sending a dead moderation flag. For candidates with missing
-  `commonName` strings (or common names identical to taxonomy),
-  `SwipeableCandidateCard` securely elevates the `scientificName` to the primary
-  title string un-capitalized. Each card also displays `distinguishingFeature`
-  (the single most important observable visual trait separating this candidate
-  from the primary ID) below the species name in sentence case, truncated to 2
-  lines. Tapping the feature text opens a `DistinguishingFeatureSheetView` sheet
-  ("What to look for") at `.fraction(0.35)` height showing the full untruncated
-  text. The original capture is also accessible via a PiP thumbnail
-  (bottom-right) that expands to a full-screen `OriginalCaptureExpandedView`;
-  that expanded path downscales `activeMedia.liveImageData` through
-  `ImageDownsampler` at `MerianConfig.displayImageMaxSize` rather than inflating
-  the original capture with `UIImage(data:)`. Tapping the candidate image
-  expands it to a paged `TabView` carousel containing up to 5 progressively
-  loaded reference images inside `CandidateImageExpandedView`.
+  to `.confirmed`. Confirmation uses its own per-scan action generation on the
+  shared final-writer tail, cancels only a superseded identification-review
+  hydration, and leaves unrelated live/historical same-species hydration valid.
+  It is rejected if an override has already become the current presentation.
+  Refusing all alternatives lets the user ask the community for help instead of
+  sending a dead moderation flag. For candidates with missing `commonName`
+  strings (or common names identical to taxonomy), `SwipeableCandidateCard`
+  securely elevates the `scientificName` to the primary title string
+  un-capitalized. Each card also displays `distinguishingFeature` (the single
+  most important observable visual trait separating this candidate from the
+  primary ID) below the species name in sentence case, truncated to 2 lines.
+  Tapping the feature text opens a `DistinguishingFeatureSheetView` sheet ("What
+  to look for") at `.fraction(0.35)` height showing the full untruncated text.
+  The original capture is also accessible via a PiP thumbnail (bottom-right)
+  that expands to a full-screen `OriginalCaptureExpandedView`; that expanded
+  path downscales `activeMedia.liveImageData` through `ImageDownsampler` at
+  `MerianConfig.displayImageMaxSize` rather than inflating the original capture
+  with `UIImage(data:)`. Tapping the candidate image expands it to a paged
+  `TabView` carousel containing up to 5 progressively loaded reference images
+  inside `CandidateImageExpandedView`.
 - **`.confirmed`**: Replaces the prompt with nothing (the card hides its body).
   `ConfidenceBadge` transitions to "Confirmed" (green, `checkmark.seal.fill`).
   `ConfidenceExplanationSheet` shows a confirmation message.
@@ -1674,32 +1677,46 @@ Users can confirm or override the AI's primary identification directly from
 `InferenceEngine.applyIdentificationOverride(scientificName:expectedScanId:modelContext:)`,
 which:
 
-1. Mutates `speciesData.userIdentificationOverride` and
-   `speciesData.scientificName` to the override name, and clears any legacy
-   local flag bit so old scans cannot carry stale review state forward. The
-   expected scan must still match before this mutation.
-2. Advances the scan's latest review-action generation, cancels older species
-   hydration, and calls
-   `fetchAndPatchOverrideData(scientificName:scanId:modelContext:reviewActionGeneration:)`.
+1. Revalidates the expected scan and open Auth/write fence, advances the review
+   and legacy-flag action generations, and cancels older species hydration. It
+   then sets `speciesData.userIdentificationOverride` and
+   `speciesData.scientificName` to the override name through one full-value
+   observable replacement, clearing prior-species presentation fields and the
+   legacy local flag bit.
+2. Enqueues and awaits
+   `BackgroundDatabaseActor.beginScanIdentificationOverride`. That single local
+   mutation stores the override, clears confirmation/legacy flag state, and
+   replaces old-species fields with a scientific-name placeholder before network
+   I/O.
+3. Registers the complete lookup in the coordinator's replaceable `.review` task
+   slot, then calls
+   `fetchAndPatchOverrideData(scientificName:scanId:modelContext:replacingSpeciesIdentity:reviewActionGeneration:)`.
    A cache or enrichment result can patch the live presentation only when the
-   scan ID, scientific name, and review-action generation all still match.
-3. Serializes local review persistence and cloud review synchronization behind
-   one per-engine write tail. This guarantees a request that already started
-   cannot finish after and overwrite a newer confirm, override, or reset. Local
-   persistence uses `BackgroundDatabaseActor.updateScanWithOverride`.
-4. Calls the authenticated `update_owned_scan_identification_review(...)` RPC
+   task remains uncancelled and its scan ID, scientific name, and review-action
+   generation still match. The surrounding hydration slot and write coordinator
+   separately fence presentation replacement. The caller awaits the exact task
+   it registered even if a newer review replaces the slot.
+4. Persists any hydrated Species Dictionary fields through
+   `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` on the same
+   ordered tail. Interactive replacement passes
+   `replacingSpeciesIdentity: true`, so missing taxonomy and prior
+   lookalike/alternate-name fields cannot combine two species. Historical
+   same-species refresh passes `false` and preserves valid sparse-row fallbacks.
+5. Serializes final local review persistence and cloud review synchronization
+   behind one per-engine write tail. This guarantees a request that already
+   started cannot finish after and overwrite a newer confirm, override, or
+   reset. Local persistence uses
+   `BackgroundDatabaseActor.updateScanWithOverride`, followed by the
+   authenticated `update_owned_scan_identification_review(...)` RPC
    (`InferenceEngine.syncIdentificationReviewToCloud`). The database derives
    ownership from `auth.uid()`, validates the complete typed review state, and
    updates override/confirmation/species/state atomically without exposing
    general scan-table mutation.
-5. After patching `speciesData`, persists the updated species-dict fields
-   (common name, hazard type, taxonomy, Wikipedia, habitat, GBIF key, etc.) to
-   `LocalScanRecord` via
-   `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData`. `scientificName`
-   is intentionally excluded from this write — `record.scientificName` is
-   preserved as the authoritative original-AI identifier, reused as
-   `aiScientificName` on `load(from:)` so that `resetIdentificationReview` can
-   recover the original name without a separate schema field.
+6. Completes missing reference-image hydration inside that same `.review` task;
+   GBIF does not create a detached or second task owner. `scientificName`
+   remains excluded from hydrated-field writes — `record.scientificName` is the
+   authoritative original-AI identifier reused as `aiScientificName` on
+   `load(from:)`, so reset does not require another schema field.
 
 **Re-opening an overridden scan**: `InferenceEngine.load(from:)` applies two
 rules when `record.userIdentificationOverride != nil`:
@@ -1734,9 +1751,15 @@ re-enter the selection flow:
 - `resetIdentificationReview` clears `userIdentificationOverride`,
   `userConfirmedIdentification`, any legacy flag bit, and
   `alternativesExhausted` locally, reverts `speciesData.scientificName` to
-  `aiScientificName`, and re-hydrates the AI's original species data from
-  `species_dictionary`. It sets `userReviewStateRaw` to `"unreviewed"` locally.
-  Clearing `alternativesExhausted` is required for the
+  `aiScientificName`, and clears the override-owned presentation fields before
+  any suspension. It enqueues the local `.unreviewed` mutation and cloud reset
+  on the ordered identification tail, then starts the tracked Species Dictionary
+  lookup. The local mutation atomically clears common-name, hazard, taxonomy,
+  Wikipedia, reference-image, conservation, habitat, GBIF, lookalike, and
+  alternate-name fields; every hydrated metadata write is serialized behind it,
+  even if the network lookup completes while the reset is draining. A failed
+  lookup therefore leaves a safe scientific-name placeholder rather than stale
+  override content. Clearing `alternativesExhausted` is required for the
   `AllCandidatesReviewedView` → full reset path; otherwise
   `CandidateReviewVisibilityPolicy` would keep candidate actions suppressed
   after reset.
@@ -1866,24 +1889,27 @@ Extended ecological media data is loaded in three passes:
    optional `EdgeRuntime.waitUntil` work.
 2. **Retroactive Wikipedia hydration** (eligible resolved non-Human live scans
    where Wikipedia was missing, and equivalent historical scans):
-   `InferenceEngine.fetchWikipediaAndHydrate` fires a `GET` to
+   `InferenceEngine.fetchWikipediaAndHydrate` asks the injected
+   `SpeciesReferenceHydrationService` to issue a `GET` to
    `en.wikipedia.org/api/rest_v1/page/mobile-sections/<scientific_name>` with an
-   8-second timeout. The response includes all article sections; the function
-   finds the first section whose `title` case-insensitively equals
-   `"Description"` and strips its HTML to plain text via
-   `InferenceEngine.stripHTML(_:)`. If no "Description" section exists,
-   hydration is skipped entirely. On success it commits
-   `speciesData.wikipediaOverview` (the stripped description body),
-   `speciesData.wikipediaUrl` (constructed from `lead.normalizedtitle`), and
-   `speciesData.referenceImageUrl` (`lead.originalimage.source`) in a single
-   full-value replacement on `@MainActor`.
+   8-second timeout. The service's private wire decoder finds the first section
+   whose `title` case-insensitively equals `"Description"` and strips its HTML
+   off the main actor. If no Description section exists, the service still
+   returns valid page/image metadata for thumbnail recovery, but Inference
+   applies none of that Wikipedia state. On a usable overview the engine
+   rechecks presentation identity and commits `speciesData.wikipediaOverview`
+   (the stripped description body), `speciesData.wikipediaUrl` (constructed from
+   `lead.normalizedtitle`), and `speciesData.referenceImageUrl`
+   (`lead.originalimage.source`) in a single full-value replacement on
+   `@MainActor`.
 3. **Dynamic GBIF Native Hydration**: When the species' `gbif_taxon_key` is
    available (either instantly on a Cache Hit, or returned seconds later by the
    `enrich-scan` API), the iOS client calls
-   `InferenceEngine.fetchGBIFImagesAndHydrate(for:)`. This queries the
-   `api.gbif.org/v1/occurrence/search` API for 3-4 high-quality iNaturalist
-   field photos, dynamically injecting them into the carousel to ensure highly
-   accurate visual context.
+   `InferenceEngine.fetchGBIFImagesAndHydrate(for:)`. The same injected service
+   queries `api.gbif.org/v1/occurrence/search`, selects the first still image
+   from each of at most four occurrences off the main actor, and returns only
+   URL strings. The engine then applies identity, URL, carousel, and persistence
+   policy.
 
 Hydration may append a URL that also exists in the scan's own media timeline.
 Callers must expose hydrated references through

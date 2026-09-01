@@ -1825,9 +1825,20 @@ All magic numbers governing the sync pipeline live in `MerianConfig.swift`
 - The deletion side of the offline pipeline now follows a strict order: persist
   `PendingCloudDeletionTask` + local row deletion first, then remove local media
   after the SwiftData save commits.
-- `InferenceEngine` cancellation now clears stale pending background DB writes
-  before the next scan starts, which prevents old offline cleanup/hydration work
-  from leaking into a new session.
+- `InferenceEngine` cancellation now forwards a presentation reset to its
+  private `InferenceWriteCoordinator`. The coordinator clears stale pending
+  background DB writes, increments the generation so queued work cannot drain
+  into the next presentation, and cancels active handles. Those handles remain
+  tracked until completion so an Auth transition can await write quiescence
+  before changing identity.
+- Live, historical, and identification-review follow-up hydration now uses
+  `InferenceHydrationCoordinator` task slots. GBIF remains a structured child of
+  whichever slot resolves or loads its taxon key. A replacement cancels its
+  current slot without discarding the old handle, so a cancellation-ignoring
+  operation remains visible to the Auth-transition drain until it terminates.
+  Offline result recovery still enters through `InferenceEngine`
+  presentation-identity checks; the hydration coordinator does not own durable
+  queue state.
 
 ## 2026-05 Queue I/O Update
 

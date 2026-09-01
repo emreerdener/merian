@@ -176,7 +176,7 @@ struct Preferences: View {
 
             if FeatureFlags.isEnabled(.fieldTrips) {
                 SettingsToggleRow(
-                    title: "Field trip goals",
+                    title: "Show field trip goals",
                     description: "Show your current outing target and progress on the Scan camera.",
                     isOn: $appSettings.showsCaptureGoalProgress,
                     icon: "binoculars.fill",

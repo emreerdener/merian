@@ -501,12 +501,16 @@ triggering excessive SwiftUI view rebuilds.
   and applicable scan accounting.
 - **Shared post-inference hydration**: Biological visual, audio, and describe
   results all route through `schedulePostInferenceHydrationIfNeeded(...)`, which
-  owns the single `liveHydrationTask`, skips Wikipedia when `wikipediaOverview`
-  is already present, performs scoped enrichment before GBIF image hydration,
-  and marks `enrichedSpeciesTimestamps` only after usable metadata lands. Visual
-  captures pass `.showLoadingWhenReferenceMissing`; nonvisual captures pass
-  `.none` so they keep the same quiet reference-loading behavior they had before
-  the helper extraction.
+  registers one live operation with `InferenceHydrationCoordinator`, skips
+  Wikipedia when `wikipediaOverview` is already present, performs scoped
+  enrichment before GBIF image hydration, and records the persisted 24-hour
+  enriched-species timestamp only after usable metadata lands. Visual captures
+  pass `.showLoadingWhenReferenceMissing`; nonvisual captures pass `.none` so
+  they keep the same quiet reference-loading behavior they had before the helper
+  extraction. Public Wikipedia/GBIF transport and parsing are delegated to the
+  injected `SpeciesReferenceHydrationService`; presentation identity, media
+  mutation, and persistence stay in the engine. The same neutral Core service
+  supplies scan-thumbnail recovery without owning either caller's policy.
 - **TaskGroup Retain Cycles (`InferenceEngine`)**: Replaced implicit, strong
   `[self]` captures across `withTaskGroup` blocks with robust
   `@MainActor [weak self]` guard unwrapping. If network tasks stall, the engine
@@ -529,17 +533,32 @@ triggering excessive SwiftUI view rebuilds.
   UUID still owns the slot. Background recovery may replace only the exact
   released presentation/foreground pair and invalidates that slot before
   cooperatively cancelling the live task.
-- **Dedicated external API session (`externalAPISession`)**: Wikipedia and GBIF
-  hydration calls use a `private static let externalAPISession` with its own
-  `URLSessionConfiguration` (`timeoutIntervalForRequest = 5`,
+- **Dedicated external API session (`SpeciesReferenceHydrationService`)**:
+  Wikipedia and GBIF hydration calls use the service's private `externalSession`
+  with its own `URLSessionConfiguration` (`timeoutIntervalForRequest = 5`,
   `timeoutIntervalForResource = 10`, `httpShouldSetCookies = false`,
   `urlCache = nil`). This session is isolated from the Supabase session so TLS
   pinning for `*.supabase.co` is never applied to public third-party endpoints,
-  and the connection pool is independent from the Supabase auth pool.
+  and the connection pool is independent from the Supabase auth pool. The
+  service accepts an injected data-loader closure for deterministic tests.
 
-**Multi-File Structure**: The engine is split across three files:
+**Multi-File Structure**: The inference layer is split across focused owners:
 
 - `InferenceEngine.swift` — the main engine with its public API unchanged.
+- `Inference/Hydration/InferenceHydrationCoordinator.swift` — the private
+  replaceable live, historical, and identification-review task registry; Auth
+  admission/drain owner; bounded Wikipedia-success and historical-attempt
+  histories; persisted enrichment TTL; and temporary backoff policy. Wikipedia,
+  enrichment, and GBIF work stay structured inside the registered slot.
+- `Inference/State/InferenceWriteCoordinator.swift` — the private bounded
+  background-write FIFO; independent review, confirmation, and legacy-flag
+  action generations; shared identification serial tail; presentation
+  generation; and Auth-transition quiescence fence. Mutable task handles do not
+  escape this owner.
+- `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` — the
+  shared injected public Wikipedia/GBIF request, wire DTO, and off-main parsing
+  boundary used by Inference and scan-thumbnail recovery. It performs no engine,
+  presentation, or SwiftData mutation.
 - `InferenceProcessingActor.swift` — a dedicated actor for base64 encoding and
   response parsing/persistence. It receives all data as parameters and has no
   access to `InferenceEngine`'s private state. It exposes two methods:
@@ -1075,7 +1094,7 @@ triggering excessive SwiftUI view rebuilds.
 | `suppressInferenceBanners`             | `"suppressInferenceBanners"`              | `AppSettings` typed property for mutation; `PushNotificationManager.willPresent` performs a direct synchronous key read because the delegate method is nonisolated.                                                                                                                                                   |
 | `lastBackgroundedDate`                 | `"lastBackgroundedDate"`                  | `AppLifecycleManager`                                                                                                                                                                                                                                                                                                 |
 | `lastHistoricalSyncDate`               | `"lastHistoricalSyncDate"`                | `AppLifecycleManager`, `SupabaseManager`                                                                                                                                                                                                                                                                              |
-| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`             | `InferenceEngine`                                                                                                                                                                                                                                                                                                     |
+| `enrichedSpeciesTimestamps`            | `"enrichedSpeciesTimestamps"`             | `InferenceHydrationCoordinator`                                                                                                                                                                                                                                                                                       |
 | `isLiveInferencePaused`                | `"isLiveInferencePaused"`                 | `CameraSettingsView`, `CameraManager`                                                                                                                                                                                                                                                                                 |
 | `invertZoomDirection`                  | `"invertZoomDirection"`                   | `ZoomSliderView`, `CameraPreviewView` (pan gesture), `CameraSettingsView`                                                                                                                                                                                                                                             |
 | `zoomSideLeft`                         | `"zoomSideLeft"`                          | `ZoomSliderView`, `MainOverlayView`, `CameraSettingsView`                                                                                                                                                                                                                                                             |
@@ -1999,9 +2018,9 @@ consults that Keychain entry.
 
 ## 2026-04 Hardening Updates
 
-- `InferenceEngine` now treats pending background writes as generation-scoped
-  work. Any scan reset or cancellation invalidates the old generation before the
-  next scan can enqueue or drain background mutations.
+- `InferenceWriteCoordinator` treats pending background writes as
+  generation-scoped work. `InferenceEngine` forwards every scan reset or
+  cancellation before the next scan can enqueue or drain background mutations.
 - Auth transitions close the engine's write-admission fence synchronously,
   cancel all presentation producers, retain their task handles, and await even
   cancellation-ignoring work before an Auth SDK session change. The fence opens

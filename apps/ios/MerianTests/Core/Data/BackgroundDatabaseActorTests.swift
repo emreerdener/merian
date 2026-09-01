@@ -1709,9 +1709,25 @@ struct BackgroundDatabaseActorTests {
 
         let record = LocalScanRecord(
             speciesId: "clear-override-test",
-            scientificName: "Procyon cancrivorus",
+            scientificName: "Procyon lotor",
             commonName: "Crab-eating Raccoon",
-            userIdentificationOverride: "Procyon cancrivorus"
+            hazardType: "allergenic",
+            wikipediaUrl: "https://example.com/rejected-wikipedia",
+            wikipediaOverview: "Rejected overview",
+            referenceImageUrl: "https://example.com/rejected-reference.jpg",
+            taxonomyKingdom: "Animalia",
+            taxonomyPhylum: "Chordata",
+            taxonomyClass: "Mammalia",
+            taxonomyOrder: "Carnivora",
+            taxonomyFamily: "Procyonidae",
+            taxonomyGenus: "Procyon",
+            similarSpecies: ["Rejected species"],
+            lookalikesData: Data([0x01]),
+            iucnRedListStatus: "LC",
+            habitatDescription: "Rejected habitat",
+            gbifTaxonKey: 999_999,
+            userIdentificationOverride: "Procyon cancrivorus",
+            alternativeCommonNames: ["Rejected name"]
         )
         context.insert(record)
         try context.save()
@@ -1732,6 +1748,164 @@ struct BackgroundDatabaseActorTests {
         #expect(fetched?.userConfirmedIdentification == false)
         #expect(fetched?.confirmedSpeciesId == nil, "confirmedSpeciesId must be cleared on reset")
         #expect(fetched?.userReviewStateRaw == "unreviewed", "userReviewStateRaw must revert to unreviewed")
+        #expect(fetched?.commonName == "Procyon lotor")
+        #expect(fetched?.hazardType == "none")
+        #expect(fetched?.wikipediaUrl == nil)
+        #expect(fetched?.wikipediaOverview == nil)
+        #expect(fetched?.referenceImageUrl == nil)
+        #expect(fetched?.iucnRedListStatus == nil)
+        #expect(fetched?.habitatDescription == nil)
+        #expect(fetched?.gbifTaxonKey == nil)
+        #expect(fetched?.taxonomyKingdom == nil)
+        #expect(fetched?.taxonomyGenus == nil)
+        #expect(fetched?.similarSpecies == nil)
+        #expect(fetched?.lookalikesData == nil)
+        #expect(fetched?.alternativeCommonNames == nil)
+    }
+
+    @Test func testBeginOverrideAtomicallyReplacesPriorIdentity() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let record = LocalScanRecord(
+            speciesId: "begin-override-test",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            hazardType: "allergenic",
+            wikipediaOverview: "AI overview",
+            referenceImageUrl: "https://example.com/ai-reference.jpg",
+            taxonomyKingdom: "Animalia",
+            taxonomyGenus: "Procyon",
+            similarSpecies: ["Nasua nasua"],
+            lookalikesData: Data([0x01]),
+            habitatDescription: "AI habitat",
+            gbifTaxonKey: 5_218_786,
+            userConfirmedIdentification: true,
+            isFlagged: true,
+            alternativeCommonNames: ["Common raccoon"],
+            confirmedSpeciesId: "ai-species-id",
+            userReviewStateRaw: UserReviewState.aiConfirmed.rawValue
+        )
+        context.insert(record)
+        try context.save()
+        let scanId = record.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.beginScanIdentificationOverride(
+            scanId: scanId,
+            scientificName: "Procyon cancrivorus"
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(context.fetch(descriptor).first)
+        #expect(fetched.userIdentificationOverride == "Procyon cancrivorus")
+        #expect(!fetched.userConfirmedIdentification)
+        #expect(fetched.confirmedSpeciesId == nil)
+        #expect(fetched.userReviewState == .userOverridden)
+        #expect(!fetched.isFlagged)
+        #expect(fetched.commonName == "Procyon cancrivorus")
+        #expect(fetched.hazardType == "none")
+        #expect(fetched.wikipediaOverview == nil)
+        #expect(fetched.referenceImageUrl == nil)
+        #expect(fetched.taxonomyKingdom == nil)
+        #expect(fetched.taxonomyGenus == nil)
+        #expect(fetched.similarSpecies == nil)
+        #expect(fetched.lookalikesData == nil)
+        #expect(fetched.habitatDescription == nil)
+        #expect(fetched.gbifTaxonKey == nil)
+        #expect(fetched.alternativeCommonNames == nil)
+    }
+
+    @Test func testOverrideSpeciesPlaceholderClearsPriorTaxonFields() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let record = LocalScanRecord(
+            speciesId: "override-placeholder-test",
+            scientificName: "Procyon lotor",
+            commonName: "Raccoon",
+            taxonomyKingdom: "Animalia",
+            taxonomyGenus: "Procyon",
+            similarSpecies: ["Nasua nasua"],
+            lookalikesData: Data([0x01]),
+            alternativeCommonNames: ["Common raccoon"]
+        )
+        context.insert(record)
+        try context.save()
+        let scanId = record.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.updateScanWithOverrideSpeciesData(
+            scanId: scanId,
+            commonName: "Procyon cancrivorus",
+            hazardType: "none",
+            wikipediaOverview: nil,
+            wikipediaUrl: nil,
+            referenceImageUrl: nil,
+            iucnRedListStatus: nil,
+            habitatDescription: nil,
+            gbifTaxonKey: nil,
+            taxonomy: nil,
+            replacingSpeciesIdentity: true
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(context.fetch(descriptor).first)
+        #expect(fetched.commonName == "Procyon cancrivorus")
+        #expect(fetched.taxonomyKingdom == nil)
+        #expect(fetched.taxonomyGenus == nil)
+        #expect(fetched.similarSpecies == nil)
+        #expect(fetched.lookalikesData == nil)
+        #expect(fetched.alternativeCommonNames == nil)
+    }
+
+    @Test func testHistoricOverrideRefreshPreservesCurrentTaxonCollections() async throws {
+        let container = try createIsolatedContainer()
+        let context = ModelContext(container)
+        let lookalikesData = Data([0x01])
+        let record = LocalScanRecord(
+            speciesId: "historic-override-refresh-test",
+            scientificName: "Procyon lotor",
+            commonName: "Crab-eating Raccoon",
+            taxonomyKingdom: "Animalia",
+            taxonomyGenus: "Procyon",
+            similarSpecies: ["Nasua nasua"],
+            lookalikesData: lookalikesData,
+            alternativeCommonNames: ["South American raccoon"],
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+        context.insert(record)
+        try context.save()
+        let scanId = record.id
+
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        await actor.updateScanWithOverrideSpeciesData(
+            scanId: scanId,
+            commonName: "Crab-eating Raccoon",
+            hazardType: "none",
+            wikipediaOverview: nil,
+            wikipediaUrl: nil,
+            referenceImageUrl: nil,
+            iucnRedListStatus: nil,
+            habitatDescription: nil,
+            gbifTaxonKey: nil,
+            taxonomy: nil,
+            replacingSpeciesIdentity: false
+        )
+
+        let descriptor = FetchDescriptor<LocalScanRecord>(
+            predicate: #Predicate { $0.id == scanId }
+        )
+        let fetched = try #require(context.fetch(descriptor).first)
+        #expect(fetched.taxonomyKingdom == "Animalia")
+        #expect(fetched.taxonomyGenus == "Procyon")
+        #expect(fetched.similarSpecies == ["Nasua nasua"])
+        #expect(fetched.lookalikesData == lookalikesData)
+        #expect(
+            fetched.alternativeCommonNames == ["South American raccoon"]
+        )
     }
 
     @Test func testUpdateScanWithOverrideSetsConfirmedTrue() async throws {

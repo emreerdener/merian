@@ -1019,6 +1019,22 @@ pattern:
 | `applyIdentificationOverride` (wipe)    | All contextual fields reset to nil + override identity fields                                                                                                |
 | Historical load path                    | `similarSpecies`, `candidates`                                                                                                                               |
 
+These are engine-owned observable mutation sites, not transport or task-storage
+owners. `SpeciesReferenceHydrationService` constructs and decodes the public
+Wikipedia mobile-sections and GBIF taxon-key requests, while
+`InferenceHydrationCoordinator` owns live, historical, and identification-review
+task lifetime plus request deduplication/TTL/backoff state. GBIF work is awaited
+by the live, historical, or review operation that resolved its key rather than
+escaping into another task. `InferenceWriteCoordinator` owns the bounded
+best-effort write queue and ordered identification-write tail. Species-changing
+review hydration, same-species confirmation, and legacy flagging use independent
+bounded action generations, so confirmation cannot strand valid historical
+hydration. `InferenceEngine` applies returned values only after its scan,
+species, presentation-generation, and optional review-action checks pass. An
+override-data persistence call must explicitly distinguish an identity
+replacement (clear stale taxonomy/collections) from a historical refresh
+(preserve valid same-species values when the row is sparse).
+
 ### Why This Matters for Live UI
 
 The insight sheet is open while background hydration tasks

@@ -484,7 +484,17 @@ resolution, and the 600-line production-file ceiling.
 
 `Merian/Core/AI/` owns remote inference orchestration and the ephemeral local
 analysis that improves foreground scanning copy. `InferenceEngine` remains the
-single state owner exposed to SwiftUI through `scanningPhaseText`.
+single observable state owner exposed to SwiftUI through `scanningPhaseText`.
+Its `Inference/Hydration` collaborator privately owns live, historical, and
+identification-review hydration task lifetime, Auth draining, request
+deduplication, the enriched-species TTL cache, and temporary backoff. GBIF work
+stays a structured child of the owning hydration task. `Inference/State`
+privately owns bounded background and ordered identification write sequencing;
+species-changing review hydration and same-species confirmation have independent
+action generations on the shared final-writer tail. The shared injected
+`Core/SpeciesReference/Services` boundary owns the isolated Wikipedia/GBIF
+session, wire parsing, and request construction used by Inference and thumbnail
+recovery. Presentation identity and persistence decisions remain in the engine.
 `LocalVisualAnalysis.swift` supplies the injected Vision classifier,
 deterministic pixel-trait extractor, one bounded primary-image derivative,
 phrase coordination, future Foundation visual-cue seam, validation, and runtime
@@ -511,6 +521,7 @@ Gemini remains the sole authority for identification and completed Insight
 content. Local classifications and cue text are never persisted, logged,
 analyzed as product telemetry, or added to Gemini's payload. See the
 [Core AI README](Merian/Core/AI/README.md),
+[Core Species Reference README](Merian/Core/SpeciesReference/README.md),
 [Capture submission README](Merian/Features/Capture/Submission/README.md), and
 [Insight content README](Merian/Features/Insights/Content/README.md) for the
 ownership and dispatch contracts. The

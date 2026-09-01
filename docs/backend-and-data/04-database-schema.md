@@ -5104,11 +5104,12 @@ historical scan:
   `InferenceEngine.load(from:)` sets `speciesData.scientificName` to the
   override name directly (not via an async patch), so the correct title is
   immediately visible on sheet open. All accompanying species-dict fields
-  (`commonName`, `hazardType`, `taxonomy`, etc.) are persisted to
-  `LocalScanRecord` by `fetchAndPatchOverrideData` →
-  `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` when the override
-  is first applied, so they survive reopen without a network call. Drives the
-  "Your ID" state in `ConfidenceBadge`.
+  (`commonName`, `hazardType`, `taxonomy`, etc.) first receive an atomic cleared
+  placeholder through `BackgroundDatabaseActor.beginScanIdentificationOverride`,
+  then are persisted to `LocalScanRecord` by `fetchAndPatchOverrideData` →
+  `BackgroundDatabaseActor.updateScanWithOverrideSpeciesData` when hydration
+  succeeds. The state therefore survives reopen without mixing species even if
+  hydration fails. Drives the "Your ID" state in `ConfidenceBadge`.
 - `userConfirmedIdentification: Bool` — mirrors
   `LocalScanRecord.userConfirmedIdentification`. Cloud-synced. Drives the
   "Confirmed" state in `ConfidenceBadge`.

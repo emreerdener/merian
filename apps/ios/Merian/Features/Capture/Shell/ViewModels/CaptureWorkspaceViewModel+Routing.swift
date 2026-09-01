@@ -81,7 +81,7 @@ extension CaptureWorkspaceViewModel {
         case .fieldTrips:
             openFieldTrips()
         case .recallLastFind:
-            guard diContainer.inferenceEngine.historicHydrationTask != nil
+            guard diContainer.inferenceEngine.hasHistoricHydrationWork
                     || diContainer.inferenceEngine.speciesData != nil else {
                 return .rejected(reason: .targetUnavailable)
             }

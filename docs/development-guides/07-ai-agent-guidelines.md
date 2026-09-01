@@ -99,7 +99,9 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
 - `Features/`: Complete user domains (`Capture`, `Explore`, `Insights`,
   `Onboarding`, `Profile`, `Scans`, `SpeciesDictionary`).
 - `Core/`: Foundational logic organized into subdirectories:
-  - `AI/`: `InferenceEngine`, `InferenceProcessingActor`
+  - `AI/`: `InferenceEngine`, generated Edge DTOs, `InferenceProcessingActor`,
+    and the private `Inference/Hydration` lifecycle and `Inference/State` write
+    coordinators
   - `Data/Database/`: `BackgroundDatabaseActor`, `FileIOActor`,
     `HistoricalDatabaseActor`, `ScanRepository`
   - `Data/Images/`: `MediaPreparationActor`, `LocalImageLoader`, `ImageCache`,
@@ -110,6 +112,8 @@ The workspace enforces this layout inside `apps/ios/Merian/`:
   - `Network/`: `MerianNetworkClient`, `SupabaseManager`
   - `Security/`: `CircuitBreakerManager`, `DeviceIdentityManager`,
     `EntitlementManager`, `RevenueCatManager`, `SocialGuardManager`
+  - `SpeciesReference/`: shared non-UI Wikipedia mobile-sections and GBIF
+    taxon-key transport/parsing used by Inference and scan-thumbnail recovery
   - `Utilities/`: `MerianConfig`, `AppLifecycleManager`,
     `BackgroundTaskWrapper`, `FieldNotesRepository`, `ImageDownsampler`
   - `Analytics/`, `Intents/`

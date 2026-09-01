@@ -142,8 +142,12 @@ deletion share one Auth-transition owner. Ordinary account-bound work acquires
 an exact-session lease before direct Supabase or authenticated HTTP I/O. A
 transition closes new admission, cancels/awaits consent synchronization, drains
 `InferenceEngine` presentation/metadata tasks (including cancellation-ignoring
-tails), collection work, and every lease, then changes the SDK session.
-Background upload and inference tasks are terminal-owned rather than
+tails), collection work, and every lease, then changes the SDK session. The
+engine delegates live, historical, and identification-review hydration
+admission/task retention to `InferenceHydrationCoordinator`; GBIF requests stay
+inside those owning operations. It delegates bounded persistence/review work to
+`InferenceWriteCoordinator`; both fences remain closed until the transition
+finishes. Background upload and inference tasks are terminal-owned rather than
 resume-owned: their Auth UUID and generation are persisted in both job metadata
 and versioned task descriptions, their leases remain held until terminal
 callbacks, and the drain restages rows/clears source object keys before
@@ -439,10 +443,11 @@ analysis.
   looping in safe mode.
 - `handleActivePhase()` continues to trigger scheduler-owned replay recovery,
   but any new lifecycle work must not resurrect stale scan mutations.
-  `InferenceEngine` now invalidates pending background writes whenever a scan is
-  cancelled or a new scan begins. Auth transitions additionally close new
-  inference-write admission and await every retained active handle before the
-  SDK session may change.
+  `InferenceEngine` forwards scan cancellation and replacement to
+  `InferenceWriteCoordinator`, which invalidates pending generation-scoped
+  writes. Auth transitions additionally close the coordinator's new-write
+  admission and await every retained active handle before the SDK session may
+  change.
 
 ## 2026-05 Startup Safety Update
 

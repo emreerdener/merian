@@ -166,6 +166,16 @@ struct InferenceEngineTests {
         )
     }
 
+    private func makeHydrationCoordinator() -> InferenceHydrationCoordinator {
+        InferenceHydrationCoordinator(
+            dependencies: .init(
+                now: { Date(timeIntervalSinceReferenceDate: 1_000_000) },
+                loadEnrichedSpeciesTimestamps: { [:] },
+                persistEnrichedSpeciesTimestamps: { _ in }
+            )
+        )
+    }
+
     @Test func testEdgeResponseDecodingSuccess() throws {
         // Arrange: Simulate a valid JSON payload from the Gemini Edge Function
         let jsonString = """
@@ -476,7 +486,7 @@ struct InferenceEngineTests {
         let engine = InferenceEngine()
 
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let resultingData = try #require(engine.speciesData, "SpeciesData should not be nil after loading")
         #expect(resultingData.confidenceScore == 0.0)
@@ -506,7 +516,7 @@ struct InferenceEngineTests {
         let engine = InferenceEngine()
 
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let resultingData = try #require(engine.speciesData)
         #expect(resultingData.isHumanSubject)
@@ -561,6 +571,20 @@ struct InferenceEngineTests {
         #expect(state.active == 0, "prepareForNewScan must cancel all active background writes")
         #expect(state.pending == 0, "prepareForNewScan must clear queued background writes")
         #expect(await counter.value == 0, "Queued background writes from the old scan must never run after reset")
+    }
+
+    @Test func testPrepareForNewScanClearsEnrichmentBackoff() {
+        let hydrationCoordinator = makeHydrationCoordinator()
+        hydrationCoordinator.recordEnrichmentRateLimit(for: 60)
+        let engine = InferenceEngine(
+            hydrationCoordinator: hydrationCoordinator
+        )
+
+        #expect(!hydrationCoordinator.canAttemptEnrichment())
+
+        engine.prepareForNewScan()
+
+        #expect(hydrationCoordinator.canAttemptEnrichment())
     }
 
     @Test func testCancelActiveRequestClearsPendingBackgroundWrites() async throws {
@@ -618,6 +642,36 @@ struct InferenceEngineTests {
         #expect(await completedWrites.value == 1)
         #expect(await completedDrains.value == 1)
         #expect(engine.debugBackgroundWriteState().active == 0)
+
+        engine.finishAuthTransitionWriteFence()
+    }
+
+    @Test func testAuthTransitionAwaitsNonCooperativeHydration() async throws {
+        let hydrationCoordinator = makeHydrationCoordinator()
+        let engine = InferenceEngine(
+            hydrationCoordinator: hydrationCoordinator
+        )
+        let gate = NonCooperativeBackgroundWriteGate()
+        let completedDrains = CounterBox()
+
+        hydrationCoordinator.replaceTask(in: .live) {
+            await gate.waitUntilReleased()
+        }
+        await gate.waitUntilStarted()
+
+        engine.beginAuthTransitionWriteFence()
+        let drain = Task { @MainActor in
+            await engine.awaitAuthTransitionWriteQuiescence()
+            await completedDrains.increment()
+        }
+
+        try await Task.sleep(for: .milliseconds(25))
+        #expect(await completedDrains.value == 0)
+
+        await gate.release()
+        await drain.value
+        #expect(await completedDrains.value == 1)
+        #expect(hydrationCoordinator.snapshot.activeTaskCount == 0)
 
         engine.finishAuthTransitionWriteFence()
     }
@@ -683,10 +737,10 @@ struct InferenceEngineTests {
 
         // The synchronous part of load(from:) must have pre-decoded the blob once
         // and produced a SimilarSpecies with the two stale entries.
-        // speciesData.similarSpecies is set asynchronously inside historicHydrationTask,
+        // speciesData.similarSpecies is set asynchronously by historic hydration,
         // but we can assert the engine initialised cleanly and isProcessing returned false.
         #expect(engine.isProcessing == false)
-        // The enrichment path is async (historicHydrationTask); we verify the gate condition
+        // The historic enrichment path is async; we verify the gate condition
         // was met by confirming lookalikesData decoded to all-null common names correctly.
         let decoded = try JSONDecoder().decode([SimilarSpeciesEntry].self, from: lookalikesData)
         #expect(decoded.allSatisfy { $0.commonName == nil }, "All entries must have nil commonName to trigger enrichment gate")
@@ -1010,7 +1064,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let result = try #require(engine.speciesData)
         let similar = try #require(result.similarSpecies, "similarSpecies must be populated from LocalScanRecord.similarSpecies")
@@ -1037,7 +1091,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let result = try #require(engine.speciesData)
         #expect(result.similarSpecies == nil, "nil similarSpecies on LocalScanRecord must not produce an empty SimilarSpecies struct")
@@ -1062,7 +1116,7 @@ struct InferenceEngineTests {
         let result = try #require(engine.speciesData)
         #expect(result.similarSpecies == nil, "Pending reset should ignore stale locally cached lookalikes for biological records")
 
-        engine.historicHydrationTask?.cancel()
+        engine.cancelHistoricHydration()
     }
 
     @Test func testPlannedEnrichmentScopesStillFetchLookalikesWhenMetadataIsSpeciesCached() {
@@ -1135,7 +1189,7 @@ struct InferenceEngineTests {
 
         let engine = InferenceEngine()
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let similar = try #require(engine.speciesData?.similarSpecies)
         #expect(similar.entries.count == 1)
@@ -1210,7 +1264,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let result = try #require(engine.speciesData)
         let decoded = try #require(result.candidates, "load(from:) must decode candidatesData blob into SpeciesData.candidates")
@@ -1228,7 +1282,7 @@ struct InferenceEngineTests {
         )
         let engine = InferenceEngine()
         engine.load(from: record)
-        await engine.historicHydrationTask?.value
+        await engine.awaitHistoricHydration()
 
         let result = try #require(engine.speciesData)
         #expect(result.candidates == nil, "Nil candidatesData must produce nil candidates — not an empty array")
@@ -1357,6 +1411,37 @@ struct InferenceEngineTests {
         #expect(engine.speciesData?.userConfirmedIdentification == false)
     }
 
+    @Test func testConfirmAIIdentificationRejectsOverridePresentation() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "override_confirm_scan",
+            commonName: "Crab-eating Raccoon",
+            scientificName: "Procyon cancrivorus",
+            insightData: InsightData(
+                aiReasoning: "",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.92,
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor",
+            userIdentificationOverride: "Procyon cancrivorus"
+        )
+
+        await engine.confirmAIIdentification(
+            expectedScanId: "override_confirm_scan",
+            modelContext: nil
+        )
+
+        #expect(engine.speciesData?.userConfirmedIdentification == false)
+        #expect(
+            engine.speciesData?.userIdentificationOverride
+                == "Procyon cancrivorus"
+        )
+    }
+
     @Test func testApplyIdentificationOverrideRejectsChangedPresentationIdentity() async throws {
         let engine = InferenceEngine()
         engine.speciesData = SpeciesData(
@@ -1380,6 +1465,46 @@ struct InferenceEngineTests {
 
         #expect(engine.speciesData?.scientificName == "Procyon lotor")
         #expect(engine.speciesData?.userIdentificationOverride == nil)
+    }
+
+    @Test func testIdentificationReviewRejectsMutationDuringAuthTransition() async throws {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(
+            scanId: "auth_fenced_review_scan",
+            commonName: "Raccoon",
+            scientificName: "Procyon lotor",
+            insightData: InsightData(
+                aiReasoning: "A procyonid.",
+                hazardType: "none"
+            ),
+            confidenceScore: 0.82,
+            referenceImageUrl: "https://example.com/raccoon.jpg",
+            isBiological: true,
+            isLiveCapture: true,
+            isInvasive: false,
+            ecologyType: "Terrestrial",
+            aiScientificName: "Procyon lotor"
+        )
+
+        engine.beginAuthTransitionWriteFence()
+        await engine.applyIdentificationOverride(
+            scientificName: "Procyon cancrivorus",
+            modelContext: nil
+        )
+        await engine.confirmAIIdentification(modelContext: nil)
+        await engine.resetIdentificationReview(modelContext: nil)
+
+        let data = try #require(engine.speciesData)
+        #expect(data.commonName == "Raccoon")
+        #expect(data.scientificName == "Procyon lotor")
+        #expect(data.userIdentificationOverride == nil)
+        #expect(!data.userConfirmedIdentification)
+        #expect(
+            data.referenceImageUrl == "https://example.com/raccoon.jpg"
+        )
+
+        await engine.awaitAuthTransitionWriteQuiescence()
+        engine.finishAuthTransitionWriteFence()
     }
 
     @Test func testApplyIdentificationOverrideMutatesSpeciesData() async throws {
@@ -1415,10 +1540,32 @@ struct InferenceEngineTests {
             scientificName: "Procyon cancrivorus",
             insightData: InsightData(aiReasoning: "A procyonid.", hazardType: "none"),
             confidenceScore: 0.82,
+            similarSpecies: SimilarSpecies(entries: [
+                SimilarSpeciesEntry(
+                    scientificName: "Rejected species",
+                    commonName: nil,
+                    referenceImageUrl: nil,
+                    iucnRedListStatus: nil
+                )
+            ]),
+            wikipediaUrl: "https://example.com/rejected-wikipedia",
+            wikipediaOverview: "Rejected overview",
+            referenceImageUrl: "https://example.com/rejected-reference.jpg",
             isBiological: true,
             isLiveCapture: true,
             isInvasive: false,
             ecologyType: "Terrestrial",
+            taxonomy: TaxonomyData(
+                kingdom: "Animalia",
+                phylum: "Chordata",
+                className: "Mammalia",
+                order: "Carnivora",
+                family: "Procyonidae",
+                genus: "RejectedGenus"
+            ),
+            habitatDescription: "Rejected habitat",
+            gbifTaxonKey: 999_999,
+            alternativeCommonNames: ["Rejected name"],
             aiScientificName: "Procyon lotor",
             userIdentificationOverride: "Procyon cancrivorus",
             isFlagged: true  // simulate AllCandidatesReviewedView → Reset path
@@ -1431,6 +1578,21 @@ struct InferenceEngineTests {
         #expect(engine.speciesData?.isFlagged == false, "Reset must clear isFlagged so CandidatesCard reappears in BiologicalView")
         #expect(engine.speciesData?.scientificName == "Procyon lotor", "Reset must revert scientificName to aiScientificName")
         #expect(engine.speciesData?.aiScientificName == "Procyon lotor", "aiScientificName must remain unchanged after reset")
+        #expect(engine.speciesData?.wikipediaOverview != "Rejected overview")
+        #expect(
+            engine.speciesData?.referenceImageUrl !=
+                "https://example.com/rejected-reference.jpg"
+        )
+        #expect(engine.speciesData?.taxonomy?.genus != "RejectedGenus")
+        #expect(engine.speciesData?.habitatDescription != "Rejected habitat")
+        #expect(engine.speciesData?.gbifTaxonKey != 999_999)
+        #expect(
+            engine.speciesData?.alternativeCommonNames != ["Rejected name"]
+        )
+        #expect(
+            engine.speciesData?.similarSpecies?.entries.first?.scientificName !=
+                "Rejected species"
+        )
     }
 
     @Test func testResetIdentificationReviewIsNoOpWhenScanIdMissing() async throws {
@@ -2739,7 +2901,7 @@ struct InferenceEngineTests {
             "historic-replacement-\(UUID().uuidString.lowercased())"
         defer {
             engine.inferenceTask?.cancel()
-            engine.historicHydrationTask?.cancel()
+            engine.cancelHistoricHydration()
             manager.foregroundInferenceRetirementTasks.cancel(liveScanId)
             manager.startedForegroundInferenceGenerations.removeValue(
                 forKey: liveScanId

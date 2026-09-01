@@ -127,11 +127,11 @@ push toggles in `Profile/Settings/Notifications/`, bundled release notes in
 
 Suggested first targets:
 
-| File                                                     | Cleanup Direction                                                                                                                   |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Split hydration, reference image loading, local classification, persistence, and result mapping into focused extensions.            |
-| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core. |
-| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                             |
+| File                                                     | Cleanup Direction                                                                                                                                                                    |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/ios/Merian/Core/AI/InferenceEngine.swift`          | Continue extracting local classification, persistence orchestration, and result mapping; hydration lifecycle, bounded write state, and shared reference transport are already split. |
+| `apps/ios/Merian/Core/Network/MerianNetworkClient.swift` | Move feature-specific endpoint groups into extension files or feature-owned network helpers while keeping shared transport in Core.                                                  |
+| `apps/ios/Merian/Core/Utilities/UserDefaultsKeys.swift`  | Separate keys, typed settings store, migration helpers, and cloud sync preference code.                                                                                              |
 
 Rules for this phase:
 
@@ -140,6 +140,40 @@ Rules for this phase:
 - Prefer extensions in sibling files first; move types across folders only after
   the split compiles cleanly.
 - Commit each large file split independently.
+
+Implemented Core slices:
+
+- The first `Core/AI/InferenceEngine` slice moved the bounded best-effort write
+  FIFO, presentation generations, Auth-transition quiescence fence, per-scan
+  review/confirmation/flag action clocks, and ordered identification tail into
+  the private `@MainActor InferenceWriteCoordinator`. Active and pending work
+  remain capped at eight each, overflow remains best-effort, presentation reset
+  invalidates queued generations, and cancellation-ignoring writes remain
+  awaitable before Auth identity mutation.
+- The second slice moved replaceable live, historical, and identification-review
+  hydration task lifetime; cancellation-ignoring Auth quiescence; bounded
+  Wikipedia-success and historical-attempt histories; the persisted 24-hour
+  enrichment cache; and the temporary rate-limit deadline into
+  `InferenceHydrationCoordinator`. GBIF hydration remains a structured child of
+  whichever slot resolved its taxon key, preventing duplicate requests and
+  detached ownership. Raw task handles no longer escape the owner, and
+  `prepareForNewScan()` now clears the temporary enrichment backoff as its
+  documented presentation-reset contract requires.
+- Wikipedia mobile-sections and GBIF taxon-key request construction, the
+  dedicated public `URLSession`, private wire DTOs, HTML normalization, and
+  off-main decoding moved once to
+  `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift`.
+  `InferenceEngine` retains active-presentation validation and observable state
+  mutation; `ScanThumbnailBackfillActor` retains cache, retry, URL-admission,
+  persistence, and prefetch policy. The separate Species Reference feature image
+  service keeps its distinct Wikipedia summary and GBIF name-query contract.
+- Focused Core AI and Species Reference suites cover hydration replacement and
+  stale-completion isolation, TTL/backoff policy, queue capacity and overflow,
+  cancellation and Auth quiescence, ordered newest-action writes, public
+  request/parse behavior, missing-description thumbnail compatibility, and
+  architecture ownership. No JSON payload, SwiftData schema, navigation, or
+  backend contract changed. `InferenceEngine.swift` remains a large orchestrator
+  and should continue through small behavior-preserving slices.
 
 Implemented Explore slices:
 

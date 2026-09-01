@@ -15,64 +15,20 @@ private struct ThumbnailBackfillPayload: Sendable {
     let wikipediaOverview: String?
 }
 
-private struct ThumbnailWikipediaImage: Decodable {
-    let source: String?
-}
-
-private struct ThumbnailWikipediaSection: Decodable {
-    let title: String?
-    let text: String?
-}
-
-private struct ThumbnailWikipediaLead: Decodable {
-    let normalizedtitle: String?
-    let originalimage: ThumbnailWikipediaImage?
-}
-
-private struct ThumbnailWikipediaRemaining: Decodable {
-    let sections: [ThumbnailWikipediaSection]
-}
-
-private struct ThumbnailWikipediaSectionsResponse: Decodable {
-    let lead: ThumbnailWikipediaLead
-    let remaining: ThumbnailWikipediaRemaining
-}
-
-private struct ThumbnailWikipediaPayload: Sendable {
-    let overview: String?
-    let articleUrl: String?
-    let imageUrl: String?
-}
-
-private struct ThumbnailGBIFMediaResponse: Decodable {
-    let results: [ThumbnailGBIFResult]?
-}
-
-private struct ThumbnailGBIFResult: Decodable {
-    let media: [ThumbnailGBIFMedia]?
-}
-
-private struct ThumbnailGBIFMedia: Decodable {
-    let type: String?
-    let identifier: String?
-}
-
 actor ScanThumbnailBackfillActor {
     static let shared = ScanThumbnailBackfillActor()
-
-    private static let externalAPISession: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 5
-        config.timeoutIntervalForResource = 10
-        config.httpShouldSetCookies = false
-        config.urlCache = nil
-        return URLSession(configuration: config)
-    }()
 
     private var inFlightScanIds: Set<String> = []
     private var recentSpeciesMisses: [String: TimeInterval] = [:]
     private let missCooldown: TimeInterval = 15 * 60
     private let perPassLimit = 12
+    private let speciesReferenceService: SpeciesReferenceHydrationService
+
+    init(
+        speciesReferenceService: SpeciesReferenceHydrationService = .live
+    ) {
+        self.speciesReferenceService = speciesReferenceService
+    }
 
     @discardableResult
     func backfill(
@@ -166,11 +122,13 @@ actor ScanThumbnailBackfillActor {
             )
         }
 
-        let wikiPayload = await fetchWikipediaPayload(scientificName: candidate.scientificName)
+        let wikipediaReference = await fetchWikipediaReference(
+            scientificName: candidate.scientificName
+        )
         let gbifUrls = await fetchGBIFImageUrls(taxonKey: gbifKey)
 
         let mergedUrls = mergeUrls(
-            primary: wikiPayload?.imageUrl,
+            primary: wikipediaReference?.imageURL,
             secondary: gbifUrls
         )
 
@@ -178,8 +136,8 @@ actor ScanThumbnailBackfillActor {
 
         return ThumbnailBackfillPayload(
             referenceImageUrl: mergedUrls.joined(separator: ","),
-            wikipediaUrl: cachedWikipediaUrl ?? wikiPayload?.articleUrl,
-            wikipediaOverview: cachedWikipediaOverview ?? wikiPayload?.overview
+            wikipediaUrl: cachedWikipediaUrl ?? wikipediaReference?.pageURL,
+            wikipediaOverview: cachedWikipediaOverview ?? wikipediaReference?.overview
         )
     }
 
@@ -206,72 +164,19 @@ actor ScanThumbnailBackfillActor {
         }
     }
 
-    private func fetchWikipediaPayload(scientificName: String) async -> ThumbnailWikipediaPayload? {
-        let normalized = scientificName.replacingOccurrences(of: " ", with: "_")
-        guard let encoded = normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://en.wikipedia.org/api/rest_v1/page/mobile-sections/\(encoded)") else {
-            return nil
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 8.0
-        request.setValue("Merian/1.0", forHTTPHeaderField: "User-Agent")
-
-        do {
-            let (data, response) = try await Self.externalAPISession.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return nil
-            }
-
-            let decoded = try JSONDecoder().decode(ThumbnailWikipediaSectionsResponse.self, from: data)
-            let descriptionHtml = decoded.remaining.sections.first {
-                $0.title?.caseInsensitiveCompare("Description") == .orderedSame
-            }?.text
-            let overview = descriptionHtml.flatMap { Self.stripHTML($0) }
-            let pageTitle = (decoded.lead.normalizedtitle ?? normalized).replacingOccurrences(of: " ", with: "_")
-            let encodedTitle = pageTitle.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? pageTitle
-            return ThumbnailWikipediaPayload(
-                overview: overview,
-                articleUrl: "https://en.wikipedia.org/wiki/\(encodedTitle)",
-                imageUrl: decoded.lead.originalimage?.source?
-                    .trimmedNonEmptyValue
-            )
-        } catch {
-            return nil
-        }
+    private func fetchWikipediaReference(
+        scientificName: String
+    ) async -> SpeciesWikipediaReference? {
+        try? await speciesReferenceService.fetchWikipediaReference(
+            for: scientificName
+        )
     }
 
     private func fetchGBIFImageUrls(taxonKey: Int?) async -> [String] {
-        guard let taxonKey,
-              let url = URL(string: "https://api.gbif.org/v1/occurrence/search?taxonKey=\(taxonKey)&mediaType=StillImage&limit=4") else {
-            return []
-        }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 10.0
-
-        do {
-            let (data, response) = try await Self.externalAPISession.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return []
-            }
-
-            let decoded = try JSONDecoder().decode(ThumbnailGBIFMediaResponse.self, from: data)
-            var urls: [String] = []
-            for result in decoded.results ?? [] {
-                for mediaItem in result.media ?? [] {
-                    if mediaItem.type == "StillImage",
-                       let identifier = mediaItem.identifier?
-                       .trimmedNonEmptyValue {
-                        urls.append(identifier)
-                        break
-                    }
-                }
-            }
-            return urls
-        } catch {
-            return []
-        }
+        guard let taxonKey else { return [] }
+        return (try? await speciesReferenceService.fetchGBIFImageURLs(
+            taxonKey: taxonKey
+        )) ?? []
     }
 
     private func mergeUrls(primary: String?, secondary: [String]) -> [String] {
@@ -295,29 +200,6 @@ actor ScanThumbnailBackfillActor {
     private func pruneExpiredMisses() {
         let cutoff = Date.now.timeIntervalSinceReferenceDate - missCooldown
         recentSpeciesMisses = recentSpeciesMisses.filter { $0.value > cutoff }
-    }
-
-    private static func stripHTML(_ html: String) -> String? {
-        var result = html
-            .replacingOccurrences(of: "<br>", with: "\n", options: .caseInsensitive)
-            .replacingOccurrences(of: "<br/>", with: "\n", options: .caseInsensitive)
-            .replacingOccurrences(of: "<br />", with: "\n", options: .caseInsensitive)
-            .replacingOccurrences(of: "</p>", with: "\n", options: .caseInsensitive)
-        result = result.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-        result = result
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-
-        while result.contains("\n\n\n") {
-            result = result.replacingOccurrences(of: "\n\n\n", with: "\n\n")
-        }
-
-        let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

@@ -7,8 +7,30 @@ remote identification pipeline. Capture-specific composition remains under
 
 ## Responsibilities
 
-- `InferenceEngine` coordinates live analysis, result state, saved-media
-  handoff, offline-queue adoption, enrichment, awards, and Field trips.
+- `InferenceEngine` coordinates live analysis, observable result state,
+  saved-media handoff, offline-queue adoption, enrichment, awards, and Field
+  trips. It delegates hydration lifecycle, bounded background-write, and
+  external-reference work to focused owners instead of storing those
+  implementation details itself.
+- `Inference/Hydration/InferenceHydrationCoordinator.swift` privately owns the
+  replaceable live, historical, and identification-review task slots; retains
+  cancelled handles until completion for Auth quiescence; and contains the
+  bounded request histories, 24-hour enriched-species cache, and temporary
+  rate-limit deadline. Wikipedia, enrichment, and GBIF work remain structured
+  children of the owning slot instead of creating a second task owner. The
+  engine retains presentation identity, observable mutation, endpoint
+  invocation, and persistence decisions.
+- `Inference/State/InferenceWriteCoordinator.swift` privately owns the bounded
+  background-write queue, presentation generations, Auth-transition fence, and
+  ordered identification writes. Species-changing review work, same-species AI
+  confirmation, and legacy flagging use independent bounded action generations
+  on one final-writer tail, so confirmation does not invalidate an unrelated
+  historical hydration. `InferenceEngine` retains lifecycle orchestration; the
+  coordinator's mutable write registries do not escape that owner.
+- `Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` owns
+  the shared public Wikipedia/GBIF session, request construction, wire DTOs, and
+  off-main parsing used by Inference and thumbnail recovery. The engine still
+  owns presentation identity, observable mutations, and persistence.
 - `InferenceProcessingActor` performs CPU/file/database work away from the main
   actor, including image encoding, response parsing, and scan persistence.
 - `LocalVisualAnalysis` owns the injected Vision classifier, deterministic
@@ -419,10 +441,28 @@ background recovery.
 
 ## Verification
 
-Focused tests live under `apps/ios/MerianTests/Core/AI/`. Network timing and
-request-upload handoff coverage lives under `MerianTests/Core/Network/`; the
-full server generation invariants are enforced by the Deno tests beside
-`identify-multimodal`.
+Focused tests live under `apps/ios/MerianTests/Core/AI/`.
+`Core/AI/Inference/InferenceHydrationCoordinatorTests.swift` covers replacement
+task retention, exact-task awaiting for review replacements, Auth admission and
+drain behavior, stale completion isolation, bounded request histories, persisted
+TTL pruning, and backoff expiry/reset.
+`Core/AI/Inference/InferenceWriteCoordinatorTests.swift` covers queue bounds,
+Auth quiescence, reset cancellation, action-history eviction, ordered stale
+write rejection, confirmation/review generation independence, and the shared
+identification final-writer tail.
+`Core/SpeciesReference/SpeciesReferenceHydrationServiceTests.swift` covers
+Wikipedia/GBIF requests, response parsing, missing-description compatibility,
+and failure behavior. Its architecture suite prevents either consumer from
+reclaiming the shared transport, while `InferenceArchitectureTests.swift` locks
+both extracted task-state boundaries. Network timing and request-upload handoff
+coverage lives under `MerianTests/Core/Network/`; the full server generation
+invariants are enforced by the Deno tests beside `identify-multimodal`.
+`Core/AI/InferenceEngineTests.swift` retains the integration proofs for Auth
+quiescence, closed-fence review rejection, stale confirmation rejection after an
+override, and presentation-reset hydration cancellation.
+`Core/Data/BackgroundDatabaseActorTests.swift` separately locks atomic override
+admission, destructive reset/identity replacement, and non-destructive
+same-species historical refresh.
 
 A queue-handoff regression is not valid when it throws from consent preflight or
 another pre-request seam. It must dispatch through mocked URLSession transport,

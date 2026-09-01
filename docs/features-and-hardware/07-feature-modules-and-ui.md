@@ -264,7 +264,9 @@ production Shell and Library file remains below the 600-line review guard.
   an obsolete result or starting visual fallback for a reused tile. Typed task
   identity includes source paths, audio/reference policy, target pixel size,
   placeholder kind, and relevant connectivity. Immutable recovery candidates
-  live beside `ScanThumbnailBackfillActor` in `Core/Data/Images`.
+  live beside `ScanThumbnailBackfillActor` in `Core/Data/Images`; the actor
+  injects the shared `Core/SpeciesReference` Wikipedia/GBIF transport and
+  retains its own batching, cache, persistence, and prefetch policy.
 - **Explore media recovery banner**: `ScansShellViewModel` refreshes the
   authenticated owner's `/get-explore-media-incidents` queue through its
   injected live dependency on entry, foreground, connectivity changes, and
@@ -1235,11 +1237,11 @@ an Edge API response or opened offline via the Scans library.
 
 - Spawns parallel external lookups fetching the full taxonomic classification
   into the visual `TaxonomyCard`.
-- After the Gemini payload renders,
-  `InferenceEngine.asynchronouslyFetchWikipediaAndHydrate` pings the Wikimedia
-  REST API (e.g., `/api/rest_v1/page/summary/`). When the data resolves, the
-  Wikipedia abstract paragraph fades directly into the active `InsightSheetView`
-  without requiring modal dismissal.
+- After the Gemini payload renders, `InferenceEngine` delegates Wikipedia
+  mobile-sections transport and parsing to its injected
+  `SpeciesReferenceHydrationService`. When the result still matches the active
+  scan generation, the engine applies the description and reference media to
+  `InsightSheetView` without requiring modal dismissal.
 
 ## 4. Account (`ProfileView`)
 

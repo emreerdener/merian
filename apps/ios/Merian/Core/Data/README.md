@@ -252,6 +252,28 @@ classified as cancellation, and local file cleanup runs only after this save. If
 crash replay reaches the same proven generation after the queue row is gone, an
 already-complete job is accepted without appending a duplicate completion event.
 
+## Identification Review Replacement
+
+Identification review changes species identity without changing
+`LocalScanRecord.scientificName`, which remains the original AI reset key.
+`BackgroundDatabaseActor.beginScanIdentificationOverride` atomically writes the
+new override state, clears confirmation, and replaces prior-species presentation
+fields with a scientific-name placeholder before any network lookup.
+`BackgroundDatabaseActor.updateScanWithOverride` therefore treats `.unreviewed`
+as an atomic replacement boundary: it clears override-owned common-name, hazard,
+taxonomy, Wikipedia, reference-image, conservation, habitat, GBIF, lookalike,
+and alternate-name fields in the same mutation that clears the review state.
+Follow-up Species Dictionary hydration repopulates either placeholder; failure
+leaves a coherent scientific-name placeholder rather than mixed-species data.
+
+`updateScanWithOverrideSpeciesData` receives an explicit identity-replacement
+flag. When interactive override/reset passes `true`, nil taxonomy clears prior
+taxonomy and the write also clears prior lookalikes/alternate names because
+those values belong to the previous species. A historical refresh of the
+already-active override passes `false`, preserving valid taxonomy and
+collections when the Species Dictionary row is sparse. These are data
+replacements only; they add no SwiftData field or migration.
+
 ## Long-Lived Actor Cache Boundaries
 
 `OfflineQueueManager` lazily retains both its queue database actor and the
@@ -298,6 +320,13 @@ coordinate-free request value and eligibility mapping consumed by
 the recovery actor from depending on a feature UI file. Scans Shell and Map
 services decide when to schedule candidates; Core UI only projects and renders
 the resulting local/reference state.
+
+The actor injects
+`Core/SpeciesReference/Services/SpeciesReferenceHydrationService.swift` for the
+shared Wikipedia mobile-sections and GBIF taxon-key transport/parser. Core Data
+continues to own candidate selection, dictionary-cache fallback, miss cooldown,
+URL admission, SwiftData persistence, and image prefetching; none of those
+policies move into the shared service.
 
 ## External Image Import Inbox
 

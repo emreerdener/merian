@@ -33,7 +33,7 @@ struct InsightShellPresentationTests {
         let engine = InferenceEngine()
         engine.load(from: record)
         engine.isProcessing = true
-        defer { engine.historicHydrationTask?.cancel() }
+        defer { engine.cancelHistoricHydration() }
 
         let viewModel = InsightSheetViewModel()
         let didBind = viewModel.bindPresentedScan(
@@ -70,7 +70,7 @@ struct InsightShellPresentationTests {
         let engine = InferenceEngine()
         engine.load(from: firstRecord)
         engine.isProcessing = true
-        defer { engine.historicHydrationTask?.cancel() }
+        defer { engine.cancelHistoricHydration() }
 
         let viewModel = InsightSheetViewModel()
         let didBind = viewModel.bindPresentedScan(
