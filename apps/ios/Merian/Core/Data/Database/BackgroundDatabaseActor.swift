@@ -3034,15 +3034,21 @@ actor BackgroundDatabaseActor {
         userReviewState: UserReviewState
     ) {
         mutateScan(id: scanId) { record in
+            // Snapshot the original AI identity before mutating any SwiftData-backed
+            // review fields. The reset placeholder must not depend on a managed
+            // accessor after the record has begun changing.
+            let resetCommonName = userReviewState == .unreviewed
+                ? record.scientificName
+                : nil
             record.userIdentificationOverride = override
             record.userConfirmedIdentification = confirmed
             record.confirmedSpeciesId = newConfirmedSpeciesId
             record.userReviewState = userReviewState
 
-            guard userReviewState == .unreviewed else { return }
+            guard let resetCommonName else { return }
             replaceIdentificationPresentation(
                 on: record,
-                commonName: record.scientificName
+                commonName: resetCommonName
             )
         }
     }
