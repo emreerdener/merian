@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { corsHeaders, jsonResponse, parseJsonBody } from "../_shared/http.ts";
 import {
   logStructuredError,
+  serveEdge,
   withPublicEdgeHandler,
 } from "../_shared/edgeHandler.ts";
 import { PUBLIC_SPECIES_SCHEMA_VERSION } from "../_shared/publicSpeciesProjection.ts";
@@ -138,5 +139,5 @@ export function createSpeciesDictionaryHttpHandler(
 }
 
 if (import.meta.main) {
-  Deno.serve(createSpeciesDictionaryHttpHandler());
+  serveEdge((req) => handleSpeciesDictionaryRequest(req));
 }

@@ -662,17 +662,19 @@ Deno.test("species-dictionary db - dual identity miss never reaches external enr
     },
     mock.client,
     {
-      fetchExternalSpeciesDictionary: async () => {
+      fetchExternalSpeciesDictionary: () => {
         externalFetchCount += 1;
-        return buildExternalSpeciesDictionaryPayload("Missing species", {
-          wikipediaUrl: null,
-          wikiExtract: null,
-          gbifKey: null,
-          referenceImageUrl: null,
-          alternativeCommonNames: [],
-          wikiTitle: null,
-          gbifTaxonomy: null,
-        });
+        return Promise.resolve(
+          buildExternalSpeciesDictionaryPayload("Missing species", {
+            wikipediaUrl: null,
+            wikiExtract: null,
+            gbifKey: null,
+            referenceImageUrl: null,
+            alternativeCommonNames: [],
+            wikiTitle: null,
+            gbifTaxonomy: null,
+          }),
+        );
       },
     },
   );
@@ -689,17 +691,19 @@ Deno.test("species-dictionary db - name-only miss retains bounded external fallb
     { scientificName: "Externalis exemplaris" },
     mock.client,
     {
-      fetchExternalSpeciesDictionary: async (scientificName) => {
+      fetchExternalSpeciesDictionary: (scientificName) => {
         externalFetchCount += 1;
-        return buildExternalSpeciesDictionaryPayload(scientificName, {
-          wikipediaUrl: null,
-          wikiExtract: null,
-          gbifKey: 920003,
-          referenceImageUrl: null,
-          alternativeCommonNames: [],
-          wikiTitle: null,
-          gbifTaxonomy: null,
-        });
+        return Promise.resolve(
+          buildExternalSpeciesDictionaryPayload(scientificName, {
+            wikipediaUrl: null,
+            wikiExtract: null,
+            gbifKey: 920003,
+            referenceImageUrl: null,
+            alternativeCommonNames: [],
+            wikiTitle: null,
+            gbifTaxonomy: null,
+          }),
+        );
       },
     },
   );
@@ -721,9 +725,9 @@ Deno.test("species-dictionary db - ineligible local name is not externalized", a
     { scientificName: "Availability" },
     mock.client,
     {
-      fetchExternalSpeciesDictionary: async () => {
+      fetchExternalSpeciesDictionary: () => {
         externalFetchCount += 1;
-        throw new Error("external fetch must not run");
+        return Promise.reject(new Error("external fetch must not run"));
       },
     },
   );
