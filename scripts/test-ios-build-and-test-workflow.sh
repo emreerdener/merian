@@ -24,10 +24,10 @@ queued_scanning_presentation_source="$repo_root/apps/ios/Merian/Features/Insight
 insight_sheet_lifecycle_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView+Lifecycle.swift"
 insight_records_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+Records.swift"
 insight_presentation_identity_source="$repo_root/apps/ios/Merian/Features/Insights/Shell/ViewModels/InsightSheetViewModel+PresentationIdentity.swift"
-audio_page_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Pages/AudioPlaybackCarouselPage.swift"
-audio_components_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Components/AudioPlaybackCarouselComponents.swift"
-audio_presentation_source="$repo_root/apps/ios/Merian/Features/Insights/Media/Carousel/Models/InsightAudioPlaybackPresentation.swift"
-field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/BottomToolbar/InsightBottomToolbar.swift"
+audio_page_source="$repo_root/apps/ios/Merian/Core/UI/Components/MediaCarousel/AudioPlayback/AudioPlaybackCarouselPage.swift"
+audio_components_source="$repo_root/apps/ios/Merian/Core/UI/Components/MediaCarousel/AudioPlayback/AudioPlaybackCarouselComponents.swift"
+audio_presentation_source="$repo_root/apps/ios/Merian/Core/UI/Components/MediaCarousel/AudioPlayback/AudioPlaybackPresentation.swift"
+field_chat_toolbar_source="$repo_root/apps/ios/Merian/Features/FieldChat/Components/Toolbar/FieldChatToolbarButton.swift"
 top_toolbar_source="$repo_root/apps/ios/Merian/Features/Insights/Toolbars/TopToolbar/TopToolbar.swift"
 insight_share_button_source="$repo_root/apps/ios/Merian/Features/Insights/Sharing/Components/InsightShareButton.swift"
 scans_sheet_source="$repo_root/apps/ios/Merian/Features/Scans/Shell/Views/ScansSheetView.swift"
@@ -317,11 +317,11 @@ assert_no_runner_context_in_job_env() {
   || fail "Missing iOS failure-diagnostics extractor: $failure_diagnostics_extractor"
 [[ -f "$ui_test_source" ]] || fail "Missing iOS UI-test source: $ui_test_source"
 [[ -f "$ui_seed_source" ]] || fail "Missing iOS UI seed source: $ui_seed_source"
-[[ -f "$audio_page_source" ]] || fail "Missing Insight audio page: $audio_page_source"
+[[ -f "$audio_page_source" ]] || fail "Missing shared audio page: $audio_page_source"
 [[ -f "$audio_components_source" ]] \
-  || fail "Missing Insight audio components: $audio_components_source"
+  || fail "Missing shared audio components: $audio_components_source"
 [[ -f "$audio_presentation_source" ]] \
-  || fail "Missing Insight audio presentation: $audio_presentation_source"
+  || fail "Missing shared audio presentation: $audio_presentation_source"
 [[ -f "$field_chat_toolbar_source" ]] \
   || fail "Missing Field Chat toolbar source: $field_chat_toolbar_source"
 [[ -f "$insight_share_button_source" ]] \

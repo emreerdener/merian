@@ -7,9 +7,11 @@ the onboarding flow.
 
 - **Welcome**: The initial greeting screen introducing the user to Merian.
 - **CameraPermission**: The screen explaining the need for camera access to
-  capture organisms.
+  capture organisms. It invokes an injected permission request closure and
+  contains no AVFoundation work.
 - **LocationPermission**: The screen explaining the need for location access to
-  provide accurate ecological context.
+  provide accurate ecological context. It invokes an injected permission request
+  closure and contains no Core Location work.
 - **Ready**: The final **One last step** screen names Google Gemini as the
   recipient of observation data for AI-powered identification. Three
   switch-and-label rows share a common leading edge in one continuous stack
@@ -32,9 +34,16 @@ the onboarding flow.
   launch-matched neutral surface mounted with bounded automatic and explicit
   retry; they never mount this step as a substitute for authoritative absence.
 - **Shared**: Common UI elements used across multiple steps (e.g., standard
-  layout templates, primary action buttons).
+  layout templates, primary action buttons, and the normalized illustration
+  stage).
 - **Models**: Defines the data structures or enums representing the different
   onboarding steps.
+
+Within `Ready`, `Models` owns deterministic disclosure and enablement policy,
+`ViewModels` owns the editable projection of current consent, and `Components`
+owns the shared switch-and-label row. `ReadyStepView` retains bindings, layout,
+accessibility, and a read-only reactive `ConsentManager` environment projection;
+the durable consent write remains a Shell service effect.
 
 ## Release status
 

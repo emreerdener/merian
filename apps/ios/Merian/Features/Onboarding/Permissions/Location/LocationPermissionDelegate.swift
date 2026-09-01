@@ -1,40 +1,48 @@
 import CoreLocation
 import Foundation
-import SwiftUI
 
-@Observable final class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {
+@MainActor
+final class LocationPermissionDelegate: NSObject, CLLocationManagerDelegate {
     // MARK: - Core Dependencies
-    @ObservationIgnored var locationManager = CLLocationManager()
-    
-    // MARK: - State
-    var authorizationStatus: CLAuthorizationStatus = .notDetermined
-    @ObservationIgnored var onAuthorizationDetermined: (() -> Void)?
-    
+    private let locationManager: CLLocationManager
+    private var authorizationCompletion: OnboardingPermissionCompletion?
+
     // MARK: - Initialization Engine
-    override init() {
+    init(locationManager: CLLocationManager = CLLocationManager()) {
+        self.locationManager = locationManager
         super.init()
         locationManager.delegate = self
-        // Initialize authorizationStatus with the current status
-        self.authorizationStatus = locationManager.authorizationStatus
     }
-    
+
     // MARK: - Permission Handlers
-    func requestWhenInUse() {
+    func requestWhenInUse(
+        onAuthorizationDetermined: @escaping OnboardingPermissionCompletion
+    ) {
+        authorizationCompletion = onAuthorizationDetermined
         if locationManager.authorizationStatus == .notDetermined {
             locationManager.requestWhenInUseAuthorization()
         } else {
-            Task { @MainActor in
-                self.onAuthorizationDetermined?()
+            Task { @MainActor [weak self] in
+                self?.completeAuthorizationRequest()
             }
         }
     }
-    
+
     // MARK: - CLLocationManagerDelegate Events
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus != .notDetermined {
-            Task { @MainActor in
-                self.onAuthorizationDetermined?()
-            }
+    nonisolated func locationManagerDidChangeAuthorization(
+        _: CLLocationManager
+    ) {
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.locationManager.authorizationStatus != .notDetermined
+            else { return }
+            self.completeAuthorizationRequest()
         }
+    }
+
+    private func completeAuthorizationRequest() {
+        let completion = authorizationCompletion
+        authorizationCompletion = nil
+        completion?()
     }
 }

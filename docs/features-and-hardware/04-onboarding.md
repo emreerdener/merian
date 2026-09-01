@@ -23,17 +23,21 @@ versioned consent receipts, and the three-part required completion gate.
 
 ## Architecture
 
-| File                                                                                 | Role                                                                                                                                      |
-| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `App/MerianApp.swift`                                                                | Applies the three-state root presentation policy: onboarding, required-consent restoration, or workspace                                  |
-| `Steps/Models/OnboardingStep.swift`                                                  | Defines the four steps in order                                                                                                           |
-| `Shell/ViewModels/OnboardingViewModel.swift`                                         | `@Observable @MainActor` — owns `currentStep` and the injected `AppSettings.hasCompletedOnboarding` flag                                  |
-| `Core/Security/ConsentManager.swift`                                                 | Owns the local append-only consent ledger, current policy versions, account synchronization, launch-restoration state, and inference gate |
-| `Core/Security/ConsentLedgerStore.swift`                                             | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal   |
-| `Shell/Views/OnboardingView.swift`                                                   | Root view, switches content based on `currentStep`                                                                                        |
-| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission`, `Steps/Ready` | One self-contained SwiftUI view per onboarding step                                                                                       |
-| `Steps/Shared/OnboardingStepWrapper.swift`                                           | Shared step layout and action-button chrome                                                                                               |
-| `Permissions/Location/LocationPermissionDelegate.swift`                              | `CLLocationManagerDelegate` for native location permission priming                                                                        |
+| Owner                                                                 | Role                                                                                                                                      |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `App/MerianApp.swift`                                                 | Applies the three-state root presentation policy and injects the selected app-scoped managers into Onboarding                             |
+| `Steps/Models/OnboardingStep.swift`                                   | Defines the four steps in order                                                                                                           |
+| `Shell/Services/OnboardingDependencies.swift`                         | Narrow live adapters for completion state, consent, telemetry, queue recovery, and hardware-animation policy                              |
+| `Shell/ViewModels/OnboardingViewModel.swift`                          | `@Observable @MainActor` state owner for ordered progression, expected-step guarding, and completion effect sequencing                    |
+| `Shell/Views/OnboardingView.swift`                                    | Root composition; owns transitions and consent-save feedback, and supplies each advancing callback's expected source step                 |
+| `Shell/Components/OnboardingAmbientGradient.swift`                    | Shell-only ambient rendering; consumes injected hardware-animation policy and view-owned Reduce Motion                                    |
+| `Steps/Welcome`, `Steps/CameraPermission`, `Steps/LocationPermission` | Permission rationale and action views; receive request closures and contain no native permission calls                                    |
+| `Steps/Ready/{Models,ViewModels,Components}`                          | Deterministic consent presentation, editable consent projection, and shared toggle-row rendering                                          |
+| `Steps/Shared`                                                        | Shared step layout, action-button chrome, and illustration presentation                                                                   |
+| `Permissions/Services/OnboardingPermissionDependencies.swift`         | Adapts AVFoundation and the retained location delegate into injected completion closures                                                  |
+| `Permissions/Location/LocationPermissionDelegate.swift`               | One-shot `@MainActor` location owner; re-enters the actor before reading state from a nonisolated delegate callback                       |
+| `Core/Security/ConsentManager.swift`                                  | Owns the local append-only consent ledger, current policy versions, account synchronization, launch-restoration state, and inference gate |
+| `Core/Security/ConsentLedgerStore.swift`                              | Throwing, fault-injectable storage boundary: atomic verified ledger file, legacy migration, and independent Keychain withdrawal journal   |
 
 ---
 
@@ -51,8 +55,8 @@ enum OnboardingStep: Int, CaseIterable {
 | Step        | Component                    | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `.welcome`  | `WelcomeStepView`            | Branding screen — no permission request                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `.camera`   | `CameraPermissionStepView`   | Requests `AVCaptureDevice` camera permission                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `.location` | `LocationPermissionStepView` | Requests `CLLocationManager` when-in-use authorization via `LocationPermissionDelegate`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `.camera`   | `CameraPermissionStepView`   | Invokes the injected camera request adapter; AVFoundation remains in `Permissions/Services`                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `.location` | `LocationPermissionStepView` | Invokes the injected when-in-use adapter; `LocationPermissionDelegate` retains the native request                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `.ready`    | `ReadyStepView`              | Presents **One last step**, names Google Gemini as the recipient of observation data for AI-powered identification, and places three initially-off switch-and-label rows on a common leading edge in one continuous stack without section titles or a divider. The labels omit terminal periods. The 18+ self-attestation and Terms/data-sharing permission with an inline Terms link are required; usage/diagnostics remains optional and changeable in Settings. **Start scanning** requires the two required switches only. |
 
 The first three step views use `OnboardingStepWrapper` for consistent layout and
@@ -64,20 +68,27 @@ acceptance statement, switches, and disabled state remain one clear surface.
 ## State Transitions
 
 ```swift
-func advanceStep() {
+func advanceStep(from expectedStep: OnboardingStep) {
+    guard currentStep == expectedStep else { return }
     if let next = OnboardingStep(rawValue: currentStep.rawValue + 1) {
         currentStep = next
     }
 }
 
 func completeOnboarding(analyticsEnabled: Bool) throws {
-    try consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
-        analyticsEnabled: analyticsEnabled
-    ) // verified atomic local write first
-    AppTelemetry.trackOnboardingCompleted()  // fires before flag write — activation funnel signal
-    hasCompletedOnboarding = true            // writes through AppSettings/UserDefaults("hasCompletedOnboarding")
+    try dependencies.recordCurrentConsent(analyticsEnabled) // verified atomic local write first
+    dependencies.trackCompletion()                         // activation funnel signal
+    hasCompletedOnboarding = true                          // opens lifecycle gate through dependency
+    if let accountID = dependencies.currentSessionUserID() {
+        dependencies.resumeConsentBlockedScan(accountID)   // best-effort recovery last
+    }
 }
 ```
+
+`OnboardingView` wraps every advancing UI or permission completion with the step
+that issued it. `OnboardingViewModel` enforces the guard, rejecting a duplicate
+button action or a late native permission callback after another action already
+advanced the sequence. Animation and alert timing remain in the view.
 
 `completeOnboarding(analyticsEnabled:)` is called on the `.ready` step. It first
 builds a candidate containing the current adult-confirmation receipt, Terms
@@ -106,19 +117,21 @@ submission drain runs.
 ## Root Presentation Gate
 
 `OnboardingViewModel` exposes `hasCompletedOnboarding` as a computed property
-backed by its injected `AppSettings` boundary:
+backed by its injected closure boundary:
 
 ```swift
 var hasCompletedOnboarding: Bool {
-    get { appSettings.hasCompletedOnboarding }
-    set { appSettings.hasCompletedOnboarding = newValue }
+    get { dependencies.hasCompletedOnboarding() }
+    set { dependencies.setHasCompletedOnboarding(newValue) }
 }
 ```
 
 `MerianApp.swift` reads this flag together with
 `ConsentManager.hasCurrentRequiredConsent` and
-`ConsentManager.isRestoringRequiredConsent`. Production construction uses the
-shared managers; tests inject isolated settings and consent ledgers.
+`ConsentManager.isRestoringRequiredConsent`. Production construction injects the
+exact app-scoped settings, consent, offline queue, and hardware manager
+instances selected by `MerianApp`; tests inject deterministic closures or
+isolated settings and consent ledgers.
 
 | Root inputs                                                                                          | Presentation                                   |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -374,6 +387,30 @@ ensuring users understand the value before iOS shows the system alert.
 > be enabled. Receiving a file explicitly shared from Photos is a document
 > import and adds no Photo Library permission request. See
 > [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md).
+
+## Test Ownership
+
+Feature behavior is mirrored under `MerianTests/Features/Onboarding`:
+
+- `OnboardingViewModelTests`, `OnboardingDependencyTests`, and
+  `ReadyStepViewModelTests` cover sequence state, completion effect order,
+  consent-blocked scan recovery, expected-step overlap fencing, and editable
+  Ready projection;
+- `ReadyConsentPresentationTests` locks approved copy, the Terms destination,
+  required indicators, and optional-analytics enablement; and
+- `OnboardingArchitectureTests` enforces explicit source groups, native effect
+  confinement, app-root manager injection, platform-neutral Models, the Core
+  Location main-actor hop-before-read order, and the 600-line production-file
+  ceiling.
+
+Consent is a Core security contract rather than an Onboarding implementation
+detail. Its restoration, ledger durability, lifecycle, reapproval, and authority
+suites live under `MerianTests/Core/Security/Consent`. Moving those tests does
+not move or weaken the root-presentation and consent invariants they cover.
+`ghostProfileMergeClientContract.test.ts` deliberately reads
+`ConsentManagerAuthorityTests.swift` from that Core owner to enforce that
+target-owned pending consent is flushed before account refetch; its path must be
+updated with any future test rehome.
 
 ---
 

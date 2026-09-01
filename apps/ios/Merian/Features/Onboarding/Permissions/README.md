@@ -1,10 +1,22 @@
 # Onboarding Permissions
 
-The `Permissions` directory contains specific core logic and potentially reusable UI elements for handling system permission prompts (such as Location). 
+The `Permissions` directory owns Onboarding's narrow adapters for system
+permission prompts. It contains no user-facing step layout.
 
 ## Structure
 
-- **Location**: Contains the logic and specialized UI for requesting location access, outlining the privacy rationale, and handling the system prompt outcomes. 
+- **Services**: `OnboardingPermissionDependencies.live` adapts AVFoundation
+  camera access and a retained location delegate into completion closures for
+  the shell.
+- **Location**: The `@MainActor` `LocationPermissionDelegate` owns
+  `CLLocationManager`, immediately hops nonisolated delegate callbacks back to
+  the main actor before reading authorization state, retains one pending request
+  completion, ignores `.notDetermined` callbacks, and clears the completion
+  before delivery.
 
 ## Purpose
-While the `Steps` directory defines the user-facing screens for the onboarding flow, the `Permissions` directory isolates the actual implementation of the permission requests, ensuring that the logic interfacing with iOS system permissions is decoupled from the pure UI steps.
+
+While `Steps` defines the permission rationale and actions, `Permissions`
+isolates AVFoundation and Core Location. Step views receive closures and cannot
+invoke native permission APIs directly. The shell's expected-step fence makes
+late or duplicate OS completions harmless without changing prompt behavior.

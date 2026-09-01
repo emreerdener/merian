@@ -490,6 +490,18 @@ compiler error. Merian tags `@MainActor` on the `CaptureTelemetry` initializer
 itself (`@MainActor init(from inferenceEngine: InferenceEngine)`), ensuring
 execution aligns with `AppDIContainer.handleBackgroundPhase()` on the UI thread.
 
+### Core Location Delegate Re-entry (`LocationPermissionDelegate`)
+
+Onboarding's location permission owner is `@MainActor`, while
+`CLLocationManagerDelegate.locationManagerDidChangeAuthorization` enters through
+a nonisolated Objective-C delegate boundary. The callback must create a
+main-actor task before reading the owned manager's authorization state or
+delivering the pending completion. The one-shot completion is cleared before
+invocation, and the Onboarding view model independently checks the issuing step,
+so a duplicate or late OS callback cannot mutate a replacement screen. Do not
+move the authorization read above the actor hop or carry mutable Core Location
+state across that boundary.
+
 ### SwiftData Environment Tearing (`MerianApp`)
 
 Attaching `.modelContainer(container)` to conditional child elements (like

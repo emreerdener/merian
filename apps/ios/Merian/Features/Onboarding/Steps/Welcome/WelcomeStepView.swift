@@ -3,7 +3,7 @@ import SwiftUI
 struct WelcomeStepView: View {
     // MARK: - Callbacks
     let onNext: () -> Void
-    
+
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(

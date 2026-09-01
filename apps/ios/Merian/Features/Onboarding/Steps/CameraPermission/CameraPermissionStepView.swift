@@ -1,10 +1,34 @@
-import AVFoundation
 import SwiftUI
 
 struct CameraPermissionStepView: View {
+    // MARK: - Permission Boundary
+    private let requestCameraAccess: @MainActor (
+        _ completion: @escaping OnboardingPermissionCompletion
+    ) -> Void
+
     // MARK: - Callbacks
     let onNext: () -> Void
-    
+
+    @MainActor
+    init(onNext: @escaping () -> Void) {
+        self.init(
+            requestCameraAccess:
+                OnboardingPermissionDependencies.live.requestCameraAccess,
+            onNext: onNext
+        )
+    }
+
+    @MainActor
+    init(
+        requestCameraAccess: @escaping @MainActor (
+            _ completion: @escaping OnboardingPermissionCompletion
+        ) -> Void,
+        onNext: @escaping () -> Void
+    ) {
+        self.requestCameraAccess = requestCameraAccess
+        self.onNext = onNext
+    }
+
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
@@ -15,8 +39,8 @@ struct CameraPermissionStepView: View {
             primaryButtonTextColor: Color.white,
             primaryButtonColor: Color.blue,
             primaryAction: {
-                AVCaptureDevice.requestAccess(for: .video) { _ in
-                    Task { @MainActor in onNext() }
+                requestCameraAccess {
+                    onNext()
                 }
             }
         )

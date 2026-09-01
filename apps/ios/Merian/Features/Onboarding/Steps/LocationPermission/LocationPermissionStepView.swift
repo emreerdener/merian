@@ -1,12 +1,49 @@
 import SwiftUI
 
 struct LocationPermissionStepView: View {
-    // MARK: - State Dependencies
-    var locationManagerDelegate: LocationPermissionDelegate
-    
+    // MARK: - Permission Boundary
+    private let requestLocationAccess: @MainActor (
+        _ completion: @escaping OnboardingPermissionCompletion
+    ) -> Void
+
     // MARK: - Callbacks
     let onNext: () -> Void
-    
+
+    @MainActor
+    init(onNext: @escaping () -> Void) {
+        self.init(
+            requestLocationAccess:
+                OnboardingPermissionDependencies.live.requestLocationAccess,
+            onNext: onNext
+        )
+    }
+
+    @MainActor
+    init(
+        requestLocationAccess: @escaping @MainActor (
+            _ completion: @escaping OnboardingPermissionCompletion
+        ) -> Void,
+        onNext: @escaping () -> Void
+    ) {
+        self.requestLocationAccess = requestLocationAccess
+        self.onNext = onNext
+    }
+
+    @MainActor
+    init(
+        locationManagerDelegate: LocationPermissionDelegate,
+        onNext: @escaping () -> Void
+    ) {
+        self.init(
+            requestLocationAccess: { completion in
+                locationManagerDelegate.requestWhenInUse(
+                    onAuthorizationDetermined: completion
+                )
+            },
+            onNext: onNext
+        )
+    }
+
     // MARK: - Visual Layout
     var body: some View {
         OnboardingStepWrapper(
@@ -17,10 +54,9 @@ struct LocationPermissionStepView: View {
             primaryButtonTextColor: Color.black,
             primaryButtonColor: Color.green.opacity(0.8),
             primaryAction: {
-                locationManagerDelegate.onAuthorizationDetermined = {
+                requestLocationAccess {
                     onNext()
                 }
-                locationManagerDelegate.requestWhenInUse()
             },
             secondaryButtonTitle: "Skip for now",
             secondaryAction: onNext

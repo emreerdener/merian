@@ -80,6 +80,24 @@ Examples:
 - `Core/Data/OfflineSync` owns sync infrastructure rather than a
   feature-specific scan screen.
 
+## Onboarding Ownership
+
+[Onboarding](Merian/Features/Onboarding/README.md) owns the first-run Welcome,
+Camera, Location, and Ready sequence plus the Ready surface selected for a
+returning user after authoritative consent restoration. Shell Services resolve
+the narrow live settings, consent, telemetry, queue recovery, and hardware
+animation adapters; the observable state owner only sequences steps and
+completion. `MerianApp` injects the exact app-scoped managers used by the root.
+
+Steps own copy, layout, bindings, accessibility, and UI-only consent projection.
+Native camera and location requests remain in `Permissions`, and Core Security
+retains durable consent, account restoration, and provider-admission authority.
+The one-shot location adapter returns its nonisolated delegate callback to the
+main actor before reading authorization state; the shell then submits the source
+step to the view model's duplicate/late-completion fence. Feature tests mirror
+the Onboarding boundary, while the Core consent suites stay with their security
+owner.
+
 ## Field Chat Ownership
 
 [Field Chat](Merian/Features/FieldChat/README.md) is a cross-feature product

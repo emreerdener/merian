@@ -3,22 +3,19 @@ import SwiftUI
 struct ReadyStepView: View {
     // MARK: - Consent State
     @Environment(ConsentManager.self) private var consentManager
-    @State private var hasConfirmedAdultEligibility = false
-    @State private var hasAllowedGeminiProcessing = false
-    @State private var hasAllowedAnalytics = false
-    @State private var hasLoadedCurrentConsent = false
+    @State private var viewModel = ReadyStepViewModel()
 
     // MARK: - Callbacks
     let onFinish: (_ analyticsEnabled: Bool) -> Void
 
     // MARK: - Disclosure Copy
-    static let title = "One last step"
-    static let disclosure = ConsentPolicy.geminiDisclosureText
-    static let adultStatement = ConsentPolicy.adultConfirmationText
-    static let consentStatement = ConsentPolicy.combinedAcceptanceText
-    static let analyticsStatement = ConsentPolicy.analyticsDisclosureText
-    static let termsURL = PublicBrand.websiteURL(path: "terms")
-    static let requiredIndicator = " *"
+    static let title = ReadyConsentPresentation.title
+    static let disclosure = ReadyConsentPresentation.disclosure
+    static let adultStatement = ReadyConsentPresentation.adultStatement
+    static let consentStatement = ReadyConsentPresentation.consentStatement
+    static let analyticsStatement = ReadyConsentPresentation.analyticsStatement
+    static let termsURL = ReadyConsentPresentation.termsURL
+    static let requiredIndicator = ReadyConsentPresentation.requiredIndicator
     private static let illustrationSize: CGFloat = 280
 
     static func appendingRequiredIndicator(to statement: AttributedString) -> AttributedString {
@@ -42,9 +39,13 @@ struct ReadyStepView: View {
     static func canStartScanning(
         adultConfirmed: Bool,
         geminiAllowed: Bool,
-        analyticsAllowed _: Bool
+        analyticsAllowed: Bool
     ) -> Bool {
-        adultConfirmed && geminiAllowed
+        ReadyConsentPresentation.canStartScanning(
+            adultConfirmed: adultConfirmed,
+            geminiAllowed: geminiAllowed,
+            analyticsAllowed: analyticsAllowed
+        )
     }
 
     // MARK: - Visual Layout
@@ -85,25 +86,19 @@ struct ReadyStepView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .onAppear {
-            guard !hasLoadedCurrentConsent else { return }
-            loadCurrentConsentState()
-            hasLoadedCurrentConsent = true
+            viewModel.loadCurrentConsentIfNeeded(currentConsentSnapshot)
         }
         .onChange(of: consentManager.hasConfirmedCurrentAdultEligibility) { _, isConfirmed in
-            guard hasLoadedCurrentConsent else { return }
-            hasConfirmedAdultEligibility = isConfirmed
+            viewModel.updateAdultEligibility(isConfirmed)
         }
         .onChange(of: consentManager.hasAcceptedCurrentTerms) { _, _ in
-            guard hasLoadedCurrentConsent else { return }
-            loadCurrentGeminiConsentState()
+            viewModel.updateGeminiConsent(currentConsentSnapshot)
         }
         .onChange(of: consentManager.hasGrantedCurrentGeminiProcessing) { _, _ in
-            guard hasLoadedCurrentConsent else { return }
-            loadCurrentGeminiConsentState()
+            viewModel.updateGeminiConsent(currentConsentSnapshot)
         }
         .onChange(of: consentManager.hasGrantedCurrentPostHogAnalytics) { _, isGranted in
-            guard hasLoadedCurrentConsent else { return }
-            hasAllowedAnalytics = isGranted
+            viewModel.updateAnalyticsConsent(isGranted)
         }
     }
 
@@ -119,19 +114,28 @@ struct ReadyStepView: View {
     // MARK: - Consent
     private var consentControls: some View {
         VStack(alignment: .leading, spacing: 18) {
-            consentRow(
-                isOn: $hasConfirmedAdultEligibility,
-                statement: Self.adultStatement,
-                isRequired: true,
+            ReadyConsentToggleRow(
+                isOn: adultEligibilityBinding,
+                statement: Self.appendingRequiredIndicator(
+                    to: AttributedString(Self.adultStatement)
+                ),
+                accessibilityLabel: Self.adultStatement,
                 accessibilityHint: "Required to start scanning",
                 accessibilityIdentifier: "Ready_AgeSwitch"
             )
 
-            linkedGeminiConsentRow
+            ReadyConsentToggleRow(
+                isOn: geminiProcessingBinding,
+                statement: Self.linkedConsentStatement,
+                accessibilityLabel: Self.consentStatement,
+                accessibilityHint: "Required to start scanning and allows Google Gemini to identify observations",
+                accessibilityIdentifier: "Ready_GeminiTermsSwitch"
+            )
 
-            consentRow(
-                isOn: $hasAllowedAnalytics,
-                statement: Self.analyticsStatement,
+            ReadyConsentToggleRow(
+                isOn: analyticsBinding,
+                statement: AttributedString(Self.analyticsStatement),
+                accessibilityLabel: Self.analyticsStatement,
                 accessibilityHint: "Optional, does not affect scanning, and can be changed later in Settings",
                 accessibilityIdentifier: "Ready_AnalyticsSwitch"
             )
@@ -139,84 +143,44 @@ struct ReadyStepView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func consentRow(
-        isOn: Binding<Bool>,
-        statement: String,
-        isRequired: Bool = false,
-        accessibilityHint: String,
-        accessibilityIdentifier: String
-    ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Toggle(isOn: isOn) {
-                EmptyView()
-            }
-            .labelsHidden()
-            .tint(.accentColor)
-            .fixedSize()
-            .accessibilityLabel(statement)
-            .accessibilityHint(accessibilityHint)
-            .accessibilityIdentifier(accessibilityIdentifier)
-
-            Text(
-                isRequired
-                    ? Self.appendingRequiredIndicator(to: AttributedString(statement))
-                    : AttributedString(statement)
-            )
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.primary)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var linkedGeminiConsentRow: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Toggle(isOn: $hasAllowedGeminiProcessing) {
-                EmptyView()
-            }
-            .labelsHidden()
-            .tint(.accentColor)
-            .fixedSize()
-            .accessibilityLabel(Self.consentStatement)
-            .accessibilityHint(
-                "Required to start scanning and allows Google Gemini to identify observations"
-            )
-            .accessibilityIdentifier("Ready_GeminiTermsSwitch")
-
-            Text(Self.linkedConsentStatement)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.primary)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Actions
-    private var hasRequiredConsent: Bool {
-        Self.canStartScanning(
-            adultConfirmed: hasConfirmedAdultEligibility,
-            geminiAllowed: hasAllowedGeminiProcessing,
-            analyticsAllowed: hasAllowedAnalytics
+    private var adultEligibilityBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.hasConfirmedAdultEligibility },
+            set: { viewModel.hasConfirmedAdultEligibility = $0 }
         )
     }
 
-    private func loadCurrentConsentState() {
-        hasConfirmedAdultEligibility = consentManager.hasConfirmedCurrentAdultEligibility
-        loadCurrentGeminiConsentState()
-        hasAllowedAnalytics = consentManager.hasGrantedCurrentPostHogAnalytics
+    private var geminiProcessingBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.hasAllowedGeminiProcessing },
+            set: { viewModel.hasAllowedGeminiProcessing = $0 }
+        )
     }
 
-    private func loadCurrentGeminiConsentState() {
-        hasAllowedGeminiProcessing = consentManager.hasAcceptedCurrentTerms
-            && consentManager.hasGrantedCurrentGeminiProcessing
+    private var analyticsBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.hasAllowedAnalytics },
+            set: { viewModel.hasAllowedAnalytics = $0 }
+        )
+    }
+
+    // MARK: - Actions
+    private var currentConsentSnapshot: ReadyConsentSnapshot {
+        ReadyConsentSnapshot(
+            hasConfirmedAdultEligibility:
+                consentManager.hasConfirmedCurrentAdultEligibility,
+            hasAcceptedTerms: consentManager.hasAcceptedCurrentTerms,
+            hasGrantedGeminiProcessing:
+                consentManager.hasGrantedCurrentGeminiProcessing,
+            hasGrantedAnalytics:
+                consentManager.hasGrantedCurrentPostHogAnalytics
+        )
     }
 
     private var actionButtons: some View {
         Button {
-            guard hasRequiredConsent else { return }
-            onFinish(hasAllowedAnalytics)
+            guard viewModel.canStartScanning else { return }
+            onFinish(viewModel.hasAllowedAnalytics)
         } label: {
             Text("Start scanning")
                 .font(.headline)
@@ -226,12 +190,15 @@ struct ReadyStepView: View {
                 .background(Color.primary)
                 .clipShape(Capsule())
         }
-        .disabled(!hasRequiredConsent)
-        .opacity(hasRequiredConsent ? 1 : 0.45)
-        .animation(.easeInOut(duration: 0.2), value: hasRequiredConsent)
+        .disabled(!viewModel.canStartScanning)
+        .opacity(viewModel.canStartScanning ? 1 : 0.45)
+        .animation(
+            .easeInOut(duration: 0.2),
+            value: viewModel.canStartScanning
+        )
         .accessibilityIdentifier("Ready_StartScanning")
         .accessibilityHint(
-            hasRequiredConsent
+            viewModel.canStartScanning
                 ? "Completes setup and opens the scanner"
                 : "Turn on both required choices to start scanning"
         )

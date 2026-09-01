@@ -161,6 +161,34 @@ final class InsightShellArchitectureTests: XCTestCase {
         XCTAssertFalse(deletionHandler.contains("dismiss()"))
     }
 
+    func testDismissalUsesOneOwnerForEachPresentationStyle() throws {
+        let lifecycle = try String(
+            contentsOf: shellSourceRoot().appendingPathComponent(
+                "Views/InsightSheetView+Lifecycle.swift"
+            ),
+            encoding: .utf8
+        )
+        let functionStart = try XCTUnwrap(
+            lifecycle.range(of: "func dismissInsightPresentation()")?
+                .lowerBound
+        )
+        let handler = lifecycle[functionStart...]
+        let sheetStart = try XCTUnwrap(
+            handler.range(of: "case .sheet:")?.lowerBound
+        )
+        let embeddedStart = try XCTUnwrap(
+            handler.range(of: "case .embeddedInScansLibrary:")?.lowerBound
+        )
+        let sheetHandler = handler[sheetStart..<embeddedStart]
+        let embeddedHandler = handler[embeddedStart...]
+
+        XCTAssertTrue(handler.contains("viewModel.endPresentationSession()"))
+        XCTAssertTrue(sheetHandler.contains("dismiss()"))
+        XCTAssertFalse(sheetHandler.contains("isPresented = false"))
+        XCTAssertTrue(embeddedHandler.contains("isPresented = false"))
+        XCTAssertFalse(embeddedHandler.contains("dismiss()"))
+    }
+
     private func shellSourceRoot() throws -> URL {
         let root = try repositoryRoot().appendingPathComponent(
             "apps/ios/Merian/Features/Insights/Shell"

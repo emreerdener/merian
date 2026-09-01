@@ -12,8 +12,8 @@ const consentManagerUrl = new URL(
   "../../../../apps/ios/Merian/Core/Security/ConsentManager.swift",
   import.meta.url,
 );
-const onboardingTestsUrl = new URL(
-  "../../../../apps/ios/MerianTests/Features/Onboarding/OnboardingViewModelTests.swift",
+const consentAuthorityTestsUrl = new URL(
+  "../../../../apps/ios/MerianTests/Core/Security/Consent/ConsentManagerAuthorityTests.swift",
   import.meta.url,
 );
 
@@ -146,7 +146,7 @@ Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async
 Deno.test("iOS flushes target-owned pending consent before account refetch", async () => {
   const [source, testSource] = await Promise.all([
     Deno.readTextFile(consentManagerUrl).then(compact),
-    Deno.readTextFile(onboardingTestsUrl).then(compact),
+    Deno.readTextFile(consentAuthorityTestsUrl).then(compact),
   ]);
   const observeStart = source.indexOf("func observeSession(userId: UUID?)");
   const observeEnd = source.indexOf(

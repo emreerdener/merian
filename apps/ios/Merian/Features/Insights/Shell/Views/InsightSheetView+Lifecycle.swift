@@ -450,7 +450,11 @@ extension InsightSheetView {
 
     func dismissInsightPresentation() {
         viewModel.endPresentationSession()
-        isPresented = false
-        dismiss()
+        switch presentationStyle {
+        case .sheet:
+            dismiss()
+        case .embeddedInScansLibrary:
+            isPresented = false
+        }
     }
 }

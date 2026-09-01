@@ -2121,23 +2121,29 @@ import, and permission-denial UI require the physical-device checklist in
 - **`AppDIContainerTests.swift` preferred-name coverage**: Verifies matching
   normalized cloud values and existing tombstones are converged without an
   upsert, while real conflicts retain timestamp ordering.
-- **`OnboardingViewModelTests.swift`**: Validates the extracted UI state
-  machine, the full inline Terms destination, final-screen required/optional
-  switch combinations, returning-user direct routing, and completion
-  persistence. It also proves missing evidence waits for the initial session, an
-  expired cached session retains the known account on the neutral root while
-  refresh is pending, authenticated missing evidence remains pending through
-  authoritative merge, fetch and durable-write failures remain retryable, the
-  5-/10-/20-second budget is bounded, duplicate auth preserves that budget,
-  stale account retries are rejected, and generation invalidation cannot orphan
-  a canceled waiting state. It also verifies a resolved same-account session
-  cannot re-enter restoration. Server-rejection cases additionally lock
-  authoritative cloud-head proof, durable relaunch routing to `.ready`, fresh
-  head-anchored evidence, legacy ledger decoding, and per-account fence
-  isolation across restart and account switch. These are deterministic boundary
-  regressions; they do not claim the exact-SHA new-account release transaction
-  described above has run. Every throwing assertion must be declared correctly
-  so this file cannot prevent the entire unit target from compiling.
+- **`Features/Onboarding` suites**: `OnboardingViewModelTests`,
+  `OnboardingDependencyTests`, `ReadyStepViewModelTests`, and
+  `ReadyConsentPresentationTests` validate ordered progression, expected-step
+  overlap fencing, returning-user Ready routing, durable-consent-before-gate
+  effect order, consent-blocked scan recovery, editable consent projection, the
+  full inline Terms destination, and every required/optional switch combination.
+  `OnboardingArchitectureTests` locks source groups, explicit app-root manager
+  injection, platform-neutral Models, native-permission and live-effect
+  confinement, Core Location's main-actor hop-before-authorization-read order,
+  and the 600-line production-file ceiling.
+- **`Core/Security/Consent` suites**: The shared `ConsentManagerTestSupport`
+  fixture backs owner-named restoration, ledger durability, lifecycle,
+  reapproval, and authority suites. They prove initial session and expired-cache
+  root behavior, authoritative merge and persistence failure retry, bounded
+  5-/10-/20-second recovery, account/generation fencing, withdrawal durability,
+  cloud-head proof, durable `.ready` reapproval routing, and stale-account
+  isolation. These deterministic regressions do not claim the exact-SHA
+  new-account release transaction described above has run.
+- **`ghostProfileMergeClientContract.test.ts` consent-owner reference**: The
+  Deno client contract reads
+  `Core/Security/Consent/ConsentManagerAuthorityTests.swift` to pin target-owned
+  pending-consent flush before account refetch. Moving that Swift test requires
+  an atomic contract-path update and the focused Deno contract run.
 - **`SupabaseManagerTests.swift` auth-adoption coverage**: Locks the three cold-
   start classifications: nil is signed out, a current session is authenticated,
   and an expired cached session is awaiting refresh rather than signed out.

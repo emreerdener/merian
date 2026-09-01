@@ -68,21 +68,25 @@ presentation-specific suites retained under `Content`, `FieldNotes`, `Media`,
 and `Sharing`. `InsightShellArchitectureTests` enforces the folder shape,
 deterministic Models boundary, live-resolution boundary, absence of direct
 network clients in views/view models, removal of the former source and test
-aggregates, and the 600-line ceiling.
+aggregates, single-owner modal/embedded dismissal, and the 600-line ceiling.
 
 ## Presentation Modes
 
 `InsightPresentationStyle.sheet` is the ordinary modal presentation.
 `embeddedInScansLibrary` hosts the same Insight content as a pushed destination
 inside an existing navigation stack and owns its back arrow/back-swipe behavior.
-`ScanInsightRoute` carries only the stable scan ID. Route tap handlers must not
-load `InferenceEngine` before mounting a sheet or navigation destination.
-`LocalScanInsightLoader` commits that presentation first, performs one
-fetch-limited local-record lookup, and then hydrates the engine before it
-constructs `InsightSheetView`. A record deleted during the handoff renders
-**Scan unavailable** instead of stale Insight content. The sheet's normal record
-binding recognizes that exact already-loaded scan and does not cancel and
-restart its hydration.
+Dismissal has exactly one owner per mode after the presentation session is
+ended: modal Insight calls the environment dismiss action, while embedded
+Insight writes `false` through its route binding. A close path must not emit
+both signals, because the root router may advance to a queued presentation while
+the previous dismiss action is still unwinding. `ScanInsightRoute` carries only
+the stable scan ID. Route tap handlers must not load `InferenceEngine` before
+mounting a sheet or navigation destination. `LocalScanInsightLoader` commits
+that presentation first, performs one fetch-limited local-record lookup, and
+then hydrates the engine before it constructs `InsightSheetView`. A record
+deleted during the handoff renders **Scan unavailable** instead of stale Insight
+content. The sheet's normal record binding recognizes that exact already-loaded
+scan and does not cancel and restart its hydration.
 
 The Scans library also uses the embedded mode for queued and staged scans. Their
 private navigation route retains `QueuedScanContext`, a value snapshot that

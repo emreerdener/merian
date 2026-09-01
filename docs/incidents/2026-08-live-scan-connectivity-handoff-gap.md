@@ -1,6 +1,6 @@
 # Live Scan Connectivity Handoff Gap
 
-**Date:** 2026-08-09 (updated 2026-08-20)\
+**Date:** 2026-08-09 (updated 2026-09-01)\
 **Severity:** Release-blocking scan-reliability risk\
 **Affected boundary:** Caller-scoped admission preview → durable queue
 acceptance → foreground Identify transport → offline replay → open Insight
@@ -263,6 +263,24 @@ correct queue takeover cannot still remount the analyzing carousel or toolbar.
 Its real-image fixture, continuity marker, and queued-delete assertion are local
 regression evidence only; they do not replace the outstanding exact-SHA hosted
 run or physical connectivity matrix.
+
+The 2026-09-01 dismissal-ownership follow-up extends gate 9 across the final
+modal boundary. Hosted iOS Build and Test Run 341 on SHA
+`66651a51f326a4bc9da8c158d5f1b2dae7af5557` passed all 2,310 unit tests and its
+validation-only Release archive, and three of four critical UI smokes passed.
+The live-to-queue smoke reached the exact durable queued presentation, preserved
+its carousel and toolbar continuity, exercised queued-delete cancellation, and
+dismissed Insight. It then failed to find the exact queued tile after requesting
+Scans. That SHA had changed modal close from one environment dismiss action to a
+shared helper that wrote the presentation binding and then invoked the dismiss
+action. The fixture, durable queue manager, Scans projection, and UI test were
+unchanged by that commit, making the doubled root dismissal the only changed
+edge after the successful pre-dismissal assertions. Current source restores one
+owner per presentation mode: modal Insight uses the environment dismiss action,
+while embedded Insight uses its navigation binding. A Shell architecture test
+locks that separation. A new hosted exact-SHA run remains required because the
+available log does not contain a post-dismissal store dump and local
+CoreSimulatorService is unavailable.
 
 ## Validation Status at Review
 

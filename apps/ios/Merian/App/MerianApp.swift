@@ -1898,7 +1898,16 @@ struct MerianApp: App {
                         case .restoringConsent:
                             ConsentRestorationView()
                         case .onboarding:
-                            OnboardingView()
+                            OnboardingView(
+                                dependencies: .live(
+                                    appSettings: appSettings,
+                                    consentManager: consentManager,
+                                    offlineQueueManager:
+                                        diContainer.offlineQueueManager,
+                                    hardwareOrchestrator:
+                                        diContainer.hardwareOrchestrator
+                                )
+                            )
                         }
                     }
                     .modelContainer(container)

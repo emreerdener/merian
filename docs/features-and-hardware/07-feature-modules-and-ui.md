@@ -12,7 +12,10 @@ friction, Merian intercepts the cold boot with a programmatic **Permission
 Priming** sequence. The `Onboarding` feature uses a product-area-first folder
 architecture. `Shell/` owns the root orchestrator and view model, `Steps/` owns
 the ordered welcome, camera, location, and ready screens, and `Permissions/`
-owns native permission delegates such as `LocationPermissionDelegate`.
+owns the native camera adapter and one-shot location delegate. Shell Services
+alone resolve live app settings, consent, telemetry, queue recovery, and
+hardware-animation policy; `MerianApp` injects its selected app-scoped manager
+instances.
 
 - **Enum-Backed State Machine (`OnboardingStep`)**: Enforces sequential
   permission gating (`.welcome`, `.camera`, `.location`, `.ready`) via a
@@ -28,13 +31,17 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   `Steps/Shared/OnboardingStepWrapper.swift`, protecting UI consistency and
   supporting optional trailing button matrices such as "Skip for now".
 - **Hardware Fallbacks**:
-  - `CameraPermissionStepView`: Wraps
-    `AVCaptureDevice.requestAccess(for: .video)` into the UI state, allowing the
-    view to slide to Location as soon as the iOS permission boundary resolves.
-  - `LocationPermissionStepView`: Hooks into a `CLLocationManagerDelegate`
-    observing authorization changes. Provides a transparent "Skip for now"
-    fallback button, satisfying App Store Review requirements without alienating
-    free users.
+  - `CameraPermissionStepView`: Invokes an injected request closure. The
+    AVFoundation adapter advances the flow after the iOS permission boundary
+    resolves.
+  - `LocationPermissionStepView`: Invokes an injected request closure backed by
+    a retained, one-shot `@MainActor` `CLLocationManagerDelegate`. Its
+    nonisolated callback returns to the main actor before reading authorization
+    state. The view provides a transparent "Skip for now" fallback button,
+    satisfying App Store Review requirements without alienating free users.
+  - The shell wraps each advancing callback with its source step, and the view
+    model rejects a duplicate or late completion before it can advance the next
+    screen.
 - **Final consent surface (`ReadyStepView`)**: Uses the title **One last step**,
   states, “Naturebook sends observation data to Google Gemini for AI-powered
   identification,” and presents three initially-off switch-and-label rows on a
@@ -44,7 +51,10 @@ owns native permission delegates such as `LocationPermissionDelegate`.
   remains optional and changeable in Settings. Only the required pair enables
   **Start scanning**. VoiceOver hints preserve the required/optional
   distinction. PostHog is the documented analytics provider, but its name
-  remains absent from the UI label.
+  remains absent from the UI label. Deterministic copy and enablement live in
+  Ready Models, editable projection in its view model, and the repeated row in
+  its component owner; the view retains only reactive manager projection,
+  bindings, layout, and accessibility.
 - **Root View Handoff (`MerianApp`)**: `AppRootPresentationPolicy` combines the
   injected onboarding flag, `ConsentManager.hasCurrentRequiredConsent`, and
   `ConsentManager.isRestoringRequiredConsent`. When the user completes Step 4

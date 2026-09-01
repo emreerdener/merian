@@ -1,4 +1,5 @@
-import SwiftUI
+import Foundation
+import Observation
 
 @MainActor
 @Observable final class OnboardingViewModel {
@@ -6,56 +7,55 @@ import SwiftUI
     var currentStep: OnboardingStep = .welcome
 
     // MARK: - Dependencies
-    @ObservationIgnored private let appSettings: AppSettings
-    @ObservationIgnored private let consentManager: ConsentManager
-    @ObservationIgnored private let consentBlockedScanResumer: ((UUID) -> String?)?
+    @ObservationIgnored private let dependencies: OnboardingDependencies
 
-    init(
+    init(dependencies: OnboardingDependencies) {
+        self.dependencies = dependencies
+        if dependencies.hasCompletedOnboarding(),
+           !dependencies.hasCurrentRequiredConsent() {
+            currentStep = .ready
+        }
+    }
+
+    convenience init(
         appSettings: AppSettings? = nil,
         consentManager: ConsentManager? = nil,
         resumeConsentBlockedScan: ((UUID) -> String?)? = nil
     ) {
-        let resolvedSettings = appSettings ?? AppSettings.shared
-        let resolvedConsentManager = consentManager ?? ConsentManager.shared
-        self.appSettings = resolvedSettings
-        self.consentManager = resolvedConsentManager
-        self.consentBlockedScanResumer = resumeConsentBlockedScan
-        if resolvedSettings.hasCompletedOnboarding,
-           !resolvedConsentManager.hasCurrentRequiredConsent {
-            currentStep = .ready
-        }
+        self.init(dependencies: .live(
+            appSettings: appSettings,
+            consentManager: consentManager,
+            resumeConsentBlockedScan: resumeConsentBlockedScan
+        ))
     }
-    
+
     // MARK: - App Storage
     // Isolated for strict unit testing without requiring SwiftUI view hosts
     var hasCompletedOnboarding: Bool {
-        get { appSettings.hasCompletedOnboarding }
-        set { appSettings.hasCompletedOnboarding = newValue }
+        get { dependencies.hasCompletedOnboarding() }
+        set { dependencies.setHasCompletedOnboarding(newValue) }
     }
-    
+
     // MARK: - State Transitions
     func advanceStep() {
         if let next = OnboardingStep(rawValue: currentStep.rawValue + 1) {
             currentStep = next
         }
     }
-    
+
+    func advanceStep(from expectedStep: OnboardingStep) {
+        guard currentStep == expectedStep else { return }
+        advanceStep()
+    }
+
     func completeOnboarding(analyticsEnabled: Bool) throws {
         // Persist the legal action before opening the lifecycle/network gate.
-        try consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
-            analyticsEnabled: analyticsEnabled
-        )
-        AppTelemetry.trackOnboardingCompleted()
+        try dependencies.recordCurrentConsent(analyticsEnabled)
+        dependencies.trackCompletion()
         hasCompletedOnboarding = true
-        guard let accountId = consentManager.currentSessionUserId else {
+        guard let accountID = dependencies.currentSessionUserID() else {
             return
         }
-        if let consentBlockedScanResumer {
-            _ = consentBlockedScanResumer(accountId)
-        } else {
-            _ = OfflineQueueManager.shared.resumeMostRecentConsentBlockedScan(
-                accountId: accountId
-            )
-        }
+        dependencies.resumeConsentBlockedScan(accountID)
     }
 }

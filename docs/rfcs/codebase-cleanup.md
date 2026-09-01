@@ -494,6 +494,20 @@ Implemented Profile slice:
   inventory, service boundaries, extracted owners, export fencing, and
   feature-wide 600-line ceiling; the complete `merianTests` target covers the
   cross-feature consumers.
+- Onboarding now separates Shell composition, live effects, ordered state,
+  native permission adapters, deterministic Ready consent policy, editable
+  consent projection, and shared rendering components. Step views no longer
+  invoke AVFoundation or Core Location, the app root injects its exact manager
+  instances, and expected-step fencing rejects duplicate or late permission
+  completions. The former 1,810-line test aggregate was rehomed without dropping
+  any of its 42 tests: feature behavior remains under
+  `MerianTests/Features/Onboarding`, while consent restoration, ledger,
+  lifecycle, reapproval, and authority suites live with `Core/Security`.
+  Architecture tests enforce the ownership boundaries and 600-line production
+  ceiling. The second-pass integration audit moved the Core Location
+  authorization read behind the delegate's main-actor hop, added a source guard
+  for that ordering, and repointed the Ghost merge client contract from the
+  retired aggregate to the Core consent-authority suite.
 
 ### Completed Scans Collections Persistence Repair
 
