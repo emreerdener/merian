@@ -2995,7 +2995,7 @@ private struct ReviewSyncRPCParameters: Encodable, Sendable {
             speciesData = updated
             activeMedia.referenceState = .empty
         }
-        let localOverrideAdmission = if let container {
+        let localOverrideAdmission: Task<Void, Never>? = if let container {
             enqueueIdentificationWrite(
                 scanId: scanId,
                 actionGeneration: reviewActionGeneration
